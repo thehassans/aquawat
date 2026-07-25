@@ -26,7 +26,7 @@ export default function LeadsGeneration() {
     setLeads([]);
 
     try {
-      const res = await api.post('/super-admin/leads/scrape', { query });
+      const res = await api.post('/leads/scrape', { query });
       if (res.data.success) {
         setLeads(res.data.data || []);
         setSuccessMsg(language === 'ar' ? `تم استخراج ${res.data.count} نتيجة بنجاح` : `Successfully scraped ${res.data.count} leads`);

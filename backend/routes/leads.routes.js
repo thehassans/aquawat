@@ -4,6 +4,6 @@ import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.post('/scrape', protect, authorize('superadmin'), scrapeLeads);
+router.post('/scrape', protect, authorize('super_admin'), scrapeLeads);
 
 export default router;
