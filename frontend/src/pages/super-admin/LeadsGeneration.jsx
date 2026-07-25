@@ -20,6 +20,7 @@ export default function LeadsGeneration() {
   
   const [setups, setSetups] = useState([]);
   const [selectedContext, setSelectedContext] = useState(BUSINESS_TYPES[0]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
     const fetchSetups = async () => {
@@ -135,19 +136,49 @@ export default function LeadsGeneration() {
       </div>
 
       {/* Search Bar */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/70 dark:bg-dark-800/70 backdrop-blur-2xl p-4 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-white/60 dark:border-white/10 relative z-20">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/70 dark:bg-dark-800/70 backdrop-blur-2xl p-4 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-white/60 dark:border-white/10 relative z-30">
         <form onSubmit={handleSearch} className="relative flex flex-col md:flex-row gap-4 items-center">
-            <select
-              value={selectedContext}
-              onChange={(e) => setSelectedContext(e.target.value)}
-              className="w-full md:w-64 bg-white/80 dark:bg-dark-800/80 backdrop-blur-sm border-2 border-transparent rounded-[2rem] py-6 px-6 text-xl font-medium focus:bg-white dark:focus:bg-dark-900 focus:border-purple-500/30 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-inner text-gray-800 dark:text-gray-100"
-            >
-              {BUSINESS_TYPES.map(type => (
-                <option key={type} value={type}>
-                  {t(`businessTypes.${type}`, type.replace('_', ' ').toUpperCase())}
-                </option>
-              ))}
-            </select>
+            
+            {/* Custom Premium Dropdown */}
+            <div className="relative w-full md:w-64">
+              <div 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="w-full cursor-pointer bg-white/80 dark:bg-dark-800/80 backdrop-blur-sm border-2 border-transparent rounded-[2rem] py-6 px-6 text-lg font-medium hover:bg-white dark:hover:bg-dark-900 focus:bg-white focus:border-purple-500/30 focus:ring-4 focus:ring-purple-500/10 transition-all shadow-inner text-gray-800 dark:text-gray-100 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-purple-500" />
+                  <span className="capitalize">{selectedContext.replace('_', ' ')}</span>
+                </div>
+                <motion.div animate={{ rotate: isDropdownOpen ? 180 : 0 }}>
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </motion.div>
+              </div>
+
+              <AnimatePresence>
+                {isDropdownOpen && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute top-full left-0 mt-3 w-full bg-white dark:bg-dark-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-700 overflow-hidden z-50 max-h-80 overflow-y-auto custom-scrollbar"
+                  >
+                    {BUSINESS_TYPES.map(type => (
+                      <div 
+                        key={type}
+                        onClick={() => { setSelectedContext(type); setIsDropdownOpen(false); }}
+                        className={`px-6 py-4 cursor-pointer flex items-center gap-3 transition-colors ${selectedContext === type ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 font-semibold' : 'hover:bg-gray-50 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300'}`}
+                      >
+                        <div className={`w-2 h-2 rounded-full ${selectedContext === type ? 'bg-purple-500' : 'bg-transparent'}`} />
+                        <span className="capitalize">{type.replace('_', ' ')}</span>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <div className="flex-1 relative w-full">
               <div className="absolute inset-y-0 start-8 flex items-center pointer-events-none">
                 <Search className="h-6 w-6 text-indigo-400 group-focus-within:text-indigo-600 transition-colors" />
