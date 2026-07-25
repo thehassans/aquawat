@@ -495,7 +495,7 @@ export const translations = {
 }
 
 export const useTranslation = (language) => {
-  const t = (key) => translations[language]?.[key] || translations.en[key] || key
+  const t = (key, fallback) => translations[language]?.[key] || translations.en[key] || fallback || key
   return { t }
 }
 

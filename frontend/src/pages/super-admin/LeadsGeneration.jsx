@@ -228,9 +228,9 @@ export default function LeadsGeneration() {
               </AnimatePresence>
             </div>
 
-            <div className="flex-1 relative w-full">
+            <div className="flex-1 relative w-full group/search">
               <div className="absolute inset-y-0 start-8 flex items-center pointer-events-none">
-                <Search className="h-6 w-6 text-indigo-400 group-focus-within:text-indigo-600 transition-colors" />
+                <Search className="h-6 w-6 text-indigo-400 group-focus-within/search:text-indigo-600 transition-colors duration-300" />
               </div>
               <input
                 type="text"
@@ -238,14 +238,15 @@ export default function LeadsGeneration() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 disabled={loading}
-                className="w-full bg-gray-50/50 dark:bg-dark-900/50 border border-transparent rounded-[2rem] py-6 ps-20 pe-40 text-xl font-medium focus:bg-white dark:focus:bg-dark-900 focus:border-indigo-500/30 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-inner text-gray-800 dark:text-gray-100 placeholder-gray-400 disabled:opacity-50"
+                className="w-full bg-gray-50/80 dark:bg-dark-900/80 border-2 border-transparent rounded-full py-5 ps-16 pe-[200px] text-lg font-medium focus:bg-white dark:focus:bg-dark-800 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-inner text-gray-800 dark:text-gray-100 placeholder-gray-400 disabled:opacity-50"
               />
               <button
                 type="submit"
                 disabled={loading || !query.trim()}
-                className="absolute end-4 top-1/2 -translate-y-1/2 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 bg-[length:200%_auto] hover:bg-[position:right_center] text-white px-10 py-4 rounded-[1.5rem] font-bold text-lg shadow-[0_8px_20px_-6px_rgba(79,70,229,0.5)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:hover:translate-y-0"
+                className="absolute end-2 top-2 bottom-2 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-8 rounded-full font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 group/btn overflow-hidden"
               >
-                {language === 'ar' ? 'البحث الآن' : 'Start Scraping'}
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 ease-in-out" />
+                <span className="relative z-10 whitespace-nowrap">{language === 'ar' ? 'البحث الآن' : 'Start Scraping'}</span>
               </button>
             </div>
           </form>
