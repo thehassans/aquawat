@@ -114,29 +114,36 @@ export const scrapeGoogleMaps = async (query, maxResults = 30) => {
           p = await browser.newPage();
           // We only need domcontentloaded
           await p.goto(item.url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+          // Wait for the place name to render, indicating the SPA has loaded the data
+          await p.waitForSelector('h1', { timeout: 5000 }).catch(() => null);
+          await new Promise(r => setTimeout(r, 1000)); // Brief pause for React to render the info pane
+          
           // Extract phone via specific attributes first, fallback to innerText
           const phoneData = await p.evaluate(() => {
             const telLink = document.querySelector('a[href^="tel:"]');
-            if (telLink) return telLink.href;
+            if (telLink) return telLink.href.replace('tel:', '');
             
             const dataTel = document.querySelector('[data-item-id^="phone:tel:"]');
-            if (dataTel) return dataTel.getAttribute('data-item-id');
+            if (dataTel) return dataTel.getAttribute('data-item-id').replace('phone:tel:', '');
             
-            return document.body.innerText;
+            return null;
           });
           
-          const compactText = phoneData.replace(/[\s\-]/g, '');
-          // Strict regex: Saudi Mobile (05/9665), 9200, 800. Excludes landlines to prevent matching random IDs.
-          const phoneRegex = /(?:(?:\+|00)966|0)?5\d{8}|9200\d{5}|800\d{6}/g;
-          const match = compactText.match(phoneRegex);
-          if (match) {
-             const validPhones = match.filter(p => {
-               const digitsOnly = p.replace(/\D/g, '');
-               return digitsOnly.length >= 9 && digitsOnly.length <= 15;
-             });
-             if (validPhones.length > 0) {
-               const mobile = validPhones.find(p => p.startsWith('05') || p.startsWith('+966') || p.startsWith('00966'));
-               item.phone = mobile || validPhones[0]; 
+          if (phoneData) {
+             const compact = phoneData.replace(/[\s\-\+]/g, '');
+             if (compact.length >= 8 && compact.length <= 15) {
+                // If it's 05..., keep it. If it's 9665... format it.
+                item.phone = phoneData.trim();
+             }
+          } else {
+             // Fallback to searching the innerText
+             const text = await p.evaluate(() => document.body.innerText);
+             const compactText = text.replace(/[\s\-]/g, '');
+             // Regex for Saudi Mobile, Landlines (01x - 07x), and Toll-free
+             const phoneRegex = /(?:(?:\+|00)966|0)?(?:5\d{8}|1\d{8}|2\d{8}|3\d{8}|4\d{8}|6\d{8}|7\d{8}|9200\d{5}|800\d{6})/g;
+             const match = compactText.match(phoneRegex);
+             if (match) {
+                item.phone = match[0];
              }
           }
         } catch (e) {
