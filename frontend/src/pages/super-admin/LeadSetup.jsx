@@ -11,6 +11,7 @@ const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant'
 const LeadSetup = () => {
   const { t } = useTranslation();
   const { language } = useSelector((state) => state.ui);
+  const { user } = useSelector((state) => state.auth);
   const isRTL = language === 'ar';
 
   const [setups, setSetups] = useState([]);
@@ -184,8 +185,33 @@ const LeadSetup = () => {
                 <h2 className="text-2xl font-black text-gray-800 dark:text-gray-100 capitalize">
                   {t(`businessTypes.${selectedType}`, selectedType.replace(/_/g, ' '))} Setup
                 </h2>
-                <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-4 py-1.5 rounded-full text-sm font-bold border border-purple-200 dark:border-purple-800/50">
-                   Configuration
+                <div className="flex gap-2">
+                  {(() => {
+                    const currentSetup = setups.find(s => s.businessType === selectedType);
+                    if (!currentSetup) return null;
+                    
+                    const isSuperAdmin = user?.role === 'super_admin';
+                    const isReseller = user?.role === 'reseller';
+                    const isOwn = isSuperAdmin ? (!currentSetup.tenantId && !currentSetup.resellerId) :
+                                  isReseller ? (currentSetup.resellerId) :
+                                  (currentSetup.tenantId);
+                                  
+                    if (!isOwn) {
+                       return (
+                         <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 px-4 py-1.5 rounded-full text-sm font-bold border border-amber-200 dark:border-amber-800/50">
+                           {language === 'ar' ? 'قالب افتراضي' : 'Inherited Template'}
+                         </div>
+                       );
+                    }
+                    return (
+                      <div className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-4 py-1.5 rounded-full text-sm font-bold border border-emerald-200 dark:border-emerald-800/50">
+                        {language === 'ar' ? 'مخصص' : 'Custom'}
+                      </div>
+                    );
+                  })()}
+                  <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-4 py-1.5 rounded-full text-sm font-bold border border-purple-200 dark:border-purple-800/50">
+                     Configuration
+                  </div>
                 </div>
               </div>
 

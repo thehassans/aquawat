@@ -357,6 +357,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/communicate', icon: MessageSquare, label: language === 'ar' ? 'الرسائل' : 'Communicate', perm: { module: 'settings', action: 'read' } },
         { path: '/app/dashboard/whatsapp', icon: MessageCircle, label: 'WhatsApp', perm: { module: 'settings', action: 'read' } },
         { path: '/app/dashboard/email', icon: Mail, label: language === 'ar' ? 'البريد' : 'Email', perm: { module: 'settings', action: 'read' } },
+        { path: '/app/dashboard/leads', icon: Globe, label: language === 'ar' ? 'جلب العملاء' : 'Leads Gen' },
+        { path: '/app/dashboard/lead-setup', icon: Settings, label: language === 'ar' ? 'إعدادات العملاء' : 'Lead Setup' },
       ]
     },
     {

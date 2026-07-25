@@ -1,11 +1,10 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, NavLink } from 'react-router-dom'
 import { Suspense } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { Building2, LogOut, Moon, Sun, Globe, LayoutDashboard, Users } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
 import { logout } from '../store/slices/authSlice'
 import { setTheme, setLanguage } from '../store/slices/uiSlice'
 import { useTranslation } from '../lib/translations'
+import { Building2, LogOut, Moon, Sun, Globe, LayoutDashboard, Users, Settings } from 'lucide-react'
 import LoadingScreen from '../components/ui/LoadingScreen'
 
 export default function ResellerLayout() {
@@ -16,6 +15,8 @@ export default function ResellerLayout() {
   const navItems = [
     { path: '/reseller', icon: LayoutDashboard, label: t('dashboard'), end: true },
     { path: '/reseller/tenants', icon: Users, label: t('tenants') },
+    { path: '/reseller/leads', icon: Globe, label: language === 'ar' ? 'جلب العملاء' : 'Leads Gen' },
+    { path: '/reseller/lead-setup', icon: Settings, label: language === 'ar' ? 'إعدادات العملاء' : 'Lead Setup' },
   ]
 
   return (
