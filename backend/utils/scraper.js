@@ -57,11 +57,18 @@ export const scrapeGoogleMaps = async (query, maxResults = 30) => {
           }
 
           let rating = '';
-          // Google Maps ratings can have commas e.g. 4,5 (1,234)
-          const ratingRegex = /([0-9][\.,][0-9])\s*\([0-9,]+\)/;
-          const ratingMatch = cleanText.match(ratingRegex);
-          if (ratingMatch) {
-            rating = ratingMatch[1].replace(',', '.');
+          const ratingEl = $(el).find('span[role="img"][aria-label]');
+          if (ratingEl.length > 0) {
+             const aria = ratingEl.attr('aria-label');
+             const match = aria.match(/([0-9\u0660-\u0669]+[\.,][0-9\u0660-\u0669]+)/);
+             if (match) rating = match[1].replace(',', '.');
+          }
+          if (!rating) {
+            const ratingRegex = /([0-9\u0660-\u0669]+[\.,][0-9\u0660-\u0669]+)\s*\([^)]+\)/;
+            const ratingMatch = cleanText.match(ratingRegex);
+            if (ratingMatch) {
+              rating = ratingMatch[1].replace(',', '.');
+            }
           }
           
           let url = $(el).find('a').attr('href');
@@ -107,15 +114,25 @@ export const scrapeGoogleMaps = async (query, maxResults = 30) => {
           p = await browser.newPage();
           // We only need domcontentloaded
           await p.goto(item.url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-          // Extract only visible text, not HTML with random IDs
-          const text = await p.evaluate(() => document.body.innerText);
-          const compactText = text.replace(/[\s\-]/g, '');
-          const phoneRegex = /(?:(?:\+|00)966|0)?5\d{8}|(?:01|02|03|04|06|07|08|09)\d{7}|9200\d{5}|800\d{6}/g;
+          // Extract phone via specific attributes first, fallback to innerText
+          const phoneData = await p.evaluate(() => {
+            const telLink = document.querySelector('a[href^="tel:"]');
+            if (telLink) return telLink.href;
+            
+            const dataTel = document.querySelector('[data-item-id^="phone:tel:"]');
+            if (dataTel) return dataTel.getAttribute('data-item-id');
+            
+            return document.body.innerText;
+          });
+          
+          const compactText = phoneData.replace(/[\s\-]/g, '');
+          // Strict regex: Saudi Mobile (05/9665), 9200, 800. Excludes landlines to prevent matching random IDs.
+          const phoneRegex = /(?:(?:\+|00)966|0)?5\d{8}|9200\d{5}|800\d{6}/g;
           const match = compactText.match(phoneRegex);
           if (match) {
              const validPhones = match.filter(p => {
                const digitsOnly = p.replace(/\D/g, '');
-               return digitsOnly.length >= 8 && digitsOnly.length <= 15;
+               return digitsOnly.length >= 9 && digitsOnly.length <= 15;
              });
              if (validPhones.length > 0) {
                const mobile = validPhones.find(p => p.startsWith('05') || p.startsWith('+966') || p.startsWith('00966'));
