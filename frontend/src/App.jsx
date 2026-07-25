@@ -479,6 +479,7 @@ function App() {
           </Route>
           <Route path="users" element={<UserManagement />} />
           <Route path="queries" element={<QueriesCRM />} />
+          <Route path="leads" element={<LeadsGeneration />} />
         <Route path="resellers" element={<ResellerManagement />} />
         <Route path="website" element={<WebsiteSettings />} />
         <Route path="demo-users" element={<DemoUsers />} />
@@ -736,7 +737,6 @@ function App() {
         <Route path="super-admin" element={<BusinessTypeRoute allowedTypes={['super_admin']}><SuperAdminDashboard /></BusinessTypeRoute>} />
         <Route path="super-admin/resellers" element={<BusinessTypeRoute allowedTypes={['super_admin']}><ResellerManagement /></BusinessTypeRoute>} />
         <Route path="super-admin/queries" element={<BusinessTypeRoute allowedTypes={['super_admin']}><QueriesCRM /></BusinessTypeRoute>} />
-        <Route path="super-admin/leads" element={<BusinessTypeRoute allowedTypes={['super_admin']}><LeadsGeneration /></BusinessTypeRoute>} />
         <Route path="super-admin/zatca" element={<BusinessTypeRoute allowedTypes={['super_admin']}><ZatcaManagement /></BusinessTypeRoute>} />
         <Route path="job-costing" element={<BusinessTypeRoute allowedTypes={['construction']}><JobCosting /></BusinessTypeRoute>} />
         <Route path="job-costing/new" element={<BusinessTypeRoute allowedTypes={['trading']}><JobCostingForm /></BusinessTypeRoute>} />

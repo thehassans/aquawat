@@ -50,9 +50,14 @@ export default function LeadsGeneration() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10 relative">
+      {/* Decorative Orbs */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-[120px] pointer-events-none -z-10" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none -z-10" />
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white/60 dark:bg-dark-800/60 backdrop-blur-xl p-8 rounded-[2rem] shadow-sm border border-white/50 dark:border-white/5 relative overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white/70 dark:bg-dark-800/70 backdrop-blur-2xl p-8 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-white/60 dark:border-white/10 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
         <div className="absolute top-[-50%] right-[-10%] w-[40%] h-[200%] bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
         <div className="absolute bottom-[-50%] left-[-10%] w-[40%] h-[200%] bg-emerald-500/10 blur-[100px] rounded-full pointer-events-none" />
         
@@ -81,10 +86,10 @@ export default function LeadsGeneration() {
       </div>
 
       {/* Search Bar */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/60 dark:bg-dark-800/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white/50 dark:border-white/5 relative z-20">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/70 dark:bg-dark-800/70 backdrop-blur-2xl p-4 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-white/60 dark:border-white/10 relative z-20">
         <form onSubmit={handleSearch} className="relative flex items-center">
-          <div className="absolute start-6 text-indigo-500 flex items-center justify-center">
-            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Search className="w-6 h-6" />}
+          <div className="absolute start-8 text-indigo-500 flex items-center justify-center">
+            {loading ? <Loader2 className="w-7 h-7 animate-spin text-indigo-500" /> : <Search className="w-7 h-7" />}
           </div>
           <input
             type="text"
@@ -92,14 +97,14 @@ export default function LeadsGeneration() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             disabled={loading}
-            className="w-full bg-white dark:bg-dark-900 border-none rounded-[1.5rem] py-5 ps-16 pe-36 text-lg font-medium focus:ring-4 focus:ring-indigo-500/20 outline-none transition-shadow shadow-inner text-gray-800 dark:text-gray-100 placeholder-gray-400 disabled:bg-gray-50 dark:disabled:bg-dark-800"
+            className="w-full bg-gray-50/50 dark:bg-dark-900/50 border border-transparent rounded-[2rem] py-6 ps-20 pe-40 text-xl font-medium focus:bg-white dark:focus:bg-dark-900 focus:border-indigo-500/30 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-inner text-gray-800 dark:text-gray-100 placeholder-gray-400 disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={loading || !query.trim()}
-            className="absolute end-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white px-8 py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-500/25 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+            className="absolute end-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 bg-[length:200%_auto] hover:bg-[position:right_center] text-white px-10 py-4 rounded-[1.5rem] font-bold text-lg shadow-[0_8px_20px_-6px_rgba(79,70,229,0.5)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:hover:translate-y-0"
           >
-            {language === 'ar' ? 'بحث واستخراج' : 'Start Scraping'}
+            {language === 'ar' ? 'البحث الآن' : 'Start Scraping'}
           </button>
         </form>
       </motion.div>
@@ -119,7 +124,7 @@ export default function LeadsGeneration() {
       </AnimatePresence>
 
       {/* Results Table */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white/80 dark:bg-dark-800/80 backdrop-blur-2xl rounded-[2rem] shadow-lg border border-white/50 dark:border-white/5 overflow-hidden min-h-[400px]">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white/80 dark:bg-dark-800/80 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-white/60 dark:border-white/10 overflow-hidden min-h-[500px]">
         {loading ? (
           <div className="h-[400px] flex flex-col items-center justify-center gap-5 text-gray-400">
             <div className="relative w-20 h-20">
