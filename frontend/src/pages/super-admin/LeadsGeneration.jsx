@@ -22,6 +22,7 @@ export default function LeadsGeneration() {
   const [setups, setSetups] = useState([]);
   const [selectedContext, setSelectedContext] = useState(BUSINESS_TYPES[0]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [contactedLeads, setContactedLeads] = useState([]);
 
   useEffect(() => {
     const fetchSetups = async () => {
@@ -57,6 +58,10 @@ export default function LeadsGeneration() {
 
     const encodedText = encodeURIComponent(text);
     window.open(`https://wa.me/${cleanPhone}?text=${encodedText}`, '_blank');
+    
+    if (!contactedLeads.includes(phone)) {
+      setContactedLeads(prev => [...prev, phone]);
+    }
   };
 
   const handleSearch = async (e) => {
@@ -331,12 +336,20 @@ export default function LeadsGeneration() {
                           {lead.phone && lead.phone !== 'N/A' && (
                             <button
                               onClick={() => handleWhatsApp(lead.phone)}
-                              className="p-2 text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
-                              title="Send WhatsApp Message"
+                              className={`p-2 rounded-lg transition-colors ${
+                                contactedLeads.includes(lead.phone)
+                                  ? 'text-white bg-green-500 hover:bg-green-600 shadow-md'
+                                  : 'text-green-600 bg-green-50 hover:bg-green-100'
+                              }`}
+                              title={contactedLeads.includes(lead.phone) ? 'Message Sent' : 'Send WhatsApp Message'}
                             >
-                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12.031 0C5.385 0 0 5.385 0 12.032c0 2.13.553 4.195 1.603 6.012L.416 23.584l5.684-1.492A11.97 11.97 0 0012.031 24c6.646 0 12.031-5.385 12.031-12.032C24.062 5.385 18.677 0 12.031 0zm.019 22.015c-1.802 0-3.564-.485-5.112-1.402l-.367-.217-3.8.997 1.015-3.705-.238-.378a9.98 9.98 0 01-1.528-5.347c0-5.512 4.486-10 9.999-10 2.673 0 5.185 1.042 7.075 2.934a9.96 9.96 0 012.927 7.067c0 5.512-4.486 10-10.001 10h.03zm5.49-7.502c-.301-.151-1.782-.88-2.059-.98-.277-.101-.479-.151-.68.151-.201.302-.781.98-.957 1.18-.176.201-.352.227-.653.076-1.393-.656-2.5-1.442-3.416-2.92-.126-.201-.013-.315.138-.465.138-.138.301-.352.452-.529.151-.176.201-.301.301-.503.101-.201.05-.378-.025-.529-.076-.151-.68-1.64-.932-2.245-.246-.593-.497-.512-.68-.52-.176-.008-.378-.008-.579-.008-.201 0-.528.076-.805.378-.277.302-1.057 1.033-1.057 2.518 0 1.485 1.082 2.92 1.233 3.121.151.201 2.128 3.253 5.158 4.56.721.31 1.284.496 1.724.634.723.231 1.382.198 1.902.12.584-.088 1.782-.729 2.033-1.433.252-.704.252-1.309.176-1.433-.076-.126-.277-.201-.579-.352z"/>
-                              </svg>
+                              {contactedLeads.includes(lead.phone) ? (
+                                <CheckCircle2 className="w-4 h-4" />
+                              ) : (
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M12.031 0C5.385 0 0 5.385 0 12.032c0 2.13.553 4.195 1.603 6.012L.416 23.584l5.684-1.492A11.97 11.97 0 0012.031 24c6.646 0 12.031-5.385 12.031-12.032C24.062 5.385 18.677 0 12.031 0zm.019 22.015c-1.802 0-3.564-.485-5.112-1.402l-.367-.217-3.8.997 1.015-3.705-.238-.378a9.98 9.98 0 01-1.528-5.347c0-5.512 4.486-10 9.999-10 2.673 0 5.185 1.042 7.075 2.934a9.96 9.96 0 012.927 7.067c0 5.512-4.486 10-10.001 10h.03zm5.49-7.502c-.301-.151-1.782-.88-2.059-.98-.277-.101-.479-.151-.68.151-.201.302-.781.98-.957 1.18-.176.201-.352.227-.653.076-1.393-.656-2.5-1.442-3.416-2.92-.126-.201-.013-.315.138-.465.138-.138.301-.352.452-.529.151-.176.201-.301.301-.503.101-.201.05-.378-.025-.529-.076-.151-.68-1.64-.932-2.245-.246-.593-.497-.512-.68-.52-.176-.008-.378-.008-.579-.008-.201 0-.528.076-.805.378-.277.302-1.057 1.033-1.057 2.518 0 1.485 1.082 2.92 1.233 3.121.151.201 2.128 3.253 5.158 4.56.721.31 1.284.496 1.724.634.723.231 1.382.198 1.902.12.584-.088 1.782-.729 2.033-1.433.252-.704.252-1.309.176-1.433-.076-.126-.277-.201-.579-.352z"/>
+                                </svg>
+                              )}
                             </button>
                           )}
                         </div>
