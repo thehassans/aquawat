@@ -107,7 +107,7 @@ export async function getPendingSyncItems() {
   const index = store.index('createdAt');
   
   const allItems = await index.getAll();
-  return allItems.filter(item => item.status === 'PENDING' || item.status === 'FAILED');
+  return allItems.filter(item => item.status === 'PENDING');
 }
 
 /**

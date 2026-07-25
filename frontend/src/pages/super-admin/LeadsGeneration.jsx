@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Download, MapPin, Phone, Star, Building2, Globe, Database, Loader2, Target, CheckCircle2 } from 'lucide-react';
+import { Search, Download, MapPin, Phone, Star, Building2, Globe, Database, Loader2, Target, CheckCircle2, Sparkles } from 'lucide-react';
 import { useTranslation } from '../../lib/translations';
 import { useSelector } from 'react-redux';
 import api from '../../lib/api';
@@ -248,10 +248,22 @@ export default function LeadsGeneration() {
               <button
                 type="submit"
                 disabled={loading || !query.trim()}
-                className="absolute end-2 top-2 bottom-2 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-8 rounded-full font-bold shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 group/btn overflow-hidden"
+                className="absolute end-2 top-2 bottom-2 flex items-center justify-center gap-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 bg-[length:200%_auto] hover:bg-[position:right_center] hover:shadow-[0_0_25px_rgba(124,58,237,0.5)] text-white px-8 rounded-full font-bold transition-all transform hover:scale-[1.03] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none group/btn overflow-hidden"
               >
                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 ease-in-out" />
-                <span className="relative z-10 whitespace-nowrap">{language === 'ar' ? 'البحث الآن' : 'Start Scraping'}</span>
+                <span className="relative z-10 flex items-center gap-2 whitespace-nowrap">
+                  {loading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {language === 'ar' ? 'جاري البحث...' : 'Scraping...'}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      {language === 'ar' ? 'البحث الآن' : 'Start Scraping'}
+                    </>
+                  )}
+                </span>
               </button>
             </div>
           </form>

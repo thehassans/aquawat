@@ -46,6 +46,11 @@ export function useOfflineSync() {
         // Process sequentially to maintain chronological ICV/PIH integrity
         for (const item of pendingItems) {
           try {
+            if (item.payload && item.payload.url && item.payload.url.includes('/leads/scrape')) {
+              await removeSyncItem(item.id);
+              continue;
+            }
+            
             let response;
             // Replay the exact original HTTP request if available
             if (item.payload && item.payload.url && item.payload.method) {

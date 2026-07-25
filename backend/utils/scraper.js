@@ -80,9 +80,7 @@ export const scrapeGoogleMaps = async (query, maxResults = 30, onProgress = null
             }
           }
           
-          let url = $(el).find('a').attr('href');
-          
-          // Google Maps list item often has address fragments. We'll capture it if we can.
+          let url = $(el).find('a.hfpxzc').attr('href') || $(el).find('a[href*="/maps/place/"]').attr('href') || $(el).find('a').attr('href');
           
           items.push({
             name,
@@ -145,6 +143,16 @@ export const scrapeGoogleMaps = async (query, maxResults = 30, onProgress = null
             const dataTel = document.querySelector('[data-item-id^="phone:tel:"]');
             if (dataTel) return dataTel.getAttribute('data-item-id').replace('phone:tel:', '');
             
+            const phoneBtn = Array.from(document.querySelectorAll('button')).find(b => {
+              const label = b.getAttribute('aria-label');
+              return label && (label.toLowerCase().includes('phone') || label.includes('هاتف'));
+            });
+            if (phoneBtn) {
+              const textDiv = phoneBtn.querySelector('.fontBodyMedium');
+              if (textDiv) return textDiv.innerText;
+              return phoneBtn.getAttribute('aria-label');
+            }
+            
             return null;
           });
           
@@ -157,9 +165,9 @@ export const scrapeGoogleMaps = async (query, maxResults = 30, onProgress = null
           } else {
              // Fallback to searching the innerText
              const text = await p.evaluate(() => document.body.innerText);
-             const compactText = text.replace(/[\s\-]/g, '');
+             const compactText = text.replace(/[\s\-\(\)\.]/g, '');
              // Regex for Saudi Mobile, Landlines (01x - 07x), and Toll-free
-             const phoneRegex = /(?:(?:\+|00)966|0)?(?:5\d{8}|1\d{8}|2\d{8}|3\d{8}|4\d{8}|6\d{8}|7\d{8}|9200\d{5}|800\d{6})/g;
+             const phoneRegex = /(?:(?:\+|00)?966|0)?(?:5\d{8}|[1-9]\d{8}|9200\d{5}|800\d{6})/g;
              const match = compactText.match(phoneRegex);
              if (match) {
                 item.phone = match[0];

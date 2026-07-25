@@ -153,10 +153,11 @@ api.interceptors.response.use(
                             requestUrl.includes('/auth/me') ||
                             requestUrl.includes('/public/demo-login') ||
                             requestUrl.includes('/auth/register');
+      const isScrapeRequest = requestUrl.includes('/leads/scrape');
 
       const skipOffline = config.headers && config.headers['X-Skip-Offline-Queue'];
 
-      if (isMutation && !isAuthRequest && !skipOffline) {
+      if (isMutation && !isAuthRequest && !isScrapeRequest && !skipOffline) {
         try {
           const payload = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
           const syncId = await enqueueSyncItem(`${config.method.toUpperCase()}:${config.url}`, {
