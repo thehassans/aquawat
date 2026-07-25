@@ -244,6 +244,7 @@ const ManpowerContractPrint = lazy(() => import('./pages/manpower/ManpowerContra
 const SystemSettings = lazy(() => import('./pages/super-admin/SystemSettings'))
 const ZatcaManagement = lazy(() => import('./pages/super-admin/ZatcaManagement'))
 const QueriesCRM = lazy(() => import('./pages/super-admin/QueriesCRM'))
+const LeadsGeneration = lazy(() => import('./pages/super-admin/LeadsGeneration'))
 const EmailCommunication = lazy(() => import('./pages/EmailCommunication'))
 const FleetAssets = lazy(() => import('./pages/fleet/FleetAssets'))
 const FleetAssetForm = lazy(() => import('./pages/fleet/FleetAssetForm'))
@@ -733,6 +734,10 @@ function App() {
         <Route path="tenant-settings/zatca-dashboard" element={<ZatcaDashboard />} />
         <Route path="backup" element={<Backup />} />
         <Route path="super-admin" element={<BusinessTypeRoute allowedTypes={['super_admin']}><SuperAdminDashboard /></BusinessTypeRoute>} />
+        <Route path="super-admin/resellers" element={<BusinessTypeRoute allowedTypes={['super_admin']}><ResellerManagement /></BusinessTypeRoute>} />
+        <Route path="super-admin/queries" element={<BusinessTypeRoute allowedTypes={['super_admin']}><QueriesCRM /></BusinessTypeRoute>} />
+        <Route path="super-admin/leads" element={<BusinessTypeRoute allowedTypes={['super_admin']}><LeadsGeneration /></BusinessTypeRoute>} />
+        <Route path="super-admin/zatca" element={<BusinessTypeRoute allowedTypes={['super_admin']}><ZatcaManagement /></BusinessTypeRoute>} />
         <Route path="job-costing" element={<BusinessTypeRoute allowedTypes={['construction']}><JobCosting /></BusinessTypeRoute>} />
         <Route path="job-costing/new" element={<BusinessTypeRoute allowedTypes={['trading']}><JobCostingForm /></BusinessTypeRoute>} />
         <Route path="job-costing/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><JobCostingForm /></BusinessTypeRoute>} />
