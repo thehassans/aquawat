@@ -154,7 +154,9 @@ api.interceptors.response.use(
                             requestUrl.includes('/public/demo-login') ||
                             requestUrl.includes('/auth/register');
 
-      if (isMutation && !isAuthRequest) {
+      const skipOffline = config.headers && config.headers['X-Skip-Offline-Queue'];
+
+      if (isMutation && !isAuthRequest && !skipOffline) {
         try {
           const payload = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
           const syncId = await enqueueSyncItem(`${config.method.toUpperCase()}:${config.url}`, {

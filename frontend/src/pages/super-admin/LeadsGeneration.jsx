@@ -26,10 +26,18 @@ export default function LeadsGeneration() {
     setLeads([]);
 
     try {
-      const res = await api.post('/leads/scrape', { query });
-      if (res.data.success) {
+      // Use a custom config to increase timeout to 60 seconds (since scraping takes time)
+      // and add a custom header to bypass offline-queue logic if it fails.
+      const res = await api.post('/leads/scrape', { query }, {
+        timeout: 90000,
+        headers: { 'X-Skip-Offline-Queue': 'true' }
+      });
+      
+      if (res.data.success && !res.data.offline) {
         setLeads(res.data.data || []);
         setSuccessMsg(language === 'ar' ? `تم استخراج ${res.data.count} نتيجة بنجاح` : `Successfully scraped ${res.data.count} leads`);
+      } else if (res.data.offline) {
+        setError(language === 'ar' ? 'حدث خطأ في الاتصال بالسيرفر' : 'Network error. Please try again.');
       } else {
         setError(res.data.message || 'Error occurred while scraping');
       }
