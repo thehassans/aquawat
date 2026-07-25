@@ -26,7 +26,8 @@ export const scrapeGoogleMaps = async (query, maxResults = 30, onProgress = null
     await page.waitForSelector('div[role="feed"]', { timeout: 15000 }).catch(() => null);
     
     let items = [];
-    let previousHeight = 0;
+    let previousItemCount = 0;
+    let unchangedCount = 0;
     
     // Scroll and extract (max ~200 loops for up to 1000 items)
     emit({ type: 'status', message: `Initializing search for "${query}"...` });
@@ -94,19 +95,44 @@ export const scrapeGoogleMaps = async (query, maxResults = 30, onProgress = null
       
       if (items.length >= maxResults) break;
 
-      // Scroll the feed down
-      const newHeight = await page.evaluate(() => {
+      // Scroll the feed fully to the bottom to trigger next page load
+      const currentItemCount = await page.evaluate(() => {
         const feed = document.querySelector('div[role="feed"]');
         if (feed) {
-          feed.scrollBy(0, 1000);
-          return feed.scrollHeight;
+          // Find all items
+          const itemElements = feed.querySelectorAll('div[jsaction]');
+          if (itemElements.length > 0) {
+            // Scroll last item into view
+            itemElements[itemElements.length - 1].scrollIntoView({ block: "end" });
+            
+            // Also attempt to scroll the scrollable parent
+            let current = feed;
+            while (current && current !== document.body) {
+                if (current.scrollHeight > current.clientHeight) {
+                    current.scrollBy(0, 5000);
+                    break;
+                }
+                current = current.parentElement;
+            }
+          }
+          return itemElements.length;
         }
         return 0;
       });
       
-      await delay(1500); // wait for network loading
-      if (newHeight === previousHeight) break; // Reached bottom
-      previousHeight = newHeight;
+      // Wait for network loading
+      await delay(2500); 
+      
+      if (currentItemCount === previousItemCount) {
+        unchangedCount++;
+        // Retry a few times in case of slow network or lazy loading
+        if (unchangedCount >= 4) {
+          break; // Reached bottom truly
+        }
+      } else {
+        unchangedCount = 0;
+      }
+      previousItemCount = currentItemCount;
     }
     
     
