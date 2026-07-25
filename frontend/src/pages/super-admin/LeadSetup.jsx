@@ -161,7 +161,7 @@ const LeadSetup = () => {
                     }`}
                   >
                     <span className={`font-semibold capitalize ${selectedType === type ? 'text-purple-700 dark:text-purple-400' : 'text-gray-600 dark:text-gray-400'}`}>
-                      {t(`businessTypes.${type}`, { defaultValue: type.replace(/_/g, ' ') })}
+                      {t(`businessTypes.${type}`, type.replace(/_/g, ' '))}
                     </span>
                     {setups.some(s => s.businessType === type) && (
                       <CheckCircle2 className={`w-5 h-5 ${selectedType === type ? 'text-purple-500' : 'text-emerald-500'}`} />
@@ -183,7 +183,7 @@ const LeadSetup = () => {
             >
               <div className="border-b border-gray-100 dark:border-dark-700/50 pb-6 flex items-center justify-between">
                 <h2 className="text-2xl font-black text-gray-800 dark:text-gray-100 capitalize">
-                  {t(`businessTypes.${selectedType}`, { defaultValue: selectedType.replace(/_/g, ' ') })} Setup
+                  {t(`businessTypes.${selectedType}`, selectedType.replace(/_/g, ' '))} Setup
                 </h2>
                 <div className="flex gap-2">
                   {(() => {
