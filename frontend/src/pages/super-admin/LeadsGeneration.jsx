@@ -17,6 +17,7 @@ export default function LeadsGeneration() {
   const [leads, setLeads] = useState([]);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
+  const [statusText, setStatusText] = useState('');
   
   const [setups, setSetups] = useState([]);
   const [selectedContext, setSelectedContext] = useState(BUSINESS_TYPES[0]);
@@ -66,27 +67,75 @@ export default function LeadsGeneration() {
     setError(null);
     setSuccessMsg(null);
     setLeads([]);
+    setStatusText(language === 'ar' ? 'جاري الاتصال بالسيرفر...' : 'Connecting to server...');
 
     try {
-      // Use a custom config to increase timeout to 60 seconds (since scraping takes time)
-      // and add a custom header to bypass offline-queue logic if it fails.
-      const res = await api.post('/leads/scrape', { query, maxResults: 1000 }, {
-        timeout: 600000, // 10 minutes
-        headers: { 'X-Skip-Offline-Queue': 'true' }
-      });
+      const token = localStorage.getItem('token');
+      // Normalize base URL
+      let baseUrl = api.defaults.baseURL || '/api';
+      if (baseUrl.endsWith('/api') && window.location.origin.includes('localhost')) {
+         // for local dev, vite proxies /api
+         baseUrl = '/api';
+      } else if (!baseUrl.startsWith('http')) {
+         baseUrl = window.location.origin + baseUrl;
+      }
       
-      if (res.data.success && !res.data.offline) {
-        setLeads(res.data.data || []);
-        setSuccessMsg(language === 'ar' ? `تم استخراج ${res.data.count} نتيجة بنجاح` : `Successfully scraped ${res.data.count} leads`);
-      } else if (res.data.offline) {
-        setError(language === 'ar' ? 'حدث خطأ في الاتصال بالسيرفر' : 'Network error. Please try again.');
-      } else {
-        setError(res.data.message || 'Error occurred while scraping');
+      const response = await fetch(`${baseUrl}/leads/scrape`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ query, maxResults: 1000 })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let count = 0;
+      let buffer = '';
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop(); // keep incomplete chunk
+          
+          for (let line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.substring(6).trim();
+              if (dataStr) {
+                try {
+                  const data = JSON.parse(dataStr);
+                  if (data.type === 'status') {
+                    setStatusText(data.message);
+                  } else if (data.type === 'lead') {
+                    setLeads(prev => [...prev, data.lead]);
+                    count++;
+                  } else if (data.type === 'done') {
+                    setSuccessMsg(language === 'ar' ? `تم استخراج ${count} نتيجة بنجاح` : `Successfully scraped ${count} leads`);
+                  } else if (data.type === 'error') {
+                    setError(data.message);
+                  }
+                } catch (e) {
+                  // ignore JSON parse errors for incomplete chunks
+                }
+              }
+            }
+          }
+        }
       }
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Error occurred while scraping');
+      setError(err.message || 'Error occurred while scraping');
     } finally {
       setLoading(false);
+      setStatusText('');
     }
   };
 
@@ -218,7 +267,7 @@ export default function LeadsGeneration() {
 
       {/* Results Table */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white/80 dark:bg-dark-800/80 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-white/60 dark:border-white/10 overflow-hidden min-h-[500px]">
-        {loading ? (
+        {loading && leads.length === 0 ? (
           <div className="h-[400px] flex flex-col items-center justify-center gap-5 text-gray-400">
             <div className="relative w-20 h-20">
               <div className="absolute inset-0 border-4 border-indigo-500/20 rounded-full"></div>
@@ -227,12 +276,27 @@ export default function LeadsGeneration() {
             </div>
             <div className="text-center">
               <h3 className="font-bold text-gray-700 dark:text-gray-200 text-lg">{language === 'ar' ? 'جاري استخراج البيانات...' : 'Scraping Map Data...'}</h3>
-              <p className="text-sm mt-1">{language === 'ar' ? 'هذا قد يستغرق بعض الوقت يرجى الانتظار' : 'This might take a minute, please be patient.'}</p>
+              <p className="text-sm mt-1">{statusText || (language === 'ar' ? 'هذا قد يستغرق بعض الوقت يرجى الانتظار' : 'This might take a minute, please be patient.')}</p>
             </div>
           </div>
         ) : leads.length > 0 ? (
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left whitespace-nowrap">
+          <div className="flex flex-col h-full">
+            {loading && (
+              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-b border-indigo-100 dark:border-indigo-800/50 p-4 flex items-center justify-between shadow-inner">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400 animate-spin" />
+                  <span className="font-semibold text-indigo-800 dark:text-indigo-300 animate-pulse">{statusText}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800/50">
+                    {leads.length} found
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="overflow-x-auto custom-scrollbar flex-1">
+              <table className="w-full text-left whitespace-nowrap">
               <thead>
                 <tr className="bg-gray-50/80 dark:bg-dark-900/80 border-b border-gray-100 dark:border-dark-700 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-black">
                   <th className="px-6 py-5 rounded-tl-3xl">{language === 'ar' ? 'الاسم' : 'Business Name'}</th>
@@ -293,6 +357,14 @@ export default function LeadsGeneration() {
                 </AnimatePresence>
               </tbody>
             </table>
+            {loading && leads.length > 0 && (
+               <div className="p-8 flex justify-center border-t border-gray-100 dark:border-dark-700/50">
+                  <div className="flex items-center gap-2 text-indigo-500 font-medium">
+                     <Loader2 className="w-4 h-4 animate-spin" /> Fetching more...
+                  </div>
+               </div>
+            )}
+            </div>
           </div>
         ) : (
           <div className="h-[400px] flex flex-col items-center justify-center text-gray-400">

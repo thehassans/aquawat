@@ -3,7 +3,13 @@ import * as cheerio from 'cheerio';
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
-export const scrapeGoogleMaps = async (query, maxResults = 30) => {
+export const scrapeGoogleMaps = async (query, maxResults = 30, onProgress = null) => {
+  const emit = (data) => {
+    if (onProgress) {
+      try { onProgress(data); } catch (e) {}
+    }
+  };
+  
   const browser = await puppeteer.launch({
     headless: "new",
     args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -23,7 +29,10 @@ export const scrapeGoogleMaps = async (query, maxResults = 30) => {
     let previousHeight = 0;
     
     // Scroll and extract (max ~200 loops for up to 1000 items)
+    emit({ type: 'status', message: `Initializing search for "${query}"...` });
+    
     for (let i = 0; i < 200; i++) {
+      emit({ type: 'status', message: `Scrolling feed... Found ${items.length} initial items.` });
       // Extract current HTML of the feed
       const html = await page.content();
       const $ = cheerio.load(html);
@@ -105,6 +114,16 @@ export const scrapeGoogleMaps = async (query, maxResults = 30) => {
     
     // Second pass: Fetch missing phone numbers by visiting place URLs
     const itemsToFetch = items.filter(item => item.phone === 'N/A' && item.url);
+    const completeItems = items.filter(item => item.phone !== 'N/A' || !item.url);
+    
+    // Emit the items that already have everything
+    completeItems.forEach(item => {
+      emit({ type: 'lead', lead: { name: item.name, phone: item.phone, rating: item.rating, city: item.city } });
+    });
+    
+    emit({ type: 'status', message: `Deep scraping ${itemsToFetch.length} profiles for phone numbers...` });
+    
+    let processedDeep = 0;
     const chunk = 5;
     for (let i = 0; i < itemsToFetch.length; i += chunk) {
       const batch = itemsToFetch.slice(i, i + chunk);
@@ -146,9 +165,14 @@ export const scrapeGoogleMaps = async (query, maxResults = 30) => {
                 item.phone = match[0];
              }
           }
+          
+          emit({ type: 'lead', lead: { name: item.name, phone: item.phone, rating: item.rating, city: item.city } });
         } catch (e) {
           // Ignore errors for individual pages to not break the batch
+          emit({ type: 'lead', lead: { name: item.name, phone: item.phone || 'N/A', rating: item.rating, city: item.city } });
         } finally {
+          processedDeep++;
+          emit({ type: 'status', message: `Deep scraping ${processedDeep}/${itemsToFetch.length} profiles...` });
           if (p) await p.close().catch(()=>null);
         }
       });
@@ -156,8 +180,9 @@ export const scrapeGoogleMaps = async (query, maxResults = 30) => {
     }
     
     await browser.close();
+    emit({ type: 'status', message: `Scraping complete!` });
     
-    // Remove the URL property before returning to frontend
+    // Remove the URL property before returning to frontend for the standard final return (if needed)
     return items.slice(0, maxResults).map(item => ({
        name: item.name,
        phone: item.phone,
