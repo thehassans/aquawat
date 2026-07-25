@@ -437,7 +437,7 @@ export default function RestaurantPOS() {
     <div 
       ref={containerRef}
       style={{ height: containerHeight }}
-      className="flex flex-col lg:flex-row min-h-[500px] gap-4 lg:gap-6 overflow-hidden bg-transparent"
+      className="flex flex-col lg:flex-row min-h-[500px] w-full max-w-full gap-4 lg:gap-6 overflow-hidden bg-transparent"
     >
       
       {/* Left: Menu Grid */}
@@ -459,7 +459,7 @@ export default function RestaurantPOS() {
           </div>
           
           {/* Categories Pill Bar */}
-          <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2 pt-1 -mx-2 px-2 mask-linear-fade">
+          <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2 pt-1 -mx-2 px-2 mask-linear-fade min-w-0 w-full">
             {categories.map(cat => (
               <button
                 key={cat}
