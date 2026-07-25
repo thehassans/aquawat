@@ -39,8 +39,9 @@ export default function SuperAdminLayout() {
     { path: '/super-admin/pos-sessions', icon: Monitor, label: language === 'ar' ? 'جلسات نقاط البيع' : 'POS Sessions' },
     { path: '/super-admin/resellers', icon: Store, label: language === 'ar' ? 'الموزعون' : 'Resellers' },
     { path: '/super-admin/queries', icon: HelpCircle, label: t('queries') },
-    { path: '/super-admin/leads', icon: Target, label: language === 'ar' ? 'استخراج العملاء' : 'Leads Generation' },
-    { path: '/super-admin/zatca', icon: ShieldCheck, label: 'ZATCA' },
+    { path: '/super-admin/leads', icon: Target, label: language === 'ar' ? 'استخراج العملاء' : 'Leads Gen' },
+    { path: '/super-admin/lead-setup', icon: Settings, label: language === 'ar' ? 'إعدادات العملاء' : 'Lead Setup' },
+    { path: '/super-admin/zatca', icon: FileText, label: 'ZATCA' },
   ]
 
   const moreNavItems = [

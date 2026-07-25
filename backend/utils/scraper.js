@@ -22,8 +22,8 @@ export const scrapeGoogleMaps = async (query, maxResults = 30) => {
     let items = [];
     let previousHeight = 0;
     
-    // Scroll and extract
-    for (let i = 0; i < 20; i++) {
+    // Scroll and extract (max ~200 loops for up to 1000 items)
+    for (let i = 0; i < 200; i++) {
       // Extract current HTML of the feed
       const html = await page.content();
       const $ = cheerio.load(html);
@@ -39,12 +39,21 @@ export const scrapeGoogleMaps = async (query, maxResults = 30) => {
           const bodyText = $(el).text();
           
           let phone = '';
-          const phoneRegex = /(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{2,4}\)?[\s-]?)?\d{3,4}[\s-]?\d{3,4}/g;
+          // Extract text differently to avoid missing spaces, but bodyText is okay if we use a flexible regex
+          // Match standard formats, Saudi formats: 05xxxxxxx, 01xxxxxxx, 9200xxxxx, +9665xxxxx, etc.
+          // Since Google Maps sometimes spaces numbers out, we remove all non-digits to test length.
+          const phoneRegex = /(?:\+?\d{1,4}[\s\-]?)?(?:\(?\d{2,4}\)?[\s\-]?)?\d{3,4}[\s\-]?\d{3,4}[\s\-]?\d{0,4}/g;
           const phones = bodyText.match(phoneRegex);
           if (phones) {
-             const validPhones = phones.filter(p => p.replace(/\D/g, '').length >= 8);
+             const validPhones = phones
+               .map(p => p.trim())
+               .filter(p => {
+                 const digitsOnly = p.replace(/\D/g, '');
+                 return digitsOnly.length >= 9 && digitsOnly.length <= 15;
+               });
              if (validPhones.length > 0) {
-               phone = validPhones[0].trim();
+               // Google usually puts the phone number last or near the end of the text match
+               phone = validPhones[validPhones.length - 1]; 
              }
           }
 

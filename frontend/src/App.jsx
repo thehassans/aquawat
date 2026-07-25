@@ -245,6 +245,7 @@ const SystemSettings = lazy(() => import('./pages/super-admin/SystemSettings'))
 const ZatcaManagement = lazy(() => import('./pages/super-admin/ZatcaManagement'))
 const QueriesCRM = lazy(() => import('./pages/super-admin/QueriesCRM'))
 const LeadsGeneration = lazy(() => import('./pages/super-admin/LeadsGeneration'))
+const LeadSetup = lazy(() => import('./pages/super-admin/LeadSetup'))
 const EmailCommunication = lazy(() => import('./pages/EmailCommunication'))
 const FleetAssets = lazy(() => import('./pages/fleet/FleetAssets'))
 const FleetAssetForm = lazy(() => import('./pages/fleet/FleetAssetForm'))
@@ -480,6 +481,7 @@ function App() {
           <Route path="users" element={<UserManagement />} />
           <Route path="queries" element={<QueriesCRM />} />
           <Route path="leads" element={<LeadsGeneration />} />
+          <Route path="lead-setup" element={<LeadSetup />} />
         <Route path="resellers" element={<ResellerManagement />} />
         <Route path="website" element={<WebsiteSettings />} />
         <Route path="demo-users" element={<DemoUsers />} />
