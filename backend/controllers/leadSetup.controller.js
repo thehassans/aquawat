@@ -112,6 +112,8 @@ export const createOrUpdateLeadSetup = async (req, res) => {
     const updateData = { message };
     if (bannerImage) {
       updateData.bannerImage = bannerImage;
+    } else if (req.body.removeImage === 'true') {
+      updateData.bannerImage = '';
     }
 
     const setup = await LeadSetup.findOneAndUpdate(

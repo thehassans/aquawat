@@ -88,6 +88,8 @@ const LeadSetup = () => {
       formData.append('message', message);
       if (bannerImage) {
         formData.append('bannerImage', bannerImage);
+      } else if (bannerPreview === '') {
+        formData.append('removeImage', 'true');
       }
 
       await api.post('/lead-setup', formData, {
@@ -217,9 +219,21 @@ const LeadSetup = () => {
 
               {/* Message Input */}
               <div className="space-y-4">
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
-                  {language === 'ar' ? 'رسالة واتساب الترويجية' : 'WhatsApp Promotional Message'}
-                </label>
+                <div className="flex justify-between items-center">
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                    {language === 'ar' ? 'رسالة واتساب الترويجية' : 'WhatsApp Promotional Message'}
+                  </label>
+                  {message && (
+                    <button 
+                      type="button" 
+                      onClick={() => setMessage('')} 
+                      className="text-xs flex items-center gap-1 text-red-500 hover:text-red-600 font-bold bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-full transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {language === 'ar' ? 'مسح النص' : 'Clear Text'}
+                    </button>
+                  )}
+                </div>
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -244,11 +258,23 @@ const LeadSetup = () => {
                   {bannerPreview ? (
                     <div className="relative w-full flex justify-center">
                       <img src={bannerPreview.startsWith('http') || bannerPreview.startsWith('data:') ? bannerPreview : api.defaults.baseURL.replace('/api', '') + bannerPreview} alt="Banner" className="max-h-72 rounded-[1.5rem] object-contain shadow-lg" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center rounded-[1.5rem] backdrop-blur-sm">
-                        <label className="cursor-pointer bg-white text-gray-900 px-6 py-3 rounded-full font-bold shadow-2xl hover:scale-105 transition-transform">
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col sm:flex-row items-center justify-center gap-4 rounded-[1.5rem] backdrop-blur-sm">
+                        <label className="cursor-pointer bg-white text-gray-900 px-6 py-3 rounded-full font-bold shadow-2xl hover:scale-105 transition-transform flex items-center gap-2">
+                          <ImageIcon className="w-5 h-5" />
                           {language === 'ar' ? 'تغيير الصورة' : 'Change Image'}
                           <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
                         </label>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setBannerImage(null);
+                            setBannerPreview('');
+                          }} 
+                          className="bg-red-500 text-white px-6 py-3 rounded-full font-bold shadow-2xl hover:scale-105 transition-transform flex items-center gap-2"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                          {language === 'ar' ? 'إزالة الصورة' : 'Remove Image'}
+                        </button>
                       </div>
                     </div>
                   ) : (
