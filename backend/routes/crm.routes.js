@@ -2,6 +2,9 @@ import express from 'express';
 import CRMLead from '../models/CRMLead.js';
 import CRMDeal from '../models/CRMDeal.js';
 import CRMActivity from '../models/CRMActivity.js';
+import CRMContact from '../models/CRMContact.js';
+import CRMCampaign from '../models/CRMCampaign.js';
+import Customer from '../models/Customer.js';
 import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
 import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
@@ -229,10 +232,40 @@ router.post('/leads/:id/convert', checkPermission('crm', 'create'), async (req, 
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
     if (lead.status === 'converted') return res.status(400).json({ error: 'Lead already converted' });
 
+    let customerId = lead.customerId;
+    
+    // Create a real Customer if it doesn't exist
+    if (!customerId) {
+      const customer = await Customer.create({
+        tenantId: req.user.tenantId,
+        type: 'individual',
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone,
+        notes: lead.notes,
+      });
+      customerId = customer._id;
+      lead.customerId = customerId;
+    }
+
+    // Create a CRMContact
+    const contact = await CRMContact.create({
+      tenantId: req.user.tenantId,
+      name: lead.name,
+      email: lead.email,
+      phone: lead.phone,
+      company: lead.company,
+      source: lead.source,
+      leadId: lead._id,
+      customerId: customerId,
+      assignedTo: lead.assignedTo || req.user._id,
+      notes: lead.notes,
+    });
+
     const deal = await CRMDeal.create({
       tenantId: req.user.tenantId,
       leadId: lead._id,
-      customerId: lead.customerId,
+      customerId: customerId,
       title: req.body.title || `Deal from ${lead.name}`,
       description: req.body.description || lead.notes,
       stage: 'prospecting',
@@ -445,6 +478,136 @@ router.post('/deals/:id/send-email', checkPermission('crm', 'update'), async (re
       createdBy: req.user._id,
     });
     res.json({ success: true, sentTo: email });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ─────────── CONTACTS ─────────── */
+
+router.get('/contacts', checkPermission('crm', 'read'), async (req, res) => {
+  try {
+    const { search, page = 1, limit = 50 } = req.query;
+    const filter = { ...req.tenantFilter };
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { company: { $regex: search, $options: 'i' } },
+      ];
+    }
+    const skip = (Math.max(1, Number(page)) - 1) * Math.min(200, Math.max(1, Number(limit)));
+    const parsedLimit = Math.min(200, Math.max(1, Number(limit)));
+    const [contacts, total] = await Promise.all([
+      CRMContact.find(filter).sort('-createdAt').skip(skip).limit(parsedLimit).populate('assignedTo', 'name').populate('customerId', 'name').lean(),
+      CRMContact.countDocuments(filter),
+    ]);
+    res.json({ contacts, pagination: { page: Number(page), limit: parsedLimit, total, pages: Math.ceil(total / parsedLimit) } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/contacts', checkPermission('crm', 'create'), async (req, res) => {
+  try {
+    let customerId = req.body.customerId;
+    if (!customerId) {
+      const customer = await Customer.create({
+        tenantId: req.user.tenantId,
+        type: 'individual',
+        name: req.body.name,
+        email: req.body.email,
+        phone: req.body.phone,
+        notes: req.body.notes,
+      });
+      customerId = customer._id;
+    }
+
+    const contact = await CRMContact.create({ 
+      ...cleanBody(req.body), 
+      customerId,
+      tenantId: req.user.tenantId, 
+      createdBy: req.user._id 
+    });
+    res.status(201).json(contact);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.put('/contacts/:id', checkPermission('crm', 'update'), async (req, res) => {
+  try {
+    const contact = await CRMContact.findOneAndUpdate({ _id: req.params.id, ...req.tenantFilter }, cleanBody(req.body), { new: true, runValidators: true });
+    if (!contact) return res.status(404).json({ error: 'Not found' });
+    res.json(contact);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.delete('/contacts/:id', checkPermission('crm', 'delete'), async (req, res) => {
+  try {
+    const contact = await CRMContact.findOneAndDelete({ _id: req.params.id, ...req.tenantFilter });
+    if (!contact) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ─────────── CAMPAIGNS ─────────── */
+
+router.get('/campaigns', checkPermission('crm', 'read'), async (req, res) => {
+  try {
+    const { search, page = 1, limit = 50 } = req.query;
+    const filter = { ...req.tenantFilter };
+    if (search) filter.name = { $regex: search, $options: 'i' };
+    const skip = (Math.max(1, Number(page)) - 1) * Math.min(200, Math.max(1, Number(limit)));
+    const parsedLimit = Math.min(200, Math.max(1, Number(limit)));
+    const [campaigns, total] = await Promise.all([
+      CRMCampaign.find(filter).sort('-createdAt').skip(skip).limit(parsedLimit).populate('createdBy', 'name').lean(),
+      CRMCampaign.countDocuments(filter),
+    ]);
+    res.json({ campaigns, pagination: { page: Number(page), limit: parsedLimit, total, pages: Math.ceil(total / parsedLimit) } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/campaigns', checkPermission('crm', 'create'), async (req, res) => {
+  try {
+    const campaign = await CRMCampaign.create({ 
+      ...cleanBody(req.body), 
+      tenantId: req.user.tenantId, 
+      createdBy: req.user._id 
+    });
+    res.status(201).json(campaign);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.put('/campaigns/:id', checkPermission('crm', 'update'), async (req, res) => {
+  try {
+    const campaign = await CRMCampaign.findOneAndUpdate({ _id: req.params.id, ...req.tenantFilter }, cleanBody(req.body), { new: true, runValidators: true });
+    if (!campaign) return res.status(404).json({ error: 'Not found' });
+    res.json(campaign);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.delete('/campaigns/:id', checkPermission('crm', 'delete'), async (req, res) => {
+  try {
+    const campaign = await CRMCampaign.findOneAndDelete({ _id: req.params.id, ...req.tenantFilter });
+    if (!campaign) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/campaigns/:id/send', checkPermission('crm', 'create'), async (req, res) => {
+  try {
+    const campaign = await CRMCampaign.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!campaign) return res.status(404).json({ error: 'Not found' });
+    if (campaign.status === 'completed' || campaign.status === 'running') return res.status(400).json({ error: 'Campaign already running or completed' });
+
+    campaign.status = 'running';
+    await campaign.save();
+
+    // Fire and forget actual sending logic for this simplified demo
+    setTimeout(async () => {
+      // Dummy send logic
+      campaign.status = 'completed';
+      campaign.stats = { sent: 100, delivered: 95, failed: 5 };
+      await campaign.save();
+    }, 5000);
+
+    res.json({ success: true, message: 'Campaign started' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

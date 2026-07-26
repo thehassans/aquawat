@@ -277,6 +277,8 @@ const CRMDashboard = lazy(() => import('./pages/crm/CRMDashboard'))
 const CRMLeadsTab = lazy(() => import('./pages/crm/CRMLeadsTab'))
 const CRMDealsTab = lazy(() => import('./pages/crm/CRMDealsTab'))
 const CRMActivitiesTab = lazy(() => import('./pages/crm/CRMActivitiesTab'))
+const CRMContactsTab = lazy(() => import('./pages/crm/CRMContactsTab'))
+const CRMCampaignsTab = lazy(() => import('./pages/crm/CRMCampaignsTab'))
 
 const LaundryPOS = lazy(() => import('./pages/laundry/LaundryPOS'))
 const LaundryServices = lazy(() => import('./pages/laundry/LaundryServices'))
@@ -618,8 +620,10 @@ function App() {
         {/* CRM Routes */}
         <Route path="crm" element={<CRMDashboard />} />
         <Route path="crm/leads" element={<CRMLeadsTab />} />
+        <Route path="crm/contacts" element={<CRMContactsTab />} />
         <Route path="crm/deals" element={<CRMDealsTab />} />
         <Route path="crm/activities" element={<CRMActivitiesTab />} />
+        <Route path="crm/campaigns" element={<CRMCampaignsTab />} />
         <Route path="products" element={<BusinessTypeRoute allowedTypes={['trading']}><Products /></BusinessTypeRoute>} />
         <Route path="products/new" element={<BusinessTypeRoute allowedTypes={['trading']}><ProductForm /></BusinessTypeRoute>} />
         <Route path="products/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><ProductForm /></BusinessTypeRoute>} />

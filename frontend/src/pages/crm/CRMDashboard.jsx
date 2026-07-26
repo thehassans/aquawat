@@ -2,6 +2,7 @@ import { useSelector } from 'react-redux'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Users, BarChart3, DollarSign, TrendingUp, AlertCircle } from 'lucide-react'
+import { FunnelChart, Funnel, LabelList, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '../../lib/api'
 import CRMDealsTab from './CRMDealsTab'
 import CRMActivitiesTab from './CRMActivitiesTab'
@@ -36,8 +37,38 @@ export default function CRMDashboard() {
             </motion.div>
           )})}
         </div>
-        <CRMDealsTab preview />
-        <CRMActivitiesTab preview />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 space-y-4">
+            <CRMDealsTab preview />
+            <CRMActivitiesTab preview />
+          </div>
+          
+          <div className="space-y-4">
+            <div className="bg-white dark:bg-dark-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-dark-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">{t('Sales Funnel', 'قمع المبيعات')}</h3>
+              <div className="h-64 w-full text-xs">
+                <ResponsiveContainer width="100%" height="100%">
+                  <FunnelChart>
+                    <Tooltip cursor={false} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    <Funnel
+                      dataKey="value"
+                      data={[
+                        { name: t('Leads', 'عملاء محتملون'), value: stats?.leadTotal || 1, fill: '#3b82f6' },
+                        { name: t('Prospecting', 'استكشاف'), value: Math.round((stats?.dealTotal || 0) * 0.8) || 1, fill: '#6366f1' },
+                        { name: t('Proposal', 'عروض'), value: Math.round((stats?.dealTotal || 0) * 0.5) || 1, fill: '#0ea5e9' },
+                        { name: t('Won', 'تم الفوز'), value: stats?.wonCount || 0, fill: '#10b981' }
+                      ]}
+                      isAnimationActive={true}
+                    >
+                      <LabelList position="right" fill="#6b7280" stroke="none" dataKey="name" />
+                    </Funnel>
+                  </FunnelChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

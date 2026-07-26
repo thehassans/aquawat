@@ -3,7 +3,8 @@ import { useSelector } from 'react-redux'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { Plus, Search, X, Save, Trash2, MessageCircle, Mail, Send } from 'lucide-react'
+import { Plus, Search, X, Save, Trash2, MessageCircle, Mail, Send, FileText, Receipt } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import api from '../../lib/api'
 
 const DS = [
@@ -20,6 +21,7 @@ export default function CRMDealsTab({ preview }) {
   const { language } = useSelector((state) => state.ui)
   const t = (en, ar) => language === 'ar' ? ar : en
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [show, setShow] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -146,9 +148,19 @@ export default function CRMDealsTab({ preview }) {
                   <div className="sm:col-span-2"><F l={t('Description', 'الوصف')} r={2} v={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-3 p-5 border-t border-gray-100 dark:border-dark-700">
-                <button onClick={close} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100">{t('Cancel', 'إلغاء')}</button>
-                <button onClick={() => save.mutate()} disabled={save.isPending} className="px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"><Save className="w-4 h-4" /> {save.isPending ? t('Saving...', 'جاري الحفظ...') : t('Save', 'حفظ')}</button>
+              <div className="flex items-center justify-between p-5 border-t border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-2">
+                  {editing && editing.customerId && (
+                    <>
+                      <button onClick={() => navigate('/app/dashboard/quotations/new', { state: { customerId: editing.customerId._id || editing.customerId, sourceDealId: editing._id } })} className="px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> {t('Quote', 'عرض سعر')}</button>
+                      <button onClick={() => navigate('/app/dashboard/invoices/new/sell', { state: { customerId: editing.customerId._id || editing.customerId, sourceDealId: editing._id } })} className="px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> {t('Invoice', 'فاتورة')}</button>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={close} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100">{t('Cancel', 'إلغاء')}</button>
+                  <button onClick={() => save.mutate()} disabled={save.isPending} className="px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"><Save className="w-4 h-4" /> {save.isPending ? t('Saving...', 'جاري الحفظ...') : t('Save', 'حفظ')}</button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
