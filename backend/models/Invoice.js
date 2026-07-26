@@ -150,7 +150,7 @@ const invoiceSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
 
   flow: { type: String, enum: ['sell', 'purchase'], default: 'sell', index: true },
-  businessContext: { type: String, enum: ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'bakala', 'boutique', 'bookstore'], default: 'trading', index: true },
+  businessContext: { type: String, enum: ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'bakala', 'boutique', 'bookstore', 'furniture'], default: 'trading', index: true },
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true },
   supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', index: true },
   

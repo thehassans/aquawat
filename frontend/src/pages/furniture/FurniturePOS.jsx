@@ -354,7 +354,7 @@ export default function FurniturePOS() {
 
         {/* ─── Ultra Premium Cart Sidebar ─── */}
         <motion.div 
-          className="w-[420px] bg-white/80 backdrop-blur-2xl border-l border-slate-100 flex flex-col shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.05)] z-20"
+          className="w-[540px] bg-white/80 backdrop-blur-2xl border-l border-slate-100 flex flex-col shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.05)] z-20"
           initial={false}
         >
           <div className="p-6 border-b border-slate-100/50">
@@ -443,6 +443,24 @@ export default function FurniturePOS() {
                               placeholder="0.00"
                               onChange={(e) => updateCartItem(item.productId, 'unitPrice', Number(e.target.value))}
                               className="w-full text-sm font-black text-indigo-600 bg-transparent outline-none text-right"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs font-bold text-slate-500">{label('Total Price', 'السعر الإجمالي')}</span>
+                          <div className="flex items-center gap-2 bg-white border-2 border-slate-200 rounded-xl px-3 py-1.5 flex-1 ml-4 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/20 transition-all">
+                            <span className="text-[10px] font-bold text-slate-400">SAR</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.unitPrice * item.quantity === 0 ? '' : Number(item.unitPrice * item.quantity).toFixed(2)}
+                              placeholder="0.00"
+                              onChange={(e) => {
+                                const newTotal = Number(e.target.value);
+                                const newUnitPrice = item.quantity > 0 ? newTotal / item.quantity : 0;
+                                updateCartItem(item.productId, 'unitPrice', Number(newUnitPrice));
+                              }}
+                              className="w-full text-sm font-black text-emerald-600 bg-transparent outline-none text-right"
                             />
                           </div>
                         </div>
