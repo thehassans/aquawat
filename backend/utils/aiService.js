@@ -380,3 +380,74 @@ export const extractRestaurantMenu = async ({ base64Image, mimeType }) => {
 
   throw lastError || new Error('No AI provider configured for OCR or all providers failed. Please set your API key in System Settings.');
 };
+
+export const extractSmartInvoice = async ({ base64Image, mimeType }) => {
+  const settings = await getAISettings();
+  let lastError = null;
+  
+  const systemPrompt = `You are an OCR expert. Extract detailed invoice data from the image into strict JSON matching this structure exactly. Be sure to extract every single line item and its VAT details.
+CRITICAL: You must extract text in both Arabic and English. If the original text is only in Arabic, you MUST provide the English translation for "name" fields. If the original is only in English, you MUST provide the Arabic translation for "nameAr" fields. This applies to supplier, buyer, and ALL line items.
+{
+  "supplier": { "name": "...", "nameAr": "...", "vatNumber": "...", "address": { "city": "..." } },
+  "buyer": { "name": "...", "nameAr": "...", "vatNumber": "...", "address": { "city": "..." } },
+  "lineItems": [ { "name": "...", "nameAr": "...", "quantity": 1, "unitPrice": 100, "taxRate": 15, "taxAmount": 15, "lineTotal": 100, "lineTotalWithTax": 115 } ],
+  "issueDate": "YYYY-MM-DD",
+  "notes": "...",
+  "totalAmount": 100,
+  "totalTax": 15,
+  "grandTotal": 115
+}`;
+
+  const geminiKey = settings?.gemini?.apiKey || process.env.GEMINI_API_KEY;
+  const openaiKey = settings?.openai?.apiKey || process.env.OPENAI_API_KEY;
+
+  // 1. Try Gemini
+  if (settings?.gemini?.enabled !== false && geminiKey) {
+    try {
+      const client = new GoogleGenAI({ apiKey: geminiKey });
+      const response = await client.models.generateContent({
+        model: settings?.gemini?.model || 'gemini-2.5-flash',
+        contents: [
+          { role: 'user', parts: [
+              { text: systemPrompt + '\n\nExtract invoice data from this image. Return structured JSON.' },
+              { inlineData: { data: base64Image, mimeType } }
+            ]
+          }
+        ],
+        config: { temperature: 0.1, responseMimeType: 'application/json' }
+      });
+      if (response?.text) return JSON.parse(response.text.trim());
+    } catch (e) {
+      lastError = e;
+      console.warn('[OCR] Gemini failed, falling back...', e.message);
+    }
+  }
+
+  // 2. Try OpenAI
+  if (settings?.openai?.enabled !== false && openaiKey) {
+    try {
+      const client = new OpenAI({ apiKey: openaiKey });
+      const response = await client.chat.completions.create({
+        model: settings?.openai?.model || 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: [
+              { type: 'text', text: 'Extract invoice data from this image. Return structured JSON.' },
+              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+            ]
+          }
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      });
+      if (response.choices?.[0]?.message?.content) {
+        return JSON.parse(response.choices[0].message.content.trim());
+      }
+    } catch (e) {
+      lastError = e;
+      console.warn('[OCR] OpenAI failed...', e.message);
+    }
+  }
+
+  throw lastError || new Error('No AI provider configured for OCR or all providers failed. Please set your API key in System Settings.');
+};
