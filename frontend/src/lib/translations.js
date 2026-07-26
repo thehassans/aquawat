@@ -495,8 +495,30 @@ export const translations = {
 }
 
 export const useTranslation = (language) => {
-  const t = (key, fallback) => translations[language]?.[key] || translations.en[key] || fallback || key
-  return { t }
+  const t = (key, fallback) => {
+    let result = translations[language]?.[key] || translations.en?.[key];
+    
+    // Handle fallback which might be a string or an object { defaultValue: '...', ...opts }
+    if (!result) {
+      if (typeof fallback === 'object' && fallback !== null) {
+        result = fallback.defaultValue || key;
+      } else {
+        result = fallback || key;
+      }
+    }
+
+    // Handle string interpolation for variables like {{count}}
+    if (typeof result === 'string' && typeof fallback === 'object' && fallback !== null) {
+      Object.keys(fallback).forEach(k => {
+        if (k !== 'defaultValue') {
+          result = result.replace(new RegExp(`{{${k}}}`, 'g'), String(fallback[k]));
+        }
+      });
+    }
+
+    return result;
+  };
+  return { t };
 }
 
 export default translations
