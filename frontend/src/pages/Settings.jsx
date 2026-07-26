@@ -1026,8 +1026,6 @@ export default function Settings() {
                   </div>
                 </div>
 
-                </div>
-
                 <div className="pt-4">
                   <label className="label flex items-center gap-2"><MessageCircle className="w-4 h-4 text-green-500" />{language === 'ar' ? 'إرسال الفواتير التلقائي عبر واتساب' : 'WhatsApp Invoice Auto-Send'}</label>
                   <div className="card-glass p-4 mt-2 space-y-4">
