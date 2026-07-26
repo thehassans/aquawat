@@ -1,4 +1,5 @@
 import React from 'react'
+import DocumentExtras from './DocumentExtras'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
@@ -191,6 +192,8 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
           </p>
         </div>
       </div>
+    
+      <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
     </div>
   )
 }

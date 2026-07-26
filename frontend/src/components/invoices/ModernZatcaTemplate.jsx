@@ -581,6 +581,8 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         )}
 
       </div>
+    
+      <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
     </div>
   )
 }

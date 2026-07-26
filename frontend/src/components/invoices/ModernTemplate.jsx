@@ -1,4 +1,5 @@
 import React from 'react'
+import DocumentExtras from './DocumentExtras'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
@@ -197,6 +198,8 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
           </p>
         </div>
       </div>
+    
+      <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
     </div>
   )
 }

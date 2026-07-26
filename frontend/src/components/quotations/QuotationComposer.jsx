@@ -640,10 +640,6 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             <textarea {...register('termsAndConditions')} rows="6" className="input min-h-[160px]" placeholder={language === 'ar' ? 'أدخل الشروط والأحكام...' : 'Enter terms and conditions...'} />
           </div>
 
-          <div className="card p-6">
-            <InvoiceTemplateSelector language={language} value={selectedTemplateId} onChange={(id) => setValue('pdfTemplateId', id)} />
-          </div>
-
           <div className="flex justify-end">
             <button type="submit" className="btn btn-primary" disabled={saveMutation.isPending}>
               {saveMutation.isPending ? (

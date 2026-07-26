@@ -1,4 +1,5 @@
 import React from 'react'
+import DocumentExtras from './DocumentExtras'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
@@ -189,6 +190,8 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
         </div>
 
       </div>
+    
+      <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
     </div>
   )
 }

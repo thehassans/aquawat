@@ -6,6 +6,7 @@ import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { Building2 } from 'lucide-react'
+import DocumentExtras from './DocumentExtras'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
@@ -183,6 +184,9 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
             </div>
           </div>
         </div>
+
+        {/* Extras */}
+        <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
 
         {/* Footer */}
         <div className="mt-12 pt-4 border-t-4 border-black text-center">
