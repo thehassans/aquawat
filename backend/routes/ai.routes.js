@@ -66,6 +66,98 @@ router.post('/extract-document', checkAI, upload.single('document'), async (req,
   }
 });
 
+// @route   POST /api/ai/extract-smart-invoice
+router.post('/extract-smart-invoice', checkAI, upload.single('media'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No media uploaded' });
+    }
+    
+    const mimeType = req.file.mimetype;
+    let extractedData;
+    let textToAnalyze = '';
+
+    // If audio, transcribe first
+    if (mimeType.startsWith('audio/')) {
+      const { toFile } = await import('openai');
+      const audioFile = await toFile(req.file.buffer, req.file.originalname || 'audio.webm', { type: mimeType });
+      const transcription = await openai.audio.transcriptions.create({
+        file: audioFile,
+        model: 'whisper-1',
+      });
+      textToAnalyze = transcription.text;
+      
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert ERP assistant. Extract invoice data from the transcribed user voice prompt.
+Return strict JSON matching this structure:
+{
+  "buyer": { "name": "...", "vatNumber": "..." },
+  "lineItems": [ { "name": "...", "quantity": 1, "unitPrice": 100, "taxRate": 15, "taxAmount": 15, "lineTotal": 100, "lineTotalWithTax": 115 } ],
+  "notes": "...",
+  "totalAmount": 100,
+  "totalTax": 15,
+  "grandTotal": 115
+}`
+          },
+          {
+            role: 'user',
+            content: textToAnalyze
+          }
+        ],
+        max_tokens: 1000,
+        response_format: { type: 'json_object' }
+      });
+      extractedData = JSON.parse(response.choices[0].message.content);
+      extractedData.transcription = textToAnalyze;
+      
+    } else if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
+      const base64Image = req.file.buffer.toString('base64');
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an OCR expert. Extract detailed invoice data from the image into strict JSON matching this structure exactly. Be sure to extract every single line item and its VAT details:
+{
+  "supplier": { "name": "...", "vatNumber": "...", "address": { "city": "..." } },
+  "buyer": { "name": "...", "vatNumber": "...", "address": { "city": "..." } },
+  "lineItems": [ { "name": "...", "quantity": 1, "unitPrice": 100, "taxRate": 15, "taxAmount": 15, "lineTotal": 100, "lineTotalWithTax": 115 } ],
+  "issueDate": "YYYY-MM-DD",
+  "notes": "...",
+  "totalAmount": 100,
+  "totalTax": 15,
+  "grandTotal": 115
+}`
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Extract invoice data.' },
+              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+            ]
+          }
+        ],
+        max_tokens: 1500,
+        response_format: { type: 'json_object' }
+      });
+      extractedData = JSON.parse(response.choices[0].message.content);
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type. Use audio or image.' });
+    }
+    
+    res.json({
+      success: true,
+      extractedData
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // @route   POST /api/ai/khayyat-ocr
 router.post('/khayyat-ocr', upload.single('image'), async (req, res) => {
   try {

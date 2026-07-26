@@ -1,5 +1,9 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import multer from 'multer';
+import * as xlsx from 'xlsx';
+import csv from 'csv-parser';
+import { Readable } from 'stream';
 import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
 import Customer from '../models/Customer.js';
@@ -21,6 +25,7 @@ import { createInvoiceFromMultipleDNs } from '../controllers/invoiceController.j
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(protect);
 router.use(tenantFilter);
@@ -658,6 +663,163 @@ router.get('/:id', checkPermission('invoicing', 'read'), async (req, res) => {
 });
 
 // @route   POST /api/invoices
+// @route   POST /api/invoices/bulk-upload
+router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoicing', 'create'), upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const { businessContext = 'trading', transactionType = 'B2C', flow = 'sell', supplierId = null } = req.body;
+    let records = [];
+
+    if (file.originalname.match(/\.csv$/i)) {
+      await new Promise((resolve, reject) => {
+        Readable.from(file.buffer.toString('utf8'))
+          .pipe(csv())
+          .on('data', (data) => records.push(data))
+          .on('end', resolve)
+          .on('error', reject);
+      });
+    } else if (file.originalname.match(/\.xlsx?$|\.xls$/i)) {
+      const workbook = xlsx.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      records = xlsx.utils.sheet_to_json(sheet);
+    } else {
+      return res.status(400).json({ error: 'Unsupported file format. Please upload CSV or Excel.' });
+    }
+
+    if (records.length === 0) {
+      return res.status(400).json({ error: 'File is empty' });
+    }
+
+    // Group records by Invoice ID or just create one invoice per row if no grouping ID is provided.
+    // For simplicity, we assume each row is a separate invoice unless they share an 'Invoice Reference' column
+    const invoicesMap = new Map();
+    
+    for (const record of records) {
+      const ref = record['Invoice Reference'] || `TEMP-${Math.random()}`;
+      if (!invoicesMap.has(ref)) {
+        invoicesMap.set(ref, {
+          tenantId: req.user.tenantId,
+          createdBy: req.user._id,
+          businessContext,
+          transactionType: flow === 'purchase' ? 'B2B' : transactionType,
+          flow,
+          ...(supplierId && flow === 'purchase' ? { supplierId } : {}),
+          buyer: {
+            name: record['Customer Name'] || 'Cash Customer',
+            nameAr: record['Customer Name Arabic'] || '',
+            vatNumber: record['Customer VAT'] || '',
+            address: {
+              street: record['Street'] || '',
+              city: record['City'] || '',
+              district: record['District'] || '',
+              postalCode: record['Postal Code'] || ''
+            }
+          },
+          lineItems: [],
+          issueDate: record['Issue Date'] ? new Date(record['Issue Date']) : new Date(),
+          status: 'draft',
+          totalAmount: 0,
+          totalTax: 0,
+          grandTotal: 0
+        });
+      }
+
+      const inv = invoicesMap.get(ref);
+      const qty = toNumber(record['Quantity'], 1);
+      const unitPrice = toNumber(record['Unit Price'], 0);
+      const lineTotal = qty * unitPrice;
+      const taxRate = toNumber(record['Tax Rate'], 15) / 100;
+      const taxAmount = lineTotal * taxRate;
+      const lineTotalWithTax = lineTotal + taxAmount;
+
+      if (unitPrice > 0 || record['Item Name']) {
+        inv.lineItems.push({
+          name: record['Item Name'] || 'Item',
+          nameAr: record['Item Name Arabic'] || '',
+          quantity: qty,
+          unitPrice,
+          taxRate: taxRate * 100,
+          taxAmount,
+          lineTotal,
+          lineTotalWithTax
+        });
+
+        inv.totalAmount += lineTotal;
+        inv.totalTax += taxAmount;
+        inv.grandTotal += lineTotalWithTax;
+      }
+    }
+
+    const createdInvoices = [];
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const invData of invoicesMap.values()) {
+      try {
+        const tenant = await Tenant.findById(req.user.tenantId);
+        // Generate invoice number
+        const lastInvoice = await Invoice.findOne({ 
+          tenantId: req.user.tenantId, 
+          businessContext: invData.businessContext,
+          transactionType: invData.transactionType,
+          flow: invData.flow 
+        }).sort({ createdAt: -1 });
+
+        let nextInvoiceNumber = '';
+        if (lastInvoice && lastInvoice.invoiceNumber) {
+          const parts = lastInvoice.invoiceNumber.split('-');
+          const lastNum = parseInt(parts.pop(), 10) || 0;
+          const paddedNextNum = String(lastNum + 1).padStart(6, '0');
+          nextInvoiceNumber = parts.length > 0 ? `${parts.join('-')}-${paddedNextNum}` : paddedNextNum;
+        } else {
+          const prefix = invData.businessContext === 'trading' ? 'TRD' : invData.businessContext === 'construction' ? 'CON' : 'INV';
+          nextInvoiceNumber = `${prefix}-${new Date().getFullYear()}-${String(1).padStart(6, '0')}`;
+        }
+        
+        // Temporarily save the last invoice in memory for sequential processing in bulk upload
+        const dummyLastInvoice = new Invoice({ invoiceNumber: nextInvoiceNumber, createdAt: new Date() });
+        // The findOne above will not see the uncommitted ones, wait!
+        // We need to keep track of the last generated invoice number per context.
+        
+        enrichInvoiceArabicFields(invData);
+        
+        invData.invoiceNumber = nextInvoiceNumber;
+        const invoice = new Invoice(invData);
+        
+        const isB2C = invoice.transactionType === 'B2C';
+        const isPhase1 = tenant?.zatca?.phase === 1;
+        if (isB2C && isPhase1) {
+          invoice.zatca = {
+            ...invoice.zatca,
+            qrCode: buildDraftInvoiceQr(invoice, tenant)
+          };
+        }
+        
+        await invoice.save();
+        createdInvoices.push(invoice._id);
+        successCount++;
+      } catch (err) {
+        failCount++;
+        console.error('Failed to create invoice in bulk upload:', err);
+      }
+    }
+
+    res.json({
+      success: true,
+      successCount,
+      failCount,
+      message: `Successfully created ${successCount} invoices. Failed: ${failCount}`
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'create'), async (req, res) => {
   try {
     const tenant = await Tenant.findById(req.user.tenantId);

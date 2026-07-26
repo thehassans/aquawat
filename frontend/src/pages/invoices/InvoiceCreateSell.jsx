@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useForm, useFieldArray } from 'react-hook-form'
@@ -38,6 +38,33 @@ export default function InvoiceCreateSell() {
 
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'lineItems' })
   const lineItems = watch('lineItems')
+
+  const location = useLocation()
+  const prefillData = location.state?.prefillData
+
+  useEffect(() => {
+    if (prefillData) {
+      if (prefillData.buyer) {
+        setValue('buyer.name', prefillData.buyer.name || '')
+        setValue('buyer.vatNumber', prefillData.buyer.vatNumber || '')
+        if (prefillData.buyer.address) {
+          setValue('buyer.address.city', prefillData.buyer.address.city || '')
+          setValue('buyer.address.street', prefillData.buyer.address.street || '')
+        }
+      }
+      if (prefillData.lineItems && Array.isArray(prefillData.lineItems)) {
+        replace(prefillData.lineItems.map(item => ({
+          productId: '',
+          productName: item.name || '',
+          productNameAr: '',
+          quantity: item.quantity || 1,
+          unitPrice: item.unitPrice || 0,
+          taxRate: 15,
+          unitCode: 'PCE'
+        })))
+      }
+    }
+  }, [prefillData, setValue, replace])
 
   const { data: products } = useQuery({
     queryKey: ['products-list'],
