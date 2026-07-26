@@ -33,7 +33,6 @@ import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
-import { Plus } from 'lucide-react'
 
 const getInvoiceContextLabel = (invoice, language = 'en') => {
   const context = String(invoice?.businessContext || '').trim()
