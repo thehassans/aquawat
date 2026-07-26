@@ -16,6 +16,9 @@ import InvoiceLivePreview from './InvoiceLivePreview'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
 import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
+import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
+import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
+import { ScanLine, UploadCloud } from 'lucide-react'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
@@ -58,6 +61,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [transactionType, setTransactionType] = useState('B2B')
+  const [isSmartModalOpen, setIsSmartModalOpen] = useState(false)
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
   const defaultBusinessContext = useMemo(() => {
@@ -75,7 +80,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     })
   })
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' })
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'lineItems' })
   const values = watch()
   const lineItems = Array.isArray(values.lineItems) ? values.lineItems : []
   const businessContext = values.businessContext || defaultBusinessContext
@@ -269,7 +274,47 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isEdit ? (language === 'ar' ? 'تعديل فاتورة الشراء' : 'Edit Purchase Invoice') : (language === 'ar' ? 'فاتورة شراء جديدة' : 'New Purchase Invoice')}</h1>
           <p className="mt-1 text-gray-500 dark:text-gray-400">{isEdit ? (language === 'ar' ? 'حدّث بيانات الفاتورة قبل حفظ التعديلات' : 'Update the invoice details before saving your changes') : (language === 'ar' ? 'تدعم الشراء التجاري والخدمي وفواتير السفر' : 'Supports trading, service, and travel purchase invoices')}</p>
         </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={() => setIsSmartModalOpen(true)} className="btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/30 border-0">
+            <ScanLine className="w-4 h-4" />
+            {language === 'ar' ? 'مسح ذكي (OCR)' : 'Smart OCR'}
+          </button>
+          <button type="button" onClick={() => setIsBulkModalOpen(true)} className="btn btn-secondary">
+            <UploadCloud className="w-4 h-4" />
+            {language === 'ar' ? 'رفع مجمع' : 'Bulk Add'}
+          </button>
+        </div>
       </div>
+
+      <SmartInvoiceModal 
+        isOpen={isSmartModalOpen} 
+        onClose={() => setIsSmartModalOpen(false)} 
+        language={language}
+        onSuccess={(data) => {
+          if (data.supplier) {
+            setValue('seller.name', data.supplier.name || '')
+            setValue('seller.nameAr', data.supplier.nameAr || '')
+            setValue('seller.vatNumber', data.supplier.vatNumber || '')
+          }
+          if (data.lineItems && Array.isArray(data.lineItems)) {
+            replace(data.lineItems.map(item => ({
+              ...emptyLine,
+              productId: '',
+              productName: item.name || '',
+              productNameAr: item.nameAr || '',
+              quantity: item.quantity || 1,
+              unitPrice: item.unitPrice || 0,
+              taxRate: item.taxRate || 15,
+            })))
+          }
+        }}
+      />
+      <BulkInvoiceModal 
+        isOpen={isBulkModalOpen} 
+        onClose={() => setIsBulkModalOpen(false)} 
+        language={language} 
+        t={t} 
+      />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

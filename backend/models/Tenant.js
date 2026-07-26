@@ -58,6 +58,14 @@ const businessDetailsSchema = new mongoose.Schema({
   contactEmail: { type: String },
   website: { type: String },
 
+  // Bank Details
+  bankDetails: {
+    bankName: { type: String, default: '' },
+    accountName: { type: String, default: '' },
+    accountNumber: { type: String, default: '' },
+    iban: { type: String, default: '' },
+  },
+
   // National Address (Saudi National Address)
   nationalAddress: {
     proofNumber: { type: String, default: '' },

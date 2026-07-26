@@ -359,6 +359,12 @@ export default function Settings() {
       },
       contactEmail: tenant.business?.contactEmail || '',
       contactPhone: tenant.business?.contactPhone || '',
+      bankDetails: {
+        bankName: tenant.business?.bankDetails?.bankName || '',
+        accountName: tenant.business?.bankDetails?.accountName || '',
+        accountNumber: tenant.business?.bankDetails?.accountNumber || '',
+        iban: tenant.business?.bankDetails?.iban || '',
+      },
       nationalAddress: {
         proofNumber: tenant.business?.nationalAddress?.proofNumber || '',
         originalDate: tenant.business?.nationalAddress?.originalDate ? new Date(tenant.business.nationalAddress.originalDate).toISOString().split('T')[0] : '',
@@ -602,6 +608,30 @@ export default function Settings() {
                   <div>
                     <label className="label">{language === 'ar' ? 'الهاتف' : 'Phone'}</label>
                     <input {...register('contactPhone')} className="input" />
+                  </div>
+                </div>
+
+                <div className="mt-8 border-t border-gray-200 dark:border-dark-600 pt-6">
+                  <h4 className="text-md font-semibold mb-4 text-gray-900 dark:text-white">
+                    {language === 'ar' ? 'تفاصيل الحساب البنكي' : 'Bank Account Details'}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'اسم البنك' : 'Bank Name'}</label>
+                      <input {...register('bankDetails.bankName')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'اسم صاحب الحساب' : 'Account Name'}</label>
+                      <input {...register('bankDetails.accountName')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'رقم الحساب' : 'Account Number'}</label>
+                      <input {...register('bankDetails.accountNumber')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الآيبان' : 'IBAN'}</label>
+                      <input {...register('bankDetails.iban')} className="input" />
+                    </div>
                   </div>
                 </div>
 

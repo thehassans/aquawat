@@ -468,6 +468,19 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   </div>
                 </>
               )}
+
+              {tenant?.business?.bankDetails?.bankName && (
+                <>
+                  {(invoice?.notes || invoice?.notesAr || invoice?.paymentMethod) && <hr className="my-3 border-gray-200" />}
+                  <div className="text-sm space-y-1 text-gray-700">
+                    <h4 className="font-semibold text-gray-900 border-b pb-1 mb-2">Bank Details / بيانات البنك</h4>
+                    <p><span className="font-medium text-gray-900">Bank:</span> {tenant.business.bankDetails.bankName}</p>
+                    {tenant.business.bankDetails.accountName && <p><span className="font-medium text-gray-900">Account:</span> {tenant.business.bankDetails.accountName}</p>}
+                    {tenant.business.bankDetails.accountNumber && <p><span className="font-medium text-gray-900">Acc No:</span> {tenant.business.bankDetails.accountNumber}</p>}
+                    {tenant.business.bankDetails.iban && <p><span className="font-medium text-gray-900">IBAN:</span> {tenant.business.bankDetails.iban}</p>}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

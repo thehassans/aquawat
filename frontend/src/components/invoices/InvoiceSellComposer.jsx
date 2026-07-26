@@ -17,6 +17,9 @@ import InvoiceLivePreview from './InvoiceLivePreview'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
 import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
+import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
+import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
+import { ScanLine, UploadCloud } from 'lucide-react'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', customerPrice: '', taxRate: 15, agencyPrice: '', isTravelMargin: false }
 const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
@@ -105,6 +108,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [invoiceType, setInvoiceType] = useState('B2C')
+  const [isSmartModalOpen, setIsSmartModalOpen] = useState(false)
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
   const defaultBusinessContext = useMemo(() => {
@@ -520,7 +525,47 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isEdit ? (language === 'ar' ? 'تعديل فاتورة البيع' : 'Edit Sell Invoice') : (language === 'ar' ? 'فاتورة بيع جديدة' : 'New Sell Invoice')}</h1>
           <p className="mt-1 text-gray-500 dark:text-gray-400">{isEdit ? (language === 'ar' ? 'حدّث بيانات الفاتورة وشاهد المعاينة المباشرة قبل الحفظ' : 'Update the invoice details and review the live preview before saving') : (language === 'ar' ? 'اختر النشاط، القالب، وشاهد المعاينة المباشرة قبل الحفظ' : 'Choose the business flow, template, and see a live preview before saving')}</p>
         </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={() => setIsSmartModalOpen(true)} className="btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/30 border-0">
+            <ScanLine className="w-4 h-4" />
+            {language === 'ar' ? 'مسح ذكي (OCR)' : 'Smart OCR'}
+          </button>
+          <button type="button" onClick={() => setIsBulkModalOpen(true)} className="btn btn-secondary">
+            <UploadCloud className="w-4 h-4" />
+            {language === 'ar' ? 'رفع مجمع' : 'Bulk Add'}
+          </button>
+        </div>
       </div>
+
+      <SmartInvoiceModal 
+        isOpen={isSmartModalOpen} 
+        onClose={() => setIsSmartModalOpen(false)} 
+        language={language}
+        onSuccess={(data) => {
+          if (data.buyer) {
+            setValue('buyer.name', data.buyer.name || '')
+            setValue('buyer.nameAr', data.buyer.nameAr || '')
+            setValue('buyer.vatNumber', data.buyer.vatNumber || '')
+          }
+          if (data.lineItems && Array.isArray(data.lineItems)) {
+            replace(data.lineItems.map(item => ({
+              ...emptyLine,
+              productId: '',
+              productName: item.name || '',
+              productNameAr: item.nameAr || '',
+              quantity: item.quantity || 1,
+              unitPrice: item.unitPrice || 0,
+              taxRate: item.taxRate || 15,
+            })))
+          }
+        }}
+      />
+      <BulkInvoiceModal 
+        isOpen={isBulkModalOpen} 
+        onClose={() => setIsBulkModalOpen(false)} 
+        language={language} 
+        t={t} 
+      />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
