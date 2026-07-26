@@ -257,6 +257,10 @@ export default function Settings() {
   const [waOrderServedMsgEn, setWaOrderServedMsgEn] = useState('Your order has been served. Thank you! Order #: {{orderNumber}}')
   const [waOrderServedMsgAr, setWaOrderServedMsgAr] = useState('تم تقديم طلبك. شكراً لك! رقم الطلب: {{orderNumber}}')
   const [waNotifyPhones, setWaNotifyPhones] = useState('')
+  // Invoice WhatsApp auto-send settings
+  const [waAutoInvoiceSend, setWaAutoInvoiceSend] = useState(false)
+  const [waInvoiceMsgEn, setWaInvoiceMsgEn] = useState('Dear customer, your invoice {{invoiceNumber}} is ready. Amount: {{total}} SAR. Link: {{link}}')
+  const [waInvoiceMsgAr, setWaInvoiceMsgAr] = useState('عزيزي العميل، فاتورتك رقم {{invoiceNumber}} جاهزة. المبلغ: {{total}} ريال. الرابط: {{link}}')
   // Bakala settings
   const [bakalaRequireShift, setBakalaRequireShift] = useState(true)
   const [bakalaTaxEnabled, setBakalaTaxEnabled] = useState(true)
@@ -289,6 +293,9 @@ export default function Settings() {
     setInvoiceHeaderTextAr(tenant.settings?.invoiceBranding?.headerTextAr || '')
     setInvoiceFooterTextEn(tenant.settings?.invoiceBranding?.footerTextEn || '')
     setInvoiceFooterTextAr(tenant.settings?.invoiceBranding?.footerTextAr || '')
+    setWaAutoInvoiceSend(tenant.settings?.invoiceWhatsappAutoSend || false)
+    setWaInvoiceMsgEn(tenant.settings?.invoiceWhatsappMessageEn || 'Dear customer, your invoice {{invoiceNumber}} is ready. Amount: {{total}} SAR. Link: {{link}}')
+    setWaInvoiceMsgAr(tenant.settings?.invoiceWhatsappMessageAr || 'عزيزي العميل، فاتورتك رقم {{invoiceNumber}} جاهزة. المبلغ: {{total}} ريال. الرابط: {{link}}')
     const typography = getInvoiceTypography(tenant)
     setInvoiceBodyFontFamily(typography.bodyFontFamily)
     setInvoiceHeadingFontFamily(typography.headingFontFamily)
@@ -1019,7 +1026,33 @@ export default function Settings() {
                   </div>
                 </div>
 
+                </div>
 
+                <div className="pt-4">
+                  <label className="label flex items-center gap-2"><MessageCircle className="w-4 h-4 text-green-500" />{language === 'ar' ? 'إرسال الفواتير التلقائي عبر واتساب' : 'WhatsApp Invoice Auto-Send'}</label>
+                  <div className="card-glass p-4 mt-2 space-y-4">
+                    <label className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-dark-700">
+                      <span className="font-medium text-sm">{language === 'ar' ? 'تفعيل الإرسال التلقائي للفواتير' : 'Enable Auto-Send for Invoices'}</span>
+                      <input type="checkbox" checked={waAutoInvoiceSend} onChange={(e) => setWaAutoInvoiceSend(e.target.checked)} className="h-4 w-4 rounded" />
+                    </label>
+
+                    {waAutoInvoiceSend && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        <div>
+                          <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">{language === 'ar' ? 'رسالة الفاتورة (EN)' : 'Invoice Message (EN)'}</label>
+                          <textarea rows={3} value={waInvoiceMsgEn} onChange={(e) => setWaInvoiceMsgEn(e.target.value)} className="input w-full text-sm" placeholder="Variables: {{invoiceNumber}}, {{total}}, {{link}}" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">{language === 'ar' ? 'رسالة الفاتورة (AR)' : 'Invoice Message (AR)'}</label>
+                          <textarea rows={3} value={waInvoiceMsgAr} onChange={(e) => setWaInvoiceMsgAr(e.target.value)} className="input w-full text-sm" dir="rtl" placeholder="Variables: {{invoiceNumber}}, {{total}}, {{link}}" />
+                        </div>
+                        <div className="md:col-span-2 text-xs text-gray-500 bg-blue-50/50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900">
+                          {language === 'ar' ? 'المتغيرات المتاحة:' : 'Available Variables:'} {'{{invoiceNumber}}, {{total}}, {{link}}, {{customer_name}}'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <div className="pt-2">
                   <label className="label flex items-center gap-2"><Palette className="w-4 h-4" />{language === 'ar' ? 'ألوان العلامة' : 'Brand Colors'}</label>
@@ -1100,6 +1133,9 @@ export default function Settings() {
                           ...(tenant?.settings?.khayyat || {}),
                           whatsappLanguage: khayyatWhatsappLanguage,
                         },
+                        invoiceWhatsappAutoSend: waAutoInvoiceSend,
+                        invoiceWhatsappMessageEn: waInvoiceMsgEn,
+                        invoiceWhatsappMessageAr: waInvoiceMsgAr,
                         invoiceCurrencyDisplay,
                         invoiceCurrencyPosition,
                         invoiceBranding: {

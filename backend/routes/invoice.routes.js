@@ -18,6 +18,7 @@ import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { autoSendInvoice, sendInvoiceToRecipient } from '../utils/tenantEmailService.js';
 import { buildInvoicePdfAttachment } from '../utils/invoicePdfService.js';
 import { createInvoiceFromMultipleDNs } from '../controllers/invoiceController.js';
+import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
 
 const router = express.Router();
 
@@ -300,6 +301,42 @@ async function autoEmailInvoiceIfEnabled({ tenant, invoice, customer = null, fal
     recipient,
     language,
   });
+}
+
+async function autoWhatsAppInvoiceIfEnabled({ tenant, invoice, customer = null, language }) {
+  if (!tenant?.settings?.invoiceWhatsappAutoSend) {
+    return { sent: false, reason: 'disabled' };
+  }
+  
+  const phone = customer?.phone || customer?.mobile || invoice?.buyer?.phone;
+  if (!phone) return { sent: false, reason: 'no_customer_phone' };
+
+  try {
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const baseUrl = process.env.APP_URL || `${protocol}://${tenant.domain || 'app.maqder.com'}`;
+    const link = `${baseUrl}/app/dashboard/invoices/${invoice._id}`;
+
+    const replacements = {
+      invoiceNumber: invoice.invoiceNumber || '',
+      total: invoice.grandTotal || 0,
+      link: link,
+      customer_name: customer?.name || customer?.nameAr || invoice?.buyer?.name || invoice?.buyer?.nameAr || '',
+    };
+
+    const messageEn = tenant.settings.invoiceWhatsappMessageEn || 'Dear customer, your invoice {{invoiceNumber}} is ready. Amount: {{total}} SAR. Link: {{link}}';
+    const messageAr = tenant.settings.invoiceWhatsappMessageAr || 'عزيزي العميل، فاتورتك رقم {{invoiceNumber}} جاهزة. المبلغ: {{total}} ريال. الرابط: {{link}}';
+
+    const waRes = await sendRestaurantWhatsApp({
+      tenantId: tenant._id,
+      phone,
+      messageEn,
+      messageAr,
+      replacements
+    });
+    return waRes;
+  } catch (error) {
+    return { sent: false, reason: error.message };
+  }
 }
 
 async function postInventoryForInvoice(invoice, tenantFilterValue) {
@@ -711,7 +748,33 @@ router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'cre
       await syncCustomerStats(invoice.tenantId, invoice.customerId);
     }
 
-    res.status(201).json(invoice);
+    let emailDelivery = { sent: false, reason: 'disabled' };
+    let whatsappDelivery = { sent: false, reason: 'disabled' };
+    if (invoice.status === 'approved' || invoice.zatca?.signedXml) {
+      try {
+        emailDelivery = await autoEmailInvoiceIfEnabled({
+          tenant,
+          invoice,
+          customer,
+          language: tenant?.settings?.language,
+        });
+      } catch (emailError) {
+        emailDelivery = { sent: false, reason: emailError.message };
+      }
+
+      try {
+        whatsappDelivery = await autoWhatsAppInvoiceIfEnabled({
+          tenant,
+          invoice,
+          customer,
+          language: tenant?.settings?.language,
+        });
+      } catch (waError) {
+        whatsappDelivery = { sent: false, reason: waError.message };
+      }
+    }
+
+    res.status(201).json({ ...invoice.toObject(), emailDelivery, whatsappDelivery });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -960,6 +1023,7 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
       : customer;
 
     let emailDelivery = { sent: false, reason: 'disabled' };
+    let whatsappDelivery = { sent: false, reason: 'disabled' };
     if (invoice.status === 'approved' || invoice.zatca?.signedXml) {
       try {
         emailDelivery = await autoEmailInvoiceIfEnabled({
@@ -971,9 +1035,20 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
       } catch (emailError) {
         emailDelivery = { sent: false, reason: emailError.message };
       }
+
+      try {
+        whatsappDelivery = await autoWhatsAppInvoiceIfEnabled({
+          tenant,
+          invoice,
+          customer: invoiceCustomer,
+          language: tenant?.settings?.language,
+        });
+      } catch (waError) {
+        whatsappDelivery = { sent: false, reason: waError.message };
+      }
     }
 
-    res.status(201).json({ ...invoice.toObject(), emailDelivery });
+    res.status(201).json({ ...invoice.toObject(), emailDelivery, whatsappDelivery });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
