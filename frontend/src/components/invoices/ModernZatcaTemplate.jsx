@@ -1,4 +1,6 @@
+import React from 'react'
 import { QRCodeSVG } from 'qrcode.react'
+import DocumentExtras from './DocumentExtras'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
