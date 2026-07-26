@@ -11,6 +11,8 @@ import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/busine
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
+import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
+import InvoiceTemplateSelector from '../invoices/InvoiceTemplateSelector'
 
 const emptyLine = {
   productId: '',
@@ -37,6 +39,7 @@ const formatDateForInput = (value) => {
 
 const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext }) => ({
   businessContext: quotation?.businessContext || defaultBusinessContext,
+  pdfTemplateId: quotation?.pdfTemplateId || getInvoiceTemplateId(tenant, quotation?.businessContext || defaultBusinessContext),
   issueDate: formatDateForInput(quotation?.issueDate) || formatDateForInput(new Date()),
   validUntil: formatDateForInput(quotation?.validUntil),
   transactionType: quotation?.transactionType || 'B2C',
@@ -98,7 +101,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   const values = watch()
   const lineItems = Array.isArray(values?.lineItems) ? values.lineItems : []
   const businessContext = values?.businessContext || defaultBusinessContext
-  const selectedTemplateId = Number(getInvoiceTemplateId(tenant, businessContext))
+  const selectedTemplateId = Number(values?.pdfTemplateId || getInvoiceTemplateId(tenant, businessContext))
   const isTradingContext = businessContext === 'trading'
   const [customerLookupId, setCustomerLookupId] = useState('')
 
@@ -124,6 +127,30 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     control, watch, setValue,
     sourceField: 'subjectAr',
     targetField: 'subject',
+    sourceLang: 'ar', targetLang: 'en',
+  })
+  useLiveTranslation({
+    control, watch, setValue,
+    sourceField: 'authorizedPersonName',
+    targetField: 'authorizedPersonNameAr',
+    sourceLang: 'en', targetLang: 'ar',
+  })
+  useLiveTranslation({
+    control, watch, setValue,
+    sourceField: 'authorizedPersonNameAr',
+    targetField: 'authorizedPersonName',
+    sourceLang: 'ar', targetLang: 'en',
+  })
+  useLiveTranslation({
+    control, watch, setValue,
+    sourceField: 'authorizedPersonDesignation',
+    targetField: 'authorizedPersonDesignationAr',
+    sourceLang: 'en', targetLang: 'ar',
+  })
+  useLiveTranslation({
+    control, watch, setValue,
+    sourceField: 'authorizedPersonDesignationAr',
+    targetField: 'authorizedPersonDesignation',
     sourceLang: 'ar', targetLang: 'en',
   })
 
@@ -261,6 +288,22 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     saveMutation.mutate(payload)
   }
 
+  const previewQuotation = {
+    ...values,
+    quotationNumber: initialQuotation?.quotationNumber || 'PREVIEW-1234',
+    issueDate: values?.issueDate ? new Date(values.issueDate) : new Date(),
+    validUntil: values?.validUntil ? new Date(values.validUntil) : undefined,
+    ...totals,
+    seller: {
+      name: tenant?.business?.legalNameEn,
+      nameAr: tenant?.business?.legalNameAr,
+      vatNumber: tenant?.business?.vatNumber,
+      address: tenant?.business?.address,
+      contactPhone: tenant?.business?.contactPhone,
+      contactEmail: tenant?.business?.contactEmail,
+    },
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -279,7 +322,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
         </div>
       </div>
 
-      <div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="card p-6">
             <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'سياق عرض السعر' : 'Quotation Context'}</h3>
@@ -597,6 +640,10 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             <textarea {...register('termsAndConditions')} rows="6" className="input min-h-[160px]" placeholder={language === 'ar' ? 'أدخل الشروط والأحكام...' : 'Enter terms and conditions...'} />
           </div>
 
+          <div className="card p-6">
+            <InvoiceTemplateSelector language={language} value={selectedTemplateId} onChange={(id) => setValue('pdfTemplateId', id)} />
+          </div>
+
           <div className="flex justify-end">
             <button type="submit" className="btn btn-primary" disabled={saveMutation.isPending}>
               {saveMutation.isPending ? (
@@ -608,6 +655,14 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </button>
           </div>
         </form>
+
+        <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+          <div className="card p-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'تتحدث المعاينة فوراً مع تغيير القالب والبيانات.' : 'Preview updates instantly as you change the template and form data.'}</p>
+          </div>
+          <InvoiceLivePreview invoice={previewQuotation} tenant={tenant} language={language} templateId={selectedTemplateId} documentType="quotation" />
+        </div>
       </div>
     </div>
   )
