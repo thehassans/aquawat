@@ -441,7 +441,7 @@ export default function FurniturePOS() {
                             <input
                               type="number"
                               min="0"
-                              value={item.unitPrice * item.quantity === 0 ? '' : Number(item.unitPrice * item.quantity).toFixed(2)}
+                              value={item.unitPrice * item.quantity === 0 ? '' : item.unitPrice * item.quantity}
                               placeholder="0.00"
                               onChange={(e) => {
                                 const newTotal = Number(e.target.value);

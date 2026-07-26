@@ -18,7 +18,7 @@ import TravelInvoiceFields from './TravelInvoiceFields'
 import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
-const purchaseContexts = ['trading', 'construction', 'travel_agency']
+const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
 const toNumber = (value, fallback = 0) => {
   const numericValue = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(numericValue) ? numericValue : fallback
