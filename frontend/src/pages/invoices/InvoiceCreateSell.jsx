@@ -9,6 +9,9 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
+import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
+import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
+import { Mic, UploadCloud, ScanLine } from 'lucide-react'
 
 export default function InvoiceCreateSell() {
   const navigate = useNavigate()
@@ -19,6 +22,8 @@ export default function InvoiceCreateSell() {
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [invoiceType, setInvoiceType] = useState('B2C')
+  const [isSmartModalOpen, setIsSmartModalOpen] = useState(false)
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
 
   const businessType = tenant?.businessType || 'trading'
   const isTrading = businessType === 'trading'
@@ -320,7 +325,47 @@ export default function InvoiceCreateSell() {
               : (language === 'ar' ? 'إنشاء فاتورة مبيعات مع تخفيض المخزون عند التوقيع' : 'Create a sales invoice (inventory decreases on signing)')}
           </p>
         </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={() => setIsSmartModalOpen(true)} className="btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/30 border-0">
+            <ScanLine className="w-4 h-4" />
+            {language === 'ar' ? 'مسح ذكي (OCR)' : 'Smart OCR'}
+          </button>
+          <button type="button" onClick={() => setIsBulkModalOpen(true)} className="btn btn-secondary">
+            <UploadCloud className="w-4 h-4" />
+            {language === 'ar' ? 'رفع مجمع' : 'Bulk Add'}
+          </button>
+        </div>
       </div>
+
+      <SmartInvoiceModal 
+        isOpen={isSmartModalOpen} 
+        onClose={() => setIsSmartModalOpen(false)} 
+        language={language}
+        onSuccess={(data) => {
+          if (data.buyer) {
+            setValue('buyer.name', data.buyer.name || '')
+            setValue('buyer.nameAr', data.buyer.nameAr || '')
+            setValue('buyer.vatNumber', data.buyer.vatNumber || '')
+          }
+          if (data.lineItems && Array.isArray(data.lineItems)) {
+            replace(data.lineItems.map(item => ({
+              productId: '',
+              productName: item.name || '',
+              productNameAr: item.nameAr || '',
+              quantity: item.quantity || 1,
+              unitPrice: item.unitPrice || 0,
+              taxRate: item.taxRate || 15,
+              unitCode: 'PCE'
+            })))
+          }
+        }}
+      />
+      <BulkInvoiceModal 
+        isOpen={isBulkModalOpen} 
+        onClose={() => setIsBulkModalOpen(false)} 
+        language={language} 
+        t={t} 
+      />
 
       {poId && (
         <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 p-4 rounded-xl text-sm mb-6 border border-blue-100 dark:border-blue-900/50">

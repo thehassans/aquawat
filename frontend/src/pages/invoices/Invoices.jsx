@@ -33,9 +33,7 @@ import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
-import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
-import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
-import { Mic, UploadCloud } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
 const getInvoiceContextLabel = (invoice, language = 'en') => {
   const context = String(invoice?.businessContext || '').trim()
@@ -107,9 +105,6 @@ export default function Invoices() {
   const posTenants = ['bakala', 'super market', 'khayyat', 'saloon', 'laundry', 'restaurant', 'boutique']
   const showNewInvoiceBtn = !tenantBusinessTypes.some(t => posTenants.includes(t))
   const isPosInvoice = (inv) => ['restaurant', 'bakala', 'saloon', 'laundry', 'khayyat'].includes(inv?.businessContext)
-
-  const [bulkModalOpen, setBulkModalOpen] = useState(false)
-  const [smartModalOpen, setSmartModalOpen] = useState(false)
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedSearch(search), 300)
@@ -328,9 +323,6 @@ export default function Invoices() {
 
   return (
     <div className="space-y-6">
-      <BulkInvoiceModal isOpen={bulkModalOpen} onClose={() => setBulkModalOpen(false)} language={language} t={t} />
-      <SmartInvoiceModal isOpen={smartModalOpen} onClose={() => setSmartModalOpen(false)} language={language} />
-
       {/* Sign Modal */}
       <AnimatePresence>
         {signModalInvoice && (
@@ -567,20 +559,10 @@ export default function Invoices() {
             disabled={isLoading || (data?.invoices || []).length === 0}
           />
           {showNewInvoiceBtn && (
-            <div className="flex gap-2">
-              <button onClick={() => setSmartModalOpen(true)} className="btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/30 dark:shadow-none border-0">
-                <Mic className="w-4 h-4" />
-                {language === 'ar' ? 'إضافة ذكية (صوت/صورة)' : 'Smart Add'}
-              </button>
-              <button onClick={() => setBulkModalOpen(true)} className="btn btn-secondary">
-                <UploadCloud className="w-4 h-4" />
-                {language === 'ar' ? 'رفع مجمع' : 'Bulk Add'}
-              </button>
-              <Link to="/app/dashboard/invoices/new" className="btn btn-action-dark">
-                <Plus className="w-4 h-4" />
-                {t('newInvoice')}
-              </Link>
-            </div>
+            <Link to="/app/dashboard/invoices/new" className="btn btn-action-dark">
+              <Plus className="w-4 h-4" />
+              {t('newInvoice')}
+            </Link>
           )}
         </div>
       </div>

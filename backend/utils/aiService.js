@@ -401,6 +401,35 @@ CRITICAL: You must extract text in both Arabic and English. If the original text
   const geminiKey = settings?.gemini?.apiKey || process.env.GEMINI_API_KEY;
   const openaiKey = settings?.openai?.apiKey || process.env.OPENAI_API_KEY;
 
+  // 0. Try Self-Hosted GLM-OCR
+  const glmOcrEnabled = settings?.glmOcr?.enabled;
+  if (glmOcrEnabled) {
+    try {
+      const glmOcrKey = settings?.glmOcr?.apiKey || process.env.GLM_OCR_API_KEY || 'EMPTY';
+      const glmOcrBaseURL = settings?.glmOcr?.baseURL || 'http://localhost:8000/v1';
+      const client = new OpenAI({ apiKey: glmOcrKey, baseURL: glmOcrBaseURL });
+      const response = await client.chat.completions.create({
+        model: settings?.glmOcr?.model || 'glm-ocr',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: [
+              { type: 'text', text: 'Extract invoice data from this image. Return structured JSON.' },
+              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+            ]
+          }
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      });
+      if (response.choices?.[0]?.message?.content) {
+        return JSON.parse(response.choices[0].message.content.trim());
+      }
+    } catch (e) {
+      lastError = e;
+      console.warn('[OCR] GLM-OCR failed, falling back...', e.message);
+    }
+  }
+
   // 1. Try Gemini
   if (settings?.gemini?.enabled !== false && geminiKey) {
     try {

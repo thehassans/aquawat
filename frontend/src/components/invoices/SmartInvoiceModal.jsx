@@ -3,13 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Image as ImageIcon, Sparkles, ScanLine, FileText, CheckCircle2 } from 'lucide-react'
 import api from '../../lib/api'
 import toast from 'react-hot-toast'
-import { useNavigate } from 'react-router-dom'
 
-export default function SmartInvoiceModal({ isOpen, onClose, language }) {
+export default function SmartInvoiceModal({ isOpen, onClose, language, onSuccess }) {
   const [file, setFile] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDragActive, setIsDragActive] = useState(false)
-  const navigate = useNavigate()
 
   const isArabic = language === 'ar'
 
@@ -62,8 +60,9 @@ export default function SmartInvoiceModal({ isOpen, onClose, language }) {
       toast.success(isArabic ? 'تم استخراج البيانات بنجاح!' : 'Data extracted successfully!')
       onClose()
       
-      // Navigate to create page with pre-filled data via state
-      navigate('/app/dashboard/invoices/new', { state: { prefillData: extractedData } })
+      if (onSuccess) {
+        onSuccess(extractedData)
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || (isArabic ? 'فشل تحليل البيانات' : 'Failed to analyze data'))
     } finally {

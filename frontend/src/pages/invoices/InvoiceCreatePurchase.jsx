@@ -9,6 +9,9 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
+import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
+import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
+import { Mic, UploadCloud, ScanLine } from 'lucide-react'
 
 export default function InvoiceCreatePurchase() {
   const navigate = useNavigate()
@@ -17,8 +20,10 @@ export default function InvoiceCreatePurchase() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
   const [transactionType, setTransactionType] = useState('B2B')
+  const [isSmartModalOpen, setIsSmartModalOpen] = useState(false)
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
 
-  const { register, control, handleSubmit, watch, setValue } = useForm({
+  const { register, control, handleSubmit, watch, setValue, replace } = useForm({
     defaultValues: {
       transactionType: 'B2B',
       invoiceTypeCode: '0100000',
@@ -153,7 +158,51 @@ export default function InvoiceCreatePurchase() {
             {language === 'ar' ? 'إنشاء فاتورة مشتريات وتحديث المخزون' : 'Create a purchase invoice and update inventory'}
           </p>
         </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={() => setIsSmartModalOpen(true)} className="btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/30 border-0">
+            <ScanLine className="w-4 h-4" />
+            {language === 'ar' ? 'مسح ذكي (OCR)' : 'Smart OCR'}
+          </button>
+          <button type="button" onClick={() => setIsBulkModalOpen(true)} className="btn btn-secondary">
+            <UploadCloud className="w-4 h-4" />
+            {language === 'ar' ? 'رفع مجمع' : 'Bulk Add'}
+          </button>
+        </div>
       </div>
+
+      <SmartInvoiceModal 
+        isOpen={isSmartModalOpen} 
+        onClose={() => setIsSmartModalOpen(false)} 
+        language={language}
+        onSuccess={(data) => {
+          if (data.supplier) {
+            // Can't auto select supplier dropdown if it's not in the list, but we can if we had a free-text option.
+            // For now, if the supplier name matches, we could find it, or we just let user select.
+            // Purchase invoices require a registered Supplier ID in this system by default.
+            const matchedSupplier = suppliers?.find(s => s.vatNumber === data.supplier.vatNumber || s.name === data.supplier.name || s.nameAr === data.supplier.nameAr)
+            if (matchedSupplier) {
+              setValue('supplierId', matchedSupplier._id)
+            }
+          }
+          if (data.lineItems && Array.isArray(data.lineItems)) {
+            replace(data.lineItems.map(item => ({
+              productId: '',
+              productName: item.name || '',
+              productNameAr: item.nameAr || '',
+              quantity: item.quantity || 1,
+              unitPrice: item.unitPrice || 0,
+              taxRate: item.taxRate || 15,
+              unitCode: 'PCE'
+            })))
+          }
+        }}
+      />
+      <BulkInvoiceModal 
+        isOpen={isBulkModalOpen} 
+        onClose={() => setIsBulkModalOpen(false)} 
+        language={language} 
+        t={t} 
+      />
 
       {poId && (
         <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 p-4 rounded-xl text-sm mb-6 border border-blue-100 dark:border-blue-900/50">
