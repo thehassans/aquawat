@@ -97,7 +97,7 @@ export const getInvoiceBrandingProfile = (tenant, businessContext = 'trading') =
   const profile = contextProfiles?.[context] || {}
 
   return {
-    templateId: Number(profile?.templateId || CONTEXT_TEMPLATE_DEFAULTS[context] || tenant?.settings?.invoicePdfTemplate || 1),
+    templateId: Number(profile?.templateId || tenant?.settings?.invoicePdfTemplate || CONTEXT_TEMPLATE_DEFAULTS[context] || 1),
     logo: profile?.logo || '',
     headerTextEn: profile?.headerTextEn || '',
     headerTextAr: profile?.headerTextAr || '',
