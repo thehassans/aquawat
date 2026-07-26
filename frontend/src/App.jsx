@@ -522,8 +522,6 @@ function App() {
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="leads" element={<LeadsGeneration />} />
-        <Route path="lead-setup" element={<LeadSetup />} />
           {/* Khayyat Routes */}
           <Route path="khayyat" element={<BusinessTypeRoute allowedTypes={['khayyat']}><KhayyatStitchingForm /></BusinessTypeRoute>} />
           <Route path="khayyat/analytics" element={<BusinessTypeRoute allowedTypes={['khayyat']}><KhayyatDashboard /></BusinessTypeRoute>} />
