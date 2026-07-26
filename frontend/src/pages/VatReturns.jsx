@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { Building2, Calendar, Receipt, RefreshCw, Save, ShieldCheck, Sparkles, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
+import { Building2, Calendar, Receipt, RefreshCw, Save, ShieldCheck, Sparkles, TrendingDown, TrendingUp, Wallet, ArrowRight, Activity, Percent } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import Money from '../components/ui/Money'
@@ -187,22 +187,22 @@ export default function VatReturns() {
   })()
 
   const rows = [
-    { number: 1, key: 'salesStandardRated', labelEn: 'Standard rated Sales', labelAr: 'المبيعات الخاضعة للنسبة الأساسية', manualKey: 'salesStandardRated', section: 'sales' },
-    { number: 2, key: 'salesSpecialCitizen', labelEn: 'Private Healthcare / Private Education / First house sales to citizens', labelAr: 'الرعاية الصحية الخاصة / التعليم الخاص / بيع المسكن الأول للمواطنين', manualKey: 'salesSpecialCitizen', section: 'sales' },
+    { number: 1, key: 'salesStandardRated', labelEn: 'Standard rated sales (15%)', labelAr: 'المبيعات الخاضعة للنسبة الأساسية (15%)', manualKey: 'salesStandardRated', section: 'sales' },
+    { number: 2, key: 'salesSpecialCitizen', labelEn: 'Sales on which the government bears the VAT', labelAr: 'المبيعات التي تتحمل الدولة ضريبتها', manualKey: 'salesSpecialCitizen', section: 'sales' },
     { number: 3, key: 'salesZeroRatedDomestic', labelEn: 'Zero rated domestic sales', labelAr: 'المبيعات المحلية الخاضعة لنسبة الصفر', manualKey: 'salesZeroRatedDomestic', section: 'sales' },
     { number: 4, key: 'salesExports', labelEn: 'Exports', labelAr: 'الصادرات', manualKey: 'salesExports', section: 'sales' },
     { number: 5, key: 'salesExempt', labelEn: 'Exempt sales', labelAr: 'المبيعات المعفاة', manualKey: 'salesExempt', section: 'sales' },
     { number: 6, key: 'totalSales', labelEn: 'Total Sales', labelAr: 'إجمالي المبيعات', section: 'sales', readOnly: true },
-    { number: 7, key: 'purchasesStandardRatedDomestic', labelEn: 'Standard rated domestic purchases', labelAr: 'المشتريات المحلية الخاضعة للنسبة الأساسية', manualKey: 'purchasesStandardRatedDomestic', section: 'purchases' },
-    { number: 8, key: 'purchasesImportsCustoms', labelEn: 'Imports subject to VAT paid at customs', labelAr: 'الواردات الخاضعة لضريبة القيمة المضافة والمدفوعة في الجمارك', manualKey: 'purchasesImportsCustoms', section: 'purchases' },
-    { number: 9, key: 'purchasesImportsReverseCharge', labelEn: 'Imports subject to VAT accounted for through the reverse charge mechanism', labelAr: 'الواردات الخاضعة للضريبة عبر آلية الاحتساب العكسي', manualKey: 'purchasesImportsReverseCharge', section: 'purchases' },
+    { number: 7, key: 'purchasesStandardRatedDomestic', labelEn: 'Standard rated domestic purchases (15%)', labelAr: 'المشتريات المحلية الخاضعة للنسبة الأساسية (15%)', manualKey: 'purchasesStandardRatedDomestic', section: 'purchases' },
+    { number: 8, key: 'purchasesImportsCustoms', labelEn: 'Imports subject to VAT paid on import (15%)', labelAr: 'الواردات الخاضعة لضريبة القيمة المضافة والمدفوعة في الجمارك (15%)', manualKey: 'purchasesImportsCustoms', section: 'purchases' },
+    { number: 9, key: 'purchasesImportsReverseCharge', labelEn: 'Supplies subject to VAT under the reverse charge, and imports for which tax payment is deferred upon customs release (15%)', labelAr: 'التوريدات الخاضعة لضريبة القيمة المضافة وفقا لآلية الاحتساب العكسي والواردات التي تؤجل فيها الضريبة', manualKey: 'purchasesImportsReverseCharge', section: 'purchases' },
     { number: 10, key: 'purchasesZeroRated', labelEn: 'Zero rated purchases', labelAr: 'المشتريات الخاضعة لنسبة الصفر', manualKey: 'purchasesZeroRated', section: 'purchases' },
     { number: 11, key: 'purchasesExempt', labelEn: 'Exempt purchases', labelAr: 'المشتريات المعفاة', manualKey: 'purchasesExempt', section: 'purchases' },
-    { number: 12, key: 'totalPurchases', labelEn: 'Total Purchases', labelAr: 'إجمالي المشتريات', section: 'purchases', readOnly: true },
+    { number: 12, key: 'totalPurchases', labelEn: 'Total purchases', labelAr: 'إجمالي المشتريات', section: 'purchases', readOnly: true },
     { number: 13, key: 'totalVatDueCurrentPeriod', labelEn: 'Total VAT due for current period', labelAr: 'إجمالي ضريبة القيمة المضافة المستحقة للفترة الحالية', section: 'settlement', vatOnly: true, readOnly: true },
-    { number: 14, key: 'correctionsPreviousPeriod', labelEn: 'Corrections from previous period (between SAR ± 5000)', labelAr: 'تصحيحات من الفترة السابقة (بين ± 5000 ريال)', section: 'settlement', vatOnly: true, topLevelField: 'correctionsPreviousPeriod' },
+    { number: 14, key: 'correctionsPreviousPeriod', labelEn: 'Corrections from previous period ( between ﷼ ± 15000.00 )', labelAr: 'تصحيحات من الفترة السابقة ( بين ﷼ ± 15000.00 )', section: 'settlement', vatOnly: true, topLevelField: 'correctionsPreviousPeriod' },
     { number: 15, key: 'vatCreditCarriedForward', labelEn: 'VAT credit carried forward from previous period(s)', labelAr: 'رصيد ضريبة القيمة المضافة المرحل من فترات سابقة', section: 'settlement', vatOnly: true, topLevelField: 'vatCreditCarriedForward' },
-    { number: 16, key: 'netVatDue', labelEn: 'Net VAT due (or reclaimed)', labelAr: 'صافي ضريبة القيمة المضافة المستحقة أو المستردة', section: 'settlement', vatOnly: true, readOnly: true },
+    { number: 16, key: 'netVatDue', labelEn: 'Net VAT due (or reclaimed)', labelAr: 'صافي ضريبة القيمة المضافة المستحقة (أو المستردة)', section: 'settlement', vatOnly: true, readOnly: true },
   ]
 
   const summaryCards = [
@@ -210,95 +210,219 @@ export default function VatReturns() {
       title: isArabic ? 'إجمالي المبيعات' : 'Total Sales',
       value: renderMoney(statement.totalSales?.amount, { className: 'text-2xl font-bold' }),
       icon: TrendingUp,
-      tone: 'from-emerald-500 to-teal-600',
+      tone: 'from-[#0e1c26] to-[#2a4365]',
     },
     {
       title: isArabic ? 'إجمالي المشتريات' : 'Total Purchases',
       value: renderMoney(statement.totalPurchases?.amount, { className: 'text-2xl font-bold' }),
       icon: Wallet,
-      tone: 'from-amber-500 to-orange-600',
+      tone: 'from-[#2b1836] to-[#4c2966]',
     },
     {
       title: isArabic ? 'الضريبة المستحقة للفترة' : 'VAT Due This Period',
       value: renderMoney(statement.totalVatDueCurrentPeriod?.vatAmount, { className: 'text-2xl font-bold' }),
       icon: Receipt,
-      tone: 'from-sky-500 to-indigo-600',
+      tone: 'from-[#1a362d] to-[#2f855a]',
     },
     {
       title: isArabic ? 'الصافي النهائي' : 'Net VAT Position',
       value: renderMoney(statement.netVatDue?.vatAmount, { className: 'text-2xl font-bold' }),
       icon: TrendingDown,
-      tone: 'from-[#163b27] to-[#245138]',
+      tone: 'from-[#4a1a1a] to-[#9b2c2c]',
     },
   ]
 
   if (isLoading) {
-    return <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>
+    return (
+      <div className="flex justify-center items-center h-96">
+        <div className="relative">
+          <div className="absolute inset-0 rounded-full border-[3px] border-slate-200" />
+          <div className="absolute inset-0 rounded-full border-[3px] border-slate-900 border-t-transparent animate-spin" />
+          <ShieldCheck className="h-6 w-6 text-slate-900 m-4 animate-pulse" />
+        </div>
+      </div>
+    )
+  }
+
+  const renderSection = (sectionName, titleEn, titleAr, icon) => {
+    const sectionRows = rows.filter(r => r.section === sectionName)
+    const isSettlement = sectionName === 'settlement'
+    
+    return (
+      <div className="mb-8 overflow-hidden rounded-[2rem] border border-slate-200/60 bg-white/50 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:border-slate-800/60 dark:bg-slate-900/50">
+        <div className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50/50 to-transparent px-8 py-5 dark:border-slate-800/50 dark:from-slate-800/50">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-md dark:bg-white dark:text-slate-900">
+              {icon}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight dark:text-white">{isArabic ? titleAr : titleEn}</h2>
+            </div>
+          </div>
+        </div>
+        
+        <div className="px-8 py-2 overflow-x-auto">
+          <div className="min-w-[1020px]">
+            <div className="grid grid-cols-[60px_minmax(300px,1fr)_160px_160px_160px] gap-4 border-b border-slate-100 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 dark:border-slate-800">
+              <div>#</div>
+              <div>{isArabic ? 'البند' : 'VAT Line Item'}</div>
+              <div>{isArabic ? 'المبلغ' : 'Amount'}</div>
+              {!isSettlement && <div>{isArabic ? 'التعديل' : 'Adjustment'}</div>}
+              {isSettlement && <div className="text-transparent">N/A</div>}
+              <div>{isArabic ? 'قيمة الضريبة' : 'VAT Amount'}</div>
+            </div>
+
+            <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+              {sectionRows.map((row) => {
+                const line = statement?.[row.key] || { amount: 0, adjustment: 0, vatAmount: 0 }
+                const savedManualLine = data?.vatReturn?.manual?.[row.manualKey] || { amount: 0, adjustment: 0, vatAmount: 0 }
+                const baseAmount = row.manualKey ? toNumber((data?.vatReturn?.statement?.[row.key]?.amount || 0) - savedManualLine.amount) : toNumber(line.amount)
+                const baseVat = row.manualKey ? toNumber((data?.vatReturn?.statement?.[row.key]?.vatAmount || 0) - savedManualLine.vatAmount) : toNumber(line.vatAmount)
+                const editablePrefix = row.manualKey ? `manual.${row.manualKey}` : null
+                const isTotal = row.readOnly
+
+                return (
+                  <div key={row.key} className={`group grid grid-cols-[60px_minmax(300px,1fr)_160px_160px_160px] gap-4 items-center py-5 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/20 ${isTotal ? 'rounded-2xl bg-slate-50/80 px-4 -mx-4 my-2 border border-slate-100 dark:bg-slate-800/40 dark:border-slate-700/50' : ''}`}>
+                    <div className={`text-sm font-black ${isTotal ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-600'}`}>{row.number}</div>
+                    <div className="pr-6">
+                      <p className={`text-sm font-semibold leading-relaxed ${isTotal ? 'text-slate-900 dark:text-white text-base' : 'text-slate-700 dark:text-slate-300'}`}>
+                        {isArabic ? row.labelAr : row.labelEn}
+                      </p>
+                      {row.manualKey && (
+                        <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-slate-100/50 px-2.5 py-1 text-[10px] font-bold tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                          <Activity className="h-3 w-3" />
+                          {isArabic ? 'محسوب من النظام:' : 'System:'} {renderMoney(baseAmount)} / {renderMoney(baseVat)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Amount Column */}
+                    <div>
+                      {row.vatOnly || isTotal ? (
+                        <div className={`flex h-11 items-center px-4 text-sm font-bold ${isTotal ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
+                          {row.vatOnly ? '—' : renderMoney(line.amount)}
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input type="number" step="0.01" {...register(`${editablePrefix}.amount`, { valueAsNumber: true })} className="h-11 w-full rounded-xl border border-slate-200 bg-white/50 px-4 text-sm font-semibold text-slate-900 shadow-sm transition-all hover:border-slate-300 focus:border-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900/50 dark:text-white dark:focus:border-white dark:focus:ring-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Adjustment Column */}
+                    <div>
+                      {isSettlement || isTotal ? (
+                         <div className="flex h-11 items-center px-4 text-sm font-bold text-slate-400">—</div>
+                      ) : (
+                        <div className="relative">
+                          <input type="number" step="0.01" {...register(`${editablePrefix}.adjustment`, { valueAsNumber: true })} className="h-11 w-full rounded-xl border border-slate-200 bg-white/50 px-4 text-sm font-semibold text-slate-900 shadow-sm transition-all hover:border-slate-300 focus:border-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900/50 dark:text-white dark:focus:border-white dark:focus:ring-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* VAT Amount Column */}
+                    <div>
+                      {isTotal ? (
+                        <div className="flex h-11 items-center px-4 text-sm font-bold text-slate-900 dark:text-white">
+                          {renderMoney(line.vatAmount)}
+                        </div>
+                      ) : row.topLevelField ? (
+                        <div className="relative">
+                          <input type="number" step="0.01" {...register(row.topLevelField, { valueAsNumber: true })} className="h-11 w-full rounded-xl border border-slate-200 bg-white/50 px-4 text-sm font-semibold text-slate-900 shadow-sm transition-all hover:border-slate-300 focus:border-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900/50 dark:text-white dark:focus:border-white dark:focus:ring-white" />
+                        </div>
+                      ) : row.vatOnly ? (
+                        <div className="flex h-11 items-center px-4 text-sm font-bold text-slate-900 dark:text-white">
+                          {renderMoney(line.vatAmount)}
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input type="number" step="0.01" {...register(`${editablePrefix}.vatAmount`, { valueAsNumber: true })} className="h-11 w-full rounded-xl border border-slate-200 bg-white/50 px-4 text-sm font-semibold text-slate-900 shadow-sm transition-all hover:border-slate-300 focus:border-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900/50 dark:text-white dark:focus:border-white dark:focus:ring-white" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-[2rem] border border-emerald-950/10 bg-gradient-to-br from-[#163b27] via-[#1d492f] to-[#2a6140] text-white shadow-[0_30px_70px_-35px_rgba(22,59,39,0.75)]">
-        <div className="grid gap-6 px-6 py-7 lg:grid-cols-[1.4fr_1fr] lg:px-8">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white/90 backdrop-blur">
-              <Sparkles className="h-4 w-4" />
-              {isArabic ? 'مركز إقرار ضريبة القيمة المضافة' : 'VAT Return Control Center'}
+    <div className="space-y-10 pb-20">
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-[2.5rem] bg-slate-900 text-white shadow-2xl">
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
+        <div className="absolute -right-64 -top-64 h-[500px] w-[500px] rounded-full bg-indigo-500/20 blur-[120px]"></div>
+        <div className="absolute -left-64 -bottom-64 h-[500px] w-[500px] rounded-full bg-emerald-500/20 blur-[120px]"></div>
+        
+        <div className="relative grid gap-8 px-8 py-10 lg:grid-cols-[1.5fr_1fr] lg:px-12 lg:py-14">
+          <div className="flex flex-col justify-center">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white/90 backdrop-blur-md w-fit">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              {isArabic ? 'الضرائب والإقرارات' : 'ZATCA Compliance'}
             </div>
-            <h1 className="mt-4 text-3xl font-bold tracking-tight lg:text-4xl">{isArabic ? 'VAT Returns' : 'VAT Returns'}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/80 lg:text-base">
+            <h1 className="mt-6 text-4xl font-black tracking-tight lg:text-5xl">{isArabic ? 'إقرار ضريبة القيمة المضافة' : 'VAT Returns'}</h1>
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-400">
               {isArabic
-                ? 'لوحة احترافية لإدارة إقرار ضريبة القيمة المضافة اعتماداً على بيانات الفواتير والمصروفات مع إمكانية إضافة التعديلات اليدوية وحفظها لكل فترة.'
-                : 'A premium workspace to prepare VAT returns from invoice and expense data, apply manual adjustments, and preserve each filing period professionally.'}
+                ? 'إدارة احترافية للإقرارات الضريبية مصممة لتتوافق بالكامل مع هيئة الزكاة والضريبة والجمارك. اعتمد إقراراتك بكل دقة وأمان.'
+                : 'Enterprise-grade VAT return management designed for strict compliance with ZATCA regulations. Review, adjust, and submit with absolute confidence.'}
             </p>
           </div>
-          <div className="grid gap-4 rounded-[1.75rem] border border-white/10 bg-white/10 p-5 backdrop-blur-sm sm:grid-cols-2 lg:grid-cols-1">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/60">{isArabic ? 'الفترة' : 'Period'}</p>
-              <p className="mt-2 text-lg font-semibold">{filters.startDate} - {filters.endDate}</p>
+          
+          <div className="grid gap-4 rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 backdrop-blur-xl sm:grid-cols-2 lg:grid-cols-1">
+            <div className="group rounded-2xl bg-white/5 p-4 transition-colors hover:bg-white/10">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">{isArabic ? 'الفترة الضريبية' : 'Tax Period'}</p>
+              <p className="mt-2 text-lg font-black text-white">{filters.startDate} <span className="text-slate-500 mx-2">→</span> {filters.endDate}</p>
             </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/60">{isArabic ? 'آخر مزامنة' : 'Last Sync'}</p>
-              <p className="mt-2 text-lg font-semibold">{data?.vatReturn?.lastImportedAt ? new Date(data.vatReturn.lastImportedAt).toLocaleString(isArabic ? 'ar-SA' : 'en-GB') : (isArabic ? 'غير متوفر' : 'Not synced yet')}</p>
+            <div className="group rounded-2xl bg-white/5 p-4 transition-colors hover:bg-white/10">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">{isArabic ? 'آخر مزامنة' : 'Last Sync'}</p>
+              <p className="mt-2 text-lg font-bold text-white">{data?.vatReturn?.lastImportedAt ? new Date(data.vatReturn.lastImportedAt).toLocaleString(isArabic ? 'ar-SA' : 'en-GB') : (isArabic ? 'غير متوفر' : 'Not synced yet')}</p>
             </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/60">{isArabic ? 'الحالة' : 'Status'}</p>
-              <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm font-medium">
-                <ShieldCheck className="h-4 w-4" />
-                {data?.vatReturn?.status === 'submitted' ? (isArabic ? 'تم الإرسال' : 'Submitted') : (isArabic ? 'مسودة' : 'Draft')}
+            <div className="group rounded-2xl bg-white/5 p-4 transition-colors hover:bg-white/10">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">{isArabic ? 'حالة الإقرار' : 'Filing Status'}</p>
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-500/20 px-3 py-1 text-sm font-bold text-emerald-300">
+                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                {data?.vatReturn?.status === 'submitted' ? (isArabic ? 'تم الإرسال لـ ZATCA' : 'Submitted to ZATCA') : (isArabic ? 'مسودة قيد المراجعة' : 'Draft under review')}
               </div>
             </div>
           </div>
         </div>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="card p-5 sm:p-6">
-        <div className="grid gap-4 xl:grid-cols-[1fr_1fr_auto]">
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="rounded-[2rem] border border-slate-200/80 bg-white/80 p-6 shadow-sm backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80">
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr_auto]">
           <div>
-            <label className="label flex items-center gap-2"><Building2 className="h-4 w-4" />{isArabic ? 'موقع العمل' : 'Business Location'}</label>
-            <select {...register('businessLocation')} className="select">
-              <option value="all">{isArabic ? 'كل المواقع' : 'All locations'}</option>
-              <option value="head-office">{isArabic ? 'المكتب الرئيسي' : 'Head Office'}</option>
-            </select>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">{isArabic ? 'موقع العمل' : 'Business Location'}</label>
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
+                <Building2 className="h-5 w-5 text-slate-400" />
+              </div>
+              <select {...register('businessLocation')} className="h-14 w-full appearance-none rounded-xl border-2 border-slate-200 bg-white pl-12 pr-10 text-sm font-bold text-slate-900 outline-none transition-colors hover:border-slate-300 focus:border-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                <option value="all">{isArabic ? 'كل المواقع' : 'All locations'}</option>
+                <option value="head-office">{isArabic ? 'المكتب الرئيسي' : 'Head Office'}</option>
+              </select>
+            </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label flex items-center gap-2"><Calendar className="h-4 w-4" />{isArabic ? 'من تاريخ' : 'From Date'}</label>
-              <input type="date" value={filters.startDate} onChange={(e) => setFilters((current) => ({ ...current, startDate: e.target.value }))} className="input" />
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">{isArabic ? 'من تاريخ' : 'From Date'}</label>
+              <input type="date" value={filters.startDate} onChange={(e) => setFilters((current) => ({ ...current, startDate: e.target.value }))} className="h-14 w-full rounded-xl border-2 border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none transition-colors hover:border-slate-300 focus:border-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
             </div>
             <div>
-              <label className="label flex items-center gap-2"><Calendar className="h-4 w-4" />{isArabic ? 'إلى تاريخ' : 'To Date'}</label>
-              <input type="date" value={filters.endDate} onChange={(e) => setFilters((current) => ({ ...current, endDate: e.target.value }))} className="input" />
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">{isArabic ? 'إلى تاريخ' : 'To Date'}</label>
+              <input type="date" value={filters.endDate} onChange={(e) => setFilters((current) => ({ ...current, endDate: e.target.value }))} className="h-14 w-full rounded-xl border-2 border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none transition-colors hover:border-slate-300 focus:border-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
             </div>
           </div>
-          <div className="flex flex-col gap-3 self-end sm:flex-row xl:flex-col">
-            <button type="button" onClick={() => refetch()} className="btn btn-secondary" disabled={isFetching}>
-              {isFetching ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-600 border-t-transparent" /> : <RefreshCw className="h-4 w-4" />}
-              {isArabic ? 'استيراد المبيعات والمشتريات' : 'Import Purchases and Sales'}
+          <div className="flex items-end gap-3 self-end sm:flex-row xl:flex-col pt-6 xl:pt-0">
+            <button type="button" onClick={() => refetch()} className="flex h-14 items-center justify-center gap-2 rounded-xl bg-slate-100 px-6 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-200 disabled:opacity-50 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700" disabled={isFetching}>
+              {isFetching ? <div className="h-5 w-5 animate-spin rounded-full border-[3px] border-slate-400 border-t-transparent" /> : <RefreshCw className="h-4 w-4" />}
+              {isArabic ? 'مزامنة السجلات' : 'Sync Records'}
             </button>
-            <button type="button" onClick={() => submitReturn('draft')} className="btn btn-primary" disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save className="h-4 w-4" />}
-              {isArabic ? 'حفظ' : 'Save'}
+            <button type="button" onClick={() => submitReturn('draft')} className="flex h-14 items-center justify-center gap-2 rounded-xl bg-slate-900 px-8 text-sm font-bold text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-900/30 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:shadow-white/10" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-[3px] border-white/30 border-t-white" /> : <Save className="h-4 w-4" />}
+              {isArabic ? 'حفظ التقدم' : 'Save Progress'}
             </button>
           </div>
         </div>
@@ -306,15 +430,16 @@ export default function VatReturns() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((card, index) => (
-          <motion.div key={card.title} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 + (index * 0.04) }} className="card overflow-hidden p-0">
-            <div className={`bg-gradient-to-r ${card.tone} p-5 text-white`}>
+          <motion.div key={card.title} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 + (index * 0.04) }} className="relative overflow-hidden rounded-[2rem] bg-slate-900 p-0 text-white shadow-xl">
+            <div className={`absolute inset-0 bg-gradient-to-br ${card.tone} opacity-80 mix-blend-multiply`}></div>
+            <div className="relative p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm text-white/80">{card.title}</p>
-                  <div className="mt-3">{card.value}</div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-white/60">{card.title}</p>
+                  <div className="mt-4">{card.value}</div>
                 </div>
-                <div className="rounded-2xl bg-white/15 p-3">
-                  <card.icon className="h-5 w-5" />
+                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-md border border-white/10">
+                  <card.icon className="h-6 w-6 text-white" />
                 </div>
               </div>
             </div>
@@ -325,116 +450,47 @@ export default function VatReturns() {
       <form onSubmit={(event) => {
         event.preventDefault()
         submitReturn('draft')
-      }} className="space-y-6">
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="overflow-hidden rounded-[1.75rem] border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-800">
-          <div className="border-b border-gray-200 px-5 py-4 dark:border-dark-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{isArabic ? 'بيان ضريبة القيمة المضافة' : 'VAT Return Statement'}</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{isArabic ? 'القيم المعروضة تشمل الأرقام المحسوبة من النظام بالإضافة إلى أي تعديلات يدوية تدخِلها هنا.' : 'Displayed values combine system-calculated amounts with your manual filing adjustments.'}</p>
-          </div>
-          <div className="overflow-x-auto">
-            <div className="min-w-[1080px]">
-              <div className="grid grid-cols-[72px_minmax(340px,1fr)_180px_180px_180px] border-b border-gray-200 bg-gray-50 px-5 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:border-dark-700 dark:bg-dark-900/50 dark:text-gray-400">
-                <div>#</div>
-                <div>{isArabic ? 'البند' : 'VAT Line Item'}</div>
-                <div>{isArabic ? 'المبلغ' : 'Amount'}</div>
-                <div>{isArabic ? 'التعديل' : 'Adjustment'}</div>
-                <div>{isArabic ? 'قيمة الضريبة' : 'VAT Amount'}</div>
-              </div>
+      }} className="space-y-8">
+        
+        {renderSection('sales', 'VAT on Sales', 'الضريبة على المبيعات', <TrendingUp className="h-5 w-5" />)}
+        {renderSection('purchases', 'VAT on Purchases', 'الضريبة على المشتريات', <Wallet className="h-5 w-5" />)}
+        {renderSection('settlement', 'Net VAT Settlement', 'تسوية الضريبة النهائية', <Receipt className="h-5 w-5" />)}
 
-              {rows.map((row) => {
-                const line = statement?.[row.key] || { amount: 0, adjustment: 0, vatAmount: 0 }
-                const savedManualLine = data?.vatReturn?.manual?.[row.manualKey] || { amount: 0, adjustment: 0, vatAmount: 0 }
-                const baseAmount = row.manualKey ? toNumber((data?.vatReturn?.statement?.[row.key]?.amount || 0) - savedManualLine.amount) : toNumber(line.amount)
-                const baseVat = row.manualKey ? toNumber((data?.vatReturn?.statement?.[row.key]?.vatAmount || 0) - savedManualLine.vatAmount) : toNumber(line.vatAmount)
-                const editablePrefix = row.manualKey ? `manual.${row.manualKey}` : null
-                const sectionTone = row.section === 'sales'
-                  ? 'bg-emerald-50/70 dark:bg-emerald-950/10'
-                  : row.section === 'purchases'
-                    ? 'bg-amber-50/70 dark:bg-amber-950/10'
-                    : 'bg-slate-50/70 dark:bg-dark-900/30'
-
-                return (
-                  <div key={row.key} className={`grid grid-cols-[72px_minmax(340px,1fr)_180px_180px_180px] items-stretch border-b border-gray-100 px-5 py-3 last:border-b-0 dark:border-dark-700 ${sectionTone}`}>
-                    <div className="flex items-center text-sm font-semibold text-gray-500 dark:text-gray-300">{row.number}</div>
-                    <div className="pr-4">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{isArabic ? row.labelAr : row.labelEn}</p>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{isArabic ? row.labelEn : row.labelAr}</p>
-                      {row.manualKey ? (
-                        <div className="mt-2 inline-flex rounded-full bg-white/80 px-3 py-1 text-[11px] font-medium text-gray-600 shadow-sm ring-1 ring-gray-200 dark:bg-dark-700 dark:text-gray-200 dark:ring-dark-600">
-                          {isArabic ? 'محسوب من النظام' : 'System Calculated'}: {renderMoney(baseAmount)} / {renderMoney(baseVat)}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="px-2">
-                      {row.vatOnly || row.readOnly ? (
-                        <div className="flex h-full items-center rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-800 dark:border-dark-600 dark:bg-dark-700 dark:text-white">{row.vatOnly ? '—' : renderMoney(line.amount)}</div>
-                      ) : (
-                        <input type="number" step="0.01" {...register(`${editablePrefix}.amount`, { valueAsNumber: true })} className="input h-12" />
-                      )}
-                    </div>
-                    <div className="px-2">
-                      {row.vatOnly || row.readOnly ? (
-                        <div className="flex h-full items-center rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-800 dark:border-dark-600 dark:bg-dark-700 dark:text-white">{row.vatOnly ? '—' : renderMoney(line.adjustment)}</div>
-                      ) : (
-                        <input type="number" step="0.01" {...register(`${editablePrefix}.adjustment`, { valueAsNumber: true })} className="input h-12" />
-                      )}
-                    </div>
-                    <div className="px-2">
-                      {row.readOnly ? (
-                        <div className="flex h-full items-center rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-800 dark:border-dark-600 dark:bg-dark-700 dark:text-white">{renderMoney(line.vatAmount)}</div>
-                      ) : row.topLevelField ? (
-                        <input type="number" step="0.01" {...register(row.topLevelField, { valueAsNumber: true })} className="input h-12" />
-                      ) : row.vatOnly ? (
-                        <div className="flex h-full items-center rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-800 dark:border-dark-600 dark:bg-dark-700 dark:text-white">{renderMoney(line.vatAmount)}</div>
-                      ) : (
-                        <input type="number" step="0.01" {...register(`${editablePrefix}.vatAmount`, { valueAsNumber: true })} className="input h-12" />
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </motion.div>
-
-        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="card p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{isArabic ? 'ملاحظات الإقرار' : 'Return Notes'}</h3>
-            <textarea {...register('notes')} rows={8} className="input mt-4 min-h-[220px]" placeholder={isArabic ? 'أضف ملاحظات داخلية أو تفاصيل توضيحية تخص هذه الفترة...' : 'Add internal filing notes or explanatory details for this period...'} />
+        <div className="grid gap-8 xl:grid-cols-[1fr_400px]">
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="rounded-[2rem] border border-slate-200/60 bg-white/50 p-8 backdrop-blur-xl shadow-sm dark:border-slate-800/60 dark:bg-slate-900/50">
+            <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2"><Sparkles className="h-5 w-5 text-indigo-500" />{isArabic ? 'ملاحظات الإقرار' : 'Filing Notes'}</h3>
+            <textarea {...register('notes')} className="mt-6 min-h-[260px] w-full rounded-2xl border-2 border-slate-200 bg-white p-5 text-sm font-medium text-slate-900 outline-none transition-colors hover:border-slate-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white" placeholder={isArabic ? 'أضف ملاحظات داخلية، تفسيرات للتعديلات اليدوية، أو تفاصيل المرفقات...' : 'Add internal filing notes, explanations for manual adjustments, or attachment references...'} />
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6">
-            <div className="rounded-[1.5rem] bg-gradient-to-br from-slate-900 to-slate-700 p-5 text-white">
-              <p className="text-sm text-white/70">{isArabic ? 'صافي الإقرار' : 'Net Filing Position'}</p>
-              <div className="mt-3">{renderMoney(statement.netVatDue?.vatAmount, { className: 'text-3xl font-bold' })}</div>
-              <p className="mt-3 text-sm text-white/75">{statement.netVatDue?.vatAmount >= 0
-                ? (isArabic ? 'ضريبة مستحقة للدفع' : 'VAT due to be paid')
-                : (isArabic ? 'رصيد قابل للاسترداد' : 'Recoverable VAT credit')}
-              </p>
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col gap-6">
+            <div className="rounded-[2.5rem] bg-slate-900 p-8 text-white shadow-2xl relative overflow-hidden">
+               <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-emerald-500/20 blur-[60px]"></div>
+               <div className="relative z-10">
+                <p className="text-xs font-bold uppercase tracking-widest text-white/50">{isArabic ? 'الصافي النهائي للمطالبة' : 'Final Net Position'}</p>
+                <div className="mt-4">{renderMoney(statement.netVatDue?.vatAmount, { className: 'text-4xl font-black tracking-tight' })}</div>
+                <div className="mt-6 flex items-center gap-3 rounded-2xl bg-white/5 border border-white/10 p-4">
+                  <div className={`h-3 w-3 rounded-full ${statement.netVatDue?.vatAmount >= 0 ? 'bg-rose-500' : 'bg-emerald-500'}`}></div>
+                  <p className="text-sm font-bold text-white/90">{statement.netVatDue?.vatAmount >= 0
+                    ? (isArabic ? 'رصيد ضريبي مستحق الدفع لهيئة الزكاة' : 'VAT liability payable to ZATCA')
+                    : (isArabic ? 'رصيد ضريبي قابل للاسترداد من هيئة الزكاة' : 'Recoverable VAT credit from ZATCA')}
+                  </p>
+                </div>
+               </div>
             </div>
 
-            <div className="mt-5 space-y-4">
-              <div className="flex items-center justify-between rounded-2xl border border-gray-200 px-4 py-3 dark:border-dark-700">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{isArabic ? 'الموقع المحدد' : 'Selected Location'}</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">{watchedBusinessLocation === 'all' ? (isArabic ? 'كل المواقع' : 'All locations') : watchedBusinessLocation}</span>
+            <div className="rounded-[2rem] border border-slate-200/60 bg-white/50 p-6 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-900/50">
+              <div className="flex flex-col gap-3">
+                <button type="button" onClick={() => submitReturn('draft')} className="flex h-14 items-center justify-center gap-2 rounded-xl bg-slate-100 px-6 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-200 disabled:opacity-50 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700" disabled={saveMutation.isPending}>
+                  {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-[3px] border-slate-400 border-t-transparent" /> : <Save className="h-4 w-4" />}
+                  {isArabic ? 'حفظ مسودة' : 'Save as Draft'}
+                </button>
+                <button type="button" onClick={() => submitReturn('submitted')} className="flex h-14 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-500 hover:shadow-xl hover:shadow-emerald-600/30 disabled:opacity-50" disabled={saveMutation.isPending}>
+                  {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-[3px] border-white/30 border-t-white" /> : <ShieldCheck className="h-4 w-4" />}
+                  {isArabic ? 'اعتماد وإغلاق الإقرار' : 'Finalize & Submit Return'}
+                </button>
               </div>
-              <div className="flex items-center justify-between rounded-2xl border border-gray-200 px-4 py-3 dark:border-dark-700">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{isArabic ? 'الحالة الحالية' : 'Current Status'}</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">{watchedStatus === 'submitted' ? (isArabic ? 'تم الإرسال' : 'Submitted') : (isArabic ? 'مسودة' : 'Draft')}</span>
-              </div>
+              <input type="hidden" {...register('status')} value={watchedStatus || 'draft'} readOnly />
             </div>
-
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <button type="button" onClick={() => submitReturn('draft')} className="btn btn-secondary flex-1" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-600 border-t-transparent" /> : <Save className="h-4 w-4" />}
-                {isArabic ? 'حفظ كمسودة' : 'Save Draft'}
-              </button>
-              <button type="button" onClick={() => submitReturn('submitted')} className="btn btn-primary flex-1" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <ShieldCheck className="h-4 w-4" />}
-                {isArabic ? 'اعتماد الإقرار' : 'Submit Return'}
-              </button>
-            </div>
-            <input type="hidden" {...register('status')} value={watchedStatus || 'draft'} readOnly />
           </motion.div>
         </div>
       </form>
