@@ -19,7 +19,8 @@ import {
   CreditCard,
   Banknote,
   Package,
-  CheckCircle2
+  CheckCircle2,
+  Printer
 } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -432,20 +433,7 @@ export default function FurniturePOS() {
                             </button>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-xs font-bold text-slate-500">{label('Price', 'السعر')}</span>
-                          <div className="flex items-center gap-2 bg-white border-2 border-slate-200 rounded-xl px-3 py-1.5 flex-1 ml-4 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/20 transition-all">
-                            <span className="text-[10px] font-bold text-slate-400">SAR</span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={item.unitPrice === 0 && item.quantity === 1 ? '' : item.unitPrice}
-                              placeholder="0.00"
-                              onChange={(e) => updateCartItem(item.productId, 'unitPrice', Number(e.target.value))}
-                              className="w-full text-sm font-black text-indigo-600 bg-transparent outline-none text-right"
-                            />
-                          </div>
-                        </div>
+
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-xs font-bold text-slate-500">{label('Total Price', 'السعر الإجمالي')}</span>
                           <div className="flex items-center gap-2 bg-white border-2 border-slate-200 rounded-xl px-3 py-1.5 flex-1 ml-4 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/20 transition-all">
@@ -488,12 +476,26 @@ export default function FurniturePOS() {
                         <span className="flex items-center">-<Money value={cartTotals.discountAmount} /></span>
                       </div>
                     )}
-                    {vatApplicable && (
-                      <div className="flex justify-between text-sm font-medium text-slate-500">
-                        <span>{label('VAT (15%)', 'الضريبة (15%)')}</span>
-                        <Money value={cartTotals.totalTax} />
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between mt-1 mb-1">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-slate-800">{label('Value Added Tax (VAT)', 'ضريبة القيمة المضافة')}</span>
+                        <span className="text-[10px] font-medium text-slate-500">{label('Standard 15% rate', 'النسبة الأساسية 15%')}</span>
                       </div>
-                    )}
+                      <div className="flex bg-slate-200/60 p-1 rounded-lg">
+                        <button
+                          onClick={() => setVatApplicable(true)}
+                          className={`px-3 py-1.5 rounded-md text-[10px] font-black transition-all ${vatApplicable ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                          15%
+                        </button>
+                        <button
+                          onClick={() => setVatApplicable(false)}
+                          className={`px-3 py-1.5 rounded-md text-[10px] font-black transition-all ${!vatApplicable ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                          0%
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex justify-between text-xl font-black text-slate-900 pt-3 border-t border-slate-100">
                       <span>{label('Total', 'الإجمالي')}</span>
                       <Money value={cartTotals.grandTotal} />
@@ -575,23 +577,12 @@ export default function FurniturePOS() {
                     
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 mb-0.5 block">{label('ID / Iqama / VAT Number', 'الهوية / الإقامة / الرقم الضريبي')}</label>
-                      <div className="flex gap-2">
-                        <select
-                          value={customerIdType}
-                          onChange={(e) => setCustomerIdType(e.target.value)}
-                          className="px-3 py-3.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none bg-white font-medium"
-                        >
-                          <option value="iqama">{label('Iqama', 'إقامة')}</option>
-                          <option value="id">{label('ID', 'هوية')}</option>
-                          <option value="vat">{label('VAT Number', 'رقم الضريبة')}</option>
-                        </select>
-                        <input
-                          value={customerId}
-                          onChange={(e) => setCustomerId(e.target.value)}
-                          className="flex-1 px-4 py-3.5 rounded-xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                          placeholder="1xxxxxxxx"
-                        />
-                      </div>
+                      <input
+                        value={customerId}
+                        onChange={(e) => setCustomerId(e.target.value)}
+                        className="w-full px-4 py-3.5 rounded-xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                        placeholder="1xxxxxxxx"
+                      />
                     </div>
                     
                     <div>
@@ -609,26 +600,7 @@ export default function FurniturePOS() {
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between mt-4">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-black text-slate-800">{label('Value Added Tax (VAT)', 'ضريبة القيمة المضافة')}</span>
-                        <span className="text-xs font-medium text-slate-500">{label('Standard 15% rate', 'النسبة الأساسية 15%')}</span>
-                      </div>
-                      <div className="flex bg-slate-200/60 p-1 rounded-xl">
-                        <button
-                          onClick={() => setVatApplicable(true)}
-                          className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${vatApplicable ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                          15%
-                        </button>
-                        <button
-                          onClick={() => setVatApplicable(false)}
-                          className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${!vatApplicable ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                          0%
-                        </button>
-                      </div>
-                    </div>
+
                     
                     {/* Payment Method Toggle */}
                     <div className="grid grid-cols-2 gap-3 mt-4">
