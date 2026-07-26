@@ -75,51 +75,67 @@ export default function CRMDealsTab({ preview }) {
   )
 
   return (
-    <div className="space-y-3">
-      {!preview && (
-        <>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('Deals', 'الصفقات')}</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('Track your sales pipeline and opportunities', 'تتبع خط المبيعات والفرص')}</p>
+    <div className={preview ? "space-y-4" : "space-y-6 h-[calc(100vh-8rem)] flex flex-col"}>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+        <div>
+          <h1 className={`${preview ? 'text-xl' : 'text-3xl'} font-black bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent`}>{t('Deals Pipeline', 'مسار الصفقات')}</h1>
+          {!preview && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">{t('Track and manage your sales opportunities', 'تتبع وإدارة فرص المبيعات')}</p>}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[240px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('Search deals...', 'البحث في الصفقات...')} className="w-full pl-9 pr-4 py-2.5 bg-white/70 dark:bg-dark-800/70 backdrop-blur-md border border-gray-200 dark:border-dark-700/50 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm" />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('Search deals...', 'البحث في الصفقات...')} className="w-full pl-9 pr-4 py-2 bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-lg text-sm" />
+          <button onClick={() => open(null)} className="px-4 py-2.5 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl text-sm font-bold hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2"><Plus className="w-4 h-4" /> {t('New Deal', 'صفقة جديدة')}</button>
+        </div>
+      </div>
+
+      <div className={`flex gap-5 overflow-x-auto pb-4 ${preview ? 'h-[400px]' : 'flex-1'} snap-x snap-mandatory hide-scrollbar relative`}>
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 dark:from-blue-500/10 dark:to-purple-500/10 rounded-3xl blur-3xl -z-10 pointer-events-none" />
+        {pipe.map(({ stage, deals: stageDeals, total: stageValue }) => (
+          <div key={stage.id} className="flex-shrink-0 w-80 flex flex-col bg-gray-50/50 dark:bg-dark-800/30 backdrop-blur-sm rounded-2xl border border-gray-200/50 dark:border-dark-700/50 snap-center">
+            <div className="p-4 border-b border-gray-200/50 dark:border-dark-700/50 flex flex-col gap-2 shrink-0">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span className={`w-3 h-3 rounded-full ${stage.color}`} />
+                  {t(stage.label, stage.ar)}
+                </h3>
+                <span className="bg-white dark:bg-dark-700 text-gray-600 dark:text-gray-300 px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm">{stageDeals.length}</span>
+              </div>
+              <div className="text-sm font-black text-gray-700 dark:text-gray-300 tracking-tight">{stageValue.toLocaleString()} SAR</div>
             </div>
-            <button onClick={() => open(null)} className="px-3 py-2 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> {t('New Deal', 'صفقة جديدة')}</button>
-          </div>
-        </>
-      )}
-      {preview && <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('Deal Pipeline', 'خط الأنابيب')}</h3>}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 ${preview ? 'xl:grid-cols-6' : 'xl:grid-cols-6'} gap-3`}>
-        {pipe.map(p => (
-          <div key={p.stage.id} className="bg-white dark:bg-dark-800 rounded-xl p-3 shadow-sm border border-gray-100 dark:border-dark-700">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`w-2 h-2 rounded-full ${p.stage.color}`} />
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{t(p.stage.label, p.stage.ar)}</span>
-              <span className="ms-auto text-xs font-bold bg-gray-100 dark:bg-dark-700 px-1.5 py-0.5 rounded">{p.deals.length}</span>
-            </div>
-            <div className="space-y-2 min-h-[60px]">
-              <AnimatePresence>
-                {p.deals.map(d => (
-                  <motion.div key={d._id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-gray-50 dark:bg-dark-700 rounded-lg p-2.5 cursor-pointer hover:shadow-sm transition-shadow" onClick={() => open(d)}>
-                    <p className="text-xs font-bold text-gray-900 dark:text-white">{d.title}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">{d.value?.toLocaleString?.() ?? '0'} SAR</p>
-                    <p className="text-[10px] text-gray-400">{d.assignedTo?.name || '-'}</p>
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[150px]" onDragOver={e => e.preventDefault()} onDrop={e => {
+              const dealId = e.dataTransfer.getData('dealId');
+              if (dealId) updateStage.mutate({ id: dealId, stage: stage.id });
+            }}>
+              {stageDeals.map(deal => (
+                <motion.div layoutId={deal._id} key={deal._id} draggable onDragStart={e => e.dataTransfer.setData('dealId', deal._id)} className="bg-white/90 dark:bg-dark-700/90 backdrop-blur-md rounded-xl p-4 shadow-[0_4px_12px_rgb(0,0,0,0.03)] dark:shadow-[0_4px_12px_rgb(0,0,0,0.1)] border border-white/50 dark:border-dark-600/50 cursor-grab active:cursor-grabbing hover:shadow-lg hover:-translate-y-1 transition-all duration-200 group">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold text-sm text-gray-900 dark:text-white truncate pr-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">{deal.title}</h4>
                     {!preview && (
-                      <div className="flex items-center justify-between mt-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-gray-400">{d.probability}%</span>
-                          {d.leadId?.phone && <button onClick={e => { e.stopPropagation(); openComm(d, 'whatsapp') }} className="text-green-600 hover:text-green-700"><MessageCircle className="w-3 h-3" /></button>}
-                          {d.leadId?.email && <button onClick={e => { e.stopPropagation(); openComm(d, 'email') }} className="text-blue-600 hover:text-blue-700"><Mail className="w-3 h-3" /></button>}
-                        </div>
-                        <button onClick={e => { e.stopPropagation(); if (window.confirm(t('Delete deal?', 'حذف الصفقة؟'))) del.mutate(d._id) }} className="text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => open(deal)} className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-dark-600 text-gray-500 hover:text-primary-600 transition-colors"><Search className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => { if(window.confirm(t('Delete deal?', 'حذف الصفقة؟'))) del.mutate(deal._id) }} className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     )}
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                  </div>
+                  <div className="flex items-center justify-between text-xs mb-3">
+                    <span className="font-black text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-600 px-2 py-1 rounded-md">{deal.value.toLocaleString()} SAR</span>
+                    <span className="text-gray-500 font-medium">{deal.probability}%</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-gray-200 to-gray-300 dark:from-dark-600 dark:to-dark-500 flex items-center justify-center text-[8px] font-bold text-gray-600 dark:text-gray-400">
+                      {deal.assignedTo?.name?.split(' ').map(n => n[0]).join('') || '?'}
+                    </div>
+                    {!preview && (
+                      <div className="flex items-center ml-auto gap-1">
+                        {deal.leadId?.phone && <button onClick={e => { e.stopPropagation(); openComm(deal, 'whatsapp') }} className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"><MessageCircle className="w-3.5 h-3.5" /></button>}
+                        {deal.leadId?.email && <button onClick={e => { e.stopPropagation(); openComm(deal, 'email') }} className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"><Mail className="w-3.5 h-3.5" /></button>}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </div>
         ))}
@@ -127,14 +143,14 @@ export default function CRMDealsTab({ preview }) {
 
       <AnimatePresence>
         {show && (
-          <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={close}>
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-white dark:bg-dark-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{editing ? t('Edit Deal', 'تعديل صفقة') : t('New Deal', 'صفقة جديدة')}</h3>
-                <button onClick={close} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-700"><X className="w-5 h-5" /></button>
+          <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 dark:bg-black/60 backdrop-blur-sm" onClick={close}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} onClick={e => e.stopPropagation()} className="bg-white/95 dark:bg-dark-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-dark-700/50 w-full max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+              <div className="sticky top-0 z-10 bg-white/80 dark:bg-dark-800/80 backdrop-blur-md flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-700">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">{editing ? t('Edit Deal', 'تعديل صفقة') : t('New Deal', 'صفقة جديدة')}</h3>
+                <button onClick={close} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors"><X className="w-5 h-5 text-gray-500" /></button>
               </div>
-              <div className="p-5 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-6 space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <F l={t('Title', 'العنوان')} v={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
                   <F l={t('Value', 'القيمة')} type="number" v={form.value} onChange={e => setForm(f => ({ ...f, value: Number(e.target.value) }))} />
                   <F l={t('Stage', 'المرحلة')} o={DS.map(s => <option key={s.id} value={s.id}>{t(s.label, s.ar)}</option>)} v={form.stage} onChange={e => {
@@ -148,18 +164,18 @@ export default function CRMDealsTab({ preview }) {
                   <div className="sm:col-span-2"><F l={t('Description', 'الوصف')} r={2} v={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 </div>
               </div>
-              <div className="flex items-center justify-between p-5 border-t border-gray-100 dark:border-dark-700">
+              <div className="sticky bottom-0 z-10 bg-white/80 dark:bg-dark-800/80 backdrop-blur-md flex items-center justify-between p-6 border-t border-gray-100 dark:border-dark-700">
                 <div className="flex items-center gap-2">
                   {editing && editing.customerId && (
                     <>
-                      <button onClick={() => navigate('/app/dashboard/quotations/new', { state: { customerId: editing.customerId._id || editing.customerId, sourceDealId: editing._id } })} className="px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> {t('Quote', 'عرض سعر')}</button>
-                      <button onClick={() => navigate('/app/dashboard/invoices/new/sell', { state: { customerId: editing.customerId._id || editing.customerId, sourceDealId: editing._id } })} className="px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> {t('Invoice', 'فاتورة')}</button>
+                      <button onClick={() => navigate('/app/dashboard/quotations/new', { state: { customerId: editing.customerId._id || editing.customerId, sourceDealId: editing._id } })} className="px-4 py-2 rounded-xl text-sm font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 hover:-translate-y-0.5 transition-all shadow-sm flex items-center gap-1.5"><FileText className="w-4 h-4" /> {t('Quote', 'عرض سعر')}</button>
+                      <button onClick={() => navigate('/app/dashboard/invoices/new/sell', { state: { customerId: editing.customerId._id || editing.customerId, sourceDealId: editing._id } })} className="px-4 py-2 rounded-xl text-sm font-bold text-blue-700 bg-blue-100 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 hover:-translate-y-0.5 transition-all shadow-sm flex items-center gap-1.5"><Receipt className="w-4 h-4" /> {t('Invoice', 'فاتورة')}</button>
                     </>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  <button onClick={close} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100">{t('Cancel', 'إلغاء')}</button>
-                  <button onClick={() => save.mutate()} disabled={save.isPending} className="px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"><Save className="w-4 h-4" /> {save.isPending ? t('Saving...', 'جاري الحفظ...') : t('Save', 'حفظ')}</button>
+                  <button onClick={close} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors">{t('Cancel', 'إلغاء')}</button>
+                  <button onClick={() => save.mutate()} disabled={save.isPending} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-primary-600 to-primary-500 hover:shadow-lg hover:shadow-primary-500/25 hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2"><Save className="w-4 h-4" /> {save.isPending ? t('Saving...', 'جاري الحفظ...') : t('Save', 'حفظ')}</button>
                 </div>
               </div>
             </motion.div>
@@ -169,11 +185,11 @@ export default function CRMDealsTab({ preview }) {
 
       <AnimatePresence>
         {commDeal && (
-          <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={closeComm}>
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-white dark:bg-dark-800 rounded-xl shadow-xl w-full max-w-lg">
-              <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{commType === 'whatsapp' ? t('Send WhatsApp', 'إرسال واتساب') : t('Send Email', 'إرسال بريد')} — {commDeal.title}</h3>
-                <button onClick={closeComm} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-700"><X className="w-5 h-5" /></button>
+          <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 dark:bg-black/60 backdrop-blur-sm" onClick={closeComm}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} onClick={e => e.stopPropagation()} className="bg-white/95 dark:bg-dark-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-dark-700/50 w-full max-w-lg">
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-700">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">{commType === 'whatsapp' ? t('Send WhatsApp', 'إرسال واتساب') : t('Send Email', 'إرسال بريد')} — {commDeal.title}</h3>
+                <button onClick={closeComm} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors"><X className="w-5 h-5 text-gray-500" /></button>
               </div>
               <div className="p-5 space-y-3">
                 {commType === 'email' && (
@@ -186,11 +202,11 @@ export default function CRMDealsTab({ preview }) {
                   <label className="text-xs font-medium text-gray-500">{t('Message', 'الرسالة')}</label>
                   <textarea value={commMsg} onChange={e => setCommMsg(e.target.value)} rows={4} className="w-full mt-1 px-3 py-2 bg-gray-50 dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-lg text-sm" />
                 </div>
-                <p className="text-[10px] text-gray-400">{t('Sending to', 'الإرسال إلى')}: {commType === 'whatsapp' ? commDeal.leadId?.phone : commDeal.leadId?.email}</p>
+                <p className="text-xs text-gray-400 font-medium">{t('Sending to', 'الإرسال إلى')}: <span className="text-gray-700 dark:text-gray-300">{commType === 'whatsapp' ? commDeal.leadId?.phone : commDeal.leadId?.email}</span></p>
               </div>
-              <div className="flex items-center justify-end gap-3 p-5 border-t border-gray-100 dark:border-dark-700">
-                <button onClick={closeComm} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100">{t('Cancel', 'إلغاء')}</button>
-                <button onClick={() => sendComm.mutate()} disabled={sendComm.isPending || !commMsg.trim()} className="px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"><Send className="w-4 h-4" /> {sendComm.isPending ? t('Sending...', 'جاري الإرسال...') : t('Send', 'إرسال')}</button>
+              <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 dark:border-dark-700">
+                <button onClick={closeComm} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors">{t('Cancel', 'إلغاء')}</button>
+                <button onClick={() => sendComm.mutate()} disabled={sendComm.isPending || !commMsg.trim()} className="px-5 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-primary-600 to-primary-500 text-white hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2"><Send className="w-4 h-4" /> {sendComm.isPending ? t('Sending...', 'جاري الإرسال...') : t('Send', 'إرسال')}</button>
               </div>
             </motion.div>
           </motion.div>
