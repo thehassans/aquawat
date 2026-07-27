@@ -742,6 +742,21 @@ router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoi
     for (const record of records) {
       const ref = record['Invoice Reference'] || `TEMP-${Math.random()}`;
       if (!invoicesMap.has(ref)) {
+        const partyName = record['Vendor Name'] || record['Customer Name'] || record['Name'] || (flow === 'purchase' ? 'Cash Vendor' : 'Cash Customer');
+        const partyNameAr = record['Vendor Name Arabic'] || record['Customer Name Arabic'] || record['Name Arabic'] || '';
+        const partyVat = record['Vendor VAT'] || record['Customer VAT'] || record['VAT'] || '';
+        const street = record['Street'] || '';
+        const city = record['City'] || '';
+        const district = record['District'] || '';
+        const postalCode = record['Postal Code'] || '';
+        
+        const partyData = {
+          name: partyName,
+          nameAr: partyNameAr,
+          vatNumber: partyVat,
+          address: { street, city, district, postalCode }
+        };
+
         invoicesMap.set(ref, {
           tenantId: req.user.tenantId,
           createdBy: req.user._id,
@@ -749,17 +764,7 @@ router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoi
           transactionType: flow === 'purchase' ? 'B2B' : transactionType,
           flow,
           ...(supplierId && flow === 'purchase' ? { supplierId } : {}),
-          buyer: {
-            name: record['Customer Name'] || 'Cash Customer',
-            nameAr: record['Customer Name Arabic'] || '',
-            vatNumber: record['Customer VAT'] || '',
-            address: {
-              street: record['Street'] || '',
-              city: record['City'] || '',
-              district: record['District'] || '',
-              postalCode: record['Postal Code'] || ''
-            }
-          },
+          ...(flow === 'sell' ? { buyer: partyData } : { seller: partyData }),
           lineItems: [],
           issueDate: record['Issue Date'] ? new Date(record['Issue Date']) : new Date(),
           status: 'draft',
@@ -786,7 +791,8 @@ router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoi
           taxRate: taxRate * 100,
           taxAmount,
           lineTotal,
-          lineTotalWithTax
+          lineTotalWithTax,
+          unitCode: record['UOM'] || record['Unit'] || 'PCE'
         });
 
         inv.totalAmount += lineTotal;
@@ -827,6 +833,8 @@ router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoi
         // We need to keep track of the last generated invoice number per context.
         
         enrichInvoiceArabicFields(invData);
+        
+        await ensureProductsExist(req.user.tenantId, req.user._id, invData.lineItems, invData.flow);
         
         invData.invoiceNumber = nextInvoiceNumber;
         const invoice = new Invoice(invData);
