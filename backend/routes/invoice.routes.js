@@ -762,13 +762,14 @@ router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoi
           createdBy: req.user._id,
           businessContext,
           transactionType: flow === 'purchase' ? 'B2B' : transactionType,
+          invoiceTypeCode: (flow === 'purchase' || transactionType === 'B2B') ? '0100000' : '0200000',
           flow,
           ...(supplierId && flow === 'purchase' ? { supplierId } : {}),
           ...(flow === 'sell' ? { buyer: partyData } : { seller: partyData }),
           lineItems: [],
           issueDate: record['Issue Date'] ? new Date(record['Issue Date']) : new Date(),
           status: 'draft',
-          totalAmount: 0,
+          subtotal: 0,
           totalTax: 0,
           grandTotal: 0
         });
@@ -795,7 +796,7 @@ router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoi
           unitCode: record['UOM'] || record['Unit'] || 'PCE'
         });
 
-        inv.totalAmount += lineTotal;
+        inv.subtotal += lineTotal;
         inv.totalTax += taxAmount;
         inv.grandTotal += lineTotalWithTax;
       }
