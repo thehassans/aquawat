@@ -335,11 +335,47 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     onError: (error) => toast.error(error?.response?.data?.error || error.message || 'Failed'),
   })
 
+  const isSubmittedRef = useRef(false)
+  const latestValues = useRef(values)
+
+  useEffect(() => {
+    latestValues.current = values
+  }, [values])
+
+  useEffect(() => {
+    return () => {
+      if (!isEdit && !isSubmittedRef.current) {
+        const data = latestValues.current
+        const hasData = data.buyer?.name || data.restaurantOrderId || data.travelBookingId || data.manpowerAssignmentId || (data.lineItems && data.lineItems.some(l => l.productName || l.unitPrice > 0))
+        if (hasData) {
+          const payload = {
+            ...data,
+            flow: 'sell',
+            businessContext: data.businessContext || 'trading',
+            invoiceSubtype: data.invoiceSubtype || 'standard',
+            pdfTemplateId: Number(data.pdfTemplateId) || 1,
+            transactionType: data.transactionType || 'B2C',
+            invoiceTypeCode: data.transactionType === 'B2B' ? '0100000' : '0200000',
+            issueDate: new Date(),
+            status: 'draft',
+            lineItems: (data.lineItems || []).map((line, index) => ({
+              ...line,
+              lineNumber: index + 1,
+              taxCategory: 'S',
+            }))
+          }
+          api.post('/invoices/sell', payload).catch(() => {})
+        }
+      }
+    }
+  }, [isEdit])
+
   const saveMutation = useMutation({
     mutationFn: (data) => isEdit
       ? api.put(`/invoices/${invoiceId}`, data, { timeout: 120000 })
       : api.post('/invoices/sell', data, { timeout: 120000 }),
     onSuccess: (res) => {
+      isSubmittedRef.current = true;
       toast.success(
         isEdit
           ? (language === 'ar' ? 'تم تحديث فاتورة البيع بنجاح' : 'Sell invoice updated successfully')
@@ -842,11 +878,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
                   <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
-                  <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
-                    <div className={isTravelContext ? 'md:col-span-4' : 'md:col-span-4'}>
+                    <div className={isTravelContext ? 'md:col-span-3' : 'md:col-span-3'}>
                       <label className="label">{t('productName')} *</label>
                       {isTradingContext ? (
                         <>
@@ -860,6 +895,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         <input {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
+                    <div className="md:col-span-1"><label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label><input {...register(`lineItems.${index}.unitCode`)} className="input" placeholder="PCE" /></div>
                     {isTravelContext ? (
                       <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 1 })} />
                     ) : (

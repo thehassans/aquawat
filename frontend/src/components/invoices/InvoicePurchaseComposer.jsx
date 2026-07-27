@@ -153,9 +153,45 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     enabled: isTradingContext,
   })
 
+  const isSubmittedRef = useRef(false)
+  const latestValues = useRef(values)
+
+  useEffect(() => {
+    latestValues.current = values
+  }, [values])
+
+  useEffect(() => {
+    return () => {
+      if (!isEdit && !isSubmittedRef.current) {
+        const data = latestValues.current
+        const hasData = data.seller?.name || data.supplierId || (data.lineItems && data.lineItems.some((l) => l.productName || l.unitPrice > 0))
+        if (hasData) {
+          const payload = {
+            ...data,
+            flow: 'purchase',
+            businessContext: data.businessContext || 'trading',
+            invoiceSubtype: data.invoiceSubtype || 'standard',
+            pdfTemplateId: Number(data.pdfTemplateId) || 1,
+            transactionType: data.transactionType || 'B2B',
+            invoiceTypeCode: data.transactionType === 'B2C' ? '0200000' : '0100000',
+            issueDate: new Date(),
+            status: 'draft',
+            lineItems: (data.lineItems || []).map((line, index) => ({
+              ...line,
+              lineNumber: index + 1,
+              taxCategory: 'S',
+            })),
+          }
+          api.post('/invoices/purchase', payload).catch(() => {})
+        }
+      }
+    }
+  }, [isEdit])
+
   const saveMutation = useMutation({
     mutationFn: (payload) => isEdit ? api.put(`/invoices/${invoiceId}`, payload) : api.post('/invoices/purchase', payload),
     onSuccess: (res) => {
+      isSubmittedRef.current = true;
       toast.success(isEdit ? (language === 'ar' ? 'تم تحديث فاتورة الشراء بنجاح' : 'Purchase invoice updated successfully') : (language === 'ar' ? 'تم إنشاء فاتورة الشراء بنجاح' : 'Purchase invoice created successfully'))
       queryClient.invalidateQueries(['invoices'])
       if (isEdit) {
@@ -412,9 +448,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
                   <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
-                  <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
                   <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
-                    <div className="md:col-span-4">
+                    <div className="md:col-span-3">
                       <label className="label">{language === 'ar' ? 'الوصف' : 'Description'} *</label>
                       {isTradingContext ? (
                         <>
@@ -425,6 +460,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                         <input {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
+                    <div className="md:col-span-1"><label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label><input {...register(`lineItems.${index}.unitCode`)} className="input" placeholder="PCE" /></div>
                     <div className="md:col-span-2"><label className="label">{t('quantity')}</label><input type="number" min="1" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 1 })} className="input" /></div>
                     <div className="md:col-span-2"><label className="label">{t('unitPrice')}</label><input type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className="input" /></div>
                     <div className="md:col-span-2"><label className="label">{t('tax')} %</label><select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className="select"><option value={15}>15%</option><option value={0}>0%</option></select></div>
