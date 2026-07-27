@@ -208,27 +208,27 @@ export default function VatReturns() {
   const summaryCards = [
     {
       title: isArabic ? 'إجمالي المبيعات' : 'Total Sales',
-      value: renderMoney(statement.totalSales?.amount, { className: 'text-2xl font-bold' }),
+      value: renderMoney(statement.totalSales?.amount, { className: 'text-2xl font-bold text-slate-900 dark:text-white' }),
       icon: TrendingUp,
-      tone: 'from-[#0e1c26] to-[#2a4365]',
+      tone: 'bg-white border-slate-200 text-blue-600',
     },
     {
       title: isArabic ? 'إجمالي المشتريات' : 'Total Purchases',
-      value: renderMoney(statement.totalPurchases?.amount, { className: 'text-2xl font-bold' }),
+      value: renderMoney(statement.totalPurchases?.amount, { className: 'text-2xl font-bold text-slate-900 dark:text-white' }),
       icon: Wallet,
-      tone: 'from-[#2b1836] to-[#4c2966]',
+      tone: 'bg-white border-slate-200 text-purple-600',
     },
     {
       title: isArabic ? 'الضريبة المستحقة للفترة' : 'VAT Due This Period',
-      value: renderMoney(statement.totalVatDueCurrentPeriod?.vatAmount, { className: 'text-2xl font-bold' }),
+      value: renderMoney(statement.totalVatDueCurrentPeriod?.vatAmount, { className: 'text-2xl font-bold text-slate-900 dark:text-white' }),
       icon: Receipt,
-      tone: 'from-[#1a362d] to-[#2f855a]',
+      tone: 'bg-white border-slate-200 text-emerald-600',
     },
     {
       title: isArabic ? 'الصافي النهائي' : 'Net VAT Position',
-      value: renderMoney(statement.netVatDue?.vatAmount, { className: 'text-2xl font-bold' }),
+      value: renderMoney(statement.netVatDue?.vatAmount, { className: 'text-2xl font-bold text-slate-900 dark:text-white' }),
       icon: TrendingDown,
-      tone: 'from-[#4a1a1a] to-[#9b2c2c]',
+      tone: 'bg-white border-slate-200 text-rose-600',
     },
   ]
 
@@ -352,38 +352,38 @@ export default function VatReturns() {
 
   return (
     <div className="space-y-10 pb-20">
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-[2.5rem] bg-slate-900 text-white shadow-2xl">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
-        <div className="absolute -right-64 -top-64 h-[500px] w-[500px] rounded-full bg-indigo-500/20 blur-[120px]"></div>
-        <div className="absolute -left-64 -bottom-64 h-[500px] w-[500px] rounded-full bg-emerald-500/20 blur-[120px]"></div>
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-[2.5rem] bg-white text-slate-900 shadow-xl border border-slate-100 dark:bg-slate-900 dark:text-white dark:border-slate-800">
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.02]"></div>
+        <div className="absolute -right-64 -top-64 h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-[120px] dark:bg-blue-500/20"></div>
+        <div className="absolute -left-64 -bottom-64 h-[500px] w-[500px] rounded-full bg-emerald-500/10 blur-[120px] dark:bg-emerald-500/20"></div>
         
         <div className="relative grid gap-8 px-8 py-10 lg:grid-cols-[1.5fr_1fr] lg:px-12 lg:py-14">
           <div className="flex flex-col justify-center">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white/90 backdrop-blur-md w-fit">
-              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-600 backdrop-blur-md w-fit dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">
+              <ShieldCheck className="h-4 w-4 text-emerald-500" />
               {isArabic ? 'الضرائب والإقرارات' : 'ZATCA Compliance'}
             </div>
             <h1 className="mt-6 text-4xl font-black tracking-tight lg:text-5xl">{isArabic ? 'إقرار ضريبة القيمة المضافة' : 'VAT Returns'}</h1>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-400">
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-500 dark:text-slate-400">
               {isArabic
                 ? 'إدارة احترافية للإقرارات الضريبية مصممة لتتوافق بالكامل مع هيئة الزكاة والضريبة والجمارك. اعتمد إقراراتك بكل دقة وأمان.'
                 : 'Enterprise-grade VAT return management designed for strict compliance with ZATCA regulations. Review, adjust, and submit with absolute confidence.'}
             </p>
           </div>
           
-          <div className="grid gap-4 rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 backdrop-blur-xl sm:grid-cols-2 lg:grid-cols-1">
-            <div className="group rounded-2xl bg-white/5 p-4 transition-colors hover:bg-white/10">
+          <div className="grid gap-4 rounded-[2rem] border border-slate-100 bg-slate-50/50 p-6 backdrop-blur-xl sm:grid-cols-2 lg:grid-cols-1 dark:bg-slate-800/50 dark:border-slate-700">
+            <div className="group rounded-2xl bg-white p-4 shadow-sm border border-slate-100 transition-colors hover:bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700/50">
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">{isArabic ? 'الفترة الضريبية' : 'Tax Period'}</p>
-              <p className="mt-2 text-lg font-black text-white">{filters.startDate} <span className="text-slate-500 mx-2">→</span> {filters.endDate}</p>
+              <p className="mt-2 text-lg font-black text-slate-900 dark:text-white">{filters.startDate} <span className="text-slate-300 mx-2 dark:text-slate-600">→</span> {filters.endDate}</p>
             </div>
-            <div className="group rounded-2xl bg-white/5 p-4 transition-colors hover:bg-white/10">
+            <div className="group rounded-2xl bg-white p-4 shadow-sm border border-slate-100 transition-colors hover:bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700/50">
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">{isArabic ? 'آخر مزامنة' : 'Last Sync'}</p>
-              <p className="mt-2 text-lg font-bold text-white">{data?.vatReturn?.lastImportedAt ? new Date(data.vatReturn.lastImportedAt).toLocaleString(isArabic ? 'ar-SA' : 'en-GB') : (isArabic ? 'غير متوفر' : 'Not synced yet')}</p>
+              <p className="mt-2 text-lg font-bold text-slate-900 dark:text-white">{data?.vatReturn?.lastImportedAt ? new Date(data.vatReturn.lastImportedAt).toLocaleString(isArabic ? 'ar-SA' : 'en-GB') : (isArabic ? 'غير متوفر' : 'Not synced yet')}</p>
             </div>
-            <div className="group rounded-2xl bg-white/5 p-4 transition-colors hover:bg-white/10">
+            <div className="group rounded-2xl bg-white p-4 shadow-sm border border-slate-100 transition-colors hover:bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700/50">
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">{isArabic ? 'حالة الإقرار' : 'Filing Status'}</p>
-              <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-500/20 px-3 py-1 text-sm font-bold text-emerald-300">
-                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-600 border border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/30">
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
                 {data?.vatReturn?.status === 'submitted' ? (isArabic ? 'تم الإرسال لـ ZATCA' : 'Submitted to ZATCA') : (isArabic ? 'مسودة قيد المراجعة' : 'Draft under review')}
               </div>
             </div>
@@ -430,17 +430,14 @@ export default function VatReturns() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((card, index) => (
-          <motion.div key={card.title} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 + (index * 0.04) }} className="relative overflow-hidden rounded-[2rem] bg-slate-900 p-0 text-white shadow-xl">
-            <div className={`absolute inset-0 bg-gradient-to-br ${card.tone} opacity-80 mix-blend-multiply`}></div>
-            <div className="relative p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-white/60">{card.title}</p>
-                  <div className="mt-4">{card.value}</div>
-                </div>
-                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-md border border-white/10">
-                  <card.icon className="h-6 w-6 text-white" />
-                </div>
+          <motion.div key={card.title} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 + (index * 0.04) }} className={`relative overflow-hidden rounded-[2rem] ${card.tone} p-6 shadow-sm`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500">{card.title}</p>
+                <div className="mt-4">{card.value}</div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100 dark:bg-slate-800/50 dark:border-slate-700/50">
+                <card.icon className="h-6 w-6" />
               </div>
             </div>
           </motion.div>

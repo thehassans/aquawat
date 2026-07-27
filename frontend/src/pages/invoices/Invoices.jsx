@@ -367,11 +367,11 @@ export default function Invoices() {
               <div className="p-5 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl bg-gray-50 dark:bg-dark-700 p-3">
-                    <p className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'العميل' : 'Customer'}</p>
+                    <p className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'العميل / المورد' : 'Customer / Supplier'}</p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                       {(language === 'ar'
-                        ? (signModalInvoice.buyer?.nameAr || signModalInvoice.buyer?.name)
-                        : (signModalInvoice.buyer?.name || signModalInvoice.buyer?.nameAr)) || '—'}
+                        ? ((signModalInvoice.type === 'purchase' ? signModalInvoice.seller : signModalInvoice.buyer)?.nameAr || (signModalInvoice.type === 'purchase' ? signModalInvoice.seller : signModalInvoice.buyer)?.name)
+                        : ((signModalInvoice.type === 'purchase' ? signModalInvoice.seller : signModalInvoice.buyer)?.name || (signModalInvoice.type === 'purchase' ? signModalInvoice.seller : signModalInvoice.buyer)?.nameAr)) || '—'}
                     </p>
                   </div>
                   <div className="rounded-xl bg-gray-50 dark:bg-dark-700 p-3">
@@ -676,7 +676,7 @@ export default function Invoices() {
                 <thead>
                   <tr>
                     <th>{t('invoiceNumber')}</th>
-                    <th>{t('customer')}</th>
+                    <th>{language === 'ar' ? 'العميل / المورد' : 'Customer / Supplier'}</th>
                     <th>{language === 'ar' ? 'النوع' : 'Type'}</th>
                     <th>{t('date')}</th>
                     <th>{language === 'ar' ? 'تم الإنشاء بواسطة' : 'Created By'}</th>
@@ -706,10 +706,12 @@ export default function Invoices() {
                       </td>
                       <td>
                         <p className="font-medium text-gray-900 dark:text-white">
-                          {language === 'ar' ? (invoice.buyer?.nameAr || invoice.buyer?.name || '-') : (invoice.buyer?.name || invoice.buyer?.nameAr || '-')}
+                          {invoice.flow === 'purchase'
+                            ? (language === 'ar' ? (invoice.seller?.nameAr || invoice.seller?.name || '-') : (invoice.seller?.name || invoice.seller?.nameAr || '-'))
+                            : (language === 'ar' ? (invoice.buyer?.nameAr || invoice.buyer?.name || '-') : (invoice.buyer?.name || invoice.buyer?.nameAr || '-'))}
                         </p>
-                        {invoice.buyer?.vatNumber && (
-                          <p className="text-xs text-gray-500">{invoice.buyer.vatNumber}</p>
+                        {(invoice.flow === 'purchase' ? invoice.seller?.vatNumber : invoice.buyer?.vatNumber) && (
+                          <p className="text-xs text-gray-500">{invoice.flow === 'purchase' ? invoice.seller.vatNumber : invoice.buyer.vatNumber}</p>
                         )}
                       </td>
                       <td>

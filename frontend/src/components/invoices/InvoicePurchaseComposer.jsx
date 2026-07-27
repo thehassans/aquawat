@@ -265,6 +265,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       pdfTemplateId: selectedTemplateId,
       transactionType,
       invoiceTypeCode: transactionType === 'B2C' ? '0200000' : '0100000',
+      status: 'approved',
       issueDate: isEdit ? (initialInvoice?.issueDate || new Date()) : new Date(),
       lineItems: (data.lineItems || []).map((line, index) => {
         const calc = calculateLineTotal(index)
