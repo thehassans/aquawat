@@ -47,7 +47,7 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
         productName: line?.productName || '',
         productNameAr: line?.productNameAr || '',
         unitCode: line?.unitCode || 'PCE',
-        quantity: Math.max(1, toNumber(line?.quantity, 1)),
+        quantity: Math.max(0.0001, toNumber(line?.quantity, 1)),
         unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
         taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
       }))
@@ -464,7 +464,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                       )}
                     </div>
                     <div className="md:col-span-1"><label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label><input {...register(`lineItems.${index}.unitCode`)} className="input" placeholder="PCE" /></div>
-                    <div className="md:col-span-2"><label className="label">{t('quantity')}</label><input type="number" min="1" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 1 })} className="input" /></div>
+                    <div className="md:col-span-2"><label className="label">{t('quantity')}</label><input type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className="input" /></div>
                     <div className="md:col-span-2"><label className="label">{t('unitPrice')}</label><input type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className="input" /></div>
                     <div className="md:col-span-2"><label className="label">{t('tax')} %</label><select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className="select"><option value={15}>15%</option><option value={0}>0%</option></select></div>
                     <div className="md:col-span-2 flex items-center gap-2"><div className="flex-1 text-end"><p className="mb-1 text-xs text-gray-500">{t('total')}</p><p className="font-semibold"><Money value={calculateLineTotal(index).total} /></p></div>{fields.length > 1 && <button type="button" onClick={() => remove(index)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4" /></button>}</div>

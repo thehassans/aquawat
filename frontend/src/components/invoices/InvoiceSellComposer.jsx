@@ -91,7 +91,7 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
         productName: line?.productName || '',
         productNameAr: line?.productNameAr || '',
         unitCode: line?.unitCode || 'PCE',
-        quantity: Math.max(1, toNumber(line?.quantity, 1)),
+        quantity: Math.max(0.0001, toNumber(line?.quantity, 1)),
         unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
         customerPrice: Math.max(0, toNumber(line?.customerPrice, 0)),
         taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
@@ -897,11 +897,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     </div>
                     <div className="md:col-span-1"><label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label><input {...register(`lineItems.${index}.unitCode`)} className="input" placeholder="PCE" /></div>
                     {isTravelContext ? (
-                      <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 1 })} />
+                      <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} />
                     ) : (
                       <div className="md:col-span-2">
                         <label className="label">{t('quantity')}</label>
-                        <input type="number" min="1" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 1 })} className="input" />
+                        <input type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className="input" />
                       </div>
                     )}
                     <div className="md:col-span-2">
