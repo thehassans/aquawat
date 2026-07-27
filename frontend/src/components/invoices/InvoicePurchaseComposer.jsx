@@ -281,6 +281,9 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     if (!isTradingContext) {
       delete payload.warehouseId
       delete payload.supplierId
+    } else {
+      if (!payload.warehouseId) delete payload.warehouseId
+      if (!payload.supplierId) delete payload.supplierId
     }
     if (invoiceSubtype !== 'travel_ticket') delete payload.travelDetails
     saveMutation.mutate(payload)
