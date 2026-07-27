@@ -510,10 +510,11 @@ async function ensureProductsExist(tenantId, userId, lineItems, flow) {
 // @route   GET /api/invoices
 router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, transactionType, businessContext, search, startDate, endDate, zatcaFilter } = req.query;
+    const { page = 1, limit = 20, status, transactionType, businessContext, search, startDate, endDate, zatcaFilter, flow } = req.query;
     
     const query = { ...req.tenantFilter };
     if (status) query.status = status;
+    if (flow) query.flow = flow;
     if (transactionType) query.transactionType = transactionType;
     if (businessContext) query.businessContext = businessContext;
     if (startDate || endDate) {

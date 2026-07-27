@@ -89,7 +89,7 @@ export default function Invoices() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [filters, setFilters] = useState({ status: '', businessContext: '' })
+  const [filters, setFilters] = useState({ status: '', businessContext: '', flow: '' })
   const [zatcaFilter, setZatcaFilter] = useState('')
   const [page, setPage] = useState(1)
   const [pdfLoadingId, setPdfLoadingId] = useState(null)
@@ -594,6 +594,18 @@ export default function Invoices() {
             />
           </div>
           <select
+            value={filters.flow}
+            onChange={(e) => {
+              setFilters({ ...filters, flow: e.target.value })
+              setPage(1)
+            }}
+            className="select w-full sm:w-52"
+          >
+            <option value="">{language === 'ar' ? 'كل الأقسام (مبيعات ومشتريات)' : 'All (Sales & Purchases)'}</option>
+            <option value="sell">{language === 'ar' ? 'فواتير مبيعات' : 'Sales Invoices'}</option>
+            <option value="purchase">{language === 'ar' ? 'فواتير مشتريات' : 'Purchase Invoices'}</option>
+          </select>
+          <select
             value={filters.businessContext}
             onChange={(e) => {
               setFilters({ ...filters, businessContext: e.target.value })
@@ -707,9 +719,14 @@ export default function Invoices() {
                               {getInvoiceContextLabel(invoice, language)}
                             </span>
                           ) : (
-                            <span className="badge badge-neutral">
-                              {getInvoiceContextLabel(invoice, language)}
-                            </span>
+                            <>
+                              <span className={`badge ${invoice.flow === 'purchase' ? 'badge-info' : 'badge-neutral'} me-1`}>
+                                {invoice.flow === 'purchase' ? (language === 'ar' ? 'مشتريات' : 'Purchase') : (language === 'ar' ? 'مبيعات' : 'Sales')}
+                              </span>
+                              <span className="badge badge-neutral">
+                                {getInvoiceContextLabel(invoice, language)}
+                              </span>
+                            </>
                           )}
                           <p className="mt-1 text-xs text-gray-500">{getTransactionTypeLabel(invoice.transactionType, language, t)}</p>
                           {isTravelAgencyInvoice(invoice) && (
