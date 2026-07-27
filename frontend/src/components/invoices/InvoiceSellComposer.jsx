@@ -21,6 +21,7 @@ import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
 import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
 import { ScanLine, UploadCloud } from 'lucide-react'
 import Select from 'react-select'
+import CreatableSelect from 'react-select/creatable'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', customerPrice: '', taxRate: 15, agencyPrice: '', isTravelMargin: false }
 const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
@@ -902,20 +903,28 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
                     <div className={isTravelContext ? 'md:col-span-3' : 'md:col-span-3'}>
-                      <label className="label">{t('productName')} *</label>
+                      <label htmlFor={`product-select-${index}`} className="label">{t('productName')} *</label>
                       {isTradingContext ? (
                         <div className="mb-2">
-                          <Select
+                          <CreatableSelect
+                            inputId={`product-select-${index}`}
+                            name={`react-select-product-${index}`}
                             options={(products || []).map(p => ({ value: p._id, label: language === 'ar' ? (p.nameAr || p.nameEn) : p.nameEn }))}
                             value={((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: language === 'ar' ? ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameAr || (products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) : ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) } : null}
                             onChange={(selected) => {
                               if (selected) {
-                                onSelectProduct(index, selected.value)
+                                if (selected.__isNew__) {
+                                  setValue(`lineItems.${index}.productId`, '')
+                                  setValue(`lineItems.${index}.productName`, selected.value)
+                                } else {
+                                  onSelectProduct(index, selected.value)
+                                }
                               } else {
                                 setValue(`lineItems.${index}.productId`, '')
                                 setValue(`lineItems.${index}.productName`, '')
                               }
                             }}
+                            formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}" كمنتج جديد` : `Add "${inputValue}" as new product`}
                             placeholder={language === 'ar' ? 'اختياري: اختر منتج' : 'Optional: Select product'}
                             isClearable
                             isSearchable
@@ -927,31 +936,32 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                           <input type="hidden" {...register(`lineItems.${index}.productId`)} />
                         </div>
                       ) : (
-                        <input {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                        <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
-                    <div className="md:col-span-1"><label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label><input {...register(`lineItems.${index}.unitCode`)} className="input" placeholder="PCE" /></div>
+                    <div className="md:col-span-1"><label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label><input id={`unit-${index}`} {...register(`lineItems.${index}.unitCode`)} className="input" placeholder="PCE" /></div>
                     {isTravelContext ? (
                       <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} />
                     ) : (
                       <div className="md:col-span-2">
-                        <label className="label">{t('quantity')}</label>
-                        <input type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className="input" />
+                        <label htmlFor={`qty-${index}`} className="label">{t('quantity')}</label>
+                        <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className="input" />
                       </div>
                     )}
                     <div className="md:col-span-2">
-                      <label className="label">
+                      <label htmlFor={`price-${index}`} className="label">
                         {isTravelContext
                           ? (language === 'ar' ? 'سعر التذكرة' : 'Unit Price')
                           : t('unitPrice')}
                       </label>
-                      <input type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className="input" />
+                      <input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className="input" />
                     </div>
                     {isTravelContext ? (
                       <>
                         <div className="md:col-span-2">
-                          <label className="label">{language === 'ar' ? 'سعر الوكالة' : 'Agency Price'}</label>
+                          <label htmlFor={`agencyprice-${index}`} className="label">{language === 'ar' ? 'سعر الوكالة' : 'Agency Price'}</label>
                           <input
+                            id={`agencyprice-${index}`}
                             type="number"
                             step="0.01"
                             min="0"
@@ -961,10 +971,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                           />
                         </div>
                         <div className="md:col-span-2">
-                          <label className="label text-primary-700 dark:text-primary-300">
+                          <label htmlFor={`custprice-${index}`} className="label text-primary-700 dark:text-primary-300">
                             {language === 'ar' ? 'سعر العميل' : 'Customer Price'}
                           </label>
                           <input
+                            id={`custprice-${index}`}
                             type="number"
                             step="0.01"
                             min="0"

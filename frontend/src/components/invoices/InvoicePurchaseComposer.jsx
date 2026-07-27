@@ -20,6 +20,7 @@ import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
 import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
 import { ScanLine, UploadCloud } from 'lucide-react'
 import Select from 'react-select'
+import CreatableSelect from 'react-select/creatable'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
@@ -473,15 +474,28 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                   <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
                     <div className="md:col-span-3">
-                      <label className="label">{language === 'ar' ? 'الوصف *' : 'Description *'}</label>
+                      <label htmlFor={`product-select-${index}`} className="label">{language === 'ar' ? 'الوصف *' : 'Description *'}</label>
                       {isTradingContext ? (
                         <div className="mb-2">
-                          <Select
+                          <CreatableSelect
+                            inputId={`product-select-${index}`}
+                            name={`react-select-product-${index}`}
                             options={(products || []).map(p => ({ value: p._id, label: language === 'ar' ? (p.nameAr || p.nameEn) : p.nameEn }))}
                             value={((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: language === 'ar' ? ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameAr || (products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) : ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) } : null}
                             onChange={(selected) => {
-                              if (selected) onSelectProduct(index, selected.value)
+                              if (selected) {
+                                if (selected.__isNew__) {
+                                  setValue(`lineItems.${index}.productId`, '')
+                                  setValue(`lineItems.${index}.productName`, selected.value)
+                                } else {
+                                  onSelectProduct(index, selected.value)
+                                }
+                              } else {
+                                setValue(`lineItems.${index}.productId`, '')
+                                setValue(`lineItems.${index}.productName`, '')
+                              }
                             }}
+                            formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}" كمنتج جديد` : `Add "${inputValue}" as new product`}
                             placeholder={t('selectProduct')}
                             isClearable
                             isSearchable
@@ -490,16 +504,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                             }}
                           />
                           <input type="hidden" {...register(`lineItems.${index}.productId`)} />
-                          <input type="hidden" {...register(`lineItems.${index}.productName`)} />
-                          <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                          <input {...register(`lineItems.${index}.productName`, { required: true })} className="input mt-2" readOnly={Boolean(lineItems?.[index]?.productId)} placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
                         </div>
                       ) : (
-                        <input {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                        <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
-                    <div className="md:col-span-1"><label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label><input {...register(`lineItems.${index}.unitCode`)} className="input" placeholder="PCE" /></div>
-                    <div className="md:col-span-2"><label className="label">{t('quantity')}</label><input type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className="input" /></div>
-                    <div className="md:col-span-2"><label className="label">{t('unitPrice')}</label><input type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className="input" /></div>
+                    <div className="md:col-span-1"><label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label><input id={`unit-${index}`} {...register(`lineItems.${index}.unitCode`)} className="input" placeholder="PCE" /></div>
+                    <div className="md:col-span-2"><label htmlFor={`qty-${index}`} className="label">{t('quantity')}</label><input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className="input" /></div>
+                    <div className="md:col-span-2"><label htmlFor={`price-${index}`} className="label">{t('unitPrice')}</label><input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className="input" /></div>
                     <div className="md:col-span-2"><label className="label">{t('tax')} %</label><select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className="select"><option value={15}>15%</option><option value={0}>0%</option></select></div>
                     <div className="md:col-span-2 flex items-center gap-2"><div className="flex-1 text-end"><p className="mb-1 text-xs text-gray-500">{t('total')}</p><p className="font-semibold"><Money value={calculateLineTotal(index).total} /></p></div>{fields.length > 1 && <button type="button" onClick={() => remove(index)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4" /></button>}</div>
                   </div>
