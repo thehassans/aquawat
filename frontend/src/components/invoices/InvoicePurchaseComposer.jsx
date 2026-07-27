@@ -366,11 +366,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             <input type="hidden" {...register('invoiceSubtype')} />
           </div>
 
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'قالب ومعاينة' : 'Template & Preview'}</h3>
-            <InvoiceTemplateSelector language={language} value={selectedTemplateId} onChange={(id) => setValue('pdfTemplateId', id)} />
-            <input type="hidden" {...register('pdfTemplateId')} />
-          </div>
+          <input type="hidden" {...register('pdfTemplateId')} />
 
           <div className="card p-6">
             <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'بيانات المورد / البائع' : 'Vendor / Seller Details'}</h3>
@@ -406,8 +402,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                       <label className="label">{language === 'ar' ? 'الوصف' : 'Description'} *</label>
                       {isTradingContext ? (
                         <>
-                          <select {...register(`lineItems.${index}.productId`, { required: true, onChange: (e) => onSelectProduct(index, e.target.value) })} className="select"><option value="">{language === 'ar' ? 'اختر المنتج' : 'Select product'}</option>{(products || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
-                          <input {...register(`lineItems.${index}.productName`, { required: true })} className="input mt-2" readOnly placeholder={language === 'ar' ? 'اسم المنتج' : 'Product name'} />
+                          <select {...register(`lineItems.${index}.productId`, { onChange: (e) => onSelectProduct(index, e.target.value) })} className="select"><option value="">{language === 'ar' ? 'اختر المنتج' : 'Select product'}</option>{(products || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
+                          <input {...register(`lineItems.${index}.productName`, { required: true })} className="input mt-2" placeholder={language === 'ar' ? 'اسم المنتج' : 'Product name'} />
                         </>
                       ) : (
                         <input {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
