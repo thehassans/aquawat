@@ -4,8 +4,9 @@ import { X, UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle, FileText } f
 import api from '../../lib/api'
 import toast from 'react-hot-toast'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
+import * as XLSX from 'xlsx'
 
-export default function BulkInvoiceModal({ isOpen, onClose, language, t }) {
+export default function BulkInvoiceModal({ isOpen, onClose, language, t, mode = 'bulk', onPopulate }) {
   const [file, setFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
   const [result, setResult] = useState(null)
@@ -37,6 +38,69 @@ export default function BulkInvoiceModal({ isOpen, onClose, language, t }) {
   const handleUpload = async () => {
     if (!file) return
     setIsUploading(true)
+
+    if (mode === 'populate' && onPopulate) {
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const records = XLSX.utils.sheet_to_json(sheet);
+            
+            const lineItems = [];
+            let party = null;
+            
+            for (const record of records) {
+              const qty = Number(record['Quantity']) || 1;
+              const unitPrice = Number(record['Unit Price']) || 0;
+              const taxRate = Number(record['Tax Rate'] || 15);
+              
+              if (unitPrice > 0 || record['Item Name']) {
+                lineItems.push({
+                  productName: record['Item Name'] || 'Item',
+                  productNameAr: record['Item Name Arabic'] || '',
+                  quantity: qty,
+                  unitPrice: unitPrice,
+                  taxRate: taxRate,
+                  unitCode: record['UOM'] || record['Unit'] || 'PCE'
+                });
+              }
+              
+              if (!party) {
+                const partyName = record['Vendor Name'] || record['Customer Name'] || record['Name'] || '';
+                const partyNameAr = record['Vendor Name Arabic'] || record['Customer Name Arabic'] || record['Name Arabic'] || '';
+                const partyVat = record['Vendor VAT'] || record['Customer VAT'] || record['VAT'] || '';
+                if (partyName || partyVat) {
+                  party = { name: partyName, nameAr: partyNameAr, vatNumber: partyVat };
+                }
+              }
+            }
+            
+            onPopulate({ lineItems, party });
+            toast.success(isArabic ? 'تم استيراد البيانات بنجاح' : 'Data imported successfully');
+            onClose();
+          } catch (err) {
+            toast.error(isArabic ? 'فشل قراءة الملف' : 'Failed to parse file');
+            console.error(err);
+          } finally {
+            setIsUploading(false);
+          }
+        };
+        reader.onerror = () => {
+          toast.error(isArabic ? 'فشل قراءة الملف' : 'Failed to parse file');
+          setIsUploading(false);
+        };
+        reader.readAsArrayBuffer(file);
+      } catch (err) {
+        toast.error(isArabic ? 'فشل قراءة الملف' : 'Failed to parse file');
+        setIsUploading(false);
+      }
+      return;
+    }
+
     const formData = new FormData()
     formData.append('file', file)
     formData.append('businessContext', 'trading') // default
@@ -85,7 +149,9 @@ export default function BulkInvoiceModal({ isOpen, onClose, language, t }) {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900 dark:text-white">
-                    {isArabic ? 'إضافة فواتير مجمعة' : 'Bulk Invoice Upload'}
+                    {mode === 'populate' 
+                      ? (isArabic ? 'استيراد بيانات الفاتورة' : 'Import Invoice Data')
+                      : (isArabic ? 'إضافة فواتير مجمعة' : 'Bulk Invoice Upload')}
                   </h3>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {isArabic ? 'ارفع ملف CSV أو Excel (XLSX)' : 'Upload CSV or Excel (XLSX) file'}
@@ -121,38 +187,57 @@ export default function BulkInvoiceModal({ isOpen, onClose, language, t }) {
                     </label>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        {isArabic ? 'نوع الفواتير' : 'Invoice Type'}
+                  {mode === 'bulk' && (
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                      {isArabic ? 'نوع الفواتير' : 'Invoice Type'}
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFlow('sell')}
+                        className={`p-3 rounded-xl border text-center transition-colors ${
+                          flow === 'sell'
+                            ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300'
+                            : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-dark-700 dark:text-gray-400 dark:hover:bg-dark-700/50'
+                        }`}
+                      >
+                        {isArabic ? 'فواتير مبيعات' : 'Sales Invoices'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFlow('purchase')}
+                        className={`p-3 rounded-xl border text-center transition-colors ${
+                          flow === 'purchase'
+                            ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300'
+                            : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-dark-700 dark:text-gray-400 dark:hover:bg-dark-700/50'
+                        }`}
+                      >
+                        {isArabic ? 'فواتير مشتريات' : 'Purchase Invoices'}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {flow === 'purchase' && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                        {isArabic ? 'المورد (اختياري)' : 'Supplier (Optional)'}
                       </label>
                       <select 
-                        value={flow} 
-                        onChange={(e) => setFlow(e.target.value)}
+                        value={supplierId}
+                        onChange={(e) => setSupplierId(e.target.value)}
                         className="select w-full"
                       >
-                        <option value="sell">{isArabic ? 'مبيعات' : 'Sales (Sell)'}</option>
-                        <option value="purchase">{isArabic ? 'مشتريات' : 'Purchases (Buy)'}</option>
+                        <option value="">{isArabic ? 'اختر المورد' : 'Select Supplier'}</option>
+                        {(suppliers || []).map(s => (
+                          <option key={s._id} value={s._id}>{isArabic ? (s.nameAr || s.nameEn || s.name) : (s.nameEn || s.name || s.nameAr)}</option>
+                        ))}
                       </select>
-                    </div>
-                    {flow === 'purchase' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          {isArabic ? 'المورد (اختياري للكل)' : 'Supplier (Optional batch apply)'}
-                        </label>
-                        <select 
-                          value={supplierId} 
-                          onChange={(e) => setSupplierId(e.target.value)}
-                          className="select w-full"
-                        >
-                          <option value="">{isArabic ? 'بدون مورد / من الملف' : 'None / From File'}</option>
-                          {suppliers?.map(s => (
-                            <option key={s._id} value={s._id}>{isArabic ? (s.nameAr || s.name) : (s.name || s.nameAr)}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
+                    </motion.div>
+                  )}
+                </div>
+              )}
 
                   <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-xl p-4 flex gap-3">
                     <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />

@@ -600,7 +600,26 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         isOpen={isBulkModalOpen} 
         onClose={() => setIsBulkModalOpen(false)} 
         language={language} 
-        t={t} 
+        t={t}
+        mode="populate"
+        onPopulate={(data) => {
+          if (data.party) {
+            setValue('buyer.name', data.party.name || '')
+            setValue('buyer.nameAr', data.party.nameAr || '')
+            setValue('buyer.vatNumber', data.party.vatNumber || '')
+          }
+          if (data.lineItems && data.lineItems.length > 0) {
+            replace(data.lineItems.map(item => ({
+              ...emptyLine,
+              productName: item.productName || '',
+              productNameAr: item.productNameAr || '',
+              quantity: item.quantity || 1,
+              unitPrice: item.unitPrice || 0,
+              taxRate: item.taxRate || 15,
+              unitCode: item.unitCode || 'PCE'
+            })))
+          }
+        }}
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
