@@ -467,6 +467,46 @@ async function syncCustomerStats(tenantId, customerId) {
   }
 }
 
+async function ensureProductsExist(tenantId, userId, lineItems, flow) {
+  if (!Array.isArray(lineItems)) return [];
+  const processedLines = [];
+  
+  for (let i = 0; i < lineItems.length; i++) {
+    const line = lineItems[i];
+    let productId = line.productId;
+    
+    if (!productId && line.productName) {
+      const sku = `SKU-${Date.now()}-${i}-${Math.floor(Math.random()*1000)}`;
+      const unitPrice = toNumber(line.unitPrice, 0);
+      
+      const newProduct = new Product({
+        tenantId,
+        sku,
+        nameEn: line.productName,
+        nameAr: line.productNameAr || line.productName,
+        sellingPrice: flow === 'sell' ? unitPrice : unitPrice * 1.2,
+        costPrice: flow === 'purchase' ? unitPrice : 0,
+        taxRate: toNumber(line.taxRate, 15),
+        unitOfMeasure: line.unitCode || 'PCE',
+        createdBy: userId,
+        isActive: true,
+        status: 'active'
+      });
+      await newProduct.save();
+      productId = newProduct._id.toString();
+    }
+    
+    processedLines.push({
+      ...line,
+      productId: productId || undefined,
+      lineNumber: line.lineNumber || i + 1,
+      taxCategory: line.taxCategory || 'S'
+    });
+  }
+  
+  return processedLines;
+}
+
 // @route   GET /api/invoices
 router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
@@ -881,6 +921,7 @@ router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'cre
     const transactionType = req.body.transactionType || 'B2C';
     const invoiceTypeCode = req.body.invoiceTypeCode || (transactionType === 'B2C' ? '0200000' : '0100000');
     const issueDate = req.body.issueDate ? new Date(req.body.issueDate) : new Date();
+    req.body.lineItems = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, 'sell');
     
     const invoiceData = {
       ...req.body,
@@ -1070,11 +1111,7 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
     const issueDate = req.body.issueDate ? new Date(req.body.issueDate) : new Date();
     const pdfTemplateId = resolvePdfTemplateId(req.body?.pdfTemplateId, tenant, businessContext);
 
-    const lineItems = (req.body.lineItems || []).map((line, i) => ({
-      ...line,
-      lineNumber: line.lineNumber || i + 1,
-      taxCategory: line.taxCategory || 'S'
-    }));
+    const lineItems = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, 'sell');
     const invoiceDiscount = Math.max(0, toNumber(req.body?.invoiceDiscount, 0));
 
     const productIds = lineItems
@@ -1282,11 +1319,7 @@ router.post('/purchase', checkPermission('invoicing', 'create'), async (req, res
     const issueDate = req.body.issueDate ? new Date(req.body.issueDate) : new Date();
     const pdfTemplateId = resolvePdfTemplateId(req.body?.pdfTemplateId, tenant, businessContext);
 
-    const lineItems = (req.body.lineItems || []).map((line, i) => ({
-      ...line,
-      lineNumber: line.lineNumber || i + 1,
-      taxCategory: line.taxCategory || 'S'
-    }));
+    const lineItems = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, 'purchase');
 
     const productIds = lineItems
       .map((li) => li.productId)
@@ -1393,6 +1426,9 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
       return res.status(400).json({ error: 'Only unsigned draft or pending invoices can be modified' });
     }
     
+    if (req.body.lineItems) {
+      req.body.lineItems = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, invoice.flow);
+    }
     Object.assign(invoice, req.body);
     await invoice.save();
 
