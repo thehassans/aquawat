@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw } from 'lucide-react'
+import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -110,6 +110,19 @@ export default function InvoiceView() {
     }
   })
 
+  const creditNoteMutation = useMutation({
+    mutationFn: () => api.post(`/invoices/${id}/credit-note`),
+    onSuccess: (res) => {
+      toast.success(language === 'ar' ? 'تم إصدار إشعار دائن بنجاح' : 'Credit note issued successfully')
+      queryClient.invalidateQueries(['invoices'])
+      queryClient.invalidateQueries(['invoice', id])
+      navigate(`/app/dashboard/invoices/${res.data._id}/edit`)
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to issue credit note')
+    }
+  })
+
   const sendEmailMutation = useMutation({
     mutationFn: async () => {
       if (!invoice) {
@@ -192,6 +205,23 @@ export default function InvoiceView() {
             >
               <Edit className="w-4 h-4" />
               {language === 'ar' ? 'تعديل' : 'Edit'}
+            </button>
+          )}
+          {!isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && 
+           invoice?.invoiceSubtype !== 'proforma' && 
+           !['cancelled', 'credited'].includes(invoice?.status) && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(language === 'ar' ? 'هل أنت متأكد من إصدار إشعار دائن لهذه الفاتورة؟ هذا الإجراء لا يمكن التراجع عنه وسيتم إنشاء فاتورة جديدة.' : 'Are you sure you want to issue a credit note for this invoice? This action cannot be undone and a new draft invoice will be created.')) {
+                  creditNoteMutation.mutate()
+                }
+              }}
+              disabled={creditNoteMutation.isPending}
+              className="btn btn-secondary border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+            >
+              {creditNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
+              {language === 'ar' ? 'إصدار إشعار دائن (تعديل)' : 'Issue Credit Note (Edit)'}
             </button>
           )}
           {invoice?.invoiceSubtype === 'proforma' && invoice?.status !== 'cancelled' && invoice?.status !== 'sent' && (
