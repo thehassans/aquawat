@@ -228,12 +228,18 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       transactionType,
       invoiceTypeCode: transactionType === 'B2C' ? '0200000' : '0100000',
       issueDate: isEdit ? (initialInvoice?.issueDate || new Date()) : new Date(),
-      lineItems: (data.lineItems || []).map((line, index) => ({
-        ...line,
-        lineNumber: index + 1,
-        taxCategory: 'S',
-        productId: isTradingContext ? line.productId || undefined : undefined,
-      })),
+      lineItems: (data.lineItems || []).map((line, index) => {
+        const calc = calculateLineTotal(index)
+        return {
+          ...line,
+          lineNumber: index + 1,
+          taxCategory: 'S',
+          productId: isTradingContext ? line.productId || undefined : undefined,
+          lineTotal: calc.subtotal,
+          taxAmount: calc.tax,
+          lineTotalWithTax: calc.total
+        }
+      }),
     }
 
     if (!isTradingContext) {
@@ -264,6 +270,16 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       vatNumber: tenant?.business?.vatNumber,
       address: tenant?.business?.address,
     },
+    lineItems: (values.lineItems || []).map((line, index) => {
+      const calc = calculateLineTotal(index)
+      return {
+        ...line,
+        lineNumber: index + 1,
+        lineTotal: calc.subtotal,
+        taxAmount: calc.tax,
+        lineTotalWithTax: calc.total
+      }
+    }),
   }
 
   return (
