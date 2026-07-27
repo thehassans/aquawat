@@ -525,7 +525,32 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           <div className="card p-6">
             <div><label className="label">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label><textarea {...register('notes')} className="input" rows={3} /></div>
             <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-              <div className="space-y-2 md:w-64"><div className="flex justify-between text-sm"><span className="text-gray-500">{t('subtotal')}</span><span><Money value={totals.subtotal} /></span></div><div className="flex justify-between text-sm"><span className="text-gray-500">{t('tax')}</span><span><Money value={totals.totalTax} /></span></div><div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-bold dark:border-dark-600"><span>{t('total')}</span><span className="text-primary-600"><Money value={totals.grandTotal} /></span></div></div>
+              <div className="space-y-3 md:w-80">
+                <div>
+                  <label className="label">{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>
+                  <select {...register('paymentMethod')} className="select">
+                    <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
+                    <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
+                    <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank Transfer'}</option>
+                    <option value="credit">{language === 'ar' ? 'آجل / ذمم' : 'Credit / Split'}</option>
+                  </select>
+                </div>
+                {watch('paymentMethod') === 'credit' && (
+                  <div>
+                    <label className="label text-primary-600 font-semibold">{language === 'ar' ? 'المبلغ المدفوع (مقدم)' : 'Paid Amount (Advance)'}</label>
+                    <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className="input border-primary-300" placeholder="0.00" />
+                  </div>
+                )}
+                <div>
+                  <label className="label">{language === 'ar' ? 'خصم الفاتورة' : 'Invoice Discount'}</label>
+                  <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className="input" />
+                </div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('subtotal')}</span><span><Money value={totals.subtotal} /></span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('discount')}</span><span><Money value={totals.totalDiscount} /></span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">{language === 'ar' ? 'المبلغ الخاضع للضريبة' : 'Taxable Amount'}</span><span><Money value={totals.taxableAmount} /></span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
+                <div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-bold dark:border-dark-600"><span>{t('total')}</span><span className="text-primary-600"><Money value={totals.grandTotal} /></span></div>
+              </div>
               <div className="mb-4">
                 <ZatcaPreValidationPanel invoiceData={previewInvoice} language={language} />
               </div>

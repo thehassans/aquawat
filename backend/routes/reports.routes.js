@@ -915,7 +915,7 @@ router.get('/customer-statement', async (req, res) => {
     
     const invoices = await Invoice.find({ 
       ...req.tenantFilter, customerId, flow: 'sell', issueDate: { $gte: startDate, $lte: endDate }, status: { $nin: ['draft', 'cancelled'] }
-    }).select('invoiceNumber issueDate grandTotal paymentStatus').lean();
+    }).select('invoiceNumber issueDate grandTotal paymentStatus paidAmount').lean();
     
     let receipts = [];
     try {
@@ -926,8 +926,12 @@ router.get('/customer-statement', async (req, res) => {
       console.log('Voucher collection missing or error:', e.message);
     }
 
+    const invoiceDebits = invoices.map(i => ({ type: 'invoice', id: i.invoiceNumber, date: i.issueDate, debit: i.grandTotal, credit: 0, desc: 'Invoice' }));
+    const invoiceCredits = invoices.filter(i => i.paidAmount > 0).map(i => ({ type: 'invoice_payment', id: i.invoiceNumber, date: i.issueDate, debit: 0, credit: i.paidAmount, desc: `Invoice Payment (${i.invoiceNumber})` }));
+    
     const transactions = [
-      ...invoices.map(i => ({ type: 'invoice', id: i.invoiceNumber, date: i.issueDate, debit: i.grandTotal, credit: 0, desc: 'Invoice' })),
+      ...invoiceDebits,
+      ...invoiceCredits,
       ...receipts.map(r => ({ type: 'receipt', id: r.voucherNumber, date: r.date, debit: 0, credit: r.amount, desc: r.description }))
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
 

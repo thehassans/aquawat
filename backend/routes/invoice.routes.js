@@ -43,6 +43,29 @@ function resolvePdfTemplateId(requestedTemplateId, tenant, businessContext = 'tr
   return Math.min(6, Math.max(1, value));
 }
 
+function resolvePaymentStatus(invoiceData) {
+  const method = invoiceData.paymentMethod || 'cash';
+  const grandTotal = Number(invoiceData.grandTotal) || 0;
+  
+  if (method === 'cash' || method === 'card' || method === 'bank_transfer') {
+    invoiceData.paidAmount = grandTotal;
+    invoiceData.paymentStatus = 'paid';
+  } else if (method === 'credit' || method === 'split') {
+    const paid = Number(invoiceData.paidAmount) || 0;
+    invoiceData.paidAmount = Math.min(Math.max(0, paid), grandTotal); // Prevent overpaying and negative
+    if (invoiceData.paidAmount >= grandTotal && grandTotal > 0) {
+      invoiceData.paymentStatus = 'paid';
+    } else if (invoiceData.paidAmount > 0) {
+      invoiceData.paymentStatus = 'partial';
+    } else {
+      invoiceData.paymentStatus = 'pending';
+    }
+  } else {
+    invoiceData.paidAmount = grandTotal;
+    invoiceData.paymentStatus = 'paid';
+  }
+}
+
 function sanitizeTravelDetails(travelDetails = {}, fallbackTravelerName = '') {
   const passengers = Array.isArray(travelDetails?.passengers) ? travelDetails.passengers : [];
   const segments = Array.isArray(travelDetails?.segments) ? travelDetails.segments : [];
@@ -432,12 +455,33 @@ async function syncCustomerStats(tenantId, customerId) {
     const tenantObjectId = new mongoose.Types.ObjectId(String(tenantId));
     const customerObjectId = new mongoose.Types.ObjectId(String(customerId));
 
+    const mongoose = (await import('mongoose')).default;
+    const Voucher = mongoose.model('Voucher');
+    const voucherStats = await Voucher.aggregate([
+      {
+        $match: {
+          tenantId: tenantObjectId,
+          partyId: customerObjectId,
+          type: 'receive',
+          status: { $nin: ['cancelled'] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalReceived: { $sum: '$amount' }
+        }
+      }
+    ]);
+    const totalReceived = voucherStats[0]?.totalReceived || 0;
+
     const stats = await Invoice.aggregate([
       {
         $match: {
           tenantId: tenantObjectId,
           customerId: customerObjectId,
-          status: { $nin: ['draft', 'cancelled', 'credited'] }
+          status: { $nin: ['draft', 'cancelled', 'credited'] },
+          flow: 'sell'
         }
       },
       {
@@ -445,22 +489,23 @@ async function syncCustomerStats(tenantId, customerId) {
           _id: '$customerId',
           totalInvoices: { $sum: 1 },
           totalRevenue: { $sum: '$grandTotal' },
+          totalPaidOnInvoices: { $sum: { $ifNull: ['$paidAmount', 0] } },
           lastInvoiceDate: { $max: '$issueDate' }
         }
       }
     ]);
 
-    const doc = stats[0];
+    const doc = stats[0] || { totalInvoices: 0, totalRevenue: 0, totalPaidOnInvoices: 0, lastInvoiceDate: null };
+    const currentBalance = doc.totalRevenue - doc.totalPaidOnInvoices - totalReceived;
 
     await Customer.updateOne(
       { _id: customerObjectId, tenantId: tenantObjectId },
-      doc
-        ? {
-            totalInvoices: doc.totalInvoices,
-            totalRevenue: doc.totalRevenue,
-            lastInvoiceDate: doc.lastInvoiceDate
-          }
-        : { totalInvoices: 0, totalRevenue: 0, lastInvoiceDate: null }
+      {
+        totalInvoices: doc.totalInvoices,
+        totalRevenue: doc.totalRevenue,
+        lastInvoiceDate: doc.lastInvoiceDate,
+        currentBalance: Math.max(0, currentBalance)
+      }
     );
   } catch (error) {
     console.error('Failed to sync customer stats', error);
@@ -939,6 +984,8 @@ router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'cre
     const issueDate = req.body.issueDate ? new Date(req.body.issueDate) : new Date();
     req.body.lineItems = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, 'sell');
     
+    resolvePaymentStatus(req.body);
+
     const invoiceData = {
       ...req.body,
       tenantId: req.user.tenantId,
@@ -1445,6 +1492,12 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
     if (req.body.lineItems) {
       req.body.lineItems = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, invoice.flow);
     }
+    
+    // Only resolve payment status for manually edited fields (not auto-triggered updates without payment info)
+    if (req.body.paymentMethod || req.body.grandTotal !== undefined) {
+      resolvePaymentStatus(req.body);
+    }
+
     Object.assign(invoice, req.body);
     await invoice.save();
 

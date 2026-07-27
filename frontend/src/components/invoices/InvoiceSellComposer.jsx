@@ -1054,8 +1054,15 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
                     <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
                     <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank Transfer'}</option>
+                    <option value="credit">{language === 'ar' ? 'آجل / ذمم' : 'Credit / Split'}</option>
                   </select>
                 </div>
+                {watch('paymentMethod') === 'credit' && (
+                  <div>
+                    <label className="label text-primary-600 font-semibold">{language === 'ar' ? 'المبلغ المدفوع (مقدم)' : 'Paid Amount (Advance)'}</label>
+                    <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className="input border-primary-300" placeholder="0.00" />
+                  </div>
+                )}
                 <div>
                   <label className="label">{language === 'ar' ? 'خصم الفاتورة' : 'Invoice Discount'}</label>
                   <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className="input" />
