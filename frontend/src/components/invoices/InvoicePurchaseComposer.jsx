@@ -19,6 +19,7 @@ import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
 import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
 import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
 import { ScanLine, UploadCloud } from 'lucide-react'
+import Select from 'react-select'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
@@ -246,13 +247,13 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     return { subtotal, tax, total: subtotal + tax }
   }
 
-  const totals = useMemo(() => lineItems.reduce((acc, _, index) => {
+  const totals = lineItems.reduce((acc, _, index) => {
     const calc = calculateLineTotal(index)
     acc.subtotal += calc.subtotal
     acc.totalTax += calc.tax
     acc.grandTotal += calc.total
     return acc
-  }, { subtotal: 0, totalTax: 0, grandTotal: 0 }), [lineItems])
+  }, { subtotal: 0, totalTax: 0, grandTotal: 0 })
 
   const onSubmit = (data) => {
     const payload = {
@@ -472,12 +473,26 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                   <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
                     <div className="md:col-span-3">
-                      <label className="label">{language === 'ar' ? 'الوصف' : 'Description'} *</label>
+                      <label className="label">{language === 'ar' ? 'الوصف *' : 'Description *'}</label>
                       {isTradingContext ? (
-                        <>
-                          <select {...register(`lineItems.${index}.productId`, { onChange: (e) => onSelectProduct(index, e.target.value) })} className="select"><option value="">{language === 'ar' ? 'اختر المنتج' : 'Select product'}</option>{(products || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
-                          <input {...register(`lineItems.${index}.productName`, { required: true })} className="input mt-2" placeholder={language === 'ar' ? 'اسم المنتج' : 'Product name'} />
-                        </>
+                        <div className="mb-2">
+                          <Select
+                            options={(products || []).map(p => ({ value: p._id, label: language === 'ar' ? (p.nameAr || p.nameEn) : p.nameEn }))}
+                            value={((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: language === 'ar' ? ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameAr || (products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) : ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) } : null}
+                            onChange={(selected) => {
+                              if (selected) onSelectProduct(index, selected.value)
+                            }}
+                            placeholder={t('selectProduct')}
+                            isClearable
+                            isSearchable
+                            styles={{
+                              control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem' })
+                            }}
+                          />
+                          <input type="hidden" {...register(`lineItems.${index}.productId`)} />
+                          <input type="hidden" {...register(`lineItems.${index}.productName`)} />
+                          <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                        </div>
                       ) : (
                         <input {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}

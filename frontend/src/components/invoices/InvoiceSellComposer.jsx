@@ -20,6 +20,7 @@ import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
 import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
 import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
 import { ScanLine, UploadCloud } from 'lucide-react'
+import Select from 'react-select'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', customerPrice: '', taxRate: 15, agencyPrice: '', isTravelMargin: false }
 const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
@@ -903,13 +904,28 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     <div className={isTravelContext ? 'md:col-span-3' : 'md:col-span-3'}>
                       <label className="label">{t('productName')} *</label>
                       {isTradingContext ? (
-                        <>
-                          <select {...register(`lineItems.${index}.productId`, { onChange: (e) => onSelectProduct(index, e.target.value) })} className="select">
-                            <option value="">{language === 'ar' ? 'اختياري: اختر منتج' : 'Optional: Select product'}</option>
-                            {(products || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}
-                          </select>
+                        <div className="mb-2">
+                          <Select
+                            options={(products || []).map(p => ({ value: p._id, label: language === 'ar' ? (p.nameAr || p.nameEn) : p.nameEn }))}
+                            value={((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: language === 'ar' ? ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameAr || (products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) : ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) } : null}
+                            onChange={(selected) => {
+                              if (selected) {
+                                onSelectProduct(index, selected.value)
+                              } else {
+                                setValue(`lineItems.${index}.productId`, '')
+                                setValue(`lineItems.${index}.productName`, '')
+                              }
+                            }}
+                            placeholder={language === 'ar' ? 'اختياري: اختر منتج' : 'Optional: Select product'}
+                            isClearable
+                            isSearchable
+                            styles={{
+                              control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem' })
+                            }}
+                          />
                           <input {...register(`lineItems.${index}.productName`, { required: true })} className="input mt-2" readOnly={Boolean(lineItems?.[index]?.productId)} placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
-                        </>
+                          <input type="hidden" {...register(`lineItems.${index}.productId`)} />
+                        </div>
                       ) : (
                         <input {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
