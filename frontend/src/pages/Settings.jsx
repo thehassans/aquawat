@@ -774,69 +774,6 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="label flex items-center gap-2"><Image className="w-4 h-4" />{language === 'ar' ? 'شعار لوحة الإدارة' : 'Admin Panel Logo'}</label>
-                  <div className="card-glass p-4 mt-2">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-dark-700 border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden">
-                        {logoDataUrl ? (
-                          <img src={logoDataUrl} alt="" className="w-full h-full object-contain" />
-                        ) : (
-                          <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <input type="file" accept="image/*" onChange={handleLogoFile} className="input" />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                          {language === 'ar' ? 'يتم تطبيق الشعار على الشريط الجانبي وترويسة الفواتير' : 'This logo is used in the sidebar and invoice header'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="label flex items-center gap-2"><Image className="w-4 h-4" />{language === 'ar' ? 'الختم الرسمي / التوقيع' : 'Official Stamp / Signature'}</label>
-                  <div className="card-glass p-4 mt-2">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-dark-700 border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden">
-                        {stampDataUrl ? (
-                          <img src={stampDataUrl} alt="" className="w-full h-full object-contain" />
-                        ) : (
-                          <div className="w-14 h-14 bg-gray-200 dark:bg-gray-800 rounded-2xl flex items-center justify-center text-gray-400">Stamp</div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <input type="file" accept="image/*" onChange={handleStampFile} className="input" />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                          {language === 'ar' ? 'يظهر أسفل الفاتورة بجانب توقيع المدير' : 'Appears at the bottom of the invoice'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="label flex items-center gap-2"><Image className="w-4 h-4" />{language === 'ar' ? 'الترويسة الرسمية (Letterhead)' : 'Official Letterhead Background'}</label>
-                  <div className="card-glass p-4 mt-2">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-20 rounded border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden bg-gray-50">
-                        {letterheadDataUrl ? (
-                          <img src={letterheadDataUrl} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="text-gray-400 text-xs text-center px-1">A4<br/>Bg</div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <input type="file" accept="image/*" onChange={handleLetterheadFile} className="input" />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                          {language === 'ar' ? 'يستخدم كخلفية رسمية للفواتير والخطابات' : 'Used as a full-page background (A4)'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 </fieldset>
                 {user?.role === 'superadmin' && (
                   <div className="flex justify-end pt-4">
@@ -846,6 +783,108 @@ export default function Settings() {
                   </div>
                 )}
               </form>
+
+              {/* ─── BRANDING SECTION — editable by all users ─── */}
+              <div className="mt-8 pt-8 border-t border-gray-200 dark:border-dark-600 space-y-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow">
+                    <Image className="w-4 h-4 text-white" />
+                  </span>
+                  <div>
+                    <h4 className="text-md font-bold text-gray-900 dark:text-white">
+                      {language === 'ar' ? 'هوية العلامة التجارية' : 'Brand Identity'}
+                    </h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {language === 'ar' ? 'الشعار والختم والترويسة — يمكن تعديلها بحرية' : 'Logo, stamp & letterhead — editable by all users'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Logo */}
+                  <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-primary-400 dark:hover:border-primary-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
+                    <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
+                      {(logoDataUrl || tenant?.branding?.logo) ? (
+                        <img src={logoDataUrl || tenant?.branding?.logo} alt="" className="w-full h-full object-contain" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
+                          <Image className="w-6 h-6 text-white" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'شعار لوحة الإدارة' : 'Admin Logo'}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'الشريط الجانبي وترويسة الفاتورة' : 'Sidebar & invoice header'}</p>
+                    </div>
+                    <input type="file" accept="image/*" onChange={handleLogoFile} className="sr-only" />
+                  </label>
+
+                  {/* Stamp */}
+                  <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-teal-400 dark:hover:border-teal-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
+                    <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
+                      {(stampDataUrl || tenant?.branding?.stampImage) ? (
+                        <img src={stampDataUrl || tenant?.branding?.stampImage} alt="" className="w-full h-full object-contain" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">SEAL</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'الختم الرسمي' : 'Official Stamp'}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'يظهر أسفل الفاتورة' : 'Bottom of invoice'}</p>
+                    </div>
+                    <input type="file" accept="image/*" onChange={handleStampFile} className="sr-only" />
+                  </label>
+
+                  {/* Letterhead */}
+                  <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-indigo-400 dark:hover:border-indigo-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
+                    <div className="relative w-16 h-20 rounded overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
+                      {(letterheadDataUrl || tenant?.branding?.letterheadImage) ? (
+                        <img src={letterheadDataUrl || tenant?.branding?.letterheadImage} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-violet-600 flex items-center justify-center">
+                          <span className="text-white text-[10px] font-bold text-center px-1">A4 BG</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'الترويسة الرسمية' : 'Letterhead'}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'خلفية الفاتورة A4' : 'Full-page background'}</p>
+                    </div>
+                    <input type="file" accept="image/*" onChange={handleLetterheadFile} className="sr-only" />
+                  </label>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    disabled={updateMutation.isPending}
+                    onClick={() => updateMutation.mutate({
+                      branding: {
+                        ...(tenant?.branding || {}),
+                        logo: logoDataUrl || tenant?.branding?.logo || null,
+                        stampImage: stampDataUrl || tenant?.branding?.stampImage || null,
+                        letterheadImage: letterheadDataUrl || tenant?.branding?.letterheadImage || null,
+                      }
+                    })}
+                    className="btn btn-primary"
+                  >
+                    {updateMutation.isPending
+                      ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <><Save className="w-4 h-4" />{language === 'ar' ? 'حفظ هوية العلامة' : 'Save Branding'}</>}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           )}
 
