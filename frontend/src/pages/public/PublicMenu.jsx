@@ -248,6 +248,7 @@ export default function PublicMenu() {
   const qrMenuSettings = tenant.settings?.restaurant?.qrMenu || {}
   const menuMode = qrMenuSettings.mode || 'digital'
   const menuImages = qrMenuSettings.menuImages || []
+  const hasOrderingAddon = tenant.subscription?.hasQrOrderingAddon === true
 
   return (
     <div
@@ -429,32 +430,34 @@ export default function PublicMenu() {
                             </div>
 
                             {/* Add / Qty Control */}
-                            {qtyInCart === 0 ? (
-                              <button
-                                onClick={() => addToCart(item)}
-                                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-md shadow-amber-500/20 transition-all"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>{isRtl ? 'إضافة' : 'Add'}</span>
-                              </button>
-                            ) : (
-                              <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-xl px-2 py-1">
+                            {hasOrderingAddon && (
+                              qtyInCart === 0 ? (
                                 <button
-                                  onClick={() => updateQuantity(item._id, -1)}
-                                  className="w-6 h-6 rounded-lg bg-white text-amber-700 shadow-sm flex items-center justify-center hover:bg-amber-100 active:scale-90 transition"
-                                >
-                                  <Minus className="w-3.5 h-3.5" />
-                                </button>
-                                <span className="font-black text-amber-900 dark:text-amber-200 text-sm px-1">
-                                  {qtyInCart}
-                                </span>
-                                <button
-                                  onClick={() => updateQuantity(item._id, 1)}
-                                  className="w-6 h-6 rounded-lg bg-amber-500 text-white shadow-sm flex items-center justify-center hover:bg-amber-600 active:scale-90 transition"
+                                  onClick={() => addToCart(item)}
+                                  className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-md shadow-amber-500/20 transition-all"
                                 >
                                   <Plus className="w-3.5 h-3.5" />
+                                  <span>{isRtl ? 'إضافة' : 'Add'}</span>
                                 </button>
-                              </div>
+                              ) : (
+                                <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-xl px-2 py-1">
+                                  <button
+                                    onClick={() => updateQuantity(item._id, -1)}
+                                    className="w-6 h-6 rounded-lg bg-white text-amber-700 shadow-sm flex items-center justify-center hover:bg-amber-100 active:scale-90 transition"
+                                  >
+                                    <Minus className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="font-black text-amber-900 dark:text-amber-200 text-sm px-1">
+                                    {qtyInCart}
+                                  </span>
+                                  <button
+                                    onClick={() => updateQuantity(item._id, 1)}
+                                    className="w-6 h-6 rounded-lg bg-amber-500 text-white shadow-sm flex items-center justify-center hover:bg-amber-600 active:scale-90 transition"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )
                             )}
                           </div>
                         </div>

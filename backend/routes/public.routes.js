@@ -405,7 +405,7 @@ router.post('/demo-signup', async (req, res) => {
 router.get('/tenant/:id/menu', async (req, res) => {
   try {
     const tenant = await withQueryTimeout(
-      Tenant.findById(req.params.id).select('name slug business branding settings isActive')
+      Tenant.findById(req.params.id).select('name slug business branding settings isActive subscription')
     )
 
     if (!tenant || !tenant.isActive) {
@@ -425,7 +425,8 @@ router.get('/tenant/:id/menu', async (req, res) => {
           restaurant: {
             qrMenu: tenant.settings?.restaurant?.qrMenu || { defaultLanguage: 'ar' }
           }
-        }
+        },
+        subscription: tenant.subscription
       },
       items
     })
@@ -444,6 +445,10 @@ router.post('/tenant/:id/order', async (req, res) => {
 
     if (!tenant || !tenant.isActive) {
       return res.status(404).json({ error: 'Restaurant not found or inactive' })
+    }
+
+    if (!tenant.subscription?.hasQrOrderingAddon) {
+      return res.status(403).json({ error: 'Online ordering is not enabled for this restaurant' })
     }
 
     const {
