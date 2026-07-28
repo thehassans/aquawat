@@ -26,7 +26,7 @@ import {
   ArrowRight,
   Clock
 } from 'lucide-react'
-import toast from 'react-[#333]' // dummy or standard toast
+import toast from 'react-hot-toast'
 
 export default function PublicMenu() {
   const [searchParams] = useSearchParams()
