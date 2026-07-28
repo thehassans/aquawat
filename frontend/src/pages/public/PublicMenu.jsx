@@ -107,6 +107,25 @@ export default function PublicMenu() {
     })
   }, [data, activeCategory, searchQuery])
 
+  // Set default order type based on what is allowed
+  useEffect(() => {
+    if (!data?.tenant) return
+    const qrMenuSettings = data.tenant.settings?.restaurant?.qrMenu || {}
+    if (qrMenuSettings.allowDineIn !== false) setOrderType('dine_in')
+    else if (qrMenuSettings.allowTakeaway !== false) setOrderType('takeaway')
+    else if (qrMenuSettings.allowDelivery !== false) setOrderType('delivery')
+  }, [data])
+
+  // Set default payment method based on what is allowed
+  useEffect(() => {
+    if (!data?.tenant) return
+    const qrMenuSettings = data.tenant.settings?.restaurant?.qrMenu || {}
+    const acceptedPayments = qrMenuSettings.acceptedPayments || ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card']
+    if (acceptedPayments.length > 0 && !acceptedPayments.includes(paymentMethod)) {
+      setPaymentMethod(acceptedPayments[0])
+    }
+  }, [data, paymentMethod])
+
   // Cart operations
   const addToCart = (item) => {
     setCart((prev) => {
@@ -251,20 +270,6 @@ export default function PublicMenu() {
   const allowOnlineOrdering = qrMenuSettings.allowOnlineOrdering !== false
   const hasOrderingAddon = tenant.subscription?.hasQrOrderingAddon === true && allowOnlineOrdering
   const acceptedPayments = qrMenuSettings.acceptedPayments || ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card']
-  
-  // Set default order type based on what is allowed
-  useEffect(() => {
-    if (qrMenuSettings.allowDineIn !== false) setOrderType('dine_in')
-    else if (qrMenuSettings.allowTakeaway !== false) setOrderType('takeaway')
-    else if (qrMenuSettings.allowDelivery !== false) setOrderType('delivery')
-  }, [qrMenuSettings.allowDineIn, qrMenuSettings.allowTakeaway, qrMenuSettings.allowDelivery])
-
-  // Set default payment method based on what is allowed
-  useEffect(() => {
-    if (acceptedPayments.length > 0 && !acceptedPayments.includes(paymentMethod)) {
-      setPaymentMethod(acceptedPayments[0])
-    }
-  }, [acceptedPayments, paymentMethod])
 
   return (
     <div
