@@ -248,7 +248,23 @@ export default function PublicMenu() {
   const qrMenuSettings = tenant.settings?.restaurant?.qrMenu || {}
   const menuMode = qrMenuSettings.mode || 'digital'
   const menuImages = qrMenuSettings.menuImages || []
-  const hasOrderingAddon = tenant.subscription?.hasQrOrderingAddon === true
+  const allowOnlineOrdering = qrMenuSettings.allowOnlineOrdering !== false
+  const hasOrderingAddon = tenant.subscription?.hasQrOrderingAddon === true && allowOnlineOrdering
+  const acceptedPayments = qrMenuSettings.acceptedPayments || ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card']
+  
+  // Set default order type based on what is allowed
+  useEffect(() => {
+    if (qrMenuSettings.allowDineIn !== false) setOrderType('dine_in')
+    else if (qrMenuSettings.allowTakeaway !== false) setOrderType('takeaway')
+    else if (qrMenuSettings.allowDelivery !== false) setOrderType('delivery')
+  }, [qrMenuSettings.allowDineIn, qrMenuSettings.allowTakeaway, qrMenuSettings.allowDelivery])
+
+  // Set default payment method based on what is allowed
+  useEffect(() => {
+    if (acceptedPayments.length > 0 && !acceptedPayments.includes(paymentMethod)) {
+      setPaymentMethod(acceptedPayments[0])
+    }
+  }, [acceptedPayments, paymentMethod])
 
   return (
     <div
@@ -641,6 +657,7 @@ export default function PublicMenu() {
                     </h4>
 
                     <div className="grid grid-cols-3 gap-2">
+                      {qrMenuSettings.allowDineIn !== false && (
                       <button
                         type="button"
                         onClick={() => setOrderType('dine_in')}
@@ -653,7 +670,9 @@ export default function PublicMenu() {
                         <span className="block text-base mb-0.5">🍽️</span>
                         <span className="text-xs font-bold">{isRtl ? 'محلي' : 'Dine-In'}</span>
                       </button>
+                      )}
 
+                      {qrMenuSettings.allowTakeaway !== false && (
                       <button
                         type="button"
                         onClick={() => setOrderType('takeaway')}
@@ -666,7 +685,9 @@ export default function PublicMenu() {
                         <span className="block text-base mb-0.5">🥡</span>
                         <span className="text-xs font-bold">{isRtl ? 'سفري' : 'Takeaway'}</span>
                       </button>
+                      )}
 
+                      {qrMenuSettings.allowDelivery !== false && (
                       <button
                         type="button"
                         onClick={() => setOrderType('delivery')}
@@ -679,6 +700,7 @@ export default function PublicMenu() {
                         <span className="block text-base mb-0.5">🚗</span>
                         <span className="text-xs font-bold">{isRtl ? 'توصيل' : 'Delivery'}</span>
                       </button>
+                      )}
                     </div>
                   </div>
 
@@ -784,6 +806,7 @@ export default function PublicMenu() {
 
                     <div className="grid grid-cols-2 gap-2.5">
                       {/* Cash */}
+                      {acceptedPayments.includes('cash') && (
                       <label
                         className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer transition-all ${
                           paymentMethod === 'cash'
@@ -809,8 +832,10 @@ export default function PublicMenu() {
                           <p className="text-[10px] text-gray-400">{isRtl ? 'نقداً أو عند الطاولة' : 'Cash or Counter'}</p>
                         </div>
                       </label>
+                      )}
 
                       {/* Apple Pay */}
+                      {acceptedPayments.includes('apple_pay') && (
                       <label
                         className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer transition-all ${
                           paymentMethod === 'apple_pay'
@@ -834,8 +859,10 @@ export default function PublicMenu() {
                           <p className="text-[10px] text-gray-400">{isRtl ? 'دفع إلكتروني سريع' : 'Instant Checkout'}</p>
                         </div>
                       </label>
+                      )}
 
                       {/* STC Pay */}
+                      {acceptedPayments.includes('stc_pay') && (
                       <label
                         className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer transition-all ${
                           paymentMethod === 'stc_pay'
@@ -859,11 +886,13 @@ export default function PublicMenu() {
                           <p className="text-[10px] text-gray-400">{isRtl ? 'المحفظة الرقمية' : 'Digital Wallet'}</p>
                         </div>
                       </label>
+                      )}
 
                       {/* Card / Mada / Visa */}
+                      {(acceptedPayments.includes('visa') || acceptedPayments.includes('mada') || acceptedPayments.includes('master_card')) && (
                       <label
                         className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer transition-all ${
-                          ['visa', 'mada', 'card'].includes(paymentMethod)
+                          ['visa', 'mada', 'master_card', 'card'].includes(paymentMethod)
                             ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
                             : 'bg-gray-50 dark:bg-dark-700 border-gray-200 dark:border-dark-600'
                         }`}
@@ -872,7 +901,7 @@ export default function PublicMenu() {
                           type="radio"
                           name="payment"
                           value="mada"
-                          checked={['visa', 'mada', 'card'].includes(paymentMethod)}
+                          checked={['visa', 'mada', 'master_card', 'card'].includes(paymentMethod)}
                           onChange={() => setPaymentMethod('mada')}
                           className="sr-only"
                         />
@@ -886,6 +915,7 @@ export default function PublicMenu() {
                           <p className="text-[10px] text-gray-400">{isRtl ? 'بطاقة البنك' : 'Debit & Credit'}</p>
                         </div>
                       </label>
+                      )}
                     </div>
                   </div>
 

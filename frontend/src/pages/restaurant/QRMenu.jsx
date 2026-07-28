@@ -22,8 +22,27 @@ export default function QRMenu() {
   const [activeTab, setActiveTab] = useState('qr_code')
   
   // Settings State
-  const initialSettings = tenant?.settings?.restaurant?.qrMenu || { defaultLanguage: 'ar', heroImage: '', mode: 'digital', menuImages: [] }
-  const [qrSettings, setQrSettings] = useState({ mode: 'digital', menuImages: [], ...initialSettings })
+  const initialSettings = tenant?.settings?.restaurant?.qrMenu || { 
+    defaultLanguage: 'ar', 
+    heroImage: '', 
+    mode: 'digital', 
+    menuImages: [],
+    allowOnlineOrdering: true,
+    allowDelivery: true,
+    allowTakeaway: true,
+    allowDineIn: true,
+    acceptedPayments: ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card']
+  }
+  const [qrSettings, setQrSettings] = useState({ 
+    mode: 'digital', 
+    menuImages: [], 
+    allowOnlineOrdering: true,
+    allowDelivery: true,
+    allowTakeaway: true,
+    allowDineIn: true,
+    acceptedPayments: ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card'],
+    ...initialSettings 
+  })
   const [isUploading, setIsUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -440,6 +459,112 @@ export default function QRMenu() {
                     </label>
                   </div>
                 </div>
+
+                {/* Online Ordering Settings (Add-on feature) */}
+                {tenant?.subscription?.hasQrOrderingAddon && (
+                  <div className="space-y-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                        {isRtl ? 'إعدادات الطلب عبر الإنترنت' : 'Online Ordering Settings'}
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {isRtl ? 'تخصيص طرق الدفع وأنواع الطلبات المتاحة للعملاء' : 'Customize accepted payment methods and order types for your customers'}
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-6 space-y-6 border border-gray-200 dark:border-gray-700">
+                      {/* Main Toggle */}
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <div>
+                          <span className="block text-base font-bold text-gray-900 dark:text-white">
+                            {isRtl ? 'تفعيل الطلب عبر الإنترنت' : 'Enable Online Ordering'}
+                          </span>
+                          <span className="block text-xs text-gray-500 mt-0.5">
+                            {isRtl ? 'السماح للعملاء بتقديم الطلبات من القائمة' : 'Allow customers to place orders from the menu'}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={qrSettings.allowOnlineOrdering}
+                            onChange={(e) => setQrSettings(prev => ({ ...prev, allowOnlineOrdering: e.target.checked }))}
+                          />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-amber-500"></div>
+                        </div>
+                      </label>
+
+                      {qrSettings.allowOnlineOrdering && (
+                        <>
+                          <div className="h-px bg-gray-200 dark:bg-gray-700 w-full" />
+                          
+                          {/* Order Types */}
+                          <div className="space-y-3">
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">{isRtl ? 'أنواع الطلبات المتاحة' : 'Available Order Types'}</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              {[
+                                { id: 'allowDineIn', labelEn: 'Dine-in', labelAr: 'محلي' },
+                                { id: 'allowTakeaway', labelEn: 'Takeaway', labelAr: 'سفري' },
+                                { id: 'allowDelivery', labelEn: 'Delivery', labelAr: 'توصيل' },
+                              ].map(type => (
+                                <label key={type.id} className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-amber-500 transition-colors">
+                                  <input 
+                                    type="checkbox"
+                                    checked={qrSettings[type.id]}
+                                    onChange={(e) => setQrSettings(prev => ({ ...prev, [type.id]: e.target.checked }))}
+                                    className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500"
+                                  />
+                                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    {isRtl ? type.labelAr : type.labelEn}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="h-px bg-gray-200 dark:bg-gray-700 w-full" />
+
+                          {/* Payment Methods */}
+                          <div className="space-y-3">
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">{isRtl ? 'طرق الدفع المقبولة' : 'Accepted Payment Methods'}</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {[
+                                { id: 'cash', labelEn: 'Cash on Delivery / Counter', labelAr: 'الدفع نقداً' },
+                                { id: 'apple_pay', labelEn: 'Apple Pay', labelAr: 'Apple Pay' },
+                                { id: 'stc_pay', labelEn: 'STC Pay', labelAr: 'STC Pay' },
+                                { id: 'visa', labelEn: 'Visa', labelAr: 'فيزا' },
+                                { id: 'mada', labelEn: 'Mada', labelAr: 'مدى' },
+                                { id: 'master_card', labelEn: 'MasterCard', labelAr: 'ماستر كارد' },
+                              ].map(method => (
+                                <label key={method.id} className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-amber-500 transition-colors">
+                                  <input 
+                                    type="checkbox"
+                                    checked={qrSettings.acceptedPayments?.includes(method.id)}
+                                    onChange={(e) => {
+                                      setQrSettings(prev => {
+                                        const current = prev.acceptedPayments || []
+                                        return {
+                                          ...prev,
+                                          acceptedPayments: e.target.checked 
+                                            ? [...current, method.id]
+                                            : current.filter(m => m !== method.id)
+                                        }
+                                      })
+                                    }}
+                                    className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500"
+                                  />
+                                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    {isRtl ? method.labelAr : method.labelEn}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="pt-6 border-t border-gray-200 dark:border-gray-700 flex justify-end">
                   <button 

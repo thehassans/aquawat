@@ -484,7 +484,15 @@ const tenantSchema = new mongoose.Schema({
         heroImage: { type: String },
         defaultLanguage: { type: String, enum: ['en', 'ar'], default: 'ar' },
         mode: { type: String, enum: ['digital', 'image_only'], default: 'digital' },
-        menuImages: [{ type: String }]
+        menuImages: [{ type: String }],
+        allowOnlineOrdering: { type: Boolean, default: true },
+        allowDelivery: { type: Boolean, default: true },
+        allowTakeaway: { type: Boolean, default: true },
+        allowDineIn: { type: Boolean, default: true },
+        acceptedPayments: { 
+          type: [String], 
+          default: ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card'] 
+        }
       },
       autoStatusUpdate: { type: Boolean, default: false },
       openingTime: { type: String, default: '08:00' },
