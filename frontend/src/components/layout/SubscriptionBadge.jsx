@@ -46,9 +46,17 @@ export default function SubscriptionBadge({ tenant, language }) {
           <span className="text-[10px] font-medium text-amber-600/80 dark:text-amber-400/80 uppercase tracking-wider">
             {language === 'ar' ? 'الباقة الحالية' : 'Current Plan'}
           </span>
-          <span className="text-sm font-bold text-amber-700 dark:text-amber-400">
-            {getPlanName()}
-          </span>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-sm font-bold text-amber-700 dark:text-amber-400">
+              {getPlanName()}
+            </span>
+          </div>
+          {endDate && (
+            <span className="text-[10px] font-medium text-amber-600/80 dark:text-amber-400/80 mt-1 flex items-center gap-1">
+              <CalendarDays className="w-3 h-3" />
+              {language === 'ar' ? 'ينتهي في:' : 'Ends on:'} {formatDate(endDate)}
+            </span>
+          )}
         </div>
       </Popover.Button>
 

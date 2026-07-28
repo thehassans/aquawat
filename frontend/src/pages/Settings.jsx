@@ -556,6 +556,7 @@ export default function Settings() {
                   logo: logoDataUrl || tenant?.branding?.logo || null,
                 },
               }))} className="space-y-4">
+                <fieldset disabled={user?.role !== 'superadmin'} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="label">{language === 'ar' ? 'الاسم القانوني (EN)' : 'Legal Name (EN)'}</label>
@@ -836,11 +837,14 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-4">
-                  <button type="submit" disabled={updateMutation.isPending} className="btn btn-primary">
-                    {updateMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Save className="w-4 h-4" />{t('save')}</>}
-                  </button>
-                </div>
+                </fieldset>
+                {user?.role === 'superadmin' && (
+                  <div className="flex justify-end pt-4">
+                    <button type="submit" disabled={updateMutation.isPending} className="btn btn-primary">
+                      {updateMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Save className="w-4 h-4" />{t('save')}</>}
+                    </button>
+                  </div>
+                )}
               </form>
             </motion.div>
           )}

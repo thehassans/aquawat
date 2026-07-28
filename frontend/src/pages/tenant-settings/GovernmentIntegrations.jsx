@@ -117,7 +117,7 @@ export default function GovernmentIntegrations() {
   const queryClient = useQueryClient()
   const dispatch = useDispatch()
   const { language } = useSelector(state => state.ui)
-  const { tenant } = useSelector(state => state.auth)
+  const { tenant, user } = useSelector(state => state.auth)
   
   const isAr = language === 'ar'
   const t = (en, ar) => isAr ? ar : en
@@ -549,7 +549,7 @@ export default function GovernmentIntegrations() {
         {/* MAIN CONFIGURATION FORMS */}
         <div className="lg:col-span-3">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            
+            <fieldset disabled={user?.role !== 'superadmin'} className="space-y-6">
             {/* TAB CONTENT: ZATCA */}
             {activeTab === 'zatca' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card p-6 space-y-6">
@@ -1395,21 +1395,24 @@ export default function GovernmentIntegrations() {
               </motion.div>
             )}
 
+            </fieldset>
             {/* FORM FOOTER ACTIONS */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-dark-750">
-              <button
-                type="submit"
-                disabled={saveMutation.isPending}
-                className="btn btn-primary px-6 py-2.5 flex items-center gap-2"
-              >
-                {saveMutation.isPending ? (
-                  <RefreshCw className="w-5 h-5 animate-spin text-white" />
-                ) : (
-                  <Check className="w-5 h-5" />
-                )}
-                {t('Save Configurations', 'حفظ التكوينات')}
-              </button>
-            </div>
+            {user?.role === 'superadmin' && (
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-dark-750">
+                <button
+                  type="submit"
+                  disabled={saveMutation.isPending}
+                  className="btn btn-primary px-6 py-2.5 flex items-center gap-2"
+                >
+                  {saveMutation.isPending ? (
+                    <RefreshCw className="w-5 h-5 animate-spin text-white" />
+                  ) : (
+                    <Check className="w-5 h-5" />
+                  )}
+                  {t('Save Configurations', 'حفظ التكوينات')}
+                </button>
+              </div>
+            )}
             
           </form>
         </div>

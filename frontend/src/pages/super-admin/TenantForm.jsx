@@ -68,9 +68,11 @@ export default function TenantForm() {
   }, [setValue, watchedBusinessTypes, watchedPrimaryBusinessType])
 
   const watchedBillingCycle = watch('subscription.billingCycle')
+  const watchedExtraMonths = watch('subscription.extraMonthsOffer')
   const watchedStartDate = watch('subscription.startDate')
   const watchedEndDate = watch('subscription.endDate')
   const billingCycleRef = useRef(null)
+  const extraMonthsRef = useRef(null)
 
   // Initialize default subscription dates for new tenants
   useEffect(() => {
@@ -84,24 +86,32 @@ export default function TenantForm() {
     setValue('subscription.endDate', end.toISOString().split('T')[0], { shouldDirty: false })
   }, [isEdit, setValue])
 
-  // Recalculate end date when billing cycle changes
+  // Recalculate end date when billing cycle or extra months change
   useEffect(() => {
     if (!watchedBillingCycle) return
-    if (billingCycleRef.current === null) {
+    if (billingCycleRef.current === null && extraMonthsRef.current === null) {
       billingCycleRef.current = watchedBillingCycle
+      extraMonthsRef.current = watchedExtraMonths
       return
     }
-    if (billingCycleRef.current === watchedBillingCycle) return
+    if (billingCycleRef.current === watchedBillingCycle && extraMonthsRef.current === watchedExtraMonths) return
     billingCycleRef.current = watchedBillingCycle
+    extraMonthsRef.current = watchedExtraMonths
+    
     const start = watchedStartDate ? new Date(watchedStartDate) : new Date()
-    const days = watchedBillingCycle === 'yearly' ? 365 : 30
+    let days = watchedBillingCycle === 'yearly' ? 365 : 30
+    
+    if (watchedBillingCycle === 'yearly' && watchedExtraMonths) {
+      days += parseInt(watchedExtraMonths) * 30
+    }
+    
     const end = new Date(start)
     end.setDate(end.getDate() + days)
     const formatted = end.toISOString().split('T')[0]
     if (formatted !== watchedEndDate) {
       setValue('subscription.endDate', formatted, { shouldDirty: true })
     }
-  }, [watchedBillingCycle, watchedStartDate, watchedEndDate, setValue])
+  }, [watchedBillingCycle, watchedExtraMonths, watchedStartDate, watchedEndDate, setValue])
 
   // Auto-mirror bilingual legal names when one side is empty
   const legalNameEn = watch('business.legalNameEn')
@@ -553,6 +563,21 @@ export default function TenantForm() {
                 <option value="yearly">{language === 'ar' ? 'سنوي' : 'Yearly'}</option>
               </select>
             </div>
+            {watchedBillingCycle === 'yearly' && (
+              <div>
+                <label className="label text-emerald-600 dark:text-emerald-400">
+                  {language === 'ar' ? 'أشهر إضافية مجانية (عرض)' : 'Extra Free Months (Offer)'}
+                </label>
+                <select {...register('subscription.extraMonthsOffer')} className="select border-emerald-500/30 focus:border-emerald-500">
+                  <option value="">{language === 'ar' ? 'بدون أشهر إضافية' : 'No extra months'}</option>
+                  <option value="1">+ 1 {language === 'ar' ? 'شهر' : 'Month'}</option>
+                  <option value="2">+ 2 {language === 'ar' ? 'أشهر' : 'Months'}</option>
+                  <option value="3">+ 3 {language === 'ar' ? 'أشهر' : 'Months'}</option>
+                  <option value="4">+ 4 {language === 'ar' ? 'أشهر' : 'Months'}</option>
+                  <option value="6">+ 6 {language === 'ar' ? 'أشهر' : 'Months'}</option>
+                </select>
+              </div>
+            )}
             <div>
               <label className="label">{language === 'ar' ? 'تاريخ البدء' : 'Start Date'}</label>
               <input type="date" {...register('subscription.startDate')} className="input" />
