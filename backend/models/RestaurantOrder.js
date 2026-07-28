@@ -39,6 +39,7 @@ const restaurantOrderSchema = new mongoose.Schema({
 
   customerName: { type: String },
   customerPhone: { type: String },
+  deliveryAddress: { type: String },
 
   currency: { type: String, default: 'SAR' },
   lineItems: [orderLineSchema],
@@ -46,7 +47,7 @@ const restaurantOrderSchema = new mongoose.Schema({
   totalTax: { type: Number, default: 0 },
   grandTotal: { type: Number, default: 0 },
 
-  paymentMethod: { type: String, enum: ['cash', 'card', 'transfer', 'other'], default: 'cash' },
+  paymentMethod: { type: String, enum: ['cash', 'card', 'transfer', 'apple_pay', 'stc_pay', 'visa', 'mada', 'mastercard', 'other'], default: 'cash' },
   posPaymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'PosPayment' },
 
   notes: { type: String },

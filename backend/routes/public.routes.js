@@ -4,6 +4,7 @@ import Tenant from '../models/Tenant.js'
 import User from '../models/User.js'
 import SystemSettings, { getDefaultPricingPlans, getDefaultPlansByBusinessType } from '../models/SystemSettings.js'
 import RestaurantMenuItem from '../models/RestaurantMenuItem.js'
+import RestaurantOrder from '../models/RestaurantOrder.js'
 import SaloonService from '../models/SaloonService.js'
 import DemoUser from '../models/DemoUser.js'
 import { sendDemoWelcomeEmail } from '../utils/emailService.js'
@@ -427,6 +428,104 @@ router.get('/tenant/:id/menu', async (req, res) => {
         }
       },
       items
+    })
+  } catch (error) {
+    sendRouteError(res, error)
+  }
+})
+
+// @route   POST /api/public/tenant/:id/order
+// @desc    Place a new public restaurant order via QR menu
+router.post('/tenant/:id/order', async (req, res) => {
+  try {
+    const tenant = await withQueryTimeout(
+      Tenant.findById(req.params.id).select('name subscription settings isActive')
+    )
+
+    if (!tenant || !tenant.isActive) {
+      return res.status(404).json({ error: 'Restaurant not found or inactive' })
+    }
+
+    const {
+      customerName,
+      customerPhone,
+      deliveryAddress,
+      orderType = 'dine_in',
+      tableNumber,
+      paymentMethod = 'cash',
+      notes,
+      lineItems = []
+    } = req.body
+
+    if (!Array.isArray(lineItems) || lineItems.length === 0) {
+      return res.status(400).json({ error: 'Order must contain at least one item.' })
+    }
+
+    if (!customerName || !customerPhone) {
+      return res.status(400).json({ error: 'Customer name and phone number are required.' })
+    }
+
+    // Calculate line items subtotal & tax
+    let subtotal = 0
+    let totalTax = 0
+
+    const processedLineItems = lineItems.map((item) => {
+      const qty = Math.max(1, parseInt(item.quantity) || 1)
+      const price = Math.max(0, parseFloat(item.unitPrice) || 0)
+      const taxRate = parseFloat(item.taxRate) || 15
+      const itemSubtotal = Math.round(qty * price * 100) / 100
+      const itemTax = Math.round((itemSubtotal * (taxRate / 100)) * 100) / 100
+      const itemTotal = Math.round((itemSubtotal + itemTax) * 100) / 100
+
+      subtotal += itemSubtotal
+      totalTax += itemTax
+
+      return {
+        menuItemId: item.menuItemId || null,
+        name: item.nameEn || item.name || 'Item',
+        nameAr: item.nameAr || item.name || 'عنصر',
+        quantity: qty,
+        unitPrice: price,
+        taxRate,
+        lineSubtotal: itemSubtotal,
+        lineTax: itemTax,
+        lineTotal: itemTotal
+      }
+    })
+
+    subtotal = Math.round(subtotal * 100) / 100
+    totalTax = Math.round(totalTax * 100) / 100
+    const grandTotal = Math.round((subtotal + totalTax) * 100) / 100
+
+    // Generate order number
+    const count = await RestaurantOrder.countDocuments({ tenantId: tenant._id })
+    const orderNumber = `QR-${1000 + count + 1}`
+
+    const newOrder = new RestaurantOrder({
+      tenantId: tenant._id,
+      orderNumber,
+      status: 'open',
+      kitchenStatus: 'new',
+      tableNumber: tableNumber || '',
+      orderType: ['dine_in', 'takeaway', 'delivery'].includes(orderType) ? orderType : 'dine_in',
+      customerName: String(customerName).trim(),
+      customerPhone: String(customerPhone).trim(),
+      deliveryAddress: deliveryAddress ? String(deliveryAddress).trim() : '',
+      currency: 'SAR',
+      lineItems: processedLineItems,
+      subtotal,
+      totalTax,
+      grandTotal,
+      paymentMethod,
+      notes: notes ? String(notes).trim() : ''
+    })
+
+    await newOrder.save()
+
+    res.status(201).json({
+      success: true,
+      message: 'Order placed successfully',
+      order: newOrder
     })
   } catch (error) {
     sendRouteError(res, error)

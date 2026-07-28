@@ -23,6 +23,7 @@ const subscriptionSchema = new mongoose.Schema({
   hasDeliveryAddon: { type: Boolean, default: false },
   hasMessAddon: { type: Boolean, default: false },
   hasCombosAddon: { type: Boolean, default: false },
+  hasQrOrderingAddon: { type: Boolean, default: false },
   maxBranches: { type: Number, default: 0 },
   features: [{
     type: String,

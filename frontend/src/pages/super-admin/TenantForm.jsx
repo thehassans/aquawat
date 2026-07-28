@@ -661,6 +661,10 @@ export default function TenantForm() {
                   <input type="checkbox" {...register('subscription.hasCombosAddon')} className="h-4 w-4 accent-purple-500" />
                   {language === 'ar' ? 'إضافة العروض والباقات' : 'Combos & Deals Add-on'}
                 </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input type="checkbox" {...register('subscription.hasQrOrderingAddon')} className="h-4 w-4 accent-amber-500" />
+                  {language === 'ar' ? 'إضافة خدمة المنيو والطلب عبر QR' : 'QR Menu & Online Ordering Add-on'}
+                </label>
                 <div>
                   <label className="label">{language === 'ar' ? 'الحد الأقصى للفروع' : 'Max Branches'}</label>
                   <input type="number" {...register('subscription.maxBranches', { valueAsNumber: true })} className="input" />
