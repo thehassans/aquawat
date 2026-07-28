@@ -224,6 +224,8 @@ export default function Settings() {
   const [invoiceCurrencyDisplay, setInvoiceCurrencyDisplay] = useState('text')
   const [invoiceCurrencyPosition, setInvoiceCurrencyPosition] = useState('after')
   const [invoiceLogoDataUrl, setInvoiceLogoDataUrl] = useState(null)
+  const [stampDataUrl, setStampDataUrl] = useState(null)
+  const [letterheadDataUrl, setLetterheadDataUrl] = useState(null)
   const [invoiceHeaderTextEn, setInvoiceHeaderTextEn] = useState('')
   const [invoiceHeaderTextAr, setInvoiceHeaderTextAr] = useState('')
   const [invoiceFooterTextEn, setInvoiceFooterTextEn] = useState('')
@@ -289,6 +291,8 @@ export default function Settings() {
     setInvoiceCurrencyDisplay(tenant.settings?.invoiceCurrencyDisplay === 'icon' ? 'icon' : 'text')
     setInvoiceCurrencyPosition(tenant.settings?.invoiceCurrencyPosition === 'before' ? 'before' : 'after')
     setInvoiceLogoDataUrl(tenant.settings?.invoiceBranding?.logo || tenant.branding?.logo || null)
+    setStampDataUrl(tenant.settings?.invoiceBranding?.stampImage || null)
+    setLetterheadDataUrl(tenant.settings?.invoiceBranding?.letterheadImage || null)
     setInvoiceHeaderTextEn(tenant.settings?.invoiceBranding?.headerTextEn || '')
     setInvoiceHeaderTextAr(tenant.settings?.invoiceBranding?.headerTextAr || '')
     setInvoiceFooterTextEn(tenant.settings?.invoiceBranding?.footerTextEn || '')
@@ -448,6 +452,14 @@ export default function Settings() {
 
   const handleInvoiceLogoFile = (e) => {
     applyImageFile(e.target.files?.[0], setInvoiceLogoDataUrl)
+  }
+
+  const handleStampFile = (e) => {
+    applyImageFile(e.target.files?.[0], setStampDataUrl)
+  }
+
+  const handleLetterheadFile = (e) => {
+    applyImageFile(e.target.files?.[0], setLetterheadDataUrl)
   }
 
   const handleVision2030LogoFile = (e) => {
@@ -781,6 +793,49 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
+                
+                <div>
+                  <label className="label flex items-center gap-2"><Image className="w-4 h-4" />{language === 'ar' ? 'الختم الرسمي / التوقيع' : 'Official Stamp / Signature'}</label>
+                  <div className="card-glass p-4 mt-2">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-dark-700 border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden">
+                        {stampDataUrl ? (
+                          <img src={stampDataUrl} alt="" className="w-full h-full object-contain" />
+                        ) : (
+                          <div className="w-14 h-14 bg-gray-200 dark:bg-gray-800 rounded-2xl flex items-center justify-center text-gray-400">Stamp</div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <input type="file" accept="image/*" onChange={handleStampFile} className="input" />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                          {language === 'ar' ? 'يظهر أسفل الفاتورة بجانب توقيع المدير' : 'Appears at the bottom of the invoice'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label flex items-center gap-2"><Image className="w-4 h-4" />{language === 'ar' ? 'الترويسة الرسمية (Letterhead)' : 'Official Letterhead Background'}</label>
+                  <div className="card-glass p-4 mt-2">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-20 rounded border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden bg-gray-50">
+                        {letterheadDataUrl ? (
+                          <img src={letterheadDataUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="text-gray-400 text-xs text-center px-1">A4<br/>Bg</div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <input type="file" accept="image/*" onChange={handleLetterheadFile} className="input" />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                          {language === 'ar' ? 'يستخدم كخلفية رسمية للفواتير والخطابات' : 'Used as a full-page background (A4)'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex justify-end pt-4">
                   <button type="submit" disabled={updateMutation.isPending} className="btn btn-primary">
                     {updateMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Save className="w-4 h-4" />{t('save')}</>}
@@ -844,6 +899,8 @@ export default function Settings() {
                                 invoicePdfTemplate,
                                 invoiceBranding: {
                                   logo: invoiceLogoDataUrl || tenant?.settings?.invoiceBranding?.logo || logoDataUrl || tenant?.branding?.logo,
+                                  stampImage: stampDataUrl || tenant?.settings?.invoiceBranding?.stampImage || null,
+                                  letterheadImage: letterheadDataUrl || tenant?.settings?.invoiceBranding?.letterheadImage || null,
                                 }
                               }
                             }}

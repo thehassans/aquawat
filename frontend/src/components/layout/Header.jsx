@@ -10,6 +10,8 @@ import { setTheme, setLanguage, setMobileMenuOpen } from '../../store/slices/uiS
 import { useTranslation } from '../../lib/translations'
 import DemoBanner from './DemoBanner'
 import TrialLimitModal from './TrialLimitModal'
+import GlobalSearch from './GlobalSearch'
+import SubscriptionBadge from './SubscriptionBadge'
 
 export default function Header() {
   const dispatch = useDispatch()
@@ -126,32 +128,14 @@ export default function Header() {
           </button>
 
           {/* Search */}
-          <form onSubmit={handleSearch} className="hidden sm:flex items-center">
-            <div className="relative">
-              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                ref={searchRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={language === 'ar' ? 'بحث...' : 'Search...'}
-                className="w-48 lg:w-64 ps-10 pe-4 py-2 text-sm bg-gray-100 dark:bg-dark-700 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all placeholder-gray-400"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute end-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 dark:hover:bg-dark-600 rounded"
-                >
-                  <X className="w-3 h-3 text-gray-400" />
-                </button>
-              )}
-            </div>
-          </form>
+          <div className="hidden sm:flex items-center">
+            <GlobalSearch language={language} />
+          </div>
         </div>
 
         {/* Right Side */}
         <div className="flex items-center gap-2">
+          <SubscriptionBadge tenant={tenant} language={language} />
           {/* Get Full Version CTA — demo/trial users */}
           {tenant?.isDemo === true && tenant?.demoUpgraded !== true && (
             <button

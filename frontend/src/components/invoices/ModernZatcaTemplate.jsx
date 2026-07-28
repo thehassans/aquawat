@@ -82,10 +82,14 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const isQuotation = documentType === 'quotation'
 
   return (
-    <div dir="ltr" className="mx-auto max-w-5xl bg-white border rounded-[2rem] shadow-xl overflow-hidden font-sans">
-      {/* Header */}
-      <div className={`border-b bg-white px-6 pb-6 ${invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' ? 'pt-2' : 'pt-6'}`}>
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+    <div dir="ltr" className={`relative mx-auto max-w-5xl ${invoiceBranding.letterheadImage ? 'bg-transparent' : 'bg-white'} border rounded-[2rem] shadow-xl overflow-hidden font-sans`}>
+      {invoiceBranding.letterheadImage && (
+        <img src={invoiceBranding.letterheadImage} alt="" className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none" />
+      )}
+      <div className="relative z-10">
+        {/* Header */}
+        <div className={`border-b ${invoiceBranding.letterheadImage ? 'bg-transparent' : 'bg-white'} px-6 pb-6 ${invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' ? 'pt-2' : 'pt-6'}`}>
+          <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div className="flex-1">
             <div className="mb-4">
               {logoSrc ? (
@@ -561,6 +565,11 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               <p className="mt-2 text-xs text-center text-gray-500">ZATCA Compliant QR</p>
             </div>
           )}
+          {invoiceBranding.stampImage && (
+            <div className="flex flex-col items-center justify-center p-3 w-full md:w-48">
+              <img src={invoiceBranding.stampImage} alt="Stamp/Signature" className="max-h-32 object-contain mix-blend-multiply" />
+            </div>
+          )}
         </div>
 
         {/* Boutique Rental Terms — compact single-page */}
@@ -594,7 +603,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             </div>
           </div>
         )}
-
+      </div>
       </div>
     
       <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />

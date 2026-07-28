@@ -14,6 +14,7 @@ const __dirname = path.dirname(__filename);
 
 import authRoutes from './routes/auth.routes.js';
 import tenantRoutes from './routes/tenant.routes.js';
+import searchRoutes from './routes/search.routes.js';
 import employeeRoutes from './routes/employee.routes.js';
 import payrollRoutes from './routes/payroll.routes.js';
 import hrRoutes from './routes/hr.routes.js';
@@ -481,6 +482,7 @@ app.use('/api/webhooks', ensureDatabaseReady, webhookRoutes);
 app.use('/api/webhooks/zatca', ensureDatabaseReady, zatcaWebhookRoutes);
 app.use('/api/auth', ensureDatabaseReady, authRoutes);
 app.use('/api/tenants', ensureDatabaseReady, tenantRoutes);
+app.use('/api/search', ensureDatabaseReady, searchRoutes);
 app.use('/api/email', ensureDatabaseReady, emailRoutes);
 app.use('/api/employees', ensureDatabaseReady, employeeRoutes);
 app.use('/api/payroll', ensureDatabaseReady, payrollRoutes);
