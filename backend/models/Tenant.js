@@ -497,7 +497,9 @@ const tenantSchema = new mongoose.Schema({
         tabbyMerchantCode: { type: String, default: '' },
         tabbyApiKey: { type: String, default: '' },
         tamaraMerchantToken: { type: String, default: '' },
-        tamaraNotificationToken: { type: String, default: '' }
+        tamaraNotificationToken: { type: String, default: '' },
+        applePayMerchantId: { type: String, default: '' },
+        cardPaymentApiKey: { type: String, default: '' }
       },
       autoStatusUpdate: { type: Boolean, default: false },
       openingTime: { type: String, default: '08:00' },

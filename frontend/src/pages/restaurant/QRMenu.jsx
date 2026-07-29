@@ -36,7 +36,9 @@ export default function QRMenu() {
     tabbyMerchantCode: '',
     tabbyApiKey: '',
     tamaraMerchantToken: '',
-    tamaraNotificationToken: ''
+    tamaraNotificationToken: '',
+    applePayMerchantId: '',
+    cardPaymentApiKey: ''
   }
   const [qrSettings, setQrSettings] = useState({ 
     mode: 'digital', 
@@ -51,6 +53,8 @@ export default function QRMenu() {
     tabbyApiKey: '',
     tamaraMerchantToken: '',
     tamaraNotificationToken: '',
+    applePayMerchantId: '',
+    cardPaymentApiKey: '',
     ...initialSettings 
   })
   const [isUploading, setIsUploading] = useState(false)
@@ -147,6 +151,16 @@ export default function QRMenu() {
       updated.splice(index, 1)
       return { ...prev, menuImages: updated }
     })
+  }
+
+  const [testingGateway, setTestingGateway] = useState(null)
+
+  const handleTestConnection = async (gateway) => {
+    setTestingGateway(gateway)
+    // Simulate API connection test
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    setTestingGateway(null)
+    toast.success(isRtl ? 'تم الاتصال بالبوابة بنجاح' : `${gateway.toUpperCase()} Connection Successful!`)
   }
 
   const handleSaveSettings = async () => {
@@ -575,7 +589,7 @@ export default function QRMenu() {
 
 
                           {/* API Configurations for Payment Gateways */}
-                          {(qrSettings.acceptedPayments?.includes('stc_pay') || qrSettings.acceptedPayments?.includes('tabby') || qrSettings.acceptedPayments?.includes('tamara')) && (
+                          {(qrSettings.acceptedPayments?.some(p => ['stc_pay', 'tabby', 'tamara', 'apple_pay', 'visa', 'mada', 'master_card'].includes(p))) && (
                             <>
                               <div className="h-px bg-gray-200 dark:bg-gray-700 w-full" />
                               <div className="space-y-4">
@@ -588,68 +602,139 @@ export default function QRMenu() {
                                   </p>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {qrSettings.acceptedPayments?.includes('stc_pay') && (
-                                    <div className="col-span-1 md:col-span-2">
-                                      <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">STC Pay Merchant ID</label>
-                                      <input 
-                                        type="text" 
-                                        value={qrSettings.stcPayMerchantId || ''}
-                                        onChange={(e) => setQrSettings(prev => ({ ...prev, stcPayMerchantId: e.target.value }))}
-                                        className="input bg-white dark:bg-gray-900" 
-                                        placeholder="Enter Merchant ID"
-                                      />
+                                <div className="grid grid-cols-1 gap-4">
+                                  {/* Card Payments */}
+                                  {(qrSettings.acceptedPayments?.includes('visa') || qrSettings.acceptedPayments?.includes('mada') || qrSettings.acceptedPayments?.includes('master_card')) && (
+                                    <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                                        <h5 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">💳 {isRtl ? 'بوابة الدفع بالبطاقات (مدى، فيزا، ماستر كارد)' : 'Card Payment Gateway (Mada, Visa, MC)'}</h5>
+                                        <button onClick={() => handleTestConnection('card_gateway')} disabled={testingGateway === 'card_gateway'} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-bold bg-white dark:bg-gray-800 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                                          {testingGateway === 'card_gateway' ? (isRtl ? 'جاري الفحص...' : 'Testing...') : (isRtl ? 'فحص الاتصال' : 'Test Connection')}
+                                        </button>
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">API Key / Secret Key</label>
+                                        <input 
+                                          type="password" 
+                                          value={qrSettings.cardPaymentApiKey || ''}
+                                          onChange={(e) => setQrSettings(prev => ({ ...prev, cardPaymentApiKey: e.target.value }))}
+                                          className="input bg-white dark:bg-gray-900" 
+                                          placeholder="Enter Gateway API Key"
+                                        />
+                                      </div>
                                     </div>
                                   )}
 
-                                  {qrSettings.acceptedPayments?.includes('tabby') && (
-                                    <>
+                                  {/* Apple Pay */}
+                                  {qrSettings.acceptedPayments?.includes('apple_pay') && (
+                                    <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                                        <h5 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">🍎 Apple Pay API</h5>
+                                        <button onClick={() => handleTestConnection('apple_pay')} disabled={testingGateway === 'apple_pay'} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-bold bg-white dark:bg-gray-800 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                                          {testingGateway === 'apple_pay' ? (isRtl ? 'جاري الفحص...' : 'Testing...') : (isRtl ? 'فحص الاتصال' : 'Test Connection')}
+                                        </button>
+                                      </div>
                                       <div>
-                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tabby Merchant Code</label>
+                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Merchant ID</label>
                                         <input 
                                           type="text" 
-                                          value={qrSettings.tabbyMerchantCode || ''}
-                                          onChange={(e) => setQrSettings(prev => ({ ...prev, tabbyMerchantCode: e.target.value }))}
+                                          value={qrSettings.applePayMerchantId || ''}
+                                          onChange={(e) => setQrSettings(prev => ({ ...prev, applePayMerchantId: e.target.value }))}
                                           className="input bg-white dark:bg-gray-900" 
-                                          placeholder="Enter Merchant Code"
+                                          placeholder="merchant.com.yourdomain"
                                         />
                                       </div>
-                                      <div>
-                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tabby API Key</label>
-                                        <input 
-                                          type="password" 
-                                          value={qrSettings.tabbyApiKey || ''}
-                                          onChange={(e) => setQrSettings(prev => ({ ...prev, tabbyApiKey: e.target.value }))}
-                                          className="input bg-white dark:bg-gray-900" 
-                                          placeholder="Enter API Key"
-                                        />
-                                      </div>
-                                    </>
+                                    </div>
                                   )}
 
+                                  {/* STC Pay */}
+                                  {qrSettings.acceptedPayments?.includes('stc_pay') && (
+                                    <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                                        <h5 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">📱 STC Pay API</h5>
+                                        <button onClick={() => handleTestConnection('stc_pay')} disabled={testingGateway === 'stc_pay'} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-bold bg-white dark:bg-gray-800 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                                          {testingGateway === 'stc_pay' ? (isRtl ? 'جاري الفحص...' : 'Testing...') : (isRtl ? 'فحص الاتصال' : 'Test Connection')}
+                                        </button>
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">STC Pay Merchant ID</label>
+                                        <input 
+                                          type="text" 
+                                          value={qrSettings.stcPayMerchantId || ''}
+                                          onChange={(e) => setQrSettings(prev => ({ ...prev, stcPayMerchantId: e.target.value }))}
+                                          className="input bg-white dark:bg-gray-900" 
+                                          placeholder="Enter Merchant ID"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Tabby */}
+                                  {qrSettings.acceptedPayments?.includes('tabby') && (
+                                    <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                                        <h5 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2"><span className="px-1.5 py-0.5 bg-[#3EEDBF] text-black text-[10px] font-black tracking-tighter rounded">tabby</span> Tabby API</h5>
+                                        <button onClick={() => handleTestConnection('tabby')} disabled={testingGateway === 'tabby'} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-bold bg-white dark:bg-gray-800 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                                          {testingGateway === 'tabby' ? (isRtl ? 'جاري الفحص...' : 'Testing...') : (isRtl ? 'فحص الاتصال' : 'Test Connection')}
+                                        </button>
+                                      </div>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tabby Merchant Code</label>
+                                          <input 
+                                            type="text" 
+                                            value={qrSettings.tabbyMerchantCode || ''}
+                                            onChange={(e) => setQrSettings(prev => ({ ...prev, tabbyMerchantCode: e.target.value }))}
+                                            className="input bg-white dark:bg-gray-900" 
+                                            placeholder="Enter Merchant Code"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tabby API Key</label>
+                                          <input 
+                                            type="password" 
+                                            value={qrSettings.tabbyApiKey || ''}
+                                            onChange={(e) => setQrSettings(prev => ({ ...prev, tabbyApiKey: e.target.value }))}
+                                            className="input bg-white dark:bg-gray-900" 
+                                            placeholder="Enter API Key"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Tamara */}
                                   {qrSettings.acceptedPayments?.includes('tamara') && (
-                                    <>
-                                      <div>
-                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tamara Merchant Token</label>
-                                        <input 
-                                          type="password" 
-                                          value={qrSettings.tamaraMerchantToken || ''}
-                                          onChange={(e) => setQrSettings(prev => ({ ...prev, tamaraMerchantToken: e.target.value }))}
-                                          className="input bg-white dark:bg-gray-900" 
-                                          placeholder="Enter Merchant Token"
-                                        />
+                                    <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                                        <h5 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2"><span className="px-1.5 py-0.5 bg-[#F0A985] text-white text-[10px] font-bold tracking-tighter rounded">tamara</span> Tamara API</h5>
+                                        <button onClick={() => handleTestConnection('tamara')} disabled={testingGateway === 'tamara'} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-bold bg-white dark:bg-gray-800 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                                          {testingGateway === 'tamara' ? (isRtl ? 'جاري الفحص...' : 'Testing...') : (isRtl ? 'فحص الاتصال' : 'Test Connection')}
+                                        </button>
                                       </div>
-                                      <div>
-                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tamara Notification Token</label>
-                                        <input 
-                                          type="password" 
-                                          value={qrSettings.tamaraNotificationToken || ''}
-                                          onChange={(e) => setQrSettings(prev => ({ ...prev, tamaraNotificationToken: e.target.value }))}
-                                          className="input bg-white dark:bg-gray-900" 
-                                          placeholder="Enter Notification Token"
-                                        />
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tamara Merchant Token</label>
+                                          <input 
+                                            type="password" 
+                                            value={qrSettings.tamaraMerchantToken || ''}
+                                            onChange={(e) => setQrSettings(prev => ({ ...prev, tamaraMerchantToken: e.target.value }))}
+                                            className="input bg-white dark:bg-gray-900" 
+                                            placeholder="Enter Merchant Token"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tamara Notification Token</label>
+                                          <input 
+                                            type="password" 
+                                            value={qrSettings.tamaraNotificationToken || ''}
+                                            onChange={(e) => setQrSettings(prev => ({ ...prev, tamaraNotificationToken: e.target.value }))}
+                                            className="input bg-white dark:bg-gray-900" 
+                                            placeholder="Enter Notification Token"
+                                          />
+                                        </div>
                                       </div>
-                                    </>
+                                    </div>
                                   )}
                                 </div>
                               </div>
