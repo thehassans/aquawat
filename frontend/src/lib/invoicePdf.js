@@ -1310,7 +1310,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     return [
       String(idx + 1),
       shape(nameText),
-      String(quantity),
+      l.raw?.unitCode ? `${quantity}\n${l.raw.unitCode}` : String(quantity),
       money(unitPrice),
       money(taxAmount),
       money(lineTotalWithTax),

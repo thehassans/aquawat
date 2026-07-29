@@ -158,7 +158,10 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
                       <p className="text-sm font-bold text-slate-900">{productNameEn}</p>
                       {bilingual && productNameAr && <p className="text-xs font-medium text-slate-500 mt-1" dir="rtl">{productNameAr}</p>}
                     </td>
-                    <td className="px-6 py-5 whitespace-nowrap text-sm text-center text-slate-700 font-semibold">{toNumber(line?.quantity) || '—'}</td>
+                    <td className="px-6 py-5 whitespace-nowrap text-sm text-center text-slate-700 font-semibold">
+                      <div>{toNumber(line?.quantity) || '—'}</div>
+                      {line?.raw?.unitCode && <div className="text-[10px] text-slate-400 font-normal">{line.raw.unitCode}</div>}
+                    </td>
                     <td className="px-6 py-5 whitespace-nowrap text-right">{renderMoney(line?.unitPrice)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-right">{renderMoney(line?.taxAmount)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-right text-slate-900 font-bold">{renderMoney(line?.lineTotalWithTax)}</td>

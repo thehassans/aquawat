@@ -291,7 +291,12 @@ export default function QuotationDocumentPreview({ quotation, tenant, language =
                     <td className="px-4 py-3.5 text-slate-400 text-xs">{index + 1}</td>
                     <td className="px-4 py-3.5 font-semibold text-slate-900">{itemName}</td>
                     <td className="px-4 py-3.5 font-semibold text-slate-700 whitespace-pre-line">{description}</td>
-                    <td className="px-4 py-3.5 text-end text-slate-700">{Number(line?.quantity || 0)}</td>
+                    <td className="px-4 py-3.5 text-end">
+                      <div className="text-slate-700">{Number(line?.quantity || 0)}</div>
+                      {line?.unitCode && (
+                        <div className="text-[10px] text-slate-500 font-semibold">{line.unitCode}</div>
+                      )}
+                    </td>
                     <td className="px-4 py-3.5 text-end text-slate-700">{formatCurrency(line?.unitPrice || 0, { language, currency })}</td>
                     <td className="px-4 py-3.5 text-end font-bold text-slate-900">{formatCurrency(line?.lineTotalWithTax || line?.lineTotal || 0, { language, currency })}</td>
                   </tr>

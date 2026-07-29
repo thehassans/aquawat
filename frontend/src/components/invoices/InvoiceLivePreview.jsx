@@ -753,7 +753,14 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
                       <div className="font-medium whitespace-pre-line">{bilingual ? toBilingualText(productNameEn, productNameAr) : (language === 'ar' ? (line?.raw?.productNameAr || line?.raw?.productName || line?.productNameAr || line?.productName || '—') : (line?.raw?.productName || line?.raw?.productNameAr || line?.productName || line?.productNameAr || '—'))}</div>
                       {(line?.raw?.description || line?.raw?.descriptionAr || line?.description || line?.descriptionAr) && <div className={`mt-1 text-xs font-semibold text-slate-600 whitespace-pre-line`}>{bilingual ? toBilingualText(descriptionEn, descriptionAr) : (language === 'ar' ? (line?.raw?.descriptionAr || line?.raw?.description || line?.descriptionAr || line?.description) : (line?.raw?.description || line?.raw?.descriptionAr || line?.description || line?.descriptionAr))}</div>}
                     </td>
-                    {!isTravelInvoice && <td className="px-4 py-3 text-center">{quantity || '—'}</td>}
+                    {!isTravelInvoice && (
+                      <td className="px-4 py-3 text-center">
+                        <div className="font-medium text-slate-800">{quantity || '—'}</div>
+                        {line?.raw?.unitCode && (
+                          <div className="text-[10px] text-slate-500 font-semibold">{line.raw.unitCode}</div>
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-end">{renderMoney(unitPriceDisplayed)}</td>
                     {!hideTaxOnInvoice && <td className="px-4 py-3 text-end">{renderMoney(tax)}</td>}
                     <td className="px-4 py-3 text-end font-semibold">{renderMoney(total)}</td>
