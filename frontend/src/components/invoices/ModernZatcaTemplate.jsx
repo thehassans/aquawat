@@ -420,7 +420,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                         )}
                       </div>
                     </td>
-                    {isRentalContext ? (
+                    {isBoutiqueRental ? (
                       <td className="px-4 py-4 text-center">
                         <div>{item.rentalDays || item.quantity || 1}</div>
                         {item.raw?.unitCode && <div className="text-[10px] text-gray-500 font-semibold mt-1">{item.raw.unitCode}</div>}
