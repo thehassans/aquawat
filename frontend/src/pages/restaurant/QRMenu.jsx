@@ -31,7 +31,12 @@ export default function QRMenu() {
     allowDelivery: true,
     allowTakeaway: true,
     allowDineIn: true,
-    acceptedPayments: ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card']
+    acceptedPayments: ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card', 'tabby', 'tamara'],
+    stcPayMerchantId: '',
+    tabbyMerchantCode: '',
+    tabbyApiKey: '',
+    tamaraMerchantToken: '',
+    tamaraNotificationToken: ''
   }
   const [qrSettings, setQrSettings] = useState({ 
     mode: 'digital', 
@@ -40,7 +45,12 @@ export default function QRMenu() {
     allowDelivery: true,
     allowTakeaway: true,
     allowDineIn: true,
-    acceptedPayments: ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card'],
+    acceptedPayments: ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card', 'tabby', 'tamara'],
+    stcPayMerchantId: '',
+    tabbyMerchantCode: '',
+    tabbyApiKey: '',
+    tamaraMerchantToken: '',
+    tamaraNotificationToken: '',
     ...initialSettings 
   })
   const [isUploading, setIsUploading] = useState(false)
@@ -535,6 +545,8 @@ export default function QRMenu() {
                                 { id: 'visa', labelEn: 'Visa', labelAr: 'فيزا' },
                                 { id: 'mada', labelEn: 'Mada', labelAr: 'مدى' },
                                 { id: 'master_card', labelEn: 'MasterCard', labelAr: 'ماستر كارد' },
+                                { id: 'tabby', labelEn: 'Tabby', labelAr: 'تابي' },
+                                { id: 'tamara', labelEn: 'Tamara', labelAr: 'تمارا' },
                               ].map(method => (
                                 <label key={method.id} className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-amber-500 transition-colors">
                                   <input 
@@ -560,6 +572,89 @@ export default function QRMenu() {
                               ))}
                             </div>
                           </div>
+
+
+                          {/* API Configurations for Payment Gateways */}
+                          {(qrSettings.acceptedPayments?.includes('stc_pay') || qrSettings.acceptedPayments?.includes('tabby') || qrSettings.acceptedPayments?.includes('tamara')) && (
+                            <>
+                              <div className="h-px bg-gray-200 dark:bg-gray-700 w-full" />
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                                    {isRtl ? 'إعدادات الربط مع بوابات الدفع' : 'Payment Gateways API Configuration'}
+                                  </h4>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {isRtl ? 'أدخل مفاتيح الربط الخاصة بك لتفعيل الدفع الإلكتروني' : 'Enter your API keys to enable these payment methods'}
+                                  </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {qrSettings.acceptedPayments?.includes('stc_pay') && (
+                                    <div className="col-span-1 md:col-span-2">
+                                      <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">STC Pay Merchant ID</label>
+                                      <input 
+                                        type="text" 
+                                        value={qrSettings.stcPayMerchantId || ''}
+                                        onChange={(e) => setQrSettings(prev => ({ ...prev, stcPayMerchantId: e.target.value }))}
+                                        className="input bg-white dark:bg-gray-900" 
+                                        placeholder="Enter Merchant ID"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {qrSettings.acceptedPayments?.includes('tabby') && (
+                                    <>
+                                      <div>
+                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tabby Merchant Code</label>
+                                        <input 
+                                          type="text" 
+                                          value={qrSettings.tabbyMerchantCode || ''}
+                                          onChange={(e) => setQrSettings(prev => ({ ...prev, tabbyMerchantCode: e.target.value }))}
+                                          className="input bg-white dark:bg-gray-900" 
+                                          placeholder="Enter Merchant Code"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tabby API Key</label>
+                                        <input 
+                                          type="password" 
+                                          value={qrSettings.tabbyApiKey || ''}
+                                          onChange={(e) => setQrSettings(prev => ({ ...prev, tabbyApiKey: e.target.value }))}
+                                          className="input bg-white dark:bg-gray-900" 
+                                          placeholder="Enter API Key"
+                                        />
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {qrSettings.acceptedPayments?.includes('tamara') && (
+                                    <>
+                                      <div>
+                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tamara Merchant Token</label>
+                                        <input 
+                                          type="password" 
+                                          value={qrSettings.tamaraMerchantToken || ''}
+                                          onChange={(e) => setQrSettings(prev => ({ ...prev, tamaraMerchantToken: e.target.value }))}
+                                          className="input bg-white dark:bg-gray-900" 
+                                          placeholder="Enter Merchant Token"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Tamara Notification Token</label>
+                                        <input 
+                                          type="password" 
+                                          value={qrSettings.tamaraNotificationToken || ''}
+                                          onChange={(e) => setQrSettings(prev => ({ ...prev, tamaraNotificationToken: e.target.value }))}
+                                          className="input bg-white dark:bg-gray-900" 
+                                          placeholder="Enter Notification Token"
+                                        />
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </>
                       )}
                     </div>

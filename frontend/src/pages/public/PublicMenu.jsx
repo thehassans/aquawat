@@ -290,13 +290,15 @@ export default function PublicMenu() {
 
           {/* Top Navbar */}
           <div className="absolute top-0 inset-x-0 p-4 flex justify-between items-center z-10 max-w-4xl mx-auto">
-            <div className="bg-black/30 backdrop-blur-md rounded-full px-4 py-2 flex items-center gap-2.5 border border-white/15 shadow-lg">
+            <div className="bg-white/10 backdrop-blur-xl rounded-full px-5 py-2.5 flex items-center gap-3 border border-white/20 shadow-[0_8px_32px_rgb(0,0,0,0.12)]">
               {tenant.branding?.logoUrl ? (
-                <img src={tenant.branding.logoUrl} alt="Logo" className="h-6 w-auto object-contain" />
+                <img src={tenant.branding.logoUrl} alt="Logo" className="h-7 w-auto object-contain drop-shadow-md" />
               ) : (
-                <UtensilsCrossed className="w-5 h-5 text-amber-400" />
+                <div className="bg-white/20 p-1.5 rounded-full">
+                  <UtensilsCrossed className="w-4 h-4 text-white" />
+                </div>
               )}
-              <span className="text-white font-bold text-sm truncate max-w-[140px]">
+              <span className="text-white font-extrabold text-sm truncate max-w-[150px] tracking-wide drop-shadow-md">
                 {businessName}
               </span>
             </div>
@@ -313,11 +315,11 @@ export default function PublicMenu() {
           {/* Hero Content */}
           <div className="absolute bottom-0 inset-x-0 p-6 z-10 max-w-4xl mx-auto">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 backdrop-blur-md border border-amber-400/30 text-amber-300 text-xs font-bold mb-2">
-                <Sparkles className="w-3.5 h-3.5" />
+              <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90 text-[11px] font-bold tracking-widest uppercase mb-3 shadow-lg">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 <span>{isRtl ? 'قائمة الطعام الرقمية' : 'Smart Digital Menu'}</span>
               </div>
-              <h1 className="text-3xl md:text-5xl font-black text-white mb-1.5 drop-shadow-md">
+              <h1 className="text-4xl md:text-6xl font-black text-white mb-2 drop-shadow-xl tracking-tight leading-tight">
                 {businessName}
               </h1>
               <p className="text-white/80 font-medium text-sm md:text-base max-w-md">
@@ -360,7 +362,7 @@ export default function PublicMenu() {
         ) : (
           <>
             {/* Sticky Search & Category Bar */}
-            <div className="sticky top-0 z-20 bg-[#FDFDFD]/90 backdrop-blur-xl border-b border-gray-100 shadow-sm">
+            <div className="sticky top-0 z-20 bg-white/70 backdrop-blur-2xl border-b border-gray-200/50 shadow-[0_4px_30px_rgb(0,0,0,0.03)]">
               <div className="px-4 pt-3.5 pb-2">
                 <div className="relative">
                   <Search
@@ -422,11 +424,11 @@ export default function PublicMenu() {
                       <motion.div
                         key={item._id}
                         layout
-                        initial={{ opacity: 0, scale: 0.96 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.96 }}
-                        transition={{ duration: 0.2 }}
-                        className="group bg-white rounded-3xl p-4 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-gray-100 transition-all flex gap-3.5 overflow-hidden relative"
+                        initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96, y: -10 }}
+                        transition={{ duration: 0.3, type: "spring", stiffness: 300, damping: 25 }}
+                        className="group bg-white rounded-3xl p-4 shadow-[0_2px_12px_rgb(0,0,0,0.03)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] border border-gray-100/80 transition-all duration-300 hover:-translate-y-1 flex gap-4 overflow-hidden relative"
                       >
                         {/* Left Details */}
                         <div className="flex-1 min-w-0 flex flex-col">
@@ -525,7 +527,7 @@ export default function PublicMenu() {
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             onClick={() => setIsCartOpen(true)}
-            className="w-full bg-gradient-to-r from-gray-900 via-slate-900 to-gray-900 text-white p-4 rounded-2xl shadow-2xl shadow-black/30 border border-white/10 flex items-center justify-between hover:scale-[1.01] active:scale-[0.99] transition-all"
+            className="w-full bg-black/90 backdrop-blur-2xl text-white p-4 sm:p-5 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.25)] border border-white/10 flex items-center justify-between hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
           >
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -574,7 +576,7 @@ export default function PublicMenu() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsCartOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 bg-black/40 backdrop-blur-md"
             />
 
             {/* Modal Container */}
@@ -918,6 +920,60 @@ export default function PublicMenu() {
                             {isRtl ? 'بطاقة مدى / فيزا' : 'Mada / Visa / Master'}
                           </p>
                           <p className="text-[10px] text-gray-400">{isRtl ? 'بطاقة البنك' : 'Debit & Credit'}</p>
+                        </div>
+                      </label>
+                      )}
+
+                      {/* Tabby */}
+                      {acceptedPayments.includes('tabby') && (
+                      <label
+                        className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer transition-all ${
+                          paymentMethod === 'tabby'
+                            ? 'bg-cyan-500/10 border-cyan-500 ring-2 ring-cyan-500/20'
+                            : 'bg-gray-50 dark:bg-dark-700 border-gray-200 dark:border-dark-600'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="payment"
+                          value="tabby"
+                          checked={paymentMethod === 'tabby'}
+                          onChange={() => setPaymentMethod('tabby')}
+                          className="sr-only"
+                        />
+                        <div className="w-8 h-8 rounded-xl bg-[#3EEDBF] text-black flex items-center justify-center font-extrabold text-[11px] tracking-tighter">
+                          tabby
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-900 dark:text-white">Tabby</p>
+                          <p className="text-[10px] text-gray-400">{isRtl ? 'قسم فاتورتك على 4' : 'Split in 4 payments'}</p>
+                        </div>
+                      </label>
+                      )}
+
+                      {/* Tamara */}
+                      {acceptedPayments.includes('tamara') && (
+                      <label
+                        className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer transition-all ${
+                          paymentMethod === 'tamara'
+                            ? 'bg-rose-500/10 border-rose-500 ring-2 ring-rose-500/20'
+                            : 'bg-gray-50 dark:bg-dark-700 border-gray-200 dark:border-dark-600'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="payment"
+                          value="tamara"
+                          checked={paymentMethod === 'tamara'}
+                          onChange={() => setPaymentMethod('tamara')}
+                          className="sr-only"
+                        />
+                        <div className="w-8 h-8 rounded-xl bg-[#F0A985] text-white flex items-center justify-center font-bold text-[9px] tracking-tight">
+                          tamara
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-900 dark:text-white">Tamara</p>
+                          <p className="text-[10px] text-gray-400">{isRtl ? 'ادفع لاحقاً بدون رسوم' : 'Pay later with no fees'}</p>
                         </div>
                       </label>
                       )}

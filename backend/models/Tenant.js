@@ -491,8 +491,13 @@ const tenantSchema = new mongoose.Schema({
         allowDineIn: { type: Boolean, default: true },
         acceptedPayments: { 
           type: [String], 
-          default: ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card'] 
-        }
+          default: ['cash', 'apple_pay', 'stc_pay', 'visa', 'mada', 'master_card', 'tabby', 'tamara'] 
+        },
+        stcPayMerchantId: { type: String, default: '' },
+        tabbyMerchantCode: { type: String, default: '' },
+        tabbyApiKey: { type: String, default: '' },
+        tamaraMerchantToken: { type: String, default: '' },
+        tamaraNotificationToken: { type: String, default: '' }
       },
       autoStatusUpdate: { type: Boolean, default: false },
       openingTime: { type: String, default: '08:00' },
