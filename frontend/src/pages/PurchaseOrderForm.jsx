@@ -26,7 +26,8 @@ import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
-
+import Select from 'react-select'
+import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 export default function PurchaseOrderForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
@@ -596,48 +597,22 @@ export default function PurchaseOrderForm() {
                             className="input flex-1"
                             disabled={isLocked}
                           />
-                          <select
-                            {...register(`lineItems.${index}.uom`)}
-                            className="select w-28"
-                            disabled={isLocked}
-                            title={language === 'ar' ? 'وحدة القياس' : 'Unit of Measure'}
-                          >
-                            <option value="">UOM</option>
-                            <optgroup label={language === 'ar' ? 'عام' : 'General'}>
-                              <option value="pcs">Pcs</option>
-                              <option value="unit">Unit</option>
-                              <option value="set">Set</option>
-                              <option value="pair">Pair</option>
-                              <option value="box">Box</option>
-                              <option value="carton">Carton</option>
-                              <option value="pack">Pack</option>
-                              <option value="roll">Roll</option>
-                              <option value="bag">Bag</option>
-                              <option value="bundle">Bundle</option>
-                            </optgroup>
-                            <optgroup label={language === 'ar' ? 'وزن' : 'Weight'}>
-                              <option value="kg">Kg</option>
-                              <option value="g">g</option>
-                              <option value="ton">Ton</option>
-                              <option value="lbs">Lbs</option>
-                            </optgroup>
-                            <optgroup label={language === 'ar' ? 'حجم' : 'Volume'}>
-                              <option value="l">L</option>
-                              <option value="ml">mL</option>
-                              <option value="gallon">Gallon</option>
-                            </optgroup>
-                            <optgroup label={language === 'ar' ? 'طول' : 'Length'}>
-                              <option value="m">m</option>
-                              <option value="cm">cm</option>
-                              <option value="mm">mm</option>
-                              <option value="ft">ft</option>
-                              <option value="inch">Inch</option>
-                            </optgroup>
-                            <optgroup label={language === 'ar' ? 'مساحة' : 'Area'}>
-                              <option value="sqm">m²</option>
-                              <option value="sqft">ft²</option>
-                            </optgroup>
-                          </select>
+                          <div className="w-48">
+                            <Select
+                              inputId={`uom-${index}`}
+                              options={ZATCA_UOM_OPTIONS.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
+                              value={ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.uom`)) ? { value: watch(`lineItems.${index}.uom`), label: language === 'ar' ? ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.uom`))?.labelAr : ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.uom`))?.labelEn } : null}
+                              onChange={(selected) => setValue(`lineItems.${index}.uom`, selected?.value || 'PCE')}
+                              isSearchable
+                              isDisabled={isLocked}
+                              menuPortalTarget={document.body}
+                              styles={{
+                                menuPortal: base => ({ ...base, zIndex: 9999 }),
+                                control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
+                              }}
+                            />
+                            <input type="hidden" {...register(`lineItems.${index}.uom`)} />
+                          </div>
                         </div>
                       ) : (
                         <select
