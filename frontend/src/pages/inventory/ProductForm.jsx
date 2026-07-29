@@ -10,7 +10,8 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import SarIcon from '../../components/ui/SarIcon'
 import { useLiveTranslation } from '../../lib/liveTranslation'
-
+import Select from 'react-select'
+import { ZATCA_UOM_OPTIONS } from '../../lib/uomOptions'
 export default function ProductForm() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -314,13 +315,17 @@ export default function ProductForm() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="label">{language === 'ar' ? 'وحدة القياس' : 'Unit of Measure'}</label>
-              <select {...register('unitOfMeasure')} className="select">
-                <option value="PCE">{language === 'ar' ? 'قطعة' : 'Piece'}</option>
-                <option value="KG">{language === 'ar' ? 'كيلوغرام' : 'Kilogram'}</option>
-                <option value="LTR">{language === 'ar' ? 'لتر' : 'Liter'}</option>
-                <option value="MTR">{language === 'ar' ? 'متر' : 'Meter'}</option>
-                <option value="BOX">{language === 'ar' ? 'صندوق' : 'Box'}</option>
-              </select>
+              <Select
+                inputId="unitOfMeasure"
+                options={ZATCA_UOM_OPTIONS.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
+                value={ZATCA_UOM_OPTIONS.find(u => u.code === watch('unitOfMeasure')) ? { value: watch('unitOfMeasure'), label: language === 'ar' ? ZATCA_UOM_OPTIONS.find(u => u.code === watch('unitOfMeasure'))?.labelAr : ZATCA_UOM_OPTIONS.find(u => u.code === watch('unitOfMeasure'))?.labelEn } : null}
+                onChange={(selected) => setValue('unitOfMeasure', selected?.value || 'PCE')}
+                isSearchable
+                styles={{
+                  control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
+                }}
+              />
+              <input type="hidden" {...register('unitOfMeasure')} />
             </div>
             {!isEdit && warehouseOptions.length > 0 && (
               <>

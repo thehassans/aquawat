@@ -22,6 +22,7 @@ import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
 import { ScanLine, UploadCloud } from 'lucide-react'
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
+import { ZATCA_UOM_OPTIONS } from '../../lib/uomOptions'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', customerPrice: '', taxRate: 15, agencyPrice: '', isTravelMargin: false }
 const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
@@ -902,7 +903,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
-                    <div className={isTravelContext ? 'md:col-span-3' : 'md:col-span-3'}>
+                    <div className={isTravelContext ? 'md:col-span-2' : 'md:col-span-3'}>
                       <label htmlFor={`product-select-${index}`} className="label">{t('productName')} *</label>
                       {isTradingContext ? (
                         <div className="mb-2">
@@ -939,33 +940,26 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
-                    <div className="md:col-span-1">
+                    <div className="md:col-span-2">
                       <label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
-                      <select id={`unit-${index}`} {...register(`lineItems.${index}.unitCode`)} className="select">
-                        <option value="PCE">{language === 'ar' ? 'حبة (PCE)' : 'Piece (PCE)'}</option>
-                        <option value="MTR">{language === 'ar' ? 'متر (MTR)' : 'Meter (MTR)'}</option>
-                        <option value="MTK">{language === 'ar' ? 'متر مربع (MTK)' : 'Sq Meter (MTK)'}</option>
-                        <option value="MTQ">{language === 'ar' ? 'متر مكعب (MTQ)' : 'Cubic Meter (MTQ)'}</option>
-                        <option value="KGM">{language === 'ar' ? 'كيلوجرام (KGM)' : 'Kilogram (KGM)'}</option>
-                        <option value="GRM">{language === 'ar' ? 'جرام (GRM)' : 'Gram (GRM)'}</option>
-                        <option value="LTR">{language === 'ar' ? 'لتر (LTR)' : 'Liter (LTR)'}</option>
-                        <option value="MLT">{language === 'ar' ? 'مليلتر (MLT)' : 'Milliliter (MLT)'}</option>
-                        <option value="BX">{language === 'ar' ? 'صندوق (BX)' : 'Box (BX)'}</option>
-                        <option value="CR">{language === 'ar' ? 'صندوق خشبي (CR)' : 'Crate (CR)'}</option>
-                        <option value="CT">{language === 'ar' ? 'كرتون (CT)' : 'Carton (CT)'}</option>
-                        <option value="SET">{language === 'ar' ? 'طقم (SET)' : 'Set (SET)'}</option>
-                        <option value="PR">{language === 'ar' ? 'زوج (PR)' : 'Pair (PR)'}</option>
-                        <option value="RO">{language === 'ar' ? 'لفة (RO)' : 'Roll (RO)'}</option>
-                        <option value="DAY">{language === 'ar' ? 'يوم (DAY)' : 'Day (DAY)'}</option>
-                        <option value="MON">{language === 'ar' ? 'شهر (MON)' : 'Month (MON)'}</option>
-                        <option value="HUR">{language === 'ar' ? 'ساعة (HUR)' : 'Hour (HUR)'}</option>
-                        <option value="LS">{language === 'ar' ? 'مقطوعية (LS)' : 'Lump Sum (LS)'}</option>
-                      </select>
+                      <Select
+                        inputId={`unit-${index}`}
+                        options={ZATCA_UOM_OPTIONS.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
+                        value={ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`)) ? { value: watch(`lineItems.${index}.unitCode`), label: language === 'ar' ? ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`))?.labelAr : ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`))?.labelEn } : null}
+                        onChange={(selected) => setValue(`lineItems.${index}.unitCode`, selected?.value || 'PCE')}
+                        isSearchable
+                        menuPortalTarget={document.body}
+                        styles={{
+                          menuPortal: base => ({ ...base, zIndex: 9999 }),
+                          control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
+                        }}
+                      />
+                      <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
                     </div>
                     {isTravelContext ? (
                       <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} />
                     ) : (
-                      <div className="md:col-span-2">
+                      <div className="md:col-span-1">
                         <label htmlFor={`qty-${index}`} className="label">{t('quantity')}</label>
                         <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className="input" />
                       </div>

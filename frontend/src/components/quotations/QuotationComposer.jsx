@@ -13,7 +13,8 @@ import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
 import InvoiceTemplateSelector from '../invoices/InvoiceTemplateSelector'
-
+import Select from 'react-select'
+import { ZATCA_UOM_OPTIONS } from '../../lib/uomOptions'
 const emptyLine = {
   productId: '',
   productName: '',
@@ -495,30 +496,23 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                         <label className="label">{language === 'ar' ? 'الوصف بالعربية' : 'Arabic Description'}</label>
                         <textarea {...register(`lineItems.${index}.descriptionAr`)} className="input min-h-[80px]" dir="rtl" placeholder={'• النقطة الأولى\n• النقطة الثانية'} />
                       </div>
-                      <div className="md:col-span-2">
+                      <div className="md:col-span-3">
                         <label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
-                        <select {...register(`lineItems.${index}.unitCode`)} className="select">
-                          <option value="PCE">{language === 'ar' ? 'حبة (PCE)' : 'Piece (PCE)'}</option>
-                          <option value="MTR">{language === 'ar' ? 'متر (MTR)' : 'Meter (MTR)'}</option>
-                          <option value="MTK">{language === 'ar' ? 'متر مربع (MTK)' : 'Sq Meter (MTK)'}</option>
-                          <option value="MTQ">{language === 'ar' ? 'متر مكعب (MTQ)' : 'Cubic Meter (MTQ)'}</option>
-                          <option value="KGM">{language === 'ar' ? 'كيلوجرام (KGM)' : 'Kilogram (KGM)'}</option>
-                          <option value="GRM">{language === 'ar' ? 'جرام (GRM)' : 'Gram (GRM)'}</option>
-                          <option value="LTR">{language === 'ar' ? 'لتر (LTR)' : 'Liter (LTR)'}</option>
-                          <option value="MLT">{language === 'ar' ? 'مليلتر (MLT)' : 'Milliliter (MLT)'}</option>
-                          <option value="BX">{language === 'ar' ? 'صندوق (BX)' : 'Box (BX)'}</option>
-                          <option value="CR">{language === 'ar' ? 'صندوق خشبي (CR)' : 'Crate (CR)'}</option>
-                          <option value="CT">{language === 'ar' ? 'كرتون (CT)' : 'Carton (CT)'}</option>
-                          <option value="SET">{language === 'ar' ? 'طقم (SET)' : 'Set (SET)'}</option>
-                          <option value="PR">{language === 'ar' ? 'زوج (PR)' : 'Pair (PR)'}</option>
-                          <option value="RO">{language === 'ar' ? 'لفة (RO)' : 'Roll (RO)'}</option>
-                          <option value="DAY">{language === 'ar' ? 'يوم (DAY)' : 'Day (DAY)'}</option>
-                          <option value="MON">{language === 'ar' ? 'شهر (MON)' : 'Month (MON)'}</option>
-                          <option value="HUR">{language === 'ar' ? 'ساعة (HUR)' : 'Hour (HUR)'}</option>
-                          <option value="LS">{language === 'ar' ? 'مقطوعية (LS)' : 'Lump Sum (LS)'}</option>
-                        </select>
+                        <Select
+                          inputId={`unit-${index}`}
+                          options={ZATCA_UOM_OPTIONS.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
+                          value={ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`)) ? { value: watch(`lineItems.${index}.unitCode`), label: language === 'ar' ? ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`))?.labelAr : ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`))?.labelEn } : null}
+                          onChange={(selected) => setValue(`lineItems.${index}.unitCode`, selected?.value || 'PCE')}
+                          isSearchable
+                          menuPortalTarget={document.body}
+                          styles={{
+                            menuPortal: base => ({ ...base, zIndex: 9999 }),
+                            control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
+                          }}
+                        />
+                        <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
                       </div>
-                      <div className="md:col-span-2">
+                      <div className="md:col-span-1">
                         <label className="label">{language === 'ar' ? 'الكمية' : 'Qty'}</label>
                         <input type="number" min="1" step="1" {...register(`lineItems.${index}.quantity`)} className="input" />
                       </div>
