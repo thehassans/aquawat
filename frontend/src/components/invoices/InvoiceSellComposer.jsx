@@ -939,7 +939,29 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
-                    <div className="md:col-span-1"><label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label><input id={`unit-${index}`} {...register(`lineItems.${index}.unitCode`)} className="input" placeholder="PCE" /></div>
+                    <div className="md:col-span-1">
+                      <label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
+                      <select id={`unit-${index}`} {...register(`lineItems.${index}.unitCode`)} className="select">
+                        <option value="PCE">{language === 'ar' ? 'حبة (PCE)' : 'Piece (PCE)'}</option>
+                        <option value="MTR">{language === 'ar' ? 'متر (MTR)' : 'Meter (MTR)'}</option>
+                        <option value="MTK">{language === 'ar' ? 'متر مربع (MTK)' : 'Sq Meter (MTK)'}</option>
+                        <option value="MTQ">{language === 'ar' ? 'متر مكعب (MTQ)' : 'Cubic Meter (MTQ)'}</option>
+                        <option value="KGM">{language === 'ar' ? 'كيلوجرام (KGM)' : 'Kilogram (KGM)'}</option>
+                        <option value="GRM">{language === 'ar' ? 'جرام (GRM)' : 'Gram (GRM)'}</option>
+                        <option value="LTR">{language === 'ar' ? 'لتر (LTR)' : 'Liter (LTR)'}</option>
+                        <option value="MLT">{language === 'ar' ? 'مليلتر (MLT)' : 'Milliliter (MLT)'}</option>
+                        <option value="BX">{language === 'ar' ? 'صندوق (BX)' : 'Box (BX)'}</option>
+                        <option value="CR">{language === 'ar' ? 'صندوق خشبي (CR)' : 'Crate (CR)'}</option>
+                        <option value="CT">{language === 'ar' ? 'كرتون (CT)' : 'Carton (CT)'}</option>
+                        <option value="SET">{language === 'ar' ? 'طقم (SET)' : 'Set (SET)'}</option>
+                        <option value="PR">{language === 'ar' ? 'زوج (PR)' : 'Pair (PR)'}</option>
+                        <option value="RO">{language === 'ar' ? 'لفة (RO)' : 'Roll (RO)'}</option>
+                        <option value="DAY">{language === 'ar' ? 'يوم (DAY)' : 'Day (DAY)'}</option>
+                        <option value="MON">{language === 'ar' ? 'شهر (MON)' : 'Month (MON)'}</option>
+                        <option value="HUR">{language === 'ar' ? 'ساعة (HUR)' : 'Hour (HUR)'}</option>
+                        <option value="LS">{language === 'ar' ? 'مقطوعية (LS)' : 'Lump Sum (LS)'}</option>
+                      </select>
+                    </div>
                     {isTravelContext ? (
                       <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} />
                     ) : (
