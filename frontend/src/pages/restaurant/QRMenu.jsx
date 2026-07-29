@@ -629,7 +629,10 @@ export default function QRMenu() {
                                   {qrSettings.acceptedPayments?.includes('apple_pay') && (
                                     <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                                        <h5 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">🍎 Apple Pay API</h5>
+                                        <h5 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                          <svg viewBox="0 0 384 512" fill="currentColor" className="w-4 h-4"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 24 184.8 8 273.5q-9 59.4 17.7 114.1c17.5 35.3 40.8 71.2 77 70.9 31.3-.3 43.9-19.6 81.8-19.6 37.9 0 48.7 19.3 81.2 19.3 35.1-.3 54.1-33.1 71.2-68.5 21.6-43.6 30.6-69 31.1-70.1-1.3-.7-49.1-18.4-49.3-51zm-93-181.8c21.2-26.4 34.6-60.8 30.7-93.5-28.7 1.2-65 18-86.3 44.4-17.6 20.8-32 55.4-27 88.5 31.8 2.5 66.8-14.7 82.6-39.4z" /></svg>
+                                          Apple Pay API
+                                        </h5>
                                         <button onClick={() => handleTestConnection('apple_pay')} disabled={testingGateway === 'apple_pay'} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-bold bg-white dark:bg-gray-800 hover:bg-gray-50 disabled:opacity-50 transition-colors">
                                           {testingGateway === 'apple_pay' ? (isRtl ? 'جاري الفحص...' : 'Testing...') : (isRtl ? 'فحص الاتصال' : 'Test Connection')}
                                         </button>
