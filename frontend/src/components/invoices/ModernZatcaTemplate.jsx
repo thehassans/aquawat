@@ -62,7 +62,6 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })
-    const isBoutiqueRental = invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental'
     return (
       <span className="inline-flex items-center gap-[0.3em] whitespace-nowrap">
         <span className="tabular-nums">{amount}</span>
@@ -79,6 +78,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
     )
   }
 
+  const isBoutiqueRental = invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental'
   const isQuotation = documentType === 'quotation'
 
   return (
