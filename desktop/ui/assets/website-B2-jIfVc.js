@@ -1,0 +1,1 @@
+import{b as t}from"./query-vendor-B_z9eiNn.js";import{c as i}from"./index-DweNaxV2.js";function u(){return t({queryKey:["public-website-settings"],queryFn:()=>i.get("/public/website").then(e=>e.data),staleTime:5*60*1e3,retry:1})}export{u};

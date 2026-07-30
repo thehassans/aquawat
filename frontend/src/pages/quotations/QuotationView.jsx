@@ -44,7 +44,6 @@ export default function QuotationView() {
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
-  const templateId = Number(quotation?.pdfTemplateId || getInvoiceTemplateId(tenant, quotation?.businessContext || 'trading'))
 
   const { data: quotation, isLoading } = useQuery({
     queryKey: ['quotation', id],
@@ -54,6 +53,7 @@ export default function QuotationView() {
   const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
   const convertedInvoiceId = quotation?.convertedInvoiceId?._id || quotation?.convertedInvoiceId || ''
   const convertedInvoiceNumber = quotation?.convertedInvoiceId?.invoiceNumber || ''
+  const templateId = Number(quotation?.pdfTemplateId || getInvoiceTemplateId(tenant, quotation?.businessContext || 'trading'))
 
   const excelRows = useMemo(() => (Array.isArray(quotation?.lineItems) ? quotation.lineItems : []).map((line, index) => ({
     no: index + 1,
