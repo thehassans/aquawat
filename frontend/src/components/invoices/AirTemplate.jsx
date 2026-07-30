@@ -153,7 +153,10 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
                       <p className="text-lg font-light text-slate-800">{productNameEn}</p>
                       {bilingual && productNameAr && <p className="text-sm font-light text-slate-400 mt-2" dir="rtl">{productNameAr}</p>}
                     </td>
-                    <td className="py-8 whitespace-nowrap text-base font-light text-center text-slate-500">{toNumber(line?.quantity) || '—'}</td>
+                    <td className="py-8 whitespace-nowrap text-base font-light text-center text-slate-500">
+                      <div>{toNumber(line?.quantity) || '—'}</div>
+                      {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-slate-400 font-normal">{line?.unitCode || line?.raw?.unitCode}</div>}
+                    </td>
                     <td className="py-8 whitespace-nowrap text-right text-slate-500">{renderMoney(line?.unitPrice)}</td>
                     <td className="py-8 whitespace-nowrap text-right text-slate-800">{renderMoney(line?.lineTotalWithTax)}</td>
                   </tr>
@@ -184,6 +187,21 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
             </div>
           </div>
         </div>
+
+        {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
+          <div className="mt-12 flex justify-end gap-12 px-8">
+            {invoiceBranding.signatureImage && (
+              <div className="flex flex-col items-center">
+                <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
+              </div>
+            )}
+            {invoiceBranding.stampImage && (
+              <div className="flex flex-col items-center">
+                <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="pt-10 flex justify-center border-t border-slate-100">

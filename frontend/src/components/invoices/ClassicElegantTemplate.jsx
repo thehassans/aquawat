@@ -135,7 +135,10 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
                 <p className="font-bold text-gray-900">{item.productName || item.raw?.productName}</p>
                 {bilingual && <p className="text-sm text-gray-600 mt-1" dir="rtl">{item.productNameAr || item.raw?.productNameAr}</p>}
               </td>
-              <td className="py-4 px-2 text-center text-sm">{item.quantity}</td>
+              <td className="py-4 px-2 text-center text-sm">
+                <div>{item.quantity}</div>
+                {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 mt-1">{item?.unitCode || item?.raw?.unitCode}</div>}
+              </td>
               <td className="py-4 px-2 text-right text-sm">{renderMoney(item.unitPrice)}</td>
               <td className="py-4 px-2 text-right text-sm">{renderMoney(item.taxAmount)}</td>
               <td className="py-4 px-2 text-right font-bold">{renderMoney(item.lineTotalWithTax)}</td>
@@ -171,6 +174,21 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
           </div>
         </div>
       </div>
+
+      {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
+        <div className="flex justify-end gap-12 pt-8">
+          {invoiceBranding.signatureImage && (
+            <div className="flex flex-col items-center">
+              <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
+            </div>
+          )}
+          {invoiceBranding.stampImage && (
+            <div className="flex flex-col items-center">
+              <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
+            </div>
+          )}
+        </div>
+      )}
 
     
       <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />

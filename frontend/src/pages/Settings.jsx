@@ -225,6 +225,7 @@ export default function Settings() {
   const [invoiceCurrencyPosition, setInvoiceCurrencyPosition] = useState('after')
   const [invoiceLogoDataUrl, setInvoiceLogoDataUrl] = useState(null)
   const [stampDataUrl, setStampDataUrl] = useState(null)
+  const [signatureDataUrl, setSignatureDataUrl] = useState(null)
   const [letterheadDataUrl, setLetterheadDataUrl] = useState(null)
   const [invoiceHeaderTextEn, setInvoiceHeaderTextEn] = useState('')
   const [invoiceHeaderTextAr, setInvoiceHeaderTextAr] = useState('')
@@ -292,6 +293,7 @@ export default function Settings() {
     setInvoiceCurrencyPosition(tenant.settings?.invoiceCurrencyPosition === 'before' ? 'before' : 'after')
     setInvoiceLogoDataUrl(tenant.settings?.invoiceBranding?.logo || tenant.branding?.logo || null)
     setStampDataUrl(tenant.settings?.invoiceBranding?.stampImage || null)
+    setSignatureDataUrl(tenant.settings?.invoiceBranding?.signatureImage || null)
     setLetterheadDataUrl(tenant.settings?.invoiceBranding?.letterheadImage || null)
     setInvoiceHeaderTextEn(tenant.settings?.invoiceBranding?.headerTextEn || '')
     setInvoiceHeaderTextAr(tenant.settings?.invoiceBranding?.headerTextAr || '')
@@ -456,6 +458,10 @@ export default function Settings() {
 
   const handleStampFile = (e) => {
     applyImageFile(e.target.files?.[0], setStampDataUrl)
+  }
+
+  const handleSignatureFile = (e) => {
+    applyImageFile(e.target.files?.[0], setSignatureDataUrl)
   }
 
   const handleLetterheadFile = (e) => {
@@ -800,7 +806,7 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Logo */}
                   <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-primary-400 dark:hover:border-primary-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
                     <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
@@ -843,6 +849,27 @@ export default function Settings() {
                     <input type="file" accept="image/*" onChange={handleStampFile} className="sr-only" />
                   </label>
 
+                  {/* Signature */}
+                  <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-blue-400 dark:hover:border-blue-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
+                    <div className="relative w-20 h-12 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
+                      {(signatureDataUrl || tenant?.branding?.signatureImage || tenant?.settings?.invoiceBranding?.signatureImage) ? (
+                        <img src={signatureDataUrl || tenant?.branding?.signatureImage || tenant?.settings?.invoiceBranding?.signatureImage} alt="" className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center">
+                          <span className="text-white text-[10px] font-bold">SIGN</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'التوقيع الرسمي' : 'Official Signature'}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'بجانب الختم' : 'Next to stamp'}</p>
+                    </div>
+                    <input type="file" accept="image/*" onChange={handleSignatureFile} className="sr-only" />
+                  </label>
+
                   {/* Letterhead */}
                   <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-indigo-400 dark:hover:border-indigo-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
                     <div className="relative w-16 h-20 rounded overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
@@ -874,6 +901,7 @@ export default function Settings() {
                         ...(tenant?.branding || {}),
                         logo: logoDataUrl || tenant?.branding?.logo || null,
                         stampImage: stampDataUrl || tenant?.branding?.stampImage || null,
+                        signatureImage: signatureDataUrl || tenant?.branding?.signatureImage || null,
                         letterheadImage: letterheadDataUrl || tenant?.branding?.letterheadImage || null,
                       }
                     })}
@@ -943,6 +971,7 @@ export default function Settings() {
                                 invoiceBranding: {
                                   logo: invoiceLogoDataUrl || tenant?.settings?.invoiceBranding?.logo || logoDataUrl || tenant?.branding?.logo,
                                   stampImage: stampDataUrl || tenant?.settings?.invoiceBranding?.stampImage || null,
+                                  signatureImage: signatureDataUrl || tenant?.settings?.invoiceBranding?.signatureImage || null,
                                   letterheadImage: letterheadDataUrl || tenant?.settings?.invoiceBranding?.letterheadImage || null,
                                 }
                               }

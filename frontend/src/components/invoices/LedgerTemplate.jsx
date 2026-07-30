@@ -162,7 +162,10 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
                     <p className="text-sm font-semibold text-slate-900">{productNameEn}</p>
                     {bilingual && productNameAr && <p className="text-xs text-slate-600 mt-1" dir="rtl">{productNameAr}</p>}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-slate-700 border-r border-slate-200">{toNumber(line?.quantity) || '—'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-slate-700 border-r border-slate-200">
+                    <div>{toNumber(line?.quantity) || '—'}</div>
+                    {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-slate-500 mt-0.5">{line?.unitCode || line?.raw?.unitCode}</div>}
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right border-r border-slate-200">{renderMoney(line?.unitPrice)}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-right border-r border-slate-200">{renderMoney(line?.taxAmount)}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-right font-medium text-slate-900">{renderMoney(line?.lineTotalWithTax)}</td>
@@ -200,6 +203,21 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
           </table>
         </div>
       </div>
+
+      {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
+        <div className="flex justify-end gap-12 p-6 border-b border-slate-300">
+          {invoiceBranding.signatureImage && (
+            <div className="flex flex-col items-center">
+              <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
+            </div>
+          )}
+          {invoiceBranding.stampImage && (
+            <div className="flex flex-col items-center">
+              <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Footer */}
       <div className="p-4 bg-slate-800 text-center">

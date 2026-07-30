@@ -423,12 +423,12 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                     {isBoutiqueRental ? (
                       <td className="px-4 py-4 text-center">
                         <div>{item.rentalDays || item.quantity || 1}</div>
-                        {item.raw?.unitCode && <div className="text-[10px] text-gray-500 font-semibold mt-1">{item.raw.unitCode}</div>}
+                        {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 font-semibold mt-1">{item?.unitCode || item?.raw?.unitCode}</div>}
                       </td>
                     ) : (
                       <td className="px-4 py-4 text-center">
                         <div>{item.quantity}</div>
-                        {item.raw?.unitCode && <div className="text-[10px] text-gray-500 font-semibold mt-1">{item.raw.unitCode}</div>}
+                        {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 font-semibold mt-1">{item?.unitCode || item?.raw?.unitCode}</div>}
                       </td>
                     )}
                     <td className="px-4 py-4 text-right font-mono text-gray-900">
@@ -571,11 +571,20 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               <p className="mt-2 text-xs text-center text-gray-500">ZATCA Compliant QR</p>
             </div>
           )}
-          {invoiceBranding.stampImage && (
-            <div className="flex flex-col items-center justify-center p-3 w-full md:w-48">
-              <img src={invoiceBranding.stampImage} alt="Stamp/Signature" className="max-h-32 object-contain mix-blend-multiply" />
-            </div>
-          )}
+        {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
+          <div className="mt-8 flex justify-end gap-12 px-8">
+            {invoiceBranding.signatureImage && (
+              <div className="flex flex-col items-center">
+                <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
+              </div>
+            )}
+            {invoiceBranding.stampImage && (
+              <div className="flex flex-col items-center">
+                <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
+              </div>
+            )}
+          </div>
+        )}
         </div>
 
         {/* Boutique Rental Terms — compact single-page */}

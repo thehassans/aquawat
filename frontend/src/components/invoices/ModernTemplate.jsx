@@ -160,7 +160,7 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-center text-slate-700 font-semibold">
                       <div>{toNumber(line?.quantity) || '—'}</div>
-                      {line?.raw?.unitCode && <div className="text-[10px] text-slate-400 font-normal">{line.raw.unitCode}</div>}
+                      {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-slate-400 font-normal">{line?.unitCode || line?.raw?.unitCode}</div>}
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-right">{renderMoney(line?.unitPrice)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-right">{renderMoney(line?.taxAmount)}</td>
@@ -193,6 +193,21 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
             </div>
           </div>
         </div>
+
+        {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
+          <div className="mt-12 flex justify-end gap-12 px-8">
+            {invoiceBranding.signatureImage && (
+              <div className="flex flex-col items-center">
+                <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
+              </div>
+            )}
+            {invoiceBranding.stampImage && (
+              <div className="flex flex-col items-center">
+                <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="mt-20 pt-8 border-t border-slate-200">

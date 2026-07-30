@@ -152,7 +152,10 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
                       <p className="text-sm font-bold text-black">{productNameEn}</p>
                       {bilingual && productNameAr && <p className="text-xs font-bold text-black mt-0.5" dir="rtl">{productNameAr}</p>}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-xs font-mono font-bold text-center text-black">{toNumber(line?.quantity) || '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-xs font-mono font-bold text-center text-black">
+                      <div>{toNumber(line?.quantity) || '—'}</div>
+                      {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-gray-500 mt-1">{line?.unitCode || line?.raw?.unitCode}</div>}
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right">{renderMoney(line?.unitPrice)}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-right">{renderMoney(line?.taxAmount)}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-right bg-gray-100">{renderMoney(line?.lineTotalWithTax)}</td>
@@ -184,6 +187,22 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
             </div>
           </div>
         </div>
+
+
+        {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
+          <div className="mt-8 flex justify-end gap-12 pr-8">
+            {invoiceBranding.signatureImage && (
+              <div className="flex flex-col items-center">
+                <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
+              </div>
+            )}
+            {invoiceBranding.stampImage && (
+              <div className="flex flex-col items-center">
+                <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Extras */}
         <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />

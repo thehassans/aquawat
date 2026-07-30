@@ -6,7 +6,8 @@ import { ArrowLeft, Download, Mail, Printer, Edit, FileSpreadsheet, FileText, Ch
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
-import QuotationDocumentPreview from '../../components/quotations/QuotationDocumentPreview'
+import InvoiceLivePreview from '../../components/invoices/InvoiceLivePreview'
+import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { buildQuotationPdfBlob, downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoicePdf'
 import { exportToExcel } from '../../lib/export'
 
@@ -43,6 +44,7 @@ export default function QuotationView() {
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const templateId = Number(quotation?.pdfTemplateId || getInvoiceTemplateId(tenant, quotation?.businessContext || 'trading'))
 
   const { data: quotation, isLoading } = useQuery({
     queryKey: ['quotation', id],
@@ -310,10 +312,12 @@ export default function QuotationView() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.2fr)_300px]">
         <div ref={previewRef}>
-          <QuotationDocumentPreview
-            quotation={quotation}
+          <InvoiceLivePreview
+            invoice={quotation}
             tenant={tenant}
             language={language}
+            templateId={templateId}
+            documentType="quotation"
           />
         </div>
 

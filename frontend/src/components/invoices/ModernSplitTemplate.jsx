@@ -152,7 +152,10 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
                     <p className="font-bold text-slate-900">{item.productName || item.raw?.productName}</p>
                     {bilingual && <p className="text-sm text-slate-500 mt-1" dir="rtl">{item.productNameAr || item.raw?.productNameAr}</p>}
                   </td>
-                  <td className="py-4 px-4 text-center text-sm font-medium">{item.quantity}</td>
+                  <td className="py-4 px-4 text-center text-sm font-medium">
+                    <div>{item.quantity}</div>
+                    {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-slate-500 mt-1">{item?.unitCode || item?.raw?.unitCode}</div>}
+                  </td>
                   <td className="py-4 px-4 text-right text-sm">{renderMoney(item.unitPrice)}</td>
                   <td className="py-4 px-4 text-right font-bold text-slate-900">{renderMoney(item.lineTotalWithTax)}</td>
                 </tr>
@@ -188,6 +191,21 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
             </div>
           </div>
         </div>
+
+      {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
+        <div className="flex justify-end gap-12 pt-8 pr-12">
+          {invoiceBranding.signatureImage && (
+            <div className="flex flex-col items-center">
+              <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
+            </div>
+          )}
+          {invoiceBranding.stampImage && (
+            <div className="flex flex-col items-center">
+              <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
+            </div>
+          )}
+        </div>
+      )}
 
       </div>
     

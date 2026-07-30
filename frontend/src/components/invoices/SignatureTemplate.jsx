@@ -151,7 +151,10 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
                       <p className="text-base font-normal text-slate-900">{productNameEn}</p>
                       {bilingual && productNameAr && <p className="text-sm font-normal text-slate-500 mt-1" dir="rtl">{productNameAr}</p>}
                     </td>
-                    <td className="py-5 whitespace-nowrap text-sm font-sans text-center text-slate-500">{toNumber(line?.quantity) || '—'}</td>
+                    <td className="py-5 whitespace-nowrap text-sm font-sans text-center text-slate-500">
+                      <div>{toNumber(line?.quantity) || '—'}</div>
+                      {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-slate-400 mt-1">{line?.unitCode || line?.raw?.unitCode}</div>}
+                    </td>
                     <td className="py-5 whitespace-nowrap text-right text-slate-700">{renderMoney(line?.unitPrice)}</td>
                     <td className="py-5 whitespace-nowrap text-right text-slate-900">{renderMoney(line?.lineTotalWithTax)}</td>
                   </tr>
@@ -178,6 +181,21 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
             </div>
           </div>
         </div>
+
+        {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
+          <div className="flex justify-end gap-12 mb-16 pr-8">
+            {invoiceBranding.signatureImage && (
+              <div className="flex flex-col items-center">
+                <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
+              </div>
+            )}
+            {invoiceBranding.stampImage && (
+              <div className="flex flex-col items-center">
+                <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="text-center">

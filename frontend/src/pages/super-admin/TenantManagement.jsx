@@ -435,6 +435,21 @@ export default function TenantManagement() {
                           >
                             <AlertCircle className="w-4 h-4" />
                           </button>
+                          {tenant.terminationNotice?.date && tenant.isActive && tenant.subscription?.status !== 'terminated' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(language === 'ar' ? 'هل تريد إلغاء إشعار الإنهاء لهذا المستأجر؟' : 'Cancel the termination notice for this tenant?')) {
+                                  terminationMutation.mutate({ tenantId: tenant._id, payload: { clear: true } })
+                                }
+                              }}
+                              disabled={terminationMutation.isPending}
+                              className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg text-emerald-600 disabled:opacity-50"
+                              title={language === 'ar' ? 'إلغاء إشعار الإنهاء' : 'Cancel Termination'}
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          )}
                           {(!tenant.isActive || tenant.subscription?.status === 'terminated') && (
                             <button
                               type="button"

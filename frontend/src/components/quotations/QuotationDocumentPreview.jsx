@@ -293,6 +293,7 @@ export default function QuotationDocumentPreview({ quotation, tenant, language =
                     <td className="px-4 py-3.5 font-semibold text-slate-700 whitespace-pre-line">{description}</td>
                     <td className="px-4 py-3.5 text-end">
                       <div className="text-slate-700">{Number(line?.quantity || 0)}</div>
+                      {line?.raw?.unitCode && <div className="text-[10px] text-slate-400 mt-0.5">{line.raw.unitCode}</div>}
                       {line?.unitCode && (
                         <div className="text-[10px] text-slate-500 font-semibold">{line.unitCode}</div>
                       )}
@@ -385,18 +386,21 @@ export default function QuotationDocumentPreview({ quotation, tenant, language =
         )}
 
         {/* â”€â”€ Authorized Signature / Stamp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        {quotation?.authorizedPersonSignature && (
+        {/* ── Authorized Signature / Stamp ───────────────────── */}
+        {(quotation?.authorizedPersonSignature || branding?.signatureImage || branding?.stampImage) && (
           <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_220px]">
             <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
               <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400 mb-3">
                 {language === 'ar' ? 'الموثّق / المفوّض' : 'Authorized By'}
               </p>
               <div className="flex items-start gap-4">
-                <img
-                  src={quotation.authorizedPersonSignature}
-                  alt="Signature"
-                  className="h-20 max-w-[200px] object-contain"
-                />
+                {(quotation?.authorizedPersonSignature || branding?.signatureImage) && (
+                  <img
+                    src={quotation?.authorizedPersonSignature || branding?.signatureImage}
+                    alt="Signature"
+                    className="h-20 max-w-[200px] object-contain mix-blend-multiply"
+                  />
+                )}
                 <div>
                   <p className="font-bold text-slate-900">
                     {language === 'ar'
@@ -414,16 +418,25 @@ export default function QuotationDocumentPreview({ quotation, tenant, language =
               </div>
             </div>
 
-            {/* Electronic company stamp placeholder */}
-            <div className="rounded-[1.5rem] border border-dashed border-blue-200 bg-blue-50/40 p-4 flex flex-col items-center justify-center text-center">
-              <div className="w-24 h-24 rounded-full border-2 border-blue-500/40 flex items-center justify-center p-3 mb-2">
-                <span className="text-[10px] font-bold text-blue-600 uppercase text-center leading-tight">
-                  {language === 'ar' ? 'ختم الشركة الإلكتروني' : 'Electronic Company Stamp'}
-                </span>
+            {branding?.stampImage ? (
+              <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 flex items-center justify-center">
+                <img
+                  src={branding.stampImage}
+                  alt="Company Stamp"
+                  className="max-h-24 object-contain mix-blend-multiply"
+                />
               </div>
-              <p className="text-xs font-semibold text-slate-700">{companyName}</p>
-              {tenant?.business?.crNumber && <p className="text-[10px] text-slate-400">C.R. {tenant.business.crNumber}</p>}
-            </div>
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-blue-200 bg-blue-50/40 p-4 flex flex-col items-center justify-center text-center">
+                <div className="w-24 h-24 rounded-full border-2 border-blue-500/40 flex items-center justify-center p-3 mb-2">
+                  <span className="text-[10px] font-bold text-blue-600 uppercase text-center leading-tight">
+                    {language === 'ar' ? 'ختم الشركة الإلكتروني' : 'Electronic Company Stamp'}
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-slate-700">{companyName}</p>
+                {tenant?.business?.crNumber && <p className="text-[10px] text-slate-400">C.R. {tenant.business.crNumber}</p>}
+              </div>
+            )}
           </div>
         )}
 
