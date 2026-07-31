@@ -15,37 +15,55 @@ import { useTranslation } from '../../lib/translations'
 
 // Pre-defined mapping for standard paths to specific gradients and icons to match Odoo-style uniqueness
 const APP_STYLE_MAP = {
-  // Finance / Accounting
-  '/app/dashboard': { gradient: 'from-[#4facfe] to-[#00f2fe]' },
+  // Finance & Accounting Group (Purple / Indigo)
+  '/app/dashboard/finance': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   '/app/dashboard/invoices': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
-  '/app/dashboard/quotations': { gradient: 'from-[#f83600] to-[#f9d423]' },
-  '/app/dashboard/expenses': { gradient: 'from-[#11998e] to-[#38ef7d]' },
-  '/app/dashboard/vat-returns': { gradient: 'from-[#FF416C] to-[#FF4B2B]' },
-  '/app/dashboard/finance': { gradient: 'from-[#3a1c71] to-[#d76d77]' },
-  '/app/dashboard/vouchers': { gradient: 'from-[#FF8008] to-[#FFA081]' },
+  '/app/dashboard/expenses': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
+  '/app/dashboard/vat-returns': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
+  '/app/dashboard/vouchers': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   
-  // HR / Employees
-  '/app/dashboard/employees': { gradient: 'from-[#b224ef] to-[#7579ff]' },
-  '/app/dashboard/attendance': { gradient: 'from-[#00c6ff] to-[#0072ff]' },
-  '/app/dashboard/payroll': { gradient: 'from-[#16A085] to-[#F4D03F]' },
-  '/app/dashboard/hr-reports': { gradient: 'from-[#DCE35B] to-[#45B649]' },
+  // HR & Payroll Group (Pink / Magenta)
+  '/app/dashboard/employees': { gradient: 'from-[#FF0080] to-[#FF8C00]' },
+  '/app/dashboard/attendance': { gradient: 'from-[#FF0080] to-[#FF8C00]' },
+  '/app/dashboard/payroll': { gradient: 'from-[#FF0080] to-[#FF8C00]' },
+  '/app/dashboard/hr-reports': { gradient: 'from-[#FF0080] to-[#FF8C00]' },
+  '/app/dashboard/leaves': { gradient: 'from-[#FF0080] to-[#FF8C00]' },
+  '/app/dashboard/workers': { gradient: 'from-[#FF0080] to-[#FF8C00]' },
+  '/app/dashboard/assignments': { gradient: 'from-[#FF0080] to-[#FF8C00]' },
+  '/app/dashboard/contracts': { gradient: 'from-[#FF0080] to-[#FF8C00]' },
 
-  // CRM / Sales
+  // Sales & CRM Group (Orange / Red)
   '/app/dashboard/customers': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
-  '/app/dashboard/contacts': { gradient: 'from-[#f12711] to-[#f5af19]' },
-  '/app/dashboard/crm': { gradient: 'from-[#F3904F] to-[#3B4371]' },
-  '/app/dashboard/leads': { gradient: 'from-[#FDFC47] to-[#24FE41]' },
+  '/app/dashboard/quotations': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
+  '/app/dashboard/contacts': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
+  '/app/dashboard/crm': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
+  '/app/dashboard/leads': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
 
-  // Inventory / Operations
-  '/app/dashboard/projects': { gradient: 'from-[#00b09b] to-[#96c93d]' },
-  '/app/dashboard/tasks': { gradient: 'from-[#8E2DE2] to-[#4A00E0]' },
-  '/app/dashboard/products': { gradient: 'from-[#1D976C] to-[#93F9B9]' },
-  '/app/dashboard/inventory': { gradient: 'from-[#EB3349] to-[#F45C43]' },
-  '/app/dashboard/purchase-orders': { gradient: 'from-[#4CB8C4] to-[#3CD3AD]' },
+  // Inventory & Operations Group (Green / Teal)
+  '/app/dashboard/inventory': { gradient: 'from-[#11998e] to-[#38ef7d]' },
+  '/app/dashboard/products': { gradient: 'from-[#11998e] to-[#38ef7d]' },
+  '/app/dashboard/purchase-orders': { gradient: 'from-[#11998e] to-[#38ef7d]' },
+  '/app/dashboard/suppliers': { gradient: 'from-[#11998e] to-[#38ef7d]' },
+  '/app/dashboard/shipments': { gradient: 'from-[#11998e] to-[#38ef7d]' },
+  '/app/dashboard/warehouses': { gradient: 'from-[#11998e] to-[#38ef7d]' },
 
-  // Settings
-  '/app/dashboard/settings': { gradient: 'from-[#616161] to-[#9bc5c3]' },
-  '/app/dashboard/tenant-settings/government-integrations/zatca': { gradient: 'from-[#2C3E50] to-[#3498DB]' },
+  // Project & Task Management (Blue)
+  '/app/dashboard/projects': { gradient: 'from-[#00c6ff] to-[#0072ff]' },
+  '/app/dashboard/tasks': { gradient: 'from-[#00c6ff] to-[#0072ff]' },
+  '/app/dashboard/timesheets': { gradient: 'from-[#00c6ff] to-[#0072ff]' },
+  '/app/dashboard/reports': { gradient: 'from-[#00c6ff] to-[#0072ff]' },
+
+  // POS & Restaurant (Amber / Yellow)
+  '/app/dashboard/restaurant': { gradient: 'from-[#F2994A] to-[#F2C94C]' },
+  '/app/dashboard/pos': { gradient: 'from-[#F2994A] to-[#F2C94C]' },
+
+  // Settings & System (Gray / Slate)
+  '/app/dashboard/settings': { gradient: 'from-[#4B79A1] to-[#283E51]' },
+  '/app/dashboard/users': { gradient: 'from-[#4B79A1] to-[#283E51]' },
+  '/app/dashboard/tenant-settings/government-integrations': { gradient: 'from-[#4B79A1] to-[#283E51]' },
+
+  // Dashboard (Cyan / Bright Blue)
+  '/app/dashboard': { gradient: 'from-[#4facfe] to-[#00f2fe]' },
 }
 
 const getAppStyle = (path = '', title = '') => {
@@ -381,16 +399,24 @@ export default function AppLauncher() {
 
               {/* User Profile */}
               <Menu as="div" className="relative ms-2">
-                <Menu.Button className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-gray-200/50 dark:hover:bg-white/10 transition-colors focus:outline-none">
+                <Menu.Button className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-gray-200/50 dark:hover:bg-white/10 transition-colors focus:outline-none group">
                   <div className="hidden sm:block text-end">
                     <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight flex items-center gap-1 justify-end">
-                      {language === 'ar' ? 'مرحباً،' : 'Welcome,'} {tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || 'Business'}
+                      {language === 'ar' ? 'مرحباً،' : 'Welcome,'} <span className="max-w-[150px] truncate">{tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || 'Business'}</span>
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{user?.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">{user?.name}</p>
                   </div>
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center font-bold text-sm sm:text-base shadow-sm ring-2 ring-white dark:ring-dark-800">
-                    {user?.name?.charAt(0)?.toUpperCase()}
-                  </div>
+                  {tenant?.branding?.logo ? (
+                    <img 
+                      src={tenant.branding.logo} 
+                      alt="Tenant Logo" 
+                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain bg-white/10 p-1 shadow-sm ring-2 ring-transparent group-hover:ring-gray-300 dark:group-hover:ring-white/20 transition-all"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center font-bold text-sm sm:text-base shadow-sm ring-2 ring-white dark:ring-dark-800">
+                      {user?.name?.charAt(0)?.toUpperCase()}
+                    </div>
+                  )}
                 </Menu.Button>
                 
                 <Transition

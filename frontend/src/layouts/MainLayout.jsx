@@ -35,6 +35,7 @@ export default function MainLayout() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-900 flex flex-col">
       <OfflineBanner />
+      <AppLauncher />
       <div className="flex flex-1">
         {isSidebarVisible && <Sidebar />}
         {showRestoreButton && (
@@ -53,7 +54,6 @@ export default function MainLayout() {
         >
         <TerminationBanner />
         <Header />
-        <AppLauncher />
         <main className="p-4 lg:p-6">
           <Suspense fallback={<LoadingScreen />}>
             <Outlet />

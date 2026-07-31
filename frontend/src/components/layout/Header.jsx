@@ -1,7 +1,7 @@
 import { useSelector, useDispatch } from 'react-redux'
 import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown, LayoutGrid } from 'lucide-react'
 import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
-import { Transition, Popover } from '@headlessui/react'
+import { Transition, Popover, Menu as HeadlessMenu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../lib/api'
@@ -262,11 +262,60 @@ export default function Header() {
             </Transition>
           </Popover>
 
-          <div className="w-px h-6 bg-gray-200 dark:bg-dark-600 mx-1" />
+          {/* User Profile */}
+          <HeadlessMenu as="div" className="relative ms-2">
+            <HeadlessMenu.Button className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors focus:outline-none group">
+              <div className="hidden sm:block text-end">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight flex items-center gap-1 justify-end">
+                  {language === 'ar' ? 'مرحباً،' : 'Welcome,'} <span className="max-w-[150px] truncate">{tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || 'Business'}</span>
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">{user?.name}</p>
+              </div>
+              {tenant?.branding?.logo ? (
+                <img 
+                  src={tenant.branding.logo} 
+                  alt="Tenant Logo" 
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain bg-white dark:bg-white/10 p-1 shadow-sm ring-2 ring-transparent group-hover:ring-gray-200 dark:group-hover:ring-white/20 transition-all"
+                />
+              ) : (
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center font-bold text-sm sm:text-base shadow-sm ring-2 ring-white dark:ring-dark-800">
+                  {user?.name?.charAt(0)?.toUpperCase()}
+                </div>
+              )}
+            </HeadlessMenu.Button>
+            
+            <Transition
+              as={Fragment}
+              enter="transition ease-out duration-100"
+              enterFrom="transform opacity-0 scale-95"
+              enterTo="transform opacity-100 scale-100"
+              leave="transition ease-in duration-75"
+              leaveFrom="transform opacity-100 scale-100"
+              leaveTo="transform opacity-0 scale-95"
+            >
+              <HeadlessMenu.Items className="absolute end-0 mt-2 w-48 origin-top-right bg-white dark:bg-dark-800 rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none py-1 z-50">
+                <HeadlessMenu.Item>
+                  {({ active }) => (
+                    <button
+                      onClick={() => dispatch(logout())}
+                      className={`${
+                        active ? 'bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
+                      } flex w-full items-center gap-2 px-4 py-2 text-sm transition-colors`}
+                    >
+                      <LogOut className="w-4 h-4" />
+                      {language === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
+                    </button>
+                  )}
+                </HeadlessMenu.Item>
+              </HeadlessMenu.Items>
+            </Transition>
+          </HeadlessMenu>
+
+          <div className="w-px h-6 bg-gray-200 dark:bg-dark-600 mx-1 hidden sm:block" />
 
           <button
             onClick={() => dispatch(logout())}
-            className="p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors group relative"
+            className="p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors group relative hidden sm:flex"
           >
             <LogOut className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-red-600 dark:group-hover:text-red-400" />
             <span className="tooltip -bottom-10 start-1/2 -translate-x-1/2 whitespace-nowrap">
