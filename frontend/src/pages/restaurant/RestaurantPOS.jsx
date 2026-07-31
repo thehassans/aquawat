@@ -16,6 +16,7 @@ export default function RestaurantPOS() {
   const isRtl = language === 'ar'
   const cardTerminalEnabled = Boolean(tenant?.settings?.posTerminal?.enabled)
   const terminalLabel = tenant?.settings?.posTerminal?.terminalLabel || ''
+  const printKitchenReceipt = tenant?.settings?.restaurant?.printKitchenReceipt !== false
 
   const [searchParams] = useSearchParams()
   const editOrderId = searchParams.get('orderId')
@@ -280,11 +281,15 @@ export default function RestaurantPOS() {
       setReceiptType('customer')
       setCompletedOrder(data)
 
-      // Auto-print customer receipt + kitchen ticket
+      // Auto-print customer receipt silently (no popup)
       setTimeout(() => {
-        // Print customer receipt first
-        if (receiptRef.current) window.print()
-      }, 500)
+        if (receiptRef.current) {
+          window.print()
+        }
+        // Auto-close after printing
+        setCompletedOrder(null)
+        clearCart()
+      }, 400)
 
       // Refresh tables if dine in to update status
       if (orderType === 'dine_in') {
@@ -337,16 +342,33 @@ export default function RestaurantPOS() {
       setReceiptType('kitchen')
       setCompletedOrder(data)
 
-      // Auto-print kitchen ticket first, then customer receipt
+      // Auto-print kitchen ticket silently if setting enabled, then customer receipt
       setTimeout(() => {
-        if (kitchenRef.current) window.print()
-        // After kitchen print, switch to customer receipt and print
-        setTimeout(() => {
+        if (printKitchenReceipt && kitchenRef.current) {
+          window.print()
+          // After kitchen print, switch to customer receipt and print
+          setTimeout(() => {
+            setReceiptType('customer')
+            setTimeout(() => {
+              if (receiptRef.current) window.print()
+              // Auto-close after all printing
+              setTimeout(() => {
+                setCompletedOrder(null)
+                clearCart()
+              }, 400)
+            }, 300)
+          }, 800)
+        } else {
+          // No kitchen print, just print customer receipt
           setReceiptType('customer')
           setTimeout(() => {
             if (receiptRef.current) window.print()
+            setTimeout(() => {
+              setCompletedOrder(null)
+              clearCart()
+            }, 400)
           }, 300)
-        }, 800)
+        }
       }, 500)
 
       if (orderType === 'dine_in') fetchData()
@@ -413,6 +435,14 @@ export default function RestaurantPOS() {
       
       setReceiptType('customer')
       setCompletedOrder(data)
+      // Auto-print receipt silently
+      setTimeout(() => {
+        if (receiptRef.current) window.print()
+        setTimeout(() => {
+          setCompletedOrder(null)
+          clearCart()
+        }, 400)
+      }, 400)
       if (orderType === 'dine_in') fetchData()
     } catch (error) {
       toast.error(error.response?.data?.error || 'Checkout failed')
@@ -847,50 +877,14 @@ export default function RestaurantPOS() {
         )}
       </AnimatePresence>
 
-      {/* Print Modal */}
+      {/* Hidden receipt elements for silent printing */}
       {completedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm print:bg-white print:static print:inset-auto p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-6 w-[400px] max-h-[90vh] overflow-y-auto print:shadow-none print:p-0 print:w-auto print:max-h-none print:overflow-visible">
-            <div className="flex justify-between items-center mb-4 print:hidden">
-              <h3 className="text-xl font-black">{isRtl ? 'إيصال الطلب' : 'Order Receipt'}</h3>
-              <button onClick={handleCloseReceipt} className="text-gray-500 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-full p-2 transition-colors">
-                <Minus className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="border border-gray-200 rounded-2xl p-2 print:border-none print:p-0 flex justify-center bg-gray-50">
-              {receiptType === 'kitchen' ? (
-                <KitchenTicket ref={kitchenRef} order={completedOrder} isUpdated={!!editOrderId} />
-              ) : (
-                <OrderReceipt ref={receiptRef} order={completedOrder} isUpdated={!!editOrderId} />
-              )}
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3 print:hidden">
-              <button onClick={handleCloseReceipt} className="flex-1 min-w-[120px] py-3.5 rounded-xl border-2 border-gray-200 font-black text-gray-600 hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700 transition-colors">
-                {isRtl ? 'إغلاق' : 'Close'}
-              </button>
-              {receiptType === 'customer' && (
-                <button
-                  onClick={() => { setReceiptType('kitchen'); setTimeout(() => window.print(), 300) }}
-                  className="flex-1 min-w-[120px] py-3.5 rounded-xl border-2 border-indigo-200 text-indigo-600 font-black hover:bg-indigo-50 transition-colors"
-                >
-                  {isRtl ? 'للمطبخ' : 'Print Kitchen'}
-                </button>
-              )}
-              {receiptType === 'kitchen' && (
-                <button
-                  onClick={() => { setReceiptType('customer'); setTimeout(() => window.print(), 300) }}
-                  className="flex-1 min-w-[120px] py-3.5 rounded-xl border-2 border-amber-200 text-amber-600 font-black hover:bg-amber-50 transition-colors"
-                >
-                  {isRtl ? 'الفاتورة' : 'Print Receipt'}
-                </button>
-              )}
-              <button onClick={handlePrint} className="w-full py-4 rounded-xl bg-gradient-to-r from-gray-800 to-gray-900 text-white font-black hover:from-gray-900 hover:to-black shadow-lg transition-all transform hover:-translate-y-0.5">
-                {isRtl ? 'طباعة' : 'Print'}
-              </button>
-            </div>
-          </div>
+        <div className="fixed -top-[9999px] -left-[9999px] pointer-events-none">
+          {receiptType === 'kitchen' ? (
+            <KitchenTicket ref={kitchenRef} order={completedOrder} isUpdated={!!editOrderId} />
+          ) : (
+            <OrderReceipt ref={receiptRef} order={completedOrder} isUpdated={!!editOrderId} />
+          )}
         </div>
       )}
 

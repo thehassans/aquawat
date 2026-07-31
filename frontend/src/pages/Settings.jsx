@@ -245,6 +245,7 @@ export default function Settings() {
   const [restNotify, setRestNotify] = useState(false)
   const [restNotifyPhone, setRestNotifyPhone] = useState('')
   const [restPrinters, setRestPrinters] = useState([])
+  const [restPrintKitchenReceipt, setRestPrintKitchenReceipt] = useState(true)
   // WhatsApp auto-send settings
   const [waAutoSend, setWaAutoSend] = useState(false)
   const [waOnOpen, setWaOnOpen] = useState(false)
@@ -318,6 +319,7 @@ export default function Settings() {
     setRestNotify(rs.notifyOnStatusChange || false)
     setRestNotifyPhone(rs.statusNotificationPhone || '')
     setRestPrinters(rs.printers || [])
+    setRestPrintKitchenReceipt(rs.printKitchenReceipt !== false)
     // WhatsApp auto-send init
     const wa = rs.whatsapp || {}
     setWaAutoSend(wa.autoSendEnabled || false)
@@ -1522,6 +1524,37 @@ export default function Settings() {
                 </div>
               </div>
 
+              {/* Print Behaviour */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Printer className="w-5 h-5 text-primary-500" />
+                  {language === 'ar' ? 'إعدادات الطباعة' : 'Print Settings'}
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-700/50 rounded-xl">
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                        {language === 'ar' ? 'طباعة تذكرة المطبخ تلقائياً' : 'Auto-print Kitchen Ticket'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {language === 'ar'
+                          ? 'عند إرسال الطلب للمطبخ، تُطبع تذكرة المطبخ تلقائياً'
+                          : 'When sending an order to kitchen, the kitchen ticket is automatically printed'}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={restPrintKitchenReceipt}
+                        onChange={(e) => setRestPrintKitchenReceipt(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               {/* Printers */}
               <div>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -1637,6 +1670,7 @@ export default function Settings() {
                         notifyOnStatusChange: restNotify,
                         statusNotificationPhone: restNotifyPhone,
                         printers: restPrinters,
+                        printKitchenReceipt: restPrintKitchenReceipt,
                         whatsapp: {
                           autoSendEnabled: waAutoSend,
                           autoSendOnOpen: waOnOpen,
