@@ -18,7 +18,7 @@ export default function Header() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
-  const { tenant } = useSelector((state) => state.auth)
+  const { tenant, user } = useSelector((state) => state.auth)
   const { theme, language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
   const [searchQuery, setSearchQuery] = useState('')
