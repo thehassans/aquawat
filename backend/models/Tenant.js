@@ -325,6 +325,7 @@ const tenantSchema = new mongoose.Schema({
     fiscalYearStart: { type: Number, default: 1 },
     dateFormat: { type: String, default: 'DD/MM/YYYY' },
     useHijriDates: { type: Boolean, default: true },
+    hiddenUoms: [{ type: String }],
     invoiceSequencePattern: { type: String, default: 'RCPT-{N}' },
     invoiceSequenceCounter: { type: Number, default: 0 },
     khayyat: {
@@ -340,6 +341,8 @@ const tenantSchema = new mongoose.Schema({
     // Where the currency marker sits relative to the amount.
     invoiceCurrencyPosition: { type: String, enum: ['before', 'after'], default: 'after' },
     invoiceBranding: {
+      presetSignature: { type: String },
+      presetStamp: { type: String },
       logo: { type: String },
       headerTextEn: { type: String, default: '' },
       headerTextAr: { type: String, default: '' },

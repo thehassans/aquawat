@@ -10,11 +10,12 @@ import { useTranslation } from '../../lib/translations'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
+import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
 import InvoiceTemplateSelector from '../invoices/InvoiceTemplateSelector'
 import Select from 'react-select'
-import { ZATCA_UOM_OPTIONS } from '../../lib/uomOptions'
+
 const emptyLine = {
   productId: '',
   productName: '',
@@ -51,13 +52,12 @@ const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext })
   termsAndConditions: quotation?.termsAndConditions || '',
   invoiceDiscount: Math.max(0, toNumber(quotation?.invoiceDiscount, 0)),
   buyer: quotation?.buyer || {},
-  authorizedPersonName: quotation?.authorizedPersonName || '',
+  authorizedPersonName: quotation?.authorizedPersonName || tenant?.business?.legalNameEn || '',
   authorizedPersonNameAr: quotation?.authorizedPersonNameAr || '',
   authorizedPersonDesignation: quotation?.authorizedPersonDesignation || '',
   authorizedPersonDesignationAr: quotation?.authorizedPersonDesignationAr || '',
-  authorizedPersonDesignationAr: quotation?.authorizedPersonDesignationAr || '',
-  authorizedPersonSignature: quotation?.authorizedPersonSignature || '',
-  stampImage: quotation?.stampImage || '',
+  authorizedPersonSignature: quotation?.authorizedPersonSignature || tenant?.settings?.invoiceBranding?.presetSignature || '',
+  stampImage: quotation?.stampImage || tenant?.settings?.invoiceBranding?.presetStamp || '',
   lineItems: Array.isArray(quotation?.lineItems) && quotation.lineItems.length > 0
     ? quotation.lineItems.map((line) => ({
         ...emptyLine,
@@ -501,18 +501,17 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                       </div>
                       <div className="md:col-span-3">
                         <label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
-                        <Select
-                          inputId={`unit-${index}`}
-                          options={ZATCA_UOM_OPTIONS.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
-                          value={ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`)) ? { value: watch(`lineItems.${index}.unitCode`), label: language === 'ar' ? ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`))?.labelAr : ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`))?.labelEn } : null}
-                          onChange={(selected) => setValue(`lineItems.${index}.unitCode`, selected?.value || 'PCE')}
-                          isSearchable
-                          menuPortalTarget={document.body}
-                          styles={{
-                            menuPortal: base => ({ ...base, zIndex: 9999 }),
-                            control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
-                          }}
-                        />
+                        <select
+                          value={watch(`lineItems.${index}.unitCode`) || 'PCE'}
+                          onChange={(e) => setValue(`lineItems.${index}.unitCode`, e.target.value)}
+                          className="select w-full"
+                        >
+                          {getAvailableUomOptions(tenant).map((uom) => (
+                            <option key={uom.code} value={uom.code}>
+                              {language === 'ar' ? uom.labelAr : uom.labelEn}
+                            </option>
+                          ))}
+                        </select>
                         <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
                       </div>
                       <div className="md:col-span-1">

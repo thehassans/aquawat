@@ -11,6 +11,7 @@ import { useTranslation } from '../../lib/translations'
 import Money from '../ui/Money'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
+import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from './InvoiceLivePreview'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
@@ -40,12 +41,13 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
   seller: invoice?.seller || {},
   buyer: invoice?.buyer || {},
   travelDetails: invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] },
-  authorizedPersonName: invoice?.authorizedPersonName || '',
+  authorizedPersonName: invoice?.authorizedPersonName || tenant?.business?.legalNameEn || '',
   authorizedPersonNameAr: invoice?.authorizedPersonNameAr || '',
   authorizedPersonDesignation: invoice?.authorizedPersonDesignation || '',
   authorizedPersonDesignationAr: invoice?.authorizedPersonDesignationAr || '',
-  authorizedPersonSignature: invoice?.authorizedPersonSignature || '',
-  stampImage: invoice?.stampImage || '',
+  authorizedPersonSignature: invoice?.authorizedPersonSignature || tenant?.settings?.invoiceBranding?.presetSignature || '',
+  stampImage: invoice?.stampImage || tenant?.settings?.invoiceBranding?.presetStamp || '',
+  paymentTerms: invoice?.paymentTerms || '',
   notes: invoice?.notes || '',
   lineItems: Array.isArray(invoice?.lineItems) && invoice.lineItems.length > 0
     ? invoice.lineItems.map((line) => ({
@@ -525,19 +527,16 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     </div>
                     <div className="md:col-span-2">
                       <label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
-                      <Select
-                        inputId={`unit-${index}`}
-                        options={ZATCA_UOM_OPTIONS.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
-                        value={ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`)) ? { value: watch(`lineItems.${index}.unitCode`), label: language === 'ar' ? ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`))?.labelAr : ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`))?.labelEn } : null}
-                        onChange={(selected) => setValue(`lineItems.${index}.unitCode`, selected?.value || 'PCE')}
-                        isSearchable
-                        menuPortalTarget={document.body}
-                        styles={{
-                          menuPortal: base => ({ ...base, zIndex: 9999 }),
-                          control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
-                        }}
-                      />
-                      <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
+                      <select
+                        {...register(`lineItems.${index}.unitCode`)}
+                        className="select"
+                      >
+                        {getAvailableUomOptions(tenant).map((uom) => (
+                          <option key={uom.code} value={uom.code}>
+                            {language === 'ar' ? uom.labelAr : uom.labelEn}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="md:col-span-1">
                       <label htmlFor={`qty-${index}`} className="label">{t('quantity')}</label>

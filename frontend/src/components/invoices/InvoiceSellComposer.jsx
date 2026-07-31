@@ -22,7 +22,8 @@ import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
 import { ScanLine, UploadCloud } from 'lucide-react'
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
-import { ZATCA_UOM_OPTIONS } from '../../lib/uomOptions'
+import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
+import { generateZatcaQrValue } from '../../lib/zatcaQr'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', customerPrice: '', taxRate: 15, agencyPrice: '', isTravelMargin: false }
 const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
@@ -102,12 +103,13 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
         isTravelMargin: Boolean(line?.isTravelMargin),
       }))
     : [emptyLine],
-  authorizedPersonName: invoice?.authorizedPersonName || '',
+  authorizedPersonName: invoice?.authorizedPersonName || tenant?.business?.legalNameEn || '',
   authorizedPersonNameAr: invoice?.authorizedPersonNameAr || '',
   authorizedPersonDesignation: invoice?.authorizedPersonDesignation || '',
   authorizedPersonDesignationAr: invoice?.authorizedPersonDesignationAr || '',
-  authorizedPersonSignature: invoice?.authorizedPersonSignature || '',
-  stampImage: invoice?.stampImage || '',
+  authorizedPersonSignature: invoice?.authorizedPersonSignature || tenant?.settings?.invoiceBranding?.presetSignature || '',
+  stampImage: invoice?.stampImage || tenant?.settings?.invoiceBranding?.presetStamp || '',
+  paymentTerms: invoice?.paymentTerms || '',
 })
 
 export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = null }) {
@@ -954,19 +956,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     </div>
                     <div className="md:col-span-2">
                       <label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
-                      <Select
-                        inputId={`unit-${index}`}
-                        options={ZATCA_UOM_OPTIONS.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
-                        value={ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`)) ? { value: watch(`lineItems.${index}.unitCode`), label: language === 'ar' ? ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`))?.labelAr : ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.unitCode`))?.labelEn } : null}
-                        onChange={(selected) => setValue(`lineItems.${index}.unitCode`, selected?.value || 'PCE')}
-                        isSearchable
-                        menuPortalTarget={document.body}
-                        styles={{
-                          menuPortal: base => ({ ...base, zIndex: 9999 }),
-                          control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
-                        }}
-                      />
-                      <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
+                      <select
+                        {...register(`lineItems.${index}.unitCode`)}
+                        className="select"
+                      >
+                        {getAvailableUomOptions(tenant).map((uom) => (
+                          <option key={uom.code} value={uom.code}>
+                            {language === 'ar' ? uom.labelAr : uom.labelEn}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     {isTravelContext ? (
                       <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} />

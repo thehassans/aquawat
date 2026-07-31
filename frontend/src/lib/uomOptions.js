@@ -44,3 +44,8 @@ export const getUomLabel = (code, language = 'en') => {
   if (!uom) return code
   return language === 'ar' ? uom.labelAr : uom.labelEn
 }
+
+export const getAvailableUomOptions = (tenant) => {
+  const hiddenUoms = tenant?.settings?.hiddenUoms || []
+  return ZATCA_UOM_OPTIONS.filter((u) => !hiddenUoms.includes(u.code))
+}

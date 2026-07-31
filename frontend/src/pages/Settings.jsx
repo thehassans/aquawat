@@ -12,6 +12,7 @@ import { updateTenant } from '../store/slices/authSlice'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getInvoiceBrandingProfile, getInvoiceTemplateId, getInvoiceTypography, INVOICE_FONT_OPTIONS } from '../lib/invoiceBranding'
 import { invoiceTemplateOptions } from '../lib/invoiceTemplates'
+import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 import { getNavSections } from '../lib/sidebarConfig'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
 import PosTerminalSettings from '../components/settings/PosTerminalSettings'
@@ -227,6 +228,7 @@ export default function Settings() {
   const [stampDataUrl, setStampDataUrl] = useState(null)
   const [signatureDataUrl, setSignatureDataUrl] = useState(null)
   const [letterheadDataUrl, setLetterheadDataUrl] = useState(null)
+  const [hiddenUoms, setHiddenUoms] = useState([])
   const [invoiceHeaderTextEn, setInvoiceHeaderTextEn] = useState('')
   const [invoiceHeaderTextAr, setInvoiceHeaderTextAr] = useState('')
   const [invoiceFooterTextEn, setInvoiceFooterTextEn] = useState('')
@@ -293,9 +295,10 @@ export default function Settings() {
     setInvoiceCurrencyDisplay(tenant.settings?.invoiceCurrencyDisplay === 'icon' ? 'icon' : 'text')
     setInvoiceCurrencyPosition(tenant.settings?.invoiceCurrencyPosition === 'before' ? 'before' : 'after')
     setInvoiceLogoDataUrl(tenant.settings?.invoiceBranding?.logo || tenant.branding?.logo || null)
-    setStampDataUrl(tenant.settings?.invoiceBranding?.stampImage || null)
-    setSignatureDataUrl(tenant.settings?.invoiceBranding?.signatureImage || null)
+    setStampDataUrl(tenant.settings?.invoiceBranding?.presetStamp || tenant.settings?.invoiceBranding?.stampImage || null)
+    setSignatureDataUrl(tenant.settings?.invoiceBranding?.presetSignature || tenant.settings?.invoiceBranding?.signatureImage || null)
     setLetterheadDataUrl(tenant.settings?.invoiceBranding?.letterheadImage || null)
+    setHiddenUoms(tenant.settings?.hiddenUoms || [])
     setInvoiceHeaderTextEn(tenant.settings?.invoiceBranding?.headerTextEn || '')
     setInvoiceHeaderTextAr(tenant.settings?.invoiceBranding?.headerTextAr || '')
     setInvoiceFooterTextEn(tenant.settings?.invoiceBranding?.footerTextEn || '')
@@ -489,6 +492,7 @@ export default function Settings() {
   const tabs = [
     { id: 'company', label: t('companySettings'), icon: Building2 },
     { id: 'templates', label: language === 'ar' ? 'قوالب الفواتير' : 'Invoice Templates', icon: FileText },
+    { id: 'uom', label: language === 'ar' ? 'وحدات القياس' : 'UOM', icon: FileText },
     { id: 'govIntegrations', label: language === 'ar' ? 'التكاملات الحكومية' : 'Government Integrations', icon: Shield },
     { id: 'preferences', label: language === 'ar' ? 'التفضيلات' : 'Preferences', icon: Palette },
     { id: 'setupMachine', label: language === 'ar' ? 'إعداد الدفع الإلكتروني' : 'Payment Terminal', icon: CreditCard },
@@ -1030,6 +1034,43 @@ export default function Settings() {
                   </div>
                 </div>
 
+                <div className="pt-8 border-t border-gray-100 dark:border-dark-700">
+                  <label className="label flex items-center gap-2 mb-4">{language === 'ar' ? 'الأختام والتواقيع الافتراضية' : 'Preset Stamp & Signature'}</label>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{language === 'ar' ? 'سيتم استخدامها بشكل افتراضي عند إنشاء فواتير وعروض أسعار جديدة.' : 'These will be used by default when creating new invoices and quotations.'}</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="card p-5">
+                      <label className="label mb-2 block">{language === 'ar' ? 'التوقيع الافتراضي' : 'Preset Signature'}</label>
+                      <div className="flex items-center gap-4">
+                        <div className="w-24 h-24 border-2 border-dashed border-gray-300 dark:border-dark-500 rounded-xl flex items-center justify-center bg-gray-50 dark:bg-dark-800 overflow-hidden">
+                          {signatureDataUrl ? <img src={signatureDataUrl} alt="Signature" className="w-full h-full object-contain p-2" /> : <Image className="w-6 h-6 text-gray-400" />}
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <input type="file" accept="image/*" onChange={handleSignatureFile} className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100 dark:file:bg-primary-900/20 dark:hover:file:bg-primary-900/40" />
+                          {signatureDataUrl && (
+                            <button type="button" onClick={() => setSignatureDataUrl(null)} className="text-sm text-red-500 hover:text-red-600">{language === 'ar' ? 'إزالة التوقيع' : 'Remove Signature'}</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="card p-5">
+                      <label className="label mb-2 block">{language === 'ar' ? 'الختم الافتراضي' : 'Preset Stamp'}</label>
+                      <div className="flex items-center gap-4">
+                        <div className="w-24 h-24 border-2 border-dashed border-gray-300 dark:border-dark-500 rounded-xl flex items-center justify-center bg-gray-50 dark:bg-dark-800 overflow-hidden">
+                          {stampDataUrl ? <img src={stampDataUrl} alt="Stamp" className="w-full h-full object-contain p-2" /> : <Image className="w-6 h-6 text-gray-400" />}
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <input type="file" accept="image/*" onChange={handleStampFile} className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100 dark:file:bg-primary-900/20 dark:hover:file:bg-primary-900/40" />
+                          {stampDataUrl && (
+                            <button type="button" onClick={() => setStampDataUrl(null)} className="text-sm text-red-500 hover:text-red-600">{language === 'ar' ? 'إزالة الختم' : 'Remove Stamp'}</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-dark-700">
                   <button
                     type="button"
@@ -1040,6 +1081,8 @@ export default function Settings() {
                         invoicePdfTemplate,
                         invoiceBranding: {
                           ...(tenant?.settings?.invoiceBranding || {}),
+                          presetStamp: stampDataUrl,
+                          presetSignature: signatureDataUrl,
                           contextProfiles: invoiceBrandingContexts.reduce((acc, item) => {
                             const profile = invoiceBrandingProfiles?.[item.key] || {}
                             acc[item.key] = {
@@ -1053,6 +1096,60 @@ export default function Settings() {
                             return acc
                           }, {})
                         }
+                      }
+                    })}
+                    className="btn btn-primary"
+                  >
+                    {updateMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Save className="w-4 h-4" />{t('save')}</>}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'uom' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6">
+              <h3 className="text-lg font-semibold mb-6 flex items-center gap-2"><FileText className="w-5 h-5 text-primary-500" />{language === 'ar' ? 'وحدات القياس' : 'UOM Configuration'}</h3>
+              
+              <div className="space-y-6">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {language === 'ar' ? 'حدد وحدات القياس التي ترغب في استخدامها في نظامك. الوحدات غير المحددة سيتم إخفاؤها من القوائم المنسدلة.' : 'Select the Units of Measure you want to use in your system. Unselected units will be hidden from dropdown menus.'}
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {ZATCA_UOM_OPTIONS.map((uom) => {
+                    const isHidden = hiddenUoms.includes(uom.code);
+                    return (
+                      <label key={uom.code} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${!isHidden ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-600 hover:bg-gray-50 dark:hover:bg-dark-700/50'}`}>
+                        <input
+                          type="checkbox"
+                          checked={!isHidden}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setHiddenUoms(prev => prev.filter(c => c !== uom.code));
+                            } else {
+                              setHiddenUoms(prev => [...prev, uom.code]);
+                            }
+                          }}
+                          className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500 dark:bg-dark-700"
+                        />
+                        <div>
+                          <div className="font-semibold text-sm text-gray-900 dark:text-white">{uom.code}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{language === 'ar' ? uom.labelAr : uom.labelEn}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-dark-700">
+                  <button
+                    type="button"
+                    disabled={updateMutation.isPending}
+                    onClick={() => updateMutation.mutate({
+                      settings: {
+                        ...(tenant?.settings || {}),
+                        hiddenUoms
                       }
                     })}
                     className="btn btn-primary"
