@@ -2087,7 +2087,7 @@ router.post('/tenants/:id/import-data', async (req, res) => {
         subtotal: amount, invoiceDiscount: discount, totalDiscount: discount,
         taxableAmount: amount-discount, totalTax: vat, grandTotal,
         currency: 'SAR', paymentMethod: pm,
-        paymentStatus: pm === 'credit' ? 'unpaid' : 'paid',
+        paymentStatus: pm === 'credit' ? 'pending' : 'paid',
         status: 'draft', source: 'import',
       });
       iCreated++;
