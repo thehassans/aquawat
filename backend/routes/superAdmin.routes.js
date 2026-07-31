@@ -2113,9 +2113,9 @@ router.post('/tenants/:id/finalise-import', async (req, res) => {
     const { default: InvoiceModel }  = await import('../models/Invoice.js');
     const { default: CustomerModel } = await import('../models/Customer.js');
 
-    // 1. Approve all draft invoices that came from import, set paidAmount correctly
+    // 1. Approve all draft invoices for this tenant, set paidAmount correctly
     const updateResult = await InvoiceModel.updateMany(
-      { tenantId, source: 'import', status: 'draft' },
+      { tenantId, status: 'draft' },
       [
         {
           $set: {
@@ -2163,6 +2163,17 @@ router.post('/tenants/:id/finalise-import', async (req, res) => {
   } catch (error) {
     console.error('[finalise-import]', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// --- Temp Test ---
+router.get('/tenants/:id/test-db', async (req, res) => {
+  try {
+    const { default: InvoiceModel } = await import('../models/Invoice.js');
+    const invs = await InvoiceModel.find({ tenantId: req.params.id }).limit(3).lean();
+    res.json({ invs });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
