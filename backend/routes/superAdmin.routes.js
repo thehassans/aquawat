@@ -2105,6 +2105,67 @@ router.post('/tenants/:id/import-data', async (req, res) => {
   }
 });
 
+// --- Finalise imported data: approve invoices + rebuild customer stats ---
+router.post('/tenants/:id/finalise-import', async (req, res) => {
+  try {
+    const tenantId = new (await import('mongoose')).default.Types.ObjectId(req.params.id);
+
+    const { default: InvoiceModel }  = await import('../models/Invoice.js');
+    const { default: CustomerModel } = await import('../models/Customer.js');
+
+    // 1. Approve all draft invoices that came from import, set paidAmount correctly
+    const updateResult = await InvoiceModel.updateMany(
+      { tenantId, source: 'import', status: 'draft' },
+      [
+        {
+          $set: {
+            status: 'approved',
+            paidAmount: {
+              $cond: [
+                { $in: ['$paymentStatus', ['paid']] },
+                '$grandTotal',
+                0
+              ]
+            }
+          }
+        }
+      ]
+    );
+
+    // 2. Rebuild customer stats from invoices
+    const customerStats = await InvoiceModel.aggregate([
+      { $match: { tenantId, flow: 'sell', status: 'approved', customerId: { $exists: true, $ne: null } } },
+      { $group: {
+          _id: '$customerId',
+          totalInvoices: { $sum: 1 },
+          totalRevenue:  { $sum: '$grandTotal' },
+          lastInvoiceDate: { $max: '$issueDate' },
+      }},
+    ]);
+
+    let custUpdated = 0;
+    for (const stat of customerStats) {
+      await CustomerModel.findByIdAndUpdate(stat._id, {
+        $set: {
+          totalInvoices:   stat.totalInvoices,
+          totalRevenue:    stat.totalRevenue,
+          lastInvoiceDate: stat.lastInvoiceDate,
+        }
+      });
+      custUpdated++;
+    }
+
+    res.json({
+      success: true,
+      invoicesApproved: updateResult.modifiedCount,
+      customersUpdated: custUpdated,
+    });
+  } catch (error) {
+    console.error('[finalise-import]', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- Super Admin Mailbox ---
 router.get('/mailbox/messages', async (req, res) => {
   try {
