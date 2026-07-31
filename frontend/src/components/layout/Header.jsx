@@ -1,12 +1,12 @@
 import { useSelector, useDispatch } from 'react-redux'
-import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown } from 'lucide-react'
+import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown, LayoutGrid } from 'lucide-react'
 import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
 import { Transition, Popover } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../lib/api'
 import { logout } from '../../store/slices/authSlice'
-import { setTheme, setLanguage, setMobileMenuOpen } from '../../store/slices/uiSlice'
+import { setTheme, setLanguage, setMobileMenuOpen, setAppLauncherOpen } from '../../store/slices/uiSlice'
 import { useTranslation } from '../../lib/translations'
 import DemoBanner from './DemoBanner'
 import TrialLimitModal from './TrialLimitModal'
@@ -125,6 +125,14 @@ export default function Header() {
             className="lg:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors"
           >
             <Menu className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+          </button>
+          
+          <button
+            onClick={() => dispatch(setAppLauncherOpen(true))}
+            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors hidden sm:block"
+            title={language === 'ar' ? 'التطبيقات' : 'Apps'}
+          >
+            <LayoutGrid className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           </button>
 
           {/* Search */}

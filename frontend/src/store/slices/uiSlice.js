@@ -88,6 +88,7 @@ const initialState = {
   hiddenMenuItems: getInitialHiddenMenuItems(),
   displayMode: 'auto',
   mobileMenuOpen: false,
+  appLauncherOpen: false,
 }
 
 const uiSlice = createSlice({
@@ -117,6 +118,9 @@ const uiSlice = createSlice({
     },
     setMobileMenuOpen: (state, action) => {
       state.mobileMenuOpen = action.payload
+    },
+    setAppLauncherOpen: (state, action) => {
+      state.appLauncherOpen = action.payload
     },
     setHideSidebar: (state, action) => {
       state.hideSidebar = action.payload
@@ -183,5 +187,5 @@ const uiSlice = createSlice({
   },
 })
 
-export const { setLanguage, setTheme, toggleSidebar, toggleSidebarCollapse, setMobileMenuOpen, setHideSidebar, toggleHideSidebar, setHiddenMenuItems, toggleHiddenMenuItem, loadHiddenMenuItemsForTenant, setHiddenMenuItemsForTenant, toggleHiddenMenuItemForTenant, setDisplayMode, loadDisplayModeForTenant } = uiSlice.actions
+export const { setLanguage, setTheme, toggleSidebar, toggleSidebarCollapse, setMobileMenuOpen, setAppLauncherOpen, setHideSidebar, toggleHideSidebar, setHiddenMenuItems, toggleHiddenMenuItem, loadHiddenMenuItemsForTenant, setHiddenMenuItemsForTenant, toggleHiddenMenuItemForTenant, setDisplayMode, loadDisplayModeForTenant } = uiSlice.actions
 export default uiSlice.reducer

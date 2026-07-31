@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import Sidebar from '../components/layout/Sidebar'
 import Header from '../components/layout/Header'
+import AppLauncher from '../components/layout/AppLauncher'
 import OfflineBanner from '../components/ui/OfflineBanner'
 import LoadingScreen from '../components/ui/LoadingScreen'
 import TerminationBanner, { TerminationBlocker, InactiveBlocker, isTenantTerminated, isTenantInactive } from '../components/ui/TerminationBanner'
@@ -49,6 +50,7 @@ export default function MainLayout() {
         >
         <TerminationBanner />
         <Header />
+        <AppLauncher />
         <main className="p-4 lg:p-6">
           <Suspense fallback={<LoadingScreen />}>
             <Outlet />
