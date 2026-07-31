@@ -1936,6 +1936,175 @@ router.post('/tenants/:id/seed-saloon', async (req, res) => {
   }
 });
 
+// --- Import products and invoices from CSV data (JSON payload) ---
+router.post('/tenants/:id/import-data', async (req, res) => {
+  try {
+    const tenantId = req.params.id;
+    const { products: productRows = [], invoices: invoiceRows = [] } = req.body;
+
+    const { default: TenantModel } = await import('../models/Tenant.js');
+    const { default: ProductModel } = await import('../models/Product.js');
+    const { default: CustomerModel } = await import('../models/Customer.js');
+    const { default: InvoiceModel } = await import('../models/Invoice.js');
+
+    const tenant = await TenantModel.findById(tenantId).lean();
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const sellerInfo = {
+      name:      tenant.name || '',
+      nameAr:    tenant.nameAr || '',
+      vatNumber: tenant?.business?.vatNumber || '',
+      crNumber:  tenant?.business?.crNumber  || '',
+      address: { country: 'SA', city: tenant?.business?.city || '' },
+    };
+
+    const normalizeUOM = (u) => {
+      const map = { 'PCS':'PCE','PC':'PCE','EA':'PCE','CTN':'CT','CARTON':'CT','BOX':'BX','TIN':'PCE','BTL':'PCE','BAG':'BG','KG':'KGM','LTR':'LTR','MTR':'MTR','ROLL':'RO' };
+      const v = String(u||'').toUpperCase().trim();
+      return map[v] || (v || 'PCE');
+    };
+
+    const parseDMY = (s) => {
+      if (!s) return new Date();
+      const [d,m,y] = String(s).trim().split('-');
+      if (!d||!m||!y) return new Date();
+      return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}T00:00:00.000Z`);
+    };
+
+    const normalizePayment = (m) => {
+      const v = String(m||'').toLowerCase().trim();
+      if (v==='cash') return 'cash'; if (v==='credit') return 'credit';
+      if (v==='card') return 'card'; if (v.includes('bank')) return 'bank_transfer';
+      return 'cash';
+    };
+
+    // ── Products ──────────────────────────────────────────────────────────
+    let pCreated=0, pUpdated=0, pSkipped=0;
+    const productMap = {};
+
+    for (let i=0; i<productRows.length; i++) {
+      const r = productRows[i];
+      const nameEn = String(r['english items']||r.nameEn||'').trim();
+      const nameAr  = String(r['arabic items'] ||r.nameAr ||'').trim();
+      const barcode = String(r['bracode']||r.barcode||'').trim();
+      const unit    = normalizeUOM(r['unit']||r.unit||'PCE');
+      const cost    = parseFloat(r['purchase_price']||r.costPrice||0)||0;
+      const price   = parseFloat(r['sale_price']||r.sellingPrice||0)||0;
+      const alert   = parseFloat(r['alert_quantity']||0)||0;
+
+      if (!nameEn || price === 0) { pSkipped++; continue; }
+
+      const sku = barcode || `BL-${String(i+1).padStart(5,'0')}`;
+      const filter = barcode ? { tenantId, barcode } : { tenantId, nameEn };
+      const doc = {
+        tenantId, sku, nameEn, nameAr: nameAr||undefined,
+        barcode: barcode||undefined,
+        category: String(r['category']||'').trim()||undefined,
+        brand:    String(r['brand']||'').trim()||undefined,
+        descriptionEn: String(r['description']||'').trim()||undefined,
+        unitOfMeasure: unit, unitOfMeasureAr: 'قطعة',
+        costPrice: cost, sellingPrice: price,
+        taxRate: 15, taxCategory: 'S', currency: 'SAR',
+        isActive: String(r['active']||'1') !== '0',
+        alertQuantity: alert, totalStock: 0,
+      };
+
+      const result = await ProductModel.findOneAndUpdate(filter, { $set: doc }, { upsert: true, new: true });
+      productMap[barcode] = result._id;
+      productMap[nameEn.toLowerCase()] = result._id;
+      if (result.createdAt?.getTime() === result.updatedAt?.getTime()) pCreated++; else pUpdated++;
+    }
+
+    // ── Customers cache ───────────────────────────────────────────────────
+    const customerCache = {};
+    const existingCusts = await CustomerModel.find({ tenantId }).select('name vatNumber').lean();
+    for (const c of existingCusts) {
+      customerCache[c.name.toLowerCase()] = c._id;
+      if (c.vatNumber) customerCache[`vat:${c.vatNumber}`] = c._id;
+    }
+
+    // ── Invoices ──────────────────────────────────────────────────────────
+    let iCreated=0, iSkipped=0, cCreated=0;
+
+    for (let i=0; i<invoiceRows.length; i++) {
+      const r = invoiceRows[i];
+      const invoiceNumber = String(r['Invoice No']||r.invoiceNumber||'').trim();
+      const dateStr       = String(r['Date']||r.date||'').trim();
+      const amount        = parseFloat(r['Amount']||0)||0;
+      const discount      = parseFloat(r['Discount']||0)||0;
+      const vat           = parseFloat(r['VAT']||0)||0;
+      const grandTotal    = parseFloat(r['Grand Total']||r.grandTotal||0)||0;
+      const payMethod     = String(r['Payment Method']||'').trim();
+      const custName      = String(r['Customer Name']||'Cash Customer').trim()||'Cash Customer';
+      const custPhone     = String(r['Customer Phone']||'').trim().replace(/^0+$/,'');
+      const custVAT       = String(r['Customer VAT NO']||'').trim();
+
+      if (!invoiceNumber) { iSkipped++; continue; }
+
+      const exists = await InvoiceModel.exists({ tenantId, invoiceNumber });
+      if (exists) { iSkipped++; continue; }
+
+      const nameKey = custName.toLowerCase();
+      const vatKey  = custVAT && custVAT.length > 5 ? `vat:${custVAT}` : null;
+      let customerId = (vatKey && customerCache[vatKey]) || customerCache[nameKey];
+
+      if (!customerId && custName !== 'Cash Customer') {
+        const newCust = await CustomerModel.create({
+          tenantId, name: custName,
+          phone: custPhone && custPhone.length > 2 ? custPhone : undefined,
+          vatNumber: custVAT && custVAT.length > 5 ? custVAT : undefined,
+          type: custVAT && custVAT.length > 5 ? 'business' : 'individual',
+          isActive: true,
+        });
+        customerId = newCust._id;
+        customerCache[nameKey] = customerId;
+        if (vatKey) customerCache[vatKey] = customerId;
+        cCreated++;
+      }
+
+      const isB2B = !!(custVAT && custVAT.length > 5);
+      const pm = normalizePayment(payMethod);
+
+      await InvoiceModel.create({
+        tenantId, flow: 'sell', businessContext: 'trading',
+        invoiceNumber, invoiceType: '388',
+        invoiceTypeCode: isB2B ? '0100000' : '0200000',
+        transactionType: isB2B ? 'B2B' : 'B2C',
+        issueDate: parseDMY(dateStr),
+        seller: sellerInfo,
+        buyer: {
+          name: custName,
+          vatNumber: custVAT && custVAT.length > 5 ? custVAT : undefined,
+          contactPhone: custPhone && custPhone.length > 2 ? custPhone : undefined,
+        },
+        customerId: customerId || undefined,
+        lineItems: [{
+          lineNumber: 1, productName: 'Goods & Products', productNameAr: 'بضائع ومنتجات',
+          quantity: 1, unitCode: 'PCE', unitPrice: amount,
+          discount, discountType: 'fixed', taxCategory: 'S', taxRate: 15,
+          taxAmount: vat, lineTotal: amount-discount, lineTotalWithTax: (amount-discount)+vat,
+        }],
+        subtotal: amount, invoiceDiscount: discount, totalDiscount: discount,
+        taxableAmount: amount-discount, totalTax: vat, grandTotal,
+        currency: 'SAR', paymentMethod: pm,
+        paymentStatus: pm === 'credit' ? 'unpaid' : 'paid',
+        status: 'draft', source: 'import',
+      });
+      iCreated++;
+    }
+
+    res.json({
+      success: true,
+      products:  { created: pCreated, updated: pUpdated, skipped: pSkipped },
+      invoices:  { created: iCreated, skipped: iSkipped },
+      customers: { created: cCreated },
+    });
+  } catch (error) {
+    console.error('[import-data]', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- Super Admin Mailbox ---
 router.get('/mailbox/messages', async (req, res) => {
   try {
