@@ -49,11 +49,19 @@ const APP_STYLE_MAP = {
 }
 
 const getAppStyle = (path = '', title = '') => {
-  // Find exact or partial match
-  const match = Object.keys(APP_STYLE_MAP).find(k => path.includes(k))
+  // Find exact match first
+  let match = Object.keys(APP_STYLE_MAP).find(k => path === k)
+  
+  // If no exact match, find the longest prefix match (excluding just '/app/dashboard')
+  if (!match) {
+    match = Object.keys(APP_STYLE_MAP)
+      .filter(k => k !== '/app/dashboard' && path.startsWith(k))
+      .sort((a, b) => b.length - a.length)[0]
+  }
+
   if (match) return APP_STYLE_MAP[match].gradient
 
-  // Fallback to deterministic gradient
+  // Fallback to deterministic gradient using full string hash
   const fallbackGradients = [
     'from-[#FF512F] to-[#DD2476]',
     'from-[#1A2980] to-[#26D0CE]',
@@ -64,9 +72,14 @@ const getAppStyle = (path = '', title = '') => {
     'from-[#314755] to-[#26a0da]',
     'from-[#2b5876] to-[#4e4376]',
     'from-[#e65c00] to-[#F9D423]',
+    'from-[#56ab2f] to-[#a8e063]',
+    'from-[#f85032] to-[#e73827]',
+    'from-[#4ca1af] to-[#c4e0e5]',
+    'from-[#ff4b1f] to-[#ff9068]',
+    'from-[#1f4037] to-[#99f2c8]',
   ]
-  const charCode = title.charCodeAt(0) || 0
-  return fallbackGradients[charCode % fallbackGradients.length]
+  const hash = title.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  return fallbackGradients[hash % fallbackGradients.length]
 }
 
 export default function AppLauncher() {
