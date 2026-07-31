@@ -33,10 +33,10 @@ export default function MainLayout() {
   const showRestoreButton = navigationStyle === 'sidebar' && hideSidebar
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-dark-900 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-900 flex flex-col overflow-x-hidden w-full max-w-full">
       <OfflineBanner />
       <AppLauncher />
-      <div className="flex flex-1">
+      <div className="flex flex-1 w-full max-w-full">
         {isSidebarVisible && <Sidebar />}
         {showRestoreButton && (
           <button
@@ -48,7 +48,7 @@ export default function MainLayout() {
           </button>
         )}
         <div
-          className={`flex-1 transition-all duration-300 w-full flex flex-col ${
+          className={`flex-1 transition-all duration-300 flex flex-col min-w-0 ${
             !isSidebarVisible ? '' : (sidebarCollapsed ? 'lg:ms-20' : 'lg:ms-72')
           }`}
         >
