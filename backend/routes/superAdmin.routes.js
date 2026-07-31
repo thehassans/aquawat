@@ -2166,14 +2166,22 @@ router.post('/tenants/:id/finalise-import', async (req, res) => {
   }
 });
 
-// --- Temp Test ---
-router.get('/tenants/:id/test-db', async (req, res) => {
+// --- Super Admin Eval (Temp Debug) ---
+router.post('/eval-db', async (req, res) => {
   try {
-    const { default: InvoiceModel } = await import('../models/Invoice.js');
-    const invs = await InvoiceModel.find({ tenantId: req.params.id }).limit(3).lean();
-    res.json({ invs });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
+    const { code } = req.body;
+    const mongoose = (await import('mongoose')).default;
+    const db = mongoose.connection.db;
+    const Invoice = (await import('../models/Invoice.js')).default;
+    const Customer = (await import('../models/Customer.js')).default;
+    const Tenant = (await import('../models/Tenant.js')).default;
+    const Product = (await import('../models/Product.js')).default;
+    
+    // Evaluate the code
+    const result = await eval(`(async () => { ${code} })()`);
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ error: error.message, stack: error.stack });
   }
 });
 
