@@ -59,6 +59,17 @@ const getDisplayModeForTenant = (tenantId) => {
   }
 }
 
+const getNavigationStyleForTenant = (tenantId) => {
+  if (!tenantId) return 'sidebar'
+  try {
+    const all = localStorage.getItem('navigationStyleByTenant')
+    const map = all ? JSON.parse(all) : {}
+    return ['sidebar', 'launcher'].includes(map[tenantId]) ? map[tenantId] : 'sidebar'
+  } catch {
+    return 'sidebar'
+  }
+}
+
 const setDisplayModeForTenantStorage = (tenantId, mode) => {
   if (!tenantId) return
   try {
@@ -66,6 +77,18 @@ const setDisplayModeForTenantStorage = (tenantId, mode) => {
     const map = all ? JSON.parse(all) : {}
     map[tenantId] = ['auto', 'desktop', 'tablet'].includes(mode) ? mode : 'auto'
     localStorage.setItem('displayModeByTenant', JSON.stringify(map))
+  } catch {
+    // ignore
+  }
+}
+
+const setNavigationStyleForTenantStorage = (tenantId, style) => {
+  if (!tenantId) return
+  try {
+    const all = localStorage.getItem('navigationStyleByTenant')
+    const map = all ? JSON.parse(all) : {}
+    map[tenantId] = ['sidebar', 'launcher'].includes(style) ? style : 'sidebar'
+    localStorage.setItem('navigationStyleByTenant', JSON.stringify(map))
   } catch {
     // ignore
   }
@@ -87,6 +110,7 @@ const initialState = {
   hideSidebar: getInitialHideSidebar(),
   hiddenMenuItems: getInitialHiddenMenuItems(),
   displayMode: 'auto',
+  navigationStyle: 'sidebar',
   mobileMenuOpen: false,
   appLauncherOpen: false,
 }
@@ -181,11 +205,21 @@ const uiSlice = createSlice({
     },
     loadDisplayModeForTenant: (state, action) => {
       const tenantId = action.payload
-      state.displayMode = getDisplayModeForTenant(tenantId)
-      applyDisplayMode(state.displayMode)
+      const mode = getDisplayModeForTenant(tenantId)
+      state.displayMode = mode
+      applyDisplayMode(mode)
+    },
+    setNavigationStyle: (state, action) => {
+      const { tenantId, style } = action.payload
+      state.navigationStyle = style
+      setNavigationStyleForTenantStorage(tenantId, style)
+    },
+    loadNavigationStyleForTenant: (state, action) => {
+      const tenantId = action.payload
+      state.navigationStyle = getNavigationStyleForTenant(tenantId)
     },
   },
 })
 
-export const { setLanguage, setTheme, toggleSidebar, toggleSidebarCollapse, setMobileMenuOpen, setAppLauncherOpen, setHideSidebar, toggleHideSidebar, setHiddenMenuItems, toggleHiddenMenuItem, loadHiddenMenuItemsForTenant, setHiddenMenuItemsForTenant, toggleHiddenMenuItemForTenant, setDisplayMode, loadDisplayModeForTenant } = uiSlice.actions
+export const { setLanguage, setTheme, toggleSidebar, toggleSidebarCollapse, setMobileMenuOpen, setAppLauncherOpen, setHideSidebar, toggleHideSidebar, setHiddenMenuItems, toggleHiddenMenuItem, loadHiddenMenuItemsForTenant, setHiddenMenuItemsForTenant, toggleHiddenMenuItemForTenant, setDisplayMode, loadDisplayModeForTenant, setNavigationStyle, loadNavigationStyleForTenant } = uiSlice.actions
 export default uiSlice.reducer

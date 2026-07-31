@@ -3,11 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector, useDispatch } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
-import { Building2, Shield, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize } from 'lucide-react'
+import { Building2, Shield, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
-import { setLanguage, setTheme, setHideSidebar, setHiddenMenuItems, setHiddenMenuItemsForTenant, toggleHiddenMenuItemForTenant, setDisplayMode } from '../store/slices/uiSlice'
+import { setLanguage, setTheme, setHideSidebar, setHiddenMenuItems, setHiddenMenuItemsForTenant, toggleHiddenMenuItemForTenant, setDisplayMode, setNavigationStyle } from '../store/slices/uiSlice'
 import { updateTenant } from '../store/slices/authSlice'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getInvoiceBrandingProfile, getInvoiceTemplateId, getInvoiceTypography, INVOICE_FONT_OPTIONS } from '../lib/invoiceBranding'
@@ -207,7 +207,7 @@ function MenuVisibilitySettings() {
 export default function Settings() {
   const dispatch = useDispatch()
   const queryClient = useQueryClient()
-  const { language, theme, hideSidebar, hiddenMenuItems, displayMode } = useSelector((state) => state.ui)
+  const { language, theme, hideSidebar, hiddenMenuItems, displayMode, navigationStyle } = useSelector((state) => state.ui)
   const { user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [activeTab, setActiveTab] = useState('company')
@@ -1235,21 +1235,57 @@ export default function Settings() {
                 </div>
 
                 <div>
-                  <label className="label flex items-center gap-2"><PanelLeft className="w-4 h-4" />{language === 'ar' ? 'Sidebar Navigation' : 'Sidebar Navigation'}</label>
-                  <label className="mt-2 flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors">
-                    <div>
-                      <span className="font-medium text-sm">{language === 'ar' ? 'Hide sidebar navigation' : 'Hide sidebar navigation'}</span>
-                      <p className="text-xs text-gray-500 mt-0.5">{language === 'ar' ? 'Hides the sidebar for more screen space. A floating button appears to show it again.' : 'Hides the sidebar for more screen space. A floating button appears to show it again.'}</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={hideSidebar}
-                      onChange={(e) => dispatch(setHideSidebar(e.target.checked))}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500 relative" />
-                  </label>
+                  <label className="label flex items-center gap-2"><LayoutGrid className="w-4 h-4" />{language === 'ar' ? 'نمط التنقل' : 'Navigation Style'}</label>
+                  <div className="flex gap-3 mt-2">
+                    <button
+                      onClick={() => dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'sidebar' }))}
+                      className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${
+                        navigationStyle === 'sidebar'
+                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                          : 'border-gray-200 dark:border-dark-600 hover:bg-gray-50 dark:hover:bg-dark-700/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <PanelLeft className="w-4 h-4 text-primary-500" />
+                        <span className="font-medium">{language === 'ar' ? 'شريط جانبي' : 'Sidebar'}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">{language === 'ar' ? 'التنقل الجانبي التقليدي' : 'Traditional sidebar navigation'}</p>
+                    </button>
+                    <button
+                      onClick={() => dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))}
+                      className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${
+                        navigationStyle === 'launcher'
+                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                          : 'border-gray-200 dark:border-dark-600 hover:bg-gray-50 dark:hover:bg-dark-700/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <LayoutGrid className="w-4 h-4 text-primary-500" />
+                        <span className="font-medium">{language === 'ar' ? 'مشغل التطبيقات' : 'App Launcher'}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">{language === 'ar' ? 'شاشة كاملة بأسلوب Odoo' : 'Full-screen Odoo style grid'}</p>
+                    </button>
+                  </div>
                 </div>
+
+                {navigationStyle === 'sidebar' && (
+                  <div>
+                    <label className="label flex items-center gap-2"><PanelLeft className="w-4 h-4" />{language === 'ar' ? 'Sidebar Navigation' : 'Sidebar Navigation'}</label>
+                    <label className="mt-2 flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors">
+                      <div>
+                        <span className="font-medium text-sm">{language === 'ar' ? 'Hide sidebar navigation' : 'Hide sidebar navigation'}</span>
+                        <p className="text-xs text-gray-500 mt-0.5">{language === 'ar' ? 'Hides the sidebar for more screen space. A floating button appears to show it again.' : 'Hides the sidebar for more screen space. A floating button appears to show it again.'}</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={hideSidebar}
+                        onChange={(e) => dispatch(setHideSidebar(e.target.checked))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500 relative" />
+                    </label>
+                  </div>
+                )}
 
                 <MenuVisibilitySettings />
 

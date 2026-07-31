@@ -8,21 +8,60 @@ import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getNavSections } from '../../lib/sidebarConfig'
 import { useTranslation } from '../../lib/translations'
 
-// Helper to generate consistent gradients for icons based on title length or first letter
-const generateGradient = (title = '') => {
-  const gradients = [
-    'from-pink-500 to-rose-500',
-    'from-purple-500 to-indigo-500',
-    'from-blue-500 to-cyan-500',
-    'from-emerald-500 to-teal-500',
-    'from-amber-400 to-orange-500',
-    'from-red-500 to-rose-600',
-    'from-violet-500 to-fuchsia-500',
-    'from-sky-400 to-blue-600',
-    'from-green-400 to-emerald-600',
+// Pre-defined mapping for standard paths to specific gradients and icons to match Odoo-style uniqueness
+const APP_STYLE_MAP = {
+  // Finance / Accounting
+  '/app/dashboard': { gradient: 'from-[#4facfe] to-[#00f2fe]' },
+  '/app/dashboard/invoices': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
+  '/app/dashboard/quotations': { gradient: 'from-[#f83600] to-[#f9d423]' },
+  '/app/dashboard/expenses': { gradient: 'from-[#11998e] to-[#38ef7d]' },
+  '/app/dashboard/vat-returns': { gradient: 'from-[#FF416C] to-[#FF4B2B]' },
+  '/app/dashboard/finance': { gradient: 'from-[#3a1c71] to-[#d76d77]' },
+  '/app/dashboard/vouchers': { gradient: 'from-[#FF8008] to-[#FFA081]' },
+  
+  // HR / Employees
+  '/app/dashboard/employees': { gradient: 'from-[#b224ef] to-[#7579ff]' },
+  '/app/dashboard/attendance': { gradient: 'from-[#00c6ff] to-[#0072ff]' },
+  '/app/dashboard/payroll': { gradient: 'from-[#16A085] to-[#F4D03F]' },
+  '/app/dashboard/hr-reports': { gradient: 'from-[#DCE35B] to-[#45B649]' },
+
+  // CRM / Sales
+  '/app/dashboard/customers': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
+  '/app/dashboard/contacts': { gradient: 'from-[#f12711] to-[#f5af19]' },
+  '/app/dashboard/crm': { gradient: 'from-[#F3904F] to-[#3B4371]' },
+  '/app/dashboard/leads': { gradient: 'from-[#FDFC47] to-[#24FE41]' },
+
+  // Inventory / Operations
+  '/app/dashboard/projects': { gradient: 'from-[#00b09b] to-[#96c93d]' },
+  '/app/dashboard/tasks': { gradient: 'from-[#8E2DE2] to-[#4A00E0]' },
+  '/app/dashboard/products': { gradient: 'from-[#1D976C] to-[#93F9B9]' },
+  '/app/dashboard/inventory': { gradient: 'from-[#EB3349] to-[#F45C43]' },
+  '/app/dashboard/purchase-orders': { gradient: 'from-[#4CB8C4] to-[#3CD3AD]' },
+
+  // Settings
+  '/app/dashboard/settings': { gradient: 'from-[#616161] to-[#9bc5c3]' },
+  '/app/dashboard/tenant-settings/government-integrations/zatca': { gradient: 'from-[#2C3E50] to-[#3498DB]' },
+}
+
+const getAppStyle = (path = '', title = '') => {
+  // Find exact or partial match
+  const match = Object.keys(APP_STYLE_MAP).find(k => path.includes(k))
+  if (match) return APP_STYLE_MAP[match].gradient
+
+  // Fallback to deterministic gradient
+  const fallbackGradients = [
+    'from-[#FF512F] to-[#DD2476]',
+    'from-[#1A2980] to-[#26D0CE]',
+    'from-[#FFB75E] to-[#ED8F03]',
+    'from-[#8E2DE2] to-[#4A00E0]',
+    'from-[#1D976C] to-[#93F9B9]',
+    'from-[#CC95C0] to-[#DBD4B4]',
+    'from-[#314755] to-[#26a0da]',
+    'from-[#2b5876] to-[#4e4376]',
+    'from-[#e65c00] to-[#F9D423]',
   ]
   const charCode = title.charCodeAt(0) || 0
-  return gradients[charCode % gradients.length]
+  return fallbackGradients[charCode % fallbackGradients.length]
 }
 
 export default function AppLauncher() {
@@ -136,25 +175,24 @@ export default function AppLauncher() {
     <AnimatePresence>
       {appLauncherOpen && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-          className="fixed inset-0 z-[100] flex flex-col bg-[#272535] sm:bg-[#201d2a] dark:bg-[#1a1824] backdrop-blur-md overflow-hidden"
-          style={{ backgroundImage: 'radial-gradient(circle at top right, rgba(120,80,255,0.05), transparent 40%), radial-gradient(circle at bottom left, rgba(80,120,255,0.05), transparent 40%)' }}
+          initial={{ opacity: 0, scale: 0.95, y: -20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          transition={{ duration: 0.25, ease: "easeInOut" }}
+          className="fixed inset-0 z-[100] flex flex-col bg-gray-50/95 dark:bg-[#1a1824]/95 backdrop-blur-xl overflow-hidden"
         >
           {/* Header Bar */}
           <div className="flex items-center justify-between p-6 h-20 shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
                 <input
                   type="text"
                   autoFocus
                   placeholder={language === 'ar' ? 'بحث عن التطبيقات...' : 'Search apps...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full sm:w-80 bg-white/10 border-transparent focus:bg-white/20 focus:border-white/30 text-white placeholder-white/50 rounded-2xl py-2.5 pl-10 pr-4 outline-none transition-all"
+                  className="w-full sm:w-80 bg-white dark:bg-white/10 border border-gray-200 dark:border-transparent focus:bg-white dark:focus:bg-white/20 focus:border-primary-500 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/50 rounded-2xl py-2.5 pl-10 pr-4 outline-none transition-all shadow-sm dark:shadow-none"
                   dir={language === 'ar' ? 'rtl' : 'ltr'}
                 />
               </div>
@@ -162,19 +200,19 @@ export default function AppLauncher() {
             
             <button 
               onClick={() => dispatch(setAppLauncherOpen(false))}
-              className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors"
+              className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 text-gray-500 dark:text-white/80 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               <X className="w-8 h-8" />
             </button>
           </div>
 
           {/* Apps Grid */}
-          <div className="flex-1 overflow-y-auto px-4 pb-12 sm:px-12 pt-4">
+          <div className="flex-1 overflow-y-auto px-4 pb-12 sm:px-12 pt-8">
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-x-4 gap-y-10 sm:gap-y-12 max-w-7xl mx-auto">
               {filteredApps.map((app, index) => {
                 const Icon = app.icon || Search
-                const gradient = generateGradient(app.label || '')
                 const targetPath = app.path || (app.children && app.children[0]?.path)
+                const gradient = getAppStyle(targetPath, app.label || '')
                 
                 return (
                   <motion.button
@@ -183,12 +221,12 @@ export default function AppLauncher() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.02, duration: 0.3 }}
                     onClick={() => handleAppClick(targetPath)}
-                    className="flex flex-col items-center group w-full"
+                    className="flex flex-col items-center group w-full outline-none"
                   >
-                    <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-[2rem] bg-gradient-to-br ${gradient} shadow-lg shadow-black/20 flex items-center justify-center transform transition-transform duration-200 group-hover:scale-110 group-hover:-translate-y-1 group-active:scale-95`}>
-                      <Icon className="w-10 h-10 sm:w-12 sm:h-12 text-white drop-shadow-md" strokeWidth={1.5} />
+                    <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-[2rem] bg-gradient-to-br ${gradient} shadow-lg shadow-black/10 dark:shadow-black/30 flex items-center justify-center transform transition-all duration-300 group-hover:scale-105 group-hover:-translate-y-2 group-focus:scale-105 group-active:scale-95 group-active:-translate-y-0 border border-white/20 dark:border-white/10`}>
+                      <Icon className="w-10 h-10 sm:w-11 sm:h-11 text-white drop-shadow-sm" strokeWidth={1.5} />
                     </div>
-                    <span className="mt-4 text-[13px] sm:text-sm font-medium text-white/90 group-hover:text-white text-center tracking-wide line-clamp-2 max-w-[100px]">
+                    <span className="mt-4 text-[13px] sm:text-sm font-semibold text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white text-center tracking-wide line-clamp-2 max-w-[100px] transition-colors">
                       {app.label}
                     </span>
                   </motion.button>
@@ -196,7 +234,7 @@ export default function AppLauncher() {
               })}
               
               {filteredApps.length === 0 && (
-                <div className="col-span-full flex flex-col items-center justify-center py-20 text-white/50">
+                <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-400 dark:text-white/50">
                   <Search className="w-16 h-16 mb-4 opacity-50" />
                   <p className="text-lg">{language === 'ar' ? 'لا توجد تطبيقات مطابقة' : 'No apps found'}</p>
                 </div>
