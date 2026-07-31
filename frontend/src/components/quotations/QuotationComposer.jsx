@@ -55,7 +55,9 @@ const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext })
   authorizedPersonNameAr: quotation?.authorizedPersonNameAr || '',
   authorizedPersonDesignation: quotation?.authorizedPersonDesignation || '',
   authorizedPersonDesignationAr: quotation?.authorizedPersonDesignationAr || '',
+  authorizedPersonDesignationAr: quotation?.authorizedPersonDesignationAr || '',
   authorizedPersonSignature: quotation?.authorizedPersonSignature || '',
+  stampImage: quotation?.stampImage || '',
   lineItems: Array.isArray(quotation?.lineItems) && quotation.lineItems.length > 0
     ? quotation.lineItems.map((line) => ({
         ...emptyLine,
@@ -283,6 +285,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       authorizedPersonDesignation: data?.authorizedPersonDesignation || '',
       authorizedPersonDesignationAr: data?.authorizedPersonDesignationAr || '',
       authorizedPersonSignature: data?.authorizedPersonSignature || '',
+      stampImage: data?.stampImage || '',
       status: initialQuotation?.status || 'draft',
     }
 
@@ -614,6 +617,37 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                   )}
                 </div>
                 <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
+              </div>
+              <div className="md:col-span-2">
+                <label className="label">{language === 'ar' ? 'الختم' : 'Stamp'}</label>
+                <div className="flex items-center gap-3">
+                  <input type="file" accept="image/*" className="hidden" id="quotation-stamp-upload" onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    if (file.size > 2 * 1024 * 1024) {
+                      toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
+                      return
+                    }
+                    const reader = new FileReader()
+                    reader.onload = () => setValue('stampImage', String(reader.result || ''))
+                    reader.readAsDataURL(file)
+                  }} />
+                  <label htmlFor="quotation-stamp-upload" className="btn btn-secondary cursor-pointer">
+                    <Upload className="w-4 h-4" />
+                    {language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}
+                  </label>
+                  {values?.stampImage ? (
+                    <div className="relative">
+                      <img src={values.stampImage} alt="Stamp" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
+                      <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن يكون الختم بخلفية شفافة.' : 'Stamp image should have a transparent background.'}</p>
               </div>
             </div>
           </div>

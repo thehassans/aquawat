@@ -38,3 +38,9 @@ export const ZATCA_UOM_OPTIONS = [
   { code: 'E48', labelEn: 'Service Unit (E48)', labelAr: 'وحدة خدمة (E48)' },
   { code: 'E54', labelEn: 'Trip (E54)', labelAr: 'رحلة (E54)' }
 ]
+
+export const getUomLabel = (code, language = 'en') => {
+  const uom = ZATCA_UOM_OPTIONS.find((o) => o.code === code)
+  if (!uom) return code
+  return language === 'ar' ? uom.labelAr : uom.labelEn
+}

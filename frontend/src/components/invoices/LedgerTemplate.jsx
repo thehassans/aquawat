@@ -2,6 +2,7 @@ import React from 'react'
 import DocumentExtras from './DocumentExtras'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
+import { getUomLabel } from '../../lib/uomOptions'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
@@ -164,7 +165,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-slate-700 border-r border-slate-200">
                     <div>{toNumber(line?.quantity) || '—'}</div>
-                    {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-slate-500 mt-0.5">{line?.unitCode || line?.raw?.unitCode}</div>}
+                    {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-slate-500 mt-0.5">{getUomLabel(line?.unitCode || line?.raw?.unitCode, language)}</div>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right border-r border-slate-200">{renderMoney(line?.unitPrice)}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-right border-r border-slate-200">{renderMoney(line?.taxAmount)}</td>

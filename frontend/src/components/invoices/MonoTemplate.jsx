@@ -1,6 +1,7 @@
 import React from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
+import { getUomLabel } from '../../lib/uomOptions'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
@@ -154,7 +155,7 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-xs font-mono font-bold text-center text-black">
                       <div>{toNumber(line?.quantity) || '—'}</div>
-                      {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-gray-500 mt-1">{line?.unitCode || line?.raw?.unitCode}</div>}
+                      {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-gray-500 mt-1">{getUomLabel(line?.unitCode || line?.raw?.unitCode, language)}</div>}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right">{renderMoney(line?.unitPrice)}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-right">{renderMoney(line?.taxAmount)}</td>

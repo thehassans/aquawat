@@ -2,6 +2,7 @@ import React from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import DocumentExtras from './DocumentExtras'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
+import { getUomLabel } from '../../lib/uomOptions'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
@@ -423,12 +424,12 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                     {isBoutiqueRental ? (
                       <td className="px-4 py-4 text-center">
                         <div>{item.rentalDays || item.quantity || 1}</div>
-                        {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 font-semibold mt-1">{item?.unitCode || item?.raw?.unitCode}</div>}
+                        {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 font-semibold mt-1">{getUomLabel(item?.unitCode || item?.raw?.unitCode, language)}</div>}
                       </td>
                     ) : (
                       <td className="px-4 py-4 text-center">
                         <div>{item.quantity}</div>
-                        {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 font-semibold mt-1">{item?.unitCode || item?.raw?.unitCode}</div>}
+                        {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 font-semibold mt-1">{getUomLabel(item?.unitCode || item?.raw?.unitCode, language)}</div>}
                       </td>
                     )}
                     <td className="px-4 py-4 text-right font-mono text-gray-900">

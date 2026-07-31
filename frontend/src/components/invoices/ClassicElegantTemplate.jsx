@@ -2,6 +2,7 @@ import React from 'react'
 import DocumentExtras from './DocumentExtras'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
+import { getUomLabel } from '../../lib/uomOptions'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
@@ -137,7 +138,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
               </td>
               <td className="py-4 px-2 text-center text-sm">
                 <div>{item.quantity}</div>
-                {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 mt-1">{item?.unitCode || item?.raw?.unitCode}</div>}
+                {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 mt-1">{getUomLabel(item?.unitCode || item?.raw?.unitCode, language)}</div>}
               </td>
               <td className="py-4 px-2 text-right text-sm">{renderMoney(item.unitPrice)}</td>
               <td className="py-4 px-2 text-right text-sm">{renderMoney(item.taxAmount)}</td>

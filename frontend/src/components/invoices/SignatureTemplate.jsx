@@ -2,6 +2,7 @@ import React from 'react'
 import DocumentExtras from './DocumentExtras'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
+import { getUomLabel } from '../../lib/uomOptions'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
@@ -153,7 +154,7 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
                     </td>
                     <td className="py-5 whitespace-nowrap text-sm font-sans text-center text-slate-500">
                       <div>{toNumber(line?.quantity) || '—'}</div>
-                      {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-slate-400 mt-1">{line?.unitCode || line?.raw?.unitCode}</div>}
+                      {(line?.unitCode || line?.raw?.unitCode) && <div className="text-[10px] text-slate-400 mt-1">{getUomLabel(line?.unitCode || line?.raw?.unitCode, language)}</div>}
                     </td>
                     <td className="py-5 whitespace-nowrap text-right text-slate-700">{renderMoney(line?.unitPrice)}</td>
                     <td className="py-5 whitespace-nowrap text-right text-slate-900">{renderMoney(line?.lineTotalWithTax)}</td>

@@ -6,7 +6,7 @@ export default function DocumentExtras({ invoice, language = 'en', bilingual = f
   const hasTerms = Boolean(invoice?.termsAndConditions)
   const hasAuthorizedPerson = Boolean(invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr)
   
-  if (!hasSubject && !hasNotes && !hasTerms && !hasAuthorizedPerson) {
+  if (!hasSubject && !hasNotes && !hasTerms && !hasAuthorizedPerson && !invoice?.stampImage) {
     return null
   }
 
@@ -37,24 +37,33 @@ export default function DocumentExtras({ invoice, language = 'en', bilingual = f
          )}
       </div>
       
-      {hasAuthorizedPerson && (
-        <div className="flex flex-col items-center justify-end text-center w-64 shrink-0 mt-4">
-           {invoice?.authorizedPersonSignature ? (
-             <img src={invoice.authorizedPersonSignature} alt="Signature" className="h-16 object-contain mb-2" />
-           ) : (
-             <div className="h-16 mb-2"></div>
+      {(hasAuthorizedPerson || invoice?.stampImage) && (
+        <div className="flex items-end justify-end gap-8 shrink-0 mt-4">
+           {invoice?.stampImage && (
+             <div className="flex flex-col items-center justify-end text-center w-32">
+               <img src={invoice.stampImage} alt="Stamp" className="h-24 object-contain mb-2 mix-blend-multiply" />
+             </div>
            )}
-           <p className="text-sm font-bold border-t border-gray-400 pt-2 w-full">
-              {bilingual
-                ? `${invoice?.authorizedPersonName || ''} ${invoice?.authorizedPersonNameAr ? ` / ${invoice.authorizedPersonNameAr}` : ''}`
-                : (language === 'ar' ? (invoice?.authorizedPersonNameAr || invoice?.authorizedPersonName) : (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr))}
-           </p>
-           {(invoice?.authorizedPersonDesignation || invoice?.authorizedPersonDesignationAr) && (
-             <p className="text-xs text-gray-500 mt-1">
-                {bilingual
-                  ? `${invoice?.authorizedPersonDesignation || ''} ${invoice?.authorizedPersonDesignationAr ? ` / ${invoice.authorizedPersonDesignationAr}` : ''}`
-                  : (language === 'ar' ? (invoice?.authorizedPersonDesignationAr || invoice?.authorizedPersonDesignation) : (invoice?.authorizedPersonDesignation || invoice?.authorizedPersonDesignationAr))}
-             </p>
+           {hasAuthorizedPerson && (
+             <div className="flex flex-col items-center justify-end text-center w-64">
+                {invoice?.authorizedPersonSignature ? (
+                  <img src={invoice.authorizedPersonSignature} alt="Signature" className="h-16 object-contain mb-2 mix-blend-multiply" />
+                ) : (
+                  <div className="h-16 mb-2"></div>
+                )}
+                <p className="text-sm font-bold border-t border-gray-400 pt-2 w-full">
+                   {bilingual
+                     ? `${invoice?.authorizedPersonName || ''} ${invoice?.authorizedPersonNameAr ? ` / ${invoice.authorizedPersonNameAr}` : ''}`
+                     : (language === 'ar' ? (invoice?.authorizedPersonNameAr || invoice?.authorizedPersonName) : (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr))}
+                </p>
+                {(invoice?.authorizedPersonDesignation || invoice?.authorizedPersonDesignationAr) && (
+                  <p className="text-xs text-gray-500 mt-1">
+                     {bilingual
+                       ? `${invoice?.authorizedPersonDesignation || ''} ${invoice?.authorizedPersonDesignationAr ? ` / ${invoice.authorizedPersonDesignationAr}` : ''}`
+                       : (language === 'ar' ? (invoice?.authorizedPersonDesignationAr || invoice?.authorizedPersonDesignation) : (invoice?.authorizedPersonDesignation || invoice?.authorizedPersonDesignationAr))}
+                  </p>
+                )}
+             </div>
            )}
         </div>
       )}
