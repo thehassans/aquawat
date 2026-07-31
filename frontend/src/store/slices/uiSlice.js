@@ -8,7 +8,7 @@ const getInitialLanguage = () => {
 const getInitialTheme = () => {
   const saved = localStorage.getItem('theme')
   if (saved) return saved
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'light'
 }
 
 const getInitialHideSidebar = () => {
