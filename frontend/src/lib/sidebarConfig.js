@@ -16,6 +16,7 @@ import {
   ShoppingCart,
   ShieldCheck,
   Building,
+  Building2,
   MessageCircle,
   MessageSquare,
   Mail,
@@ -379,8 +380,9 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       ]
     },
     {
-      title: language === 'ar' ? 'الإعدادات' : 'Settings',
+      title: language === 'ar' ? 'الإعدادات والمنشأة' : 'Settings & Profile',
       items: [
+        { path: '/app/dashboard/profile', icon: Building2, label: language === 'ar' ? 'الملف التعريفي والمنشأة' : 'Company Profile' },
         { path: '/app/dashboard/users', icon: Users, label: t('users'), perm: { module: 'settings', action: 'read' } },
         { path: '/app/dashboard/backup', icon: Database, label: language === 'ar' ? 'النسخ الاحتياطي' : 'Backup', perm: { module: 'settings', action: 'read' } },
         { path: '/app/dashboard/settings', icon: Settings, label: t('settings'), perm: { module: 'settings', action: 'read' } },

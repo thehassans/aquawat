@@ -78,6 +78,7 @@ const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
 const WarehouseForm = lazy(() => import('./pages/inventory/WarehouseForm'))
 const Settings = lazy(() => import('./pages/Settings'))
+const Profile = lazy(() => import('./pages/Profile'))
 const HiddenNavbars = lazy(() => import('./pages/HiddenNavbars'))
 const Reports = lazy(() => import('./pages/Reports'))
 const VatReturns = lazy(() => import('./pages/VatReturns'))
@@ -736,6 +737,7 @@ function App() {
         <Route path="vouchers" element={<Vouchers />} />
         <Route path="khata" element={<Khata />} />
         <Route path="users" element={<Users />} />
+        <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
         <Route path="hidden-navbars" element={<HiddenNavbars />} />
         <Route path="settings/government-integrations" element={<GovernmentIntegrations />} />

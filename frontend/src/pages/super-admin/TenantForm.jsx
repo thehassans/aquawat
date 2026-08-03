@@ -50,8 +50,18 @@ export default function TenantForm() {
 
   useEffect(() => {
     if (!tenant?.tenant) return
+    const businessData = tenant.tenant?.business || {}
+    const resolvedCrNumber = businessData.crNumber || businessData.commercialRegistration?.crNumber || ''
     reset({
       ...tenant.tenant,
+      business: {
+        ...businessData,
+        crNumber: resolvedCrNumber,
+        commercialRegistration: {
+          ...(businessData.commercialRegistration || {}),
+          crNumber: resolvedCrNumber,
+        }
+      },
       businessTypes: getTenantBusinessTypes(tenant.tenant),
       businessType: getPrimaryBusinessType(tenant.tenant),
       subscription: {
@@ -137,12 +147,18 @@ export default function TenantForm() {
 
   const onSubmit = (data) => {
     const nextSettings = data?.settings || {}
+    const crNumberVal = data?.business?.crNumber || data?.business?.commercialRegistration?.crNumber || ''
 
     const nextPayload = {
       ...data,
       resellerId: data?.resellerId || null,
       business: {
         ...(data?.business || {}),
+        crNumber: crNumberVal,
+        commercialRegistration: {
+          ...(data?.business?.commercialRegistration || {}),
+          crNumber: crNumberVal,
+        },
         address: {
           ...(data?.business?.address || {}),
           country: data?.business?.address?.country || 'SA',
@@ -440,10 +456,6 @@ export default function TenantForm() {
             <h3 className="text-lg font-semibold">{language === 'ar' ? 'السجل التجاري' : 'Commercial Registration'}</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="label">{language === 'ar' ? 'الرقم الوطني الموحد' : 'CR Number'}</label>
-              <input {...register('business.commercialRegistration.crNumber')} className="input" />
-            </div>
             <div>
               <label className="label">{language === 'ar' ? 'تاريخ الإصدار' : 'Issue Date'}</label>
               <input type="date" {...register('business.commercialRegistration.issueDate')} className="input" />

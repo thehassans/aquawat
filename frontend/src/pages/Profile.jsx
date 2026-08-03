@@ -1,0 +1,1932 @@
+import React, { useState, useEffect, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSelector, useDispatch } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import toast from 'react-hot-toast'
+import {
+  Building2,
+  Building,
+  User,
+  Mail,
+  Phone,
+  Globe,
+  FileText,
+  Receipt,
+  CreditCard,
+  Shield,
+  ShieldCheck,
+  CheckCircle2,
+  MapPin,
+  Briefcase,
+  Calendar,
+  Sparkles,
+  Lock,
+  Key,
+  KeyRound,
+  Copy,
+  Check,
+  Edit3,
+  ExternalLink,
+  QrCode,
+  Layers,
+  Crown,
+  Server,
+  Zap,
+  CheckCircle,
+  AlertCircle,
+  ArrowRight,
+  Upload,
+  Image as ImageIcon,
+  Eye,
+  EyeOff,
+  Save,
+  X,
+  RefreshCw,
+  Sliders,
+  Clock,
+  Wallet,
+  Landmark,
+  Truck,
+  Cpu,
+  Scale,
+  Store,
+  UtensilsCrossed,
+  Scissors,
+  Shirt,
+  Car,
+  Wrench,
+  BookOpen,
+  ShoppingBag,
+  Flame,
+  Star,
+  Hash,
+  ChevronRight
+} from 'lucide-react'
+
+import api from '../lib/api'
+import { updateTenant, updateUser } from '../store/slices/authSlice'
+import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes, normalizeBusinessTypes } from '../lib/businessTypes'
+
+const BUSINESS_TYPE_ICONS = {
+  trading: Store,
+  construction: Building2,
+  travel_agency: Globe,
+  restaurant: UtensilsCrossed,
+  car_rental: Car,
+  laundry: Shirt,
+  saloon: Scissors,
+  khayyat: Shirt,
+  boutique: ShoppingBag,
+  manpower: User,
+  bakala: Store,
+  car_workshop: Wrench,
+  bookstore: BookOpen,
+  ecommerce: ShoppingBag,
+  furniture_shop: Store,
+}
+
+export default function Profile() {
+  const navigate = useNavigate()
+  const dispatch = useDispatch()
+  const queryClient = useQueryClient()
+  const { language, theme } = useSelector((state) => state.ui)
+  const { user, tenant: authTenant } = useSelector((state) => state.auth)
+
+  const [activeTab, setActiveTab] = useState('overview')
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
+  const [copiedField, setCopiedField] = useState(null)
+  const [logoPreview, setLogoPreview] = useState(null)
+
+  // Fetch fresh tenant data
+  const { data: tenantData, isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ['current-tenant-profile'],
+    queryFn: async () => {
+      const res = await api.get('/tenants/current')
+      return res.data
+    },
+    initialData: authTenant,
+  })
+
+  const tenant = tenantData || authTenant || {}
+  const business = tenant?.business || {}
+  const nationalAddress = business?.nationalAddress || {}
+  const commercialReg = business?.commercialRegistration || {}
+  const vatCertificate = business?.vatCertificate || {}
+  const bankDetails = business?.bankDetails || {}
+  const subscription = tenant?.subscription || {}
+  const branding = tenant?.branding || {}
+
+  const businessTypes = getTenantBusinessTypes(tenant)
+  const primaryBusinessType = getPrimaryBusinessType(tenant)
+  const businessTypeOptions = getBusinessTypeOptions(language)
+
+  const handleCopy = (text, fieldKey) => {
+    if (!text) return
+    navigator.clipboard.writeText(text)
+    setCopiedField(fieldKey)
+    toast.success(language === 'ar' ? 'تم النسخ إلى الحافظة' : 'Copied to clipboard')
+    setTimeout(() => setCopiedField(null), 2000)
+  }
+
+  // --- EDIT PROFILE FORM ---
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm()
+
+  useEffect(() => {
+    if (!tenant?._id) return
+    const resolvedCr = business?.crNumber || commercialReg?.crNumber || ''
+    reset({
+      business: {
+        legalNameEn: business.legalNameEn || '',
+        legalNameAr: business.legalNameAr || '',
+        tradeName: business.tradeName || '',
+        vatNumber: business.vatNumber || '',
+        crNumber: resolvedCr,
+        contactEmail: business.contactEmail || '',
+        contactPhone: business.contactPhone || '',
+        website: business.website || '',
+        address: {
+          city: business.address?.city || '',
+          cityAr: business.address?.cityAr || '',
+          district: business.address?.district || '',
+          districtAr: business.address?.districtAr || '',
+          street: business.address?.street || '',
+          streetAr: business.address?.streetAr || '',
+          buildingNumber: business.address?.buildingNumber || '',
+          additionalNumber: business.address?.additionalNumber || '',
+          postalCode: business.address?.postalCode || '',
+          country: business.address?.country || 'SA',
+        },
+        nationalAddress: {
+          proofNumber: nationalAddress.proofNumber || '',
+          customerAccount: nationalAddress.customerAccount || '',
+          originalDate: nationalAddress.originalDate ? nationalAddress.originalDate.split('T')[0] : '',
+          expirationDate: nationalAddress.expirationDate ? nationalAddress.expirationDate.split('T')[0] : '',
+          regDate: nationalAddress.regDate ? nationalAddress.regDate.split('T')[0] : '',
+          shortAddress: nationalAddress.shortAddress || '',
+          buildingNo: nationalAddress.buildingNo || '',
+          neighborhood: nationalAddress.neighborhood || '',
+          region: nationalAddress.region || '',
+          qrCodeUrl: nationalAddress.qrCodeUrl || '',
+        },
+        commercialRegistration: {
+          issueDate: commercialReg.issueDate ? commercialReg.issueDate.split('T')[0] : '',
+          companyType: commercialReg.companyType || '',
+          companyTypeAr: commercialReg.companyTypeAr || '',
+          companyStatus: commercialReg.companyStatus || 'Active',
+          companyStatusAr: commercialReg.companyStatusAr || 'نشط',
+          qrCodeUrl: commercialReg.qrCodeUrl || '',
+        },
+        vatCertificate: {
+          certificateNo: vatCertificate.certificateNo || '',
+          certificateDate: vatCertificate.certificateDate ? vatCertificate.certificateDate.split('T')[0] : '',
+          effectiveDate: vatCertificate.effectiveDate ? vatCertificate.effectiveDate.split('T')[0] : '',
+          firstFilingDueDate: vatCertificate.firstFilingDueDate ? vatCertificate.firstFilingDueDate.split('T')[0] : '',
+          taxPeriod: vatCertificate.taxPeriod || 'Quarterly',
+          taxPeriodAr: vatCertificate.taxPeriodAr || 'ربع سنوي',
+          qrCodeUrl: vatCertificate.qrCodeUrl || '',
+        },
+        bankDetails: {
+          bankName: bankDetails.bankName || '',
+          accountName: bankDetails.accountName || '',
+          accountNumber: bankDetails.accountNumber || '',
+          iban: bankDetails.iban || '',
+        }
+      },
+      branding: {
+        primaryColor: branding.primaryColor || '#0284c7',
+        logo: branding.logo || '',
+      }
+    })
+    setLogoPreview(branding.logo || null)
+  }, [tenant, isEditModalOpen, reset])
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error(language === 'ar' ? 'حجم الصورة يجب أن لا يتجاوز 3 ميجابايت' : 'Image size must not exceed 3MB')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result
+      setLogoPreview(dataUrl)
+      setValue('branding.logo', dataUrl, { shouldDirty: true })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async (formData) => {
+      const crVal = formData.business?.crNumber || ''
+      const payload = {
+        ...formData,
+        business: {
+          ...formData.business,
+          crNumber: crVal,
+          commercialRegistration: {
+            ...formData.business.commercialRegistration,
+            crNumber: crVal,
+          }
+        },
+        branding: {
+          ...(tenant.branding || {}),
+          ...formData.branding,
+          logo: logoPreview || formData.branding?.logo || tenant.branding?.logo || '',
+        }
+      }
+      const res = await api.put('/tenants/current', payload)
+      return res.data
+    },
+    onSuccess: (updated) => {
+      dispatch(updateTenant(updated))
+      queryClient.setQueryData(['current-tenant-profile'], updated)
+      toast.success(language === 'ar' ? 'تم تحديث الملف التعريفي للمنشأة بنجاح' : 'Company profile updated successfully')
+      setIsEditModalOpen(false)
+      refetch()
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل تحديث البيانات' : 'Failed to update profile'))
+    }
+  })
+
+  const onSaveProfile = (formData) => {
+    updateProfileMutation.mutate(formData)
+  }
+
+  // --- CHANGE PASSWORD FORM ---
+  const {
+    register: registerPwd,
+    handleSubmit: handleSubmitPwd,
+    reset: resetPwd,
+    formState: { errors: pwdErrors, isSubmitting: isSubmittingPwd },
+  } = useForm()
+
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+
+  const passwordMutation = useMutation({
+    mutationFn: async (pwdData) => {
+      const res = await api.put('/auth/password', pwdData)
+      return res.data
+    },
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم تغيير كلمة المرور بنجاح' : 'Password changed successfully')
+      setIsPasswordModalOpen(false)
+      resetPwd()
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل تغيير كلمة المرور' : 'Failed to change password'))
+    }
+  })
+
+  const onChangePassword = (data) => {
+    if (data.newPassword !== data.confirmPassword) {
+      toast.error(language === 'ar' ? 'كلمات المرور الجديدة غير متطابقة' : 'New passwords do not match')
+      return
+    }
+    passwordMutation.mutate({
+      currentPassword: data.currentPassword,
+      newPassword: data.newPassword,
+    })
+  }
+
+  // --- USER INFO UPDATE ---
+  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false)
+  const {
+    register: registerUser,
+    handleSubmit: handleSubmitUser,
+    reset: resetUser,
+    formState: { isSubmitting: isSubmittingUser }
+  } = useForm()
+
+  useEffect(() => {
+    if (user) {
+      resetUser({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        firstNameAr: user.firstNameAr || '',
+        lastNameAr: user.lastNameAr || '',
+        phone: user.phone || '',
+      })
+    }
+  }, [user, isEditUserModalOpen, resetUser])
+
+  const updateUserMutation = useMutation({
+    mutationFn: async (userData) => {
+      const res = await api.put('/auth/profile', userData)
+      return res.data
+    },
+    onSuccess: (data) => {
+      if (data.user) {
+        dispatch(updateUser(data.user))
+      }
+      toast.success(language === 'ar' ? 'تم تحديث بيانات المستخدم' : 'User info updated')
+      setIsEditUserModalOpen(false)
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل التحديث' : 'Update failed'))
+    }
+  })
+
+  // Format subscription dates
+  const planName = (subscription.plan || 'trial').toUpperCase()
+  const isTrial = subscription.plan === 'trial' || (tenant.isDemo && !tenant.demoUpgraded)
+  const isSubActive = subscription.status === 'active' || isTrial
+
+  const daysRemaining = useMemo(() => {
+    if (!subscription.endDate) return null
+    const end = new Date(subscription.endDate)
+    const now = new Date()
+    const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24))
+    return diff
+  }, [subscription.endDate])
+
+  const tabs = [
+    { id: 'overview', label: language === 'ar' ? 'بيانات المنشأة' : 'Company Overview', icon: Building2 },
+    { id: 'commercial', label: language === 'ar' ? 'السجل التجاري' : 'Commercial Reg.', icon: Briefcase },
+    { id: 'national_address', label: language === 'ar' ? 'العنوان الوطني' : 'National Address', icon: MapPin },
+    { id: 'vat_cert', label: language === 'ar' ? 'شهادة الضريبة' : 'VAT Certificate', icon: Receipt },
+    { id: 'bank', label: language === 'ar' ? 'الحسابات البنكية' : 'Bank Accounts', icon: Landmark },
+    { id: 'subscription', label: language === 'ar' ? 'الاشتراك والتراخيص' : 'Subscription & License', icon: Crown },
+    { id: 'security', label: language === 'ar' ? 'المستخدم والأمان' : 'User & Security', icon: ShieldCheck },
+  ]
+
+  return (
+    <div className="min-h-screen pb-16 space-y-6 animate-fade-in">
+      {/* Top Banner & Company Header */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white shadow-2xl border border-white/10">
+        {/* Ambient Decorative Lighting */}
+        <div className="absolute top-0 end-0 -me-20 -mt-20 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 start-0 -ms-20 -mb-20 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
+
+        <div className="relative p-6 sm:p-8 lg:p-10">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            {/* Company Info Left/Right */}
+            <div className="flex items-center gap-5 sm:gap-6">
+              <div className="relative group">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white/10 backdrop-blur-md p-2 border border-white/20 shadow-xl flex items-center justify-center overflow-hidden transition-all group-hover:border-primary-400">
+                  {branding.logo ? (
+                    <img src={branding.logo} alt="Company Logo" className="w-full h-full object-contain" />
+                  ) : (
+                    <Building2 className="w-12 h-12 text-white/60" />
+                  )}
+                </div>
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="absolute -bottom-2 -end-2 p-2 rounded-xl bg-primary-600 hover:bg-primary-500 text-white shadow-lg transition-transform hover:scale-110"
+                  title={language === 'ar' ? 'تغيير الشعار' : 'Change Logo'}
+                >
+                  <Edit3 className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                    {language === 'ar' ? (business.legalNameAr || business.legalNameEn || 'المنشأة') : (business.legalNameEn || business.legalNameAr || 'Business Profile')}
+                  </h1>
+                  {business.tradeName && business.tradeName !== business.legalNameEn && (
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-white/90 backdrop-blur-sm border border-white/10">
+                      {business.tradeName}
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-sm text-white/70 font-medium flex items-center gap-2">
+                  <span>{business.legalNameAr && language !== 'ar' ? business.legalNameAr : ''}</span>
+                  {business.contactEmail && (
+                    <span className="inline-flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-white/50" />
+                      {business.contactEmail}
+                    </span>
+                  )}
+                  {business.contactPhone && (
+                    <span className="inline-flex items-center gap-1 ms-2">
+                      <Phone className="w-3.5 h-3.5 text-white/50" />
+                      {business.contactPhone}
+                    </span>
+                  )}
+                </p>
+
+                {/* Badges Bar */}
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  {/* Status Badge */}
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                    isSubActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${isSubActive ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+                    {subscription.plan ? `${subscription.plan.toUpperCase()} • ` : ''}
+                    {subscription.status === 'active' ? (language === 'ar' ? 'نشط ومفعل' : 'Active') : (language === 'ar' ? 'معلق / تجريبي' : 'Trial / Suspended')}
+                  </span>
+
+                  {/* VAT Badge */}
+                  {business.vatNumber && (
+                    <span 
+                      onClick={() => handleCopy(business.vatNumber, 'vatTop')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-teal-500/20 text-teal-200 border border-teal-500/30 cursor-pointer hover:bg-teal-500/30 transition-colors"
+                      title={language === 'ar' ? 'انقر للنسخ' : 'Click to copy'}
+                    >
+                      <Receipt className="w-3.5 h-3.5 text-teal-300" />
+                      <span>{language === 'ar' ? 'الرقم الضريبي:' : 'VAT:'} {business.vatNumber}</span>
+                      {copiedField === 'vatTop' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3 h-3 text-teal-300/70" />}
+                    </span>
+                  )}
+
+                  {/* CR Badge */}
+                  {(business.crNumber || commercialReg.crNumber) && (
+                    <span 
+                      onClick={() => handleCopy(business.crNumber || commercialReg.crNumber, 'crTop')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-200 border border-amber-500/30 cursor-pointer hover:bg-amber-500/30 transition-colors"
+                      title={language === 'ar' ? 'انقر للنسخ' : 'Click to copy'}
+                    >
+                      <Briefcase className="w-3.5 h-3.5 text-amber-300" />
+                      <span>{language === 'ar' ? 'السجل التجاري:' : 'CR:'} {business.crNumber || commercialReg.crNumber}</span>
+                      {copiedField === 'crTop' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3 h-3 text-amber-300/70" />}
+                    </span>
+                  )}
+
+                  {/* National Short Address */}
+                  {nationalAddress.shortAddress && (
+                    <span 
+                      onClick={() => handleCopy(nationalAddress.shortAddress, 'shortTop')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-sky-500/20 text-sky-200 border border-sky-500/30 cursor-pointer hover:bg-sky-500/30 transition-colors"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-sky-300" />
+                      <span>{language === 'ar' ? 'العنوان المختصر:' : 'Short Address:'} {nationalAddress.shortAddress}</span>
+                      {copiedField === 'shortTop' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3 h-3 text-sky-300/70" />}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Actions Bar */}
+            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary-500 to-indigo-600 hover:from-primary-600 hover:to-indigo-700 text-white font-semibold text-sm shadow-lg shadow-primary-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Edit3 className="w-4 h-4" />
+                {language === 'ar' ? 'تعديل بيانات المنشأة' : 'Edit Company Profile'}
+              </button>
+
+              <button
+                onClick={() => setIsPasswordModalOpen(true)}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-sm backdrop-blur-md border border-white/10 transition-all hover:scale-[1.02]"
+              >
+                <KeyRound className="w-4 h-4 text-amber-300" />
+                {language === 'ar' ? 'تغيير كلمة المرور' : 'Change Password'}
+              </button>
+
+              <button
+                onClick={() => refetch()}
+                disabled={isRefetching}
+                className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-all"
+                title={language === 'ar' ? 'تحديث البيانات' : 'Refresh Data'}
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Tabs Header */}
+        <div className="flex items-center gap-1 px-4 sm:px-8 border-t border-white/10 bg-black/20 backdrop-blur-md overflow-x-auto no-scrollbar">
+          {tabs.map((tab) => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-all ${
+                  isActive
+                    ? 'border-primary-400 text-white bg-white/5'
+                    : 'border-transparent text-white/60 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isActive ? 'text-primary-400' : 'text-white/50'}`} />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* TAB CONTENT AREAS */}
+      <AnimatePresence mode="wait">
+        {/* 1. OVERVIEW & COMPANY INFO */}
+        {activeTab === 'overview' && (
+          <motion.div
+            key="overview"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+          >
+            {/* Left 2 Cols: Main Details */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Primary Identity Card */}
+              <div className="card p-6 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl">
+                <div className="flex items-center justify-between pb-4 mb-6 border-b border-gray-100 dark:border-dark-700">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                        {language === 'ar' ? 'الهوية القانونية والتجارية' : 'Legal & Commercial Identity'}
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {language === 'ar' ? 'البيانات المسجلة رسمياً لدى الجهات الحكومية السعودية' : 'Official registration details filed with Saudi authorities'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    {language === 'ar' ? 'تعديل' : 'Edit'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                      {language === 'ar' ? 'الاسم القانوني (بالعربية)' : 'Legal Name (Arabic)'}
+                    </p>
+                    <p className="text-base font-bold text-gray-900 dark:text-white" dir="rtl">
+                      {business.legalNameAr || '—'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                      {language === 'ar' ? 'الاسم القانوني (بالإنجليزية)' : 'Legal Name (English)'}
+                    </p>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">
+                      {business.legalNameEn || '—'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                      {language === 'ar' ? 'الاسم التجاري / العلامة' : 'Trade / Brand Name'}
+                    </p>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">
+                      {business.tradeName || business.legalNameAr || business.legalNameEn || '—'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                      {language === 'ar' ? 'الرقم الضريبي (ZATCA VAT)' : 'VAT Number (ZATCA)'}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-base font-mono font-bold text-teal-600 dark:text-teal-400">
+                        {business.vatNumber || '—'}
+                      </p>
+                      {business.vatNumber && (
+                        <button
+                          onClick={() => handleCopy(business.vatNumber, 'vatCard')}
+                          className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-600 text-gray-500"
+                        >
+                          {copiedField === 'vatCard' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                      {language === 'ar' ? 'رقم السجل التجاري (CR Number)' : 'Commercial Registration No.'}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-base font-mono font-bold text-amber-600 dark:text-amber-400">
+                        {business.crNumber || commercialReg.crNumber || '—'}
+                      </p>
+                      {(business.crNumber || commercialReg.crNumber) && (
+                        <button
+                          onClick={() => handleCopy(business.crNumber || commercialReg.crNumber, 'crCard')}
+                          className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-600 text-gray-500"
+                        >
+                          {copiedField === 'crCard' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                      {language === 'ar' ? 'البريد الإلكتروني للنشاط' : 'Official Contact Email'}
+                    </p>
+                    <p className="text-base font-semibold text-gray-900 dark:text-white truncate">
+                      {business.contactEmail || '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Physical & Postal Address Card */}
+              <div className="card p-6 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl">
+                <div className="flex items-center justify-between pb-4 mb-6 border-b border-gray-100 dark:border-dark-700">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                      <MapPin className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                        {language === 'ar' ? 'العنوان الجغرافي والفرع الرئيسي' : 'Physical & Headquarters Address'}
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {language === 'ar' ? 'الموقع الفعلي للمنشأة المطبوع على الفواتير والسندات' : 'Physical headquarters address displayed on tax invoices'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'المدينة' : 'City'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{business.address?.cityAr || business.address?.city || '—'}</span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الحي' : 'District'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{business.address?.districtAr || business.address?.district || '—'}</span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الشارع' : 'Street'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{business.address?.streetAr || business.address?.street || '—'}</span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'رقم المبنى' : 'Building No'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{business.address?.buildingNumber || nationalAddress.buildingNo || '—'}</span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الرقم الإضافي' : 'Additional No'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{business.address?.additionalNumber || '—'}</span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</span>
+                    <span className="font-bold font-mono text-gray-900 dark:text-white">{business.address?.postalCode || '—'}</span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الدولة' : 'Country'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{business.address?.country || 'SA (المملكة العربية السعودية)'}</span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الموقع الإلكتروني' : 'Website'}</span>
+                    <span className="font-bold text-primary-600 dark:text-primary-400 truncate block">
+                      {business.website ? <a href={business.website.startsWith('http') ? business.website : `https://${business.website}`} target="_blank" rel="noreferrer" className="hover:underline">{business.website}</a> : '—'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right 1 Col: Quick Cards */}
+            <div className="space-y-6">
+              {/* Business Sectors Card */}
+              <div className="card p-6 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl">
+                <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 dark:border-dark-700">
+                  <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                      {language === 'ar' ? 'الأنشطة والقطاعات المفعلة' : 'Active Business Sectors'}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {language === 'ar' ? `${businessTypes.length} قطاعات نشطة` : `${businessTypes.length} active sectors`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  {businessTypes.map((typeId) => {
+                    const opt = businessTypeOptions.find((o) => o.id === typeId) || { id: typeId, label: typeId }
+                    const Icon = BUSINESS_TYPE_ICONS[typeId] || Store
+                    const isPrimary = typeId === primaryBusinessType
+                    return (
+                      <div
+                        key={typeId}
+                        className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                          isPrimary
+                            ? 'bg-primary-50/50 dark:bg-primary-950/20 border-primary-200 dark:border-primary-800/40 shadow-sm'
+                            : 'bg-gray-50 dark:bg-dark-700/40 border-gray-100 dark:border-dark-600/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-xl ${isPrimary ? 'bg-primary-500 text-white' : 'bg-gray-200 dark:bg-dark-600 text-gray-600 dark:text-gray-300'}`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">{opt.label}</p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-1">{opt.description}</p>
+                          </div>
+                        </div>
+                        {isPrimary && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300">
+                            {language === 'ar' ? 'الرئيسي' : 'Primary'}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Admin User Quick Card */}
+              <div className="card p-6 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl">
+                <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100 dark:border-dark-700">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                        {language === 'ar' ? 'المسؤول الحالي' : 'Account Administrator'}
+                      </h3>
+                      <p className="text-xs text-gray-500">{user?.role || 'Admin'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsEditUserModalOpen(true)}
+                    className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 text-primary-600 dark:text-primary-400"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">{language === 'ar' ? 'الاسم:' : 'Name:'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">{language === 'ar' ? 'البريد:' : 'Email:'}</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{user?.email}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">{language === 'ar' ? 'الجوال:' : 'Phone:'}</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{user?.phone || '—'}</span>
+                  </div>
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-gray-100 dark:border-dark-700">
+                  <button
+                    onClick={() => setIsPasswordModalOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-dark-700 dark:hover:bg-dark-600 text-gray-800 dark:text-gray-200 text-xs font-bold transition-colors"
+                  >
+                    <KeyRound className="w-4 h-4 text-amber-500" />
+                    {language === 'ar' ? 'تغيير كلمة المرور' : 'Change Password'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 2. COMMERCIAL REGISTRATION */}
+        {activeTab === 'commercial' && (
+          <motion.div
+            key="commercial"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <div className="card p-6 sm:p-8 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                    <Briefcase className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                        {language === 'ar' ? 'السجل التجاري (وزارة التجارة)' : 'Commercial Registration (Ministry of Commerce)'}
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                        {commercialReg.companyStatus || (language === 'ar' ? 'نشط' : 'Active')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {language === 'ar' ? 'بيانات القيد في السجل التجاري لدى وزارة التجارة بالمملكة العربية السعودية' : 'Official registration records with Saudi Ministry of Commerce'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {commercialReg.qrCodeUrl && (
+                    <a
+                      href={commercialReg.qrCodeUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 text-xs font-bold hover:bg-amber-100 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      {language === 'ar' ? 'التحقق من السجل' : 'Verify CR Link'}
+                    </a>
+                  )}
+                  <button
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800 text-xs font-bold hover:bg-primary-100 transition-colors"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    {language === 'ar' ? 'تعديل السجل' : 'Edit CR Details'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Certificate Presentation Box */}
+              <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-500/5 via-amber-500/10 to-transparent border border-amber-500/20">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'رقم السجل التجاري' : 'CR Number'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-black font-mono text-gray-900 dark:text-white">
+                        {business.crNumber || commercialReg.crNumber || '—'}
+                      </span>
+                      {(business.crNumber || commercialReg.crNumber) && (
+                        <button
+                          onClick={() => handleCopy(business.crNumber || commercialReg.crNumber, 'crTab')}
+                          className="p-1 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"
+                        >
+                          {copiedField === 'crTab' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'تاريخ الإصدار' : 'Issue Date'}
+                    </span>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">
+                      {commercialReg.issueDate ? new Date(commercialReg.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'حالة السجل' : 'Commercial Status'}
+                    </span>
+                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-5 h-5" />
+                      {language === 'ar' ? (commercialReg.companyStatusAr || 'نشط') : (commercialReg.companyStatus || 'Active')}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'نوع الكيان (عربي)' : 'Company Type (Arabic)'}
+                    </span>
+                    <p className="text-base font-bold text-gray-900 dark:text-white" dir="rtl">
+                      {commercialReg.companyTypeAr || 'شركة ذات مسؤولية محدودة'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'نوع الكيان (إنجليزي)' : 'Company Type (English)'}
+                    </span>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">
+                      {commercialReg.companyType || 'Limited Liability Company (LLC)'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'رابط التحقق الإلكتروني' : 'Verification QR URL'}
+                    </span>
+                    <p className="text-sm font-mono text-primary-600 dark:text-primary-400 truncate">
+                      {commercialReg.qrCodeUrl || '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 3. SAUDI NATIONAL ADDRESS */}
+        {activeTab === 'national_address' && (
+          <motion.div
+            key="national_address"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <div className="card p-6 sm:p-8 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                    <MapPin className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                        {language === 'ar' ? 'العنوان الوطني السعودي (البريد السعودي SPL)' : 'Saudi National Address (Saudi Post SPL)'}
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                        SPL Verified
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {language === 'ar' ? 'إثبات العنوان الوطني المعتمد لجميع المعاملات البنكية والرسمية' : 'Official National Address certificate for banking and regulatory compliance'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {nationalAddress.qrCodeUrl && (
+                    <a
+                      href={nationalAddress.qrCodeUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-bold hover:bg-sky-100 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      {language === 'ar' ? 'التحقق من إثبات العنوان' : 'Verify SPL Proof'}
+                    </a>
+                  )}
+                  <button
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800 text-xs font-bold hover:bg-primary-100 transition-colors"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    {language === 'ar' ? 'تعديل العنوان' : 'Edit Address'}
+                  </button>
+                </div>
+              </div>
+
+              {/* National Address Highlighting Box */}
+              <div className="p-6 rounded-3xl bg-gradient-to-br from-sky-500/5 via-sky-500/10 to-transparent border border-sky-500/20 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-sky-700 dark:text-sky-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'العنوان الوطني المختصر' : 'Short National Address'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-black font-mono text-gray-900 dark:text-white">
+                        {nationalAddress.shortAddress || '—'}
+                      </span>
+                      {nationalAddress.shortAddress && (
+                        <button
+                          onClick={() => handleCopy(nationalAddress.shortAddress, 'shortTab')}
+                          className="p-1 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/30 text-sky-600"
+                        >
+                          {copiedField === 'shortTab' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-sky-700 dark:text-sky-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'رقم الإثبات' : 'Proof Number'}
+                    </span>
+                    <p className="text-lg font-mono font-bold text-gray-900 dark:text-white">
+                      {nationalAddress.proofNumber || '—'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-sky-700 dark:text-sky-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'حساب العميل / الرقم الإضافي' : 'Customer Account'}
+                    </span>
+                    <p className="text-lg font-mono font-bold text-gray-900 dark:text-white">
+                      {nationalAddress.customerAccount || business.address?.additionalNumber || '—'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-sky-700 dark:text-sky-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'رقم المبنى' : 'Building No'}
+                    </span>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">
+                      {nationalAddress.buildingNo || business.address?.buildingNumber || '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-sky-500/20">
+                  <div>
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الحي' : 'Neighborhood'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{nationalAddress.neighborhood || business.address?.district || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'المنطقة' : 'Region'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{nationalAddress.region || business.address?.city || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'تاريخ الإصدار الأصلي' : 'Original Date'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">
+                      {nationalAddress.originalDate ? new Date(nationalAddress.originalDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'تاريخ الانتهاء' : 'Expiration Date'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">
+                      {nationalAddress.expirationDate ? new Date(nationalAddress.expirationDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 4. VAT REGISTRATION CERTIFICATE */}
+        {activeTab === 'vat_cert' && (
+          <motion.div
+            key="vat_cert"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <div className="card p-6 sm:p-8 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                    <Receipt className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                        {language === 'ar' ? 'شهادة تسجيل ضريبة القيمة المضافة (ZATCA)' : 'VAT Registration Certificate (ZATCA)'}
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                        ZATCA Certified
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {language === 'ar' ? 'شهادة التسجيل الضريبي الرسمية الصادرة من هيئة الزكاة والضريبة والجمارك' : 'Official VAT certificate issued by Zakat, Tax and Customs Authority'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {vatCertificate.qrCodeUrl && (
+                    <a
+                      href={vatCertificate.qrCodeUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-bold hover:bg-teal-100 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      {language === 'ar' ? 'التحقق من الشهادة' : 'Verify ZATCA QR'}
+                    </a>
+                  )}
+                  <button
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800 text-xs font-bold hover:bg-primary-100 transition-colors"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    {language === 'ar' ? 'تعديل الشهادة' : 'Edit Certificate'}
+                  </button>
+                </div>
+              </div>
+
+              {/* VAT Certificate Presentation Box */}
+              <div className="p-6 rounded-3xl bg-gradient-to-br from-teal-500/5 via-teal-500/10 to-transparent border border-teal-500/20 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-black font-mono text-gray-900 dark:text-white">
+                        {business.vatNumber || '—'}
+                      </span>
+                      {business.vatNumber && (
+                        <button
+                          onClick={() => handleCopy(business.vatNumber, 'vatTab')}
+                          className="p-1 rounded-lg hover:bg-teal-100 dark:hover:bg-teal-900/30 text-teal-600"
+                        >
+                          {copiedField === 'vatTab' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'رقم الشهادة الضريبية' : 'Certificate Number'}
+                    </span>
+                    <p className="text-lg font-mono font-bold text-gray-900 dark:text-white">
+                      {vatCertificate.certificateNo || '—'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'الفترة الضريبية' : 'Tax Period'}
+                    </span>
+                    <p className="text-lg font-bold text-teal-700 dark:text-teal-300">
+                      {language === 'ar' ? (vatCertificate.taxPeriodAr || 'ربع سنوي') : (vatCertificate.taxPeriod || 'Quarterly')}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'تاريخ الشهادة' : 'Certificate Date'}
+                    </span>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">
+                      {vatCertificate.certificateDate ? new Date(vatCertificate.certificateDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'تاريخ التسجيل الفعّال' : 'Effective Registration Date'}
+                    </span>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">
+                      {vatCertificate.effectiveDate ? new Date(vatCertificate.effectiveDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
+                      {language === 'ar' ? 'تاريخ أول إقرار ضريبي' : 'First Filing Due Date'}
+                    </span>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">
+                      {vatCertificate.firstFilingDueDate ? new Date(vatCertificate.firstFilingDueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 5. BANK ACCOUNTS */}
+        {activeTab === 'bank' && (
+          <motion.div
+            key="bank"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <div className="card p-6 sm:p-8 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                    <Landmark className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                      {language === 'ar' ? 'الحسابات والمعلومات البنكية' : 'Corporate Bank Details'}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {language === 'ar' ? 'الحسابات البنكية المعتمدة للتحويل واستقبال المدفوعات والطباعة على الفواتير' : 'Official bank details used for payments, transfers, and invoice footer'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800 text-xs font-bold hover:bg-primary-100 transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  {language === 'ar' ? 'تعديل البيانات البنكية' : 'Edit Bank Info'}
+                </button>
+              </div>
+
+              {/* Luxury Metallic Card Preview */}
+              <div className="max-w-2xl mx-auto rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 shadow-2xl border border-white/10 relative overflow-hidden">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <Landmark className="w-7 h-7 text-amber-400" />
+                    <div>
+                      <p className="text-xs text-white/60 font-semibold uppercase tracking-widest">{language === 'ar' ? 'اسم البنك' : 'Bank Name'}</p>
+                      <h4 className="text-lg font-bold text-white">{bankDetails.bankName || (language === 'ar' ? 'البنك الأهلي السعودي / الراجحي' : 'Saudi National Bank')}</h4>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                    SAR Account
+                  </span>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <span className="text-xs text-white/60 block uppercase tracking-wider mb-1">IBAN</span>
+                    <div className="flex items-center justify-between bg-black/30 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10">
+                      <span className="text-base sm:text-lg font-mono font-bold tracking-widest text-emerald-300">
+                        {bankDetails.iban || 'SA00 0000 0000 0000 0000 0000'}
+                      </span>
+                      {bankDetails.iban && (
+                        <button
+                          onClick={() => handleCopy(bankDetails.iban, 'ibanCard')}
+                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white"
+                          title={language === 'ar' ? 'نسخ الآيبان' : 'Copy IBAN'}
+                        >
+                          {copiedField === 'ibanCard' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div>
+                      <span className="text-xs text-white/60 block uppercase tracking-wider mb-0.5">{language === 'ar' ? 'اسم صاحب الحساب' : 'Account Name'}</span>
+                      <p className="text-sm font-bold text-white truncate">{bankDetails.accountName || business.legalNameAr || business.legalNameEn || '—'}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-white/60 block uppercase tracking-wider mb-0.5">{language === 'ar' ? 'رقم الحساب' : 'Account Number'}</span>
+                      <p className="text-sm font-mono font-bold text-white truncate">{bankDetails.accountNumber || '—'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 6. SUBSCRIPTION & LICENSE */}
+        {activeTab === 'subscription' && (
+          <motion.div
+            key="subscription"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <div className="card p-6 sm:p-8 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                    <Crown className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                        {language === 'ar' ? 'حالة الاشتراك والترخيص' : 'Subscription & Licensing Status'}
+                      </h3>
+                      <span className="px-3 py-1 rounded-full text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm">
+                        {planName} PLAN
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {language === 'ar' ? 'تفاصيل باقة النظام، تاريخ التجديد، والميزات المفتوحة' : 'System plan details, renewal schedule, and active feature add-ons'}
+                    </p>
+                  </div>
+                </div>
+
+                {tenant?.isDemo && !tenant?.demoUpgraded && (
+                  <button
+                    onClick={() => navigate('/demo-checkout')}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs shadow-lg transition-all"
+                  >
+                    <Crown className="w-4 h-4" />
+                    {language === 'ar' ? 'الترقية للنسخة الكاملة' : 'Upgrade to Full Version'}
+                  </button>
+                )}
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div className="p-5 rounded-3xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">
+                    {language === 'ar' ? 'حالة الحساب' : 'Subscription Status'}
+                  </span>
+                  <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                    {subscription.status === 'active' ? (language === 'ar' ? 'نشط ومفعل' : 'Active') : (language === 'ar' ? 'تجريبي' : 'Trial')}
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">
+                    {language === 'ar' ? 'دورة الفوترة' : 'Billing Cycle'}
+                  </span>
+                  <p className="text-lg font-black text-gray-900 dark:text-white">
+                    {subscription.billingCycle === 'yearly' ? (language === 'ar' ? 'سنوي (Yearly)' : 'Yearly') : (language === 'ar' ? 'شهري (Monthly)' : 'Monthly')}
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">
+                    {language === 'ar' ? 'تاريخ الانتهاء / التجديد' : 'Expiration Date'}
+                  </span>
+                  <p className="text-lg font-black text-gray-900 dark:text-white">
+                    {subscription.endDate ? new Date(subscription.endDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
+                  </p>
+                  {daysRemaining !== null && (
+                    <p className="text-xs font-semibold text-primary-600 dark:text-primary-400 mt-1">
+                      {daysRemaining > 0 ? `${daysRemaining} ${language === 'ar' ? 'يوم متبقي' : 'days left'}` : (language === 'ar' ? 'منتهي' : 'Expired')}
+                    </p>
+                  )}
+                </div>
+
+                <div className="p-5 rounded-3xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">
+                    {language === 'ar' ? 'الحد الأقصى للمستخدمين' : 'Max Users Allowed'}
+                  </span>
+                  <p className="text-lg font-black text-gray-900 dark:text-white">
+                    {subscription.maxUsers || 5} {language === 'ar' ? 'مستخدمين' : 'Users'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Add-ons List */}
+              <div>
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-4 uppercase tracking-wider">
+                  {language === 'ar' ? 'الإضافات والميزات المفعلة في الباقة' : 'Enabled System Add-ons'}
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {[
+                    { key: 'hasEmailAddon', label: language === 'ar' ? 'إضافة البريد الإلكتروني والفوترة الآلية' : 'Email & Auto Invoice Delivery', icon: Mail },
+                    { key: 'hasIotAddon', label: language === 'ar' ? 'إضافة إنترنت الأشياء (IoT Smart Corp)' : 'IoT Smart Infrastructure', icon: Cpu },
+                    { key: 'hasWeightScaleAddon', label: language === 'ar' ? 'إضافة الميزان الذكي (Supermarket/Bakala)' : 'Weight Scale Barcode System', icon: Scale },
+                    { key: 'hasBranchAddon', label: language === 'ar' ? 'إضافة الفروع المتعددة' : 'Multi-Branch Management', icon: Store },
+                    { key: 'hasDeliveryAddon', label: language === 'ar' ? 'إضافة منصات التوصيل' : 'Delivery Platforms Integration', icon: Truck },
+                    { key: 'hasMessAddon', label: language === 'ar' ? 'إضافة المطعم الجماعي (Mess/Cafeteria)' : 'Mess & Cafeteria Add-on', icon: UtensilsCrossed },
+                    { key: 'hasCombosAddon', label: language === 'ar' ? 'إضافة العروض والباقات المركبة' : 'Combos & Meal Deals', icon: Sparkles },
+                    { key: 'hasQrOrderingAddon', label: language === 'ar' ? 'إضافة قائمة الطعام والطلب عبر QR' : 'QR Menu & Online Ordering', icon: QrCode },
+                  ].map((addon) => {
+                    const isEnabled = subscription[addon.key] === true
+                    const Icon = addon.icon
+                    return (
+                      <div
+                        key={addon.key}
+                        className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all ${
+                          isEnabled
+                            ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/40 text-gray-900 dark:text-white'
+                            : 'bg-gray-50/50 dark:bg-dark-700/30 border-gray-100 dark:border-dark-600/30 text-gray-400 opacity-60'
+                        }`}
+                      >
+                        <div className={`p-2 rounded-xl ${isEnabled ? 'bg-emerald-500 text-white' : 'bg-gray-200 dark:bg-dark-600 text-gray-400'}`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold truncate">{addon.label}</p>
+                          <p className="text-[10px] font-semibold text-gray-500">
+                            {isEnabled ? (language === 'ar' ? 'مفعل ومتاح' : 'Active') : (language === 'ar' ? 'غير مشمول' : 'Not included')}
+                          </p>
+                        </div>
+                        {isEnabled && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 7. USER PROFILE & SECURITY */}
+        {activeTab === 'security' && (
+          <motion.div
+            key="security"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+          >
+            {/* User Details Card */}
+            <div className="card p-6 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                      {language === 'ar' ? 'الملف الشخصي للمستخدم' : 'User Account Profile'}
+                    </h3>
+                    <p className="text-xs text-gray-500">{user?.email}</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsEditUserModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 text-xs font-bold hover:bg-primary-100 transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  {language === 'ar' ? 'تعديل' : 'Edit'}
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                  <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الاسم الكامل' : 'Full Name'}</span>
+                  <span className="text-base font-bold text-gray-900 dark:text-white">{user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`}</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                  <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}</span>
+                  <span className="text-base font-semibold text-gray-900 dark:text-white">{user?.email}</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                  <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'رقم الجوال' : 'Phone Number'}</span>
+                  <span className="text-base font-semibold text-gray-900 dark:text-white">{user?.phone || '—'}</span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50">
+                  <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الدور والصلاحيات' : 'Role & Privileges'}</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    {user?.role || 'admin'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Change Password Card */}
+            <div className="card p-6 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-dark-700">
+                <div className="p-2.5 rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                    {language === 'ar' ? 'تغيير كلمة المرور' : 'Change Security Password'}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {language === 'ar' ? 'تحديث كلمة المرور لحماية حسابك وبيانات منشأتك' : 'Update your password regularly to secure company records'}
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSubmitPwd(onChangePassword)} className="space-y-4">
+                <div>
+                  <label className="label">{language === 'ar' ? 'كلمة المرور الحالية' : 'Current Password'}</label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      {...registerPwd('currentPassword', { required: true })}
+                      className="input pe-10"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label">{language === 'ar' ? 'كلمة المرور الجديدة' : 'New Password'}</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      {...registerPwd('newPassword', { required: true, minLength: 6 })}
+                      className="input pe-10"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label">{language === 'ar' ? 'تأكيد كلمة المرور الجديدة' : 'Confirm New Password'}</label>
+                  <input
+                    type="password"
+                    {...registerPwd('confirmPassword', { required: true })}
+                    className="input"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingPwd || passwordMutation.isPending}
+                  className="w-full btn btn-primary py-3 rounded-2xl font-bold flex items-center justify-center gap-2 mt-4"
+                >
+                  <Key className="w-4 h-4" />
+                  {isSubmittingPwd || passwordMutation.isPending ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...') : (language === 'ar' ? 'تحديث كلمة المرور' : 'Update Password')}
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* FULL EDIT COMPANY PROFILE MODAL */}
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-700 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden my-6"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-dark-700 bg-gray-50/50 dark:bg-dark-800/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-primary-100 dark:bg-primary-900/30 text-primary-600">
+                    <Edit3 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                      {language === 'ar' ? 'تعديل بيانات المنشأة' : 'Edit Company Details'}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {language === 'ar' ? 'تحديث بيانات المنشأة، العناوين، السجلات، والحسابات البنكية' : 'Update company information, addresses, registrations, and bank details'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <form onSubmit={handleSubmit(onSaveProfile)} className="flex-1 overflow-y-auto p-6 space-y-8">
+                {/* 1. Logo & Brand */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b pb-2 dark:border-dark-700">
+                    <ImageIcon className="w-4 h-4 text-primary-500" />
+                    {language === 'ar' ? 'شعار المنشأة' : 'Company Logo'}
+                  </h4>
+                  <div className="flex items-center gap-6">
+                    <div className="w-24 h-24 rounded-2xl bg-gray-100 dark:bg-dark-700 border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden p-2">
+                      {logoPreview ? (
+                        <img src={logoPreview} alt="Preview" className="w-full h-full object-contain" />
+                      ) : (
+                        <Building2 className="w-8 h-8 text-gray-400" />
+                      )}
+                    </div>
+                    <div>
+                      <label className="btn btn-secondary text-xs cursor-pointer inline-flex items-center gap-2">
+                        <Upload className="w-4 h-4" />
+                        {language === 'ar' ? 'رفع شعار جديد' : 'Upload New Logo'}
+                        <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1">PNG, JPG or WEBP (Max 3MB)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Legal Identity */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b pb-2 dark:border-dark-700">
+                    <Building2 className="w-4 h-4 text-indigo-500" />
+                    {language === 'ar' ? 'البيانات القانونية والضريبية' : 'Legal & Tax Details'}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الاسم القانوني (عربي)' : 'Legal Name (Arabic)'} *</label>
+                      <input {...register('business.legalNameAr', { required: true })} className="input" dir="rtl" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الاسم القانوني (إنجليزي)' : 'Legal Name (English)'} *</label>
+                      <input {...register('business.legalNameEn', { required: true })} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الاسم التجاري / اسم المحل' : 'Trade Name'}</label>
+                      <input {...register('business.tradeName')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الرقم الضريبي (VAT)' : 'VAT Number'}</label>
+                      <input {...register('business.vatNumber')} className="input font-mono" placeholder="3XXXXXXXXXX00003" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'رقم السجل التجاري (CR)' : 'Commercial Reg. (CR)'}</label>
+                      <input {...register('business.crNumber')} className="input font-mono" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'البريد الإلكتروني للنشاط' : 'Contact Email'}</label>
+                      <input type="email" {...register('business.contactEmail')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'رقم هاتف النشاط' : 'Contact Phone'}</label>
+                      <input {...register('business.contactPhone')} className="input" placeholder="9665XXXXXXXX" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الموقع الإلكتروني' : 'Website'}</label>
+                      <input {...register('business.website')} className="input" placeholder="https://example.com" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Physical Address */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b pb-2 dark:border-dark-700">
+                    <MapPin className="w-4 h-4 text-emerald-500" />
+                    {language === 'ar' ? 'العنوان الجغرافي والبريدي' : 'Physical Address Details'}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'المدينة (عربي)' : 'City (Arabic)'}</label>
+                      <input {...register('business.address.cityAr')} className="input" dir="rtl" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'المدينة (إنجليزي)' : 'City (English)'}</label>
+                      <input {...register('business.address.city')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الحي' : 'District'}</label>
+                      <input {...register('business.address.districtAr')} className="input" dir="rtl" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الشارع' : 'Street'}</label>
+                      <input {...register('business.address.streetAr')} className="input" dir="rtl" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'رقم المبنى' : 'Building Number'}</label>
+                      <input {...register('business.address.buildingNumber')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الرقم الإضافي' : 'Additional Number'}</label>
+                      <input {...register('business.address.additionalNumber')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
+                      <input {...register('business.address.postalCode')} className="input font-mono" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. National Address SPL */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b pb-2 dark:border-dark-700">
+                    <MapPin className="w-4 h-4 text-sky-500" />
+                    {language === 'ar' ? 'بيانات العنوان الوطني (البريد السعودي)' : 'National Address (Saudi Post)'}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'العنوان المختصر' : 'Short Address'}</label>
+                      <input {...register('business.nationalAddress.shortAddress')} className="input font-mono" placeholder="RRRD2929" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'رقم الإثبات' : 'Proof Number'}</label>
+                      <input {...register('business.nationalAddress.proofNumber')} className="input font-mono" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'حساب العميل' : 'Customer Account'}</label>
+                      <input {...register('business.nationalAddress.customerAccount')} className="input font-mono" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'تاريخ الإصدار الأصلي' : 'Original Date'}</label>
+                      <input type="date" {...register('business.nationalAddress.originalDate')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'تاريخ الانتهاء' : 'Expiration Date'}</label>
+                      <input type="date" {...register('business.nationalAddress.expirationDate')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'رابط QR للتحقق' : 'SPL Verification QR URL'}</label>
+                      <input {...register('business.nationalAddress.qrCodeUrl')} className="input" placeholder="https://proof.address.gov.sa/..." />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Commercial Registration Details */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b pb-2 dark:border-dark-700">
+                    <Briefcase className="w-4 h-4 text-amber-500" />
+                    {language === 'ar' ? 'بيانات السجل التجاري (وزارة التجارة)' : 'Commercial Registration (Ministry of Commerce)'}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'تاريخ الإصدار' : 'Issue Date'}</label>
+                      <input type="date" {...register('business.commercialRegistration.issueDate')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'نوع الكيان (عربي)' : 'Company Type (Arabic)'}</label>
+                      <input {...register('business.commercialRegistration.companyTypeAr')} className="input" dir="rtl" placeholder="شركة ذات مسؤولية محدودة" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'حالة السجل (عربي)' : 'Status (Arabic)'}</label>
+                      <input {...register('business.commercialRegistration.companyStatusAr')} className="input" dir="rtl" placeholder="نشط" />
+                    </div>
+                    <div className="md:col-span-3">
+                      <label className="label">{language === 'ar' ? 'رابط QR للتحقق من السجل' : 'CR Verification QR URL'}</label>
+                      <input {...register('business.commercialRegistration.qrCodeUrl')} className="input" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6. VAT Registration Certificate Details */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b pb-2 dark:border-dark-700">
+                    <Receipt className="w-4 h-4 text-teal-500" />
+                    {language === 'ar' ? 'شهادة تسجيل ضريبة القيمة المضافة (ZATCA)' : 'VAT Certificate Details'}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'رقم الشهادة' : 'Certificate Number'}</label>
+                      <input {...register('business.vatCertificate.certificateNo')} className="input font-mono" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الفترة الضريبية (عربي)' : 'Tax Period (Arabic)'}</label>
+                      <input {...register('business.vatCertificate.taxPeriodAr')} className="input" dir="rtl" placeholder="ربع سنوي" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'تاريخ الشهادة' : 'Certificate Date'}</label>
+                      <input type="date" {...register('business.vatCertificate.certificateDate')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'تاريخ التسجيل الفعّال' : 'Effective Date'}</label>
+                      <input type="date" {...register('business.vatCertificate.effectiveDate')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'تاريخ أول إقرار ضريبي' : 'First Filing Due Date'}</label>
+                      <input type="date" {...register('business.vatCertificate.firstFilingDueDate')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'رابط QR للتحقق' : 'ZATCA QR Verification URL'}</label>
+                      <input {...register('business.vatCertificate.qrCodeUrl')} className="input" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 7. Bank Details */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b pb-2 dark:border-dark-700">
+                    <Landmark className="w-4 h-4 text-indigo-500" />
+                    {language === 'ar' ? 'الحسابات البنكية' : 'Bank Accounts'}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'اسم البنك' : 'Bank Name'}</label>
+                      <input {...register('business.bankDetails.bankName')} className="input" placeholder="Al Rajhi Bank / SNB" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'اسم صاحب الحساب' : 'Account Name'}</label>
+                      <input {...register('business.bankDetails.accountName')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'رقم الحساب' : 'Account Number'}</label>
+                      <input {...register('business.bankDetails.accountNumber')} className="input font-mono" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الآيبان (IBAN)' : 'IBAN'}</label>
+                      <input {...register('business.bankDetails.iban')} className="input font-mono" placeholder="SA0000000000000000000000" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Actions Footer */}
+                <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100 dark:border-dark-700">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="btn btn-secondary px-5"
+                  >
+                    {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || updateProfileMutation.isPending}
+                    className="btn btn-primary px-6 font-bold flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    {isSubmitting || updateProfileMutation.isPending ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...') : (language === 'ar' ? 'حفظ التعديلات' : 'Save Changes')}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* EDIT USER INFO MODAL */}
+      <AnimatePresence>
+        {isEditUserModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-700 w-full max-w-lg p-6 space-y-6"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-dark-700">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                  {language === 'ar' ? 'تعديل بيانات المستخدم' : 'Edit User Profile'}
+                </h3>
+                <button onClick={() => setIsEditUserModalOpen(false)} className="text-gray-500 hover:text-gray-700">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitUser((data) => updateUserMutation.mutate(data))} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">{language === 'ar' ? 'الاسم الأول' : 'First Name'}</label>
+                    <input {...registerUser('firstName', { required: true })} className="input" />
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'الاسم الأخير' : 'Last Name'}</label>
+                    <input {...registerUser('lastName', { required: true })} className="input" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label">{language === 'ar' ? 'رقم الجوال' : 'Phone Number'}</label>
+                  <input {...registerUser('phone')} className="input" placeholder="9665XXXXXXXX" />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-dark-700">
+                  <button type="button" onClick={() => setIsEditUserModalOpen(false)} className="btn btn-secondary">
+                    {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                  </button>
+                  <button type="submit" disabled={isSubmittingUser || updateUserMutation.isPending} className="btn btn-primary font-bold">
+                    {language === 'ar' ? 'حفظ' : 'Save'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CHANGE PASSWORD MODAL */}
+      <AnimatePresence>
+        {isPasswordModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-700 w-full max-w-md p-6 space-y-6"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600">
+                    <KeyRound className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                    {language === 'ar' ? 'تغيير كلمة المرور' : 'Change Password'}
+                  </h3>
+                </div>
+                <button onClick={() => setIsPasswordModalOpen(false)} className="text-gray-500 hover:text-gray-700">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitPwd(onChangePassword)} className="space-y-4">
+                <div>
+                  <label className="label">{language === 'ar' ? 'كلمة المرور الحالية' : 'Current Password'}</label>
+                  <input
+                    type="password"
+                    {...registerPwd('currentPassword', { required: true })}
+                    className="input"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div>
+                  <label className="label">{language === 'ar' ? 'كلمة المرور الجديدة' : 'New Password'}</label>
+                  <input
+                    type="password"
+                    {...registerPwd('newPassword', { required: true, minLength: 6 })}
+                    className="input"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div>
+                  <label className="label">{language === 'ar' ? 'تأكيد كلمة المرور الجديدة' : 'Confirm New Password'}</label>
+                  <input
+                    type="password"
+                    {...registerPwd('confirmPassword', { required: true })}
+                    className="input"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-dark-700">
+                  <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="btn btn-secondary">
+                    {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                  </button>
+                  <button type="submit" disabled={isSubmittingPwd || passwordMutation.isPending} className="btn btn-primary font-bold">
+                    {language === 'ar' ? 'تحديث كلمة المرور' : 'Update Password'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

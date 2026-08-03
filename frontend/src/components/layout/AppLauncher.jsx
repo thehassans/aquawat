@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Menu as MenuIcon } from 'lucide-react'
+import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Menu as MenuIcon, Building2, Settings as SettingsIcon } from 'lucide-react'
 import { Fragment } from 'react'
 import { Transition, Popover, Menu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -57,7 +57,8 @@ const APP_STYLE_MAP = {
   '/app/dashboard/restaurant': { gradient: 'from-[#F2994A] to-[#F2C94C]' },
   '/app/dashboard/pos': { gradient: 'from-[#F2994A] to-[#F2C94C]' },
 
-  // Settings & System (Gray / Slate)
+  // Settings & System (Gray / Slate / Indigo)
+  '/app/dashboard/profile': { gradient: 'from-[#4776E6] to-[#8E54E9]' },
   '/app/dashboard/settings': { gradient: 'from-[#4B79A1] to-[#283E51]' },
   '/app/dashboard/users': { gradient: 'from-[#4B79A1] to-[#283E51]' },
   '/app/dashboard/tenant-settings/government-integrations': { gradient: 'from-[#4B79A1] to-[#283E51]' },
@@ -428,7 +429,58 @@ export default function AppLauncher() {
                   leaveFrom="transform opacity-100 scale-100"
                   leaveTo="transform opacity-0 scale-95"
                 >
-                  <Menu.Items className="absolute end-0 mt-2 w-48 origin-top-right bg-white dark:bg-dark-800 rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none py-1 z-50">
+                  <Menu.Items className="absolute end-0 mt-2 w-64 origin-top-right bg-white dark:bg-dark-800 rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none p-1.5 z-50 border border-gray-100 dark:border-dark-700">
+                    <div className="px-3 py-2.5 border-b border-gray-100 dark:border-dark-700/80 mb-1">
+                      <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                        {language === 'ar' ? 'الحساب والمنشأة' : 'Account & Company'}
+                      </p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white truncate mt-0.5">
+                        {tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || 'Business'}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {user?.email}
+                      </p>
+                    </div>
+
+                    {/* My Profile */}
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          onClick={() => {
+                            dispatch(setAppLauncherOpen(false))
+                            navigate('/app/dashboard/profile')
+                          }}
+                          className={`${
+                            active ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
+                          } flex w-full items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors`}
+                        >
+                          <Building2 className="w-4 h-4 text-primary-500" />
+                          <span>{language === 'ar' ? 'الملف التعريفي والمنشأة' : 'My Profile & Company'}</span>
+                        </button>
+                      )}
+                    </Menu.Item>
+
+                    {/* Settings */}
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          onClick={() => {
+                            dispatch(setAppLauncherOpen(false))
+                            navigate('/app/dashboard/settings')
+                          }}
+                          className={`${
+                            active ? 'bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'
+                          } flex w-full items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors`}
+                        >
+                          <SettingsIcon className="w-4 h-4 text-gray-500" />
+                          <span>{language === 'ar' ? 'إعدادات النظام' : 'System Settings'}</span>
+                        </button>
+                      )}
+                    </Menu.Item>
+
+                    <div className="my-1 border-t border-gray-100 dark:border-dark-700" />
+
+                    {/* Sign out */}
                     <Menu.Item>
                       {({ active }) => (
                         <button
@@ -438,11 +490,11 @@ export default function AppLauncher() {
                             navigate('/login')
                           }}
                           className={`${
-                            active ? 'bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
-                          } flex w-full items-center gap-2 px-4 py-2 text-sm transition-colors`}
+                            active ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'text-red-600 dark:text-red-400'
+                          } flex w-full items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors`}
                         >
                           <LogOut className="w-4 h-4" />
-                          {language === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
+                          <span>{language === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</span>
                         </button>
                       )}
                     </Menu.Item>
