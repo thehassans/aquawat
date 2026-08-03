@@ -968,6 +968,13 @@ router.get('/operations', async (req, res) => {
       period: { startDate, endDate },
       currency: 'SAR',
       businessTypes,
+      sections,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // @route   GET /api/reports/audit/internal
 // Internal Audit: Evaluates internal controls, voided transactions, high discounts,
 // expense compliance, cash vs voucher reconciliation, and governance logs.
