@@ -1,4 +1,4 @@
-export const REPORT_SCHEDULE_TYPES = ['vat', 'business'];
+export const REPORT_SCHEDULE_TYPES = ['vat', 'business', 'internal_audit', 'external_audit'];
 export const REPORT_SCHEDULE_PRESETS = ['this_month', 'last_month', 'this_week', 'last_7_days'];
 export const REPORT_SCHEDULE_FREQUENCIES = ['daily', 'weekly', 'monthly'];
 

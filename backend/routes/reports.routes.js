@@ -9,6 +9,7 @@ import RestaurantOrder from '../models/RestaurantOrder.js';
 import { protect, tenantFilter, authorize, checkEmailAddon, requireBusinessType } from '../middleware/auth.js';
 import { getTenantBusinessTypes } from '../utils/businessTypes.js';
 import { buildBusinessReports } from '../utils/businessReports.js';
+import { buildInternalAuditReport, buildExternalAuditReport } from '../utils/auditReports.js';
 import { computeNextRunAt, normalizeRecipients, serializeReportSchedule, REPORT_SCHEDULE_FREQUENCIES, REPORT_SCHEDULE_PRESETS, REPORT_SCHEDULE_TYPES } from '../utils/reportScheduleService.js';
 
 const router = express.Router();
@@ -967,9 +968,50 @@ router.get('/operations', async (req, res) => {
       period: { startDate, endDate },
       currency: 'SAR',
       businessTypes,
-      sections,
+// @route   GET /api/reports/audit/internal
+// Internal Audit: Evaluates internal controls, voided transactions, high discounts,
+// expense compliance, cash vs voucher reconciliation, and governance logs.
+router.get('/audit/internal', async (req, res) => {
+  try {
+    const { startDate, endDate } = resolvePeriod(req);
+    const tenantId = req.user?.tenantId || req.tenant?._id;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context required' });
+    }
+
+    const report = await buildInternalAuditReport({
+      tenantId,
+      startDate,
+      endDate,
     });
+
+    res.json(report);
   } catch (error) {
+    console.error('[InternalAudit] error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/reports/audit/external
+// External Audit: Evaluates ZATCA Phase 2 cryptographic chaining, statutory VAT 15%,
+// AR aging (IFRS 9), cut-off verification, and formal independent auditor opinion.
+router.get('/audit/external', async (req, res) => {
+  try {
+    const { startDate, endDate } = resolvePeriod(req);
+    const tenantId = req.user?.tenantId || req.tenant?._id;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant context required' });
+    }
+
+    const report = await buildExternalAuditReport({
+      tenantId,
+      startDate,
+      endDate,
+    });
+
+    res.json(report);
+  } catch (error) {
+    console.error('[ExternalAudit] error:', error);
     res.status(500).json({ error: error.message });
   }
 });

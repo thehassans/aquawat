@@ -9,7 +9,10 @@ import Money from '../components/ui/Money'
 import ExportMenu from '../components/ui/ExportMenu'
 import { downloadBusinessReportPdf } from '../lib/businessReportPdf'
 import { downloadVatReturnReportPdf } from '../lib/vatReturnReportPdf'
-import { Clock3, Download, Mail, Trash2, TrendingUp, ShoppingCart, Receipt, Tag, BarChart3, FileText, AlertCircle, Calendar, ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Users, Package, Boxes } from 'lucide-react'
+import { downloadAuditReportPdf } from '../lib/auditReportPdf'
+import InternalAuditView from '../components/reports/InternalAuditView'
+import ExternalAuditView from '../components/reports/ExternalAuditView'
+import { Clock3, Download, Mail, Trash2, TrendingUp, ShoppingCart, Receipt, Tag, BarChart3, FileText, AlertCircle, Calendar, ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Users, Package, Boxes, ShieldCheck, Landmark } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const OPS_PREFIX = 'ops:'
@@ -287,6 +290,8 @@ export default function Reports() {
   const reportTabs = [
     { value: 'vat', label: 'VAT' },
     { value: 'business', label: language === 'ar' ? 'الأعمال' : 'Business' },
+    { value: 'internal_audit', label: language === 'ar' ? 'التدقيق الداخلي' : 'Internal Audit' },
+    { value: 'external_audit', label: language === 'ar' ? 'التدقيق الخارجي' : 'External Audit' },
     { value: 'daily', label: language === 'ar' ? 'اليومية' : 'Daily' },
     { value: 'sales', label: language === 'ar' ? 'مبيعات العملاء' : 'Customer Sales' },
     ...tenantBusinessTypes.map((type) => ({
@@ -302,6 +307,12 @@ export default function Reports() {
         return api
           .get('/reports/operations', { params: { startDate, endDate, businessType: opsType } })
           .then((res) => res.data)
+      }
+      if (reportType === 'internal_audit') {
+        return api.get('/reports/audit/internal', { params: { startDate, endDate } }).then((res) => res.data)
+      }
+      if (reportType === 'external_audit') {
+        return api.get('/reports/audit/external', { params: { startDate, endDate } }).then((res) => res.data)
       }
       const url = reportType === 'business'
         ? '/reports/business-summary'
@@ -517,7 +528,7 @@ export default function Reports() {
           </div>
 
           {/* Download PDF */}
-          {data && !isLoading && !error && !hasInvalidRange && (reportType === 'business' || reportType === 'vat') && (
+          {data && !isLoading && !error && !hasInvalidRange && ['business', 'vat', 'internal_audit', 'external_audit'].includes(reportType) && (
             <motion.button
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -525,7 +536,11 @@ export default function Reports() {
               onClick={async () => {
                 try {
                   setDownloadingReportPdf(true)
-                  if (reportType === 'business') {
+                  if (reportType === 'internal_audit') {
+                    await downloadAuditReportPdf({ report: data, tenant, language, type: 'internal' })
+                  } else if (reportType === 'external_audit') {
+                    await downloadAuditReportPdf({ report: data, tenant, language, type: 'external' })
+                  } else if (reportType === 'business') {
                     await downloadBusinessReportPdf({ report: data, language, tenant })
                   } else {
                     await downloadVatReturnReportPdf({ report: data, language, tenant })
@@ -653,6 +668,8 @@ export default function Reports() {
                       >
                         <option value="vat">VAT</option>
                         <option value="business">{language === 'ar' ? 'الأعمال' : 'Business'}</option>
+                        <option value="internal_audit">{language === 'ar' ? 'التدقيق الداخلي' : 'Internal Audit'}</option>
+                        <option value="external_audit">{language === 'ar' ? 'التدقيق الخارجي' : 'External Audit'}</option>
                       </select>
                     </div>
                     <div>
@@ -817,7 +834,13 @@ export default function Reports() {
                         {schedule.enabled ? (language === 'ar' ? 'مفعل' : 'Enabled') : (language === 'ar' ? 'متوقف' : 'Disabled')}
                       </span>
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
-                        {schedule.reportType === 'business' ? (language === 'ar' ? 'الأعمال' : 'Business') : 'VAT'}
+                        {schedule.reportType === 'internal_audit'
+                          ? (language === 'ar' ? 'التدقيق الداخلي' : 'Internal Audit')
+                          : schedule.reportType === 'external_audit'
+                          ? (language === 'ar' ? 'التدقيق الخارجي' : 'External Audit')
+                          : schedule.reportType === 'business'
+                          ? (language === 'ar' ? 'الأعمال' : 'Business')
+                          : 'VAT'}
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500">
@@ -889,6 +912,10 @@ export default function Reports() {
             </motion.div>
           ) : isOps ? (
             <OperationsSection section={opsSection} language={language} t={t} />
+          ) : reportType === 'internal_audit' ? (
+            <InternalAuditView data={data} language={language} t={t} tenant={tenant} />
+          ) : reportType === 'external_audit' ? (
+            <ExternalAuditView data={data} language={language} t={t} tenant={tenant} />
           ) : data ? (
             <>
               {/* Export toolbar */}
