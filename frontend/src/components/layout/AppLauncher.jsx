@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Menu as MenuIcon, Building2, Settings as SettingsIcon } from 'lucide-react'
+import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Menu as MenuIcon, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, LayoutList } from 'lucide-react'
 import { Fragment } from 'react'
 import { Transition, Popover, Menu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
-import { setAppLauncherOpen, setLanguage, setTheme } from '../../store/slices/uiSlice'
+import { setAppLauncherOpen, setLanguage, setTheme, setNavigationStyle } from '../../store/slices/uiSlice'
 import { logout } from '../../store/slices/authSlice'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getNavSections } from '../../lib/sidebarConfig'
@@ -105,7 +105,7 @@ export default function AppLauncher() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { appLauncherOpen, language, hiddenMenuItems, theme } = useSelector((state) => state.ui)
+  const { appLauncherOpen, language, hiddenMenuItems, theme, navigationStyle } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [searchQuery, setSearchQuery] = useState('')
@@ -262,6 +262,8 @@ export default function AppLauncher() {
   }, [appLauncherOpen])
 
   const handleAppClick = (path) => {
+    // When opening any page from here, shift to launcher mode so sidebar is hidden across screens
+    dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
     dispatch(setAppLauncherOpen(false))
     if (path) {
       navigate(path)
@@ -284,6 +286,7 @@ export default function AppLauncher() {
               <button 
                 onClick={() => dispatch(setAppLauncherOpen(false))}
                 className="p-2 sm:p-2.5 rounded-xl hover:bg-gray-200/50 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                title={language === 'ar' ? 'إغلاق' : 'Close'}
               >
                 <X className="w-6 h-6 sm:w-7 sm:h-7" />
               </button>
@@ -303,6 +306,28 @@ export default function AppLauncher() {
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2">
+              {/* Navigation Style Toggle */}
+              <button
+                onClick={() => {
+                  const next = navigationStyle === 'sidebar' ? 'launcher' : 'sidebar'
+                  dispatch(setNavigationStyle({ tenantId: tenant?._id, style: next }))
+                }}
+                className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-white/10 border border-gray-200/80 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/20 text-xs font-bold text-gray-700 dark:text-gray-200 shadow-xs transition-colors"
+                title={language === 'ar' ? 'تغيير شكل القائمة' : 'Toggle Navigation Style'}
+              >
+                {navigationStyle === 'sidebar' ? (
+                  <>
+                    <LayoutGrid className="w-4 h-4 text-primary-500" />
+                    <span>{language === 'ar' ? 'إخفاء الشريط الجانبي (قائمة الأيقونات)' : 'Hide Sidebar (App Menu)'}</span>
+                  </>
+                ) : (
+                  <>
+                    <PanelLeft className="w-4 h-4 text-emerald-500" />
+                    <span>{language === 'ar' ? 'إظهار الشريط الجانبي' : 'Show Sidebar Navigation'}</span>
+                  </>
+                )}
+              </button>
+
               {/* Language Toggle */}
               <button
                 onClick={() => dispatch(setLanguage(language === 'en' ? 'ar' : 'en'))}

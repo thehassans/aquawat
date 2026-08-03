@@ -358,68 +358,68 @@ export default function Profile() {
   return (
     <div className="min-h-screen pb-16 space-y-6 animate-fade-in">
       {/* Top Banner & Company Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white shadow-2xl border border-white/10">
-        {/* Ambient Decorative Lighting */}
-        <div className="absolute top-0 end-0 -me-20 -mt-20 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 start-0 -ms-20 -mb-20 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
+      <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-dark-800 text-gray-900 dark:text-white shadow-sm border border-gray-200/80 dark:border-dark-700">
+        {/* Top Accent Line */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-primary-500 via-indigo-500 to-sky-500" />
 
         <div className="relative p-6 sm:p-8 lg:p-10">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
             {/* Company Info Left/Right */}
             <div className="flex items-center gap-5 sm:gap-6">
               <div className="relative group">
-                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white/10 backdrop-blur-md p-2 border border-white/20 shadow-xl flex items-center justify-center overflow-hidden transition-all group-hover:border-primary-400">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gray-50 dark:bg-dark-700/60 p-2.5 border border-gray-200/80 dark:border-dark-600 shadow-xs flex items-center justify-center overflow-hidden transition-all group-hover:border-primary-500">
                   {branding.logo ? (
                     <img src={branding.logo} alt="Company Logo" className="w-full h-full object-contain" />
                   ) : (
-                    <Building2 className="w-12 h-12 text-white/60" />
+                    <Building2 className="w-10 h-10 text-gray-400 dark:text-gray-500" />
                   )}
                 </div>
                 <button
                   onClick={() => setIsEditModalOpen(true)}
-                  className="absolute -bottom-2 -end-2 p-2 rounded-xl bg-primary-600 hover:bg-primary-500 text-white shadow-lg transition-transform hover:scale-110"
+                  className="absolute -bottom-2 -end-2 p-1.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white shadow-md transition-transform hover:scale-110"
                   title={language === 'ar' ? 'تغيير الشعار' : 'Change Logo'}
                 >
-                  <Edit3 className="w-4 h-4" />
+                  <Edit3 className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
                     {language === 'ar' ? (business.legalNameAr || business.legalNameEn || 'المنشأة') : (business.legalNameEn || business.legalNameAr || 'Business Profile')}
                   </h1>
                   {business.tradeName && business.tradeName !== business.legalNameEn && (
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-white/90 backdrop-blur-sm border border-white/10">
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 dark:bg-dark-700 text-gray-700 dark:text-gray-200 border border-gray-200/80 dark:border-dark-600">
                       {business.tradeName}
                     </span>
                   )}
                 </div>
 
-                <p className="text-sm text-white/70 font-medium flex items-center gap-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium flex items-center gap-2 flex-wrap">
                   <span>{business.legalNameAr && language !== 'ar' ? business.legalNameAr : ''}</span>
                   {business.contactEmail && (
                     <span className="inline-flex items-center gap-1">
-                      <Mail className="w-3.5 h-3.5 text-white/50" />
+                      <Mail className="w-3.5 h-3.5 text-gray-400" />
                       {business.contactEmail}
                     </span>
                   )}
                   {business.contactPhone && (
-                    <span className="inline-flex items-center gap-1 ms-2">
-                      <Phone className="w-3.5 h-3.5 text-white/50" />
+                    <span className="inline-flex items-center gap-1 ms-1">
+                      <Phone className="w-3.5 h-3.5 text-gray-400" />
                       {business.contactPhone}
                     </span>
                   )}
                 </p>
 
                 {/* Badges Bar */}
-                <div className="flex flex-wrap items-center gap-2 pt-2">
+                <div className="flex flex-wrap items-center gap-2 pt-1.5">
                   {/* Status Badge */}
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                    isSubActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    isSubActive
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50'
                   }`}>
-                    <span className={`w-2 h-2 rounded-full ${isSubActive ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+                    <span className={`w-2 h-2 rounded-full ${isSubActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                     {subscription.plan ? `${subscription.plan.toUpperCase()} • ` : ''}
                     {subscription.status === 'active' ? (language === 'ar' ? 'نشط ومفعل' : 'Active') : (language === 'ar' ? 'معلق / تجريبي' : 'Trial / Suspended')}
                   </span>
@@ -428,12 +428,12 @@ export default function Profile() {
                   {business.vatNumber && (
                     <span 
                       onClick={() => handleCopy(business.vatNumber, 'vatTop')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-teal-500/20 text-teal-200 border border-teal-500/30 cursor-pointer hover:bg-teal-500/30 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/50 cursor-pointer hover:bg-teal-100/70 transition-colors"
                       title={language === 'ar' ? 'انقر للنسخ' : 'Click to copy'}
                     >
-                      <Receipt className="w-3.5 h-3.5 text-teal-300" />
+                      <Receipt className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                       <span>{language === 'ar' ? 'الرقم الضريبي:' : 'VAT:'} {business.vatNumber}</span>
-                      {copiedField === 'vatTop' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3 h-3 text-teal-300/70" />}
+                      {copiedField === 'vatTop' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-teal-500/70" />}
                     </span>
                   )}
 
@@ -441,12 +441,12 @@ export default function Profile() {
                   {(business.crNumber || commercialReg.crNumber) && (
                     <span 
                       onClick={() => handleCopy(business.crNumber || commercialReg.crNumber, 'crTop')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-200 border border-amber-500/30 cursor-pointer hover:bg-amber-500/30 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50 cursor-pointer hover:bg-amber-100/70 transition-colors"
                       title={language === 'ar' ? 'انقر للنسخ' : 'Click to copy'}
                     >
-                      <Briefcase className="w-3.5 h-3.5 text-amber-300" />
+                      <Briefcase className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                       <span>{language === 'ar' ? 'السجل التجاري:' : 'CR:'} {business.crNumber || commercialReg.crNumber}</span>
-                      {copiedField === 'crTop' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3 h-3 text-amber-300/70" />}
+                      {copiedField === 'crTop' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-amber-500/70" />}
                     </span>
                   )}
 
@@ -454,11 +454,11 @@ export default function Profile() {
                   {nationalAddress.shortAddress && (
                     <span 
                       onClick={() => handleCopy(nationalAddress.shortAddress, 'shortTop')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-sky-500/20 text-sky-200 border border-sky-500/30 cursor-pointer hover:bg-sky-500/30 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50 cursor-pointer hover:bg-sky-100/70 transition-colors"
                     >
-                      <MapPin className="w-3.5 h-3.5 text-sky-300" />
+                      <MapPin className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                       <span>{language === 'ar' ? 'العنوان المختصر:' : 'Short Address:'} {nationalAddress.shortAddress}</span>
-                      {copiedField === 'shortTop' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3 h-3 text-sky-300/70" />}
+                      {copiedField === 'shortTop' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-sky-500/70" />}
                     </span>
                   )}
                 </div>
@@ -466,10 +466,10 @@ export default function Profile() {
             </div>
 
             {/* Actions Bar */}
-            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+            <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
               <button
                 onClick={() => setIsEditModalOpen(true)}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary-500 to-indigo-600 hover:from-primary-600 hover:to-indigo-700 text-white font-semibold text-sm shadow-lg shadow-primary-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-semibold text-xs sm:text-sm shadow-xs transition-all active:scale-95"
               >
                 <Edit3 className="w-4 h-4" />
                 {language === 'ar' ? 'تعديل بيانات المنشأة' : 'Edit Company Profile'}
@@ -477,16 +477,16 @@ export default function Profile() {
 
               <button
                 onClick={() => setIsPasswordModalOpen(true)}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-sm backdrop-blur-md border border-white/10 transition-all hover:scale-[1.02]"
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-dark-700 dark:hover:bg-dark-600 text-gray-700 dark:text-gray-200 font-medium text-xs sm:text-sm transition-all"
               >
-                <KeyRound className="w-4 h-4 text-amber-300" />
+                <KeyRound className="w-4 h-4 text-amber-500" />
                 {language === 'ar' ? 'تغيير كلمة المرور' : 'Change Password'}
               </button>
 
               <button
                 onClick={() => refetch()}
                 disabled={isRefetching}
-                className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-all"
+                className="p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-dark-700 dark:hover:bg-dark-600 text-gray-600 dark:text-gray-300 border border-gray-200/60 dark:border-dark-600 transition-all"
                 title={language === 'ar' ? 'تحديث البيانات' : 'Refresh Data'}
               >
                 <RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />
@@ -496,7 +496,7 @@ export default function Profile() {
         </div>
 
         {/* Navigation Tabs Header */}
-        <div className="flex items-center gap-1 px-4 sm:px-8 border-t border-white/10 bg-black/20 backdrop-blur-md overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 px-4 sm:px-8 py-2 border-t border-gray-100 dark:border-dark-700 bg-gray-50/60 dark:bg-dark-900/40 overflow-x-auto no-scrollbar">
           {tabs.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
@@ -504,13 +504,13 @@ export default function Profile() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3.5 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition-all ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
                   isActive
-                    ? 'border-primary-400 text-white bg-white/5'
-                    : 'border-transparent text-white/60 hover:text-white hover:bg-white/5'
+                    ? 'text-primary-600 dark:text-primary-400 bg-white dark:bg-dark-800 shadow-xs border border-gray-200/80 dark:border-dark-600 font-bold'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-dark-800'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-primary-400' : 'text-white/50'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'}`} />
                 {tab.label}
               </button>
             )
@@ -1205,48 +1205,50 @@ export default function Profile() {
                 </button>
               </div>
 
-              {/* Luxury Metallic Card Preview */}
-              <div className="max-w-2xl mx-auto rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 shadow-2xl border border-white/10 relative overflow-hidden">
-                <div className="flex items-center justify-between mb-8">
+              {/* Minimalist Bank Card Preview */}
+              <div className="max-w-2xl mx-auto rounded-3xl bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 dark:from-dark-800 dark:via-dark-800 dark:to-indigo-950/20 text-gray-900 dark:text-white p-6 sm:p-8 shadow-sm border border-gray-200/80 dark:border-dark-700 relative overflow-hidden">
+                <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <Landmark className="w-7 h-7 text-amber-400" />
+                    <div className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400">
+                      <Landmark className="w-6 h-6" />
+                    </div>
                     <div>
-                      <p className="text-xs text-white/60 font-semibold uppercase tracking-widest">{language === 'ar' ? 'اسم البنك' : 'Bank Name'}</p>
-                      <h4 className="text-lg font-bold text-white">{bankDetails.bankName || (language === 'ar' ? 'البنك الأهلي السعودي / الراجحي' : 'Saudi National Bank')}</h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider">{language === 'ar' ? 'اسم البنك' : 'Bank Name'}</p>
+                      <h4 className="text-lg font-bold text-gray-900 dark:text-white">{bankDetails.bankName || (language === 'ar' ? 'البنك الأهلي السعودي / الراجحي' : 'Saudi National Bank')}</h4>
                     </div>
                   </div>
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                     SAR Account
                   </span>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-5">
                   <div>
-                    <span className="text-xs text-white/60 block uppercase tracking-wider mb-1">IBAN</span>
-                    <div className="flex items-center justify-between bg-black/30 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10">
-                      <span className="text-base sm:text-lg font-mono font-bold tracking-widest text-emerald-300">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 block uppercase tracking-wider mb-1">IBAN</span>
+                    <div className="flex items-center justify-between bg-white dark:bg-dark-700/60 px-4 py-3 rounded-2xl border border-gray-200/80 dark:border-dark-600 shadow-xs">
+                      <span className="text-base sm:text-lg font-mono font-bold tracking-wider text-emerald-600 dark:text-emerald-400">
                         {bankDetails.iban || 'SA00 0000 0000 0000 0000 0000'}
                       </span>
                       {bankDetails.iban && (
                         <button
                           onClick={() => handleCopy(bankDetails.iban, 'ibanCard')}
-                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white"
+                          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-600 text-gray-500 hover:text-gray-700 dark:text-gray-400"
                           title={language === 'ar' ? 'نسخ الآيبان' : 'Copy IBAN'}
                         >
-                          {copiedField === 'ibanCard' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                          {copiedField === 'ibanCard' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                         </button>
                       )}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-dark-700">
                     <div>
-                      <span className="text-xs text-white/60 block uppercase tracking-wider mb-0.5">{language === 'ar' ? 'اسم صاحب الحساب' : 'Account Name'}</span>
-                      <p className="text-sm font-bold text-white truncate">{bankDetails.accountName || business.legalNameAr || business.legalNameEn || '—'}</p>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 block uppercase tracking-wider mb-0.5">{language === 'ar' ? 'اسم صاحب الحساب' : 'Account Name'}</span>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{bankDetails.accountName || business.legalNameAr || business.legalNameEn || '—'}</p>
                     </div>
                     <div>
-                      <span className="text-xs text-white/60 block uppercase tracking-wider mb-0.5">{language === 'ar' ? 'رقم الحساب' : 'Account Number'}</span>
-                      <p className="text-sm font-mono font-bold text-white truncate">{bankDetails.accountNumber || '—'}</p>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 block uppercase tracking-wider mb-0.5">{language === 'ar' ? 'رقم الحساب' : 'Account Number'}</span>
+                      <p className="text-sm font-mono font-bold text-gray-900 dark:text-white truncate">{bankDetails.accountNumber || '—'}</p>
                     </div>
                   </div>
                 </div>

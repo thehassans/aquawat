@@ -169,15 +169,22 @@ export default function Header() {
           {/* Navigation Style Toggle */}
           <button
             onClick={() => dispatch(setNavigationStyle({ tenantId: tenant?._id, style: navigationStyle === 'sidebar' ? 'launcher' : 'sidebar' }))}
-            className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors group relative hidden sm:block"
+            className={`p-2.5 rounded-xl transition-colors group relative flex items-center gap-1.5 ${
+              navigationStyle === 'launcher'
+                ? 'bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/40 dark:hover:bg-primary-900/50 border border-primary-200 dark:border-primary-800/60 text-primary-600 dark:text-primary-400'
+                : 'hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-600 dark:text-gray-400'
+            }`}
+            title={navigationStyle === 'sidebar' ? (language === 'ar' ? 'إخفاء الشريط الجانبي (قائمة التطبيقات)' : 'App Menu Mode (Hide Sidebar)') : (language === 'ar' ? 'إظهار الشريط الجانبي' : 'Show Sidebar Navigation')}
           >
             {navigationStyle === 'sidebar' ? (
-              <LayoutList className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <LayoutGrid className="w-5 h-5" />
             ) : (
-              <PanelLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <PanelLeft className="w-5 h-5 text-primary-600 dark:text-primary-400" />
             )}
             <span className="tooltip -bottom-10 start-1/2 -translate-x-1/2 whitespace-nowrap">
-              {language === 'ar' ? 'تغيير شكل القائمة' : 'Toggle Navigation'}
+              {navigationStyle === 'sidebar'
+                ? (language === 'ar' ? 'إخفاء الشريط الجانبي' : 'App Menu Mode')
+                : (language === 'ar' ? 'إظهار الشريط الجانبي' : 'Sidebar Mode')}
             </span>
           </button>
 

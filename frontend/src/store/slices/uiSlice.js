@@ -60,11 +60,14 @@ const getDisplayModeForTenant = (tenantId) => {
 }
 
 const getNavigationStyleForTenant = (tenantId) => {
-  if (!tenantId) return 'sidebar'
   try {
-    const all = localStorage.getItem('navigationStyleByTenant')
-    const map = all ? JSON.parse(all) : {}
-    return ['sidebar', 'launcher'].includes(map[tenantId]) ? map[tenantId] : 'sidebar'
+    if (tenantId) {
+      const all = localStorage.getItem('navigationStyleByTenant')
+      const map = all ? JSON.parse(all) : {}
+      if (['sidebar', 'launcher'].includes(map[tenantId])) return map[tenantId]
+    }
+    const globalSaved = localStorage.getItem('navigationStyle')
+    return ['sidebar', 'launcher'].includes(globalSaved) ? globalSaved : 'sidebar'
   } catch {
     return 'sidebar'
   }
@@ -83,12 +86,14 @@ const setDisplayModeForTenantStorage = (tenantId, mode) => {
 }
 
 const setNavigationStyleForTenantStorage = (tenantId, style) => {
-  if (!tenantId) return
   try {
-    const all = localStorage.getItem('navigationStyleByTenant')
-    const map = all ? JSON.parse(all) : {}
-    map[tenantId] = ['sidebar', 'launcher'].includes(style) ? style : 'sidebar'
-    localStorage.setItem('navigationStyleByTenant', JSON.stringify(map))
+    if (tenantId) {
+      const all = localStorage.getItem('navigationStyleByTenant')
+      const map = all ? JSON.parse(all) : {}
+      map[tenantId] = ['sidebar', 'launcher'].includes(style) ? style : 'sidebar'
+      localStorage.setItem('navigationStyleByTenant', JSON.stringify(map))
+    }
+    localStorage.setItem('navigationStyle', style)
   } catch {
     // ignore
   }
@@ -110,7 +115,7 @@ const initialState = {
   hideSidebar: getInitialHideSidebar(),
   hiddenMenuItems: getInitialHiddenMenuItems(),
   displayMode: 'auto',
-  navigationStyle: 'sidebar',
+  navigationStyle: getNavigationStyleForTenant(),
   mobileMenuOpen: false,
   appLauncherOpen: false,
 }
@@ -210,7 +215,14 @@ const uiSlice = createSlice({
       applyDisplayMode(mode)
     },
     setNavigationStyle: (state, action) => {
-      const { tenantId, style } = action.payload
+      let tenantId, style
+      if (typeof action.payload === 'string') {
+        style = action.payload
+      } else {
+        tenantId = action.payload?.tenantId
+        style = action.payload?.style
+      }
+      style = ['sidebar', 'launcher'].includes(style) ? style : 'sidebar'
       state.navigationStyle = style
       setNavigationStyleForTenantStorage(tenantId, style)
     },
