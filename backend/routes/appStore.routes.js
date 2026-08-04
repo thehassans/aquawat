@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { protect } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import { AppAddon } from '../models/AppAddon.js';
 import { normalizeBusinessTypes } from '../utils/businessTypes.js';
@@ -330,7 +330,7 @@ export const DEFAULT_APP_CATALOG = [
   }
 ];
 
-// Helper: Ensure default apps catalog is in DB
+// Helper: Ensure default apps catalog is in DB on demand
 const ensureCatalogInitialized = async () => {
   try {
     for (const app of DEFAULT_APP_CATALOG) {
@@ -344,15 +344,18 @@ const ensureCatalogInitialized = async () => {
     console.error('Failed to initialize app catalog:', err.message);
   }
 };
-ensureCatalogInitialized();
 
 // ─── 1. Get All Apps & Add-ons with Tenant Installation Status ───
-router.get('/apps', authenticate, async (req, res) => {
+router.get('/apps', protect, async (req, res) => {
   try {
     const tenant = await Tenant.findById(req.user.tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
     let apps = await AppAddon.find({ isActive: true }).lean();
+    if (!apps || apps.length === 0) {
+      ensureCatalogInitialized().catch(() => {});
+      apps = DEFAULT_APP_CATALOG;
+    }
     if (!apps || apps.length === 0) {
       apps = DEFAULT_APP_CATALOG;
     }
@@ -388,42 +391,55 @@ router.get('/apps', authenticate, async (req, res) => {
   }
 });
 
-// ─── 2. Install App / Add-on ───────────────────────────────────────
-router.post('/apps/:appId/install', authenticate, async (req, res) => {
+// ─── 2. Install App / Add-on ───
+router.post('/apps/:appId/install', protect, async (req, res) => {
   try {
     const { appId } = req.params;
-    const { initialConfig } = req.body || {};
+    const { customConfig } = req.body || {};
+
+    const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find(a => a.appId === appId);
+    if (!appDef) return res.status(404).json({ error: 'App not found in catalog' });
 
     const tenant = await Tenant.findById(req.user.tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-    const app = await AppAddon.findOne({ appId }) || DEFAULT_APP_CATALOG.find(a => a.appId === appId);
-    if (!app) return res.status(404).json({ error: 'App not found in catalog' });
+    if (!tenant.settings) tenant.settings = {};
+    if (!tenant.settings.installedApps) tenant.settings.installedApps = {};
 
-    const installedApps = { ...(tenant.settings?.installedApps || {}) };
-    installedApps[appId] = {
+    const defaultCfg = {};
+    if (appDef.configSchema) {
+      for (const field of appDef.configSchema) {
+        if (field.defaultValue !== undefined) {
+          defaultCfg[field.key] = field.defaultValue;
+        }
+      }
+    }
+
+    const appConfig = {
       isInstalled: true,
       isEnabled: true,
       installedAt: new Date(),
-      config: initialConfig || {}
+      version: appDef.version,
+      config: { ...defaultCfg, ...(customConfig || {}) }
     };
+
+    tenant.settings.installedApps[appId] = appConfig;
 
     // If app grants a business type (e.g. manufacturing), ensure it is added to tenant.businessTypes
     let currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
-    if (app.businessTypeGrant && !currentTypes.includes(app.businessTypeGrant)) {
-      currentTypes.push(app.businessTypeGrant);
+    if (appDef.businessTypeGrant && !currentTypes.includes(appDef.businessTypeGrant)) {
+      currentTypes.push(appDef.businessTypeGrant);
       tenant.businessTypes = currentTypes;
     }
 
-    if (!tenant.settings) tenant.settings = {};
-    tenant.settings.installedApps = installedApps;
+    tenant.markModified('settings.installedApps');
     tenant.markModified('settings');
     tenant.markModified('businessTypes');
     await tenant.save();
 
     res.json({
       success: true,
-      message: 'App installed successfully',
+      message: `App ${appDef.nameEn} installed successfully`,
       appId,
       installedApps: tenant.settings.installedApps,
       businessTypes: tenant.businessTypes
@@ -433,8 +449,8 @@ router.post('/apps/:appId/install', authenticate, async (req, res) => {
   }
 });
 
-// ─── 3. Uninstall App / Add-on ─────────────────────────────────────
-router.post('/apps/:appId/uninstall', authenticate, async (req, res) => {
+// ─── 3. Uninstall App / Add-on ───
+router.post('/apps/:appId/uninstall', protect, async (req, res) => {
   try {
     const { appId } = req.params;
 
@@ -448,24 +464,35 @@ router.post('/apps/:appId/uninstall', authenticate, async (req, res) => {
       installedApps[appId].uninstalledAt = new Date();
     }
 
+    const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find(a => a.appId === appId);
+    if (appDef && appDef.businessTypeGrant) {
+      const currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
+      tenant.businessTypes = currentTypes.filter(t => t !== appDef.businessTypeGrant);
+      if (tenant.businessTypes.length === 0) tenant.businessTypes = ['trading'];
+      tenant.businessType = tenant.businessTypes[0];
+      tenant.markModified('businessTypes');
+    }
+
     if (!tenant.settings) tenant.settings = {};
     tenant.settings.installedApps = installedApps;
     tenant.markModified('settings');
+    tenant.markModified('settings.installedApps');
     await tenant.save();
 
     res.json({
       success: true,
       message: 'App uninstalled successfully',
       appId,
-      installedApps: tenant.settings.installedApps
+      installedApps: tenant.settings.installedApps,
+      businessTypes: tenant.businessTypes
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ─── 4. Toggle App Active Status ──────────────────────────────────
-router.post('/apps/:appId/toggle', authenticate, async (req, res) => {
+// ─── 4. Toggle App Active Status ───
+router.post('/apps/:appId/toggle', protect, async (req, res) => {
   try {
     const { appId } = req.params;
     const { isEnabled } = req.body;
@@ -482,6 +509,7 @@ router.post('/apps/:appId/toggle', authenticate, async (req, res) => {
     if (!tenant.settings) tenant.settings = {};
     tenant.settings.installedApps = installedApps;
     tenant.markModified('settings');
+    tenant.markModified('settings.installedApps');
     await tenant.save();
 
     res.json({
@@ -494,8 +522,8 @@ router.post('/apps/:appId/toggle', authenticate, async (req, res) => {
   }
 });
 
-// ─── 5. Save App Configuration ─────────────────────────────────────
-router.put('/apps/:appId/settings', authenticate, async (req, res) => {
+// ─── 5. Save App Configuration ───
+router.put('/apps/:appId/settings', protect, async (req, res) => {
   try {
     const { appId } = req.params;
     const { config } = req.body;
@@ -512,6 +540,7 @@ router.put('/apps/:appId/settings', authenticate, async (req, res) => {
     if (!tenant.settings) tenant.settings = {};
     tenant.settings.installedApps = installedApps;
     tenant.markModified('settings');
+    tenant.markModified('settings.installedApps');
     await tenant.save();
 
     res.json({

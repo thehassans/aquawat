@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { protect } from '../middleware/auth.js';
 import {
   ManufacturingWorkCenter,
   ManufacturingRouting,
@@ -21,7 +21,7 @@ const router = express.Router();
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/manufacturing/boms - List all BOMs with filters
-router.get('/boms', authenticate, async (req, res) => {
+router.get('/boms', protect, async (req, res) => {
   try {
     const { search, status, productId } = req.query;
     const query = { tenantId: req.user.tenantId, isActive: true };
@@ -51,7 +51,7 @@ router.get('/boms', authenticate, async (req, res) => {
 });
 
 // GET /api/manufacturing/boms/:id - Single BOM details with full multi-level tree
-router.get('/boms/:id', authenticate, async (req, res) => {
+router.get('/boms/:id', protect, async (req, res) => {
   try {
     const bom = await ManufacturingBOM.findOne({ _id: req.params.id, tenantId: req.user.tenantId })
       .populate('finishedProductId')
@@ -71,7 +71,7 @@ router.get('/boms/:id', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/boms - Create new BOM
-router.post('/boms', authenticate, async (req, res) => {
+router.post('/boms', protect, async (req, res) => {
   try {
     const {
       nameEn,
@@ -164,7 +164,7 @@ router.post('/boms', authenticate, async (req, res) => {
 });
 
 // PUT /api/manufacturing/boms/:id - Update BOM with Revision Control
-router.put('/boms/:id', authenticate, async (req, res) => {
+router.put('/boms/:id', protect, async (req, res) => {
   try {
     const existing = await ManufacturingBOM.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
     if (!existing) return res.status(404).json({ error: 'BOM not found' });
@@ -236,7 +236,7 @@ router.put('/boms/:id', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/boms/swap-component - Dynamic component swap across BOMs
-router.post('/boms/swap-component', authenticate, async (req, res) => {
+router.post('/boms/swap-component', protect, async (req, res) => {
   try {
     const { oldProductId, newProductId, newCostPerUnit } = req.body;
     if (!oldProductId || !newProductId) {
@@ -282,7 +282,7 @@ router.post('/boms/swap-component', authenticate, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/manufacturing/work-centers
-router.get('/work-centers', authenticate, async (req, res) => {
+router.get('/work-centers', protect, async (req, res) => {
   try {
     const workCenters = await ManufacturingWorkCenter.find({ tenantId: req.user.tenantId, isActive: true })
       .populate('currentWorkOrderId', 'orderNumber quantityPlanned wipStage status')
@@ -294,7 +294,7 @@ router.get('/work-centers', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/work-centers
-router.post('/work-centers', authenticate, async (req, res) => {
+router.post('/work-centers', protect, async (req, res) => {
   try {
     const { code, nameEn, nameAr, type, capacityHoursPerDay, hourlyLaborRate, hourlyMachineRate, oeeTarget } = req.body;
 
@@ -322,7 +322,7 @@ router.post('/work-centers', authenticate, async (req, res) => {
 });
 
 // GET /api/manufacturing/routings
-router.get('/routings', authenticate, async (req, res) => {
+router.get('/routings', protect, async (req, res) => {
   try {
     const routings = await ManufacturingRouting.find({ tenantId: req.user.tenantId, isActive: true })
       .populate('productId', 'sku nameEn nameAr')
@@ -335,7 +335,7 @@ router.get('/routings', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/routings
-router.post('/routings', authenticate, async (req, res) => {
+router.post('/routings', protect, async (req, res) => {
   try {
     const { code, nameEn, nameAr, productId, version = '1.0', operations = [] } = req.body;
 
@@ -370,7 +370,7 @@ router.post('/routings', authenticate, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/manufacturing/mps - Master Production Schedule view
-router.get('/mps', authenticate, async (req, res) => {
+router.get('/mps', protect, async (req, res) => {
   try {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
@@ -389,7 +389,7 @@ router.get('/mps', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/mps/generate - Auto-align MPS with Sales Orders & Forecast
-router.post('/mps/generate', authenticate, async (req, res) => {
+router.post('/mps/generate', protect, async (req, res) => {
   try {
     const { year = new Date().getFullYear(), month = new Date().getMonth() + 1 } = req.body;
 
@@ -440,7 +440,7 @@ router.post('/mps/generate', authenticate, async (req, res) => {
 });
 
 // GET /api/manufacturing/mrp/run - Deep Material Requirements Planning Engine
-router.get('/mrp/run', authenticate, async (req, res) => {
+router.get('/mrp/run', protect, async (req, res) => {
   try {
     const boms = await ManufacturingBOM.find({ tenantId: req.user.tenantId, status: 'active', isActive: true })
       .populate('finishedProductId')
@@ -526,7 +526,7 @@ router.get('/mrp/run', authenticate, async (req, res) => {
 });
 
 // GET /api/manufacturing/crp - Capacity Requirement Planning
-router.get('/crp', authenticate, async (req, res) => {
+router.get('/crp', protect, async (req, res) => {
   try {
     const workCenters = await ManufacturingWorkCenter.find({ tenantId: req.user.tenantId, isActive: true });
     const activeWorkOrders = await ManufacturingWorkOrder.find({
@@ -573,7 +573,7 @@ router.get('/crp', authenticate, async (req, res) => {
 });
 
 // GET /api/manufacturing/schedule-gantt - Gantt Chart timeline data
-router.get('/schedule-gantt', authenticate, async (req, res) => {
+router.get('/schedule-gantt', protect, async (req, res) => {
   try {
     const workOrders = await ManufacturingWorkOrder.find({
       tenantId: req.user.tenantId,
@@ -625,7 +625,7 @@ router.get('/schedule-gantt', authenticate, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/manufacturing/work-orders - List Work Orders with filters
-router.get('/work-orders', authenticate, async (req, res) => {
+router.get('/work-orders', protect, async (req, res) => {
   try {
     const { status, wipStage, priority, search } = req.query;
     const query = { tenantId: req.user.tenantId };
@@ -654,7 +654,7 @@ router.get('/work-orders', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/work-orders - Create Work Order & Auto-Generate Job Cards & Kitting
-router.post('/work-orders', authenticate, async (req, res) => {
+router.post('/work-orders', protect, async (req, res) => {
   try {
     const {
       productId,
@@ -760,7 +760,7 @@ router.post('/work-orders', authenticate, async (req, res) => {
 });
 
 // GET /api/manufacturing/work-orders/:id - Full details
-router.get('/work-orders/:id', authenticate, async (req, res) => {
+router.get('/work-orders/:id', protect, async (req, res) => {
   try {
     const workOrder = await ManufacturingWorkOrder.findOne({ _id: req.params.id, tenantId: req.user.tenantId })
       .populate('productId')
@@ -785,7 +785,7 @@ router.get('/work-orders/:id', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/work-orders/:id/issue-materials - Confirm Kitting Transfer Slip
-router.post('/work-orders/:id/issue-materials', authenticate, async (req, res) => {
+router.post('/work-orders/:id/issue-materials', protect, async (req, res) => {
   try {
     const workOrder = await ManufacturingWorkOrder.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
     if (!workOrder) return res.status(404).json({ error: 'Work Order not found' });
@@ -825,7 +825,7 @@ router.post('/work-orders/:id/issue-materials', authenticate, async (req, res) =
 // ─── Real-Time Job Card Execution Controls (Start, Pause, Complete, Downtime) ───
 
 // POST /api/manufacturing/job-cards/:id/start
-router.post('/job-cards/:id/start', authenticate, async (req, res) => {
+router.post('/job-cards/:id/start', protect, async (req, res) => {
   try {
     const jobCard = await ManufacturingJobCard.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
     if (!jobCard) return res.status(404).json({ error: 'Job Card not found' });
@@ -854,7 +854,7 @@ router.post('/job-cards/:id/start', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/job-cards/:id/pause
-router.post('/job-cards/:id/pause', authenticate, async (req, res) => {
+router.post('/job-cards/:id/pause', protect, async (req, res) => {
   try {
     const jobCard = await ManufacturingJobCard.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
     if (!jobCard) return res.status(404).json({ error: 'Job Card not found' });
@@ -875,7 +875,7 @@ router.post('/job-cards/:id/pause', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/job-cards/:id/complete
-router.post('/job-cards/:id/complete', authenticate, async (req, res) => {
+router.post('/job-cards/:id/complete', protect, async (req, res) => {
   try {
     const { quantityOutput, quantityRejected = 0 } = req.body;
     const jobCard = await ManufacturingJobCard.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
@@ -920,7 +920,7 @@ router.post('/job-cards/:id/complete', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/job-cards/:id/downtime - Log Machine Breakdown & Stoppage
-router.post('/job-cards/:id/downtime', authenticate, async (req, res) => {
+router.post('/job-cards/:id/downtime', protect, async (req, res) => {
   try {
     const { reason = 'machine_breakdown', durationMinutes = 30, notes = '' } = req.body;
     const jobCard = await ManufacturingJobCard.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
@@ -950,7 +950,7 @@ router.post('/job-cards/:id/downtime', authenticate, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/manufacturing/qa/inspections
-router.get('/qa/inspections', authenticate, async (req, res) => {
+router.get('/qa/inspections', protect, async (req, res) => {
   try {
     const inspections = await ManufacturingQualityInspection.find({ tenantId: req.user.tenantId })
       .populate('workOrderId', 'orderNumber quantityPlanned quantityProduced lotNumber')
@@ -963,7 +963,7 @@ router.get('/qa/inspections', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/qa/inspections - Sign-off Inspection Checklist
-router.post('/qa/inspections', authenticate, async (req, res) => {
+router.post('/qa/inspections', protect, async (req, res) => {
   try {
     const {
       workOrderId,
@@ -1023,7 +1023,7 @@ router.post('/qa/inspections', authenticate, async (req, res) => {
 });
 
 // GET /api/manufacturing/qa/ncrs
-router.get('/qa/ncrs', authenticate, async (req, res) => {
+router.get('/qa/ncrs', protect, async (req, res) => {
   try {
     const ncrs = await ManufacturingNCR.find({ tenantId: req.user.tenantId })
       .populate('workOrderId', 'orderNumber quantityPlanned lotNumber')
@@ -1035,7 +1035,7 @@ router.get('/qa/ncrs', authenticate, async (req, res) => {
 });
 
 // POST /api/manufacturing/qa/ncrs - Create Non-Conformance Report
-router.post('/qa/ncrs', authenticate, async (req, res) => {
+router.post('/qa/ncrs', protect, async (req, res) => {
   try {
     const {
       workOrderId,
@@ -1084,7 +1084,7 @@ router.post('/qa/ncrs', authenticate, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/manufacturing/analytics/oee - Overall Equipment Effectiveness Metrics
-router.get('/analytics/oee', authenticate, async (req, res) => {
+router.get('/analytics/oee', protect, async (req, res) => {
   try {
     const jobCards = await ManufacturingJobCard.find({ tenantId: req.user.tenantId });
     const workCenters = await ManufacturingWorkCenter.find({ tenantId: req.user.tenantId, isActive: true });
@@ -1130,7 +1130,7 @@ router.get('/analytics/oee', authenticate, async (req, res) => {
 });
 
 // GET /api/manufacturing/analytics/wip-valuation - Real-time WIP Inventory Value
-router.get('/analytics/wip-valuation', authenticate, async (req, res) => {
+router.get('/analytics/wip-valuation', protect, async (req, res) => {
   try {
     const activeOrders = await ManufacturingWorkOrder.find({
       tenantId: req.user.tenantId,
@@ -1167,7 +1167,7 @@ router.get('/analytics/wip-valuation', authenticate, async (req, res) => {
 });
 
 // GET /api/manufacturing/costing/variance - Standard vs Actual Cost Variance
-router.get('/costing/variance', authenticate, async (req, res) => {
+router.get('/costing/variance', protect, async (req, res) => {
   try {
     const completedOrders = await ManufacturingWorkOrder.find({
       tenantId: req.user.tenantId,

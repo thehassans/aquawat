@@ -129,4 +129,6 @@ export const tenantFilter = (req, res, next) => {
   next();
 };
 
-export default { protect, authorize, checkPermission, tenantFilter, requireBusinessType, checkEmailAddon, tenantHasEmailAddon };
+export const authenticate = protect;
+
+export default { protect, authenticate, authorize, checkPermission, tenantFilter, requireBusinessType, checkEmailAddon, tenantHasEmailAddon };
