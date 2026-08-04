@@ -196,6 +196,13 @@ const uiSlice = createSlice({
     },
     setAppLauncherOpen: (state, action) => {
       state.appLauncherOpen = action.payload
+      if (action.payload) {
+        state.mobileMenuOpen = false
+        state.hideSidebar = true
+        state.navigationStyle = 'launcher'
+        localStorage.setItem('hideSidebar', 'true')
+        localStorage.setItem('navigationStyle', 'launcher')
+      }
     },
     setHideSidebar: (state, action) => {
       state.hideSidebar = action.payload

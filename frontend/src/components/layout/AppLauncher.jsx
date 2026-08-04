@@ -7,7 +7,7 @@ import { Fragment } from 'react'
 import { Transition, Popover, Menu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
-import { setAppLauncherOpen, setLanguage, setTheme, setNavigationStyle } from '../../store/slices/uiSlice'
+import { setAppLauncherOpen, setLanguage, setTheme, setNavigationStyle, setHideSidebar, setMobileMenuOpen } from '../../store/slices/uiSlice'
 import { logout } from '../../store/slices/authSlice'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getNavSections } from '../../lib/sidebarConfig'
@@ -264,6 +264,8 @@ export default function AppLauncher() {
   const handleAppClick = (path) => {
     // When opening any page from here, shift to launcher mode so sidebar is hidden across screens
     dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+    dispatch(setHideSidebar(true))
+    dispatch(setMobileMenuOpen(false))
     dispatch(setAppLauncherOpen(false))
     if (path) {
       navigate(path)
@@ -311,6 +313,13 @@ export default function AppLauncher() {
                 onClick={() => {
                   const next = navigationStyle === 'sidebar' ? 'launcher' : 'sidebar'
                   dispatch(setNavigationStyle({ tenantId: tenant?._id, style: next }))
+                  if (next === 'launcher') {
+                    dispatch(setHideSidebar(true))
+                    dispatch(setMobileMenuOpen(false))
+                  } else {
+                    dispatch(setHideSidebar(false))
+                    dispatch(setAppLauncherOpen(false))
+                  }
                 }}
                 className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-white/10 border border-gray-200/80 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/20 text-xs font-bold text-gray-700 dark:text-gray-200 shadow-xs transition-colors"
                 title={language === 'ar' ? 'تغيير شكل القائمة' : 'Toggle Navigation Style'}
@@ -473,6 +482,9 @@ export default function AppLauncher() {
                       {({ active }) => (
                         <button
                           onClick={() => {
+                            dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+                            dispatch(setHideSidebar(true))
+                            dispatch(setMobileMenuOpen(false))
                             dispatch(setAppLauncherOpen(false))
                             navigate('/app/dashboard/profile')
                           }}
@@ -491,6 +503,9 @@ export default function AppLauncher() {
                       {({ active }) => (
                         <button
                           onClick={() => {
+                            dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+                            dispatch(setHideSidebar(true))
+                            dispatch(setMobileMenuOpen(false))
                             dispatch(setAppLauncherOpen(false))
                             navigate('/app/dashboard/settings')
                           }}

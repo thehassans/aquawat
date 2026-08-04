@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../lib/api'
 import { logout } from '../../store/slices/authSlice'
-import { setTheme, setLanguage, setMobileMenuOpen, setAppLauncherOpen, setNavigationStyle } from '../../store/slices/uiSlice'
+import { setTheme, setLanguage, setMobileMenuOpen, setAppLauncherOpen, setNavigationStyle, setHideSidebar } from '../../store/slices/uiSlice'
 import { useTranslation } from '../../lib/translations'
 import DemoBanner from './DemoBanner'
 import TrialLimitModal from './TrialLimitModal'
@@ -128,9 +128,14 @@ export default function Header() {
           </button>
           
           <button
-            onClick={() => dispatch(setAppLauncherOpen(true))}
-            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors hidden sm:block"
-            title={language === 'ar' ? 'التطبيقات' : 'Apps'}
+            onClick={() => {
+              dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+              dispatch(setHideSidebar(true))
+              dispatch(setMobileMenuOpen(false))
+              dispatch(setAppLauncherOpen(true))
+            }}
+            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors"
+            title={language === 'ar' ? 'قائمة التطبيقات (إخفاء الشريط الجانبي)' : 'App Menu (Hide Sidebar)'}
           >
             <LayoutGrid className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           </button>
@@ -168,7 +173,18 @@ export default function Header() {
 
           {/* Navigation Style Toggle */}
           <button
-            onClick={() => dispatch(setNavigationStyle({ tenantId: tenant?._id, style: navigationStyle === 'sidebar' ? 'launcher' : 'sidebar' }))}
+            onClick={() => {
+              const nextStyle = navigationStyle === 'sidebar' ? 'launcher' : 'sidebar'
+              dispatch(setNavigationStyle({ tenantId: tenant?._id, style: nextStyle }))
+              if (nextStyle === 'launcher') {
+                dispatch(setHideSidebar(true))
+                dispatch(setMobileMenuOpen(false))
+                dispatch(setAppLauncherOpen(true))
+              } else {
+                dispatch(setHideSidebar(false))
+                dispatch(setAppLauncherOpen(false))
+              }
+            }}
             className={`p-2.5 rounded-xl transition-colors group relative flex items-center gap-1.5 ${
               navigationStyle === 'launcher'
                 ? 'bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/40 dark:hover:bg-primary-900/50 border border-primary-200 dark:border-primary-800/60 text-primary-600 dark:text-primary-400'
