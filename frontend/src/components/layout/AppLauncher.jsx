@@ -216,6 +216,14 @@ export default function AppLauncher() {
         return
       }
 
+      // App Store gating: skip sections requiring an installed app
+      if (section.requireApp) {
+        const appStatus = tenant?.settings?.installedApps?.[section.requireApp]
+        if (!appStatus?.isInstalled || !appStatus?.isEnabled) {
+          return
+        }
+      }
+
       const items = (Array.isArray(section.items) ? section.items : []).filter((item) => {
         if (item.path && hiddenMenuSet.has(item.path)) return false
         const childPath = item.children?.[0]?.path
@@ -228,6 +236,11 @@ export default function AppLauncher() {
         }
         if (item.requireAddon && !tenant?.subscription?.[item.requireAddon]) {
           return false
+        }
+        // Per-item App Store gating
+        if (item.requireApp) {
+          const appStatus = tenant?.settings?.installedApps?.[item.requireApp]
+          if (!appStatus?.isInstalled || !appStatus?.isEnabled) return false
         }
         if (!item?.perm) return true
         return hasAccess(item.perm.module, item.perm.action)

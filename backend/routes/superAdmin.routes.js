@@ -7,6 +7,8 @@ import multer from 'multer';
 import Tenant from '../models/Tenant.js';
 import User from '../models/User.js';
 import Invoice from '../models/Invoice.js';
+import { AppAddon } from '../models/AppAddon.js';
+import { DEFAULT_APP_CATALOG, ensureCatalogInitialized } from './appStore.routes.js';
 import Customer from '../models/Customer.js';
 import TravelBooking from '../models/TravelBooking.js';
 import RestaurantOrder from '../models/RestaurantOrder.js';
@@ -3300,5 +3302,62 @@ router.get('/tenants/:id/khayyat-customers/stats', async (req, res) => {
   }
 });
 
-export default router;
+// ─── App Catalog Management (Super Admin) ─────────────────────────────
 
+// GET /api/super-admin/app-catalog
+router.get('/app-catalog', protect, authorize('super_admin'), async (req, res) => {
+  try {
+    let apps = await AppAddon.find().sort({ category: 1, nameEn: 1 }).lean();
+    if (!apps || apps.length === 0) {
+      await ensureCatalogInitialized();
+      apps = await AppAddon.find().sort({ category: 1, nameEn: 1 }).lean();
+    }
+    res.json({ success: true, apps: apps || DEFAULT_APP_CATALOG });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/super-admin/app-catalog/:appId
+router.put('/app-catalog/:appId', protect, authorize('super_admin'), async (req, res) => {
+  try {
+    const { appId } = req.params;
+    const updates = req.body;
+    
+    // Allow updating pricing, details, features, and active status
+    const allowedFields = ['nameEn', 'nameAr', 'taglineEn', 'taglineAr', 'descriptionEn', 'descriptionAr', 'pricingTier', 'monthlyPrice', 'yearlyPrice', 'isActive', 'badge', 'featuresEn', 'featuresAr'];
+    const sanitized = {};
+    for (const key of allowedFields) {
+      if (updates[key] !== undefined) sanitized[key] = updates[key];
+    }
+    
+    const app = await AppAddon.findOneAndUpdate(
+      { appId },
+      { $set: sanitized },
+      { new: true, upsert: true }
+    );
+    
+    res.json({ success: true, app });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/super-admin/app-catalog/reset - Reset to default catalog
+router.post('/app-catalog/reset', protect, authorize('super_admin'), async (req, res) => {
+  try {
+    for (const app of DEFAULT_APP_CATALOG) {
+      await AppAddon.findOneAndUpdate(
+        { appId: app.appId },
+        { $set: app },
+        { upsert: true, new: true }
+      );
+    }
+    const apps = await AppAddon.find().sort({ category: 1, nameEn: 1 });
+    res.json({ success: true, message: 'App catalog reset to defaults', apps });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+export default router;

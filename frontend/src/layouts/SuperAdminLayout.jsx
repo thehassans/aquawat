@@ -42,6 +42,7 @@ export default function SuperAdminLayout() {
     { path: '/super-admin/leads', icon: Target, label: language === 'ar' ? 'استخراج العملاء' : 'Leads Gen' },
     { path: '/super-admin/lead-setup', icon: Settings, label: language === 'ar' ? 'إعدادات العملاء' : 'Lead Setup' },
     { path: '/super-admin/zatca', icon: ShieldCheck, label: 'ZATCA' },
+    { path: '/super-admin/app-catalog', icon: Store, label: language === 'ar' ? 'متجر التطبيقات والأسعار' : 'App Store & Pricing' },
   ]
 
   const moreNavItems = [

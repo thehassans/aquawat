@@ -249,6 +249,7 @@ const ZatcaManagement = lazy(() => import('./pages/super-admin/ZatcaManagement')
 const QueriesCRM = lazy(() => import('./pages/super-admin/QueriesCRM'))
 const LeadsGeneration = lazy(() => import('./pages/super-admin/LeadsGeneration'))
 const LeadSetup = lazy(() => import('./pages/super-admin/LeadSetup'))
+const AppCatalogManagement = lazy(() => import('./pages/super-admin/AppCatalogManagement'))
 const EmailCommunication = lazy(() => import('./pages/EmailCommunication'))
 const FleetAssets = lazy(() => import('./pages/fleet/FleetAssets'))
 const FleetAssetForm = lazy(() => import('./pages/fleet/FleetAssetForm'))
@@ -520,6 +521,7 @@ function App() {
         <Route path="identity" element={<IdentitySettings />} />
         <Route path="gemini" element={<GeminiSettings />} />
         <Route path="system-settings" element={<SystemSettings />} />
+        <Route path="app-catalog" element={<AppCatalogManagement />} />
         <Route path="zatca" element={<ZatcaManagement />} />
       </Route>
 

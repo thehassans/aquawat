@@ -44,9 +44,11 @@ const appAddonSchema = new mongoose.Schema({
   reviewsCount: { type: Number, default: 128 },
   pricingTier: {
     type: String,
-    enum: ['free_included', 'pro', 'enterprise'],
-    default: 'free_included'
+    enum: ['free', 'paid', 'enterprise'],
+    default: 'free'
   },
+  monthlyPrice: { type: Number, default: 0 },
+  yearlyPrice: { type: Number, default: 0 },
   badge: { type: String, default: 'Popular' }, // 'Popular', 'Verified', 'New', 'Pro', 'Enterprise'
   featuresEn: [{ type: String }],
   featuresAr: [{ type: String }],

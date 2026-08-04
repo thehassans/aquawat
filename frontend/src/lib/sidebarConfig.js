@@ -181,7 +181,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/restaurant/combos', icon: Tag, label: language === 'ar' ? 'العروض والباقات' : 'Combos & Deals', perm: { module: 'restaurant', action: 'read' } },
         { path: '/app/dashboard/restaurant/analytics', icon: TrendingUp, label: language === 'ar' ? 'تحليلات المبيعات' : 'Analytics', perm: { module: 'restaurant', action: 'read' } },
         { path: '/app/dashboard/restaurant/mess', icon: UtensilsCrossed, label: language === 'ar' ? 'المطعم الجماعي' : 'Mess / Cafeteria', perm: { module: 'restaurant', action: 'read' } },
-        { path: '/app/dashboard/restaurant/delivery', icon: Bike, label: language === 'ar' ? 'منصات التوصيل' : 'Delivery Platforms', perm: { module: 'restaurant', action: 'read' } },
+        { path: '/app/dashboard/restaurant/delivery', icon: Bike, label: language === 'ar' ? 'منصات التوصيل' : 'Delivery Platforms', perm: { module: 'restaurant', action: 'read' }, requireApp: 'delivery_platforms' },
       ]
     },
     {
@@ -333,6 +333,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'الموارد البشرية' : 'Human Resources',
+      requireApp: 'hr_payroll_pro',
       items: [
         { path: '/app/dashboard/employees', icon: Users, label: t('employees'), perm: { module: 'hr', action: 'read' } },
         { path: '/app/dashboard/hr/attendance', icon: Fingerprint, label: language === 'ar' ? 'الحضور والبيومتري' : 'Attendance & Biometrics', perm: { module: 'hr', action: 'read' } },
@@ -348,6 +349,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'إدارة العملاء (CRM)' : 'CRM',
+      requireApp: 'crm_sales_pipeline',
       items: [
         { path: '/app/dashboard/crm', icon: Target, label: language === 'ar' ? 'لوحة CRM' : 'CRM Dashboard', end: true, perm: { module: 'crm', action: 'read' } },
         { path: '/app/dashboard/crm/leads', icon: Users, label: language === 'ar' ? 'العملاء المحتملون' : 'Leads', perm: { module: 'crm', action: 'read' } },
@@ -367,14 +369,14 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'إنترنت الأشياء' : 'Internet of Things',
-      businessTypes: ['trading', 'furniture_shop'],
+      requireApp: 'iot_devices',
       items: [
         { path: '/app/dashboard/iot', icon: Cpu, label: language === 'ar' ? 'إنترنت الأشياء' : 'IoT', perm: { module: 'iot', action: 'read' } },
       ]
     },
     {
       title: language === 'ar' ? 'التصنيع والإنتاج' : 'Manufacturing & MES',
-      businessTypes: ['manufacturing', 'trading', 'furniture_shop'],
+      requireApp: 'manufacturing_mes',
       items: [
         { path: '/app/dashboard/manufacturing', icon: Factory, label: language === 'ar' ? 'نظام التصنيع والإنتاج (MES)' : 'Manufacturing MES', perm: { module: 'mrp', action: 'read' } },
         { path: '/app/dashboard/mrp', icon: Cpu, label: language === 'ar' ? 'تخطيط الاحتياجات (MRP)' : 'MRP II Planning', perm: { module: 'mrp', action: 'read' } },
@@ -384,7 +386,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     {
       title: language === 'ar' ? 'متجر التطبيقات' : 'App Store',
       items: [
-        { path: '/app/dashboard/app-store', icon: Store, label: language === 'ar' ? 'متجر التطبيقات والإضافات' : 'App Store & Add-ons' },
+        { path: '/app/dashboard/app-store', icon: Store, label: language === 'ar' ? 'متجر التطبيقات' : 'App Store' },
       ]
     },
     {
@@ -399,7 +401,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'الأسطول والمعدات' : 'Fleet & Machinery',
-      businessTypes: ['construction', 'trading', 'furniture_shop'],
+      requireApp: 'fleet_machinery',
       items: [
         { path: '/app/dashboard/fleet', icon: Truck, label: language === 'ar' ? 'الأصول' : 'Assets', perm: { module: 'fleet', action: 'read' } },
         { path: '/app/dashboard/fleet/maintenance-alerts', icon: AlertCircle, label: language === 'ar' ? 'تنبيهات الصيانة' : 'Maintenance Alerts', perm: { module: 'fleet', action: 'read' } },
@@ -407,7 +409,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'التكاليف المرسية' : 'Landed Costs',
-      businessTypes: ['trading', 'furniture_shop'],
+      requireApp: 'landed_costs',
       items: [
         { path: '/app/dashboard/landed-costs', icon: Anchor, label: language === 'ar' ? 'التكاليف المرسية' : 'Landed Costs', perm: { module: 'landed_costs', action: 'read' } },
       ]

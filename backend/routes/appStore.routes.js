@@ -23,7 +23,7 @@ export const DEFAULT_APP_CATALOG = [
     author: 'Maqder Core',
     rating: 4.98,
     reviewsCount: 342,
-    pricingTier: 'free_included',
+    pricingTier: 'free',
     badge: 'Enterprise',
     defaultRoute: '/app/dashboard/manufacturing',
     businessTypeGrant: 'manufacturing',
@@ -48,6 +48,247 @@ export const DEFAULT_APP_CATALOG = [
     ]
   },
   {
+    appId: 'fleet_machinery',
+    nameEn: 'Fleet & Machinery Management',
+    nameAr: 'إدارة الأسطول والمعدات',
+    taglineEn: 'Track vehicles, equipment, and maintenance schedules with automated alerts.',
+    taglineAr: 'تتبع المركبات والمعدات وجداول الصيانة مع تنبيهات تلقائية.',
+    descriptionEn: 'Complete fleet and machinery lifecycle management: asset registration, preventive maintenance scheduling, fuel tracking, depreciation calculations, and real-time maintenance alert notifications.',
+    descriptionAr: 'إدارة شاملة لدورة حياة الأسطول والمعدات من التسجيل والصيانة الوقائية وتتبع الوقود وحساب الإهلاك والتنبيهات اللحظية.',
+    category: 'hr_manpower',
+    appType: 'core_vertical',
+    icon: 'truck',
+    version: '2.4.0',
+    author: 'Maqder Core',
+    rating: 4.8,
+    reviewsCount: 95,
+    pricingTier: 'free',
+    badge: 'Operations',
+    defaultRoute: '/app/dashboard/fleet',
+    featuresEn: [
+      'Vehicle & Equipment Asset Registry',
+      'Preventive Maintenance Scheduling & Alerts',
+      'Fuel Consumption & Cost Tracking',
+      'Depreciation & Asset Valuation Reports'
+    ],
+    featuresAr: [
+      'سجل أصول المركبات والمعدات',
+      'جدولة الصيانة الوقائية والتنبيهات',
+      'تتبع استهلاك الوقود والتكاليف',
+      'تقارير الإهلاك وتقييم الأصول'
+    ],
+    configSchema: []
+  },
+  {
+    appId: 'landed_costs',
+    nameEn: 'Landed Costs',
+    nameAr: 'التكاليف المرسية',
+    taglineEn: 'Allocate import duties, freight, and customs charges across purchase orders.',
+    taglineAr: 'توزيع رسوم الاستيراد والشحن والجمارك على أوامر الشراء.',
+    descriptionEn: 'Accurately allocate landed costs including freight, insurance, customs duties, and handling charges to imported goods for true cost-of-goods-sold calculations.',
+    descriptionAr: 'توزيع دقيق للتكاليف المرسية على البضائع المستوردة لحساب التكلفة الحقيقية للبضائع المباعة.',
+    category: 'finance_accounting',
+    appType: 'core_vertical',
+    icon: 'anchor',
+    version: '2.4.0',
+    author: 'Maqder Core',
+    rating: 4.7,
+    reviewsCount: 68,
+    pricingTier: 'free',
+    badge: 'Import/Export',
+    defaultRoute: '/app/dashboard/landed-costs',
+    featuresEn: [
+      'Multi-Currency Freight & Duty Allocation',
+      'Per-Unit Cost Breakdown by SKU',
+      'Customs Clearance Document Management',
+      'Automatic COGS Adjustment on Receipt'
+    ],
+    featuresAr: [
+      'توزيع الشحن والرسوم متعدد العملات',
+      'تفصيل التكلفة لكل وحدة حسب المنتج',
+      'إدارة مستندات التخليص الجمركي',
+      'تعديل تلقائي لتكلفة البضاعة عند الاستلام'
+    ],
+    configSchema: []
+  },
+  {
+    appId: 'iot_devices',
+    nameEn: 'IoT & Smart Devices',
+    nameAr: 'إنترنت الأشياء والأجهزة الذكية',
+    taglineEn: 'Connect sensors, monitors, and smart devices for real-time operational insights.',
+    taglineAr: 'ربط المستشعرات والشاشات والأجهزة الذكية للحصول على رؤى تشغيلية لحظية.',
+    descriptionEn: 'IoT device management platform: register sensors and smart devices, configure thresholds and alerts, visualize real-time telemetry dashboards, and automate actions based on device readings.',
+    descriptionAr: 'منصة إدارة أجهزة إنترنت الأشياء: تسجيل المستشعرات، ضبط الحدود والتنبيهات، لوحات بيانات لحظية، وأتمتة الإجراءات بناءً على قراءات الأجهزة.',
+    category: 'hardware_iot',
+    appType: 'core_vertical',
+    icon: 'cpu',
+    version: '2.4.0',
+    author: 'Maqder Core',
+    rating: 4.6,
+    reviewsCount: 42,
+    pricingTier: 'free',
+    badge: 'Smart',
+    defaultRoute: '/app/dashboard/iot',
+    featuresEn: [
+      'Device Registration & Health Monitoring',
+      'Real-Time Telemetry Dashboards',
+      'Threshold Alerts & Automated Actions',
+      'Historical Data Analytics & Export'
+    ],
+    featuresAr: [
+      'تسجيل الأجهزة ومراقبة صحتها',
+      'لوحات بيانات لحظية',
+      'تنبيهات الحدود والإجراءات التلقائية',
+      'تحليلات البيانات التاريخية والتصدير'
+    ],
+    configSchema: []
+  },
+  {
+    appId: 'crm_sales_pipeline',
+    nameEn: 'CRM & Sales Pipeline',
+    nameAr: 'إدارة العملاء وخط المبيعات',
+    taglineEn: 'Manage leads, contacts, deals, and campaigns in one unified pipeline.',
+    taglineAr: 'إدارة العملاء المحتملين وجهات الاتصال والصفقات والحملات في خط أنابيب موحد.',
+    descriptionEn: 'Full-featured CRM: lead capture from multiple channels, contact management, deal pipeline with Kanban boards, activity scheduling, email campaigns, and sales performance analytics.',
+    descriptionAr: 'نظام CRM متكامل: التقاط العملاء المحتملين من قنوات متعددة، إدارة جهات الاتصال، خط الصفقات بلوحات كانبان، جدولة الأنشطة، حملات البريد الإلكتروني، وتحليلات أداء المبيعات.',
+    category: 'hr_manpower',
+    appType: 'core_vertical',
+    icon: 'target',
+    version: '2.4.0',
+    author: 'Maqder Core',
+    rating: 4.9,
+    reviewsCount: 215,
+    pricingTier: 'free',
+    badge: 'Popular',
+    defaultRoute: '/app/dashboard/crm',
+    featuresEn: [
+      'Lead Capture & Scoring Engine',
+      'Visual Deal Pipeline with Kanban Boards',
+      'Activity Scheduling & Follow-up Reminders',
+      'Campaign Management & Email Automation',
+      'Sales Performance Analytics & Forecasting',
+      'Contact & Company Management'
+    ],
+    featuresAr: [
+      'التقاط وتسجيل العملاء المحتملين تلقائياً',
+      'خط أنابيب الصفقات المرئي بلوحات كانبان',
+      'جدولة الأنشطة والتذكيرات للمتابعة',
+      'إدارة الحملات وأتمتة البريد الإلكتروني',
+      'تحليلات أداء المبيعات والتنبؤات',
+      'إدارة جهات الاتصال والشركات'
+    ],
+    configSchema: []
+  },
+  {
+    appId: 'hr_payroll_pro',
+    nameEn: 'HR, Payroll & Attendance',
+    nameAr: 'الموارد البشرية والرواتب والحضور',
+    taglineEn: 'Complete workforce management with payroll, attendance, leaves, and compliance.',
+    taglineAr: 'إدارة شاملة للقوى العاملة تشمل الرواتب والحضور والإجازات والامتثال.',
+    descriptionEn: 'Enterprise HR suite: employee records, biometric attendance tracking, automated payroll with GOSI/EOSB calculations, leave management, performance reviews, hiring pipeline, expense claims, and Saudi labor compliance.',
+    descriptionAr: 'حزمة موارد بشرية متكاملة: سجلات الموظفين، تتبع الحضور البيومتري، كشوف رواتب تلقائية مع حسابات التأمينات ومكافأة نهاية الخدمة، إدارة الإجازات، تقييم الأداء، خط التوظيف، مطالبات المصروفات، والامتثال لنظام العمل السعودي.',
+    category: 'hr_manpower',
+    appType: 'core_vertical',
+    icon: 'users',
+    version: '2.4.0',
+    author: 'Maqder Core',
+    rating: 4.85,
+    reviewsCount: 310,
+    pricingTier: 'free',
+    badge: 'Essential',
+    defaultRoute: '/app/dashboard/employees',
+    featuresEn: [
+      'Employee Records & Document Management',
+      'Biometric Attendance & Shift Tracking',
+      'Automated Payroll with WPS Compliance',
+      'GOSI & EOSB Auto-Calculations',
+      'Leave Management & Approval Workflows',
+      'Performance Reviews & KPIs',
+      'Hiring Pipeline & Onboarding',
+      'Expense Claims & Reimbursements',
+      'Saudi Labor Law Compliance (Iqama/Balady)'
+    ],
+    featuresAr: [
+      'سجلات الموظفين وإدارة المستندات',
+      'حضور بيومتري وتتبع الورديات',
+      'كشوف رواتب تلقائية متوافقة مع نظام حماية الأجور',
+      'حساب تلقائي للتأمينات ومكافأة نهاية الخدمة',
+      'إدارة الإجازات وسير عمل الموافقات',
+      'تقييم الأداء ومؤشرات الأداء الرئيسية',
+      'خط التوظيف والتهيئة',
+      'مطالبات المصروفات والاسترداد',
+      'امتثال نظام العمل السعودي (إقامة/بلدي)'
+    ],
+    configSchema: []
+  },
+  {
+    appId: 'delivery_platforms',
+    nameEn: 'Delivery Platforms',
+    nameAr: 'منصات التوصيل',
+    taglineEn: 'Integrate delivery platforms and manage driver dispatch for restaurant orders.',
+    taglineAr: 'ربط منصات التوصيل وإدارة إرسال السائقين لطلبات المطعم.',
+    descriptionEn: 'Restaurant delivery management: connect with HungerStation, Jahez, Marsool, and ToYou. Manage driver dispatch, track delivery status in real-time, and reconcile delivery platform settlements.',
+    descriptionAr: 'إدارة توصيل المطاعم: ربط مع هنقرستيشن وجاهز ومرسول وتويو. إدارة إرسال السائقين، تتبع حالة التوصيل لحظياً، ومطابقة تسويات منصات التوصيل.',
+    category: 'pos_retail',
+    appType: 'core_vertical',
+    icon: 'bike',
+    version: '2.4.0',
+    author: 'Maqder Core',
+    rating: 4.75,
+    reviewsCount: 178,
+    pricingTier: 'free',
+    badge: 'Restaurant',
+    defaultRoute: '/app/dashboard/restaurant/delivery',
+    featuresEn: [
+      'Multi-Platform Integration (HungerStation, Jahez, Marsool)',
+      'Real-Time Order & Driver Tracking',
+      'Automated Dispatch & Route Optimization',
+      'Delivery Settlement Reconciliation'
+    ],
+    featuresAr: [
+      'ربط متعدد المنصات (هنقرستيشن، جاهز، مرسول)',
+      'تتبع لحظي للطلبات والسائقين',
+      'إرسال تلقائي وتحسين المسارات',
+      'مطابقة تسويات التوصيل'
+    ],
+    configSchema: []
+  },
+  {
+    appId: 'payment_terminal',
+    nameEn: 'Payment Terminal Integration',
+    nameAr: 'ربط أجهزة الدفع الإلكتروني',
+    taglineEn: 'Connect Mada, Apple Pay, Visa & Mastercard POS terminals directly.',
+    taglineAr: 'ربط مباشر لشبكة مدى وApple Pay مع أجهزة نقاط البيع.',
+    descriptionEn: 'Direct integration with Android POS payment terminals (Geidea, PayTabs, NearPay) via local Wi-Fi / Cloud APIs, eliminating manual transaction input and speeding up checkout.',
+    descriptionAr: 'تكامل مباشر مع أجهزة مدى الذكية يرسل المبلغ للشاشة تلقائياً ويسجل الفاتورة فور قبول الدفع.',
+    category: 'hardware_iot',
+    appType: 'hardware_integration',
+    icon: 'credit-card',
+    version: '2.4.0',
+    author: 'Maqder Core',
+    rating: 4.95,
+    reviewsCount: 380,
+    pricingTier: 'free',
+    badge: 'Mada Certified',
+    requiresHardware: true,
+    defaultRoute: '/app/dashboard/settings',
+    featuresEn: [
+      'Automatic Amount Push to Terminal on Checkout',
+      'Instant Webhook Approval & Receipt Stamping',
+      'Daily Batch Settlement Reconciliation',
+      'Support for Mada, Apple Pay, Visa, Mastercard'
+    ],
+    featuresAr: [
+      'إرسال المبلغ لجهاز مدى تلقائياً فور طلب الدفع',
+      'اعتماد فوري للعملية وطباعة الفاتورة بدون تأخير',
+      'تقارير مطابقة الموازنة اليومية لشبكة مدى',
+      'دعم بطاقات مدى، أبل باي، فيزا، وماستركارد'
+    ],
+    configSchema: [
+      { key: 'terminalProvider', labelEn: 'Terminal Provider', labelAr: 'مزود جهاز الدفع', type: 'select', defaultValue: 'geidea', options: [{ value: 'geidea', labelEn: 'Geidea', labelAr: 'جيديا' }, { value: 'paytabs', labelEn: 'PayTabs', labelAr: 'بي تابز' }, { value: 'nearpay', labelEn: 'NearPay', labelAr: 'نير باي' }] }
+    ]
+  },
+  {
     appId: 'zatca_phase2_pro',
     nameEn: 'ZATCA Phase 2 E-Invoicing Hub',
     nameAr: 'بوابة الفوترة الإلكترونية زاتكا المرحلة الثانية',
@@ -62,7 +303,7 @@ export const DEFAULT_APP_CATALOG = [
     author: 'Maqder Saudi Gov Suite',
     rating: 5.0,
     reviewsCount: 890,
-    pricingTier: 'free_included',
+    pricingTier: 'free',
     badge: 'ZATCA Certified',
     defaultRoute: '/app/dashboard/tenant-settings/zatca-dashboard',
     featuresEn: [
@@ -97,7 +338,7 @@ export const DEFAULT_APP_CATALOG = [
     author: 'Maqder IoT Labs',
     rating: 4.94,
     reviewsCount: 215,
-    pricingTier: 'free_included',
+    pricingTier: 'free',
     badge: 'Hardware Ready',
     defaultRoute: '/app/dashboard/settings',
     requiresHardware: true,
@@ -133,7 +374,7 @@ export const DEFAULT_APP_CATALOG = [
     author: 'Maqder IoT Labs',
     rating: 4.88,
     reviewsCount: 94,
-    pricingTier: 'free_included',
+    pricingTier: 'free',
     badge: 'IoT Connected',
     defaultRoute: '/app/dashboard/bakala/weight-scale',
     requiresHardware: true,
@@ -169,7 +410,7 @@ export const DEFAULT_APP_CATALOG = [
     author: 'Maqder Connect',
     rating: 4.96,
     reviewsCount: 520,
-    pricingTier: 'free_included',
+    pricingTier: 'free',
     badge: 'Meta Verified',
     defaultRoute: '/app/dashboard/whatsapp',
     featuresEn: [
@@ -204,7 +445,7 @@ export const DEFAULT_APP_CATALOG = [
     author: 'Maqder AI Labs',
     rating: 4.95,
     reviewsCount: 410,
-    pricingTier: 'free_included',
+    pricingTier: 'free',
     badge: 'Next-Gen AI',
     defaultRoute: '/app/dashboard',
     featuresEn: [
@@ -239,7 +480,7 @@ export const DEFAULT_APP_CATALOG = [
     author: 'Maqder Saudi Gov Suite',
     rating: 4.91,
     reviewsCount: 175,
-    pricingTier: 'free_included',
+    pricingTier: 'free',
     badge: 'HRSD Verified',
     defaultRoute: '/app/dashboard/payroll',
     featuresEn: [
@@ -273,7 +514,7 @@ export const DEFAULT_APP_CATALOG = [
     author: 'Maqder Logistics',
     rating: 4.87,
     reviewsCount: 160,
-    pricingTier: 'free_included',
+    pricingTier: 'free',
     badge: 'Logistics Ready',
     defaultRoute: '/app/dashboard/shipments',
     featuresEn: [
@@ -290,42 +531,6 @@ export const DEFAULT_APP_CATALOG = [
     ],
     configSchema: [
       { key: 'defaultCourier', labelEn: 'Default Primary Courier', labelAr: 'شركة الشحن الافتراضية', type: 'select', defaultValue: 'smsa', options: [{ value: 'smsa', labelEn: 'SMSA Express', labelAr: 'سمسا إكسبريس' }, { value: 'aramex', labelEn: 'Aramex', labelAr: 'أرامكس' }, { value: 'spl', labelEn: 'Saudi Post (SPL)', labelAr: 'البريد السعودي (سبل)' }] }
-    ]
-  },
-  {
-    appId: 'geidea_paytabs_pos',
-    nameEn: 'Geidea & PayTabs Smart Payment Terminals',
-    nameAr: 'ربط أجهزة الدفع الإلكتروني الذكية (Geidea & PayTabs)',
-    taglineEn: 'Mada, Apple Pay, Visa & Mastercard direct POS synchronization without manual amount entry.',
-    taglineAr: 'ربط مباشر لشبكة مدى وApple Pay مع شاشات البيع لتجنب الأخطاء البشرية.',
-    descriptionEn: 'Direct integration with Android POS payment terminals (Geidea, PayTabs, NearPay) via local Wi-Fi / Cloud APIs, eliminating manual transaction input and speeding up checkout.',
-    descriptionAr: 'تكامل مباشر مع أجهزة مدى الذكية يرسل المبلغ للشاشة تلقائياً ويسجل الفاتورة فور قبول الدفع.',
-    category: 'hardware_iot',
-    appType: 'hardware_integration',
-    icon: 'credit-card',
-    version: '2.7.0',
-    author: 'Maqder Pay',
-    rating: 4.97,
-    reviewsCount: 380,
-    pricingTier: 'free_included',
-    badge: 'Mada Certified',
-    defaultRoute: '/app/dashboard/settings',
-    requiresHardware: true,
-    featuresEn: [
-      'Automatic Amount Push to Terminal on Checkout',
-      'Instant Webhook Approval & Receipt Stamping',
-      'Daily Batch Settlement Reconciliation Reports',
-      'Support for Mada, Apple Pay, Visa, Mastercard'
-    ],
-    featuresAr: [
-      'إرسال المبلغ لجهاز مدى تلقائياً فور طلب الدفع',
-      'اعتماد فوري للعملية وطباعة الفاتورة بدون تأخير',
-      'تقارير مطابقة الموازنة اليومية لشبكة مدى',
-      'دعم بطاقات مدى، أبل باي، فيزا، وماستركارد'
-    ],
-    configSchema: [
-      { key: 'terminalProvider', labelEn: 'Terminal Hardware Provider', labelAr: 'مزود جهاز الدفع', type: 'select', defaultValue: 'geidea', options: [{ value: 'geidea', labelEn: 'Geidea Smart POS', labelAr: 'أجهزة جيديا الذكية' }, { value: 'paytabs', labelEn: 'PayTabs Terminal', labelAr: 'أجهزة بي تابز' }, { value: 'nearpay', labelEn: 'NearPay SoftPOS', labelAr: 'نير باي (جوال ككاشير)' }] },
-      { key: 'autoFinalizeInvoice', labelEn: 'Auto-finalize & print invoice upon approved payment', labelAr: 'إغلاق الفاتورة وطباعتها تلقائياً عند نجاح الدفع', type: 'boolean', defaultValue: true }
     ]
   }
 ];
@@ -367,7 +572,7 @@ router.get('/apps', protect, async (req, res) => {
       const isGrantMatch = app.businessTypeGrant ? tenantBusinessTypes.includes(app.businessTypeGrant) : false;
       const isExplicitlyInstalled = !!tenantInstalled[app.appId]?.isInstalled;
       // If businessType matches, it's considered installed/included by default
-      const isInstalled = isGrantMatch || isExplicitlyInstalled || app.pricingTier === 'free_included';
+      const isInstalled = isExplicitlyInstalled;
       const isEnabled = tenantInstalled[app.appId]?.isEnabled !== false;
       const config = tenantInstalled[app.appId]?.config || {};
 
@@ -554,4 +759,5 @@ router.put('/apps/:appId/settings', protect, async (req, res) => {
   }
 });
 
+export { ensureCatalogInitialized };
 export default router;
