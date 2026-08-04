@@ -582,14 +582,9 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
 
   return (
     <div className={`relative overflow-hidden rounded-[2rem] border shadow-[0_30px_80px_-40px_rgba(15,23,42,0.30)] ${styles.shell}`} style={shellStyle}>
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none p-12" aria-hidden="true">
-        {(invoiceBranding.letterheadImage || tenant?.branding?.letterheadImage || tenant?.settings?.invoiceBranding?.letterheadImage || logoSrc) ? (
-          <img
-            src={invoiceBranding.letterheadImage || tenant?.branding?.letterheadImage || tenant?.settings?.invoiceBranding?.letterheadImage || logoSrc}
-            alt=""
-            className="max-h-[60%] max-w-[60%] object-contain opacity-[0.06] print:opacity-[0.06] grayscale-0 transition-opacity"
-          />
-        ) : null}
+      <div className="absolute inset-x-0 top-0 h-1.5 print:hidden" style={accentBarStyle} data-html2canvas-ignore="true" />
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
+        {logoSrc ? <img src={logoSrc} alt="" className="h-[32rem] w-[32rem] object-contain opacity-[0.15]" /> : null}
       </div>
       <div className="relative px-6 pb-6 pt-7">
         <div className="border-b border-slate-200 pb-6">

@@ -68,25 +68,13 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
   const invoiceTitleEn = isQuotation ? 'Quotation' : 'Invoice'
   const invoiceTitleAr = isQuotation ? 'عرض سعر' : 'فاتورة'
 
-  const bgWatermark = invoiceBranding.letterheadImage || tenant?.branding?.letterheadImage || tenant?.settings?.invoiceBranding?.letterheadImage || logoSrc
-
   return (
-    <div dir="ltr" className="relative mx-auto max-w-5xl bg-white border border-slate-200 overflow-hidden font-serif rounded-lg shadow-xl">
-      {bgWatermark && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none p-12" aria-hidden="true">
-          <img
-            src={bgWatermark}
-            alt=""
-            className="max-h-[60%] max-w-[60%] object-contain opacity-[0.05] print:opacity-[0.05] grayscale-0 transition-opacity"
-          />
-        </div>
-      )}
+    <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-200 overflow-hidden font-serif rounded-lg shadow-xl relative">
+      
+      {/* Decorative Signature Line */}
+      <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-transparent via-slate-800 to-transparent opacity-20"></div>
 
-      <div className="relative z-10">
-        {/* Decorative Signature Line */}
-        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-transparent via-slate-800 to-transparent opacity-20"></div>
-
-        <div className="p-16">
+      <div className="p-16">
         
         {/* Header Section */}
         <div className="flex justify-between items-start mb-16 border-b border-slate-200 pb-12">
@@ -217,7 +205,6 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
             {invoiceBranding.footerText || 'Thank you for your business'}
           </p>
         </div>
-      </div>
       </div>
     
       <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />

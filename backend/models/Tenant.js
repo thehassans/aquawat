@@ -119,10 +119,9 @@ const zatcaConfigSchema = new mongoose.Schema({
 });
 
 const invoiceBrandingProfileSchema = new mongoose.Schema({
-  templateId: { type: Number, min: 1, max: 8 },
+  templateId: { type: Number, min: 1, max: 6 },
   logo: { type: String },
   stampImage: { type: String },
-  signatureImage: { type: String },
   letterheadImage: { type: String },
   headerTextEn: { type: String, default: '' },
   headerTextAr: { type: String, default: '' },
@@ -345,9 +344,6 @@ const tenantSchema = new mongoose.Schema({
       presetSignature: { type: String },
       presetStamp: { type: String },
       logo: { type: String },
-      stampImage: { type: String },
-      signatureImage: { type: String },
-      letterheadImage: { type: String },
       headerTextEn: { type: String, default: '' },
       headerTextAr: { type: String, default: '' },
       footerTextEn: { type: String, default: '' },
@@ -592,9 +588,6 @@ const tenantSchema = new mongoose.Schema({
   },
   branding: {
     logo: { type: String },
-    stampImage: { type: String },
-    signatureImage: { type: String },
-    letterheadImage: { type: String },
     primaryColor: { type: String, default: '#14B8A6' },
     secondaryColor: { type: String, default: '#D946EF' },
     headerStyle: { type: String, enum: ['glass', 'solid'], default: 'glass' },

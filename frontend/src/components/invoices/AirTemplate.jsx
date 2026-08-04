@@ -68,25 +68,13 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
   const invoiceTitleEn = isQuotation ? 'Quotation' : 'Invoice'
   const invoiceTitleAr = isQuotation ? 'عرض سعر' : 'فاتورة'
 
-  const bgWatermark = invoiceBranding.letterheadImage || tenant?.branding?.letterheadImage || tenant?.settings?.invoiceBranding?.letterheadImage || logoSrc
-
   return (
-    <div dir="ltr" className="relative mx-auto max-w-5xl bg-white overflow-hidden font-sans rounded-3xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.05)]">
-      {bgWatermark && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none p-12" aria-hidden="true">
-          <img
-            src={bgWatermark}
-            alt=""
-            className="max-h-[60%] max-w-[60%] object-contain opacity-[0.06] print:opacity-[0.06] grayscale-0 transition-opacity"
-          />
-        </div>
-      )}
+    <div dir="ltr" className="mx-auto max-w-5xl bg-white overflow-hidden font-sans rounded-3xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.05)] relative">
+      
+      {/* Super thin accent line on top */}
+      <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ backgroundColor: primaryColor }}></div>
 
-      <div className="relative z-10">
-        {/* Super thin accent line on top */}
-        <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ backgroundColor: primaryColor }}></div>
-
-        <div className="p-16">
+      <div className="p-16">
         {/* Header Section */}
         <div className="flex justify-between items-start mb-24">
           <div className="flex-1">
@@ -222,7 +210,6 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
             {invoiceBranding.footerText || 'Thank you for your business'}
           </p>
         </div>
-      </div>
       </div>
     
       <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />

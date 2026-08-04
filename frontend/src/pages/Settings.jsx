@@ -227,7 +227,6 @@ export default function Settings() {
   const [invoiceLogoDataUrl, setInvoiceLogoDataUrl] = useState(null)
   const [stampDataUrl, setStampDataUrl] = useState(null)
   const [signatureDataUrl, setSignatureDataUrl] = useState(null)
-  const [letterheadDataUrl, setLetterheadDataUrl] = useState(null)
   const [hiddenUoms, setHiddenUoms] = useState([])
   const [invoiceHeaderTextEn, setInvoiceHeaderTextEn] = useState('')
   const [invoiceHeaderTextAr, setInvoiceHeaderTextAr] = useState('')
@@ -297,7 +296,6 @@ export default function Settings() {
     setInvoiceLogoDataUrl(tenant.settings?.invoiceBranding?.logo || tenant.branding?.logo || null)
     setStampDataUrl(tenant.settings?.invoiceBranding?.presetStamp || tenant.settings?.invoiceBranding?.stampImage || null)
     setSignatureDataUrl(tenant.settings?.invoiceBranding?.presetSignature || tenant.settings?.invoiceBranding?.signatureImage || null)
-    setLetterheadDataUrl(tenant.settings?.invoiceBranding?.letterheadImage || tenant.branding?.letterheadImage || null)
     setHiddenUoms(tenant.settings?.hiddenUoms || [])
     setInvoiceHeaderTextEn(tenant.settings?.invoiceBranding?.headerTextEn || '')
     setInvoiceHeaderTextAr(tenant.settings?.invoiceBranding?.headerTextAr || '')
@@ -467,10 +465,6 @@ export default function Settings() {
 
   const handleSignatureFile = (e) => {
     applyImageFile(e.target.files?.[0], setSignatureDataUrl)
-  }
-
-  const handleLetterheadFile = (e) => {
-    applyImageFile(e.target.files?.[0], setLetterheadDataUrl)
   }
 
   const handleVision2030LogoFile = (e) => {
@@ -807,12 +801,12 @@ export default function Settings() {
                       {language === 'ar' ? 'هوية العلامة التجارية' : 'Brand Identity'}
                     </h4>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {language === 'ar' ? 'الشعار والختم والترويسة — يمكن تعديلها بحرية' : 'Logo, stamp & letterhead — editable by all users'}
+                      {language === 'ar' ? 'الشعار والختم والتوقيع — يمكن تعديلها بحرية' : 'Logo, stamp & signature — editable by all users'}
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* Logo */}
                   <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-primary-400 dark:hover:border-primary-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
                     <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
@@ -875,27 +869,6 @@ export default function Settings() {
                     </div>
                     <input type="file" accept="image/*" onChange={handleSignatureFile} className="sr-only" />
                   </label>
-
-                  {/* Letterhead */}
-                  <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-indigo-400 dark:hover:border-indigo-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
-                    <div className="relative w-16 h-20 rounded overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
-                      {(letterheadDataUrl || tenant?.branding?.letterheadImage) ? (
-                        <img src={letterheadDataUrl || tenant?.branding?.letterheadImage} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-violet-600 flex items-center justify-center">
-                          <span className="text-white text-[10px] font-bold text-center px-1">A4 BG</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'الترويسة الرسمية' : 'Letterhead'}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'خلفية الفاتورة A4' : 'Full-page background'}</p>
-                    </div>
-                    <input type="file" accept="image/*" onChange={handleLetterheadFile} className="sr-only" />
-                  </label>
                 </div>
 
                 <div className="flex justify-end pt-2">
@@ -908,7 +881,6 @@ export default function Settings() {
                         logo: logoDataUrl || tenant?.branding?.logo || null,
                         stampImage: stampDataUrl || tenant?.branding?.stampImage || null,
                         signatureImage: signatureDataUrl || tenant?.branding?.signatureImage || null,
-                        letterheadImage: letterheadDataUrl || tenant?.branding?.letterheadImage || null,
                       }
                     })}
                     className="btn btn-primary"
@@ -978,7 +950,6 @@ export default function Settings() {
                                   logo: invoiceLogoDataUrl || tenant?.settings?.invoiceBranding?.logo || logoDataUrl || tenant?.branding?.logo,
                                   stampImage: stampDataUrl || tenant?.settings?.invoiceBranding?.stampImage || null,
                                   signatureImage: signatureDataUrl || tenant?.settings?.invoiceBranding?.signatureImage || null,
-                                  letterheadImage: letterheadDataUrl || tenant?.settings?.invoiceBranding?.letterheadImage || null,
                                 }
                               }
                             }}

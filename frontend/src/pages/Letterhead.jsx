@@ -51,16 +51,15 @@ export default function Letterhead() {
     []
   );
 
-  const companyNameEn = tenant?.business?.legalNameEn || 'Company Name';
-  const companyNameAr = tenant?.business?.legalNameAr || 'اسم الشركة';
+  const companyNameEn = tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Company Name';
+  const companyNameAr = tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'اسم الشركة';
   const addressObj = tenant?.business?.address || {};
   const addressEn = [addressObj.buildingNumber, addressObj.street, addressObj.district, addressObj.city].filter(Boolean).join(', ') || 'Address not provided';
   const addressAr = [addressObj.buildingNumber, addressObj.streetAr || addressObj.street, addressObj.districtAr || addressObj.district, addressObj.cityAr || addressObj.city].filter(Boolean).join('، ') || 'العنوان غير متوفر';
   const phone = tenant?.business?.contactPhone || '';
   const email = tenant?.business?.contactEmail || '';
   const website = tenant?.business?.website || '';
-  const logoUrl = tenant?.branding?.logo || '';
-  const letterheadBg = tenant?.branding?.letterheadImage || tenant?.settings?.invoiceBranding?.letterheadImage || logoUrl;
+  const logoUrl = tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo || '';
 
   const handlePrint = () => {
     window.print();
@@ -71,8 +70,7 @@ export default function Letterhead() {
       <style>{`
         @media print {
           @page { margin: 0; size: auto; }
-          body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       `}</style>
       {/* Controls (Hidden when printing) */}
@@ -103,25 +101,21 @@ export default function Letterhead() {
       </div>
 
       {/* The Letter Paper */}
-      <div className="relative w-full max-w-4xl mx-auto bg-white dark:bg-white text-gray-900 rounded-xl shadow-lg border border-gray-200 overflow-hidden print:shadow-none print:border-none print:m-0 print:p-0">
+      <div className="relative w-full max-w-4xl mx-auto bg-white dark:bg-white text-gray-900 rounded-xl shadow-lg border border-gray-200 overflow-hidden print:shadow-none print:border-none print:m-0 print:p-0 flex flex-col min-h-[1050px]">
         
-        {/* Centered Background Letterhead / Logo */}
-        {letterheadBg && (
-          <div
-            className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none p-12"
-            aria-hidden="true"
-          >
+        {/* Centered Background Watermark Logo */}
+        {logoUrl && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none print:flex">
             <img
-              src={letterheadBg}
+              src={logoUrl}
               alt=""
-              className="max-h-[60%] max-w-[60%] object-contain opacity-[0.06] print:opacity-[0.06] grayscale-0 transition-opacity"
+              className="w-72 h-72 sm:w-96 sm:h-96 md:w-[460px] md:h-[460px] object-contain opacity-[0.06] print:opacity-[0.08]"
             />
           </div>
         )}
 
-        <div className="relative z-10 flex flex-col min-h-full">
-          {/* Letterhead Header */}
-        <div className="border-b-2 border-primary-500/20 bg-gradient-to-r from-white to-gray-50 p-8 print:bg-none print:p-4">
+        {/* Letterhead Header */}
+        <div className="relative z-10 border-b-2 border-primary-500/20 bg-gradient-to-r from-white to-gray-50/80 p-8 print:bg-none print:p-4">
           <div className="flex items-start justify-between gap-6">
             
             {/* Left (English/Logo) */}
@@ -153,7 +147,7 @@ export default function Letterhead() {
                 <img
                   src={logoUrl}
                   alt="Logo"
-                  className="h-32 w-auto object-contain"
+                  className="h-28 w-auto max-w-[200px] object-contain"
                 />
               ) : (
                 <div className="h-16 w-16 rounded-lg bg-primary-100 flex items-center justify-center">
@@ -189,7 +183,7 @@ export default function Letterhead() {
         </div>
 
         {/* Content Area */}
-        <div className="p-8 min-h-[600px] print:min-h-0 print:p-4 bg-white text-black">
+        <div className="relative z-10 p-8 min-h-[650px] print:min-h-0 print:p-4 bg-transparent text-black flex-1">
           {/* Date */}
           <div className="mb-8 flex justify-between">
             <div className="w-1/3">
@@ -372,7 +366,7 @@ export default function Letterhead() {
         </div>
 
         {/* Footer Section */}
-        <div className="border-t-2 border-primary-500/20 bg-gradient-to-r from-gray-50 to-white p-6 print:bg-none print:p-4 mt-auto">
+        <div className="relative z-10 border-t-2 border-primary-500/20 bg-gradient-to-r from-gray-50/80 to-white p-6 print:bg-none print:p-4 mt-auto">
           <div className="flex flex-col items-center justify-center gap-3">
             <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-gray-500 print:text-black">
               {phone && (
@@ -397,7 +391,6 @@ export default function Letterhead() {
           </div>
         </div>
 
-        </div>
       </div>
     </div>
   );
