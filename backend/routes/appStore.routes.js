@@ -830,6 +830,11 @@ router.put('/apps/:appId/settings', protect, async (req, res) => {
       config: installedApps[appId].config,
       tenant: serializeAuthTenant(tenant)
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export { ensureCatalogInitialized };
 export default router;
 
