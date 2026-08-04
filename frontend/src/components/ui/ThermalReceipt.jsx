@@ -214,6 +214,20 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
             <span className="font-bold">{order.tableNumber}</span>
           </div>
         )}
+        {order.paymentMethod && (
+          <div className="flex justify-between">
+            <span className="text-gray-600">Payment / طريقة الدفع:</span>
+            <span className="font-semibold">
+              {order.paymentMethod === 'cash' ? (isRtl ? 'نقدي (Cash)' : 'Cash / نقدي') : order.paymentMethod === 'card' ? (isRtl ? 'بطاقة (Card)' : 'Card / بطاقة') : order.paymentMethod}
+            </span>
+          </div>
+        )}
+        {order.notes && (
+          <div className="flex justify-between">
+            <span className="text-gray-600">Notes / ملاحظات:</span>
+            <span className="font-semibold text-amber-700">{order.notes}</span>
+          </div>
+        )}
         {type === 'khayyat' && (
           <>
             {order.dueDate && (
