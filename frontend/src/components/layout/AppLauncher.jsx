@@ -12,6 +12,7 @@ import { logout } from '../../store/slices/authSlice'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getNavSections } from '../../lib/sidebarConfig'
 import { useTranslation } from '../../lib/translations'
+import App3DIcon from '../ui/App3DIcon'
 
 // Pre-defined mapping for standard paths to specific gradients and icons to match Odoo-style uniqueness
 const APP_STYLE_MAP = {
@@ -564,9 +565,7 @@ export default function AppLauncher() {
           <div className="flex-1 overflow-y-auto px-4 pb-12 sm:px-12 pt-8">
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-x-4 gap-y-10 sm:gap-y-12 max-w-7xl mx-auto">
               {filteredApps.map((app, index) => {
-                const Icon = app.icon || Search
                 const targetPath = app.path || (app.children && app.children[0]?.path)
-                const gradient = getAppStyle(targetPath, app.label || '')
                 
                 return (
                   <motion.button
@@ -577,10 +576,15 @@ export default function AppLauncher() {
                     onClick={() => handleAppClick(targetPath)}
                     className="flex flex-col items-center group w-full outline-none"
                   >
-                    <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-[2rem] bg-gradient-to-br ${gradient} shadow-lg shadow-black/10 dark:shadow-black/30 flex items-center justify-center transform transition-all duration-300 group-hover:scale-105 group-hover:-translate-y-2 group-focus:scale-105 group-active:scale-95 group-active:-translate-y-0 border border-white/20 dark:border-white/10`}>
-                      <Icon className="w-10 h-10 sm:w-11 sm:h-11 text-white drop-shadow-sm" strokeWidth={1.5} />
+                    {/* Ultra-professional 3D Icon Container - dark rounded square like Odoo/iOS */}
+                    <div className="w-[78px] h-[78px] sm:w-[88px] sm:h-[88px] rounded-[22px] sm:rounded-[26px] bg-[#181A24] dark:bg-[#15161F] shadow-[0_8px_32px_rgba(0,0,0,0.45)] border border-white/5 dark:border-white/5 flex items-center justify-center transform transition-all duration-300 ease-out group-hover:scale-110 group-hover:-translate-y-2 group-hover:shadow-[0_20px_48px_rgba(0,0,0,0.5)] group-active:scale-95 group-active:translate-y-0">
+                      <App3DIcon
+                        path={targetPath || ''}
+                        label={app.label || ''}
+                        className="w-11 h-11 sm:w-12 sm:h-12"
+                      />
                     </div>
-                    <span className="mt-4 text-[13px] sm:text-sm font-semibold text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white text-center tracking-wide line-clamp-2 max-w-[100px] transition-colors">
+                    <span className="mt-3.5 text-[12px] sm:text-[13px] font-semibold text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white text-center tracking-wide line-clamp-2 max-w-[90px] transition-colors leading-snug">
                       {app.label}
                     </span>
                   </motion.button>
