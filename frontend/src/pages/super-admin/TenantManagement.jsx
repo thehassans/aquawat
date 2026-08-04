@@ -42,6 +42,16 @@ export default function TenantManagement() {
     mutationFn: (tenantId) => api.post(`/super-admin/tenants/${tenantId}/login-as`),
     onSuccess: (res) => {
       localStorage.setItem('token', res.data.token)
+      if (res.data?.user) {
+        localStorage.setItem('auth_user', JSON.stringify(res.data.user))
+      } else {
+        localStorage.removeItem('auth_user')
+      }
+      if (res.data?.tenant) {
+        localStorage.setItem('auth_tenant', JSON.stringify(res.data.tenant))
+      } else {
+        localStorage.removeItem('auth_tenant')
+      }
       toast.success(language === 'ar' ? 'تم تسجيل الدخول كمستأجر' : 'Logged in as tenant')
       window.location.href = '/'
     },

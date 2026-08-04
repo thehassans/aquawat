@@ -358,11 +358,31 @@ function App() {
 
   const navigate = useNavigate()
 
+  // Reconcile user and tenant details with backend on mount
   useEffect(() => {
-    if (token && !user) {
+    if (token) {
       dispatch(getMe())
     }
-  }, [dispatch, token, user])
+  }, [dispatch, token])
+
+  // Re-fetch fresh tenant data on window focus / tab visibility change
+  // so any changes made in Super Admin are immediately reflected in Admin Panel
+  useEffect(() => {
+    if (!token) return
+
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        dispatch(getMe())
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleFocus)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleFocus)
+    }
+  }, [dispatch, token])
 
   useEffect(() => {
     const handler = () => dispatch(setTenantInactive())

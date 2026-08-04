@@ -123,9 +123,19 @@ export default function TenantForm() {
     }
   }, [watchedBillingCycle, watchedExtraMonths, watchedStartDate, watchedEndDate, setValue])
 
-  // Auto-mirror bilingual legal names when one side is empty
+  // Auto-sync bilingual legal names with tenant name when empty or matching
+  const watchedName = watch('name')
   const legalNameEn = watch('business.legalNameEn')
   const legalNameAr = watch('business.legalNameAr')
+  useEffect(() => {
+    if (watchedName && (!legalNameEn || legalNameEn.trim() === '')) {
+      setValue('business.legalNameEn', watchedName, { shouldValidate: false })
+    }
+    if (watchedName && (!legalNameAr || legalNameAr.trim() === '')) {
+      setValue('business.legalNameAr', watchedName, { shouldValidate: false })
+    }
+  }, [watchedName, legalNameEn, legalNameAr, setValue])
+
   useEffect(() => {
     if (legalNameEn && !legalNameAr) {
       setValue('business.legalNameAr', legalNameEn, { shouldValidate: false })
@@ -148,12 +158,17 @@ export default function TenantForm() {
   const onSubmit = (data) => {
     const nextSettings = data?.settings || {}
     const crNumberVal = data?.business?.crNumber || data?.business?.commercialRegistration?.crNumber || ''
+    const tenantName = String(data?.name || '').trim()
 
     const nextPayload = {
       ...data,
+      name: tenantName,
       resellerId: data?.resellerId || null,
       business: {
         ...(data?.business || {}),
+        legalNameEn: data?.business?.legalNameEn || tenantName,
+        legalNameAr: data?.business?.legalNameAr || data?.business?.legalNameEn || tenantName,
+        tradeName: data?.business?.tradeName || tenantName,
         crNumber: crNumberVal,
         commercialRegistration: {
           ...(data?.business?.commercialRegistration || {}),

@@ -290,7 +290,7 @@ export default function Header() {
             <HeadlessMenu.Button className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors focus:outline-none group">
               <div className="hidden sm:block text-end">
                 <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight flex items-center gap-1 justify-end">
-                  {language === 'ar' ? 'مرحباً،' : 'Welcome,'} <span className="max-w-[150px] truncate">{tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || 'Business'}</span>
+                  {language === 'ar' ? 'مرحباً،' : 'Welcome,'} <span className="max-w-[150px] truncate">{language === 'ar' ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'المنشأة') : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Business')}</span>
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">{user?.name}</p>
               </div>
@@ -323,7 +323,7 @@ export default function Header() {
                     {language === 'ar' ? 'الحساب والمنشأة' : 'Account & Company'}
                   </p>
                   <p className="text-sm font-bold text-gray-900 dark:text-white truncate mt-0.5">
-                    {tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || 'Business'}
+                    {language === 'ar' ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'المنشأة') : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Business')}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                     {user?.email}

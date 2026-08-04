@@ -1010,10 +1010,34 @@ router.put('/tenants/:id', async (req, res) => {
         }
       : undefined;
 
+    const incomingName = req.body?.name ? String(req.body.name).trim() : (existingTenant.name || '');
+    const incomingBusiness = req.body?.business
+      ? { ...(existingTenant.business?.toObject?.() || existingTenant.business || {}), ...req.body.business }
+      : (existingTenant.business?.toObject?.() || existingTenant.business || {});
+
+    if (incomingName) {
+      if (!incomingBusiness.legalNameEn || incomingBusiness.legalNameEn === existingTenant.name || (req.body?.name && req.body.name !== existingTenant.name && incomingBusiness.legalNameEn === existingTenant.business?.legalNameEn)) {
+        incomingBusiness.legalNameEn = incomingName;
+      }
+      if (!incomingBusiness.legalNameAr || incomingBusiness.legalNameAr === existingTenant.name || (req.body?.name && req.body.name !== existingTenant.name && incomingBusiness.legalNameAr === existingTenant.business?.legalNameAr)) {
+        incomingBusiness.legalNameAr = incomingBusiness.legalNameAr || incomingName;
+      }
+    }
+
+    const nextBranding = req.body?.branding
+      ? {
+          ...(existingTenant.branding?.toObject?.() || existingTenant.branding || {}),
+          ...(req.body.branding || {}),
+        }
+      : undefined;
+
     const tenant = await Tenant.findByIdAndUpdate(
       req.params.id,
       {
         ...req.body,
+        name: incomingName || existingTenant.name,
+        business: incomingBusiness,
+        ...(nextBranding ? { branding: nextBranding } : {}),
         ...(nextSettings ? { settings: nextSettings } : {}),
         ...(nextSubscription ? { subscription: nextSubscription } : {}),
         ...(nextZatca ? { zatca: nextZatca } : {}),

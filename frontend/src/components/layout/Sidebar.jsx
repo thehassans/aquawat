@@ -122,12 +122,14 @@ export default function Sidebar() {
             </div>
           ) : (
             <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-white flex items-center justify-center font-light text-2xl mb-4">
-              {tenant.business?.legalNameEn?.charAt(0) || tenant.name?.charAt(0) || 'M'}
+              {(tenant.business?.legalNameEn || tenant.name || tenant.business?.legalNameAr || 'M').charAt(0).toUpperCase()}
             </div>
           )}
           
           <h3 className="font-bold text-gray-900 dark:text-white text-xs leading-snug tracking-widest uppercase">
-            {language === 'ar' ? tenant.business?.legalNameAr : tenant.business?.legalNameEn}
+            {language === 'ar'
+              ? (tenant.business?.legalNameAr || tenant.name || tenant.business?.legalNameEn)
+              : (tenant.business?.legalNameEn || tenant.name || tenant.business?.legalNameAr)}
           </h3>
           {tenant.business?.vatNumber && (
             <div className="mt-1.5 text-[9px] text-gray-400 tracking-widest font-mono uppercase">

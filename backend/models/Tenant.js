@@ -639,6 +639,18 @@ tenantSchema.pre('validate', function(next) {
     this.businessType = this.businessTypes[0] || 'trading';
   }
 
+  if (this.name) {
+    if (!this.business) {
+      this.business = {};
+    }
+    if (!this.business.legalNameEn) {
+      this.business.legalNameEn = this.name;
+    }
+    if (!this.business.legalNameAr) {
+      this.business.legalNameAr = this.name;
+    }
+  }
+
   next();
 });
 
