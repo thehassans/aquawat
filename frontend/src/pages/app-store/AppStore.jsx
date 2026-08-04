@@ -58,8 +58,8 @@ export default function AppStore() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [showInstalledOnly, setShowInstalledOnly] = useState(false);
-  const [detailApp, setDetailApp] = useState(null);
-  const [configApp, setConfigApp] = useState(null);
+  const [selectedAppId, setSelectedAppId] = useState(null);
+  const [selectedConfigAppId, setSelectedConfigAppId] = useState(null);
   const [configForm, setConfigForm] = useState({});
   const [uninstallConfirmApp, setUninstallConfirmApp] = useState(null);
 
@@ -73,16 +73,32 @@ export default function AppStore() {
 
   const apps = data?.apps || [];
 
+  const detailApp = useMemo(
+    () => apps.find((a) => a.appId === selectedAppId) || null,
+    [apps, selectedAppId]
+  );
+
+  const configApp = useMemo(
+    () => apps.find((a) => a.appId === selectedConfigAppId) || null,
+    [apps, selectedConfigAppId]
+  );
+
   const refreshTenant = async () => {
     try {
       const res = await api.get('/auth/me');
-      if (res.data?.tenant) dispatch(updateTenant(res.data.tenant));
+      if (res.data?.tenant) {
+        dispatch(updateTenant(res.data.tenant));
+      }
     } catch {}
   };
 
   const installMutation = useMutation({
     mutationFn: (appId) => api.post(`/app-store/apps/${appId}/install`),
-    onSuccess: (data, appId) => {
+    onSuccess: (res, appId) => {
+      const updatedTenant = res.data?.tenant || res.data;
+      if (updatedTenant?.settings) {
+        dispatch(updateTenant(updatedTenant));
+      }
       queryClient.invalidateQueries(['app-store-apps']);
       refreshTenant();
     },
@@ -94,11 +110,14 @@ export default function AppStore() {
 
   const uninstallMutation = useMutation({
     mutationFn: (appId) => api.post(`/app-store/apps/${appId}/uninstall`),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      const updatedTenant = res.data?.tenant || res.data;
+      if (updatedTenant?.settings) {
+        dispatch(updateTenant(updatedTenant));
+      }
       toast.success(isAr ? 'تم إلغاء تثبيت التطبيق بنجاح' : 'App uninstalled successfully');
       queryClient.invalidateQueries(['app-store-apps']);
       setUninstallConfirmApp(null);
-      setDetailApp(null);
       refreshTenant();
     },
     onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل إلغاء التثبيت' : 'Uninstall failed')),
@@ -108,7 +127,7 @@ export default function AppStore() {
     mutationFn: ({ appId, config }) => api.put(`/app-store/apps/${appId}/settings`, { config }),
     onSuccess: () => {
       toast.success(isAr ? 'تم حفظ الإعدادات' : 'Settings saved');
-      setConfigApp(null);
+      setSelectedConfigAppId(null);
       queryClient.invalidateQueries(['app-store-apps']);
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to save settings'),
@@ -121,8 +140,8 @@ export default function AppStore() {
     setInstallingState({
       appId: app.appId,
       name: isAr ? app.nameAr : app.nameEn,
-      size: app.downloadSize || '3.5 MB',
-      progress: 5,
+      size: app.downloadSize || '4.5 MB',
+      progress: 10,
       stage: isAr ? 'جاري بدء التحميل...' : 'Initiating download...'
     });
 
@@ -139,10 +158,10 @@ export default function AppStore() {
         if (!prev) return null;
         const currentProgress = prev.progress;
 
-        if (currentProgress < 35) {
+        if (currentProgress < 40) {
           return {
             ...prev,
-            progress: currentProgress + 12,
+            progress: currentProgress + 15,
             stage: isAr ? `جاري تحميل الحزمة (${prev.size})...` : `Downloading package (${prev.size})...`
           };
         } else if (currentProgress < 75) {
@@ -157,7 +176,7 @@ export default function AppStore() {
             progress: currentProgress + 10,
             stage: isAr ? 'تهيئة الصلاحيات ومسارات القائمة...' : 'Configuring permissions & routes...'
           };
-        } else if (currentProgress >= 95 && currentProgress < 100) {
+        } else if (currentProgress < 100) {
           return {
             ...prev,
             progress: 100,
@@ -169,11 +188,11 @@ export default function AppStore() {
           setTimeout(() => {
             setInstallingState(null);
             toast.success(isAr ? `تم تثبيت ${prev.name} بنجاح` : `${prev.name} installed successfully`);
-          }, 600);
+          }, 500);
           return prev;
         }
       });
-    }, 280);
+    }, 240);
 
     return () => clearInterval(interval);
   }, [installingState?.appId, isAr]);
@@ -353,7 +372,7 @@ export default function AppStore() {
             className="mb-8 p-5 bg-primary-50/80 dark:bg-primary-950/40 border border-primary-200 dark:border-primary-800/60 rounded-2xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4"
           >
             <div className="flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow-md animate-spin-slow">
+              <div className="w-11 h-11 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow-md">
                 <Loader2 className="w-6 h-6 animate-spin" />
               </div>
               <div>
@@ -420,7 +439,7 @@ export default function AppStore() {
                     ? 'border-emerald-200/80 dark:border-emerald-900/40 hover:border-emerald-300'
                     : 'border-gray-200/80 dark:border-dark-700 hover:border-gray-300 dark:hover:border-dark-600'
                 }`}
-                onClick={() => setDetailApp(app)}
+                onClick={() => setSelectedAppId(app.appId)}
               >
                 {/* Top Row: Icon + Badges */}
                 <div className="flex items-start justify-between mb-3.5">
@@ -447,7 +466,7 @@ export default function AppStore() {
                   <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400 dark:text-gray-500">
                     <span className="flex items-center gap-1">
                       <HardDrive className="w-3 h-3" />
-                      {app.downloadSize || '3.2 MB'}
+                      {app.downloadSize || '4.5 MB'}
                     </span>
                     <span>•</span>
                     <span>v{app.version || '2.4.0'}</span>
@@ -475,6 +494,16 @@ export default function AppStore() {
                           <span>{isAr ? 'مثبت' : 'Installed'}</span>
                         </span>
 
+                        {app.defaultRoute && (
+                          <button
+                            onClick={() => navigate(app.defaultRoute)}
+                            title={isAr ? 'فتح التطبيق' : 'Open App'}
+                            className="p-1.5 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/30 rounded-lg transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
                         <button
                           onClick={() => setUninstallConfirmApp(app)}
                           title={isAr ? 'إلغاء التثبيت' : 'Uninstall'}
@@ -497,7 +526,7 @@ export default function AppStore() {
                         ) : (
                           <>
                             <Download className="w-3.5 h-3.5" />
-                            <span>{isAr ? `تثبيت (${app.downloadSize || '3.2 MB'})` : `Install (${app.downloadSize || '3.2 MB'})`}</span>
+                            <span>{isAr ? `تثبيت (${app.downloadSize || '4.5 MB'})` : `Install (${app.downloadSize || '4.5 MB'})`}</span>
                           </>
                         )}
                       </button>
@@ -519,7 +548,7 @@ export default function AppStore() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
-              onClick={() => setDetailApp(null)}
+              onClick={() => setSelectedAppId(null)}
             />
             <motion.div
               initial={{ opacity: 0, x: isAr ? -400 : 400 }}
@@ -545,7 +574,7 @@ export default function AppStore() {
                 </div>
 
                 <button
-                  onClick={() => setDetailApp(null)}
+                  onClick={() => setSelectedAppId(null)}
                   className="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -568,7 +597,7 @@ export default function AppStore() {
                 <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400 font-medium">
                   <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300">
                     <HardDrive className="w-3.5 h-3.5 text-primary-500" />
-                    {detailApp.downloadSize || '3.5 MB'}
+                    {detailApp.downloadSize || '4.5 MB'}
                   </span>
                   <span>•</span>
                   <span className="flex items-center gap-1">
@@ -615,7 +644,7 @@ export default function AppStore() {
                       {detailApp.defaultRoute && (
                         <button
                           onClick={() => {
-                            setDetailApp(null);
+                            setSelectedAppId(null);
                             navigate(detailApp.defaultRoute);
                           }}
                           className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold text-sm hover:opacity-90 transition-all shadow-sm"
@@ -628,7 +657,7 @@ export default function AppStore() {
                       {detailApp.configSchema?.length > 0 && (
                         <button
                           onClick={() => {
-                            setConfigApp(detailApp);
+                            setSelectedConfigAppId(detailApp.appId);
                             setConfigForm(detailApp.config || {});
                           }}
                           className="px-4 py-3 rounded-xl border border-gray-200 dark:border-dark-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-700 font-semibold text-sm transition-colors flex items-center gap-2"
@@ -651,7 +680,7 @@ export default function AppStore() {
                   <button
                     onClick={() => {
                       handleStartInstall(detailApp);
-                      setDetailApp(null);
+                      setSelectedAppId(null);
                     }}
                     disabled={installMutation.isPending || installingState?.appId === detailApp.appId}
                     className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-sm shadow-md transition-all active:scale-[0.99] disabled:opacity-50"
@@ -659,8 +688,8 @@ export default function AppStore() {
                     <Download className="w-4 h-4" />
                     <span>
                       {isAr
-                        ? `تثبيت التطبيق (${detailApp.downloadSize || '3.5 MB'})`
-                        : `Install Application (${detailApp.downloadSize || '3.5 MB'})`}
+                        ? `تثبيت التطبيق (${detailApp.downloadSize || '4.5 MB'})`
+                        : `Install Application (${detailApp.downloadSize || '4.5 MB'})`}
                     </span>
                   </button>
                 )}
@@ -736,7 +765,7 @@ export default function AppStore() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60]"
-              onClick={() => setConfigApp(null)}
+              onClick={() => setSelectedConfigAppId(null)}
             />
             <motion.div
               initial={{ opacity: 0, x: isAr ? -400 : 400 }}
@@ -754,7 +783,7 @@ export default function AppStore() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setConfigApp(null)}
+                  onClick={() => setSelectedConfigAppId(null)}
                   className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-400"
                 >
                   <X className="w-4 h-4" />
@@ -824,4 +853,3 @@ export default function AppStore() {
     </div>
   );
 }
-

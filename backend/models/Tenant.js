@@ -319,6 +319,7 @@ const tenantSchema = new mongoose.Schema({
   zatca: zatcaConfigSchema,
   ecommerce: { type: ecommerceSchema, default: () => ({}) },
   settings: {
+    installedApps: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
     language: { type: String, enum: ['en', 'ar'], default: 'ar' },
     currency: { type: String, default: 'SAR' },
     timezone: { type: String, default: 'Asia/Riyadh' },

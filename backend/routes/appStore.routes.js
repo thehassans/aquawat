@@ -6,7 +6,36 @@ import { normalizeBusinessTypes } from '../utils/businessTypes.js';
 
 const router = express.Router();
 
-// Built-in Apps and Add-ons Catalog Definition
+// Helper to serialize tenant for Redux auth state
+const serializeAuthTenant = (tenant) => {
+  if (!tenant) return null;
+  const source = typeof tenant.toObject === 'function' ? tenant.toObject() : tenant;
+  return {
+    _id: source._id,
+    name: source.name,
+    slug: source.slug,
+    businessType: source.businessType,
+    businessTypes: source.businessTypes,
+    business: source.business,
+    settings: source.settings,
+    branding: source.branding,
+    subscription: source.subscription,
+    terminationNotice: source.terminationNotice,
+    zatca: source.zatca,
+  };
+};
+
+const getTenantForUser = async (req) => {
+  let tenantId = req.user?.tenantId || req.tenant?._id;
+  if (!tenantId && req.user?.role === 'super_admin') {
+    const firstTenant = await Tenant.findOne();
+    tenantId = firstTenant?._id;
+  }
+  if (!tenantId) return null;
+  return await Tenant.findById(tenantId);
+};
+
+// Built-in Apps and Add-ons Catalog Definition with distinct download sizes
 export const DEFAULT_APP_CATALOG = [
   {
     appId: 'manufacturing_mes',
@@ -20,6 +49,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'core_vertical',
     icon: 'factory',
     version: '3.2.0',
+    downloadSize: '14.8 MB',
     author: 'Maqder Core',
     rating: 4.98,
     reviewsCount: 342,
@@ -59,6 +89,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'core_vertical',
     icon: 'truck',
     version: '2.4.0',
+    downloadSize: '6.4 MB',
     author: 'Maqder Core',
     rating: 4.8,
     reviewsCount: 95,
@@ -91,6 +122,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'core_vertical',
     icon: 'anchor',
     version: '2.4.0',
+    downloadSize: '3.8 MB',
     author: 'Maqder Core',
     rating: 4.7,
     reviewsCount: 68,
@@ -123,6 +155,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'core_vertical',
     icon: 'cpu',
     version: '2.4.0',
+    downloadSize: '5.2 MB',
     author: 'Maqder Core',
     rating: 4.6,
     reviewsCount: 42,
@@ -155,6 +188,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'core_vertical',
     icon: 'target',
     version: '2.4.0',
+    downloadSize: '8.6 MB',
     author: 'Maqder Core',
     rating: 4.9,
     reviewsCount: 215,
@@ -191,6 +225,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'core_vertical',
     icon: 'users',
     version: '2.4.0',
+    downloadSize: '12.4 MB',
     author: 'Maqder Core',
     rating: 4.85,
     reviewsCount: 310,
@@ -233,6 +268,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'core_vertical',
     icon: 'bike',
     version: '2.4.0',
+    downloadSize: '7.1 MB',
     author: 'Maqder Core',
     rating: 4.75,
     reviewsCount: 178,
@@ -265,6 +301,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'hardware_integration',
     icon: 'credit-card',
     version: '2.4.0',
+    downloadSize: '4.5 MB',
     author: 'Maqder Core',
     rating: 4.95,
     reviewsCount: 380,
@@ -300,6 +337,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'saudi_compliance',
     icon: 'shield',
     version: '4.1.0',
+    downloadSize: '9.2 MB',
     author: 'Maqder Saudi Gov Suite',
     rating: 5.0,
     reviewsCount: 890,
@@ -335,6 +373,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'hardware_integration',
     icon: 'printer',
     version: '2.1.4',
+    downloadSize: '1.9 MB',
     author: 'Maqder IoT Labs',
     rating: 4.94,
     reviewsCount: 215,
@@ -371,6 +410,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'hardware_integration',
     icon: 'scale',
     version: '1.9.0',
+    downloadSize: '2.4 MB',
     author: 'Maqder IoT Labs',
     rating: 4.88,
     reviewsCount: 94,
@@ -407,6 +447,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'automation_comm',
     icon: 'whatsapp',
     version: '3.0.1',
+    downloadSize: '6.8 MB',
     author: 'Maqder Connect',
     rating: 4.96,
     reviewsCount: 520,
@@ -442,6 +483,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'ai_tool',
     icon: 'sparkles',
     version: '2.5.0',
+    downloadSize: '11.5 MB',
     author: 'Maqder AI Labs',
     rating: 4.95,
     reviewsCount: 410,
@@ -477,6 +519,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'saudi_compliance',
     icon: 'briefcase',
     version: '2.0.0',
+    downloadSize: '4.1 MB',
     author: 'Maqder Saudi Gov Suite',
     rating: 4.91,
     reviewsCount: 175,
@@ -511,6 +554,7 @@ export const DEFAULT_APP_CATALOG = [
     appType: 'automation_comm',
     icon: 'truck',
     version: '2.3.1',
+    downloadSize: '7.8 MB',
     author: 'Maqder Logistics',
     rating: 4.87,
     reviewsCount: 160,
@@ -536,12 +580,42 @@ export const DEFAULT_APP_CATALOG = [
 ];
 
 // Helper: Ensure default apps catalog is in DB on demand
-const ensureCatalogInitialized = async () => {
+export const ensureCatalogInitialized = async () => {
   try {
     for (const app of DEFAULT_APP_CATALOG) {
       await AppAddon.findOneAndUpdate(
         { appId: app.appId },
-        { $set: app },
+        { 
+          $set: {
+            nameEn: app.nameEn,
+            nameAr: app.nameAr,
+            taglineEn: app.taglineEn,
+            taglineAr: app.taglineAr,
+            descriptionEn: app.descriptionEn,
+            descriptionAr: app.descriptionAr,
+            category: app.category,
+            appType: app.appType,
+            icon: app.icon,
+            version: app.version,
+            author: app.author,
+            rating: app.rating,
+            reviewsCount: app.reviewsCount,
+            badge: app.badge,
+            downloadSize: app.downloadSize,
+            defaultRoute: app.defaultRoute,
+            businessTypeGrant: app.businessTypeGrant,
+            requiresHardware: app.requiresHardware,
+            featuresEn: app.featuresEn,
+            featuresAr: app.featuresAr,
+            configSchema: app.configSchema
+          },
+          $setOnInsert: {
+            pricingTier: app.pricingTier || 'free',
+            monthlyPrice: app.monthlyPrice || 0,
+            yearlyPrice: app.yearlyPrice || 0,
+            isActive: true
+          }
+        },
         { upsert: true, new: true }
       );
     }
@@ -553,26 +627,21 @@ const ensureCatalogInitialized = async () => {
 // ─── 1. Get All Apps & Add-ons with Tenant Installation Status ───
 router.get('/apps', protect, async (req, res) => {
   try {
-    const tenant = await Tenant.findById(req.user.tenantId);
+    const tenant = await getTenantForUser(req);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-    // Sync any missing default apps into DB
-    try {
-      const dbApps = await AppAddon.find().select('appId').lean();
-      const existingAppIds = new Set((dbApps || []).map(a => a.appId));
-      for (const defApp of DEFAULT_APP_CATALOG) {
-        if (!existingAppIds.has(defApp.appId)) {
-          await AppAddon.create(defApp).catch(() => {});
-        }
-      }
-    } catch {}
+    // Sync / refresh catalog definitions
+    await ensureCatalogInitialized();
 
-    const apps = await AppAddon.find({ isActive: true }).lean();
+    // Only return apps that are not hidden by Super Admin (isActive !== false)
+    const apps = await AppAddon.find({ isActive: { $ne: false } }).lean();
     const finalApps = (apps && apps.length > 0) ? apps : DEFAULT_APP_CATALOG;
 
+    const defaultCatalogMap = new Map(DEFAULT_APP_CATALOG.map(a => [a.appId, a]));
     const tenantInstalled = tenant.settings?.installedApps || {};
 
     const appsWithStatus = finalApps.map((app) => {
+      const defApp = defaultCatalogMap.get(app.appId);
       const isExplicitlyInstalled = !!tenantInstalled[app.appId]?.isInstalled;
       const isInstalled = isExplicitlyInstalled;
       const isEnabled = tenantInstalled[app.appId]?.isEnabled !== false;
@@ -580,7 +649,7 @@ router.get('/apps', protect, async (req, res) => {
 
       return {
         ...app,
-        downloadSize: app.downloadSize || '3.2 MB',
+        downloadSize: app.downloadSize || defApp?.downloadSize || '4.5 MB',
         isInstalled,
         isEnabled,
         installedAt: tenantInstalled[app.appId]?.installedAt || (isInstalled ? tenant.createdAt : null),
@@ -608,7 +677,7 @@ router.post('/apps/:appId/install', protect, async (req, res) => {
     const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find(a => a.appId === appId);
     if (!appDef) return res.status(404).json({ error: 'App not found in catalog' });
 
-    const tenant = await Tenant.findById(req.user.tenantId);
+    const tenant = await getTenantForUser(req);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
     if (!tenant.settings) tenant.settings = {};
@@ -650,7 +719,8 @@ router.post('/apps/:appId/install', protect, async (req, res) => {
       message: `App ${appDef.nameEn} installed successfully`,
       appId,
       installedApps: tenant.settings.installedApps,
-      businessTypes: tenant.businessTypes
+      businessTypes: tenant.businessTypes,
+      tenant: serializeAuthTenant(tenant)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -662,7 +732,7 @@ router.post('/apps/:appId/uninstall', protect, async (req, res) => {
   try {
     const { appId } = req.params;
 
-    const tenant = await Tenant.findById(req.user.tenantId);
+    const tenant = await getTenantForUser(req);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
     const installedApps = { ...(tenant.settings?.installedApps || {}) };
@@ -692,7 +762,8 @@ router.post('/apps/:appId/uninstall', protect, async (req, res) => {
       message: 'App uninstalled successfully',
       appId,
       installedApps: tenant.settings.installedApps,
-      businessTypes: tenant.businessTypes
+      businessTypes: tenant.businessTypes,
+      tenant: serializeAuthTenant(tenant)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -705,7 +776,7 @@ router.post('/apps/:appId/toggle', protect, async (req, res) => {
     const { appId } = req.params;
     const { isEnabled } = req.body;
 
-    const tenant = await Tenant.findById(req.user.tenantId);
+    const tenant = await getTenantForUser(req);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
     const installedApps = { ...(tenant.settings?.installedApps || {}) };
@@ -723,7 +794,8 @@ router.post('/apps/:appId/toggle', protect, async (req, res) => {
     res.json({
       success: true,
       appId,
-      isEnabled: installedApps[appId].isEnabled
+      isEnabled: installedApps[appId].isEnabled,
+      tenant: serializeAuthTenant(tenant)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -736,7 +808,7 @@ router.put('/apps/:appId/settings', protect, async (req, res) => {
     const { appId } = req.params;
     const { config } = req.body;
 
-    const tenant = await Tenant.findById(req.user.tenantId);
+    const tenant = await getTenantForUser(req);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
     const installedApps = { ...(tenant.settings?.installedApps || {}) };
@@ -755,12 +827,9 @@ router.put('/apps/:appId/settings', protect, async (req, res) => {
       success: true,
       message: 'App settings saved successfully',
       appId,
-      config: installedApps[appId].config
+      config: installedApps[appId].config,
+      tenant: serializeAuthTenant(tenant)
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 export { ensureCatalogInitialized };
 export default router;
+
