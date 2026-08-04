@@ -835,6 +835,5 @@ router.put('/apps/:appId/settings', protect, async (req, res) => {
   }
 });
 
-export { ensureCatalogInitialized };
 export default router;
 
