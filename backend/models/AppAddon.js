@@ -49,6 +49,7 @@ const appAddonSchema = new mongoose.Schema({
   },
   monthlyPrice: { type: Number, default: 0 },
   yearlyPrice: { type: Number, default: 0 },
+  downloadSize: { type: String, default: '3.2 MB' },
   badge: { type: String, default: 'Popular' }, // 'Popular', 'Verified', 'New', 'Pro', 'Enterprise'
   featuresEn: [{ type: String }],
   featuresAr: [{ type: String }],

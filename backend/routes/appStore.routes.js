@@ -556,28 +556,31 @@ router.get('/apps', protect, async (req, res) => {
     const tenant = await Tenant.findById(req.user.tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-    let apps = await AppAddon.find({ isActive: true }).lean();
-    if (!apps || apps.length === 0) {
-      ensureCatalogInitialized().catch(() => {});
-      apps = DEFAULT_APP_CATALOG;
-    }
-    if (!apps || apps.length === 0) {
-      apps = DEFAULT_APP_CATALOG;
-    }
+    // Sync any missing default apps into DB
+    try {
+      const dbApps = await AppAddon.find().select('appId').lean();
+      const existingAppIds = new Set((dbApps || []).map(a => a.appId));
+      for (const defApp of DEFAULT_APP_CATALOG) {
+        if (!existingAppIds.has(defApp.appId)) {
+          await AppAddon.create(defApp).catch(() => {});
+        }
+      }
+    } catch {}
+
+    const apps = await AppAddon.find({ isActive: true }).lean();
+    const finalApps = (apps && apps.length > 0) ? apps : DEFAULT_APP_CATALOG;
 
     const tenantInstalled = tenant.settings?.installedApps || {};
-    const tenantBusinessTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
 
-    const appsWithStatus = apps.map((app) => {
-      const isGrantMatch = app.businessTypeGrant ? tenantBusinessTypes.includes(app.businessTypeGrant) : false;
+    const appsWithStatus = finalApps.map((app) => {
       const isExplicitlyInstalled = !!tenantInstalled[app.appId]?.isInstalled;
-      // If businessType matches, it's considered installed/included by default
       const isInstalled = isExplicitlyInstalled;
       const isEnabled = tenantInstalled[app.appId]?.isEnabled !== false;
       const config = tenantInstalled[app.appId]?.config || {};
 
       return {
         ...app,
+        downloadSize: app.downloadSize || '3.2 MB',
         isInstalled,
         isEnabled,
         installedAt: tenantInstalled[app.appId]?.installedAt || (isInstalled ? tenant.createdAt : null),
