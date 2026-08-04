@@ -217,6 +217,164 @@ export function App3DIcon({ path = '', label = '', className = 'w-11 h-11 sm:w-1
     )
   }
 
+  // ─── 3.1. MANUFACTURING & PRODUCTION (3D SMART FACTORY & GEAR MES) ────────
+  if (
+    last === 'manufacturing' ||
+    last === 'mrp' ||
+    last === 'job-costing' ||
+    (label || '').toLowerCase().includes('manufacturing') ||
+    (label || '').toLowerCase().includes('production') ||
+    (label || '').includes('تصنيع') ||
+    (label || '').includes('إنتاج')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`mf_base_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#F97316" />
+            <stop offset="50%" stopColor="#EA580C" />
+            <stop offset="100%" stopColor="#C2410C" />
+          </linearGradient>
+          <linearGradient id={`mf_gear_${uid}`} x1="20" y1="12" x2="48" y2="40" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="100%" stopColor="#F59E0B" />
+          </linearGradient>
+          <linearGradient id={`mf_metal_${uid}`} x1="12" y1="28" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#0F172A" />
+          </linearGradient>
+          <filter id={`mf_glow_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#F97316" floodOpacity="0.5" />
+          </filter>
+        </defs>
+
+        {/* Ambient Industrial Heat Glow */}
+        <rect x="10" y="14" width="44" height="42" rx="10" fill="#F97316" fillOpacity="0.25" filter={`url(#mf_glow_${uid})`} />
+
+        {/* 3D Modern Factory Isometric Base */}
+        <path
+          d="M12 28L24 16V26L36 14V24L48 12V50C48 53.3 45.3 56 42 56H18C14.7 56 12 53.3 12 50V28Z"
+          fill={`url(#mf_metal_${uid})`}
+          stroke="#F97316"
+          strokeWidth="1.5"
+          strokeOpacity="0.4"
+        />
+
+        {/* Factory Glowing Windows Grid */}
+        <rect x="18" y="34" width="6" height="6" rx="1.5" fill="#FDE047" fillOpacity="0.9" />
+        <rect x="28" y="34" width="6" height="6" rx="1.5" fill="#FDE047" fillOpacity="0.9" />
+        <rect x="38" y="34" width="6" height="6" rx="1.5" fill="#FDE047" fillOpacity="0.9" />
+        <rect x="18" y="44" width="6" height="6" rx="1.5" fill="#FB923C" fillOpacity="0.8" />
+        <rect x="28" y="44" width="6" height="6" rx="1.5" fill="#FB923C" fillOpacity="0.8" />
+        <rect x="38" y="44" width="6" height="6" rx="1.5" fill="#FB923C" fillOpacity="0.8" />
+
+        {/* 3D Glowing Central Precision Gear */}
+        <g filter={`url(#mf_glow_${uid})`}>
+          <circle cx="36" cy="24" r="11" fill={`url(#mf_gear_${uid})`} />
+          <circle cx="36" cy="24" r="4.5" fill="#0F172A" stroke="#FFFFFF" strokeWidth="1.2" />
+          {/* Gear Teeth */}
+          <rect x="34" y="10" width="4" height="4" rx="1" fill="#FDE047" />
+          <rect x="34" y="34" width="4" height="4" rx="1" fill="#FDE047" />
+          <rect x="22" y="22" width="4" height="4" rx="1" fill="#FDE047" />
+          <rect x="46" y="22" width="4" height="4" rx="1" fill="#FDE047" />
+          <rect x="26" y="14" width="4" height="4" rx="1" transform="rotate(45 28 16)" fill="#FDE047" />
+          <rect x="42" y="30" width="4" height="4" rx="1" transform="rotate(45 44 32)" fill="#FDE047" />
+          <rect x="26" y="30" width="4" height="4" rx="1" transform="rotate(-45 28 32)" fill="#FDE047" />
+          <rect x="42" y="14" width="4" height="4" rx="1" transform="rotate(-45 44 16)" fill="#FDE047" />
+        </g>
+
+        {/* Assembly Robot Laser / Spark Beam */}
+        <circle cx="48" cy="18" r="2.5" fill="#38BDF8" />
+        <path d="M48 18L38 24" stroke="#38BDF8" strokeWidth="1.5" strokeDasharray="2 2" />
+        <circle cx="38" cy="24" r="1.5" fill="#FFFFFF" />
+      </svg>
+    )
+  }
+
+  // ─── 3.2. APP STORE & ADD-ONS (3D HOLOGRAPHIC CUBE / STORE PRISM) ────────────
+  if (
+    last === 'app-store' ||
+    last === 'addons' ||
+    last === 'appstore' ||
+    last === 'features' ||
+    (label || '').toLowerCase().includes('app store') ||
+    (label || '').toLowerCase().includes('addons') ||
+    (label || '').includes('متجر التطبيقات') ||
+    (label || '').includes('الإضافات')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`as_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#8B5CF6" />
+            <stop offset="50%" stopColor="#6366F1" />
+            <stop offset="100%" stopColor="#3B82F6" />
+          </linearGradient>
+          <linearGradient id={`as_accent_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#EC4899" />
+            <stop offset="100%" stopColor="#8B5CF6" />
+          </linearGradient>
+          <radialGradient id={`as_glow_${uid}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#A855F7" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
+          </radialGradient>
+          <filter id={`as_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#8B5CF6" floodOpacity="0.5" />
+          </filter>
+        </defs>
+
+        {/* Ambient Nebula Glow */}
+        <circle cx="32" cy="32" r="26" fill={`url(#as_glow_${uid})`} />
+
+        {/* 3D Floating Diamond Base Plate */}
+        <path
+          d="M32 6L54 18V46L32 58L10 46V18L32 6Z"
+          fill={`url(#as_bg_${uid})`}
+          filter={`url(#as_flt_${uid})`}
+        />
+
+        {/* Top Facet Specular Highlight */}
+        <path
+          d="M32 6L54 18L32 30L10 18L32 6Z"
+          fill="#FFFFFF"
+          fillOpacity="0.25"
+        />
+
+        {/* Right Facet */}
+        <path
+          d="M32 30L54 18V46L32 58V30Z"
+          fill="#4338CA"
+          fillOpacity="0.6"
+        />
+
+        {/* Left Facet */}
+        <path
+          d="M32 30L10 18V46L32 58V30Z"
+          fill="#312E81"
+          fillOpacity="0.4"
+        />
+
+        {/* 3D Floating App Grid Tiles (Center Isometric Matrix) */}
+        {/* Top App Tile */}
+        <path d="M32 14L40 19L32 24L24 19L32 14Z" fill="#F43F5E" />
+        {/* Left App Tile */}
+        <path d="M21 26L29 31L21 36L13 31L21 26Z" fill="#06B6D4" />
+        {/* Right App Tile */}
+        <path d="M43 26L51 31L43 36L35 31L43 26Z" fill="#10B981" />
+        {/* Center App Tile (Glowing Golden Core) */}
+        <path d="M32 26L40 31L32 36L24 31L32 26Z" fill="#FBBF24" />
+
+        {/* Shiny Plus/Download Star in Front */}
+        <circle cx="32" cy="46" r="6" fill="#FFFFFF" filter={`url(#as_flt_${uid})`} />
+        <path d="M32 43V49M29 46H35" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" />
+
+        {/* Corner Neon Sparkles */}
+        <circle cx="48" cy="12" r="1.5" fill="#FDE047" />
+        <circle cx="14" cy="40" r="1.2" fill="#67E8F9" />
+      </svg>
+    )
+  }
+
   // ─── 4. COMMUNICATE (3D DUAL GLOWING CHAT BUBBLES) ──────────────────────────
   if (last === 'communicate') {
     return (

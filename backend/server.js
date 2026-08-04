@@ -134,6 +134,8 @@ import khayyatCustomizationRoutes from './routes/khayyat/customization.js';
 import boutiqueRoutes from './routes/boutique.routes.js';
 import furnitureRoutes from './routes/furniture.routes.js';
 import branchRoutes from './routes/branch.routes.js';
+import appStoreRoutes from './routes/appStore.routes.js';
+import manufacturingRoutes from './routes/manufacturing.routes.js';
 
 import { checkIqamaExpiry } from './jobs/iqamaChecker.js';
 import { processScheduledReports } from './jobs/reportScheduleJob.js';
@@ -602,6 +604,8 @@ app.use('/api/khayyat/customizations', ensureDatabaseReady, khayyatCustomization
 app.use('/api/boutique', ensureDatabaseReady, boutiqueRoutes);
 app.use('/api/furniture', ensureDatabaseReady, furnitureRoutes);
 app.use('/api/branches', ensureDatabaseReady, branchRoutes);
+app.use('/api/app-store', ensureDatabaseReady, appStoreRoutes);
+app.use('/api/manufacturing', ensureDatabaseReady, manufacturingRoutes);
 
 // Serve static frontend files in production
 const resolveFrontendBuild = () => {

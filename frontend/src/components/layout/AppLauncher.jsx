@@ -58,6 +58,13 @@ const APP_STYLE_MAP = {
   '/app/dashboard/restaurant': { gradient: 'from-[#F2994A] to-[#F2C94C]' },
   '/app/dashboard/pos': { gradient: 'from-[#F2994A] to-[#F2C94C]' },
 
+  // Manufacturing & Industrial Group (Orange / Amber)
+  '/app/dashboard/manufacturing': { gradient: 'from-[#F97316] to-[#EA580C]' },
+  '/app/dashboard/mrp': { gradient: 'from-[#F97316] to-[#EA580C]' },
+
+  // App Store & Add-ons (Violet / Indigo / Cyan)
+  '/app/dashboard/app-store': { gradient: 'from-[#8B5CF6] to-[#3B82F6]' },
+
   // Settings & System (Gray / Slate / Indigo)
   '/app/dashboard/profile': { gradient: 'from-[#4776E6] to-[#8E54E9]' },
   '/app/dashboard/settings': { gradient: 'from-[#4B79A1] to-[#283E51]' },

@@ -208,6 +208,8 @@ const Khata = lazy(() => import('./pages/finance/Khata'))
 const JobCosting = lazy(() => import('./pages/JobCosting'))
 const JobCostingForm = lazy(() => import('./pages/JobCostingForm'))
 const MRP = lazy(() => import('./pages/MRP'))
+const Manufacturing = lazy(() => import('./pages/manufacturing/Manufacturing'))
+const AppStore = lazy(() => import('./pages/app-store/AppStore'))
 const WhatsApp = lazy(() => import('./pages/WhatsApp'))
 const Contacts = lazy(() => import('./pages/Contacts'))
 const Expenses = lazy(() => import('./pages/Expenses'))
@@ -774,7 +776,9 @@ function App() {
         <Route path="job-costing" element={<BusinessTypeRoute allowedTypes={['construction']}><JobCosting /></BusinessTypeRoute>} />
         <Route path="job-costing/new" element={<BusinessTypeRoute allowedTypes={['trading']}><JobCostingForm /></BusinessTypeRoute>} />
         <Route path="job-costing/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><JobCostingForm /></BusinessTypeRoute>} />
-        <Route path="mrp" element={<BusinessTypeRoute allowedTypes={['trading']}><MRP /></BusinessTypeRoute>} />
+        <Route path="mrp" element={<BusinessTypeRoute allowedTypes={['trading', 'manufacturing']}><MRP /></BusinessTypeRoute>} />
+        <Route path="manufacturing" element={<BusinessTypeRoute allowedTypes={['manufacturing', 'trading']}><Manufacturing /></BusinessTypeRoute>} />
+        <Route path="app-store" element={<AppStore />} />
         <Route path="whatsapp" element={<WhatsApp />} />
         <Route path="reports" element={<Reports />} />
         <Route path="vat-returns" element={<VatReturns />} />

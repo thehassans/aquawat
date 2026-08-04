@@ -1,10 +1,15 @@
-export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop']
+export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing']
 
 export const getBusinessTypeOptions = (language = 'en') => [
   {
     id: 'trading',
     label: language === 'ar' ? 'التجارة' : 'Trading',
     description: language === 'ar' ? 'المخزون والمستودعات والمشتريات' : 'Inventory, warehouses, and purchasing',
+  },
+  {
+    id: 'manufacturing',
+    label: language === 'ar' ? 'التصنيع والإنتاج' : 'Manufacturing & MES',
+    description: language === 'ar' ? 'شجرة المواد BOM، تخطيط الإنتاج MRP، أوامر الشغل، الجودة والتكاليف' : 'Multi-level BOM, MRP II, Work Orders, Shop Floor Control & QA/QC',
   },
   {
     id: 'construction',

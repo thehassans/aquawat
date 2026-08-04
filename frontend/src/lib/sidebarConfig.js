@@ -74,6 +74,7 @@ import {
   Globe2,
   UserCircle,
   Megaphone,
+  Store,
 } from 'lucide-react'
 
 /**
@@ -372,11 +373,18 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       ]
     },
     {
-      title: language === 'ar' ? 'التكلفة والتخطيط' : 'Costing & Planning',
-      businessTypes: ['trading', 'furniture_shop'],
+      title: language === 'ar' ? 'التصنيع والإنتاج' : 'Manufacturing & MES',
+      businessTypes: ['manufacturing', 'trading', 'furniture_shop'],
       items: [
+        { path: '/app/dashboard/manufacturing', icon: Factory, label: language === 'ar' ? 'نظام التصنيع والإنتاج (MES)' : 'Manufacturing MES', perm: { module: 'mrp', action: 'read' } },
+        { path: '/app/dashboard/mrp', icon: Cpu, label: language === 'ar' ? 'تخطيط الاحتياجات (MRP)' : 'MRP II Planning', perm: { module: 'mrp', action: 'read' } },
         { path: '/app/dashboard/job-costing', icon: Briefcase, label: language === 'ar' ? 'تكلفة الأعمال' : 'Job Costing', perm: { module: 'job_costing', action: 'read' } },
-        { path: '/app/dashboard/mrp', icon: Factory, label: 'MRP', perm: { module: 'mrp', action: 'read' } },
+      ]
+    },
+    {
+      title: language === 'ar' ? 'متجر التطبيقات' : 'App Store',
+      items: [
+        { path: '/app/dashboard/app-store', icon: Store, label: language === 'ar' ? 'متجر التطبيقات والإضافات' : 'App Store & Add-ons' },
       ]
     },
     {
