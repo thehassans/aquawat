@@ -7,8 +7,36 @@ const getInitialLanguage = () => {
 
 const getInitialTheme = () => {
   const saved = localStorage.getItem('theme')
-  if (saved) return saved
+  if (saved === 'dark') return 'dark'
   return 'light'
+}
+
+const getThemeForTenant = (tenantId) => {
+  try {
+    if (tenantId) {
+      const all = localStorage.getItem('themeByTenant')
+      const map = all ? JSON.parse(all) : {}
+      if (['light', 'dark'].includes(map[tenantId])) return map[tenantId]
+    }
+    const saved = localStorage.getItem('theme')
+    return saved === 'dark' ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
+}
+
+const setThemeForTenantStorage = (tenantId, theme) => {
+  try {
+    if (tenantId) {
+      const all = localStorage.getItem('themeByTenant')
+      const map = all ? JSON.parse(all) : {}
+      map[tenantId] = theme === 'dark' ? 'dark' : 'light'
+      localStorage.setItem('themeByTenant', JSON.stringify(map))
+    }
+    localStorage.setItem('theme', theme === 'dark' ? 'dark' : 'light')
+  } catch {
+    // ignore
+  }
 }
 
 const getInitialHideSidebar = () => {
@@ -131,9 +159,27 @@ const uiSlice = createSlice({
       document.documentElement.lang = action.payload
     },
     setTheme: (state, action) => {
-      state.theme = action.payload
-      localStorage.setItem('theme', action.payload)
-      if (action.payload === 'dark') {
+      let tenantId, themeVal
+      if (typeof action.payload === 'string') {
+        themeVal = action.payload
+      } else {
+        tenantId = action.payload?.tenantId
+        themeVal = action.payload?.theme
+      }
+      themeVal = themeVal === 'dark' ? 'dark' : 'light'
+      state.theme = themeVal
+      setThemeForTenantStorage(tenantId, themeVal)
+      if (themeVal === 'dark') {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+    },
+    loadThemeForTenant: (state, action) => {
+      const tenantId = action.payload
+      const themeVal = getThemeForTenant(tenantId)
+      state.theme = themeVal
+      if (themeVal === 'dark') {
         document.documentElement.classList.add('dark')
       } else {
         document.documentElement.classList.remove('dark')
@@ -233,5 +279,5 @@ const uiSlice = createSlice({
   },
 })
 
-export const { setLanguage, setTheme, toggleSidebar, toggleSidebarCollapse, setMobileMenuOpen, setAppLauncherOpen, setHideSidebar, toggleHideSidebar, setHiddenMenuItems, toggleHiddenMenuItem, loadHiddenMenuItemsForTenant, setHiddenMenuItemsForTenant, toggleHiddenMenuItemForTenant, setDisplayMode, loadDisplayModeForTenant, setNavigationStyle, loadNavigationStyleForTenant } = uiSlice.actions
+export const { setLanguage, setTheme, loadThemeForTenant, toggleSidebar, toggleSidebarCollapse, setMobileMenuOpen, setAppLauncherOpen, setHideSidebar, toggleHideSidebar, setHiddenMenuItems, toggleHiddenMenuItem, loadHiddenMenuItemsForTenant, setHiddenMenuItemsForTenant, toggleHiddenMenuItemForTenant, setDisplayMode, loadDisplayModeForTenant, setNavigationStyle, loadNavigationStyleForTenant } = uiSlice.actions
 export default uiSlice.reducer

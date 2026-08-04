@@ -54,9 +54,15 @@ const boutiqueDetailsSchema = new mongoose.Schema({
   transactionType: { type: String, enum: ['rental', 'sale'], default: 'rental' },
 }, { _id: false });
 
+const cleanObjectId = (v) => {
+  if (!v || v === '' || v === 'null' || v === 'undefined') return undefined;
+  if (typeof v === 'string' && !mongoose.Types.ObjectId.isValid(v)) return undefined;
+  return v;
+};
+
 const invoiceLineSchema = new mongoose.Schema({
   lineNumber: { type: Number, required: true },
-  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', set: cleanObjectId },
   productName: { type: String, required: true },
   productNameAr: { type: String },
   description: { type: String },
@@ -75,8 +81,8 @@ const invoiceLineSchema = new mongoose.Schema({
   customerPrice: { type: Number, default: 0, min: 0 },
   isTravelMargin: { type: Boolean, default: false },
   marginTaxable: { type: Number, default: 0 },
-  sourceDnItemId: { type: mongoose.Schema.Types.ObjectId },
-  sourcePoItemId: { type: mongoose.Schema.Types.ObjectId }
+  sourceDnItemId: { type: mongoose.Schema.Types.ObjectId, set: cleanObjectId },
+  sourcePoItemId: { type: mongoose.Schema.Types.ObjectId, set: cleanObjectId }
 });
 
 const partySchema = new mongoose.Schema({
@@ -141,7 +147,7 @@ const zatcaSchema = new mongoose.Schema({
 });
 
 const inventorySchema = new mongoose.Schema({
-  warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
+  warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', set: cleanObjectId },
   postedAt: { type: Date },
   reversedAt: { type: Date }
 }, { _id: false });
@@ -151,8 +157,8 @@ const invoiceSchema = new mongoose.Schema({
 
   flow: { type: String, enum: ['sell', 'purchase'], default: 'sell', index: true },
   businessContext: { type: String, enum: ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'bakala', 'boutique', 'bookstore', 'furniture'], default: 'trading', index: true },
-  warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true },
-  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', index: true },
+  warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true, set: cleanObjectId },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', index: true, set: cleanObjectId },
   
   // Invoice Identification
   invoiceNumber: { type: String, required: true },
@@ -178,7 +184,7 @@ const invoiceSchema = new mongoose.Schema({
   seller: partySchema,
   buyer: partySchema,
 
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', index: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', index: true, set: cleanObjectId },
   
   // Line Items
   lineItems: [invoiceLineSchema],
@@ -207,16 +213,16 @@ const invoiceSchema = new mongoose.Schema({
   
   // Reference
   purchaseOrderNumber: { type: String },
-  sourcePurchaseOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder', index: true },
-  deliveryNoteIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryNote', index: true }],
+  sourcePurchaseOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder', index: true, set: cleanObjectId },
+  deliveryNoteIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryNote', index: true, set: cleanObjectId }],
   contractNumber: { type: String },
-  originalInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
-  proformaSourceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
-  sourceQuotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quotation', index: true },
+  originalInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', set: cleanObjectId },
+  proformaSourceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', set: cleanObjectId },
+  sourceQuotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quotation', index: true, set: cleanObjectId },
 
-  restaurantOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'RestaurantOrder', index: true },
-  travelBookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'TravelBooking', index: true },
-  rentalId: { type: mongoose.Schema.Types.ObjectId, ref: 'BoutiqueRental', index: true },
+  restaurantOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'RestaurantOrder', index: true, set: cleanObjectId },
+  travelBookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'TravelBooking', index: true, set: cleanObjectId },
+  rentalId: { type: mongoose.Schema.Types.ObjectId, ref: 'BoutiqueRental', index: true, set: cleanObjectId },
   rentalNumber: { type: String, index: true },
   travelDetails: travelDetailsSchema,
   boutiqueDetails: boutiqueDetailsSchema,

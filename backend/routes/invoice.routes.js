@@ -66,6 +66,79 @@ function resolvePaymentStatus(invoiceData) {
   }
 }
 
+function cleanObjectId(val) {
+  if (!val || val === '' || val === 'null' || val === 'undefined') return undefined;
+  if (typeof val === 'string' && mongoose.Types.ObjectId.isValid(val)) return val;
+  if (val instanceof mongoose.Types.ObjectId) return val;
+  return undefined;
+}
+
+function sanitizeInvoicePayload(payload = {}) {
+  if (!payload || typeof payload !== 'object') return payload;
+  const cleaned = { ...payload };
+  const objectIdKeys = [
+    'warehouseId',
+    'supplierId',
+    'customerId',
+    'sourcePurchaseOrderId',
+    'originalInvoiceId',
+    'proformaSourceId',
+    'sourceQuotationId',
+    'restaurantOrderId',
+    'travelBookingId',
+    'rentalId',
+    'manpowerAssignmentId'
+  ];
+
+  for (const key of objectIdKeys) {
+    if (key in cleaned) {
+      const sanitized = cleanObjectId(cleaned[key]);
+      if (sanitized) {
+        cleaned[key] = sanitized;
+      } else {
+        delete cleaned[key];
+      }
+    }
+  }
+
+  if (cleaned.inventory && typeof cleaned.inventory === 'object') {
+    const invWh = cleanObjectId(cleaned.inventory.warehouseId);
+    if (invWh) {
+      cleaned.inventory.warehouseId = invWh;
+    } else {
+      delete cleaned.inventory.warehouseId;
+    }
+  }
+
+  if (Array.isArray(cleaned.lineItems)) {
+    cleaned.lineItems = cleaned.lineItems.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const cleanItem = { ...item };
+      const prodId = cleanObjectId(cleanItem.productId);
+      if (prodId) {
+        cleanItem.productId = prodId;
+      } else {
+        delete cleanItem.productId;
+      }
+      const dnId = cleanObjectId(cleanItem.sourceDnItemId);
+      if (dnId) {
+        cleanItem.sourceDnItemId = dnId;
+      } else {
+        delete cleanItem.sourceDnItemId;
+      }
+      const poId = cleanObjectId(cleanItem.sourcePoItemId);
+      if (poId) {
+        cleanItem.sourcePoItemId = poId;
+      } else {
+        delete cleanItem.sourcePoItemId;
+      }
+      return cleanItem;
+    });
+  }
+
+  return cleaned;
+}
+
 function sanitizeTravelDetails(travelDetails = {}, fallbackTravelerName = '') {
   const passengers = Array.isArray(travelDetails?.passengers) ? travelDetails.passengers : [];
   const segments = Array.isArray(travelDetails?.segments) ? travelDetails.segments : [];
@@ -923,12 +996,13 @@ router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoi
 
 router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'create'), async (req, res) => {
   try {
+    req.body = sanitizeInvoicePayload(req.body);
     const tenant = await Tenant.findById(req.user.tenantId);
 
     const tenantId = req.user.tenantId;
     let customer = null;
 
-    if (req.body.customerId) {
+    if (req.body.customerId && cleanObjectId(req.body.customerId)) {
       if (!mongoose.Types.ObjectId.isValid(req.body.customerId)) {
         return res.status(400).json({ error: 'Invalid customerId' });
       }
@@ -994,7 +1068,7 @@ router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'cre
       invoiceTypeCode,
       issueDate,
       buyer,
-      customerId: customer?._id,
+      customerId: cleanObjectId(customer?._id || req.body.customerId),
       status: resolveInitialSellInvoiceStatus(req.body?.status, tenant),
       seller: {
         name: tenant.business.legalNameEn,
@@ -1007,6 +1081,10 @@ router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'cre
       ...getUserDisplayNames(req.user)
     };
 
+    if (!cleanObjectId(invoiceData.warehouseId)) {
+      delete invoiceData.warehouseId;
+    }
+
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const invoice = await Invoice.create(enrichedInvoiceData);
 
@@ -1015,32 +1093,20 @@ router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'cre
     }
 
     let emailDelivery = { sent: false, reason: 'disabled' };
-    let whatsappDelivery = { sent: false, reason: 'disabled' };
-    if (invoice.status === 'approved' || invoice.zatca?.signedXml) {
+    if (invoice.flow === 'sell' && (invoice.status === 'approved' || invoice.zatca?.signedXml)) {
       try {
-        emailDelivery = await autoEmailInvoiceIfEnabled({
-          tenant,
-          invoice,
-          customer,
-          language: tenant?.settings?.language,
+        emailDelivery = await autoSendInvoice(invoice._id, invoice.tenantId, {
+          language: req.tenant?.settings?.language,
         });
-      } catch (emailError) {
-        emailDelivery = { sent: false, reason: emailError.message };
-      }
-
-      try {
-        whatsappDelivery = await autoWhatsAppInvoiceIfEnabled({
-          tenant,
-          invoice,
-          customer,
-          language: tenant?.settings?.language,
-        });
-      } catch (waError) {
-        whatsappDelivery = { sent: false, reason: waError.message };
+      } catch {
+        emailDelivery = { sent: false, reason: 'error' };
       }
     }
 
-    res.status(201).json({ ...invoice.toObject(), emailDelivery, whatsappDelivery });
+    res.status(201).json({
+      ...invoice.toJSON(),
+      emailDelivery,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1052,6 +1118,7 @@ router.post('/consolidated', checkPermission('invoicing', 'create'), createInvoi
 // @route   POST /api/invoices/sell
 router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) => {
   try {
+    req.body = sanitizeInvoicePayload(req.body);
     const tenantBusinessTypes = getTenantBusinessTypes(req.tenant);
     const primaryBusinessType = getPrimaryBusinessType(req.tenant);
     const tenant = await Tenant.findById(req.user.tenantId);
@@ -1060,8 +1127,8 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
       ? req.body.businessContext
       : primaryBusinessType;
 
-    const restaurantOrderId = req.body?.restaurantOrderId;
-    const travelBookingId = req.body?.travelBookingId;
+    const restaurantOrderId = cleanObjectId(req.body?.restaurantOrderId);
+    const travelBookingId = cleanObjectId(req.body?.travelBookingId);
     let restaurantOrder = null;
     let travelBooking = null;
 
@@ -1092,7 +1159,7 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
     }
 
     if (businessContext === 'trading') {
-      if (req.body.warehouseId) {
+      if (req.body.warehouseId && cleanObjectId(req.body.warehouseId)) {
         const warehouse = await Warehouse.findOne({ _id: req.body.warehouseId, ...req.tenantFilter, isActive: true });
         if (!warehouse) {
           return res.status(400).json({ error: 'Warehouse not found' });
@@ -1103,7 +1170,7 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
     const tenantId = req.user.tenantId;
     let customer = null;
 
-    if (req.body.customerId) {
+    if (req.body.customerId && cleanObjectId(req.body.customerId)) {
       if (!mongoose.Types.ObjectId.isValid(req.body.customerId)) {
         return res.status(400).json({ error: 'Invalid customerId' });
       }
@@ -1197,12 +1264,12 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
       invoiceNumber,
       transactionType,
       invoiceSubtype,
-      sourcePurchaseOrderId: req.body.sourcePurchaseOrderId || undefined,
+      sourcePurchaseOrderId: cleanObjectId(req.body.sourcePurchaseOrderId),
       pdfTemplateId,
       invoiceTypeCode,
       issueDate,
       buyer,
-      customerId: customer?._id,
+      customerId: cleanObjectId(customer?._id || req.body.customerId),
       status: resolveInitialSellInvoiceStatus(req.body?.status, tenant),
       seller: {
         name: tenant.business.legalNameEn,
@@ -1219,7 +1286,7 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
       lineItems,
     };
 
-    if (businessContext !== 'trading') {
+    if (businessContext !== 'trading' || !cleanObjectId(invoiceData.warehouseId)) {
       delete invoiceData.warehouseId;
     }
 
@@ -1319,6 +1386,7 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
 // @route   POST /api/invoices/purchase
 router.post('/purchase', checkPermission('invoicing', 'create'), async (req, res) => {
   try {
+    req.body = sanitizeInvoicePayload(req.body);
     const tenantBusinessTypes = getTenantBusinessTypes(req.tenant);
     const primaryBusinessType = getPrimaryBusinessType(req.tenant);
     if (!tenantBusinessTypes.some((type) => ['trading', 'construction', 'travel_agency'].includes(type))) {
@@ -1331,7 +1399,7 @@ router.post('/purchase', checkPermission('invoicing', 'create'), async (req, res
       : (tenantBusinessTypes.includes(primaryBusinessType) ? primaryBusinessType : 'trading');
 
     if (businessContext === 'trading') {
-      if (req.body.warehouseId) {
+      if (req.body.warehouseId && cleanObjectId(req.body.warehouseId)) {
         const warehouse = await Warehouse.findOne({ _id: req.body.warehouseId, ...req.tenantFilter, isActive: true });
         if (!warehouse) {
           return res.status(400).json({ error: 'Warehouse not found' });
@@ -1340,7 +1408,7 @@ router.post('/purchase', checkPermission('invoicing', 'create'), async (req, res
     }
 
     let supplier = null;
-    if (req.body.supplierId) {
+    if (req.body.supplierId && cleanObjectId(req.body.supplierId)) {
       if (!mongoose.Types.ObjectId.isValid(req.body.supplierId)) {
         return res.status(400).json({ error: 'Invalid supplierId' });
       }
@@ -1408,7 +1476,7 @@ router.post('/purchase', checkPermission('invoicing', 'create'), async (req, res
       invoiceTypeCode,
       issueDate,
       seller,
-      supplierId: supplier?._id,
+      supplierId: cleanObjectId(supplier?._id || req.body.supplierId),
       buyer: {
         name: tenant.business.legalNameEn,
         nameAr: tenant.business.legalNameAr,
@@ -1423,7 +1491,7 @@ router.post('/purchase', checkPermission('invoicing', 'create'), async (req, res
       lineItems,
     };
 
-    if (businessContext !== 'trading') {
+    if (businessContext !== 'trading' || !cleanObjectId(invoiceData.warehouseId)) {
       delete invoiceData.warehouseId;
     }
 
@@ -1476,6 +1544,7 @@ router.post('/:id/post-inventory', requireBusinessType('trading'), checkPermissi
 // @route   PUT /api/invoices/:id
 router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
   try {
+    req.body = sanitizeInvoicePayload(req.body);
     const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
     
     if (!invoice) {

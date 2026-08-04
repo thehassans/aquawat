@@ -346,13 +346,13 @@ export default function Profile() {
   }, [subscription.endDate])
 
   const tabs = [
-    { id: 'overview', label: language === 'ar' ? 'بيانات المنشأة' : 'Company Overview', icon: Building2 },
-    { id: 'commercial', label: language === 'ar' ? 'السجل التجاري' : 'Commercial Reg.', icon: Briefcase },
-    { id: 'national_address', label: language === 'ar' ? 'العنوان الوطني' : 'National Address', icon: MapPin },
-    { id: 'vat_cert', label: language === 'ar' ? 'شهادة الضريبة' : 'VAT Certificate', icon: Receipt },
-    { id: 'bank', label: language === 'ar' ? 'الحسابات البنكية' : 'Bank Accounts', icon: Landmark },
-    { id: 'subscription', label: language === 'ar' ? 'الاشتراك والتراخيص' : 'Subscription & License', icon: Crown },
-    { id: 'security', label: language === 'ar' ? 'المستخدم والأمان' : 'User & Security', icon: ShieldCheck },
+    { id: 'overview', label: language === 'ar' ? 'بيانات المنشأة' : 'Company Overview', icon: Building2, color: 'text-blue-500', activeStyle: 'text-blue-700 dark:text-blue-300 bg-blue-50/80 dark:bg-blue-950/40 border-blue-200/80 dark:border-blue-800/60' },
+    { id: 'commercial', label: language === 'ar' ? 'السجل التجاري' : 'Commercial Reg.', icon: Briefcase, color: 'text-amber-500', activeStyle: 'text-amber-700 dark:text-amber-300 bg-amber-50/80 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800/60' },
+    { id: 'national_address', label: language === 'ar' ? 'العنوان الوطني' : 'National Address', icon: MapPin, color: 'text-sky-500', activeStyle: 'text-sky-700 dark:text-sky-300 bg-sky-50/80 dark:bg-sky-950/40 border-sky-200/80 dark:border-sky-800/60' },
+    { id: 'vat_cert', label: language === 'ar' ? 'شهادة الضريبة' : 'VAT Certificate', icon: Receipt, color: 'text-teal-500', activeStyle: 'text-teal-700 dark:text-teal-300 bg-teal-50/80 dark:bg-teal-950/40 border-teal-200/80 dark:border-teal-800/60' },
+    { id: 'bank', label: language === 'ar' ? 'الحسابات البنكية' : 'Bank Accounts', icon: Landmark, color: 'text-indigo-500', activeStyle: 'text-indigo-700 dark:text-indigo-300 bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-200/80 dark:border-indigo-800/60' },
+    { id: 'subscription', label: language === 'ar' ? 'الاشتراك والتراخيص' : 'Subscription & License', icon: Crown, color: 'text-purple-500', activeStyle: 'text-purple-700 dark:text-purple-300 bg-purple-50/80 dark:bg-purple-950/40 border-purple-200/80 dark:border-purple-800/60' },
+    { id: 'security', label: language === 'ar' ? 'المستخدم والأمان' : 'User & Security', icon: ShieldCheck, color: 'text-emerald-500', activeStyle: 'text-emerald-700 dark:text-emerald-300 bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200/80 dark:border-emerald-800/60' },
   ]
 
   return (
@@ -504,14 +504,14 @@ export default function Profile() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
                   isActive
-                    ? 'text-primary-600 dark:text-primary-400 bg-white dark:bg-dark-800 shadow-xs border border-gray-200/80 dark:border-dark-600 font-bold'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-dark-800'
+                    ? `${tab.activeStyle} shadow-xs border font-bold`
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-dark-800'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'}`} />
-                {tab.label}
+                <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? tab.color : 'text-gray-400 dark:text-gray-500'}`} />
+                <span>{tab.label}</span>
               </button>
             )
           })}

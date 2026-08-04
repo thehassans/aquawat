@@ -190,11 +190,12 @@ export default function Header() {
 
           {/* Theme Toggle */}
           <button
-            onClick={() => dispatch(setTheme(theme === 'dark' ? 'light' : 'dark'))}
+            onClick={() => dispatch(setTheme({ tenantId: tenant?._id, theme: theme === 'dark' ? 'light' : 'dark' }))}
             className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors"
+            title={theme === 'dark' ? (language === 'ar' ? 'الوضع الفاتح' : 'Light Mode') : (language === 'ar' ? 'الوضع الداكن' : 'Dark Mode')}
           >
             {theme === 'dark' ? (
-              <Sun className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <Sun className="w-5 h-5 text-amber-500" />
             ) : (
               <Moon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             )}
