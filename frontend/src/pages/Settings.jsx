@@ -297,7 +297,7 @@ export default function Settings() {
     setInvoiceLogoDataUrl(tenant.settings?.invoiceBranding?.logo || tenant.branding?.logo || null)
     setStampDataUrl(tenant.settings?.invoiceBranding?.presetStamp || tenant.settings?.invoiceBranding?.stampImage || null)
     setSignatureDataUrl(tenant.settings?.invoiceBranding?.presetSignature || tenant.settings?.invoiceBranding?.signatureImage || null)
-    setLetterheadDataUrl(tenant.settings?.invoiceBranding?.letterheadImage || null)
+    setLetterheadDataUrl(tenant.settings?.invoiceBranding?.letterheadImage || tenant.branding?.letterheadImage || null)
     setHiddenUoms(tenant.settings?.hiddenUoms || [])
     setInvoiceHeaderTextEn(tenant.settings?.invoiceBranding?.headerTextEn || '')
     setInvoiceHeaderTextAr(tenant.settings?.invoiceBranding?.headerTextAr || '')

@@ -68,10 +68,22 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
   const invoiceTitleEn = isQuotation ? 'QUOTATION' : 'TAX INVOICE'
   const invoiceTitleAr = isQuotation ? 'عرض سعر' : 'فاتورة ضريبية'
 
+  const bgWatermark = invoiceBranding.letterheadImage || tenant?.branding?.letterheadImage || tenant?.settings?.invoiceBranding?.letterheadImage || logoSrc
+
   return (
-    <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-300 font-sans shadow-md rounded-none">
-      
-      {/* Header Banner */}
+    <div dir="ltr" className="relative mx-auto max-w-5xl bg-white border border-slate-300 font-sans shadow-md rounded-none overflow-hidden">
+      {bgWatermark && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none p-12" aria-hidden="true">
+          <img
+            src={bgWatermark}
+            alt=""
+            className="max-h-[60%] max-w-[60%] object-contain opacity-[0.06] print:opacity-[0.06] grayscale-0 transition-opacity"
+          />
+        </div>
+      )}
+
+      <div className="relative z-10">
+        {/* Header Banner */}
       <div className="flex bg-slate-100 border-b border-slate-300">
         <div className="flex-1 p-6 border-r border-slate-300 flex items-center gap-4">
           {logoSrc && (
@@ -225,6 +237,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
         <p className="text-xs font-medium text-slate-300 tracking-widest uppercase">
           {invoiceBranding.footerText || 'Thank you for your business!'}
         </p>
+      </div>
       </div>
     
       <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />

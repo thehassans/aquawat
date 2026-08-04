@@ -68,10 +68,22 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
     ? (language === 'ar' ? 'عرض سعر' : 'Quotation')
     : (language === 'ar' ? 'فاتورة ضريبية' : 'Tax Invoice')
 
+  const bgWatermark = invoiceBranding.letterheadImage || tenant?.branding?.letterheadImage || tenant?.settings?.invoiceBranding?.letterheadImage || logoSrc
+
   return (
-    <div dir="ltr" className="mx-auto max-w-5xl bg-white border-double border-[6px] border-amber-900 shadow-2xl p-8 font-serif" style={{ fontFamily: '"Times New Roman", Times, "Almarai", serif' }}>
-      
-      {/* Header */}
+    <div dir="ltr" className="relative mx-auto max-w-5xl bg-white border-double border-[6px] border-amber-900 shadow-2xl p-8 font-serif overflow-hidden" style={{ fontFamily: '"Times New Roman", Times, "Almarai", serif' }}>
+      {bgWatermark && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none p-12" aria-hidden="true">
+          <img
+            src={bgWatermark}
+            alt=""
+            className="max-h-[60%] max-w-[60%] object-contain opacity-[0.05] print:opacity-[0.05] grayscale-0 transition-opacity"
+          />
+        </div>
+      )}
+
+      <div className="relative z-10">
+        {/* Header */}
       <div className="flex justify-between items-start border-b-2 border-amber-900 pb-6 mb-6">
         <div className="w-1/3">
           {logoSrc ? (
@@ -191,6 +203,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
         </div>
       )}
 
+      </div>
     
       <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
     </div>

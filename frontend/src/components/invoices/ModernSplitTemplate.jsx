@@ -68,6 +68,8 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
     ? (language === 'ar' ? 'عرض سعر' : 'QUOTATION')
     : (language === 'ar' ? 'فاتورة ضريبية' : 'TAX INVOICE')
 
+  const bgWatermark = invoiceBranding.letterheadImage || tenant?.branding?.letterheadImage || tenant?.settings?.invoiceBranding?.letterheadImage || logoSrc
+
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white shadow-xl flex font-sans min-h-[1056px]" style={{ fontFamily: 'Arial, Helvetica, "Almarai", sans-serif' }}>
       
@@ -108,7 +110,17 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
       </div>
 
       {/* Right Column - Light Theme */}
-      <div className="w-[70%] bg-slate-50 p-10 rounded-r-2xl print:rounded-none flex flex-col">
+      <div className="relative w-[70%] bg-slate-50 p-10 rounded-r-2xl print:rounded-none flex flex-col overflow-hidden">
+        {bgWatermark && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none p-12" aria-hidden="true">
+            <img
+              src={bgWatermark}
+              alt=""
+              className="max-h-[60%] max-w-[60%] object-contain opacity-[0.06] print:opacity-[0.06] grayscale-0 transition-opacity"
+            />
+          </div>
+        )}
+        <div className="relative z-10 flex flex-col flex-1">
         
         {/* Addresses */}
         <div className="flex justify-between items-start mb-12">
@@ -208,6 +220,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
         </div>
       )}
 
+        </div>
       </div>
     
       <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />

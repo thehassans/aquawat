@@ -82,14 +82,22 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const isBoutiqueRental = invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental'
   const isQuotation = documentType === 'quotation'
 
+  const bgWatermark = invoiceBranding.letterheadImage || tenant?.branding?.letterheadImage || tenant?.settings?.invoiceBranding?.letterheadImage || logoSrc
+
   return (
-    <div dir="ltr" className={`relative mx-auto max-w-5xl ${invoiceBranding.letterheadImage ? 'bg-transparent' : 'bg-white'} border rounded-[2rem] shadow-xl overflow-hidden font-sans`}>
-      {invoiceBranding.letterheadImage && (
-        <img src={invoiceBranding.letterheadImage} alt="" className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none" />
+    <div dir="ltr" className="relative mx-auto max-w-5xl bg-white border rounded-[2rem] shadow-xl overflow-hidden font-sans">
+      {bgWatermark && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none p-12" aria-hidden="true">
+          <img
+            src={bgWatermark}
+            alt=""
+            className="max-h-[65%] max-w-[65%] object-contain opacity-[0.06] print:opacity-[0.06] grayscale-0 transition-opacity"
+          />
+        </div>
       )}
       <div className="relative z-10">
         {/* Header */}
-        <div className={`border-b ${invoiceBranding.letterheadImage ? 'bg-transparent' : 'bg-white'} px-6 pb-6 ${invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' ? 'pt-2' : 'pt-6'}`}>
+        <div className={`border-b bg-transparent px-6 pb-6 ${invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' ? 'pt-2' : 'pt-6'}`}>
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div className="flex-1">
             <div className="mb-4">

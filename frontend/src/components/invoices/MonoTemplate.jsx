@@ -67,9 +67,21 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
   const invoiceTitleEn = isQuotation ? 'QUOTATION' : 'TAX INVOICE'
   const invoiceTitleAr = isQuotation ? 'عرض سعر' : 'فاتورة ضريبية'
 
+  const bgWatermark = invoiceBranding.letterheadImage || tenant?.branding?.letterheadImage || tenant?.settings?.invoiceBranding?.letterheadImage || logoSrc
+
   return (
-    <div dir="ltr" className="mx-auto max-w-5xl bg-white border-2 border-black overflow-hidden font-sans rounded-none">
-      <div className="p-8">
+    <div dir="ltr" className="relative mx-auto max-w-5xl bg-white border-2 border-black overflow-hidden font-sans rounded-none">
+      {bgWatermark && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none p-12" aria-hidden="true">
+          <img
+            src={bgWatermark}
+            alt=""
+            className="max-h-[60%] max-w-[60%] object-contain opacity-[0.05] print:opacity-[0.05] grayscale transition-opacity"
+          />
+        </div>
+      )}
+
+      <div className="relative z-10 p-8">
         
         {/* Header Section */}
         <div className="flex justify-between items-end border-b-4 border-black pb-6 mb-6">
