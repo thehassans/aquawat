@@ -576,12 +576,14 @@ export default function AppLauncher() {
                     onClick={() => handleAppClick(targetPath)}
                     className="flex flex-col items-center group w-full outline-none"
                   >
-                    {/* Ultra-professional 3D Icon Container - dark rounded square like Odoo/iOS */}
-                    <div className="w-[78px] h-[78px] sm:w-[88px] sm:h-[88px] rounded-[22px] sm:rounded-[26px] bg-[#181A24] dark:bg-[#15161F] shadow-[0_8px_32px_rgba(0,0,0,0.45)] border border-white/5 dark:border-white/5 flex items-center justify-center transform transition-all duration-300 ease-out group-hover:scale-110 group-hover:-translate-y-2 group-hover:shadow-[0_20px_48px_rgba(0,0,0,0.5)] group-active:scale-95 group-active:translate-y-0">
+                    {/* Ultra-professional 3D Glowing Icon Container */}
+                    <div className="relative w-[78px] h-[78px] sm:w-[88px] sm:h-[88px] rounded-[22px] sm:rounded-[26px] bg-gradient-to-b from-[#1E202E] to-[#12131A] dark:from-[#181A26] dark:to-[#0D0E15] shadow-[0_8px_30px_rgba(0,0,0,0.5),0_0_15px_rgba(255,255,255,0.03)] border border-white/10 dark:border-white/10 flex items-center justify-center transform transition-all duration-300 ease-out group-hover:scale-110 group-hover:-translate-y-2 group-hover:shadow-[0_20px_48px_rgba(0,0,0,0.6),0_0_25px_rgba(99,102,241,0.25)] group-hover:border-white/20 group-active:scale-95 group-active:translate-y-0">
+                      {/* Subtle top inner reflection */}
+                      <div className="absolute inset-0 rounded-[22px] sm:rounded-[26px] bg-gradient-to-b from-white/[0.08] via-transparent to-transparent pointer-events-none" />
                       <App3DIcon
                         path={targetPath || ''}
                         label={app.label || ''}
-                        className="w-11 h-11 sm:w-12 sm:h-12"
+                        className="w-11 h-11 sm:w-12 sm:h-12 relative z-10 transition-transform duration-300 group-hover:scale-105"
                       />
                     </div>
                     <span className="mt-3.5 text-[12px] sm:text-[13px] font-semibold text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white text-center tracking-wide line-clamp-2 max-w-[90px] transition-colors leading-snug">
