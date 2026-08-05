@@ -155,49 +155,45 @@ export default function AppStore() {
   useEffect(() => {
     if (!installingState) return;
 
+    if (installingState.progress >= 100) {
+      const timeout = setTimeout(() => {
+        toast.success(isAr ? `تم تثبيت ${installingState.name} بنجاح` : `${installingState.name} installed successfully`);
+        setInstallingState(null);
+      }, 800);
+      return () => clearTimeout(timeout);
+    }
+
     const interval = setInterval(() => {
       setInstallingState((prev) => {
         if (!prev) return null;
-        const currentProgress = prev.progress;
-
-        if (currentProgress < 40) {
-          return {
-            ...prev,
-            progress: currentProgress + 15,
-            stage: isAr ? `جاري تحميل الحزمة (${prev.size})...` : `Downloading package (${prev.size})...`
-          };
-        } else if (currentProgress < 75) {
-          return {
-            ...prev,
-            progress: currentProgress + 15,
-            stage: isAr ? 'التحقق من التوقيع الرقمي واستخراج الملفات...' : 'Verifying integrity...'
-          };
-        } else if (currentProgress < 95) {
-          return {
-            ...prev,
-            progress: currentProgress + 10,
-            stage: isAr ? 'تهيئة الصلاحيات...' : 'Configuring modules...'
-          };
-        } else if (currentProgress < 100) {
-          return {
-            ...prev,
-            progress: 100,
-            stage: isAr ? 'اكتمل التثبيت!' : 'Complete!'
-          };
+        
+        let newProgress = prev.progress;
+        let newStage = prev.stage;
+        
+        if (prev.progress < 40) {
+          newProgress += 15;
+          newStage = isAr ? `جاري تحميل الحزمة (${prev.size})...` : `Downloading package (${prev.size})...`;
+        } else if (prev.progress < 75) {
+          newProgress += 15;
+          newStage = isAr ? 'التحقق من التوقيع الرقمي واستخراج الملفات...' : 'Verifying integrity...';
+        } else if (prev.progress < 95) {
+          newProgress += 10;
+          newStage = isAr ? 'تهيئة الصلاحيات...' : 'Configuring modules...';
         } else {
-          // Completed
-          clearInterval(interval);
-          setTimeout(() => {
-            setInstallingState(null);
-            toast.success(isAr ? `تم تثبيت ${prev.name} بنجاح` : `${prev.name} installed successfully`);
-          }, 800);
-          return prev;
+          newProgress = 100;
+          newStage = isAr ? 'اكتمل التثبيت!' : 'Complete!';
         }
+
+        return {
+          ...prev,
+          progress: newProgress,
+          stage: newStage
+        };
       });
     }, 300);
 
     return () => clearInterval(interval);
-  }, [installingState?.appId, isAr]);
+  }, [installingState?.appId, installingState?.progress, isAr]);
 
   // Robust filtering
   const filtered = useMemo(() => {
