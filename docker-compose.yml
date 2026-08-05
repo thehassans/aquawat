@@ -5,6 +5,14 @@ services:
     image: mongo:7.0
     container_name: maqder_mongo
     restart: unless-stopped
+    # ── Limit WiredTiger cache to 512 MB so Mongo doesn't eat all VPS RAM ─────
+    # Default is 50% of system RAM (= ~2 GB on a 4 GB VPS) which leaves nothing
+    # for Node.js, Plesk, and the OS. 512 MB is fine for an ERP workload.
+    command: >
+      mongod
+      --wiredTigerCacheSizeGB 0.5
+      --wiredTigerJournalCompressor snappy
+      --quiet
     environment:
       MONGO_INITDB_DATABASE: maqder
     volumes:
@@ -61,6 +69,7 @@ services:
       API_REQUEST_TIMEOUT_MS: "30000"
       AUTH_RATE_LIMIT_MAX: "30"
       PUBLIC_RATE_LIMIT_MAX: "1000"
+      CLUSTER_WORKERS: "2"
       LOG_CONSOLE: "true"    # Forward logs to Docker log driver
     depends_on:
       mongo:

@@ -66,6 +66,9 @@ COPY . .
 # Create uploads directory
 RUN mkdir -p /app/uploads
 
+# CLUSTER_WORKERS=2 uses both cores; set to 1 to disable cluster mode
+ENV CLUSTER_WORKERS=2
+
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["node", "cluster.js"]
