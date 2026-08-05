@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Plus, Save, Trash2, Upload, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -52,12 +52,12 @@ const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext })
   termsAndConditions: quotation?.termsAndConditions || '',
   invoiceDiscount: Math.max(0, toNumber(quotation?.invoiceDiscount, 0)),
   buyer: quotation?.buyer || {},
-  authorizedPersonName: quotation?.authorizedPersonName || tenant?.business?.legalNameEn || '',
-  authorizedPersonNameAr: quotation?.authorizedPersonNameAr || '',
-  authorizedPersonDesignation: quotation?.authorizedPersonDesignation || '',
-  authorizedPersonDesignationAr: quotation?.authorizedPersonDesignationAr || '',
-  authorizedPersonSignature: quotation?.authorizedPersonSignature || tenant?.settings?.invoiceBranding?.presetSignature || '',
-  stampImage: quotation?.stampImage || tenant?.settings?.invoiceBranding?.presetStamp || '',
+  authorizedPersonName: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonName || '') : '',
+  authorizedPersonNameAr: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonNameAr || '') : '',
+  authorizedPersonDesignation: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonDesignation || '') : '',
+  authorizedPersonDesignationAr: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonDesignationAr || '') : '',
+  authorizedPersonSignature: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonSignature || '') : '',
+  stampImage: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.stampImage || '') : '',
   lineItems: Array.isArray(quotation?.lineItems) && quotation.lineItems.length > 0
     ? quotation.lineItems.map((line) => ({
         ...emptyLine,
@@ -85,6 +85,45 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   const { t } = useTranslation(language)
   const isEdit = Boolean(quotationId)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
+  const [showAuthorizedPerson, setShowAuthorizedPerson] = useState(() => {
+    return Boolean(
+      initialQuotation?.authorizedPersonName ||
+      initialQuotation?.authorizedPersonNameAr ||
+      initialQuotation?.authorizedPersonDesignation ||
+      initialQuotation?.authorizedPersonDesignationAr ||
+      initialQuotation?.authorizedPersonSignature ||
+      initialQuotation?.stampImage
+    )
+  })
+
+  const handleToggleAuthorizedPerson = (enable) => {
+    setShowAuthorizedPerson(enable)
+    if (enable) {
+      const currentName = getValues('authorizedPersonName')
+      const currentSignature = getValues('authorizedPersonSignature')
+      const currentStamp = getValues('stampImage')
+
+      if (!currentName && tenant?.business?.legalNameEn) {
+        setValue('authorizedPersonName', tenant.business.legalNameEn)
+      }
+      if (!getValues('authorizedPersonNameAr') && tenant?.business?.legalNameAr) {
+        setValue('authorizedPersonNameAr', tenant.business.legalNameAr)
+      }
+      if (!currentSignature && tenant?.settings?.invoiceBranding?.presetSignature) {
+        setValue('authorizedPersonSignature', tenant.settings.invoiceBranding.presetSignature)
+      }
+      if (!currentStamp && tenant?.settings?.invoiceBranding?.presetStamp) {
+        setValue('stampImage', tenant.settings.invoiceBranding.presetStamp)
+      }
+    } else {
+      setValue('authorizedPersonName', '')
+      setValue('authorizedPersonNameAr', '')
+      setValue('authorizedPersonDesignation', '')
+      setValue('authorizedPersonDesignationAr', '')
+      setValue('authorizedPersonSignature', '')
+      setValue('stampImage', '')
+    }
+  }
 
   const defaultBusinessContext = useMemo(() => {
     const primary = getPrimaryBusinessType(tenant)
@@ -92,7 +131,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     return tenantBusinessTypes.find((type) => selectableContexts.includes(type)) || 'trading'
   }, [tenant, tenantBusinessTypes])
 
-  const { register, control, handleSubmit, watch, setValue, reset } = useForm({
+  const { register, control, handleSubmit, watch, setValue, getValues, reset } = useForm({
     defaultValues: buildQuotationFormValues({
       quotation: initialQuotation,
       tenant,
@@ -280,12 +319,12 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       subject: data?.subject || '',
       subjectAr: data?.subjectAr || '',
       termsAndConditions: data?.termsAndConditions || '',
-      authorizedPersonName: data?.authorizedPersonName || '',
-      authorizedPersonNameAr: data?.authorizedPersonNameAr || '',
-      authorizedPersonDesignation: data?.authorizedPersonDesignation || '',
-      authorizedPersonDesignationAr: data?.authorizedPersonDesignationAr || '',
-      authorizedPersonSignature: data?.authorizedPersonSignature || '',
-      stampImage: data?.stampImage || '',
+      authorizedPersonName: showAuthorizedPerson ? (data?.authorizedPersonName || '') : '',
+      authorizedPersonNameAr: showAuthorizedPerson ? (data?.authorizedPersonNameAr || '') : '',
+      authorizedPersonDesignation: showAuthorizedPerson ? (data?.authorizedPersonDesignation || '') : '',
+      authorizedPersonDesignationAr: showAuthorizedPerson ? (data?.authorizedPersonDesignationAr || '') : '',
+      authorizedPersonSignature: showAuthorizedPerson ? (data?.authorizedPersonSignature || '') : '',
+      stampImage: showAuthorizedPerson ? (data?.stampImage || '') : '',
       status: initialQuotation?.status || 'draft',
     }
 
@@ -294,6 +333,12 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
 
   const previewQuotation = {
     ...values,
+    authorizedPersonName: showAuthorizedPerson ? (values?.authorizedPersonName || '') : '',
+    authorizedPersonNameAr: showAuthorizedPerson ? (values?.authorizedPersonNameAr || '') : '',
+    authorizedPersonDesignation: showAuthorizedPerson ? (values?.authorizedPersonDesignation || '') : '',
+    authorizedPersonDesignationAr: showAuthorizedPerson ? (values?.authorizedPersonDesignationAr || '') : '',
+    authorizedPersonSignature: showAuthorizedPerson ? (values?.authorizedPersonSignature || '') : '',
+    stampImage: showAuthorizedPerson ? (values?.stampImage || '') : '',
     quotationNumber: initialQuotation?.quotationNumber || 'PREVIEW-1234',
     issueDate: values?.issueDate ? new Date(values.issueDate) : new Date(),
     validUntil: values?.validUntil ? new Date(values.validUntil) : undefined,
@@ -568,87 +613,135 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
           </div>
 
           <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'الموثّق / المفوّض' : 'Authorized Person'}</h3>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="label">{language === 'ar' ? 'الاسم' : 'Name'}</label>
-                <input {...register('authorizedPersonName')} className="input" placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
-                <input {...register('authorizedPersonNameAr')} className="input" dir="rtl" />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label>
-                <input {...register('authorizedPersonDesignation')} className="input" placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label>
-                <input {...register('authorizedPersonDesignationAr')} className="input" dir="rtl" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="label">{language === 'ar' ? 'التوقيع' : 'Signature'}</label>
-                <div className="flex items-center gap-3">
-                  <input type="file" accept="image/*" className="hidden" id="quotation-signature-upload" onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    if (file.size > 2 * 1024 * 1024) {
-                      toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
-                      return
-                    }
-                    const reader = new FileReader()
-                    reader.onload = () => setValue('authorizedPersonSignature', String(reader.result || ''))
-                    reader.readAsDataURL(file)
-                  }} />
-                  <label htmlFor="quotation-signature-upload" className="btn btn-secondary cursor-pointer">
-                    <Upload className="w-4 h-4" />
-                    {language === 'ar' ? 'رفع توقيع' : 'Upload Signature'}
-                  </label>
-                  {values?.authorizedPersonSignature ? (
-                    <div className="relative">
-                      <img src={values.authorizedPersonSignature} alt="Signature" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
-                      <button type="button" onClick={() => setValue('authorizedPersonSignature', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
-                  )}
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
+                  </h3>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                    showAuthorizedPerson 
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' 
+                      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                  }`}>
+                    {showAuthorizedPerson ? (language === 'ar' ? 'مفعّل' : 'Active') : (language === 'ar' ? 'معطّل' : 'Disabled')}
+                  </span>
                 </div>
-                <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {language === 'ar' 
+                    ? 'إضافة المفوض بالتوقيع والختم الرسمي على مستند عرض السعر' 
+                    : 'Include signatory name, designation, signature and official stamp on quotation.'}
+                </p>
               </div>
-              <div className="md:col-span-2">
-                <label className="label">{language === 'ar' ? 'الختم' : 'Stamp'}</label>
-                <div className="flex items-center gap-3">
-                  <input type="file" accept="image/*" className="hidden" id="quotation-stamp-upload" onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    if (file.size > 2 * 1024 * 1024) {
-                      toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
-                      return
-                    }
-                    const reader = new FileReader()
-                    reader.onload = () => setValue('stampImage', String(reader.result || ''))
-                    reader.readAsDataURL(file)
-                  }} />
-                  <label htmlFor="quotation-stamp-upload" className="btn btn-secondary cursor-pointer">
-                    <Upload className="w-4 h-4" />
-                    {language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}
-                  </label>
-                  {values?.stampImage ? (
-                    <div className="relative">
-                      <img src={values.stampImage} alt="Stamp" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
-                      <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن يكون الختم بخلفية شفافة.' : 'Stamp image should have a transparent background.'}</p>
-              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showAuthorizedPerson}
+                onClick={() => handleToggleAuthorizedPerson(!showAuthorizedPerson)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  showAuthorizedPerson ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    showAuthorizedPerson ? (language === 'ar' ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
+
+            <AnimatePresence>
+              {showAuthorizedPerson && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden pt-5 border-t border-gray-100 dark:border-gray-800 mt-4"
+                >
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الاسم' : 'Name'}</label>
+                      <input {...register('authorizedPersonName')} className="input" placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
+                      <input {...register('authorizedPersonNameAr')} className="input" dir="rtl" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label>
+                      <input {...register('authorizedPersonDesignation')} className="input" placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label>
+                      <input {...register('authorizedPersonDesignationAr')} className="input" dir="rtl" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="label">{language === 'ar' ? 'التوقيع' : 'Signature'}</label>
+                      <div className="flex items-center gap-3">
+                        <input type="file" accept="image/*" className="hidden" id="quotation-signature-upload" onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 2 * 1024 * 1024) {
+                            toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onload = () => setValue('authorizedPersonSignature', String(reader.result || ''))
+                          reader.readAsDataURL(file)
+                        }} />
+                        <label htmlFor="quotation-signature-upload" className="btn btn-secondary cursor-pointer">
+                          <Upload className="w-4 h-4" />
+                          {language === 'ar' ? 'رفع توقيع' : 'Upload Signature'}
+                        </label>
+                        {values?.authorizedPersonSignature ? (
+                          <div className="relative">
+                            <img src={values.authorizedPersonSignature} alt="Signature" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
+                            <button type="button" onClick={() => setValue('authorizedPersonSignature', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="label">{language === 'ar' ? 'الختم' : 'Stamp'}</label>
+                      <div className="flex items-center gap-3">
+                        <input type="file" accept="image/*" className="hidden" id="quotation-stamp-upload" onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 2 * 1024 * 1024) {
+                            toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onload = () => setValue('stampImage', String(reader.result || ''))
+                          reader.readAsDataURL(file)
+                        }} />
+                        <label htmlFor="quotation-stamp-upload" className="btn btn-secondary cursor-pointer">
+                          <Upload className="w-4 h-4" />
+                          {language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}
+                        </label>
+                        {values?.stampImage ? (
+                          <div className="relative">
+                            <img src={values.stampImage} alt="Stamp" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
+                            <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن يكون الختم بخلفية شفافة.' : 'Stamp image should have a transparent background.'}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <div className="card p-6">

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useFieldArray, useForm } from 'react-hook-form'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -41,12 +41,12 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
   seller: invoice?.seller || {},
   buyer: invoice?.buyer || {},
   travelDetails: invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] },
-  authorizedPersonName: invoice?.authorizedPersonName || tenant?.business?.legalNameEn || '',
-  authorizedPersonNameAr: invoice?.authorizedPersonNameAr || '',
-  authorizedPersonDesignation: invoice?.authorizedPersonDesignation || '',
-  authorizedPersonDesignationAr: invoice?.authorizedPersonDesignationAr || '',
-  authorizedPersonSignature: invoice?.authorizedPersonSignature || tenant?.settings?.invoiceBranding?.presetSignature || '',
-  stampImage: invoice?.stampImage || tenant?.settings?.invoiceBranding?.presetStamp || '',
+  authorizedPersonName: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonName || '') : '',
+  authorizedPersonNameAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonNameAr || '') : '',
+  authorizedPersonDesignation: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonDesignation || '') : '',
+  authorizedPersonDesignationAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonDesignationAr || '') : '',
+  authorizedPersonSignature: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonSignature || '') : '',
+  stampImage: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.stampImage || '') : '',
   paymentTerms: invoice?.paymentTerms || '',
   notes: invoice?.notes || '',
   lineItems: Array.isArray(invoice?.lineItems) && invoice.lineItems.length > 0
@@ -75,13 +75,53 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
+  const [showAuthorizedPerson, setShowAuthorizedPerson] = useState(() => {
+    return Boolean(
+      initialInvoice?.authorizedPersonName ||
+      initialInvoice?.authorizedPersonNameAr ||
+      initialInvoice?.authorizedPersonDesignation ||
+      initialInvoice?.authorizedPersonDesignationAr ||
+      initialInvoice?.authorizedPersonSignature ||
+      initialInvoice?.stampImage
+    )
+  })
+
+  const handleToggleAuthorizedPerson = (enable) => {
+    setShowAuthorizedPerson(enable)
+    if (enable) {
+      const currentName = getValues('authorizedPersonName')
+      const currentSignature = getValues('authorizedPersonSignature')
+      const currentStamp = getValues('stampImage')
+
+      if (!currentName && tenant?.business?.legalNameEn) {
+        setValue('authorizedPersonName', tenant.business.legalNameEn)
+      }
+      if (!getValues('authorizedPersonNameAr') && tenant?.business?.legalNameAr) {
+        setValue('authorizedPersonNameAr', tenant.business.legalNameAr)
+      }
+      if (!currentSignature && tenant?.settings?.invoiceBranding?.presetSignature) {
+        setValue('authorizedPersonSignature', tenant.settings.invoiceBranding.presetSignature)
+      }
+      if (!currentStamp && tenant?.settings?.invoiceBranding?.presetStamp) {
+        setValue('stampImage', tenant.settings.invoiceBranding.presetStamp)
+      }
+    } else {
+      setValue('authorizedPersonName', '')
+      setValue('authorizedPersonNameAr', '')
+      setValue('authorizedPersonDesignation', '')
+      setValue('authorizedPersonDesignationAr', '')
+      setValue('authorizedPersonSignature', '')
+      setValue('stampImage', '')
+    }
+  }
+
   const defaultBusinessContext = useMemo(() => {
     const primary = getPrimaryBusinessType(tenant)
     if (purchaseContexts.includes(primary)) return primary
     return tenantBusinessTypes.find((type) => purchaseContexts.includes(type)) || 'trading'
   }, [tenant, tenantBusinessTypes])
 
-  const { register, control, handleSubmit, watch, setValue, reset } = useForm({
+  const { register, control, handleSubmit, watch, setValue, getValues, reset } = useForm({
     defaultValues: buildPurchaseInvoiceFormValues({
       invoice: initialInvoice,
       tenant,
@@ -123,6 +163,16 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     if (!isEdit || !initialInvoice?._id) return
     skipBusinessContextResetRef.current = true
     setTransactionType(initialInvoice?.transactionType === 'B2C' ? 'B2C' : 'B2B')
+    setShowAuthorizedPerson(
+      Boolean(
+        initialInvoice?.authorizedPersonName ||
+        initialInvoice?.authorizedPersonNameAr ||
+        initialInvoice?.authorizedPersonDesignation ||
+        initialInvoice?.authorizedPersonDesignationAr ||
+        initialInvoice?.authorizedPersonSignature ||
+        initialInvoice?.stampImage
+      )
+    )
     reset(buildPurchaseInvoiceFormValues({
       invoice: initialInvoice,
       tenant,
@@ -297,17 +347,23 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       if (!payload.supplierId) delete payload.supplierId
     }
     if (invoiceSubtype !== 'travel_ticket') delete payload.travelDetails
-    payload.authorizedPersonName = data?.authorizedPersonName || ''
-    payload.authorizedPersonNameAr = data?.authorizedPersonNameAr || ''
-    payload.authorizedPersonDesignation = data?.authorizedPersonDesignation || ''
-    payload.authorizedPersonDesignationAr = data?.authorizedPersonDesignationAr || ''
-    payload.authorizedPersonSignature = data?.authorizedPersonSignature || ''
-    payload.stampImage = data?.stampImage || ''
+    payload.authorizedPersonName = showAuthorizedPerson ? (data?.authorizedPersonName || '') : ''
+    payload.authorizedPersonNameAr = showAuthorizedPerson ? (data?.authorizedPersonNameAr || '') : ''
+    payload.authorizedPersonDesignation = showAuthorizedPerson ? (data?.authorizedPersonDesignation || '') : ''
+    payload.authorizedPersonDesignationAr = showAuthorizedPerson ? (data?.authorizedPersonDesignationAr || '') : ''
+    payload.authorizedPersonSignature = showAuthorizedPerson ? (data?.authorizedPersonSignature || '') : ''
+    payload.stampImage = showAuthorizedPerson ? (data?.stampImage || '') : ''
     saveMutation.mutate(payload)
   }
 
   const previewInvoice = {
     ...values,
+    authorizedPersonName: showAuthorizedPerson ? (values?.authorizedPersonName || '') : '',
+    authorizedPersonNameAr: showAuthorizedPerson ? (values?.authorizedPersonNameAr || '') : '',
+    authorizedPersonDesignation: showAuthorizedPerson ? (values?.authorizedPersonDesignation || '') : '',
+    authorizedPersonDesignationAr: showAuthorizedPerson ? (values?.authorizedPersonDesignationAr || '') : '',
+    authorizedPersonSignature: showAuthorizedPerson ? (values?.authorizedPersonSignature || '') : '',
+    stampImage: showAuthorizedPerson ? (values?.stampImage || '') : '',
     invoiceNumber: initialInvoice?.invoiceNumber || 'DRAFT-PURCHASE',
     issueDate: initialInvoice?.issueDate || new Date(),
     createdByName: initialInvoice?.createdByName || [user?.firstName, user?.lastName].filter(Boolean).join(' '),
@@ -552,87 +608,135 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           </div>
 
           <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'الموثّق / المفوّض' : 'Authorized Person'}</h3>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="label">{language === 'ar' ? 'الاسم' : 'Name'}</label>
-                <input {...register('authorizedPersonName')} className="input" placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
-                <input {...register('authorizedPersonNameAr')} className="input" dir="rtl" />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label>
-                <input {...register('authorizedPersonDesignation')} className="input" placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label>
-                <input {...register('authorizedPersonDesignationAr')} className="input" dir="rtl" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="label">{language === 'ar' ? 'التوقيع' : 'Signature'}</label>
-                <div className="flex items-center gap-3">
-                  <input type="file" accept="image/*" className="hidden" id="purchase-signature-upload" onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    if (file.size > 2 * 1024 * 1024) {
-                      toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
-                      return
-                    }
-                    const reader = new FileReader()
-                    reader.onload = () => setValue('authorizedPersonSignature', String(reader.result || ''))
-                    reader.readAsDataURL(file)
-                  }} />
-                  <label htmlFor="purchase-signature-upload" className="btn btn-secondary cursor-pointer">
-                    <UploadCloud className="w-4 h-4" />
-                    {language === 'ar' ? 'رفع توقيع' : 'Upload Signature'}
-                  </label>
-                  {values?.authorizedPersonSignature ? (
-                    <div className="relative">
-                      <img src={values.authorizedPersonSignature} alt="Signature" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
-                      <button type="button" onClick={() => setValue('authorizedPersonSignature', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
-                  )}
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
+                  </h3>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                    showAuthorizedPerson 
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' 
+                      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                  }`}>
+                    {showAuthorizedPerson ? (language === 'ar' ? 'مفعّل' : 'Active') : (language === 'ar' ? 'معطّل' : 'Disabled')}
+                  </span>
                 </div>
-                <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {language === 'ar' 
+                    ? 'إضافة المفوض بالتوقيع والختم الرسمي على مستند فاتورة الشراء' 
+                    : 'Include signatory name, designation, signature and official stamp on document.'}
+                </p>
               </div>
-              <div className="md:col-span-2">
-                <label className="label">{language === 'ar' ? 'الختم' : 'Stamp'}</label>
-                <div className="flex items-center gap-3">
-                  <input type="file" accept="image/*" className="hidden" id="purchase-stamp-upload" onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    if (file.size > 2 * 1024 * 1024) {
-                      toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
-                      return
-                    }
-                    const reader = new FileReader()
-                    reader.onload = () => setValue('stampImage', String(reader.result || ''))
-                    reader.readAsDataURL(file)
-                  }} />
-                  <label htmlFor="purchase-stamp-upload" className="btn btn-secondary cursor-pointer">
-                    <UploadCloud className="w-4 h-4" />
-                    {language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}
-                  </label>
-                  {values?.stampImage ? (
-                    <div className="relative">
-                      <img src={values.stampImage} alt="Stamp" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
-                      <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن يكون الختم بخلفية شفافة.' : 'Stamp image should have a transparent background.'}</p>
-              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showAuthorizedPerson}
+                onClick={() => handleToggleAuthorizedPerson(!showAuthorizedPerson)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  showAuthorizedPerson ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    showAuthorizedPerson ? (language === 'ar' ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
+
+            <AnimatePresence>
+              {showAuthorizedPerson && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden pt-5 border-t border-gray-100 dark:border-gray-800 mt-4"
+                >
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الاسم' : 'Name'}</label>
+                      <input {...register('authorizedPersonName')} className="input" placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
+                      <input {...register('authorizedPersonNameAr')} className="input" dir="rtl" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label>
+                      <input {...register('authorizedPersonDesignation')} className="input" placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label>
+                      <input {...register('authorizedPersonDesignationAr')} className="input" dir="rtl" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="label">{language === 'ar' ? 'التوقيع' : 'Signature'}</label>
+                      <div className="flex items-center gap-3">
+                        <input type="file" accept="image/*" className="hidden" id="purchase-signature-upload" onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 2 * 1024 * 1024) {
+                            toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onload = () => setValue('authorizedPersonSignature', String(reader.result || ''))
+                          reader.readAsDataURL(file)
+                        }} />
+                        <label htmlFor="purchase-signature-upload" className="btn btn-secondary cursor-pointer">
+                          <UploadCloud className="w-4 h-4" />
+                          {language === 'ar' ? 'رفع توقيع' : 'Upload Signature'}
+                        </label>
+                        {values?.authorizedPersonSignature ? (
+                          <div className="relative">
+                            <img src={values.authorizedPersonSignature} alt="Signature" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
+                            <button type="button" onClick={() => setValue('authorizedPersonSignature', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="label">{language === 'ar' ? 'الختم' : 'Stamp'}</label>
+                      <div className="flex items-center gap-3">
+                        <input type="file" accept="image/*" className="hidden" id="purchase-stamp-upload" onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 2 * 1024 * 1024) {
+                            toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onload = () => setValue('stampImage', String(reader.result || ''))
+                          reader.readAsDataURL(file)
+                        }} />
+                        <label htmlFor="purchase-stamp-upload" className="btn btn-secondary cursor-pointer">
+                          <UploadCloud className="w-4 h-4" />
+                          {language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}
+                        </label>
+                        {values?.stampImage ? (
+                          <div className="relative">
+                            <img src={values.stampImage} alt="Stamp" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
+                            <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن يكون الختم بخلفية شفافة.' : 'Stamp image should have a transparent background.'}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <div className="card p-6">

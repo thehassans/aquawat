@@ -1,5 +1,6 @@
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrency } from '../../lib/currency'
+import NaturalStamp from '../invoices/NaturalStamp'
 
 const formatDate = (value, language = 'en') => {
   if (!value) return '—'
@@ -418,25 +419,17 @@ export default function QuotationDocumentPreview({ quotation, tenant, language =
               </div>
             </div>
 
-            {branding?.stampImage ? (
-              <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 flex items-center justify-center">
-                <img
-                  src={branding.stampImage}
-                  alt="Company Stamp"
-                  className="max-h-24 object-contain mix-blend-multiply"
-                />
-              </div>
-            ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-blue-200 bg-blue-50/40 p-4 flex flex-col items-center justify-center text-center">
-                <div className="w-24 h-24 rounded-full border-2 border-blue-500/40 flex items-center justify-center p-3 mb-2">
-                  <span className="text-[10px] font-bold text-blue-600 uppercase text-center leading-tight">
-                    {language === 'ar' ? 'ختم الشركة الإلكتروني' : 'Electronic Company Stamp'}
-                  </span>
-                </div>
-                <p className="text-xs font-semibold text-slate-700">{companyName}</p>
-                {tenant?.business?.crNumber && <p className="text-[10px] text-slate-400">C.R. {tenant.business.crNumber}</p>}
-              </div>
-            )}
+            <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <NaturalStamp
+                stampImage={quotation?.stampImage || branding?.stampImage}
+                companyName={companyName}
+                companyNameAr={tenant?.business?.legalNameAr || ''}
+                crNumber={tenant?.business?.crNumber || ''}
+                vatNumber={tenant?.business?.vatNumber || ''}
+                language={language}
+                size="md"
+              />
+            </div>
           </div>
         )}
 

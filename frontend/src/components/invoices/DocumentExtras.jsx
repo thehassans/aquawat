@@ -1,4 +1,5 @@
 import React from 'react'
+import NaturalStamp from './NaturalStamp'
 
 export default function DocumentExtras({ invoice, invoiceBranding = {}, language = 'en', bilingual = false }) {
   const isAr = language === 'ar'
@@ -59,20 +60,19 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
         )}
       </div>
 
-      {/* Right Column: Unified Stamp & Signature */}
+      {/* Right Column: Unified Natural Rough Stamp & Signature */}
       {hasSignatory && (
         <div className="flex items-end justify-end shrink-0 gap-6 self-end md:self-auto">
           {stampImage && (
-            <div className="flex flex-col items-center justify-end text-center">
-              <img
-                src={stampImage}
-                alt="Stamp"
-                className="max-h-24 max-w-[130px] object-contain mix-blend-multiply"
-              />
-              <span className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">
-                {isAr ? 'الختم الرسمي' : 'Official Seal'}
-              </span>
-            </div>
+            <NaturalStamp
+              stampImage={stampImage}
+              companyName={invoice?.business?.legalNameEn || invoiceBranding?.legalNameEn || ''}
+              companyNameAr={invoice?.business?.legalNameAr || invoiceBranding?.legalNameAr || ''}
+              crNumber={invoice?.business?.crNumber || invoiceBranding?.crNumber || ''}
+              vatNumber={invoice?.business?.vatNumber || invoiceBranding?.vatNumber || ''}
+              language={language}
+              size="md"
+            />
           )}
 
           {(signatureImage || authorizedName) && (
