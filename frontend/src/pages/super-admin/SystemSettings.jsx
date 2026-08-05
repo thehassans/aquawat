@@ -620,17 +620,35 @@ function SmsSettingsTab({ settings, onChange, onSave, saving }) {
               />
             </FieldRow>
 
-            <FieldRow label="Twilio From Number">
-              <input
-                type="text"
-                className="input"
-                placeholder="+1234567890"
-                value={settings.sms?.twilioFromNumber || ''}
-                onChange={(e) => onChange('sms.twilioFromNumber', e.target.value)}
-              />
+            <FieldRow label="Sender ID (Alphanumeric or Number)">
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="e.g. MYBRAND (Max 11 chars)"
+                  value={settings.sms?.twilioFromNumber || ''}
+                  onChange={(e) => onChange('sms.twilioFromNumber', e.target.value)}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">KSA Regulations:</span> Alphanumeric Sender ID requires pre-registration (NOC). Append <code className="px-1 py-0.5 bg-gray-100 dark:bg-dark-700 rounded text-amber-600">-AD</code> for promotional messages.
+                </p>
+              </div>
             </FieldRow>
           </>
         )}
+
+        <div className="mt-4 p-4 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 flex gap-3">
+          <AlertTriangle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+          <div className="space-y-2">
+            <h5 className="text-sm font-semibold text-blue-900 dark:text-blue-100">Saudi Arabia (KSA) SMS Guidelines</h5>
+            <ul className="text-xs text-blue-800 dark:text-blue-200 list-disc list-inside space-y-1">
+              <li><strong>Alphanumeric Sender ID is highly recommended</strong> (free to lease, provisioning takes ~2 weeks).</li>
+              <li>Promotional SMS must only be sent between <strong>09:00 AM and 08:00 PM local time</strong>.</li>
+              <li>Strict content filtering: Gambling, financial scams, adult content, alcohol, and short URLs are blocked.</li>
+              <li>Messages sent to the national DND (Do-Not-Disturb) list will be filtered.</li>
+            </ul>
+          </div>
+        </div>
 
         {isCustom && (
           <FieldRow label="Custom Endpoint URL">
