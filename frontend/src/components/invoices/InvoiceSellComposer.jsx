@@ -657,7 +657,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <button
                     key={type}
                     type="button"
-                    onClick={() => setValue('businessContext', type)}
+                    onClick={() => {
+                      setValue('businessContext', type)
+                      const newTemplate = getInvoiceTemplateId(tenant, type)
+                      if (newTemplate) {
+                        setValue('pdfTemplateId', newTemplate)
+                      }
+                    }}
                     className={`rounded-2xl border p-4 text-start ${active ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}
                   >
                     <p className="font-semibold text-gray-900 dark:text-white">{labels[type]}</p>

@@ -28,6 +28,7 @@ export const useLiveTranslation = ({
   const lastAutoSourceRef = useRef('')
   const lastAutoResultRef = useRef('')
   const requestSequenceRef = useRef(0)
+  const initialized = useRef(false)
 
   const watchedSource = useWatch({ control, name: sourceField })
   const watchedTarget = useWatch({ control, name: targetField })
@@ -41,6 +42,12 @@ export const useLiveTranslation = ({
     const s = String(source || '').trim()
     const t = String(target || '').trim()
     const cachedTranslation = translationCache.get(cacheKey)
+    
+    if (!initialized.current) {
+       lastAutoSourceRef.current = s
+       lastAutoResultRef.current = t
+       initialized.current = true
+    }
 
     if (timerRef.current) {
       clearTimeout(timerRef.current)
@@ -53,8 +60,10 @@ export const useLiveTranslation = ({
       return
     }
 
-    if (t && t !== String(lastAutoResultRef.current || '').trim()) {
-      return
+    // If target changed but source didn't, the user is manually editing target. Don't overwrite it later.
+    if (s === String(lastAutoSourceRef.current || '').trim() && t !== String(lastAutoResultRef.current || '').trim()) {
+       lastAutoResultRef.current = t
+       return
     }
 
     if (cachedTranslation) {
