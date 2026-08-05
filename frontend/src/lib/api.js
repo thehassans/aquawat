@@ -61,24 +61,28 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-api.interceptors.response.use(
-  async (response) => {
-    const { config } = response;
-    // Cache successful GET responses in IndexedDB
-    if (config && config.method === 'get' && !config.url.includes('/auth/')) {
-      try {
-        const db = await initDb();
-        const cacheKey = config.url + (config.params ? JSON.stringify(config.params) : '');
-        await db.put('api_cache', {
-          url: cacheKey,
-          data: response.data,
-          timestamp: Date.now()
-        });
-      } catch (err) {
-        console.error('Failed to cache successful GET response:', err);
-      }
+// Asynchronous non-blocking background cache write (0ms latency penalty on requests)
+const backgroundCacheResponse = (config, data) => {
+  if (!config || config.method !== 'get' || config.url?.includes('/auth/')) return
+  setTimeout(async () => {
+    try {
+      const db = await initDb()
+      const cacheKey = config.url + (config.params ? JSON.stringify(config.params) : '')
+      await db.put('api_cache', {
+        url: cacheKey,
+        data,
+        timestamp: Date.now()
+      })
+    } catch (err) {
+      // Silently catch background caching errors
     }
-    return response;
+  }, 0)
+}
+
+api.interceptors.response.use(
+  (response) => {
+    backgroundCacheResponse(response.config, response.data)
+    return response
   },
   async (error) => {
     const config = error.config;

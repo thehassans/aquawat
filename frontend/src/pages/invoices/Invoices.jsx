@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
@@ -228,7 +228,7 @@ export default function Invoices() {
     }
   })
 
-  const getStatusBadge = (invoice) => {
+  const getStatusBadge = useCallback((invoice) => {
     const phase = tenant?.zatca?.phase || 1
     const meta = getZatcaStatusMeta(invoice, language, phase)
     const badgeClass = meta.tone === 'success'
@@ -250,9 +250,9 @@ export default function Invoices() {
           : <Clock className="w-3 h-3 me-1" />
 
     return <span className={`badge ${badgeClass}`}>{icon}{meta.label}</span>
-  }
+  }, [tenant?.zatca?.phase, language])
 
-  const exportColumns = [
+  const exportColumns = useMemo(() => [
     {
       key: 'invoiceNumber',
       label: t('invoiceNumber'),
@@ -292,9 +292,9 @@ export default function Invoices() {
       label: tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'حالة التجهيز' : 'Status') : t('zatcaStatus'),
       value: (r) => getZatcaStatusMeta(r, language, tenant?.zatca?.phase || 1).label
     },
-  ]
+  ], [t, language, hasTravel, tenant?.zatca?.phase])
 
-  const getExportRows = async () => {
+  const getExportRows = useCallback(async () => {
     const limit = 200
     let currentPage = 1
     let all = []
@@ -314,14 +314,14 @@ export default function Invoices() {
     }
 
     return all
-  }
+  }, [search, filters])
 
-  const zatcaFilterOptions = [
+  const zatcaFilterOptions = useMemo(() => [
     { value: '', label: language === 'ar' ? 'الكل' : 'All', icon: <Layers className="w-3.5 h-3.5" /> },
     { value: 'unsigned', label: language === 'ar' ? 'بانتظار التوقيع' : 'Pending Sign', icon: <ShieldOff className="w-3.5 h-3.5" /> },
     { value: 'signed', label: language === 'ar' ? 'موقّعة' : 'Signed', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
     { value: 'submitted', label: language === 'ar' ? 'مُرسَلة' : 'Submitted', icon: <CheckCircle className="w-3.5 h-3.5" /> },
-  ]
+  ], [language])
 
   return (
     <div className="space-y-6">

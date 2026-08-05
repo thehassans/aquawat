@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
@@ -419,6 +420,10 @@ app.use(cors({
   credentials: true
 }));
 
+// Gzip compression — reduces response sizes by 60-80% (biggest single latency win)
+app.use(compression({ threshold: 1024 }));
+
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -693,8 +698,12 @@ mongoose.connection.on('error', (err) => {
 connectToDatabase();
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
 });
+
+// Keep-alive tuning: prevents Nginx upstream connection resets under load
+httpServer.keepAliveTimeout = 65000; // slightly above Nginx default of 60s
+httpServer.headersTimeout = 66000;  // must be > keepAliveTimeout
 
 export default app;

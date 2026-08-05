@@ -55,8 +55,8 @@ import Money from '../components/ui/Money'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
 
 const COLORS = ['rgb(var(--color-primary-500))', '#f59e0b', '#ef4444', 'rgb(var(--color-secondary-500))']
-const DASHBOARD_REFRESH_MS = 30 * 1000
-const DASHBOARD_CHART_REFRESH_MS = 60 * 1000
+const DASHBOARD_REFRESH_MS = 60 * 1000 // 60s
+const DASHBOARD_CHART_REFRESH_MS = 120 * 1000 // 2m
 
 export default function Dashboard() {
   const { language } = useSelector((state) => state.ui)
@@ -76,6 +76,8 @@ export default function Dashboard() {
   const isBookstore = businessTypes.includes('bookstore')
   const isEcommerce = businessTypes.includes('ecommerce')
   const isFurniture = businessTypes.includes('furniture') || businessTypes.includes('furniture_shop')
+  
+  const isPosRedirected = isBoutique || isBakala || isSaloon || isLaundry || isRestaurant || isKhayyat || isBookstore || isFurniture || isEcommerce
 
   // Redirect POS tenants directly to their checkout screen
   useEffect(() => {
@@ -106,6 +108,7 @@ export default function Dashboard() {
     refetchInterval: DASHBOARD_REFRESH_MS,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_REFRESH_MS,
+    enabled: !isPosRedirected
   })
 
   const { data: revenueData } = useQuery({
@@ -114,6 +117,7 @@ export default function Dashboard() {
     refetchInterval: DASHBOARD_CHART_REFRESH_MS,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
+    enabled: !isPosRedirected
   })
 
   const { data: expensesData } = useQuery({
@@ -122,6 +126,7 @@ export default function Dashboard() {
     refetchInterval: DASHBOARD_CHART_REFRESH_MS,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
+    enabled: !isPosRedirected
   })
 
   const { data: poStats } = useQuery({
@@ -131,7 +136,7 @@ export default function Dashboard() {
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_REFRESH_MS,
     retry: false,
-    enabled: isTrading
+    enabled: !isPosRedirected && isTrading
   })
 
   const { data: shipmentStats } = useQuery({
@@ -141,7 +146,7 @@ export default function Dashboard() {
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_REFRESH_MS,
     retry: false,
-    enabled: isTrading
+    enabled: !isPosRedirected && isTrading
   })
 
   const { data: taskStats } = useQuery({
@@ -151,7 +156,7 @@ export default function Dashboard() {
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_REFRESH_MS,
     retry: false,
-    enabled: isTrading
+    enabled: !isPosRedirected && isTrading
   })
 
   const { data: mrpStats } = useQuery({
@@ -161,7 +166,7 @@ export default function Dashboard() {
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
     retry: false,
-    enabled: isTrading
+    enabled: !isPosRedirected && isTrading
   })
 
   const { data: mrpTop } = useQuery({
@@ -171,7 +176,7 @@ export default function Dashboard() {
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
     retry: false,
-    enabled: isTrading
+    enabled: !isPosRedirected && isTrading
   })
 
   const payrollPaidNet = (dashboard?.payroll?.stats || []).find((s) => s._id === 'paid')?.totalNet || 0
