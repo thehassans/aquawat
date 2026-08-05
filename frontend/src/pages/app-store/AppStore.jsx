@@ -22,7 +22,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   Loader2,
-  Factory
+  Factory,
+  ArrowRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -31,9 +32,9 @@ import { updateTenant } from '../../store/slices/authSlice';
 import { App3DIcon } from '../../components/ui/App3DIcon';
 
 const PRICING_LABELS = {
-  free: { en: 'Free', ar: 'مجاني', color: 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40' },
-  paid: { en: 'Paid', ar: 'مدفوع', color: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40' },
-  enterprise: { en: 'Enterprise', ar: 'مؤسسات', color: 'text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800/40' },
+  free: { en: 'Free', ar: 'مجاني', color: 'text-emerald-700 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-500/10 border-emerald-200/50 dark:border-emerald-500/20' },
+  paid: { en: 'Paid', ar: 'مدفوع', color: 'text-amber-700 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-500/10 border-amber-200/50 dark:border-amber-500/20' },
+  enterprise: { en: 'Enterprise', ar: 'مؤسسات', color: 'text-violet-700 dark:text-violet-300 bg-violet-50/50 dark:bg-violet-500/10 border-violet-200/50 dark:border-violet-500/20' },
 };
 
 const CATEGORIES = [
@@ -169,19 +170,19 @@ export default function AppStore() {
           return {
             ...prev,
             progress: currentProgress + 15,
-            stage: isAr ? 'التحقق من التوقيع الرقمي واستخراج الملفات...' : 'Verifying cryptographic signature & extracting...'
+            stage: isAr ? 'التحقق من التوقيع الرقمي واستخراج الملفات...' : 'Verifying integrity...'
           };
         } else if (currentProgress < 95) {
           return {
             ...prev,
             progress: currentProgress + 10,
-            stage: isAr ? 'تهيئة الصلاحيات ومسارات القائمة...' : 'Configuring permissions & routes...'
+            stage: isAr ? 'تهيئة الصلاحيات...' : 'Configuring modules...'
           };
         } else if (currentProgress < 100) {
           return {
             ...prev,
             progress: 100,
-            stage: isAr ? 'تم التثبيت بنجاح!' : 'Installed successfully!'
+            stage: isAr ? 'اكتمل التثبيت!' : 'Complete!'
           };
         } else {
           // Completed
@@ -189,16 +190,16 @@ export default function AppStore() {
           setTimeout(() => {
             setInstallingState(null);
             toast.success(isAr ? `تم تثبيت ${prev.name} بنجاح` : `${prev.name} installed successfully`);
-          }, 500);
+          }, 800);
           return prev;
         }
       });
-    }, 240);
+    }, 300);
 
     return () => clearInterval(interval);
   }, [installingState?.appId, isAr]);
 
-  // Robust filtering: matches search query across all name, tags, description and category
+  // Robust filtering
   const filtered = useMemo(() => {
     return apps.filter((app) => {
       const q = search.trim().toLowerCase();
@@ -237,7 +238,6 @@ export default function AppStore() {
   }, [apps, search, activeCategory, showInstalledOnly]);
 
   const installedCount = apps.filter((a) => a.isInstalled).length;
-
   const pricing = (tier) => PRICING_LABELS[tier] || PRICING_LABELS.free;
 
   const renderAppIcon = (appObj, className = 'w-10 h-10') => {
@@ -255,23 +255,15 @@ export default function AppStore() {
 
   return (
     <div className="min-h-screen pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* ─── Header ─── */}
-      <div className="pt-6 pb-8 border-b border-gray-100 dark:border-dark-700 mb-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* ─── Premium Header ─── */}
+      <div className="pt-10 pb-12 mb-8">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-50 dark:bg-primary-950/50 text-primary-600 dark:text-primary-400 border border-primary-100 dark:border-primary-800/40">
-                {isAr ? 'سوق التطبيقات والخدمات' : 'Enterprise App Marketplace'}
-              </span>
-              <span className="text-xs text-gray-400">•</span>
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {isAr ? `${apps.length} تطبيق متاح` : `${apps.length} Apps Available`}
-              </span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">
+            <div className="w-12 h-1 bg-gradient-to-r from-primary-500 to-primary-300 rounded-full mb-6"></div>
+            <h1 className="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 tracking-tighter">
               {isAr ? 'متجر التطبيقات' : 'App Store'}
             </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm sm:text-base max-w-2xl">
+            <p className="text-gray-400 dark:text-gray-500 mt-3 text-sm sm:text-base max-w-2xl font-medium tracking-wide">
               {isAr
                 ? 'قم بتثبيت التطبيقات الإضافية لتفعيل وحدات التصنيع، الموارد البشرية، الأسطول، وأجهزة الدفع.'
                 : 'Install auxiliary apps to unlock Manufacturing, HR, Fleet, Landed Costs, and IoT modules.'}
@@ -281,15 +273,15 @@ export default function AppStore() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowInstalledOnly(!showInstalledOnly)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+              className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ease-out ${
                 showInstalledOnly
-                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                  : 'bg-white dark:bg-dark-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-dark-600 hover:bg-gray-50 dark:hover:bg-dark-700'
+                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-[0_8px_30px_rgb(0,0,0,0.12)]'
+                  : 'bg-white/50 dark:bg-dark-800/50 text-gray-600 dark:text-gray-300 backdrop-blur-md border border-gray-200/50 dark:border-white/5 hover:bg-white dark:hover:bg-dark-700'
               }`}
             >
-              <Check className="w-4 h-4" />
-              <span>{isAr ? 'المثبتة' : 'Installed'}</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs ${showInstalledOnly ? 'bg-emerald-700 text-white' : 'bg-gray-100 dark:bg-dark-700 text-gray-600 dark:text-gray-300'}`}>
+              <div className={`w-2 h-2 rounded-full ${showInstalledOnly ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+              <span>{isAr ? 'التطبيقات المثبتة' : 'Installed Apps'}</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs ml-1 ${showInstalledOnly ? 'bg-white/20 dark:bg-black/10' : 'bg-gray-100 dark:bg-dark-700'}`}>
                 {installedCount}
               </span>
             </button>
@@ -297,112 +289,181 @@ export default function AppStore() {
         </div>
       </div>
 
-      {/* ─── Search & Category Filters ─── */}
-      <div className="space-y-4 mb-8">
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={isAr ? 'ابحث عن الموارد البشرية، التصنيع، الأسطول، أجهزة مدى...' : 'Search HR, Manufacturing, Fleet, Landed Costs, Payment Terminal...'}
-            className="w-full pl-11 pr-4 py-3 rounded-2xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800 text-sm sm:text-base text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all shadow-sm"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+      {/* ─── Search & Categories ─── */}
+      <div className="space-y-6 mb-12">
+        <div className="relative group max-w-2xl">
+          <div className="absolute inset-0 bg-gradient-to-r from-primary-500/5 to-purple-500/5 rounded-2xl blur-xl group-hover:blur-2xl transition-all opacity-0 group-hover:opacity-100"></div>
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={isAr ? 'ابحث عن التطبيقات، التصنيفات، أو الميزات...' : 'Search apps, categories, or features...'}
+              className="w-full pl-12 pr-10 py-4 rounded-2xl border border-gray-100/60 dark:border-white/10 bg-white/60 dark:bg-dark-800/60 backdrop-blur-xl text-sm sm:text-base text-gray-900 dark:text-white placeholder-gray-400/80 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500/50 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Category Pills */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-          {CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            const isActive = activeCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all whitespace-nowrap ${
-                  isActive
-                    ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white shadow-sm'
-                    : 'bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-dark-600 hover:bg-gray-50 dark:hover:bg-dark-700'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{isAr ? cat.ar : cat.en}</span>
-              </button>
-            );
-          })}
+        <div className="relative">
+          <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-none snap-x">
+            {CATEGORIES.map((cat) => {
+              const Icon = cat.icon;
+              const isActive = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 ease-out snap-center whitespace-nowrap overflow-hidden ${
+                    isActive
+                      ? 'text-primary-700 dark:text-primary-300 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50/50 dark:hover:bg-white/5'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeCategoryBg"
+                      className="absolute inset-0 bg-primary-50 dark:bg-primary-900/20 border border-primary-100/50 dark:border-primary-500/20 rounded-full"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <div className="relative z-10 flex items-center gap-2">
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-primary-500' : 'opacity-70'}`} />
+                    <span>{isAr ? cat.ar : cat.en}</span>
+                  </div>
+                  {isActive && (
+                    <motion.div 
+                      layoutId="activeCategoryDot"
+                      className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary-500"
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* ─── Active Installing Banner / Floating Overlay ─── */}
+      {/* ─── Premium Installation Overlay ─── */}
       <AnimatePresence>
         {installingState && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="mb-8 p-5 bg-primary-50/80 dark:bg-primary-950/40 border border-primary-200 dark:border-primary-800/60 rounded-2xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-white/20 dark:bg-black/40 backdrop-blur-xl"
           >
-            <div className="flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow-md">
-                <Loader2 className="w-6 h-6 animate-spin" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-gray-900 dark:text-white text-sm sm:text-base">
-                    {isAr ? `جاري تثبيت: ${installingState.name}` : `Installing: ${installingState.name}`}
-                  </h4>
-                  <span className="text-xs font-semibold text-primary-700 dark:text-primary-300 bg-primary-100 dark:bg-primary-900/60 px-2 py-0.5 rounded-full">
-                    {installingState.size}
-                  </span>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative w-80 bg-white/80 dark:bg-dark-800/80 backdrop-blur-3xl border border-gray-100 dark:border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center justify-center shadow-[0_40px_80px_-20px_rgba(0,0,0,0.3)]"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 to-purple-500/5 rounded-[2.5rem] pointer-events-none" />
+              
+              <div className="relative w-32 h-32 flex items-center justify-center mb-8">
+                {/* Particle ring dots */}
+                <div className="absolute inset-0 animate-spin-slow opacity-50">
+                  <div className="w-2 h-2 rounded-full bg-primary-400 absolute top-0 left-1/2 -translate-x-1/2"></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-purple-400 absolute bottom-4 left-4"></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 absolute bottom-4 right-4"></div>
                 </div>
-                <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{installingState.stage}</p>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-4 w-full sm:w-64">
-              <div className="flex-1 bg-gray-200 dark:bg-dark-700 h-2.5 rounded-full overflow-hidden">
-                <motion.div
-                  className="bg-primary-600 h-full rounded-full"
-                  initial={{ width: '0%' }}
-                  animate={{ width: `${installingState.progress}%` }}
-                  transition={{ ease: 'easeInOut', duration: 0.2 }}
-                />
+                <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+                  <circle
+                    className="text-gray-100 dark:text-dark-700 stroke-current"
+                    strokeWidth="6"
+                    cx="50"
+                    cy="50"
+                    r="44"
+                    fill="transparent"
+                  />
+                  <motion.circle
+                    className="text-primary-500 stroke-current"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                    cx="50"
+                    cy="50"
+                    r="44"
+                    fill="transparent"
+                    initial={{ strokeDasharray: "276", strokeDashoffset: "276" }}
+                    animate={{ strokeDashoffset: 276 - (276 * installingState.progress) / 100 }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  {installingState.progress >= 100 ? (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", bounce: 0.5 }}
+                    >
+                      <Check className="w-10 h-10 text-primary-500" />
+                    </motion.div>
+                  ) : (
+                    <span className="text-3xl font-black text-gray-900 dark:text-white tracking-tighter">
+                      {installingState.progress}<span className="text-xl">%</span>
+                    </span>
+                  )}
+                </div>
               </div>
-              <span className="text-xs font-bold text-primary-700 dark:text-primary-300 w-10 text-right">
-                {installingState.progress}%
-              </span>
-            </div>
+
+              <h4 className="text-lg font-black text-gray-900 dark:text-white mb-3 text-center tracking-tight">
+                {isAr ? `تثبيت ${installingState.name}` : `Installing ${installingState.name}`}
+              </h4>
+              <motion.div
+                key={installingState.stage}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 text-center font-medium"
+              >
+                {installingState.progress < 40 ? <Download className="w-4 h-4 animate-bounce" /> :
+                 installingState.progress < 75 ? <Shield className="w-4 h-4 animate-pulse text-blue-500" /> :
+                 installingState.progress < 95 ? <Sliders className="w-4 h-4 animate-spin text-purple-500" /> :
+                 installingState.progress < 100 ? <Zap className="w-4 h-4 text-amber-500 animate-pulse" /> :
+                 null}
+                <span>{installingState.stage}</span>
+              </motion.div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ─── Apps Grid ─── */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-56 rounded-2xl bg-gray-100 dark:bg-dark-700 animate-pulse" />
+            <div key={i} className="h-64 rounded-3xl bg-gray-100/50 dark:bg-dark-800/50 relative overflow-hidden">
+               <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/40 dark:via-white/5 to-transparent" />
+            </div>
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 bg-white dark:bg-dark-800 rounded-3xl border border-gray-100 dark:border-dark-700">
-          <Sparkles className="w-12 h-12 text-gray-300 dark:text-dark-500 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-gray-900 dark:text-white">
-            {isAr ? 'لم يتم العثور على تطبيقات مطابقة' : 'No apps match your criteria'}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center py-24 bg-white/40 dark:bg-dark-800/40 rounded-[2.5rem] border border-gray-100/50 dark:border-white/5 backdrop-blur-xl relative overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary-500/5 via-transparent to-transparent"></div>
+          <Sparkles className="w-14 h-14 text-gray-300 dark:text-dark-500 mx-auto mb-4 relative z-10" />
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight relative z-10">
+            {isAr ? 'لم يتم العثور على تطبيقات' : 'No apps found'}
           </h3>
-          <p className="text-gray-400 dark:text-gray-500 text-xs sm:text-sm mt-1">
-            {isAr ? 'جرّب البحث باسم آخر أو اختيار تصنيف "جميع التطبيقات"' : 'Try adjusting your search terms or filter category'}
+          <p className="text-gray-400 dark:text-gray-500 text-sm mt-2 relative z-10">
+            {isAr ? 'جرّب البحث باسم آخر أو اختيار تصنيف مختلف' : 'Try adjusting your search or filter category'}
           </p>
-        </div>
+        </motion.div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((app) => {
             const isInstalled = app.isInstalled;
             const isCurrentlyInstalling = installingState?.appId === app.appId;
@@ -411,65 +472,65 @@ export default function AppStore() {
               <motion.div
                 key={app.appId}
                 layout
-                initial={{ opacity: 0, y: 14 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`group relative bg-white dark:bg-dark-800 rounded-2xl border transition-all duration-200 flex flex-col p-5 cursor-pointer shadow-sm hover:shadow-md ${
+                className={`group relative bg-white/70 dark:bg-dark-800/70 backdrop-blur-xl rounded-3xl border transition-all duration-300 ease-out flex flex-col p-6 cursor-pointer shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.15)] overflow-hidden ${
                   isInstalled
-                    ? 'border-emerald-200/80 dark:border-emerald-900/40 hover:border-emerald-300'
-                    : 'border-gray-200/80 dark:border-dark-700 hover:border-gray-300 dark:hover:border-dark-600'
+                    ? 'border-emerald-200/50 dark:border-emerald-500/20 hover:border-emerald-300/80 dark:hover:border-emerald-500/40'
+                    : 'border-gray-100/60 dark:border-white/5 hover:border-gray-300/60 dark:hover:border-white/20'
                 }`}
                 onClick={() => setSelectedAppId(app.appId)}
               >
-                {/* Top Row: Icon + Badges */}
-                <div className="flex items-start justify-between mb-3.5">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-b from-[#1E202E] to-[#12131A] dark:from-[#181A26] dark:to-[#0D0E15] flex items-center justify-center border border-white/10 shadow-md group-hover:scale-105 transition-transform p-2 shrink-0">
-                    {renderAppIcon(app, 'w-10 h-10')}
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 via-transparent to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                
+                <div className="relative flex items-start justify-between mb-5 z-10">
+                  <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-700 dark:to-dark-800 flex items-center justify-center border border-white/40 dark:border-white/10 shadow-inner group-hover:scale-[1.03] transition-transform duration-300 p-2.5 shrink-0 overflow-hidden">
+                     <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent dark:from-white/5 z-0 rounded-2xl"></div>
+                     <div className="relative z-10">
+                       {renderAppIcon(app, 'w-11 h-11')}
+                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  
+                  <div className="flex flex-col items-end gap-1.5">
                     {app.badge && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-100 dark:bg-dark-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-dark-600">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 text-purple-600 dark:text-purple-300 border border-purple-100/50 dark:border-purple-800/30 backdrop-blur-md">
                         {app.badge}
                       </span>
                     )}
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${pricing(app.pricingTier).color}`}>
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${pricing(app.pricingTier).color}`}>
                       {isAr ? pricing(app.pricingTier).ar : pricing(app.pricingTier).en}
                     </span>
                   </div>
                 </div>
 
-                {/* Name & Version */}
-                <div className="mb-1.5">
-                  <h3 className="text-base font-bold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-1">
+                <div className="relative z-10 mb-2">
+                  <h3 className="text-lg font-black text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-1 tracking-tight">
                     {isAr ? app.nameAr : app.nameEn}
                   </h3>
-                  <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <HardDrive className="w-3 h-3" />
+                  <div className="flex items-center gap-2 mt-1 text-xs text-gray-400 font-medium">
+                    <span className="flex items-center gap-1 opacity-80">
                       {app.downloadSize || '4.5 MB'}
                     </span>
-                    <span>•</span>
-                    <span>v{app.version || '2.4.0'}</span>
+                    <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></span>
+                    <span className="opacity-80">v{app.version || '2.4.0'}</span>
                   </div>
                 </div>
 
-                {/* Tagline */}
-                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4 leading-relaxed flex-1">
+                <p className="relative z-10 text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-6 leading-relaxed flex-1 font-medium">
                   {isAr ? app.taglineAr : app.taglineEn}
                 </p>
 
-                {/* Footer Controls */}
-                <div className="pt-3 border-t border-gray-100 dark:border-dark-700/80 flex items-center justify-between mt-auto">
-                  <div className="flex items-center gap-1">
-                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{app.rating?.toFixed(1) || '4.9'}</span>
-                    <span className="text-[10px] text-gray-400">({app.reviewsCount || 85})</span>
+                <div className="relative z-10 pt-4 border-t border-gray-100/60 dark:border-white/5 flex items-center justify-between mt-auto">
+                  <div className="flex items-center gap-1.5 bg-gray-50/50 dark:bg-dark-700/50 px-2 py-1 rounded-lg backdrop-blur-sm">
+                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 drop-shadow-[0_0_2px_rgba(251,191,36,0.5)]" />
+                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{app.rating?.toFixed(1) || '4.9'}</span>
                   </div>
 
                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     {isInstalled ? (
                       <>
-                        <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-200/50 dark:border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
                           <span>{isAr ? 'مثبت' : 'Installed'}</span>
                         </span>
 
@@ -477,35 +538,35 @@ export default function AppStore() {
                           <button
                             onClick={() => navigate(app.defaultRoute)}
                             title={isAr ? 'فتح التطبيق' : 'Open App'}
-                            className="p-1.5 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/30 rounded-lg transition-colors"
+                            className="p-2 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-full transition-all duration-300"
                           >
-                            <ExternalLink className="w-3.5 h-3.5" />
+                            <ArrowRight className="w-4 h-4 rtl:rotate-180" />
                           </button>
                         )}
-
                         <button
                           onClick={() => setUninstallConfirmApp(app)}
                           title={isAr ? 'إلغاء التثبيت' : 'Uninstall'}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full transition-all duration-300"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </>
                     ) : (
                       <button
                         onClick={() => handleStartInstall(app)}
                         disabled={isCurrentlyInstalling || installMutation.isPending}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary-600 hover:bg-primary-700 active:scale-95 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50"
+                        className="group/btn flex items-center gap-2 px-4 py-2 rounded-full bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 text-xs font-bold shadow-[0_4px_12px_rgba(0,0,0,0.1)] transition-all duration-300 active:scale-95 disabled:opacity-50 overflow-hidden relative"
                       >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-700 ease-in-out"></div>
                         {isCurrentlyInstalling ? (
                           <>
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>{isAr ? 'جاري التثبيت...' : 'Installing...'}</span>
+                            <span>{isAr ? 'جاري التثبيت...' : 'Installing'}</span>
                           </>
                         ) : (
                           <>
-                            <Download className="w-3.5 h-3.5" />
-                            <span>{isAr ? `تثبيت (${app.downloadSize || '4.5 MB'})` : `Install (${app.downloadSize || '4.5 MB'})`}</span>
+                            <Download className="w-3.5 h-3.5 group-hover/btn:-translate-y-0.5 transition-transform" />
+                            <span>{isAr ? 'تثبيت' : 'Install'}</span>
                           </>
                         )}
                       </button>
@@ -526,7 +587,7 @@ export default function AppStore() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+              className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-md z-[80]"
               onClick={() => setSelectedAppId(null)}
             />
             <motion.div
@@ -534,79 +595,83 @@ export default function AppStore() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: isAr ? -400 : 400 }}
               transition={{ type: 'spring', damping: 25, stiffness: 280 }}
-              className={`fixed top-0 bottom-0 ${isAr ? 'left-0' : 'right-0'} w-full sm:w-[480px] bg-white dark:bg-dark-800 shadow-2xl z-50 overflow-hidden flex flex-col border-s border-gray-200 dark:border-dark-700`}
+              className={`fixed top-0 bottom-0 ${isAr ? 'left-0' : 'right-0'} w-full sm:w-[480px] bg-white/95 dark:bg-dark-800/95 backdrop-blur-xl shadow-[0_0_80px_rgba(0,0,0,0.2)] z-[80] overflow-hidden flex flex-col border-s border-gray-100/50 dark:border-white/10`}
             >
-              {/* Header */}
-              <div className="p-6 border-b border-gray-100 dark:border-dark-700 flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-b from-[#1E202E] to-[#12131A] dark:from-[#181A26] dark:to-[#0D0E15] flex items-center justify-center border border-white/10 shadow-xl shrink-0 p-2.5">
-                    {renderAppIcon(detailApp, 'w-12 h-12')}
+              <div className="relative p-8 border-b border-gray-100/60 dark:border-white/5 overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent pointer-events-none"></div>
+                <div className="relative flex items-start justify-between gap-4 z-10">
+                  <div className="flex items-start gap-5">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-700 dark:to-dark-800 flex items-center justify-center border border-white/40 dark:border-white/10 shadow-lg shrink-0 p-3 relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent dark:from-white/5 z-0"></div>
+                      <div className="relative z-10">
+                        {renderAppIcon(detailApp, 'w-14 h-14')}
+                      </div>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight leading-tight">
+                        {isAr ? detailApp.nameAr : detailApp.nameEn}
+                      </h2>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mt-1">
+                        {detailApp.author || 'Maqder Core'} • v{detailApp.version || '2.4.0'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-extrabold text-gray-900 dark:text-white leading-tight">
-                      {isAr ? detailApp.nameAr : detailApp.nameEn}
-                    </h2>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {detailApp.author || 'Maqder Core'} • v{detailApp.version || '2.4.0'}
-                    </p>
-                  </div>
-                </div>
 
-                <button
-                  onClick={() => setSelectedAppId(null)}
-                  className="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                  <button
+                    onClick={() => setSelectedAppId(null)}
+                    className="p-2.5 rounded-full text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100/80 dark:hover:bg-white/10 transition-all duration-300"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
-              {/* Badges / Metrics Bar */}
-              <div className="px-6 py-3.5 bg-gray-50 dark:bg-dark-900/60 border-b border-gray-100 dark:border-dark-700 flex items-center justify-between text-xs">
+              <div className="px-8 py-4 bg-gray-50/50 dark:bg-dark-900/30 border-b border-gray-100/60 dark:border-white/5 flex items-center justify-between text-xs backdrop-blur-md">
                 <div className="flex items-center gap-2">
-                  <span className={`font-bold px-2.5 py-0.5 rounded-full ${pricing(detailApp.pricingTier).color}`}>
+                  <span className={`font-bold px-3 py-1 rounded-full border ${pricing(detailApp.pricingTier).color}`}>
                     {isAr ? pricing(detailApp.pricingTier).ar : pricing(detailApp.pricingTier).en}
                   </span>
                   {detailApp.badge && (
-                    <span className="font-semibold px-2 py-0.5 rounded-full bg-gray-200 dark:bg-dark-700 text-gray-700 dark:text-gray-300 text-[10px]">
+                    <span className="font-bold px-3 py-1 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 uppercase tracking-wider text-[10px]">
                       {detailApp.badge}
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400 font-medium">
-                  <span className="flex items-center gap-1 text-gray-700 dark:text-gray-300">
-                    <HardDrive className="w-3.5 h-3.5 text-primary-500" />
+                <div className="flex items-center gap-4 text-gray-500 dark:text-gray-400 font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <HardDrive className="w-4 h-4 text-primary-500" />
                     {detailApp.downloadSize || '4.5 MB'}
                   </span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                    {detailApp.rating?.toFixed(1)} ({detailApp.reviewsCount})
+                  <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></span>
+                  <span className="flex items-center gap-1.5">
+                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                    {detailApp.rating?.toFixed(1)}
                   </span>
                 </div>
               </div>
 
-              {/* Body */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="flex-1 overflow-y-auto p-8 space-y-8">
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">
-                    {isAr ? 'عن التطبيق' : 'About App'}
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">
+                    {isAr ? 'نظرة عامة' : 'Overview'}
                   </h4>
-                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
                     {isAr ? detailApp.descriptionAr : detailApp.descriptionEn}
                   </p>
                 </div>
 
-                {/* Features list */}
                 {(isAr ? detailApp.featuresAr : detailApp.featuresEn)?.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
-                      {isAr ? 'الميزات والقدرات' : 'Features & Capabilities'}
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">
+                      {isAr ? 'القدرات والميزات' : 'Capabilities'}
                     </h4>
-                    <div className="space-y-2.5">
+                    <div className="space-y-3">
                       {(isAr ? detailApp.featuresAr : detailApp.featuresEn).map((feature, i) => (
-                        <div key={i} className="flex items-start gap-3 text-sm text-gray-700 dark:text-gray-300">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                        <div key={i} className="flex items-start gap-3 text-sm font-medium text-gray-700 dark:text-gray-200">
+                          <div className="mt-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 p-0.5">
+                            <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
+                          </div>
                           <span>{feature}</span>
                         </div>
                       ))}
@@ -615,8 +680,7 @@ export default function AppStore() {
                 )}
               </div>
 
-              {/* Bottom Actions */}
-              <div className="p-6 border-t border-gray-100 dark:border-dark-700 bg-white dark:bg-dark-800 space-y-3">
+              <div className="p-8 border-t border-gray-100/60 dark:border-white/5 bg-white/50 dark:bg-dark-800/50 backdrop-blur-md space-y-4">
                 {detailApp.isInstalled ? (
                   <>
                     <div className="flex items-center gap-3">
@@ -626,10 +690,10 @@ export default function AppStore() {
                             setSelectedAppId(null);
                             navigate(detailApp.defaultRoute);
                           }}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold text-sm hover:opacity-90 transition-all shadow-sm"
+                          className="group/open flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold text-sm shadow-[0_8px_20px_rgba(0,0,0,0.1)] hover:shadow-[0_12px_25px_rgba(0,0,0,0.15)] transition-all duration-300"
                         >
-                          <ExternalLink className="w-4 h-4" />
                           <span>{isAr ? 'فتح التطبيق' : 'Open App'}</span>
+                          <ArrowRight className="w-4 h-4 group-hover/open:translate-x-1 transition-transform rtl:rotate-180" />
                         </button>
                       )}
 
@@ -639,7 +703,7 @@ export default function AppStore() {
                             setSelectedConfigAppId(detailApp.appId);
                             setConfigForm(detailApp.config || {});
                           }}
-                          className="px-4 py-3 rounded-xl border border-gray-200 dark:border-dark-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-700 font-semibold text-sm transition-colors flex items-center gap-2"
+                          className="px-5 py-4 rounded-2xl border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 font-bold text-sm transition-all flex items-center gap-2"
                         >
                           <Sliders className="w-4 h-4" />
                           <span>{isAr ? 'الإعدادات' : 'Settings'}</span>
@@ -649,7 +713,7 @@ export default function AppStore() {
 
                     <button
                       onClick={() => setUninstallConfirmApp(detailApp)}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 text-xs font-bold transition-colors"
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 text-xs font-bold transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span>{isAr ? 'إلغاء تثبيت التطبيق' : 'Uninstall Application'}</span>
@@ -662,10 +726,11 @@ export default function AppStore() {
                       setSelectedAppId(null);
                     }}
                     disabled={installMutation.isPending || installingState?.appId === detailApp.appId}
-                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-sm shadow-md transition-all active:scale-[0.99] disabled:opacity-50"
+                    className="group/install w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white font-bold text-sm shadow-[0_10px_30px_-10px_rgba(var(--color-primary-600),0.5)] transition-all duration-300 active:scale-[0.98] disabled:opacity-50 relative overflow-hidden"
                   >
-                    <Download className="w-4 h-4" />
-                    <span>
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/install:translate-y-0 transition-transform duration-300 ease-out"></div>
+                    <Download className="w-4 h-4 relative z-10 group-hover/install:-translate-y-0.5 transition-transform" />
+                    <span className="relative z-10">
                       {isAr
                         ? `تثبيت التطبيق (${detailApp.downloadSize || '4.5 MB'})`
                         : `Install Application (${detailApp.downloadSize || '4.5 MB'})`}
@@ -681,46 +746,47 @@ export default function AppStore() {
       {/* ─── Uninstall Confirmation Modal ─── */}
       <AnimatePresence>
         {uninstallConfirmApp && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-md"
               onClick={() => setUninstallConfirmApp(null)}
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-white dark:bg-dark-800 rounded-3xl p-6 shadow-2xl border border-gray-100 dark:border-dark-700 z-10 space-y-4"
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white/90 dark:bg-dark-800/90 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.3)] border border-gray-100 dark:border-white/10 z-10 space-y-6"
             >
-              <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto">
-                <AlertTriangle className="w-6 h-6" />
+              <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto shadow-inner relative overflow-hidden">
+                <div className="absolute inset-0 bg-red-500/20 blur-xl"></div>
+                <AlertTriangle className="w-8 h-8 relative z-10" />
               </div>
 
-              <div className="text-center">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">
                   {isAr ? `إلغاء تثبيت ${uninstallConfirmApp.nameAr}؟` : `Uninstall ${uninstallConfirmApp.nameEn}?`}
                 </h3>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 leading-relaxed">
                   {isAr
-                    ? 'سيؤدي هذا إلى إخفاء التطبيق من القائمة الجانبية ومشغل التطبيقات. يمكنك إعادة تثبيته في أي وقت مجاناً.'
-                    : 'This will remove the application from your sidebar and app launcher. You can reinstall it anytime.'}
+                    ? 'سيؤدي هذا إلى إخفاء التطبيق من القائمة الجانبية. يمكنك إعادة تثبيته في أي وقت.'
+                    : 'This will remove the application from your workspace. You can reinstall it anytime.'}
                 </p>
               </div>
 
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setUninstallConfirmApp(null)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-dark-600 text-gray-700 dark:text-gray-300 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-dark-700 transition-colors"
+                  className="flex-1 py-3.5 rounded-2xl border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 font-bold text-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all duration-300"
                 >
                   {isAr ? 'إلغاء' : 'Cancel'}
                 </button>
                 <button
                   onClick={() => uninstallMutation.mutate(uninstallConfirmApp.appId)}
                   disabled={uninstallMutation.isPending}
-                  className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="flex-1 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition-all duration-300 shadow-[0_8px_20px_-8px_rgba(220,38,38,0.5)] disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {uninstallMutation.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -743,36 +809,36 @@ export default function AppStore() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60]"
+              className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-md z-[90]"
               onClick={() => setSelectedConfigAppId(null)}
             />
             <motion.div
               initial={{ opacity: 0, x: isAr ? -400 : 400 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: isAr ? -400 : 400 }}
-              className={`fixed top-0 bottom-0 ${isAr ? 'left-0' : 'right-0'} w-full sm:w-[420px] bg-white dark:bg-dark-800 shadow-2xl z-[60] overflow-y-auto border-s border-gray-200 dark:border-dark-700 flex flex-col`}
+              className={`fixed top-0 bottom-0 ${isAr ? 'left-0' : 'right-0'} w-full sm:w-[420px] bg-white/95 dark:bg-dark-800/95 backdrop-blur-xl shadow-[0_0_80px_rgba(0,0,0,0.2)] z-[90] overflow-y-auto border-s border-gray-100/50 dark:border-white/10 flex flex-col`}
             >
-              <div className="p-6 border-b border-gray-100 dark:border-dark-700 flex items-center justify-between">
+              <div className="p-8 border-b border-gray-100/60 dark:border-white/5 flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                    {isAr ? 'إعدادات التكامل' : 'Integration Settings'}
+                  <h3 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">
+                    {isAr ? 'إعدادات التكامل' : 'Settings'}
                   </h3>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mt-1">
                     {isAr ? configApp.nameAr : configApp.nameEn}
                   </p>
                 </div>
                 <button
                   onClick={() => setSelectedConfigAppId(null)}
-                  className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-400"
+                  className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 transition-all"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="p-6 space-y-5 flex-1 overflow-y-auto">
+              <div className="p-8 space-y-6 flex-1 overflow-y-auto">
                 {configApp.configSchema?.map((field) => (
-                  <div key={field.key} className="space-y-1.5">
-                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                  <div key={field.key} className="space-y-2">
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-200">
                       {isAr ? field.labelAr : field.labelEn}
                     </label>
 
@@ -784,13 +850,13 @@ export default function AppStore() {
                           onChange={(e) => setConfigForm((s) => ({ ...s, [field.key]: e.target.checked }))}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer dark:bg-dark-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600" />
+                        <div className="w-12 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer dark:bg-dark-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600 shadow-inner" />
                       </label>
                     ) : field.type === 'select' ? (
                       <select
                         value={configForm[field.key] || field.defaultValue || ''}
                         onChange={(e) => setConfigForm((s) => ({ ...s, [field.key]: e.target.value }))}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500/30"
+                        className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/50 dark:bg-dark-900/50 backdrop-blur-sm text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500/20 outline-none transition-all"
                       >
                         {field.options?.map((opt) => (
                           <option key={opt.value} value={opt.value}>
@@ -803,21 +869,21 @@ export default function AppStore() {
                         type={field.type === 'number' ? 'number' : field.type === 'password' ? 'password' : 'text'}
                         value={configForm[field.key] || ''}
                         onChange={(e) => setConfigForm((s) => ({ ...s, [field.key]: e.target.value }))}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500/30"
+                        className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/50 dark:bg-dark-900/50 backdrop-blur-sm text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500/20 outline-none transition-all placeholder-gray-400"
                       />
                     )}
                   </div>
                 ))}
               </div>
 
-              <div className="p-6 border-t border-gray-100 dark:border-dark-700 bg-white dark:bg-dark-800">
+              <div className="p-8 border-t border-gray-100/60 dark:border-white/5 bg-gray-50/50 dark:bg-dark-900/30 backdrop-blur-md">
                 <button
                   onClick={() => saveSettingsMutation.mutate({ appId: configApp.appId, config: configForm })}
                   disabled={saveSettingsMutation.isPending}
-                  className="w-full py-3 rounded-xl bg-primary-600 text-white text-sm font-bold hover:bg-primary-700 transition-colors disabled:opacity-50 shadow-sm"
+                  className="w-full py-4 rounded-2xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-bold shadow-[0_8px_20px_rgba(0,0,0,0.1)] hover:shadow-[0_12px_25px_rgba(0,0,0,0.15)] transition-all duration-300 disabled:opacity-50 active:scale-95"
                 >
                   {saveSettingsMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto" />
                   ) : isAr ? (
                     'حفظ التغييرات'
                   ) : (
