@@ -148,6 +148,8 @@ import { checkRestaurantAutoStatus } from './jobs/restaurantAutoStatusJob.js';
 import { processQueue as processZatcaQueue } from './services/zatcaQueueProcessor.js';
 import { runZatcaMonitoring, runCertExpiryCheck } from './jobs/zatcaMonitoringJob.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import requestTimeout from './middleware/requestTimeout.js';
+import responseTime from './middleware/responseTime.js';
 import logger from './utils/logger.js';
 import User from './models/User.js';
 
@@ -285,6 +287,12 @@ const connectToDatabase = async () => {
   databaseConnectionPromise = mongoose.connect(mongoUri, {
     serverSelectionTimeoutMS: mongoServerSelectionTimeoutMs,
     socketTimeoutMS: mongoSocketTimeoutMs,
+    // Connection pool tuning for single-VPS deployment
+    maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE || 20),
+    minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 2),
+    maxIdleTimeMS: 30_000,          // release idle connections after 30 s
+    heartbeatFrequencyMS: 10_000,   // detect stale connections every 10 s
+    compressors: 'zlib',            // wire compression between app and Mongo
   })
     .then(async () => {
       logger.info('MongoDB connected successfully');
@@ -337,6 +345,9 @@ const ensureDatabaseReady = async (req, res, next) => {
 
   return res.status(503).json({ error: 'Service temporarily unavailable. Please try again in a moment.' });
 };
+
+// ─── Performance/observability middleware (applied before everything) ────────
+app.use(responseTime());
 
 // Security middleware
 app.set('trust proxy', trustProxyHops);
@@ -424,16 +435,42 @@ app.use(cors({
 app.use(compression({ threshold: 1024 }));
 
 
-// Rate limiting
+// ─── Tiered rate limiting ─────────────────────────────────────────────────────
+// 1. Auth endpoints — very strict (30 req / 15 min) to block brute-force
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX || 30),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many auth requests. Please wait and try again.' },
+});
+
+// 2. Public storefront endpoints — lenient (1 000 req / 15 min)
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 1000),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' },
+});
+
+// 3. General API — configurable (default 2 000 req / 15 min)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: apiRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.path === '/health' || req.path === '/health/live' || req.path === '/health/ready',
-  message: { error: 'Too many requests, please try again later.' }
+  message: { error: 'Too many requests, please try again later.' },
 });
+
+app.use('/api/auth/', authLimiter);
+app.use('/api/public/', publicLimiter);
 app.use('/api/', limiter);
+
+// ─── Request timeout (30 s hard cap on all API routes) ────────────────────────
+const apiTimeoutMs = Number(process.env.API_REQUEST_TIMEOUT_MS || 30_000);
+app.use('/api/', requestTimeout(Number.isFinite(apiTimeoutMs) && apiTimeoutMs > 0 ? apiTimeoutMs : 30_000));
 
 // Body parsing
 app.use(express.json({ limit: '50mb' }));
@@ -702,8 +739,41 @@ const httpServer = app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
 });
 
-// Keep-alive tuning: prevents Nginx upstream connection resets under load
-httpServer.keepAliveTimeout = 65000; // slightly above Nginx default of 60s
-httpServer.headersTimeout = 66000;  // must be > keepAliveTimeout
+// ─── Keep-alive tuning ───────────────────────────────────────────────────────
+// Prevents Nginx upstream connection resets under load.
+// keepAliveTimeout must be > Nginx's keepalive_timeout (default 65 s).
+httpServer.keepAliveTimeout = 65_000;
+httpServer.headersTimeout   = 66_000; // must be > keepAliveTimeout
+// Allow more simultaneous connections on a single-process VPS
+httpServer.maxConnections   = Number(process.env.HTTP_MAX_CONNECTIONS || 0); // 0 = unlimited
+
+// ─── Graceful shutdown ────────────────────────────────────────────────────────
+const gracefulShutdown = (signal) => {
+  logger.info(`${signal} received — shutting down gracefully`);
+
+  // Stop accepting new connections
+  httpServer.close(async () => {
+    logger.info('HTTP server closed');
+
+    try {
+      await mongoose.disconnect();
+      logger.info('MongoDB disconnected cleanly');
+    } catch (err) {
+      logger.error('Error disconnecting MongoDB during shutdown:', err.message);
+    }
+
+    logger.info('Process exiting');
+    process.exit(0);
+  });
+
+  // Force-exit if something hangs after 15 s
+  setTimeout(() => {
+    logger.error('Graceful shutdown timed out — forcing exit');
+    process.exit(1);
+  }, 15_000).unref();
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
 
 export default app;
