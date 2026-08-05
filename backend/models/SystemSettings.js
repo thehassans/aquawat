@@ -261,6 +261,14 @@ const systemSettingsSchema = new mongoose.Schema({
     dsn: { type: String, default: '' },
     uploadSourceMaps: { type: Boolean, default: false },
   },
+  sms: {
+    enabled: { type: Boolean, default: false },
+    provider: { type: String, enum: ['twilio', 'custom'], default: 'twilio' },
+    twilioAccountSid: { type: String, default: '' },
+    twilioAuthToken: { type: String, default: '' },
+    twilioFromNumber: { type: String, default: '' },
+    customEndpoint: { type: String, default: '' }
+  },
   analytics: {
     enabled: { type: Boolean, default: false },
     provider: { type: String, enum: ['posthog', 'mixpanel', 'amplitude', 'custom'], default: 'posthog' },

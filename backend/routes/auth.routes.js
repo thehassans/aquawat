@@ -447,4 +447,125 @@ router.post('/reset-password/:token', async (req, res) => {
   }
 });
 
+// @route   POST /api/auth/login-phone
+router.post('/login-phone', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Phone is required' });
+
+    const user = await withQueryTimeout(User.findOne({ phone }));
+    if (!user) return res.status(404).json({ error: 'User not found with this phone number' });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const bcrypt = (await import('bcryptjs')).default;
+    user.otp = await bcrypt.hash(otp, 10);
+    user.otpExpires = Date.now() + 5 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    const { sendOTP } = await import('../utils/smsService.js');
+    await sendOTP(phone, otp);
+
+    res.json({ message: 'OTP sent successfully' });
+  } catch (error) {
+    sendRouteError(res, error);
+  }
+});
+
+// @route   POST /api/auth/verify-otp
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP are required' });
+
+    const user = await withQueryTimeout(User.findOne({ phone, otpExpires: { $gt: Date.now() } }).select('+otp'));
+    if (!user || !user.otp) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
+    const bcrypt = (await import('bcryptjs')).default;
+    const isMatch = await bcrypt.compare(otp, user.otp);
+    if (!isMatch) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    if (!user.phoneVerified) user.phoneVerified = true;
+    await user.save({ validateBeforeSave: false });
+
+    let tenant = null;
+    if (user.tenantId) {
+      tenant = await withQueryTimeout(Tenant.findById(user.tenantId).select(authTenantSelect));
+    }
+
+    const token = generateToken(user._id);
+    const responseTenant = serializeAuthTenant(tenant);
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        firstNameAr: user.firstNameAr,
+        lastNameAr: user.lastNameAr,
+        role: user.role,
+        branchId: user.branchId,
+        permissions: user.permissions,
+        preferences: user.preferences,
+        avatar: user.avatar
+      },
+      tenant: responseTenant
+    });
+  } catch (error) {
+    sendRouteError(res, error);
+  }
+});
+
+// @route   POST /api/auth/forgot-password-phone
+router.post('/forgot-password-phone', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Phone is required' });
+
+    const user = await withQueryTimeout(User.findOne({ phone }));
+    if (!user) return res.status(200).json({ message: 'If that phone exists in our system, we have sent an OTP.' });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const bcrypt = (await import('bcryptjs')).default;
+    user.otp = await bcrypt.hash(otp, 10);
+    user.otpExpires = Date.now() + 5 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    const { sendOTP } = await import('../utils/smsService.js');
+    await sendOTP(phone, otp);
+
+    res.status(200).json({ message: 'If that phone exists in our system, we have sent an OTP.' });
+  } catch (error) {
+    sendRouteError(res, error);
+  }
+});
+
+// @route   POST /api/auth/reset-password-phone
+router.post('/reset-password-phone', async (req, res) => {
+  try {
+    const { phone, otp, newPassword } = req.body;
+    if (!phone || !otp || !newPassword) return res.status(400).json({ error: 'Phone, OTP, and newPassword are required' });
+
+    const user = await withQueryTimeout(User.findOne({ phone, otpExpires: { $gt: Date.now() } }).select('+otp'));
+    if (!user || !user.otp) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
+    const bcrypt = (await import('bcryptjs')).default;
+    const isMatch = await bcrypt.compare(otp, user.otp);
+    if (!isMatch) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
+    user.password = newPassword; // The pre-save hook will hash this new password
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    if (!user.phoneVerified) user.phoneVerified = true;
+    await user.save();
+
+    res.status(200).json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    sendRouteError(res, error);
+  }
+});
+
 export default router;

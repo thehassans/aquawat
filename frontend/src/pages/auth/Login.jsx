@@ -28,6 +28,14 @@ export default function Login() {
   const [isForgotPassword, setIsForgotPassword] = useState(false)
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
   const [forgotPasswordStatus, setForgotPasswordStatus] = useState(null)
+  
+  const [loginMethod, setLoginMethod] = useState('email')
+  const [isOtpSent, setIsOtpSent] = useState(false)
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [otp, setOtp] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [phoneLoginStatus, setPhoneLoginStatus] = useState(null)
+
   const { data: websiteSettings } = usePublicWebsiteSettings()
   const initialTenantSlug = String(searchParams.get('tenant') || searchParams.get('tenantSlug') || '').trim().toLowerCase()
   const salesPhone = String(websiteSettings?.contactPhone || '+966596775485').trim()
@@ -114,6 +122,56 @@ export default function Login() {
       setForgotPasswordStatus(data.error ? 'error' : 'success');
     } catch {
       setForgotPasswordStatus('error');
+    }
+  }
+
+  const handlePhoneSubmit = async (e) => {
+    e.preventDefault();
+    if (!phoneNumber) return;
+    setPhoneLoginStatus('loading');
+    
+    try {
+      if (!isOtpSent) {
+        const endpoint = isForgotPassword ? '/api/auth/forgot-password-phone' : '/api/auth/login-phone';
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: phoneNumber })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        setIsOtpSent(true);
+        setPhoneLoginStatus(null);
+      } else {
+        if (isForgotPassword) {
+           if (!newPassword) return;
+           const res = await fetch('/api/auth/reset-password-phone', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ phone: phoneNumber, otp, newPassword })
+           });
+           const data = await res.json();
+           if (data.error) throw new Error(data.error);
+           setIsForgotPassword(false);
+           setIsOtpSent(false);
+           setPhoneNumber('');
+           setOtp('');
+           setNewPassword('');
+           setPhoneLoginStatus('success');
+        } else {
+           const res = await fetch('/api/auth/verify-otp', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ phone: phoneNumber, otp })
+           });
+           const data = await res.json();
+           if (data.error) throw new Error(data.error);
+           
+           window.location.href = '/app/dashboard';
+        }
+      }
+    } catch (err) {
+      setPhoneLoginStatus('error');
     }
   }
 
@@ -243,15 +301,30 @@ export default function Login() {
           </div>
 
           {/* Header */}
-          <div className="text-center lg:text-start mb-10">
+          <div className="text-center lg:text-start mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               {isForgotPassword ? (language === 'ar' ? 'استعادة كلمة المرور' : 'Reset Password') : t('welcomeBack') + ' 👋'}
             </h1>
             <p className="text-gray-500 text-lg">
               {isForgotPassword 
-                ? (language === 'ar' ? 'أدخل بريدك الإلكتروني لإرسال رابط إعادة التعيين' : 'Enter your email to receive a reset link') 
+                ? (language === 'ar' ? (loginMethod === 'phone' ? 'أدخل رقم جوالك' : 'أدخل بريدك الإلكتروني لإرسال رابط إعادة التعيين') : (loginMethod === 'phone' ? 'Enter your phone number' : 'Enter your email to receive a reset link')) 
                 : t('signInToContinue')}
             </p>
+          </div>
+
+          <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
+            <button
+              onClick={() => { setLoginMethod('email'); setIsOtpSent(false); }}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${loginMethod === 'email' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              {language === 'ar' ? 'البريد الإلكتروني' : 'Email'}
+            </button>
+            <button
+              onClick={() => { setLoginMethod('phone'); setIsOtpSent(false); }}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${loginMethod === 'phone' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              {language === 'ar' ? 'رقم الجوال' : 'Phone Number'}
+            </button>
           </div>
 
           {/* Error */}
@@ -271,7 +344,119 @@ export default function Login() {
           )}
 
           {/* Form */}
-          {isForgotPassword ? (
+          {loginMethod === 'phone' ? (
+            <form onSubmit={handlePhoneSubmit} className="space-y-5">
+              {phoneLoginStatus === 'error' && (
+                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start gap-3">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-red-700 font-medium mt-2">{language === 'ar' ? 'حدث خطأ. يرجى التحقق والمحاولة مرة أخرى.' : 'An error occurred. Please check and try again.'}</p>
+                </div>
+              )}
+              {phoneLoginStatus === 'success' && (
+                <div className="p-4 bg-green-50 border border-green-100 rounded-2xl flex items-start gap-3">
+                  <Shield className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                  <p className="text-sm text-green-700 font-medium">{language === 'ar' ? 'تمت العملية بنجاح.' : 'Operation successful.'}</p>
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">{language === 'ar' ? 'رقم الجوال' : 'Phone Number'}</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 start-0 flex items-center ps-4 pointer-events-none">
+                    <Phone className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="tel"
+                    required
+                    disabled={isOtpSent}
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="w-full h-14 ps-12 pe-4 bg-white border-2 border-gray-200 focus:border-[#244D33] rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-[#244D33]/10 transition-all disabled:bg-gray-50"
+                    placeholder="+966500000000"
+                  />
+                </div>
+              </div>
+
+              {isOtpSent && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">{language === 'ar' ? 'رمز التحقق (OTP)' : 'OTP Code'}</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 start-0 flex items-center ps-4 pointer-events-none">
+                      <Lock className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      className="w-full h-14 ps-12 pe-4 bg-white border-2 border-gray-200 focus:border-[#244D33] rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-[#244D33]/10 transition-all tracking-widest text-xl font-bold"
+                      placeholder="••••••"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {isOtpSent && isForgotPassword && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">{language === 'ar' ? 'كلمة المرور الجديدة' : 'New Password'}</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 start-0 flex items-center ps-4 pointer-events-none">
+                      <Lock className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full h-14 ps-12 pe-14 bg-white border-2 border-gray-200 focus:border-[#244D33] rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-[#244D33]/10 transition-all"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 end-0 flex items-center pe-4 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!isOtpSent && (
+                <div className="flex items-center justify-end pt-2">
+                  <button type="button" onClick={() => setIsForgotPassword(!isForgotPassword)} className="text-sm text-[#244D33] hover:text-[#1e3f2a] font-semibold transition-colors">
+                    {isForgotPassword ? (language === 'ar' ? 'العودة لتسجيل الدخول' : 'Back to Login') : t('forgotPassword')}
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={phoneLoginStatus === 'loading'}
+                className="w-full h-14 bg-gradient-to-r from-[#244D33] to-[#1e3f2a] hover:from-[#1e3f2a] hover:to-[#163121] text-white font-semibold rounded-2xl shadow-lg shadow-[#244D33]/30 hover:shadow-xl hover:shadow-[#244D33]/40 disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-2 group"
+              >
+                {phoneLoginStatus === 'loading' ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    {!isOtpSent 
+                      ? (language === 'ar' ? 'إرسال الرمز' : 'Send OTP') 
+                      : (isForgotPassword 
+                          ? (language === 'ar' ? 'التحقق وتعيين كلمة المرور' : 'Verify & Reset') 
+                          : (language === 'ar' ? 'التحقق والدخول' : 'Verify & Login')
+                        )
+                    }
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
+              </button>
+            </form>
+          ) : isForgotPassword ? (
             <form onSubmit={handleForgotPassword} className="space-y-5">
               {forgotPasswordStatus === 'success' && (
                 <div className="p-4 bg-green-50 border border-green-100 rounded-2xl flex items-start gap-3">

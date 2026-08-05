@@ -11,6 +11,9 @@ const userSchema = new mongoose.Schema({
   firstNameAr: { type: String },
   lastNameAr: { type: String },
   phone: { type: String },
+  phoneVerified: { type: Boolean, default: false },
+  otp: { type: String, select: false },
+  otpExpires: { type: Date },
   avatar: { type: String },
   role: {
     type: String,

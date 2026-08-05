@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bug, Wifi, BarChart2, Clock, Shield, Save, RefreshCw,
   Check, Info, AlertTriangle, Server, Database, Zap,
-  Eye, EyeOff, ChevronRight, Activity, Lock, Globe
+  Eye, EyeOff, ChevronRight, Activity, Lock, Globe, MessageSquare
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -17,6 +17,7 @@ const TABS = [
   { id: 'sessions', label: 'State & Sessions', icon: Clock, color: 'from-amber-500 to-orange-500' },
   { id: 'security', label: 'Performance & Security', icon: Shield, color: 'from-emerald-500 to-teal-600' },
   { id: 'monitoring', label: 'Tenant Monitoring API', icon: Activity, color: 'from-indigo-500 to-blue-600' },
+  { id: 'sms', label: 'SMS & OTP', icon: MessageSquare, color: 'from-green-500 to-emerald-600' },
 ]
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
@@ -569,6 +570,86 @@ function SecurityTab({ settings, onChange, onSave, saving }) {
   )
 }
 
+function SmsSettingsTab({ settings, onChange, onSave, saving }) {
+  const isCustom = settings.sms?.provider === 'custom'
+
+  return (
+    <div className="space-y-6">
+      <InfoBox icon={MessageSquare} title="SMS & OTP Settings">
+        Configure SMS provider for multi-factor authentication and notifications.
+      </InfoBox>
+
+      <div className="card rounded-2xl p-6">
+        <FieldRow label="Enable SMS">
+          <Toggle
+            checked={settings.sms?.enabled || false}
+            onChange={(v) => onChange('sms.enabled', v)}
+          />
+        </FieldRow>
+
+        <FieldRow label="Provider">
+          <select
+            className="select"
+            value={settings.sms?.provider || 'twilio'}
+            onChange={(e) => onChange('sms.provider', e.target.value)}
+          >
+            <option value="twilio">Twilio</option>
+            <option value="custom">Custom Endpoint</option>
+          </select>
+        </FieldRow>
+
+        {settings.sms?.provider !== 'custom' && (
+          <>
+            <FieldRow label="Twilio Account SID">
+              <input
+                type="text"
+                className="input"
+                placeholder="AC..."
+                value={settings.sms?.twilioAccountSid || ''}
+                onChange={(e) => onChange('sms.twilioAccountSid', e.target.value)}
+              />
+            </FieldRow>
+
+            <FieldRow label="Twilio Auth Token">
+              <input
+                type="password"
+                className="input"
+                placeholder="••••••••"
+                value={settings.sms?.twilioAuthToken || ''}
+                onChange={(e) => onChange('sms.twilioAuthToken', e.target.value)}
+              />
+            </FieldRow>
+
+            <FieldRow label="Twilio From Number">
+              <input
+                type="text"
+                className="input"
+                placeholder="+1234567890"
+                value={settings.sms?.twilioFromNumber || ''}
+                onChange={(e) => onChange('sms.twilioFromNumber', e.target.value)}
+              />
+            </FieldRow>
+          </>
+        )}
+
+        {isCustom && (
+          <FieldRow label="Custom Endpoint URL">
+            <input
+              type="text"
+              className="input"
+              placeholder="https://your-api.com/sms"
+              value={settings.sms?.customEndpoint || ''}
+              onChange={(e) => onChange('sms.customEndpoint', e.target.value)}
+            />
+          </FieldRow>
+        )}
+      </div>
+
+      <SaveButton onClick={onSave} loading={saving} />
+    </div>
+  )
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 export default function SystemSettings() {
@@ -719,6 +800,7 @@ export default function SystemSettings() {
           {activeTab === 'sessions' && <SessionsTab {...tabProps} />}
           {activeTab === 'security' && <SecurityTab {...tabProps} />}
           {activeTab === 'monitoring' && <TenantMonitoringTab {...tabProps} />}
+          {activeTab === 'sms' && <SmsSettingsTab {...tabProps} />}
         </motion.div>
       </AnimatePresence>
     </div>
