@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2 } from 'lucide-react'
+import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -77,7 +77,9 @@ export default function InvoiceView() {
   const posTenants = ['bakala', 'super market', 'khayyat', 'saloon', 'laundry', 'restaurant']
   const isPosTenant = tenantBusinessTypes.some(t => posTenants.includes(t))
   const isPosInvoice = ['restaurant', 'bakala', 'saloon', 'laundry', 'khayyat'].includes(invoice?.businessContext)
-  const showThermal = isPosTenant || isPosInvoice
+  // Trading context always uses A4 — never thermal regardless of tenant type
+  const isTradingInvoice = invoice?.businessContext === 'trading'
+  const showThermal = !isTradingInvoice && (isPosTenant || isPosInvoice)
 
   const signMutation = useMutation({
     mutationFn: () => api.post(`/invoices/${id}/sign`, undefined, { timeout: 120000 }),
@@ -327,6 +329,32 @@ export default function InvoiceView() {
               {t('viewXml')}
             </a>
           )}
+          {['admin', 'super_admin'].includes(tenant?.role) || ['draft', 'pending'].includes(invoice?.status) ? (
+            <button
+              type="button"
+              onClick={async () => {
+                const confirmed = window.confirm(
+                  language === 'ar'
+                    ? 'هل أنت متأكد من حذف هذه الفاتورة؟ هذا الإجراء لا يمكن التراجع عنه وسيتم حذف الفاتورة من قاعدة البيانات نهائياً.'
+                    : 'Are you sure you want to permanently delete this invoice? This action cannot be undone.'
+                )
+                if (!confirmed) return
+                try {
+                  await api.delete(`/invoices/${id}`)
+                  toast.success(language === 'ar' ? 'تم حذف الفاتورة بنجاح' : 'Invoice deleted successfully')
+                  queryClient.invalidateQueries(['invoices'])
+                  queryClient.invalidateQueries(['dashboard'])
+                  navigate('/app/dashboard/invoices')
+                } catch (error) {
+                  toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل حذف الفاتورة' : 'Failed to delete invoice'))
+                }
+              }}
+              className="btn btn-secondary border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+            >
+              <Trash2 className="w-4 h-4" />
+              {language === 'ar' ? 'حذف' : 'Delete'}
+            </button>
+          ) : null}
         </div>
       </div>
 

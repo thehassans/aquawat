@@ -157,12 +157,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     sourceField: 'buyer.name',
     targetField: 'buyer.nameAr',
     sourceLang: 'en', targetLang: 'ar',
+    initialTargetValue: initialInvoice?.buyer?.nameAr || '',
   })
   useLiveTranslation({
     control, watch, setValue,
     sourceField: 'buyer.nameAr',
     targetField: 'buyer.name',
     sourceLang: 'ar', targetLang: 'en',
+    initialTargetValue: initialInvoice?.buyer?.name || '',
   })
 
   useEffect(() => {
@@ -197,6 +199,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       setValue('invoiceSubtype', 'travel_ticket')
     }
   }, [invoiceSubtype, invoiceType, isTravelContext, setValue])
+
+  // Auto-update PDF template when business context changes
+  useEffect(() => {
+    const newTemplateId = getInvoiceTemplateId(tenant, businessContext)
+    setValue('pdfTemplateId', newTemplateId)
+  }, [businessContext, tenant, setValue])
 
   useEffect(() => {
     if (!isTravelContext) return
@@ -657,13 +665,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <button
                     key={type}
                     type="button"
-                    onClick={() => {
-                      setValue('businessContext', type)
-                      const newTemplate = getInvoiceTemplateId(tenant, type)
-                      if (newTemplate) {
-                        setValue('pdfTemplateId', newTemplate)
-                      }
-                    }}
+                    onClick={() => setValue('businessContext', type)}
                     className={`rounded-2xl border p-4 text-start ${active ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}
                   >
                     <p className="font-semibold text-gray-900 dark:text-white">{labels[type]}</p>
@@ -918,7 +920,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             <div className="space-y-4">
               {fields.map((field, index) => (
                 <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
-                  <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
+                  <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''} initialName={initialInvoice?.lineItems?.[index]?.productName || ''} />
                   <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />

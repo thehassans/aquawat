@@ -22,13 +22,14 @@ export const useLiveTranslation = ({
   enabled = true,
   debounceMs = 900,
   minLength = 3,
+  initialTargetValue = '',
 }) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const timerRef = useRef(null)
   const lastAutoSourceRef = useRef('')
-  const lastAutoResultRef = useRef('')
+  // Seed with initialTargetValue so existing translations don't block auto-translate on changes
+  const lastAutoResultRef = useRef(String(initialTargetValue || '').trim())
   const requestSequenceRef = useRef(0)
-  const initialized = useRef(false)
 
   const watchedSource = useWatch({ control, name: sourceField })
   const watchedTarget = useWatch({ control, name: targetField })
@@ -42,12 +43,6 @@ export const useLiveTranslation = ({
     const s = String(source || '').trim()
     const t = String(target || '').trim()
     const cachedTranslation = translationCache.get(cacheKey)
-    
-    if (!initialized.current) {
-       lastAutoSourceRef.current = s
-       lastAutoResultRef.current = t
-       initialized.current = true
-    }
 
     if (timerRef.current) {
       clearTimeout(timerRef.current)
@@ -60,10 +55,8 @@ export const useLiveTranslation = ({
       return
     }
 
-    // If target changed but source didn't, the user is manually editing target. Don't overwrite it later.
-    if (s === String(lastAutoSourceRef.current || '').trim() && t !== String(lastAutoResultRef.current || '').trim()) {
-       lastAutoResultRef.current = t
-       return
+    if (t && t !== String(lastAutoResultRef.current || '').trim()) {
+      return
     }
 
     if (cachedTranslation) {
@@ -116,18 +109,20 @@ export const useLiveTranslation = ({
 
 export default useLiveTranslation
 
-export function LineItemTranslator({ index, control, watch, setValue, enabled = true }) {
+export function LineItemTranslator({ index, control, watch, setValue, enabled = true, initialNameAr = '', initialName = '' }) {
   useLiveTranslation({
     control, watch, setValue,
     sourceField: `lineItems.${index}.productName`,
     targetField: `lineItems.${index}.productNameAr`,
     sourceLang: 'en', targetLang: 'ar', enabled,
+    initialTargetValue: initialNameAr,
   })
   useLiveTranslation({
     control, watch, setValue,
     sourceField: `lineItems.${index}.productNameAr`,
     targetField: `lineItems.${index}.productName`,
     sourceLang: 'ar', targetLang: 'en', enabled,
+    initialTargetValue: initialName,
   })
   useLiveTranslation({
     control, watch, setValue,
