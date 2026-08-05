@@ -5,8 +5,17 @@ import React from 'react'
  * Every module gets a completely unique, semantically correct, hand-crafted 3D icon with luminous glow.
  * Matching is based on path SEGMENTS (last / secondLast) so /app/dashboard/X → "X".
  */
-export function App3DIcon({ path = '', label = '', className = 'w-11 h-11 sm:w-12 sm:h-12' }) {
+export function App3DIcon({
+  path = '',
+  label = '',
+  icon = '',
+  appId = '',
+  className = 'w-11 h-11 sm:w-12 sm:h-12'
+}) {
   const uid = React.useId().replace(/:/g, '')
+  const cleanAppId = (appId || '').toLowerCase().trim()
+  const cleanIcon = (icon || '').toLowerCase().trim()
+  const cleanLabel = (label || '').toLowerCase().trim()
   const segments = (path || '').toLowerCase().split('/').filter(Boolean)
   const last = segments[segments.length - 1] || ''
   const second = segments[segments.length - 2] || ''
@@ -25,8 +34,434 @@ export function App3DIcon({ path = '', label = '', className = 'w-11 h-11 sm:w-1
     </filter>
   )
 
+  // ─── 0.1. LANDED COSTS / MARITIME IMPORT & DUTIES (3D NAUTICAL ANCHOR & CARGO) ──
+  if (
+    cleanAppId === 'landed_costs' ||
+    cleanIcon === 'anchor' ||
+    last === 'landed-costs' ||
+    cleanLabel.includes('landed') ||
+    cleanLabel.includes('مرسية')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`lc_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0EA5E9" />
+            <stop offset="50%" stopColor="#0284C7" />
+            <stop offset="100%" stopColor="#0369A1" />
+          </linearGradient>
+          <linearGradient id={`lc_gold_${uid}`} x1="16" y1="8" x2="48" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <filter id={`lc_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0284C7" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <circle cx="32" cy="32" r="26" fill={`url(#lc_bg_${uid})`} filter={`url(#lc_flt_${uid})`} />
+        <circle cx="32" cy="32" r="25" stroke="#38BDF8" strokeWidth="1.5" strokeOpacity="0.4" fill="none" />
+        <path d="M12 40C20 36 28 44 36 40C44 36 52 44 56 40" stroke="#7DD3FC" strokeWidth="1.5" strokeOpacity="0.3" fill="none" />
+        {/* 3D Anchor */}
+        <circle cx="32" cy="18" r="5" stroke={`url(#lc_gold_${uid})`} strokeWidth="3" fill="none" />
+        <path d="M32 23V46" stroke={`url(#lc_gold_${uid})`} strokeWidth="4" strokeLinecap="round" />
+        <path d="M22 28H42" stroke={`url(#lc_gold_${uid})`} strokeWidth="3.5" strokeLinecap="round" />
+        <path d="M18 36C18 45 24 50 32 50C40 50 46 45 46 36" stroke={`url(#lc_gold_${uid})`} strokeWidth="4" strokeLinecap="round" fill="none" />
+        <path d="M14 36L18 33L22 36" stroke={`url(#lc_gold_${uid})`} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M42 36L46 33L50 36" stroke={`url(#lc_gold_${uid})`} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="32" cy="18" r="1.5" fill="#FFFFFF" />
+      </svg>
+    )
+  }
+
+  // ─── 0.2. PAYMENT TERMINAL / SMART POS INTEGRATION (3D POS & NFC CHIP) ──────
+  if (
+    cleanAppId === 'payment_terminal_integration' ||
+    (cleanIcon === 'credit-card' && (cleanAppId.includes('terminal') || cleanLabel.includes('terminal') || cleanLabel.includes('دفع'))) ||
+    last === 'payment-terminal' ||
+    last === 'payments'
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`pt_body_${uid}`} x1="12" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#1E293B" />
+            <stop offset="100%" stopColor="#0F172A" />
+          </linearGradient>
+          <linearGradient id={`pt_screen_${uid}`} x1="16" y1="14" x2="48" y2="34" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#065F46" />
+            <stop offset="100%" stopColor="#047857" />
+          </linearGradient>
+          <linearGradient id={`pt_glow_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#10B981" />
+            <stop offset="100%" stopColor="#059669" />
+          </linearGradient>
+          <filter id={`pt_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#10B981" floodOpacity="0.4" />
+          </filter>
+        </defs>
+        {/* Terminal Body */}
+        <rect x="14" y="8" width="36" height="48" rx="8" fill={`url(#pt_body_${uid})`} filter={`url(#pt_flt_${uid})`} stroke="#334155" strokeWidth="1.5" />
+        {/* Screen */}
+        <rect x="18" y="12" width="28" height="18" rx="4" fill={`url(#pt_screen_${uid})`} />
+        <rect x="22" y="16" width="12" height="2" rx="1" fill="#A7F3D0" />
+        <rect x="22" y="21" width="20" height="3" rx="1.5" fill="#34D399" />
+        <path d="M38 15L42 19L40 21" stroke="#A7F3D0" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Keypad */}
+        <circle cx="23" cy="36" r="2.5" fill="#334155" />
+        <circle cx="32" cy="36" r="2.5" fill="#334155" />
+        <circle cx="41" cy="36" r="2.5" fill="#334155" />
+        <circle cx="23" cy="43" r="2.5" fill="#334155" />
+        <circle cx="32" cy="43" r="2.5" fill="#334155" />
+        <circle cx="41" cy="43" r="2.5" fill="#334155" />
+        <rect x="20" y="48" width="24" height="3" rx="1.5" fill="#10B981" />
+        {/* Contactless Wave */}
+        <path d="M44 6C47 9 47 13 44 16" stroke="#34D399" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M47 3C51 7 51 15 47 19" stroke="#34D399" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6" />
+      </svg>
+    )
+  }
+
+  // ─── 0.3. WEIGHT SCALE DRIVER (3D DIGITAL HIGH-PRECISION SCALE) ──────────────
+  if (
+    cleanAppId === 'weight_scale_driver' ||
+    cleanIcon === 'scale' ||
+    last === 'weight-scale' ||
+    cleanLabel.includes('scale') ||
+    cleanLabel.includes('ميزان')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`sc_plate_${uid}`} x1="8" y1="16" x2="56" y2="40" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#E2E8F0" />
+            <stop offset="50%" stopColor="#94A3B8" />
+            <stop offset="100%" stopColor="#64748B" />
+          </linearGradient>
+          <linearGradient id={`sc_base_${uid}`} x1="12" y1="36" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#1E293B" />
+            <stop offset="100%" stopColor="#0F172A" />
+          </linearGradient>
+          <filter id={`sc_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#06B6D4" floodOpacity="0.4" />
+          </filter>
+        </defs>
+        {/* Scale Base */}
+        <rect x="12" y="32" width="40" height="24" rx="6" fill={`url(#sc_base_${uid})`} filter={`url(#sc_flt_${uid})`} stroke="#334155" strokeWidth="1.5" />
+        {/* Stainless Steel Platform */}
+        <ellipse cx="32" cy="24" rx="22" ry="8" fill={`url(#sc_plate_${uid})`} />
+        <ellipse cx="32" cy="22" rx="20" ry="7" fill="#F8FAFC" fillOpacity="0.8" />
+        {/* Digital LED Screen */}
+        <rect x="20" y="38" width="24" height="12" rx="3" fill="#0A0F1D" stroke="#0EA5E9" strokeWidth="1" />
+        <rect x="23" y="42" width="12" height="4" rx="1" fill="#06B6D4" />
+        <text x="37" y="46" fill="#22C55E" fontSize="5" fontWeight="bold" fontFamily="monospace">kg</text>
+        {/* Feet */}
+        <rect x="16" y="54" width="6" height="3" rx="1.5" fill="#475569" />
+        <rect x="42" y="54" width="6" height="3" rx="1.5" fill="#475569" />
+      </svg>
+    )
+  }
+
+  // ─── 0.4. AI COPILOT & INSIGHTS (3D HOLOGRAPHIC NEURAL SPARKLE) ─────────────
+  if (
+    cleanAppId === 'ai_copilot_insights' ||
+    cleanIcon === 'sparkles' ||
+    cleanAppId.includes('copilot') ||
+    cleanAppId.includes('ai') ||
+    cleanLabel.includes('copilot') ||
+    cleanLabel.includes('ai') ||
+    cleanLabel.includes('ذكاء')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`ai_core_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#8B5CF6" />
+            <stop offset="50%" stopColor="#EC4899" />
+            <stop offset="100%" stopColor="#F43F5E" />
+          </linearGradient>
+          <radialGradient id={`ai_glow_${uid}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#F43F5E" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0" />
+          </radialGradient>
+          <filter id={`ai_flt_${uid}`} x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#EC4899" floodOpacity="0.5" />
+          </filter>
+        </defs>
+        {/* Central Core Glow */}
+        <circle cx="32" cy="32" r="24" fill={`url(#ai_glow_${uid})`} filter={`url(#ai_flt_${uid})`} />
+        {/* 3D Primary Neural Diamond */}
+        <path
+          d="M32 6L38 24L56 30L38 36L32 54L26 36L8 30L26 24L32 6Z"
+          fill={`url(#ai_core_${uid})`}
+        />
+        <path
+          d="M32 12L36 26L50 30L36 34L32 48L28 34L14 30L28 26L32 12Z"
+          fill="#FFFFFF"
+          fillOpacity="0.3"
+        />
+        {/* Floating Sparkles */}
+        <circle cx="48" cy="14" r="3.5" fill="#FDE047" />
+        <path d="M48 10V18M44 14H52" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" />
+        <circle cx="16" cy="48" r="2.5" fill="#38BDF8" />
+        <circle cx="32" cy="30" r="3" fill="#FFFFFF" />
+      </svg>
+    )
+  }
+
+  // ─── 0.5. GOSI & MUDAD COMPLIANCE (3D REGULATORY GOLD & EMERALD SHIELD) ──────
+  if (
+    cleanAppId === 'gosi_mudad_compliance' ||
+    (cleanIcon === 'shield' && (cleanAppId.includes('gosi') || cleanLabel.includes('gosi') || cleanLabel.includes('مؤسسية') || cleanLabel.includes('امتثال'))) ||
+    cleanLabel.includes('gosi') ||
+    cleanLabel.includes('mudad') ||
+    cleanLabel.includes('تأمينات') ||
+    cleanLabel.includes('مدد')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gs_shield_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#059669" />
+            <stop offset="50%" stopColor="#047857" />
+            <stop offset="100%" stopColor="#064E3B" />
+          </linearGradient>
+          <linearGradient id={`gs_gold_${uid}`} x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <filter id={`gs_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#059669" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        {/* Shield */}
+        <path
+          d="M32 8L50 16V32C50 44 42 52 32 56C22 52 14 44 14 32V16L32 8Z"
+          fill={`url(#gs_shield_${uid})`}
+          filter={`url(#gs_flt_${uid})`}
+          stroke={`url(#gs_gold_${uid})`}
+          strokeWidth="2"
+        />
+        {/* Inner Gold Crest */}
+        <path
+          d="M32 14L44 20V32C44 40 38 46 32 49C26 46 20 40 20 32V20L32 14Z"
+          stroke={`url(#gs_gold_${uid})`}
+          strokeWidth="1.5"
+          fill="none"
+          strokeOpacity="0.7"
+        />
+        {/* Verified Checkmark */}
+        <path
+          d="M26 32L30 36L38 26"
+          stroke={`url(#gs_gold_${uid})`}
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="32" cy="20" r="2" fill="#FDE047" />
+      </svg>
+    )
+  }
+
+  // ─── 0.6. MULTICOURIER SHIPPING (3D EXPRESS LOGISTICS PARCEL & ARROWS) ──────
+  if (
+    cleanAppId === 'multicourier_shipping' ||
+    (cleanIcon === 'package' && (cleanAppId.includes('shipping') || cleanLabel.includes('shipping') || cleanLabel.includes('شحن'))) ||
+    last === 'couriers' ||
+    last === 'shipping'
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`shp_box_${uid}`} x1="8" y1="12" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#D97706" />
+            <stop offset="50%" stopColor="#B45309" />
+            <stop offset="100%" stopColor="#78350F" />
+          </linearGradient>
+          <linearGradient id={`shp_neon_${uid}`} x1="12" y1="8" x2="52" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#38BDF8" />
+            <stop offset="100%" stopColor="#0284C7" />
+          </linearGradient>
+          <filter id={`shp_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#D97706" floodOpacity="0.4" />
+          </filter>
+        </defs>
+        {/* 3D Box */}
+        <path d="M32 10L52 20V42L32 52L12 42V20L32 10Z" fill={`url(#shp_box_${uid})`} filter={`url(#shp_flt_${uid})`} />
+        <path d="M32 10L52 20L32 30L12 20L32 10Z" fill="#F59E0B" fillOpacity="0.7" />
+        <path d="M32 30V52" stroke="#78350F" strokeWidth="2" />
+        <path d="M12 20L32 30L52 20" stroke="#78350F" strokeWidth="1.5" fill="none" />
+        {/* Neon Express Tape & Speed Wings */}
+        <rect x="29" y="15" width="6" height="30" fill={`url(#shp_neon_${uid})`} rx="1.5" />
+        <path d="M42 28L54 24M44 34L56 30M46 40L54 38" stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // ─── 0.7. FLEET & MACHINERY MANAGEMENT (3D HEAVY TRANSPORTER & CRANE) ───────
+  if (
+    cleanAppId === 'fleet_machinery' ||
+    (cleanIcon === 'truck' && !cleanAppId.includes('shipping')) ||
+    last === 'fleet' ||
+    cleanLabel.includes('fleet') ||
+    cleanLabel.includes('أسطول')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`flt_hd_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#2563EB" />
+            <stop offset="50%" stopColor="#1D4ED8" />
+            <stop offset="100%" stopColor="#1E3A8A" />
+          </linearGradient>
+          <linearGradient id={`flt_neon_${uid}`} x1="12" y1="12" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#00E5FF" />
+            <stop offset="100%" stopColor="#3B82F6" />
+          </linearGradient>
+          <filter id={`flt_flt_main_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#2563EB" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        {/* Transporter Body */}
+        <rect x="10" y="22" width="28" height="22" rx="4" fill={`url(#flt_hd_${uid})`} filter={`url(#flt_flt_main_${uid})`} />
+        <path d="M38 28L46 28L54 36V44H38V28Z" fill={`url(#flt_hd_${uid})`} />
+        {/* Cab Window */}
+        <path d="M40 30H46L51 36H40V30Z" fill={`url(#flt_neon_${uid})`} fillOpacity="0.85" />
+        {/* Cargo Grill Lines */}
+        <line x1="16" y1="26" x2="16" y2="40" stroke="#FFFFFF" strokeWidth="1.5" strokeOpacity="0.3" />
+        <line x1="22" y1="26" x2="22" y2="40" stroke="#FFFFFF" strokeWidth="1.5" strokeOpacity="0.3" />
+        <line x1="28" y1="26" x2="28" y2="40" stroke="#FFFFFF" strokeWidth="1.5" strokeOpacity="0.3" />
+        {/* Wheels with 3D Chrome Rims */}
+        <circle cx="18" cy="46" r="7" fill="#0A0F1D" stroke="#3B82F6" strokeWidth="1.5" />
+        <circle cx="18" cy="46" r="3.5" fill="#60A5FA" />
+        <circle cx="18" cy="46" r="1.5" fill="#FFFFFF" />
+        <circle cx="46" cy="46" r="7" fill="#0A0F1D" stroke="#3B82F6" strokeWidth="1.5" />
+        <circle cx="46" cy="46" r="3.5" fill="#60A5FA" />
+        <circle cx="46" cy="46" r="1.5" fill="#FFFFFF" />
+        {/* Headlight Ray */}
+        <path d="M54 39L60 38L60 43L54 42Z" fill="#FDE047" fillOpacity="0.8" />
+      </svg>
+    )
+  }
+
+  // ─── 0.8. CRM & SALES PIPELINE (3D RADAR TARGET & BULLSEYE) ─────────────────
+  if (
+    cleanAppId === 'crm_sales_pipeline' ||
+    cleanIcon === 'target' ||
+    last === 'crm' ||
+    cleanLabel.includes('crm') ||
+    cleanLabel.includes('pipeline')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`crm_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#EC4899" />
+            <stop offset="50%" stopColor="#E11D48" />
+            <stop offset="100%" stopColor="#BE123C" />
+          </linearGradient>
+          <linearGradient id={`crm_arrow_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="100%" stopColor="#F59E0B" />
+          </linearGradient>
+          <filter id={`crm_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#E11D48" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        {/* Target Rings */}
+        <circle cx="32" cy="32" r="26" fill={`url(#crm_bg_${uid})`} filter={`url(#crm_flt_${uid})`} />
+        <circle cx="32" cy="32" r="20" fill="#FFFFFF" fillOpacity="0.2" stroke="#FFFFFF" strokeWidth="1.5" strokeOpacity="0.4" />
+        <circle cx="32" cy="32" r="14" fill={`url(#crm_bg_${uid})`} stroke="#FFFFFF" strokeWidth="1.5" strokeOpacity="0.6" />
+        <circle cx="32" cy="32" r="7" fill="#FDE047" />
+        {/* 3D Arrow Striking Bullseye */}
+        <path d="M46 14L32 28" stroke={`url(#crm_arrow_${uid})`} strokeWidth="4" strokeLinecap="round" />
+        <path d="M42 12L48 12L48 18" stroke={`url(#crm_arrow_${uid})`} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="32" cy="32" r="3" fill="#FFFFFF" />
+      </svg>
+    )
+  }
+
+  // ─── 0.9. HR & WORKFORCE SUITE (3D TEAM AVATARS & ID BADGE) ─────────────────
+  if (
+    cleanAppId === 'hr_payroll_pro' ||
+    (cleanIcon === 'users' && cleanAppId.includes('hr')) ||
+    last === 'employees' ||
+    cleanLabel.includes('payroll') ||
+    cleanLabel.includes('موارد بشرية')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`hr_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#8B5CF6" />
+            <stop offset="50%" stopColor="#7C3AED" />
+            <stop offset="100%" stopColor="#5B21B6" />
+          </linearGradient>
+          <linearGradient id={`hr_gold_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#38BDF8" />
+            <stop offset="100%" stopColor="#0284C7" />
+          </linearGradient>
+          <filter id={`hr_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#7C3AED" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <circle cx="32" cy="32" r="26" fill={`url(#hr_bg_${uid})`} filter={`url(#hr_flt_${uid})`} />
+        {/* Background Avatars */}
+        <circle cx="20" cy="24" r="6" fill="#A78BFA" fillOpacity="0.7" />
+        <path d="M12 40C12 34 16 31 20 31C24 31 28 34 28 40" fill="#A78BFA" fillOpacity="0.7" />
+        <circle cx="44" cy="24" r="6" fill="#A78BFA" fillOpacity="0.7" />
+        <path d="M36 40C36 34 40 31 44 31C48 31 52 34 52 40" fill="#A78BFA" fillOpacity="0.7" />
+        {/* Center Primary Leader Avatar */}
+        <circle cx="32" cy="22" r="8" fill="#FFFFFF" />
+        <circle cx="32" cy="22" r="6" fill={`url(#hr_gold_${uid})`} />
+        <path d="M20 44C20 36 25 33 32 33C39 33 44 36 44 44V48H20V44Z" fill="#FFFFFF" />
+        {/* Gold Verified Star */}
+        <circle cx="39" cy="27" r="3.5" fill="#FDE047" stroke="#5B21B6" strokeWidth="1" />
+      </svg>
+    )
+  }
+
+  // ─── 0.10. DELIVERY PLATFORMS (3D HIGH-SPEED SCOOTER & FOOD BOX) ────────────
+  if (
+    cleanAppId === 'delivery_platforms' ||
+    cleanIcon === 'bike' ||
+    last === 'delivery' ||
+    cleanLabel.includes('delivery') ||
+    cleanLabel.includes('توصيل')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`dl_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#10B981" />
+            <stop offset="50%" stopColor="#059669" />
+            <stop offset="100%" stopColor="#047857" />
+          </linearGradient>
+          <filter id={`dl_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#059669" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <circle cx="32" cy="32" r="26" fill={`url(#dl_bg_${uid})`} filter={`url(#dl_flt_${uid})`} />
+        {/* Scooter Chassis & Wheels */}
+        <circle cx="20" cy="44" r="7" fill="#0A1815" stroke="#34D399" strokeWidth="2" />
+        <circle cx="20" cy="44" r="3" fill="#FFFFFF" />
+        <circle cx="44" cy="44" r="7" fill="#0A1815" stroke="#34D399" strokeWidth="2" />
+        <circle cx="44" cy="44" r="3" fill="#FFFFFF" />
+        <path d="M20 44L28 32H38L44 44" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M38 32L42 20H46" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" />
+        {/* Insulated Delivery Hotbox */}
+        <rect x="14" y="20" width="14" height="14" rx="3" fill="#F59E0B" stroke="#FDE047" strokeWidth="1.5" />
+        <path d="M17 25H25M17 29H25" stroke="#78350F" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Speed Trails */}
+        <line x1="8" y1="24" x2="12" y2="24" stroke="#A7F3D0" strokeWidth="2" strokeLinecap="round" />
+        <line x1="6" y1="30" x2="11" y2="30" stroke="#A7F3D0" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
   // ─── 1. WHATSAPP (OFFICIAL 3D GLOWING ICON) ──────────────────────────────────
-  if (last === 'whatsapp' || (label || '').toLowerCase().includes('whatsapp')) {
+  if (cleanAppId === 'whatsapp_cloud_auto' || cleanIcon === 'whatsapp' || last === 'whatsapp' || cleanLabel.includes('whatsapp')) {
     return (
       <svg className={className} viewBox="0 0 64 64" fill="none">
         <defs>

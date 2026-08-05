@@ -145,9 +145,9 @@ export const getInvoiceBranding = (tenant, language = 'en', businessContext = 't
     templateId: getInvoiceTemplateId(tenant, context),
     companyName: pickLocalizedText(business?.legalNameEn, business?.legalNameAr, language),
     logoSrc: contextProfile.logo || invoiceBranding?.logo || tenant?.branding?.logo || '/maqdernewlogo.webp',
-    stampImage: contextProfile.stampImage || invoiceBranding?.stampImage || null,
-    signatureImage: contextProfile.signatureImage || invoiceBranding?.signatureImage || null,
-    letterheadImage: contextProfile.letterheadImage || invoiceBranding?.letterheadImage || null,
+    stampImage: contextProfile.stampImage || invoiceBranding?.stampImage || tenant?.branding?.stampImage || invoiceBranding?.presetStamp || tenant?.settings?.invoiceBranding?.presetStamp || null,
+    signatureImage: contextProfile.signatureImage || invoiceBranding?.signatureImage || tenant?.branding?.signatureImage || invoiceBranding?.presetSignature || tenant?.settings?.invoiceBranding?.presetSignature || null,
+    letterheadImage: contextProfile.letterheadImage || invoiceBranding?.letterheadImage || tenant?.branding?.letterheadImage || null,
     headerText: pickLocalizedText(
       sanitizeLegacyTravelHeaderText(pickFirstText(contextProfile.headerTextEn, invoiceBranding?.headerTextEn), context) || buildDefaultHeaderText(context, 'en'),
       sanitizeLegacyTravelHeaderText(pickFirstText(contextProfile.headerTextAr, invoiceBranding?.headerTextAr), context) || buildDefaultHeaderText(context, 'ar'),

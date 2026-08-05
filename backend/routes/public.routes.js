@@ -9,6 +9,7 @@ import SaloonService from '../models/SaloonService.js'
 import DemoUser from '../models/DemoUser.js'
 import { sendDemoWelcomeEmail } from '../utils/emailService.js'
 import { normalizeBusinessTypes, BUSINESS_TYPES } from '../utils/businessTypes.js'
+import { provisionTenantApps } from '../utils/appProvisioning.js'
 
 const router = express.Router()
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000)
@@ -207,6 +208,7 @@ router.post('/demo-login', async (req, res) => {
         },
         isActive: true
       })
+      await provisionTenantApps(tenant, { save: true })
     }
 
     if (!tenant.isActive) {
@@ -329,6 +331,8 @@ router.post('/demo-signup', async (req, res) => {
       demoUpgraded: false,
       isActive: true,
     })
+
+    await provisionTenantApps(tenant, { save: true })
 
     const user = await User.create({
       email: normalizedEmail,

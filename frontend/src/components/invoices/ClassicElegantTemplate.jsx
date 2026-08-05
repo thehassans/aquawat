@@ -176,23 +176,8 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
         </div>
       </div>
 
-      {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
-        <div className="flex justify-end gap-12 pt-8">
-          {invoiceBranding.signatureImage && (
-            <div className="flex flex-col items-center">
-              <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
-            </div>
-          )}
-          {invoiceBranding.stampImage && (
-            <div className="flex flex-col items-center">
-              <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
-            </div>
-          )}
-        </div>
-      )}
-
-    
-      <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
+      {/* Document Extras & Unified Signatory */}
+      <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} />
     </div>
   )
 }

@@ -23,6 +23,7 @@ import {
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
+import { App3DIcon } from '../../components/ui/App3DIcon'
 
 const PRICING_TIERS = [
   { value: 'free', labelEn: 'Free', labelAr: 'مجاني', color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
@@ -71,6 +72,14 @@ export default function AppCatalogManagement() {
       queryClient.invalidateQueries(['super-admin-app-catalog'])
     },
     onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل إعادة التعيين' : 'Reset failed'))
+  })
+
+  const provisionAllMutation = useMutation({
+    mutationFn: () => api.post('/super-admin/tenants/provision-all-apps'),
+    onSuccess: (res) => {
+      toast.success(res.data?.message || (isAr ? 'تم تثبيت التطبيقات لجميع المستأجرين بنجاح' : 'All tenants provisioned successfully'))
+    },
+    onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل التثبيت التلقائي' : 'Provisioning failed'))
   })
 
   const apps = data?.apps || []
@@ -134,6 +143,20 @@ export default function AppCatalogManagement() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              if (window.confirm(isAr ? 'هل ترغب في تثبيت وتفعيل جميع التطبيقات الأساسية لجميع المستأجرين الحاليين تلقائياً؟' : 'Auto-provision and install all core apps for all existing tenants?')) {
+                provisionAllMutation.mutate()
+              }
+            }}
+            disabled={provisionAllMutation.isPending}
+            className="btn btn-primary flex items-center gap-2 text-sm shadow-sm"
+          >
+            <Sparkles className="w-4 h-4" />
+            {provisionAllMutation.isPending 
+              ? (isAr ? 'جاري التثبيت...' : 'Provisioning...') 
+              : (isAr ? 'تثبيت لجميع المستأجرين' : 'Provision All Tenants')}
+          </button>
           <button
             onClick={() => {
               if (window.confirm(isAr ? 'هل أنت متأكد من رغبتك في إعادة تعيين الكتالوج للافتراضي؟' : 'Reset app catalog to default presets?')) {
@@ -225,12 +248,8 @@ export default function AppCatalogManagement() {
                   {/* Top Bar */}
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-inner border ${
-                        isAppActive
-                          ? 'bg-gray-100 dark:bg-dark-700 border-gray-200 dark:border-dark-600'
-                          : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-gray-400'
-                      }`}>
-                        {app.icon === 'factory' ? '🏭' : app.icon === 'truck' ? '🚛' : app.icon === 'anchor' ? '⚓' : app.icon === 'cpu' ? '📡' : app.icon === 'target' ? '🎯' : app.icon === 'users' ? '👥' : app.icon === 'bike' ? '🛵' : app.icon === 'credit-card' ? '💳' : app.icon === 'shield' ? '🛡️' : app.icon === 'printer' ? '🖨️' : app.icon === 'scale' ? '⚖️' : app.icon === 'whatsapp' ? '💬' : app.icon === 'sparkles' ? '✨' : '📦'}
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-b from-[#1E202E] to-[#12131A] dark:from-[#181A26] dark:to-[#0D0E15] flex items-center justify-center border border-white/10 shadow-md p-1.5 shrink-0">
+                        <App3DIcon appId={app.appId} icon={app.icon} path={app.defaultRoute} label={app.nameEn} className="w-8 h-8" />
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
@@ -331,11 +350,16 @@ export default function AppCatalogManagement() {
               className="fixed inset-4 max-w-xl mx-auto my-auto h-fit max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-800 rounded-2xl shadow-2xl z-50 p-6 border border-gray-200 dark:border-dark-700"
             >
               <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-dark-700 mb-5">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                    {isAr ? 'تعديل أسعار التطبيق والظهور' : 'Edit App Pricing & Visibility'}
-                  </h3>
-                  <p className="text-xs text-gray-500 font-mono">{editingApp.appId}</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-b from-[#1E202E] to-[#12131A] dark:from-[#181A26] dark:to-[#0D0E15] flex items-center justify-center border border-white/10 shadow-md p-2 shrink-0">
+                    <App3DIcon appId={editingApp.appId} icon={editingApp.icon} path={editingApp.defaultRoute} label={editingApp.nameEn} className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                      {isAr ? 'تعديل أسعار التطبيق والظهور' : 'Edit App Pricing & Visibility'}
+                    </h3>
+                    <p className="text-xs text-gray-500 font-mono">{editingApp.appId}</p>
+                  </div>
                 </div>
                 <button onClick={() => setEditingApp(null)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-700">
                   <X className="w-5 h-5 text-gray-400" />

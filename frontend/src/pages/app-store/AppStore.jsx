@@ -28,6 +28,7 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useTranslation } from '../../lib/translations';
 import { updateTenant } from '../../store/slices/authSlice';
+import { App3DIcon } from '../../components/ui/App3DIcon';
 
 const PRICING_LABELS = {
   free: { en: 'Free', ar: 'مجاني', color: 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40' },
@@ -239,39 +240,17 @@ export default function AppStore() {
 
   const pricing = (tier) => PRICING_LABELS[tier] || PRICING_LABELS.free;
 
-  const renderAppIcon = (iconName) => {
-    switch (iconName) {
-      case 'factory':
-        return '🏭';
-      case 'truck':
-        return '🚛';
-      case 'anchor':
-        return '⚓';
-      case 'cpu':
-        return '📡';
-      case 'target':
-        return '🎯';
-      case 'users':
-        return '👥';
-      case 'bike':
-        return '🛵';
-      case 'credit-card':
-        return '💳';
-      case 'shield':
-        return '🛡️';
-      case 'printer':
-        return '🖨️';
-      case 'scale':
-        return '⚖️';
-      case 'whatsapp':
-        return '💬';
-      case 'sparkles':
-        return '✨';
-      case 'briefcase':
-        return '💼';
-      default:
-        return '📦';
-    }
+  const renderAppIcon = (appObj, className = 'w-10 h-10') => {
+    if (!appObj) return null;
+    return (
+      <App3DIcon
+        appId={appObj.appId}
+        icon={appObj.icon}
+        path={appObj.defaultRoute}
+        label={appObj.nameEn}
+        className={className}
+      />
+    );
   };
 
   return (
@@ -443,8 +422,8 @@ export default function AppStore() {
               >
                 {/* Top Row: Icon + Badges */}
                 <div className="flex items-start justify-between mb-3.5">
-                  <div className="w-13 h-13 rounded-2xl bg-gray-50 dark:bg-dark-700 flex items-center justify-center text-3xl border border-gray-100 dark:border-dark-600 shadow-inner group-hover:scale-105 transition-transform">
-                    {renderAppIcon(app.icon)}
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-b from-[#1E202E] to-[#12131A] dark:from-[#181A26] dark:to-[#0D0E15] flex items-center justify-center border border-white/10 shadow-md group-hover:scale-105 transition-transform p-2 shrink-0">
+                    {renderAppIcon(app, 'w-10 h-10')}
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap justify-end">
                     {app.badge && (
@@ -560,8 +539,8 @@ export default function AppStore() {
               {/* Header */}
               <div className="p-6 border-b border-gray-100 dark:border-dark-700 flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gray-50 dark:bg-dark-700 flex items-center justify-center text-4xl border border-gray-200 dark:border-dark-600 shadow-inner shrink-0">
-                    {renderAppIcon(detailApp.icon)}
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-b from-[#1E202E] to-[#12131A] dark:from-[#181A26] dark:to-[#0D0E15] flex items-center justify-center border border-white/10 shadow-xl shrink-0 p-2.5">
+                    {renderAppIcon(detailApp, 'w-12 h-12')}
                   </div>
                   <div>
                     <h2 className="text-xl font-extrabold text-gray-900 dark:text-white leading-tight">

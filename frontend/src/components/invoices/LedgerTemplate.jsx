@@ -205,20 +205,10 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
         </div>
       </div>
 
-      {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
-        <div className="flex justify-end gap-12 p-6 border-b border-slate-300">
-          {invoiceBranding.signatureImage && (
-            <div className="flex flex-col items-center">
-              <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
-            </div>
-          )}
-          {invoiceBranding.stampImage && (
-            <div className="flex flex-col items-center">
-              <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
-            </div>
-          )}
-        </div>
-      )}
+      {/* Document Extras & Unified Signatory */}
+      <div className="p-6 border-b border-slate-300">
+        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} />
+      </div>
 
       {/* Footer */}
       <div className="p-4 bg-slate-800 text-center">
@@ -226,8 +216,6 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
           {invoiceBranding.footerText || 'Thank you for your business!'}
         </p>
       </div>
-    
-      <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
     </div>
   )
 }

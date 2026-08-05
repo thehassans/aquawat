@@ -15,6 +15,7 @@ import MonoTemplate from './MonoTemplate'
 import AirTemplate from './AirTemplate'
 import LedgerTemplate from './LedgerTemplate'
 import SignatureTemplate from './SignatureTemplate'
+import DocumentExtras from './DocumentExtras'
 
 const joinClasses = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -802,20 +803,8 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
           </div>
         </div>
 
-        {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
-          <div className="mt-8 flex justify-end gap-12">
-            {invoiceBranding.signatureImage && (
-              <div className="flex flex-col items-center">
-                <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
-              </div>
-            )}
-            {invoiceBranding.stampImage && (
-              <div className="flex flex-col items-center">
-                <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
-              </div>
-            )}
-          </div>
-        )}
+        {/* Document Extras & Unified Signatory */}
+        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} />
 
         <div className="mt-6 flex flex-col gap-4 border-t border-slate-200 pt-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex min-h-16 items-end justify-center lg:justify-start">

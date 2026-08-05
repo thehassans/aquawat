@@ -190,23 +190,8 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
         </div>
 
 
-        {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
-          <div className="mt-8 flex justify-end gap-12 pr-8">
-            {invoiceBranding.signatureImage && (
-              <div className="flex flex-col items-center">
-                <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
-              </div>
-            )}
-            {invoiceBranding.stampImage && (
-              <div className="flex flex-col items-center">
-                <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Extras */}
-        <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
+        {/* Document Extras & Unified Signatory */}
+        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} />
 
         {/* Footer */}
         <div className="mt-12 pt-4 border-t-4 border-black text-center">

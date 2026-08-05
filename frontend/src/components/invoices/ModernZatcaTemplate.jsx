@@ -572,20 +572,6 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               <p className="mt-2 text-xs text-center text-gray-500">ZATCA Compliant QR</p>
             </div>
           )}
-        {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
-          <div className="mt-8 flex justify-end gap-12 px-8">
-            {invoiceBranding.signatureImage && (
-              <div className="flex flex-col items-center">
-                <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
-              </div>
-            )}
-            {invoiceBranding.stampImage && (
-              <div className="flex flex-col items-center">
-                <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
-              </div>
-            )}
-          </div>
-        )}
         </div>
 
         {/* Boutique Rental Terms — compact single-page */}
@@ -619,10 +605,11 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             </div>
           </div>
         )}
+
+        {/* Document Extras & Unified Signatory */}
+        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} />
       </div>
       </div>
-    
-      <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
     </div>
   )
 }

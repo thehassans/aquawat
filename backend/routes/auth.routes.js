@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
 import { protect } from '../middleware/auth.js';
 import { sendPasswordResetEmail } from '../utils/emailService.js';
+import { provisionTenantApps } from '../utils/appProvisioning.js';
 
 const router = express.Router();
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000);
@@ -195,6 +196,8 @@ router.post('/login', async (req, res) => {
           businessType: businessType,
           businessTypes: [businessType],
         });
+
+        await provisionTenantApps(tenant, { save: true });
 
         user = await User.create({
           email: normalizedEmail,

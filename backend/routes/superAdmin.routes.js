@@ -51,6 +51,7 @@ import { sendTenantOnboardingEmail } from '../utils/emailService.js';
 import { buildEmailShell } from '../utils/tenantEmailService.js';
 import whatsappService from '../services/whatsappService.js';
 import { generateTermsPdf } from '../utils/termsPdf.js';
+import { provisionTenantApps, provisionAllTenants, getDefaultInstalledApps } from '../utils/appProvisioning.js';
 
 const router = express.Router();
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000);
@@ -914,6 +915,9 @@ router.post('/tenants', async (req, res) => {
       },
       createdBy: req.user._id
     });
+
+    // Auto-provision core apps for new tenant
+    await provisionTenantApps(tenant, { save: true });
     
     let createdAdminUser = null;
 
@@ -1154,6 +1158,38 @@ router.post('/tenants/:id/resume', async (req, res) => {
 
     await tenant.save();
     res.json(tenant);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/super-admin/tenants/provision-all-apps
+router.post('/tenants/provision-all-apps', async (req, res) => {
+  try {
+    const { overwriteExisting = false } = req.body;
+    const result = await provisionAllTenants({ overwriteExisting });
+    res.json({
+      message: `Successfully provisioned ${result.provisioned} out of ${result.total} tenants`,
+      ...result
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/super-admin/tenants/:id/provision-apps
+router.post('/tenants/:id/provision-apps', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { overwriteExisting = false } = req.body;
+    const tenant = await Tenant.findById(id);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    await provisionTenantApps(tenant, { overwriteExisting, save: true });
+    res.json({
+      message: 'Tenant apps provisioned successfully',
+      tenant: serializeTenantForSuperAdmin(tenant)
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

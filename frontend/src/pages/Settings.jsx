@@ -836,46 +836,68 @@ export default function Settings() {
                   </label>
 
                   {/* Stamp */}
-                  <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-teal-400 dark:hover:border-teal-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
-                    <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
-                      {(stampDataUrl || tenant?.branding?.stampImage) ? (
-                        <img src={stampDataUrl || tenant?.branding?.stampImage} alt="" className="w-full h-full object-contain" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">SEAL</span>
+                  <div className="flex flex-col items-center gap-2">
+                    <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-teal-400 dark:hover:border-teal-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg w-full">
+                      <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
+                        {(stampDataUrl || tenant?.branding?.stampImage) ? (
+                          <img src={stampDataUrl || tenant?.branding?.stampImage} alt="" className="w-full h-full object-contain" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">SEAL</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
                         </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'الختم الرسمي' : 'Official Stamp'}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'يظهر أسفل الفاتورة' : 'Bottom of invoice'}</p>
-                    </div>
-                    <input type="file" accept="image/*" onChange={handleStampFile} className="sr-only" />
-                  </label>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'الختم الرسمي' : 'Official Stamp'}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'يظهر أسفل الفاتورة' : 'Bottom of invoice'}</p>
+                      </div>
+                      <input type="file" accept="image/*" onChange={handleStampFile} className="sr-only" />
+                    </label>
+                    {(stampDataUrl || tenant?.branding?.stampImage) && (
+                      <button
+                        type="button"
+                        onClick={() => setStampDataUrl('')}
+                        className="text-xs text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        {language === 'ar' ? 'إزالة الختم' : 'Remove Stamp'}
+                      </button>
+                    )}
+                  </div>
 
                   {/* Signature */}
-                  <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-blue-400 dark:hover:border-blue-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
-                    <div className="relative w-20 h-12 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
-                      {(signatureDataUrl || tenant?.branding?.signatureImage || tenant?.settings?.invoiceBranding?.signatureImage) ? (
-                        <img src={signatureDataUrl || tenant?.branding?.signatureImage || tenant?.settings?.invoiceBranding?.signatureImage} alt="" className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center">
-                          <span className="text-white text-[10px] font-bold">SIGN</span>
+                  <div className="flex flex-col items-center gap-2">
+                    <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-blue-400 dark:hover:border-blue-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg w-full">
+                      <div className="relative w-20 h-12 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
+                        {(signatureDataUrl || tenant?.branding?.signatureImage || tenant?.settings?.invoiceBranding?.signatureImage) ? (
+                          <img src={signatureDataUrl || tenant?.branding?.signatureImage || tenant?.settings?.invoiceBranding?.signatureImage} alt="" className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center">
+                            <span className="text-white text-[10px] font-bold">SIGN</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
                         </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'التوقيع الرسمي' : 'Official Signature'}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'بجانب الختم' : 'Next to stamp'}</p>
-                    </div>
-                    <input type="file" accept="image/*" onChange={handleSignatureFile} className="sr-only" />
-                  </label>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'التوقيع الرسمي' : 'Official Signature'}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'بجانب الختم' : 'Next to stamp'}</p>
+                      </div>
+                      <input type="file" accept="image/*" onChange={handleSignatureFile} className="sr-only" />
+                    </label>
+                    {(signatureDataUrl || tenant?.branding?.signatureImage || tenant?.settings?.invoiceBranding?.signatureImage) && (
+                      <button
+                        type="button"
+                        onClick={() => setSignatureDataUrl('')}
+                        className="text-xs text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        {language === 'ar' ? 'إزالة التوقيع' : 'Remove Signature'}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex justify-end pt-2">
@@ -886,8 +908,18 @@ export default function Settings() {
                       branding: {
                         ...(tenant?.branding || {}),
                         logo: logoDataUrl || tenant?.branding?.logo || null,
-                        stampImage: stampDataUrl || tenant?.branding?.stampImage || null,
-                        signatureImage: signatureDataUrl || tenant?.branding?.signatureImage || null,
+                        stampImage: stampDataUrl !== undefined ? stampDataUrl : (tenant?.branding?.stampImage || null),
+                        signatureImage: signatureDataUrl !== undefined ? signatureDataUrl : (tenant?.branding?.signatureImage || null),
+                      },
+                      settings: {
+                        ...(tenant?.settings || {}),
+                        invoicePdfTemplate,
+                        invoiceBranding: {
+                          ...(tenant?.settings?.invoiceBranding || {}),
+                          logo: logoDataUrl || tenant?.branding?.logo || null,
+                          stampImage: stampDataUrl !== undefined ? stampDataUrl : (tenant?.branding?.stampImage || null),
+                          signatureImage: signatureDataUrl !== undefined ? signatureDataUrl : (tenant?.branding?.signatureImage || null),
+                        }
                       }
                     })}
                     className="btn btn-primary"
@@ -949,8 +981,8 @@ export default function Settings() {
                                 invoicePdfTemplate,
                                 invoiceBranding: {
                                   logo: invoiceLogoDataUrl || tenant?.settings?.invoiceBranding?.logo || logoDataUrl || tenant?.branding?.logo,
-                                  stampImage: stampDataUrl || tenant?.settings?.invoiceBranding?.stampImage || null,
-                                  signatureImage: signatureDataUrl || tenant?.settings?.invoiceBranding?.signatureImage || null,
+                                  stampImage: stampDataUrl || tenant?.branding?.stampImage || null,
+                                  signatureImage: signatureDataUrl || tenant?.branding?.signatureImage || null,
                                 }
                               }
                             }}
@@ -964,57 +996,25 @@ export default function Settings() {
                   </div>
                 </div>
 
-
-
-                <div className="pt-8 border-t border-gray-100 dark:border-dark-700">
-                  <label className="label flex items-center gap-2 mb-4">{language === 'ar' ? 'الأختام والتواقيع الافتراضية' : 'Preset Stamp & Signature'}</label>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{language === 'ar' ? 'سيتم استخدامها بشكل افتراضي عند إنشاء فواتير وعروض أسعار جديدة.' : 'These will be used by default when creating new invoices and quotations.'}</p>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="card p-5">
-                      <label className="label mb-2 block">{language === 'ar' ? 'التوقيع الافتراضي' : 'Preset Signature'}</label>
-                      <div className="flex items-center gap-4">
-                        <div className="w-24 h-24 border-2 border-dashed border-gray-300 dark:border-dark-500 rounded-xl flex items-center justify-center bg-gray-50 dark:bg-dark-800 overflow-hidden">
-                          {signatureDataUrl ? <img src={signatureDataUrl} alt="Signature" className="w-full h-full object-contain p-2" /> : <Image className="w-6 h-6 text-gray-400" />}
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <input type="file" accept="image/*" onChange={handleSignatureFile} className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100 dark:file:bg-primary-900/20 dark:hover:file:bg-primary-900/40" />
-                          {signatureDataUrl && (
-                            <button type="button" onClick={() => setSignatureDataUrl(null)} className="text-sm text-red-500 hover:text-red-600">{language === 'ar' ? 'إزالة التوقيع' : 'Remove Signature'}</button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="card p-5">
-                      <label className="label mb-2 block">{language === 'ar' ? 'الختم الافتراضي' : 'Preset Stamp'}</label>
-                      <div className="flex items-center gap-4">
-                        <div className="w-24 h-24 border-2 border-dashed border-gray-300 dark:border-dark-500 rounded-xl flex items-center justify-center bg-gray-50 dark:bg-dark-800 overflow-hidden">
-                          {stampDataUrl ? <img src={stampDataUrl} alt="Stamp" className="w-full h-full object-contain p-2" /> : <Image className="w-6 h-6 text-gray-400" />}
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <input type="file" accept="image/*" onChange={handleStampFile} className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100 dark:file:bg-primary-900/20 dark:hover:file:bg-primary-900/40" />
-                          {stampDataUrl && (
-                            <button type="button" onClick={() => setStampDataUrl(null)} className="text-sm text-red-500 hover:text-red-600">{language === 'ar' ? 'إزالة الختم' : 'Remove Stamp'}</button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-dark-700">
                   <button
                     type="button"
                     disabled={updateMutation.isPending}
                     onClick={() => updateMutation.mutate({
+                      branding: {
+                        ...(tenant?.branding || {}),
+                        logo: logoDataUrl || tenant?.branding?.logo || null,
+                        stampImage: stampDataUrl !== undefined ? stampDataUrl : (tenant?.branding?.stampImage || null),
+                        signatureImage: signatureDataUrl !== undefined ? signatureDataUrl : (tenant?.branding?.signatureImage || null),
+                      },
                       settings: {
                         ...(tenant?.settings || {}),
                         invoicePdfTemplate,
                         invoiceBranding: {
                           ...(tenant?.settings?.invoiceBranding || {}),
-                          presetStamp: stampDataUrl,
-                          presetSignature: signatureDataUrl,
+                          logo: logoDataUrl || tenant?.branding?.logo || null,
+                          stampImage: stampDataUrl !== undefined ? stampDataUrl : (tenant?.branding?.stampImage || null),
+                          signatureImage: signatureDataUrl !== undefined ? signatureDataUrl : (tenant?.branding?.signatureImage || null),
                         }
                       }
                     })}

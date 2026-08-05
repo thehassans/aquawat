@@ -183,31 +183,17 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
           </div>
         </div>
 
-        {(invoiceBranding.stampImage || invoiceBranding.signatureImage) && (
-          <div className="flex justify-end gap-12 mb-16 pr-8">
-            {invoiceBranding.signatureImage && (
-              <div className="flex flex-col items-center">
-                <img src={invoiceBranding.signatureImage} alt="Signature" className="max-h-24 object-contain mix-blend-multiply" />
-              </div>
-            )}
-            {invoiceBranding.stampImage && (
-              <div className="flex flex-col items-center">
-                <img src={invoiceBranding.stampImage} alt="Stamp" className="max-h-24 object-contain mix-blend-multiply" />
-              </div>
-            )}
-          </div>
-        )}
+        {/* Document Extras & Unified Signatory */}
+        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} />
 
         {/* Footer */}
-        <div className="text-center">
+        <div className="text-center mt-10">
           <div className="w-12 h-[1px] bg-slate-300 mx-auto mb-6"></div>
           <p className="text-[10px] font-sans text-slate-400 tracking-[0.2em] uppercase">
             {invoiceBranding.footerText || 'Thank you for your business'}
           </p>
         </div>
       </div>
-    
-      <DocumentExtras invoice={invoice} language={language} bilingual={bilingual} />
     </div>
   )
 }
