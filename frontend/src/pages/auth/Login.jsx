@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
-import { Eye, EyeOff, Loader2, Mail, Lock, ArrowRight, Shield, Zap, Globe, Phone, MessageCircle, ChevronDown } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Mail, Lock, ArrowRight, Shield, Zap, Globe, Phone, MessageCircle, ChevronDown, RefreshCw } from 'lucide-react'
 import { login, clearError } from '../../store/slices/authSlice'
 import { setLanguage } from '../../store/slices/uiSlice'
 import { useTranslation } from '../../lib/translations'
@@ -627,6 +627,26 @@ export default function Login() {
                   <img src={logo.src} alt={logo.alt} className={`max-h-full max-w-full object-contain ${logo.imageClassName}`} />
                 </div>
               ))}
+            </div>
+
+            {/* Premium Cache Refresh Button */}
+            <div className="mt-8 flex justify-center">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(key => caches.delete(key)));
+                    window.location.reload(true);
+                  } catch (e) {
+                    window.location.reload(true);
+                  }
+                }}
+                className="group flex items-center gap-2 px-4 py-2 rounded-full border border-gray-100 bg-gray-50/50 text-xs font-medium text-gray-400 hover:text-gray-900 hover:bg-gray-100 hover:border-gray-200 transition-all duration-300 shadow-sm hover:shadow"
+              >
+                <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500" />
+                {language === 'ar' ? 'تحديث النظام (مسح التخزين المؤقت)' : 'Clear Cache & Reload'}
+              </button>
             </div>
           </div>
         </motion.div>
