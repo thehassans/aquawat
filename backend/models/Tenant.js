@@ -593,6 +593,8 @@ const tenantSchema = new mongoose.Schema({
   },
   branding: {
     logo: { type: String },
+    stampImage: { type: String },
+    signatureImage: { type: String },
     primaryColor: { type: String, default: '#14B8A6' },
     secondaryColor: { type: String, default: '#D946EF' },
     headerStyle: { type: String, enum: ['glass', 'solid'], default: 'glass' },

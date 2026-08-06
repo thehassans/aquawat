@@ -8,7 +8,7 @@ import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import { setLanguage, setTheme, setHideSidebar, setHiddenMenuItems, setHiddenMenuItemsForTenant, toggleHiddenMenuItemForTenant, setDisplayMode, setNavigationStyle } from '../store/slices/uiSlice'
-import { updateTenant } from '../store/slices/authSlice'
+import { updateTenant, getMe } from '../store/slices/authSlice'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getInvoiceBrandingProfile, getInvoiceTemplateId, getInvoiceTypography, INVOICE_FONT_OPTIONS } from '../lib/invoiceBranding'
 import { invoiceTemplateOptions } from '../lib/invoiceTemplates'
@@ -437,6 +437,7 @@ export default function Settings() {
         dispatch(updateTenant(updated))
       }
       queryClient.invalidateQueries(['tenant-settings'])
+      dispatch(getMe())
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error saving')
   })
@@ -452,7 +453,10 @@ export default function Settings() {
   }
 
   const handleLogoFile = (e) => {
-    applyImageFile(e.target.files?.[0], setLogoDataUrl)
+    applyImageFile(e.target.files?.[0], (result) => {
+      setLogoDataUrl(result)
+      setInvoiceLogoDataUrl(result)
+    })
   }
 
   const handleInvoiceLogoFile = (e) => {
@@ -561,7 +565,7 @@ export default function Settings() {
                   logo: logoDataUrl || tenant?.branding?.logo || null,
                 },
               }))} className="space-y-4">
-                <fieldset disabled={user?.role !== 'superadmin'} className="space-y-4">
+                <fieldset disabled={user?.role !== 'super_admin' && user?.role !== 'superadmin' && user?.role !== 'admin'} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="label">{language === 'ar' ? 'الاسم القانوني (EN)' : 'Legal Name (EN)'}</label>
@@ -780,7 +784,7 @@ export default function Settings() {
                 </div>
 
                 </fieldset>
-                {user?.role === 'superadmin' && (
+                {(user?.role === 'super_admin' || user?.role === 'superadmin' || user?.role === 'admin') && (
                   <div className="flex justify-end pt-4">
                     <button type="submit" disabled={updateMutation.isPending} className="btn btn-primary">
                       {updateMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Save className="w-4 h-4" />{t('save')}</>}
@@ -815,25 +819,39 @@ export default function Settings() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* Logo */}
-                  <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-primary-400 dark:hover:border-primary-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg">
-                    <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
-                      {(logoDataUrl || tenant?.branding?.logo) ? (
-                        <img src={logoDataUrl || tenant?.branding?.logo} alt="" className="w-full h-full object-contain" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
-                          <Image className="w-6 h-6 text-white" />
+                  <div className="flex flex-col items-center gap-2">
+                    <label className="relative group cursor-pointer flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-dark-600 hover:border-primary-400 dark:hover:border-primary-500 bg-gray-50 dark:bg-dark-800/50 transition-all duration-200 hover:shadow-lg w-full">
+                      <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-white dark:bg-dark-700 shadow-md border border-gray-100 dark:border-dark-600 flex items-center justify-center">
+                        {(logoDataUrl || tenant?.branding?.logo) ? (
+                          <img src={logoDataUrl || tenant?.branding?.logo} alt="" className="w-full h-full object-contain" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
+                            <Image className="w-6 h-6 text-white" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
                         </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Change</span>
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'شعار لوحة الإدارة' : 'Admin Logo'}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'الشريط الجانبي وترويسة الفاتورة' : 'Sidebar & invoice header'}</p>
-                    </div>
-                    <input type="file" accept="image/*" onChange={handleLogoFile} className="sr-only" />
-                  </label>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{language === 'ar' ? 'شعار لوحة الإدارة' : 'Admin Logo'}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{language === 'ar' ? 'الشريط الجانبي وترويسة الفاتورة' : 'Sidebar & invoice header'}</p>
+                      </div>
+                      <input type="file" accept="image/*" onChange={handleLogoFile} className="sr-only" />
+                    </label>
+                    {(logoDataUrl || tenant?.branding?.logo) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLogoDataUrl('')
+                          setInvoiceLogoDataUrl('')
+                        }}
+                        className="text-xs text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        {language === 'ar' ? 'إزالة الشعار' : 'Remove Logo'}
+                      </button>
+                    )}
+                  </div>
 
                   {/* Stamp */}
                   <div className="flex flex-col items-center gap-2">
@@ -1352,7 +1370,9 @@ export default function Settings() {
                         invoiceCurrencyPosition,
                         invoiceBranding: {
                           ...(tenant?.settings?.invoiceBranding || {}),
-                          logo: invoiceLogoDataUrl || tenant?.settings?.invoiceBranding?.logo || tenant?.branding?.logo || null,
+                          logo: logoDataUrl !== undefined ? (logoDataUrl || null) : (invoiceLogoDataUrl || tenant?.settings?.invoiceBranding?.logo || tenant?.branding?.logo || null),
+                          stampImage: stampDataUrl !== undefined ? (stampDataUrl || null) : (tenant?.settings?.invoiceBranding?.stampImage || tenant?.branding?.stampImage || null),
+                          signatureImage: signatureDataUrl !== undefined ? (signatureDataUrl || null) : (tenant?.settings?.invoiceBranding?.signatureImage || tenant?.branding?.signatureImage || null),
                           headerTextEn: invoiceHeaderTextEn,
                           headerTextAr: invoiceHeaderTextAr,
                           footerTextEn: invoiceFooterTextEn,
@@ -1385,7 +1405,9 @@ export default function Settings() {
                         secondaryColor,
                         headerStyle,
                         sidebarStyle,
-                        logo: logoDataUrl || tenant?.branding?.logo
+                        logo: logoDataUrl !== undefined ? (logoDataUrl || null) : (tenant?.branding?.logo || null),
+                        stampImage: stampDataUrl !== undefined ? (stampDataUrl || null) : (tenant?.branding?.stampImage || null),
+                        signatureImage: signatureDataUrl !== undefined ? (signatureDataUrl || null) : (tenant?.branding?.signatureImage || null),
                       }
                     })}
                     className="btn btn-primary"

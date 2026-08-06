@@ -107,12 +107,12 @@ export const protect = async (req, res, next) => {
 
 export const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ 
-        error: `Role ${req.user.role} is not authorized to access this route` 
-      });
+    if (req.user.role === 'super_admin' || roles.includes(req.user.role)) {
+      return next();
     }
-    next();
+    return res.status(403).json({ 
+      error: `Role ${req.user.role} is not authorized to access this route` 
+    });
   };
 };
 

@@ -129,9 +129,9 @@ export default function Sidebar() {
       {/* Tenant Info */}
       {!sidebarCollapsed && tenant && (
         <div className="px-6 py-6 border-b border-gray-100 dark:border-dark-700 flex flex-col items-center text-center">
-          {tenant?.branding?.logo ? (
+          {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
             <div className="w-full h-20 mb-5 flex items-center justify-center">
-              <img src={tenant.branding.logo} alt="Company Logo" className="max-h-full max-w-[85%] object-contain dark:mix-blend-normal" />
+              <img src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo} alt="Company Logo" className="max-h-full max-w-[85%] object-contain dark:mix-blend-normal" />
             </div>
           ) : (
             <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-white flex items-center justify-center font-light text-2xl mb-4">

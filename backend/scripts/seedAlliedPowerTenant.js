@@ -213,7 +213,28 @@ async function runSeed(shouldDisconnect = false) {
     tenant = await Tenant.create(tenantData);
     console.log('✅ Created Tenant:', tenant.name, `(ID: ${tenant._id})`);
   } else {
+    // Preserve existing branding & custom invoice branding if present
+    const existingBranding = tenant.branding?.toObject?.() || tenant.branding || {};
+    const existingSettings = tenant.settings?.toObject?.() || tenant.settings || {};
+    const existingInvoiceBranding = existingSettings.invoiceBranding || {};
+
     Object.assign(tenant, tenantData);
+
+    tenant.branding = {
+      ...existingBranding,
+      ...(tenant.branding?.toObject?.() || tenant.branding || {})
+    };
+    tenant.settings = {
+      ...tenant.settings,
+      ...existingSettings,
+      invoiceBranding: {
+        ...tenantData.settings.invoiceBranding,
+        ...existingInvoiceBranding,
+      }
+    };
+
+    tenant.markModified('branding');
+    tenant.markModified('settings');
     await tenant.save();
     console.log('✅ Updated Tenant:', tenant.name, `(ID: ${tenant._id})`);
   }

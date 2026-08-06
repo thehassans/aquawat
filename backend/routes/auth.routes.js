@@ -311,11 +311,15 @@ router.get('/me', protect, async (req, res) => {
       return res.status(401).json({ error: 'Session expired' });
     }
 
-    const tenant = req.tenant
-      ? serializeAuthTenant(req.tenant)
-      : (user.tenantId
-        ? serializeAuthTenant(await withQueryTimeout(Tenant.findById(user.tenantId).select(authTenantSelect).lean()))
-        : null);
+    const requestedTenantId = user.tenantId || req.headers['x-tenant-id'] || null;
+
+    let tenant = req.tenant ? serializeAuthTenant(req.tenant) : null;
+    if (!tenant && requestedTenantId) {
+      const foundTenant = await withQueryTimeout(Tenant.findById(requestedTenantId).select(authTenantSelect).lean());
+      if (foundTenant) {
+        tenant = serializeAuthTenant(foundTenant);
+      }
+    }
 
     res.json({
       user: {

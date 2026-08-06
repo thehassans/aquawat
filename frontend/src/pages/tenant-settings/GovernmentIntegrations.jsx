@@ -549,7 +549,7 @@ export default function GovernmentIntegrations() {
         {/* MAIN CONFIGURATION FORMS */}
         <div className="lg:col-span-3">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <fieldset disabled={user?.role !== 'superadmin'} className="space-y-6">
+            <fieldset disabled={user?.role !== 'super_admin' && user?.role !== 'superadmin' && user?.role !== 'admin'} className="space-y-6">
             {/* TAB CONTENT: ZATCA */}
             {activeTab === 'zatca' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card p-6 space-y-6">
@@ -1397,7 +1397,7 @@ export default function GovernmentIntegrations() {
 
             </fieldset>
             {/* FORM FOOTER ACTIONS */}
-            {user?.role === 'superadmin' && (
+            {(user?.role === 'super_admin' || user?.role === 'superadmin' || user?.role === 'admin') && (
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-dark-750">
                 <button
                   type="submit"

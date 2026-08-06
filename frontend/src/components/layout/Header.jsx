@@ -310,9 +310,9 @@ export default function Header() {
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">{user?.name}</p>
               </div>
-              {tenant?.branding?.logo ? (
+              {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
                 <img 
-                  src={tenant.branding.logo} 
+                  src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo} 
                   alt="Tenant Logo" 
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain bg-white dark:bg-white/10 p-1 shadow-sm ring-2 ring-transparent group-hover:ring-gray-200 dark:group-hover:ring-white/20 transition-all"
                 />

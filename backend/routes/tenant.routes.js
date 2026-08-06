@@ -29,14 +29,22 @@ const router = express.Router();
 
 router.use(protect);
 
+const resolveTenantId = (req) => {
+  return req.tenantFilter?.tenantId || req.user?.tenantId || req.headers['x-tenant-id'] || null;
+};
+
 // @route   GET /api/tenants/current
 router.get('/current', async (req, res) => {
   try {
-    if (!req.user.tenantId) {
+    const tenantId = resolveTenantId(req);
+    if (!tenantId) {
       return res.status(404).json({ error: 'No tenant associated with user' });
     }
     
-    const tenant = await Tenant.findById(req.user.tenantId);
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
     res.json(tenant);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -102,7 +110,12 @@ router.put('/current', authorize('admin'), async (req, res) => {
   try {
     const { business, settings, branding, businessType, businessTypes } = req.body;
     
-    const tenant = await Tenant.findById(req.user.tenantId);
+    const tenantId = resolveTenantId(req);
+    if (!tenantId) {
+      return res.status(404).json({ error: 'No tenant associated with user' });
+    }
+
+    const tenant = await Tenant.findById(tenantId);
     if (!tenant) {
       return res.status(404).json({ error: 'Tenant not found' });
     }
@@ -195,6 +208,25 @@ router.put('/current', authorize('admin'), async (req, res) => {
     
     if (branding) {
       tenant.branding = { ...tenant.branding?.toObject?.() || tenant.branding || {}, ...branding };
+      // Keep invoiceBranding logo and stamp/signature in sync with branding if provided
+      if (branding.logo !== undefined) {
+        if (!tenant.settings) tenant.settings = {};
+        if (!tenant.settings.invoiceBranding) tenant.settings.invoiceBranding = {};
+        tenant.settings.invoiceBranding.logo = branding.logo;
+      }
+      if (branding.stampImage !== undefined) {
+        if (!tenant.settings) tenant.settings = {};
+        if (!tenant.settings.invoiceBranding) tenant.settings.invoiceBranding = {};
+        tenant.settings.invoiceBranding.stampImage = branding.stampImage;
+      }
+      if (branding.signatureImage !== undefined) {
+        if (!tenant.settings) tenant.settings = {};
+        if (!tenant.settings.invoiceBranding) tenant.settings.invoiceBranding = {};
+        tenant.settings.invoiceBranding.signatureImage = branding.signatureImage;
+      }
+    } else if (settings?.invoiceBranding?.logo !== undefined) {
+      if (!tenant.branding) tenant.branding = {};
+      tenant.branding.logo = settings.invoiceBranding.logo;
     }
 
     if (businessType || businessTypes) {

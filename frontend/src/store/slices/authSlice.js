@@ -208,7 +208,11 @@ const authSlice = createSlice({
         state.isLoading = false
         state.isAuthenticated = true
         state.user = action.payload.user
-        state.tenant = action.payload.tenant
+        if (action.payload.tenant) {
+          state.tenant = action.payload.tenant
+        } else if (action.payload.user?.role !== 'super_admin') {
+          state.tenant = null
+        }
       })
       .addCase(getMe.rejected, (state, action) => {
         state.isLoading = false
