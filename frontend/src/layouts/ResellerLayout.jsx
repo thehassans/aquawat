@@ -5,7 +5,7 @@ import { logout } from '../store/slices/authSlice'
 import { setTheme, setLanguage } from '../store/slices/uiSlice'
 import { useTranslation } from '../lib/translations'
 import { Building2, LogOut, Moon, Sun, Globe, LayoutDashboard, Users, Settings } from 'lucide-react'
-import LoadingScreen from '../components/ui/LoadingScreen'
+import PageLoader from '../components/ui/PageLoader'
 
 export default function ResellerLayout() {
   const dispatch = useDispatch()
@@ -75,7 +75,7 @@ export default function ResellerLayout() {
       </header>
 
       <main className="p-6">
-        <Suspense fallback={<LoadingScreen />}>
+        <Suspense fallback={<PageLoader />}>
           <Outlet />
         </Suspense>
       </main>

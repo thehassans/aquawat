@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import Sidebar from '../components/layout/Sidebar'
 import Header from '../components/layout/Header'
 import AppLauncher from '../components/layout/AppLauncher'
-import LoadingScreen from '../components/ui/LoadingScreen'
+import PageLoader from '../components/ui/PageLoader'
 import { setHideSidebar } from '../store/slices/uiSlice'
 import { PanelLeft } from 'lucide-react'
 
@@ -36,7 +36,7 @@ export default function LaundryLayout() {
         >
           <Header />
           <main className="p-4 lg:p-6">
-            <Suspense fallback={<LoadingScreen />}>
+            <Suspense fallback={<PageLoader />}>
               <Outlet />
             </Suspense>
           </main>

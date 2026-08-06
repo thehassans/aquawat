@@ -301,7 +301,7 @@ const Letterhead = lazy(() => import('./pages/Letterhead'))
 const PublicMenu = lazy(() => import('./pages/public/PublicMenu'))
 const PublicServices = lazy(() => import('./pages/public/PublicServices'))
 
-import LoadingScreen from './components/ui/LoadingScreen'
+import PageLoader from './components/ui/PageLoader'
 
 function LegacyDashboardRedirect() {
   const location = useLocation()
@@ -321,8 +321,8 @@ function ProtectedRoute({ children, allowedRoles, redirectSuperAdmin }) {
   // No token = not logged in, redirect immediately (no loading)
   if (!token) return <Navigate to="/login" replace />
   
-  // Has token but still verifying - show brief loading only if not yet authenticated
-  if (isLoading && !isAuthenticated) return <LoadingScreen />
+  // Has token but still verifying initial cold start
+  if (isLoading && !isAuthenticated) return <PageLoader />
   
   if (!isAuthenticated) return <Navigate to="/login" replace />
   
@@ -443,7 +443,7 @@ function App() {
   return (
     <Routes>
       {/* Public Marketing Website */}
-      <Route path="/" element={<Suspense fallback={<LoadingScreen />}><MarketingLayout /></Suspense>}>
+      <Route path="/" element={<Suspense fallback={<PageLoader />}><MarketingLayout /></Suspense>}>
         <Route index element={<MarketingHome />} />
         <Route path="solutions" element={<MarketingSolutions />} />
         <Route path="solutions/:slug" element={<SolutionDetail />} />
@@ -455,13 +455,13 @@ function App() {
       </Route>
 
       {/* Public Application Routes */}
-      <Route path="/public/menu" element={<Suspense fallback={<LoadingScreen />}><PublicMenu /></Suspense>} />
-      <Route path="/public/services" element={<Suspense fallback={<LoadingScreen />}><PublicServices /></Suspense>} />
-      <Route path="/payment-result" element={<Suspense fallback={<LoadingScreen />}><PaymentResult /></Suspense>} />
-      <Route path="/demo-checkout" element={<Suspense fallback={<LoadingScreen />}><DemoCheckout /></Suspense>} />
+      <Route path="/public/menu" element={<Suspense fallback={<PageLoader />}><PublicMenu /></Suspense>} />
+      <Route path="/public/services" element={<Suspense fallback={<PageLoader />}><PublicServices /></Suspense>} />
+      <Route path="/payment-result" element={<Suspense fallback={<PageLoader />}><PaymentResult /></Suspense>} />
+      <Route path="/demo-checkout" element={<Suspense fallback={<PageLoader />}><DemoCheckout /></Suspense>} />
 
       {/* Auth Routes */}
-      <Route element={<Suspense fallback={<LoadingScreen />}><AuthLayout /></Suspense>}>
+      <Route element={<Suspense fallback={<PageLoader />}><AuthLayout /></Suspense>}>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/inactive" element={<InactiveTenant />} />
@@ -498,7 +498,7 @@ function App() {
         path="/super-admin"
         element={
           <ProtectedRoute allowedRoles={['super_admin']}>
-            <Suspense fallback={<LoadingScreen />}><SuperAdminLayout /></Suspense>
+            <Suspense fallback={<PageLoader />}><SuperAdminLayout /></Suspense>
           </ProtectedRoute>
         }
       >
@@ -534,7 +534,7 @@ function App() {
         path="/reseller"
         element={
           <ProtectedRoute allowedRoles={['reseller']}>
-            <Suspense fallback={<LoadingScreen />}><ResellerLayout /></Suspense>
+            <Suspense fallback={<PageLoader />}><ResellerLayout /></Suspense>
           </ProtectedRoute>
         }
       >
@@ -549,7 +549,7 @@ function App() {
         path="/app/dashboard"
         element={
           <ProtectedRoute redirectSuperAdmin>
-            <Suspense fallback={<LoadingScreen />}><MainLayout /></Suspense>
+            <Suspense fallback={<PageLoader />}><MainLayout /></Suspense>
           </ProtectedRoute>
         }
       >
@@ -819,7 +819,7 @@ function App() {
         element={
           <ProtectedRoute redirectSuperAdmin>
             <BusinessTypeRoute allowedTypes={['car_rental']}>
-              <Suspense fallback={<LoadingScreen />}><CarRentalLayout /></Suspense>
+              <Suspense fallback={<PageLoader />}><CarRentalLayout /></Suspense>
             </BusinessTypeRoute>
           </ProtectedRoute>
         }
@@ -848,7 +848,7 @@ function App() {
         element={
           <ProtectedRoute redirectSuperAdmin>
             <BusinessTypeRoute allowedTypes={['car_workshop']}>
-              <Suspense fallback={<LoadingScreen />}><WorkshopLayout /></Suspense>
+              <Suspense fallback={<PageLoader />}><WorkshopLayout /></Suspense>
             </BusinessTypeRoute>
           </ProtectedRoute>
         }
@@ -865,7 +865,7 @@ function App() {
         element={
           <ProtectedRoute redirectSuperAdmin>
             <BusinessTypeRoute allowedTypes={['laundry']}>
-              <Suspense fallback={<LoadingScreen />}><LaundryLayout /></Suspense>
+              <Suspense fallback={<PageLoader />}><LaundryLayout /></Suspense>
             </BusinessTypeRoute>
           </ProtectedRoute>
         }
@@ -883,7 +883,7 @@ function App() {
         element={
           <ProtectedRoute redirectSuperAdmin>
             <BusinessTypeRoute allowedTypes={['saloon']}>
-              <Suspense fallback={<LoadingScreen />}><SaloonLayout /></Suspense>
+              <Suspense fallback={<PageLoader />}><SaloonLayout /></Suspense>
             </BusinessTypeRoute>
           </ProtectedRoute>
         }
@@ -898,24 +898,24 @@ function App() {
       </Route>
 
       {/* ───── Public Storefront ───── */}
-      <Route path="/store" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontHome /></StorefrontShell></Suspense>} />
-      <Route path="/store/products" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontProducts /></StorefrontShell></Suspense>} />
-      <Route path="/store/category/:slug" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontCategory /></StorefrontShell></Suspense>} />
-      <Route path="/store/products/:id" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontProductDetail /></StorefrontShell></Suspense>} />
-      <Route path="/store/checkout" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontCheckout /></StorefrontShell></Suspense>} />
-      <Route path="/store/wishlist" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontWishlist /></StorefrontShell></Suspense>} />
-      <Route path="/store/compare" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontCompare /></StorefrontShell></Suspense>} />
-      <Route path="/store/account" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontAccount /></StorefrontShell></Suspense>} />
-      <Route path="/store/contact" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontContact /></StorefrontShell></Suspense>} />
-      <Route path="/store/faq" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontFAQ /></StorefrontShell></Suspense>} />
-      <Route path="/store/about" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontAbout /></StorefrontShell></Suspense>} />
-      <Route path="/store/shipping-policy" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontShippingPolicy /></StorefrontShell></Suspense>} />
-      <Route path="/store/track-order" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontOrderTracking /></StorefrontShell></Suspense>} />
-      <Route path="/store/returns" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontReturnRequest /></StorefrontShell></Suspense>} />
-      <Route path="/store/privacy" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontPrivacy /></StorefrontShell></Suspense>} />
-      <Route path="/store/terms" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontTerms /></StorefrontShell></Suspense>} />
-      <Route path="/checkout/success" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontCheckoutSuccess /></StorefrontShell></Suspense>} />
-      <Route path="/checkout/cancel" element={<Suspense fallback={<LoadingScreen />}><StorefrontShell><StorefrontCheckoutCancel /></StorefrontShell></Suspense>} />
+      <Route path="/store" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontHome /></StorefrontShell></Suspense>} />
+      <Route path="/store/products" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontProducts /></StorefrontShell></Suspense>} />
+      <Route path="/store/category/:slug" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontCategory /></StorefrontShell></Suspense>} />
+      <Route path="/store/products/:id" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontProductDetail /></StorefrontShell></Suspense>} />
+      <Route path="/store/checkout" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontCheckout /></StorefrontShell></Suspense>} />
+      <Route path="/store/wishlist" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontWishlist /></StorefrontShell></Suspense>} />
+      <Route path="/store/compare" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontCompare /></StorefrontShell></Suspense>} />
+      <Route path="/store/account" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontAccount /></StorefrontShell></Suspense>} />
+      <Route path="/store/contact" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontContact /></StorefrontShell></Suspense>} />
+      <Route path="/store/faq" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontFAQ /></StorefrontShell></Suspense>} />
+      <Route path="/store/about" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontAbout /></StorefrontShell></Suspense>} />
+      <Route path="/store/shipping-policy" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontShippingPolicy /></StorefrontShell></Suspense>} />
+      <Route path="/store/track-order" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontOrderTracking /></StorefrontShell></Suspense>} />
+      <Route path="/store/returns" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontReturnRequest /></StorefrontShell></Suspense>} />
+      <Route path="/store/privacy" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontPrivacy /></StorefrontShell></Suspense>} />
+      <Route path="/store/terms" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontTerms /></StorefrontShell></Suspense>} />
+      <Route path="/checkout/success" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontCheckoutSuccess /></StorefrontShell></Suspense>} />
+      <Route path="/checkout/cancel" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontCheckoutCancel /></StorefrontShell></Suspense>} />
 
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />

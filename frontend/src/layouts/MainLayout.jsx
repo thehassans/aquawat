@@ -1,16 +1,17 @@
-import { Outlet, Navigate, useLocation } from 'react-router-dom'
-import { Suspense } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
+import { Suspense, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import Sidebar from '../components/layout/Sidebar'
 import Header from '../components/layout/Header'
 import AppLauncher from '../components/layout/AppLauncher'
 import OfflineBanner from '../components/ui/OfflineBanner'
-import LoadingScreen from '../components/ui/LoadingScreen'
+import PageLoader from '../components/ui/PageLoader'
 import TerminationBanner, { TerminationBlocker, InactiveBlocker, isTenantTerminated, isTenantInactive } from '../components/ui/TerminationBanner'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
 import { setHideSidebar } from '../store/slices/uiSlice'
 import { PanelLeft } from 'lucide-react'
 import { useOfflineSync } from '../hooks/useOfflineSync'
+import { preloadCriticalRoutes } from '../lib/routePreloader'
 
 export default function MainLayout() {
   useOfflineSync()
@@ -18,6 +19,11 @@ export default function MainLayout() {
   const dispatch = useDispatch()
   const { tenant } = useSelector((state) => state.auth)
   const location = useLocation()
+
+  // Preload common route chunks in idle background for instant subsequent transitions
+  useEffect(() => {
+    preloadCriticalRoutes()
+  }, [])
 
   const businessTypes = getTenantBusinessTypes(tenant)
 
@@ -52,14 +58,14 @@ export default function MainLayout() {
             !isSidebarVisible ? '' : (sidebarCollapsed ? 'lg:ms-20' : 'lg:ms-72')
           }`}
         >
-        <TerminationBanner />
-        <Header />
-        <main className="p-4 lg:p-6">
-          <Suspense fallback={<LoadingScreen />}>
-            <Outlet />
-          </Suspense>
-        </main>
-      </div>
+          <TerminationBanner />
+          <Header />
+          <main className="p-4 lg:p-6">
+            <Suspense fallback={<PageLoader />}>
+              <Outlet />
+            </Suspense>
+          </main>
+        </div>
       </div>
     </div>
   )

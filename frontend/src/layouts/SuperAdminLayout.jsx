@@ -25,7 +25,7 @@ import {
 import { logout } from '../store/slices/authSlice'
 import { setTheme, setLanguage } from '../store/slices/uiSlice'
 import { useTranslation } from '../lib/translations'
-import LoadingScreen from '../components/ui/LoadingScreen'
+import PageLoader from '../components/ui/PageLoader'
 
 export default function SuperAdminLayout() {
   const dispatch = useDispatch()
@@ -155,7 +155,7 @@ export default function SuperAdminLayout() {
 
       {/* Main Content */}
       <main className="p-6">
-        <Suspense fallback={<LoadingScreen />}>
+        <Suspense fallback={<PageLoader />}>
           <Outlet />
         </Suspense>
       </main>

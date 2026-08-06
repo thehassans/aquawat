@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from '../../lib/translations'
 import api, { getImageUrl } from '../../lib/api'
-import LoadingScreen from '../../components/ui/LoadingScreen'
+import PageLoader from '../../components/ui/PageLoader'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   UtensilsCrossed,
@@ -243,7 +243,7 @@ export default function PublicMenu() {
     }
   }
 
-  if (loading) return <LoadingScreen />
+  if (loading) return <div className="p-6 max-w-4xl mx-auto"><PageLoader /></div>
 
   if (error) {
     return (

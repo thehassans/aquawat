@@ -1,11 +1,11 @@
-﻿import { Outlet, Link, useLocation } from 'react-router-dom'
+import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useMemo, useState, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Globe, Menu, X, Phone, Mail, MapPin } from 'lucide-react'
 import { useSelector, useDispatch } from 'react-redux'
 import { setLanguage } from '../store/slices/uiSlice'
 import { usePublicWebsiteSettings } from '../lib/website'
-import LoadingScreen from '../components/ui/LoadingScreen'
+import PageLoader from '../components/ui/PageLoader'
 
 function WhatsAppIcon({ className }) {
   return (
@@ -144,7 +144,7 @@ export default function MarketingLayout() {
         </AnimatePresence>
       </header>
 
-      <Suspense fallback={<LoadingScreen />}>
+      <Suspense fallback={<PageLoader />}>
         <Outlet />
       </Suspense>
 

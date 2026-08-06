@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from '../../lib/translations'
 import api from '../../lib/api'
-import LoadingScreen from '../../components/ui/LoadingScreen'
+import PageLoader from '../../components/ui/PageLoader'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Scissors, Globe, Search, Info, Clock } from 'lucide-react'
 
@@ -62,7 +62,7 @@ export default function PublicServices() {
     })
   }, [data, activeCategory, searchQuery])
 
-  if (loading) return <LoadingScreen />
+  if (loading) return <div className="p-6 max-w-4xl mx-auto"><PageLoader /></div>
 
   if (error) {
     return (
