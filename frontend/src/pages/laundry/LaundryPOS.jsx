@@ -19,11 +19,13 @@ import {
 import { toast } from 'react-hot-toast'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import CardPaymentModal from '../../components/pos/CardPaymentModal'
+import { getThermalPrinterSettings, printThermalElement } from '../../lib/thermalPrinter'
 
 export default function LaundryPOS() {
   const dispatch = useDispatch()
   const { language } = useSelector(state => state.ui)
   const { tenant } = useSelector(state => state.auth)
+  const thermalSettings = getThermalPrinterSettings(tenant)
   const cart = useSelector(state => state.laundryCart)
   const isRtl = language === 'ar'
   const cardTerminalEnabled = Boolean(tenant?.settings?.posTerminal?.enabled)
@@ -59,7 +61,7 @@ export default function LaundryPOS() {
 
   const handlePrint = () => {
     if (receiptRef.current) {
-      window.print()
+      printThermalElement(receiptRef.current, thermalSettings)
     }
   }
 

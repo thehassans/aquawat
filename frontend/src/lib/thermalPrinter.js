@@ -191,6 +191,157 @@ export function getReceiptStyle(settings) {
 }
 
 /**
+ * Print a thermal receipt element or HTML in a dedicated, isolated iframe.
+ * Avoids all SPA/Tailwind/overflow/modal clipping issues that cause blank white pages.
+ * 
+ * @param {HTMLElement|string} elementOrHtml - The DOM element or HTML string to print.
+ * @param {object} [settings] - Optional thermal settings (e.g. paperWidth: 80).
+ * @returns {Promise<boolean>}
+ */
+export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SETTINGS) {
+  return new Promise((resolve) => {
+    try {
+      const paperWidth = settings.paperWidth ? `${settings.paperWidth}mm` : '80mm';
+      const padding = settings.padding ? `${settings.padding}mm` : '3mm';
+      const fontSize = settings.fontSize || 11;
+      const lineHeight = settings.lineHeight || 1.35;
+
+      let contentHtml = '';
+      if (typeof elementOrHtml === 'string') {
+        contentHtml = elementOrHtml;
+      } else if (elementOrHtml && elementOrHtml.outerHTML) {
+        contentHtml = elementOrHtml.outerHTML;
+      } else {
+        // Fallback to window.print if no element
+        window.print();
+        resolve(true);
+        return;
+      }
+
+      // Remove any existing print iframes
+      const existingIframe = document.getElementById('maqder-thermal-print-frame');
+      if (existingIframe) {
+        try { document.body.removeChild(existingIframe); } catch (_) {}
+      }
+
+      // Create isolated invisible iframe
+      const iframe = document.createElement('iframe');
+      iframe.id = 'maqder-thermal-print-frame';
+      iframe.setAttribute('style', 'position: fixed; top: -9999px; left: -9999px; width: 0; height: 0; border: 0; visibility: hidden;');
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document || iframe.contentDocument;
+      if (!doc) {
+        window.print();
+        resolve(true);
+        return;
+      }
+
+      // Collect head styles from parent document for full Tailwind & font fidelity
+      let parentStyles = '';
+      try {
+        document.querySelectorAll('style, link[rel="stylesheet"]').forEach(node => {
+          parentStyles += node.outerHTML;
+        });
+      } catch (_) {}
+
+      const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Receipt</title>
+  ${parentStyles}
+  <style>
+    @page {
+      size: ${paperWidth} auto;
+      margin: 0mm !important;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      color: #000000 !important;
+      width: ${paperWidth} !important;
+      max-width: ${paperWidth} !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', Courier, monospace, 'Cairo', sans-serif !important;
+      font-size: ${fontSize}px !important;
+      line-height: ${lineHeight} !important;
+    }
+    .print-section {
+      width: ${paperWidth} !important;
+      max-width: ${paperWidth} !important;
+      padding: ${padding} !important;
+      margin: 0 auto !important;
+      background: #ffffff !important;
+      color: #000000 !important;
+      border: none !important;
+      box-shadow: none !important;
+      display: block !important;
+      visibility: visible !important;
+      position: static !important;
+    }
+    table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+    }
+    img {
+      max-width: 100% !important;
+      height: auto !important;
+    }
+    svg {
+      display: block !important;
+      margin: 0 auto !important;
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background: #fff; color: #000; width: ${paperWidth};">
+  ${contentHtml}
+</body>
+</html>`;
+
+      doc.open();
+      doc.write(fullHtml);
+      doc.close();
+
+      const triggerIframePrint = () => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          setTimeout(() => {
+            try {
+              if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+              }
+            } catch (_) {}
+            resolve(true);
+          }, 3000);
+        } catch (e) {
+          console.error('Iframe print failed, falling back to window.print:', e);
+          window.print();
+          resolve(true);
+        }
+      };
+
+      if (iframe.contentDocument?.readyState === 'complete') {
+        setTimeout(triggerIframePrint, 250);
+      } else {
+        iframe.onload = () => setTimeout(triggerIframePrint, 250);
+        setTimeout(triggerIframePrint, 800);
+      }
+    } catch (err) {
+      console.error('printThermalElement error:', err);
+      window.print();
+      resolve(false);
+    }
+  });
+}
+
+/**
  * Get print CSS for a given class name and settings.
  * @param {string} className - The CSS class used on the receipt container.
  * @param {object} settings - Thermal printer settings.
@@ -233,3 +384,5 @@ export function getBodyWidthCss(settings) {
   const width = getPaperWidth(settings);
   return `body { margin: 0; padding: 8px; font-family: monospace; font-size: ${settings.fontSize}px; background: white; color: black; width: ${width}; }`;
 }
+
+

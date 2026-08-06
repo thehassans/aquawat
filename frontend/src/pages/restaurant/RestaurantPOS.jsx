@@ -7,11 +7,13 @@ import api, { getImageUrl } from '../../lib/api'
 import { toast } from 'react-hot-toast'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import CardPaymentModal from '../../components/pos/CardPaymentModal'
+import { getThermalPrinterSettings, printThermalElement } from '../../lib/thermalPrinter'
 
 export default function RestaurantPOS() {
   const { language } = useSelector(state => state.ui)
   const { tenant } = useSelector(state => state.auth)
   const isRtl = language === 'ar'
+  const thermalSettings = getThermalPrinterSettings(tenant)
   const cardTerminalEnabled = Boolean(tenant?.settings?.posTerminal?.enabled)
   const terminalLabel = tenant?.settings?.posTerminal?.terminalLabel || ''
   const printKitchenReceipt = tenant?.settings?.restaurant?.printKitchenReceipt !== false
@@ -283,9 +285,9 @@ export default function RestaurantPOS() {
       // Auto-open print dialog for thermal receipt
       setTimeout(() => {
         if (receiptRef.current) {
-          window.print()
+          printThermalElement(receiptRef.current, thermalSettings)
         }
-      }, 300)
+      }, 350)
 
       // Refresh tables if dine in to update status
       if (orderType === 'dine_in') {
@@ -342,9 +344,9 @@ export default function RestaurantPOS() {
       // Auto-print kitchen ticket if setting enabled
       setTimeout(() => {
         if (printKitchenReceipt && receiptRef.current) {
-          window.print()
+          printThermalElement(receiptRef.current, thermalSettings)
         }
-      }, 300)
+      }, 350)
 
       if (orderType === 'dine_in') fetchData()
     } catch (error) {
@@ -413,8 +415,10 @@ export default function RestaurantPOS() {
       clearCart()
 
       setTimeout(() => {
-        if (receiptRef.current) window.print()
-      }, 300)
+        if (receiptRef.current) {
+          printThermalElement(receiptRef.current, thermalSettings)
+        }
+      }, 350)
 
       if (orderType === 'dine_in') fetchData()
     } catch (error) {
@@ -426,7 +430,7 @@ export default function RestaurantPOS() {
 
   const handlePrint = () => {
     if (receiptRef.current) {
-      window.print()
+      printThermalElement(receiptRef.current, thermalSettings)
     }
   }
 

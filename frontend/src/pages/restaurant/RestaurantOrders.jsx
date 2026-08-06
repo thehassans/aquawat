@@ -8,10 +8,13 @@ import api from '../../lib/api'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
+import { getThermalPrinterSettings, printThermalElement } from '../../lib/thermalPrinter'
 
 export default function RestaurantOrders() {
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const thermalSettings = getThermalPrinterSettings(tenant)
 
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({ status: '' })
@@ -23,7 +26,9 @@ export default function RestaurantOrders() {
   const receiptRef = useRef(null)
 
   const handlePrint = () => {
-    if (receiptRef.current) window.print()
+    if (receiptRef.current) {
+      printThermalElement(receiptRef.current, thermalSettings)
+    }
   }
 
   const { data, isLoading } = useQuery({

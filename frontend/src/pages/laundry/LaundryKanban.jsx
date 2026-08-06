@@ -9,10 +9,13 @@ import {
   TrendingUp, RefreshCw, User, Calendar, Tag, ShieldAlert
 } from 'lucide-react'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
+import { getThermalPrinterSettings, printThermalElement } from '../../lib/thermalPrinter'
 
 export default function LaundryKanban() {
   const { language } = useSelector(state => state.ui)
+  const { tenant } = useSelector(state => state.auth)
   const isRtl = language === 'ar'
+  const thermalSettings = getThermalPrinterSettings(tenant)
   
   const [orders, setOrders] = useState([])
   const [historyOrders, setHistoryOrders] = useState([])
@@ -79,7 +82,7 @@ export default function LaundryKanban() {
 
   const handlePrint = () => {
     if (receiptRef.current) {
-      window.print()
+      printThermalElement(receiptRef.current, thermalSettings)
     }
   }
 

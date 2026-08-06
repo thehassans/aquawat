@@ -10,6 +10,7 @@ import Money from '../../components/ui/Money'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { useRef } from 'react'
 import CardPaymentModal from '../../components/pos/CardPaymentModal'
+import { getThermalPrinterSettings, printThermalElement } from '../../lib/thermalPrinter'
 
 export default function CashierPanel() {
   const queryClient = useQueryClient()
@@ -17,6 +18,7 @@ export default function CashierPanel() {
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const isRtl = language === 'ar'
+  const thermalSettings = getThermalPrinterSettings(tenant)
   const cardTerminalEnabled = Boolean(tenant?.settings?.posTerminal?.enabled)
   const terminalLabel = tenant?.settings?.posTerminal?.terminalLabel || ''
 
@@ -75,7 +77,7 @@ export default function CashierPanel() {
 
   const handlePrint = () => {
     if (receiptRef.current) {
-      window.print()
+      printThermalElement(receiptRef.current, thermalSettings)
     }
   }
 
