@@ -21,6 +21,8 @@ export default function Suppliers() {
 
   const isBakala = tenant?.businessType === 'bakala' || (tenant?.businessTypes || []).includes('bakala')
 
+  const [isAddition, setIsAddition] = useState('')
+
   const exportColumns = [
     {
       key: 'code',
@@ -65,7 +67,7 @@ export default function Suppliers() {
     let all = []
 
     while (true) {
-      const res = await api.get('/suppliers', { params: { page: currentPage, limit, search } })
+      const res = await api.get('/suppliers', { params: { page: currentPage, limit, search, isAddition } })
       const batch = res.data?.suppliers || []
       all = all.concat(batch)
 
@@ -80,8 +82,8 @@ export default function Suppliers() {
   }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['suppliers', page, search],
-    queryFn: () => api.get('/suppliers', { params: { page, search, limit: 25 } }).then((res) => res.data)
+    queryKey: ['suppliers', page, search, isAddition],
+    queryFn: () => api.get('/suppliers', { params: { page, search, isAddition, limit: 25 } }).then((res) => res.data)
   })
 
   const { data: stats } = useQuery({
@@ -138,6 +140,7 @@ export default function Suppliers() {
   const totals = stats?.totals?.[0]
   const totalSuppliers = totals?.total || 0
   const activeSuppliers = totals?.active || 0
+  const additionsCount = totals?.additions || 0
   const companyCount = stats?.byType?.find((x) => x._id === 'company')?.count || 0
   const individualCount = stats?.byType?.find((x) => x._id === 'individual')?.count || 0
 
@@ -168,7 +171,7 @@ export default function Suppliers() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-4 flex items-center gap-4">
           <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-xl">
             <Building className="w-5 h-5 text-primary-600" />
@@ -183,8 +186,8 @@ export default function Suppliers() {
             <Building className="w-5 h-5 text-emerald-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'موردين نشطين' : 'Active Suppliers'}</p>
-            <p className="text-2xl font-bold text-emerald-600">{activeSuppliers}</p>
+            <p className="text-sm text-gray-500">{language === 'ar' ? 'إضافات الموردين' : 'Supplier Additions'}</p>
+            <p className="text-2xl font-bold text-emerald-600">{additionsCount}</p>
           </div>
         </div>
         <div className="card p-4 flex items-center gap-4">
@@ -192,8 +195,8 @@ export default function Suppliers() {
             <Building className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'شركات' : 'Companies'}</p>
-            <p className="text-2xl font-bold">{companyCount}</p>
+            <p className="text-sm text-gray-500">{language === 'ar' ? 'موردين نشطين' : 'Active Suppliers'}</p>
+            <p className="text-2xl font-bold text-blue-600">{activeSuppliers}</p>
           </div>
         </div>
         <div className="card p-4 flex items-center gap-4">
@@ -201,8 +204,8 @@ export default function Suppliers() {
             <Building className="w-5 h-5 text-amber-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'أفراد' : 'Individuals'}</p>
-            <p className="text-2xl font-bold">{individualCount}</p>
+            <p className="text-sm text-gray-500">{language === 'ar' ? 'شركات' : 'Companies'}</p>
+            <p className="text-2xl font-bold">{companyCount}</p>
           </div>
         </div>
       </div>
@@ -222,6 +225,18 @@ export default function Suppliers() {
               className="input ps-10"
             />
           </div>
+          <select
+            value={isAddition}
+            onChange={(e) => {
+              setIsAddition(e.target.value)
+              setPage(1)
+            }}
+            className="select w-full sm:w-56"
+          >
+            <option value="">{language === 'ar' ? 'كل الموردين' : 'All Suppliers'}</option>
+            <option value="true">{language === 'ar' ? 'إضافات الموردين فقط' : 'Supplier Additions Only'}</option>
+            <option value="false">{language === 'ar' ? 'الموردين المباشرين فقط' : 'Direct Suppliers Only'}</option>
+          </select>
         </div>
       </div>
 
@@ -248,9 +263,16 @@ export default function Suppliers() {
                     <td className="font-mono text-sm">{s.code}</td>
                     <td>
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {language === 'ar' ? s.nameAr || s.nameEn : s.nameEn}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {language === 'ar' ? s.nameAr || s.nameEn : s.nameEn}
+                          </p>
+                          {s.isAddition && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 rounded border border-emerald-200 dark:border-emerald-800">
+                              {language === 'ar' ? 'إضافة' : 'Addition'}
+                            </span>
+                          )}
+                        </div>
                         {s.vatNumber && (
                           <p className="text-xs text-gray-500">VAT: {s.vatNumber}</p>
                         )}

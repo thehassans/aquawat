@@ -108,6 +108,9 @@ const productSchema = new mongoose.Schema({
   isManufactured: { type: Boolean, default: false },
   bomComponents: { type: [bomComponentSchema], default: [] },
   
+  // Inventory Control
+  allowNegativeStock: { type: Boolean, default: false },
+
   // Status
   status: {
     type: String,
@@ -134,6 +137,7 @@ productSchema.index({ tenantId: 1, sku: 1 }, { unique: true });
 productSchema.index({ tenantId: 1, barcode: 1 });
 productSchema.index({ tenantId: 1, category: 1 });
 productSchema.index({ tenantId: 1, status: 1 });
+productSchema.index({ tenantId: 1, allowNegativeStock: 1 });
 productSchema.index({ tenantId: 1, nameEn: 'text', nameAr: 'text', sku: 'text', barcode: 'text' });
 
 productSchema.pre('save', function(next) {

@@ -327,6 +327,10 @@ const tenantSchema = new mongoose.Schema({
     dateFormat: { type: String, default: 'DD/MM/YYYY' },
     useHijriDates: { type: Boolean, default: true },
     hiddenUoms: [{ type: String }],
+    inventory: {
+      allowNegativeStock: { type: Boolean, default: false },
+      lowStockThreshold: { type: Number, default: 10 }
+    },
     invoiceSequencePattern: { type: String, default: 'RCPT-{N}' },
     invoiceSequenceCounter: { type: Number, default: 0 },
     khayyat: {

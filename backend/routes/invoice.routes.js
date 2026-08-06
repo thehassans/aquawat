@@ -471,8 +471,18 @@ async function postInventoryForInvoice(invoice, tenantFilterValue) {
     if (sign < 0) {
       const stock = product.stocks.find((s) => s.warehouseId?.toString() === warehouseId.toString());
       const available = toNumber(stock?.quantity, 0) - toNumber(stock?.reservedQuantity, 0);
-      if (available < qty) {
-        throw new Error('Insufficient stock in selected warehouse');
+      
+      let allowNegative = Boolean(product.allowNegativeStock);
+      if (!allowNegative && invoice.tenantId) {
+        const Tenant = mongoose.model('Tenant');
+        const tenantDoc = await Tenant.findById(invoice.tenantId).select('settings.inventory').lean();
+        if (tenantDoc?.settings?.inventory?.allowNegativeStock) {
+          allowNegative = true;
+        }
+      }
+
+      if (!allowNegative && available < qty) {
+        throw new Error(`Insufficient stock in selected warehouse for item "${product.sku || product.nameEn || 'Item'}"`);
       }
     }
 

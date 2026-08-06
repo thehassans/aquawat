@@ -37,6 +37,12 @@ const supplierSchema = new mongoose.Schema({
 
   notes: { type: String },
 
+  // Supplier Addition & Categorization
+  isAddition: { type: Boolean, default: false },
+  additionSource: { type: String, default: 'direct' },
+  additionDate: { type: Date },
+  tags: [{ type: String }],
+
   isActive: { type: Boolean, default: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, {
@@ -46,6 +52,7 @@ const supplierSchema = new mongoose.Schema({
 supplierSchema.index({ tenantId: 1, code: 1 }, { unique: true });
 supplierSchema.index({ tenantId: 1, nameEn: 1 });
 supplierSchema.index({ tenantId: 1, vatNumber: 1 });
+supplierSchema.index({ tenantId: 1, isAddition: 1 });
 
 const Supplier = mongoose.model('Supplier', supplierSchema);
 export default Supplier;

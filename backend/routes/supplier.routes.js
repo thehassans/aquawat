@@ -13,7 +13,7 @@ router.use(tenantFilter);
 // @route   GET /api/suppliers
 router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 50, search, isActive } = req.query;
+    const { page = 1, limit = 50, search, isActive, isAddition } = req.query;
 
     const query = { ...req.tenantFilter };
 
@@ -23,6 +23,12 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
       // no filter
     } else {
       query.isActive = true;
+    }
+
+    if (isAddition === 'true') {
+      query.isAddition = true;
+    } else if (isAddition === 'false') {
+      query.isAddition = { $ne: true };
     }
 
     if (search) {
@@ -66,7 +72,7 @@ router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) =
       { $match: { ...req.tenantFilter } },
       {
         $facet: {
-          totals: [{ $group: { _id: null, total: { $sum: 1 }, active: { $sum: { $cond: ['$isActive', 1, 0] } } } }],
+          totals: [{ $group: { _id: null, total: { $sum: 1 }, active: { $sum: { $cond: ['$isActive', 1, 0] } }, additions: { $sum: { $cond: ['$isAddition', 1, 0] } } } }],
           byType: [{ $group: { _id: '$type', count: { $sum: 1 } } }],
           byCity: [{ $group: { _id: '$address.city', count: { $sum: 1 } } }]
         }

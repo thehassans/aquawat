@@ -34,11 +34,16 @@ const normalizeProductForClient = (product) => {
 // @route   GET /api/products
 router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 50, category, status, search, lowStock } = req.query;
+    const { page = 1, limit = 50, category, status, search, lowStock, allowNegativeStock } = req.query;
     
     const query = { ...req.tenantFilter };
     if (category) query.category = category;
     if (status) query.status = status;
+    if (allowNegativeStock === 'true') {
+      query.allowNegativeStock = true;
+    } else if (allowNegativeStock === 'false') {
+      query.allowNegativeStock = { $ne: true };
+    }
     if (search) {
       query.$or = [
         { nameEn: { $regex: search, $options: 'i' } },
@@ -107,6 +112,10 @@ router.get('/stats', checkPermission('inventory', 'read'), async (req, res) => {
         $facet: {
           byCategory: [{ $group: { _id: '$category', count: { $sum: 1 }, totalValue: { $sum: { $multiply: ['$costPrice', '$computedTotalStock'] } } } }],
           byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
+          allowNegativeStock: [
+            { $match: { allowNegativeStock: true } },
+            { $count: 'count' }
+          ],
           lowStock: [
             { $unwind: '$stocks' },
             { $match: { $expr: { $lte: ['$stocks.quantity', '$stocks.reorderPoint'] } } },

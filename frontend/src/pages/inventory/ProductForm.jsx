@@ -327,6 +327,23 @@ export default function ProductForm() {
               />
               <input type="hidden" {...register('unitOfMeasure')} />
             </div>
+            <div className="flex items-center pt-2 md:pt-6">
+              <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl border border-gray-200 dark:border-dark-700 hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors w-full">
+                <input
+                  type="checkbox"
+                  {...register('allowNegativeStock')}
+                  className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                <div>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white block">
+                    {language === 'ar' ? 'السماح بالمخزون السالب' : 'Allow Negative Stock'}
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    {language === 'ar' ? 'البيع والفواتير عند نفاد المخزون' : 'Allow sale & invoices below 0 stock'}
+                  </p>
+                </div>
+              </label>
+            </div>
             {!isEdit && warehouseOptions.length > 0 && (
               <>
                 <div>

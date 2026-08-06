@@ -170,7 +170,7 @@ export default function Products() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-4 flex items-center gap-4">
           <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-xl">
             <Package className="w-5 h-5 text-primary-600" />
@@ -190,12 +190,12 @@ export default function Products() {
           </div>
         </div>
         <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
-            <Package className="w-5 h-5 text-emerald-600" />
+          <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+            <Package className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'قيمة المخزون' : 'Stock Value'}</p>
-            <p className="text-xl font-bold"><Money value={stats?.totals?.[0]?.totalValue} /></p>
+            <p className="text-sm text-gray-500">{language === 'ar' ? 'سماح بالسالب' : 'Negative Stock OK'}</p>
+            <p className="text-2xl font-bold text-purple-600">{stats?.allowNegativeStock?.[0]?.count || 0}</p>
           </div>
         </div>
         <div className="card p-4 flex items-center gap-4">
@@ -216,6 +216,11 @@ export default function Products() {
             <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input type="text" placeholder={`${t('search')} / ${t('barcode')}...`} value={search} onChange={(e) => setSearch(e.target.value)} className="input ps-10" />
           </div>
+          <select value={filters.allowNegativeStock || ''} onChange={(e) => setFilters({ ...filters, allowNegativeStock: e.target.value })} className="select w-full sm:w-48">
+            <option value="">{language === 'ar' ? 'كل أنواع المخزون' : 'All Stock Types'}</option>
+            <option value="true">{language === 'ar' ? 'سماح بالسالب فقط' : 'Negative Allowed Only'}</option>
+            <option value="false">{language === 'ar' ? 'مخزون عادي فقط' : 'Standard Stock Only'}</option>
+          </select>
           <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="select w-full sm:w-40">
             <option value="">{language === 'ar' ? 'كل الحالات' : 'All Status'}</option>
             <option value="active">{language === 'ar' ? 'نشط' : 'Active'}</option>
@@ -257,7 +262,14 @@ export default function Products() {
                           )}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{language === 'ar' ? product.nameAr || product.nameEn : product.nameEn}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-gray-900 dark:text-white">{language === 'ar' ? product.nameAr || product.nameEn : product.nameEn}</p>
+                            {product.allowNegativeStock && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 rounded border border-purple-200 dark:border-purple-800">
+                                {language === 'ar' ? 'سماح بالسالب' : 'Negative OK'}
+                              </span>
+                            )}
+                          </div>
                           {product.barcode && <p className="text-xs text-gray-500 flex items-center gap-1"><QrCode className="w-3 h-3" />{product.barcode}</p>}
                         </div>
                       </div>
