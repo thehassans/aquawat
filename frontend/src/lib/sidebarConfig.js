@@ -256,7 +256,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       businessTypes: ['trading', 'bakala', 'furniture_shop'],
       items: [
         { path: '/app/dashboard/suppliers', icon: Building, label: language === 'ar' ? 'الموردين' : 'Suppliers', perm: { module: 'supply_chain', action: 'read' } },
-        { path: '/app/dashboard/supplier-performance', icon: TrendingUp, label: language === 'ar' ? 'أداء الموردين' : 'Supplier Performance', perm: { module: 'supply_chain', action: 'read' } },
+
         { path: '/app/dashboard/grn', icon: Truck, label: language === 'ar' ? 'استلام البضائع' : 'Goods Receipt', perm: { module: 'supply_chain', action: 'read' } },
         { path: '/app/dashboard/purchase-returns', icon: PackageMinus, label: language === 'ar' ? 'مرتجعات المشتريات' : 'Purchase Returns', perm: { module: 'supply_chain', action: 'read' } },
         { path: '/app/dashboard/shipments', icon: Truck, label: language === 'ar' ? 'الشحنات' : 'Shipments', perm: { module: 'supply_chain', action: 'read' } },
@@ -417,47 +417,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/landed-costs', icon: Anchor, label: language === 'ar' ? 'التكاليف المرسية' : 'Landed Costs', perm: { module: 'landed_costs', action: 'read' } },
       ]
     },
-    {
-      title: language === 'ar' ? 'الامتثال' : 'Compliance',
-      items: [
-        { path: '/app/dashboard/tenant-settings/government-integrations', icon: Key, label: language === 'ar' ? 'التكاملات الحكومية' : 'Gov Integrations', children: govChildrenResolved },
-      ]
-    },
-    {
-      title: language === 'ar' ? 'علم للهوية والتحقق' : 'Elm Identity Suite',
-      requireApp: 'elm_identity_pro',
-      items: [
-        { path: '/app/dashboard/tenant-settings/government-integrations/elm', icon: Shield, label: language === 'ar' ? 'بوابة علم (يقين / تامم / نجم)' : 'Elm Portal (Yakeen / Tamm / Najm)' },
-      ]
-    },
-    {
-      title: language === 'ar' ? 'قوى للموارد البشرية' : 'Qiwa HR Portal',
-      requireApp: 'qiwa_hr_integration',
-      items: [
-        { path: '/app/dashboard/tenant-settings/government-integrations/qiwa', icon: Users, label: language === 'ar' ? 'بوابة قوى' : 'Qiwa Portal' },
-      ]
-    },
-    {
-      title: language === 'ar' ? 'بلدي والترخيص البلدي' : 'Balady Municipal',
-      requireApp: 'balady_municipal',
-      items: [
-        { path: '/app/dashboard/tenant-settings/government-integrations/balady', icon: Building2, label: language === 'ar' ? 'بوابة بلدي' : 'Balady Portal' },
-      ]
-    },
-    {
-      title: language === 'ar' ? 'سابر - شهادات المطابقة' : 'Saber Conformity',
-      requireApp: 'saber_conformity',
-      items: [
-        { path: '/app/dashboard/tenant-settings/government-integrations/saber', icon: ShieldCheck, label: language === 'ar' ? 'بوابة سابر (SASO)' : 'Saber Portal (SASO)' },
-      ]
-    },
-    {
-      title: language === 'ar' ? 'اعتماد للمشتريات الحكومية' : 'Etimad Procurement',
-      requireApp: 'etimad_procurement',
-      items: [
-        { path: '/app/dashboard/tenant-settings/government-integrations/etimad', icon: Globe, label: language === 'ar' ? 'بوابة اعتماد' : 'Etimad Portal' },
-      ]
-    },
+
     {
       title: language === 'ar' ? 'حول مقدر' : 'About Maqder',
       items: [

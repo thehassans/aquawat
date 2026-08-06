@@ -46,8 +46,20 @@ function ComboModal({ menuItems, onClose, editCombo }) {
   })
 
   const addItem = () => setForm(f => ({ ...f, items: [...f.items, { menuItemId: '', name: '', quantity: 1, isOptional: false }] }))
-  const removeItem = (idx) => setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }))
-  const updateItem = (idx, patch) => setForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, ...patch } : it) }))
+  
+  const calculateNewTotal = (itemsList) => {
+    return itemsList.reduce((sum, it) => sum + (it.unitPrice || 0) * (it.quantity || 1), 0)
+  }
+
+  const removeItem = (idx) => setForm(f => {
+    const newItems = f.items.filter((_, i) => i !== idx)
+    return { ...f, items: newItems, comboPrice: calculateNewTotal(newItems) }
+  })
+
+  const updateItem = (idx, patch) => setForm(f => {
+    const newItems = f.items.map((it, i) => i === idx ? { ...it, ...patch } : it)
+    return { ...f, items: newItems, comboPrice: calculateNewTotal(newItems) }
+  })
 
   const onMenuSelect = (idx, menuItemId) => {
     const m = menuItems.find(x => String(x._id) === String(menuItemId))

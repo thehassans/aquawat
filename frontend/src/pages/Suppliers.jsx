@@ -8,6 +8,85 @@ import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
+import { TrendingUp, AlertTriangle } from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
+
+function MinimalPerformanceModal({ supplierId, supplierName, onClose, language }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['supplier-performance', supplierId],
+    queryFn: () => api.get(`/suppliers/${supplierId}/performance-detail`).then(res => res.data),
+    enabled: !!supplierId
+  })
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+          className="bg-white dark:bg-dark-800 rounded-xl shadow-xl w-full max-w-sm overflow-hidden"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="p-4 border-b border-gray-100 dark:border-dark-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-500" />
+              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">{supplierName}</h3>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+          </div>
+          
+          <div className="p-4">
+            {isLoading ? (
+              <div className="flex justify-center p-4"><div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>
+            ) : !data ? (
+              <p className="text-center text-sm text-gray-500 py-4">No data available</p>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'تصنيف الأداء' : 'Performance Grade'}</p>
+                    <span className="text-3xl font-black bg-gradient-to-br from-emerald-400 to-emerald-600 bg-clip-text text-transparent">
+                      {data.summary?.grade || 'N/A'}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'النتيجة الإجمالية' : 'Overall Score'}</p>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">
+                      {data.summary?.overallScore ?? 0}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 dark:border-dark-700">
+                  <div className="bg-gray-50 dark:bg-dark-900/50 p-2 rounded-lg">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">{language === 'ar' ? 'إجمالي الطلبات' : 'Total Orders'}</p>
+                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5">{data.summary?.totalOrders ?? 0}</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-dark-900/50 p-2 rounded-lg">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">{language === 'ar' ? 'إجمالي الإنفاق' : 'Total Spend'}</p>
+                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5">{data.summary?.totalSpend?.toFixed(2) ?? '0.00'}</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-dark-900/50 p-2 rounded-lg">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">{language === 'ar' ? 'معدل الإرجاع' : 'Return Rate'}</p>
+                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5">{data.summary?.returnRate ?? 0}%</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-dark-900/50 p-2 rounded-lg">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">{language === 'ar' ? 'في الوقت المحدد' : 'On Time'}</p>
+                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5">{data.summary?.onTimeDeliveryRate ?? 0}%</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
 
 export default function Suppliers() {
   const { language } = useSelector((state) => state.ui)
@@ -17,6 +96,7 @@ export default function Suppliers() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [stockInModal, setStockInModal] = useState(null)
+  const [performanceModal, setPerformanceModal] = useState(null)
   const [stockForm, setStockForm] = useState({ productId: '', quantity: 1, costPrice: '', warehouseId: '', expiryDate: '', batchNumber: '' })
 
   const isBakala = tenant?.businessType === 'bakala' || (tenant?.businessTypes || []).includes('bakala')
@@ -332,6 +412,13 @@ export default function Suppliers() {
                         >
                           <PackagePlus className="w-4 h-4 text-emerald-600" />
                         </button>
+                        <button
+                          onClick={() => setPerformanceModal(s)}
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"
+                          title={language === 'ar' ? 'أداء المورد' : 'Supplier Performance'}
+                        >
+                          <TrendingUp className="w-4 h-4 text-amber-500" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -495,6 +582,15 @@ export default function Suppliers() {
             </div>
           </motion.div>
         </div>
+      )}
+
+      {performanceModal && (
+        <MinimalPerformanceModal
+          supplierId={performanceModal._id}
+          supplierName={language === 'ar' ? performanceModal.nameAr || performanceModal.nameEn : performanceModal.nameEn}
+          language={language}
+          onClose={() => setPerformanceModal(null)}
+        />
       )}
     </div>
   )
