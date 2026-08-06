@@ -1,10 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/MaqderFavicon.png" />
     <link rel="apple-touch-icon" href="/MaqderFavicon.png" />
     <link rel="shortcut icon" href="/MaqderFavicon.png" />
+    <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
     <meta name="description" content="Maqder ERP — Saudi-compliant e-commerce and business management platform with POS, inventory, orders, and ZATCA invoicing." />
     <meta name="theme-color" content="#1a3d28" />
@@ -15,6 +16,50 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="dns-prefetch" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        // Immediate cleanup of any legacy Service Workers or stale Workbox caches
+        try {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              registrations.forEach(function(r) { r.unregister(); });
+            });
+          }
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              names.forEach(function(name) { caches.delete(name); });
+            });
+          }
+        } catch (e) {}
+
+        // Global chunk loading error handler: catches dynamic import errors before React renders
+        var handleChunkError = function(e) {
+          var msg = ((e && e.message) || (e && e.reason && e.reason.message) || String(e || '')).toLowerCase();
+          if (
+            msg.indexOf('failed to fetch dynamically imported module') !== -1 ||
+            msg.indexOf('loading chunk') !== -1 ||
+            msg.indexOf('importing a module script failed') !== -1 ||
+            msg.indexOf('unexpected token') !== -1 ||
+            msg.indexOf('error loading dynamically imported module') !== -1
+          ) {
+            var lastReload = Number(sessionStorage.getItem('maqder_chunk_reload') || 0);
+            if (Date.now() - lastReload > 8000) {
+              sessionStorage.setItem('maqder_chunk_reload', String(Date.now()));
+              var url = new URL(window.location.href);
+              url.searchParams.set('_v', String(Date.now()));
+              window.location.replace(url.toString());
+            }
+          }
+        };
+
+        window.addEventListener('error', handleChunkError, true);
+        window.addEventListener('unhandledrejection', handleChunkError);
+        window.addEventListener('vite:preloadError', function(e) {
+          if (e && e.preventDefault) e.preventDefault();
+          handleChunkError(e);
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,7 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -12,100 +11,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      VitePWA({
-        registerType: 'autoUpdate',
-        injectRegister: 'auto',
-        devOptions: {
-          enabled: false,
-          type: 'module',
-        },
-        workbox: {
-          skipWaiting: true,
-          clientsClaim: true,
-          cleanupOutdatedCaches: true,
-          maximumFileSizeToCacheInBytes: 4_000_000, // 4 MB
-          navigateFallback: '/index.html',
-          navigateFallbackDenylist: [/^\/api/, /^\/uploads/, /^\/assets/],
-          // Pre-cache static assets but NOT index.html (so new deploys take effect immediately)
-          globPatterns: ['**/*.{css,ico,svg,png,woff,woff2}'],
-          runtimeCaching: [
-            {
-              // Never cache API routes
-              urlPattern: ({ url }) => url.pathname.startsWith('/api'),
-              handler: 'NetworkOnly',
-            },
-            {
-              // Navigation requests (HTML): NetworkFirst with 2s timeout so updates load immediately
-              urlPattern: ({ request }) => request.mode === 'navigate',
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'html-cache',
-                networkTimeoutSeconds: 2,
-                expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 },
-              },
-            },
-            {
-              // Hashed JS chunks — NetworkFirst to guarantee fresh code on deploy
-              urlPattern: /\/assets\/.*\.js$/i,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'js-chunks-cache',
-                networkTimeoutSeconds: 3,
-                expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 3 },
-                cacheableResponse: { statuses: [200] },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'google-fonts-cache',
-                expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'gstatic-fonts-cache',
-                expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-            {
-              urlPattern: /\/uploads\/.*\.(webp|png|jpg|jpeg|gif|svg)$/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'uploaded-images-cache',
-                expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-            {
-              urlPattern: /\.(?:png|jpg|jpeg|webp|gif|ttf)$/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'static-assets-cache',
-                expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-          ],
-        },
-        manifest: {
-          name: 'Maqder ERP & POS',
-          short_name: 'Maqder',
-          description: 'Offline-First POS and ERP System',
-          theme_color: '#1a3d28',
-          display: 'standalone',
-          background_color: '#1a3d28',
-          icons: [
-            { src: '/MaqderFavicon.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-            { src: '/MaqderFavicon.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
-          ],
-        },
-      }),
     ],
 
     resolve: {

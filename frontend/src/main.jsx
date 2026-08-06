@@ -7,7 +7,6 @@ import { Toaster } from 'react-hot-toast'
 import App from './App'
 import { store } from './store'
 import './index.css'
-import { registerSW } from 'virtual:pwa-register'
 import { ErrorBoundary } from './lib/errorBoundary'
 
 // ─── Self-Healing Deploy & Chunk Load Auto-Recovery ────────────────────────────
@@ -27,7 +26,7 @@ export const purgeStaleCachesAndReload = async () => {
       await Promise.all(registrations.map((r) => r.unregister()))
     }
   } catch (err) {
-    console.warn('[PWA] Cache purge warning:', err)
+    console.warn('[CachePurge] Warning:', err)
   }
   const target = new URL(window.location.href)
   target.searchParams.set('_v', Date.now().toString())
@@ -65,23 +64,6 @@ window.addEventListener('unhandledrejection', (event) => {
       purgeStaleCachesAndReload()
     }
   }
-})
-
-const updateSW = registerSW({
-  immediate: true,
-  onNeedRefresh() {
-    console.log('[PWA] New version detected, updating service worker...')
-    updateSW(true)
-  },
-  onRegisteredSW(swUrl, registration) {
-    if (registration) {
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-          registration.update().catch(() => {})
-        }
-      })
-    }
-  },
 })
 
 const queryClient = new QueryClient({
