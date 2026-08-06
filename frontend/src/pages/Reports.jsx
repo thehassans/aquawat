@@ -14,7 +14,37 @@ import { downloadMasterReportPdf } from '../lib/masterReportPdf'
 import { exportReportToCsv, exportReportToExcel } from '../lib/masterReportSpreadsheet'
 import InternalAuditView from '../components/reports/InternalAuditView'
 import ExternalAuditView from '../components/reports/ExternalAuditView'
-import { Clock3, Download, Mail, Trash2, TrendingUp, ShoppingCart, Receipt, Tag, BarChart3, FileText, AlertCircle, Calendar, ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Users, Package, Boxes, ShieldCheck, Landmark, FileSpreadsheet, Printer } from 'lucide-react'
+import MasterReportDocumentPreview from '../components/reports/MasterReportDocumentPreview'
+import {
+  Clock3,
+  Download,
+  Mail,
+  Trash2,
+  TrendingUp,
+  ShoppingCart,
+  Receipt,
+  Tag,
+  BarChart3,
+  FileText,
+  AlertCircle,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  ToggleLeft,
+  ToggleRight,
+  Users,
+  Package,
+  Boxes,
+  ShieldCheck,
+  Landmark,
+  FileSpreadsheet,
+  Printer,
+  Eye,
+  Store,
+  Sparkles,
+  Layers,
+  FileCheck2
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const OPS_PREFIX = 'ops:'
@@ -264,8 +294,12 @@ export default function Reports() {
   const now = new Date()
   const [startDate, setStartDate] = useState(formatInputDate(new Date(now.getFullYear(), now.getMonth(), 1)))
   const [endDate, setEndDate] = useState(formatInputDate(now))
+  const [activeDatePreset, setActiveDatePreset] = useState('this_month')
 
   const [reportType, setReportType] = useState('vat')
+  const [activeCategoryTab, setActiveCategoryTab] = useState('financials') // 'financials' | 'audit' | 'verticals'
+  const [viewMode, setViewMode] = useState('analytics') // 'analytics' | 'document'
+
   const [downloadingReportPdf, setDownloadingReportPdf] = useState(false)
   const [downloadingExcel, setDownloadingExcel] = useState(false)
   const [downloadingCsv, setDownloadingCsv] = useState(false)
@@ -291,25 +325,66 @@ export default function Reports() {
   const isOps = reportType.startsWith(OPS_PREFIX)
   const opsType = isOps ? reportType.slice(OPS_PREFIX.length) : null
 
-  const coreTabs = [
-    { value: 'vat', label: 'VAT' },
-    { value: 'business', label: language === 'ar' ? 'الأعمال' : 'Business' },
-    { value: 'internal_audit', label: language === 'ar' ? 'التدقيق الداخلي' : 'Internal Audit' },
-    { value: 'external_audit', label: language === 'ar' ? 'التدقيق الخارجي' : 'External Audit' },
-    { value: 'daily', label: language === 'ar' ? 'اليومية' : 'Daily' },
-    { value: 'sales', label: language === 'ar' ? 'مبيعات العملاء' : 'Customer Sales' },
-    { value: 'ops:restaurant', label: language === 'ar' ? 'المطعم' : 'Restaurant' },
-    { value: 'ops:trading', label: language === 'ar' ? 'التجارة والمخزون' : 'Trading' },
+  // Date Preset handler
+  const setDatePreset = (preset) => {
+    setActiveDatePreset(preset)
+    const d = new Date()
+    if (preset === 'today') {
+      const todayStr = formatInputDate(d)
+      setStartDate(todayStr)
+      setEndDate(todayStr)
+    } else if (preset === 'this_week') {
+      const day = d.getDay()
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+      const start = new Date(d.getFullYear(), d.getMonth(), diff)
+      setStartDate(formatInputDate(start))
+      setEndDate(formatInputDate(new Date()))
+    } else if (preset === 'this_month') {
+      setStartDate(formatInputDate(new Date(d.getFullYear(), d.getMonth(), 1)))
+      setEndDate(formatInputDate(new Date()))
+    } else if (preset === 'this_quarter') {
+      const qMonth = Math.floor(d.getMonth() / 3) * 3
+      setStartDate(formatInputDate(new Date(d.getFullYear(), qMonth, 1)))
+      setEndDate(formatInputDate(new Date()))
+    } else if (preset === 'this_year') {
+      setStartDate(formatInputDate(new Date(d.getFullYear(), 0, 1)))
+      setEndDate(formatInputDate(new Date()))
+    } else if (preset === 'all') {
+      setStartDate('2020-01-01')
+      setEndDate(formatInputDate(new Date()))
+    }
+  }
+
+  // Categorized Reports
+  const financialTabs = [
+    { value: 'vat', label: language === 'ar' ? 'إقرار ضريبة القيمة المضافة' : 'VAT Return', icon: Landmark },
+    { value: 'business', label: language === 'ar' ? 'ملخص الأرباح والأعمال' : 'Business & P&L', icon: TrendingUp },
+    { value: 'daily', label: language === 'ar' ? 'سجل المبيعات اليومية' : 'Daily Sales Ledger', icon: Calendar },
+    { value: 'sales', label: language === 'ar' ? 'تحليل مبيعات العملاء' : 'Customer Sales Ranking', icon: Users },
   ]
 
-  const otherBusinessTabs = tenantBusinessTypes
-    .filter((type) => type !== 'restaurant' && type !== 'trading')
-    .map((type) => ({
-      value: `${OPS_PREFIX}${type}`,
-      label: businessTypeMeta.find((meta) => meta.id === type)?.label || type,
-    }))
+  const auditTabs = [
+    { value: 'internal_audit', label: language === 'ar' ? 'التدقيق الداخلي والرقابة' : 'Internal Audit & Controls', icon: ShieldCheck },
+    { value: 'external_audit', label: language === 'ar' ? 'التدقيق القانوني الخارجي' : 'Statutory External Audit', icon: Landmark },
+  ]
 
-  const reportTabs = [...coreTabs, ...otherBusinessTabs]
+  const verticalTabs = tenantBusinessTypes.map((type) => {
+    const meta = businessTypeMeta.find((m) => m.id === type)
+    return {
+      value: `${OPS_PREFIX}${type}`,
+      label: meta?.label || type,
+      icon: Store,
+    }
+  })
+
+  // Ensure default vertical tabs exist if tenantBusinessTypes is small
+  if (!verticalTabs.some((t) => t.value === 'ops:trading')) {
+    verticalTabs.unshift({
+      value: 'ops:trading',
+      label: language === 'ar' ? 'التجارة والمخزون' : 'Trading & Inventory',
+      icon: Store,
+    })
+  }
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['reports', reportType, startDate, endDate],
@@ -503,92 +578,87 @@ export default function Reports() {
   return (
     <div className="space-y-7" dir={language === 'ar' ? 'rtl' : 'ltr'}>
 
-      {/* ── Premium Header ─────────────────────────────────────────────────── */}
+      {/* ── Premium Top Header ──────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
+        className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-white dark:bg-dark-800 p-6 rounded-3xl border border-gray-100 dark:border-dark-700 shadow-sm"
       >
         {/* Left: icon + title */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-lg shadow-primary-200 dark:shadow-primary-900/40">
-            <BarChart3 className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-lg shadow-primary-200 dark:shadow-primary-900/40 text-white shrink-0">
+            <BarChart3 className="w-7 h-7" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{t('reports')}</h1>
-            <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                {language === 'ar' ? 'التقارير والإقرارات الرسمية' : 'Reports & Official Statements'}
+              </h1>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                {language === 'ar' ? 'معتمد زاتكا' : 'ZATCA Certified'}
+              </span>
+            </div>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
               {isOps
-                ? `${localized(opsSection?.label, language) || (businessTypeMeta.find((meta) => meta.id === opsType)?.label || opsType)} ${language === 'ar' ? 'تقرير' : 'Report'}`
+                ? `${localized(opsSection?.label, language) || (businessTypeMeta.find((meta) => meta.id === opsType)?.label || opsType)} — ${language === 'ar' ? 'تقرير تشغيلي معتمد' : 'Certified Operational Statement'}`
                 : reportType === 'business'
-                  ? (language === 'ar' ? 'تقرير الأعمال' : 'Business Report')
+                  ? (language === 'ar' ? 'ملخص الأعمال والأرباح والخسائر الشامل' : 'Comprehensive Business & P&L Statement')
                   : reportType === 'daily'
-                    ? (language === 'ar' ? 'تقرير المبيعات اليومية' : 'Daily Sales Report')
+                    ? (language === 'ar' ? 'سجل الفواتير والمبيعات اليومية المفصل' : 'Detailed Daily Invoices & Sales Ledger')
                     : reportType === 'sales'
-                      ? (language === 'ar' ? 'تقرير مبيعات العملاء' : 'Customer Sales Report')
-                      : (language === 'ar' ? 'تقرير إقرار ضريبة القيمة المضافة' : 'VAT Return Report')}
+                      ? (language === 'ar' ? 'تحليل مبيعات العملاء وتوزيع الإيرادات' : 'Customer Sales & Revenue Distribution Report')
+                      : reportType === 'internal_audit'
+                        ? (language === 'ar' ? 'تقرير التدقيق الداخلي ومراجعة الحركات المالية' : 'Internal Audit & Financial Controls Review')
+                        : reportType === 'external_audit'
+                          ? (language === 'ar' ? 'تقرير التدقيق الخارجي والمطابقة المحاسبية القانونية' : 'Statutory External Audit & Compliance Report')
+                          : (language === 'ar' ? 'إقرار ضريبة القيمة المضافة 15% المعتمد' : 'Official 15% VAT Return Statement')}
             </p>
           </div>
         </div>
 
-        {/* Right: controls */}
+        {/* Right: View Mode Toggle & Export Controls */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* Report type pill toggle */}
-          <div className="flex flex-wrap items-center p-1 bg-gray-100 dark:bg-dark-700 rounded-xl gap-1">
-            {reportTabs.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => {
-                  setReportType(value)
-                  setExportTable(value === 'business' ? 'salesByTransactionType' : 'byCategory')
-                }}
-                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                  reportType === value
-                    ? 'bg-white dark:bg-dark-800 text-primary-600 dark:text-primary-400 shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+          {/* View Mode Switcher: Analytics vs Official Document */}
+          <div className="inline-flex items-center p-1 bg-gray-100 dark:bg-dark-700 rounded-2xl border border-gray-200/50 dark:border-dark-600">
+            <button
+              type="button"
+              onClick={() => setViewMode('analytics')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                viewMode === 'analytics'
+                  ? 'bg-white dark:bg-dark-800 text-primary-600 dark:text-primary-400 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>{language === 'ar' ? 'لوحة التحليلات' : 'Analytics'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('document')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                viewMode === 'document'
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
+              <FileCheck2 className="w-3.5 h-3.5" />
+              <span>{language === 'ar' ? 'المستند الرسمي' : 'Official Document'}</span>
+            </button>
           </div>
 
-          {/* Date range */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-              />
-            </div>
-            <span className="text-gray-400 text-sm font-medium">—</span>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Universal Export Controls for All Reports */}
+          {/* Export Action Buttons */}
           {data && !isLoading && !error && !hasInvalidRange && (
-            <div className="flex flex-wrap items-center gap-2">
-              {/* PDF Button */}
+            <div className="flex items-center gap-2">
               <motion.button
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={handleExportPdf}
                 disabled={downloadingReportPdf}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-60"
-                title={language === 'ar' ? 'تحميل تقرير PDF احترافي بنمط الفاتورة' : 'Download Invoice-Style PDF'}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-60"
+                title={language === 'ar' ? 'تحميل مستند PDF معتمد' : 'Download Official PDF Report'}
               >
                 {downloadingReportPdf ? (
                   <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -598,15 +668,14 @@ export default function Reports() {
                 <span>PDF</span>
               </motion.button>
 
-              {/* Excel Button */}
               <motion.button
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={handleExportExcel}
                 disabled={downloadingExcel}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-60"
-                title={language === 'ar' ? 'تصدير جدول إكسيل XLSX' : 'Export Excel (.xlsx)'}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-60"
+                title={language === 'ar' ? 'تصدير جدول Excel' : 'Export Excel (.xlsx)'}
               >
                 {downloadingExcel ? (
                   <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -616,14 +685,13 @@ export default function Reports() {
                 <span>Excel</span>
               </motion.button>
 
-              {/* CSV Button */}
               <motion.button
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={handleExportCsv}
                 disabled={downloadingCsv}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-60"
                 title={language === 'ar' ? 'تصدير ملف CSV' : 'Export CSV'}
               >
                 {downloadingCsv ? (
@@ -634,21 +702,225 @@ export default function Reports() {
                 <span>CSV</span>
               </motion.button>
 
-              {/* Print Button */}
-              <motion.button
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
+              <button
                 type="button"
                 onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-dark-700 dark:hover:bg-dark-600 text-gray-700 dark:text-gray-200 text-xs font-semibold transition-all"
-                title={language === 'ar' ? 'طباعة التقرير' : 'Print Report'}
+                className="p-2 rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-xs font-bold transition-all shadow-sm"
+                title={language === 'ar' ? 'طباعة المستند' : 'Print Document'}
               >
-                <Printer className="w-3.5 h-3.5" />
-              </motion.button>
+                <Printer className="w-4 h-4" />
+              </button>
             </div>
           )}
         </div>
       </motion.div>
+
+      {/* ── Category Tabs & Filter Toolbar ──────────────────────────────────── */}
+      <div className="space-y-4">
+        {/* Category Tabs: Financials / Audit / Industry Verticals */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200/80 dark:border-dark-700 pb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategoryTab('financials')
+                if (!financialTabs.some((t) => t.value === reportType)) {
+                  setReportType('vat')
+                }
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all ${
+                activeCategoryTab === 'financials'
+                  ? 'bg-primary-600 text-white shadow-sm shadow-primary-200 dark:shadow-none'
+                  : 'bg-gray-100 dark:bg-dark-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+              }`}
+            >
+              <Landmark className="w-4 h-4" />
+              <span>{language === 'ar' ? 'التقارير المالية والضريبية' : 'Financials & Tax'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategoryTab('audit')
+                if (!auditTabs.some((t) => t.value === reportType)) {
+                  setReportType('internal_audit')
+                }
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all ${
+                activeCategoryTab === 'audit'
+                  ? 'bg-primary-600 text-white shadow-sm shadow-primary-200 dark:shadow-none'
+                  : 'bg-gray-100 dark:bg-dark-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>{language === 'ar' ? 'التدقيق والرقابة الرسمية' : 'Audit & Assurance'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategoryTab('verticals')
+                if (!reportType.startsWith(OPS_PREFIX) && verticalTabs.length > 0) {
+                  setReportType(verticalTabs[0].value)
+                }
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all ${
+                activeCategoryTab === 'verticals'
+                  ? 'bg-primary-600 text-white shadow-sm shadow-primary-200 dark:shadow-none'
+                  : 'bg-gray-100 dark:bg-dark-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+              }`}
+            >
+              <Store className="w-4 h-4" />
+              <span>{language === 'ar' ? 'قطاعات الأعمال المتخصصة' : 'Industry Vertical Apps'}</span>
+              <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-white/20 text-current">
+                {verticalTabs.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Schedules button */}
+          {hasEmailAddon && (
+            <button
+              type="button"
+              onClick={() => setShowScheduleForm((prev) => !prev)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 shadow-sm"
+            >
+              <Mail className="w-4 h-4 text-primary-500" />
+              <span>{language === 'ar' ? 'الجدولة التلقائية' : 'Automated Delivery'}</span>
+              {showScheduleForm ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
+
+        {/* Sub-Tabs selection */}
+        <div className="flex flex-wrap items-center gap-2">
+          {activeCategoryTab === 'financials' &&
+            financialTabs.map((tab) => {
+              const TabIcon = tab.icon
+              const isSelected = reportType === tab.value
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => {
+                    setReportType(tab.value)
+                    setExportTable(tab.value === 'business' ? 'salesByTransactionType' : 'byCategory')
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-sm'
+                      : 'bg-white dark:bg-dark-800 border border-gray-200/80 dark:border-dark-700 text-gray-600 dark:text-gray-300 hover:border-gray-300'
+                  }`}
+                >
+                  <TabIcon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                </button>
+              )
+            })}
+
+          {activeCategoryTab === 'audit' &&
+            auditTabs.map((tab) => {
+              const TabIcon = tab.icon
+              const isSelected = reportType === tab.value
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setReportType(tab.value)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-sm'
+                      : 'bg-white dark:bg-dark-800 border border-gray-200/80 dark:border-dark-700 text-gray-600 dark:text-gray-300 hover:border-gray-300'
+                  }`}
+                >
+                  <TabIcon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                </button>
+              )
+            })}
+
+          {activeCategoryTab === 'verticals' &&
+            verticalTabs.map((tab) => {
+              const TabIcon = tab.icon
+              const isSelected = reportType === tab.value
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setReportType(tab.value)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-sm'
+                      : 'bg-white dark:bg-dark-800 border border-gray-200/80 dark:border-dark-700 text-gray-600 dark:text-gray-300 hover:border-gray-300'
+                  }`}
+                >
+                  <TabIcon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                </button>
+              )
+            })}
+        </div>
+
+        {/* Date Presets & Custom Picker Row */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 bg-gray-50/70 dark:bg-dark-800/50 p-3 rounded-2xl border border-gray-200/60 dark:border-dark-700">
+          {/* Quick Date Presets */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-gray-400 px-1">
+              {language === 'ar' ? 'الفترة:' : 'Range:'}
+            </span>
+            {[
+              { id: 'today', label: language === 'ar' ? 'اليوم' : 'Today' },
+              { id: 'this_week', label: language === 'ar' ? 'هذا الأسبوع' : 'This Week' },
+              { id: 'this_month', label: language === 'ar' ? 'هذا الشهر' : 'This Month' },
+              { id: 'this_quarter', label: language === 'ar' ? 'هذا الربع' : 'This Quarter' },
+              { id: 'this_year', label: language === 'ar' ? 'هذا العام' : 'This Year' },
+              { id: 'all', label: language === 'ar' ? 'الكل' : 'All Time' },
+            ].map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setDatePreset(p.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeDatePreset === p.id
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-dark-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 border border-gray-200/50 dark:border-dark-600'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Date Picker Inputs */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value)
+                  setActiveDatePreset('custom')
+                }}
+                className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium"
+              />
+            </div>
+            <span className="text-gray-400 text-xs font-semibold">—</span>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value)
+                  setActiveDatePreset('custom')
+                }}
+                className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ── Period badge ──────────────────────────────────────────────────── */}
       <AnimatePresence>
@@ -979,7 +1251,9 @@ export default function Reports() {
       {/* ── Main report content ───────────────────────────────────────────── */}
       {!hasInvalidRange && (
         <>
-          {isLoading ? renderSkeleton() : error ? (
+          {isLoading ? (
+            renderSkeleton()
+          ) : error ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -994,6 +1268,20 @@ export default function Reports() {
               <p className="text-sm text-gray-400">
                 {language === 'ar' ? 'حاول مرة أخرى أو تحقق من الاتصال' : 'Please try again or check your connection'}
               </p>
+            </motion.div>
+          ) : viewMode === 'document' ? (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="bg-white dark:bg-dark-800 rounded-3xl p-4 sm:p-8 shadow-sm border border-gray-100 dark:border-dark-700"
+            >
+              <MasterReportDocumentPreview
+                reportType={reportType}
+                report={data}
+                tenant={tenant}
+                language={language}
+              />
             </motion.div>
           ) : isOps ? (
             <OperationsSection section={opsSection} language={language} t={t} />

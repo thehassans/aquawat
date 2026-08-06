@@ -7,15 +7,53 @@ import Customer from '../models/Customer.js';
 import Expense from '../models/Expense.js';
 import TravelBooking from '../models/TravelBooking.js';
 import RestaurantOrder from '../models/RestaurantOrder.js';
+import RestaurantTable from '../models/RestaurantTable.js';
 import RentalContract from '../models/RentalContract.js';
+import RentalCar from '../models/RentalCar.js';
 import LaundryOrder from '../models/LaundryOrder.js';
+import SaloonOrder from '../models/SaloonOrder.js';
+import SaloonAppointment from '../models/SaloonAppointment.js';
+import KhayyatStitching from '../models/khayyat/KhayyatStitching.js';
+import ManpowerWorker from '../models/ManpowerWorker.js';
+import ManpowerAssignment from '../models/ManpowerAssignment.js';
+import BakalaProduct from '../models/BakalaProduct.js';
+import { ManufacturingWorkOrder, ManufacturingJobCard } from '../models/Manufacturing.js';
+import BoutiqueRental from '../models/BoutiqueRental.js';
+import BoutiqueProduct from '../models/BoutiqueProduct.js';
+import WorkshopJobCard from '../models/WorkshopJobCard.js';
+import WorkshopVehicle from '../models/WorkshopVehicle.js';
+import BookStoreProduct from '../models/BookStoreProduct.js';
+import BookRental from '../models/BookRental.js';
+import EcommerceOrder from '../models/EcommerceOrder.js';
+import EcommerceProduct from '../models/EcommerceProduct.js';
+import FurnitureOrder from '../models/FurnitureOrder.js';
+import FurnitureProduct from '../models/FurnitureProduct.js';
+import Project from '../models/Project.js';
+import Tenant from '../models/Tenant.js';
 import { protect, tenantFilter } from '../middleware/auth.js';
-import { getTenantBusinessTypes } from '../utils/businessTypes.js';
+import { getTenantBusinessTypes, normalizeBusinessTypes } from '../utils/businessTypes.js';
+import { DEFAULT_APP_CATALOG } from './appStore.routes.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+
+const safeAggregate = async (model, pipeline) => {
+  try {
+    return await model.aggregate(pipeline);
+  } catch (error) {
+    return [];
+  }
+};
+
+const safeCount = async (model, filter) => {
+  try {
+    return await model.countDocuments(filter);
+  } catch (error) {
+    return 0;
+  }
+};
 
 // @route   GET /api/dashboard
 router.get('/', async (req, res) => {
@@ -31,9 +69,37 @@ router.get('/', async (req, res) => {
     const topProductsSince = new Date();
     topProductsSince.setMonth(topProductsSince.getMonth() - 6);
 
-    const [invoiceStats, employeeStats, productStats, payrollStats, recentInvoices, expiringDocuments, recentCustomers, topProducts, todayStats, travelStats, restaurantStats] = await Promise.all([
-      // Invoice stats
-      Invoice.aggregate([
+    const tenantInstalled = req.tenant?.settings?.installedApps || {};
+
+    const [
+      invoiceStats,
+      employeeStats,
+      productStats,
+      payrollStats,
+      recentInvoices,
+      expiringDocuments,
+      recentCustomers,
+      topProducts,
+      todayStats,
+      travelStats,
+      restaurantStats,
+      // Operational app stats
+      rentalStats,
+      laundryStats,
+      saloonStats,
+      khayyatStats,
+      manpowerStats,
+      bakalaStats,
+      mfgStats,
+      boutiqueStats,
+      workshopStats,
+      bookstoreStats,
+      ecommerceStats,
+      furnitureStats,
+      projectStats
+    ] = await Promise.all([
+      // 1. Invoice stats
+      safeAggregate(Invoice, [
         { $match: req.tenantFilter },
         {
           $facet: {
@@ -56,8 +122,8 @@ router.get('/', async (req, res) => {
         }
       ]),
       
-      // Employee stats
-      Employee.aggregate([
+      // 2. Employee stats
+      safeAggregate(Employee, [
         { $match: { ...req.tenantFilter, isActive: true } },
         {
           $facet: {
@@ -68,31 +134,23 @@ router.get('/', async (req, res) => {
         }
       ]),
       
-      // Product stats (Trading only)
-      businessTypes.includes('trading')
-        ? Product.aggregate([
-            { $match: { ...req.tenantFilter, isActive: true } },
-            {
-              $facet: {
-                total: [{ $count: 'count' }],
-                totalValue: [{ $group: { _id: null, value: { $sum: { $multiply: ['$costPrice', '$totalStock'] } } } }],
-                lowStock: [
-                  { $match: { $expr: { $lte: ['$totalStock', 10] } } },
-                  { $count: 'count' }
-                ]
-              }
-            }
-          ])
-        : Promise.resolve([
-            {
-              total: [{ count: 0 }],
-              totalValue: [{ value: 0 }],
-              lowStock: [{ count: 0 }]
-            }
-          ]),
+      // 3. Product stats (Trading)
+      safeAggregate(Product, [
+        { $match: { ...req.tenantFilter, isActive: true } },
+        {
+          $facet: {
+            total: [{ $count: 'count' }],
+            totalValue: [{ $group: { _id: null, value: { $sum: { $multiply: ['$costPrice', '$totalStock'] } } } }],
+            lowStock: [
+              { $match: { $expr: { $lte: ['$totalStock', 10] } } },
+              { $count: 'count' }
+            ]
+          }
+        }
+      ]),
       
-      // Payroll stats for current month
-      Payroll.aggregate([
+      // 4. Payroll stats for current month
+      safeAggregate(Payroll, [
         { $match: { ...req.tenantFilter, periodMonth: currentMonth, periodYear: currentYear } },
         {
           $group: {
@@ -104,15 +162,16 @@ router.get('/', async (req, res) => {
         }
       ]),
       
-      // Recent invoices
+      // 5. Recent invoices
       Invoice.find(req.tenantFilter)
         .sort({ createdAt: -1 })
         .limit(5)
         .select('invoiceNumber buyer.name grandTotal status issueDate zatca.submissionStatus')
-        .lean(),
+        .lean()
+        .catch(() => []),
       
-      // Expiring documents
-      Employee.aggregate([
+      // 6. Expiring documents
+      safeAggregate(Employee, [
         { $match: { ...req.tenantFilter, isActive: true } },
         {
           $project: {
@@ -169,15 +228,16 @@ router.get('/', async (req, res) => {
         { $limit: 10 }
       ]),
 
-      // Recent customers
+      // 7. Recent customers
       Customer.find(req.tenantFilter)
         .sort({ createdAt: -1 })
         .limit(5)
         .select('name nameAr email phone type createdAt')
-        .lean(),
+        .lean()
+        .catch(() => []),
 
-      // Top products by invoice count (last 6 months — avoids scanning all invoices)
-      Invoice.aggregate([
+      // 8. Top products
+      safeAggregate(Invoice, [
         { $match: { ...req.tenantFilter, issueDate: { $gte: topProductsSince }, status: { $nin: ['draft', 'cancelled', 'credited'] } } },
         { $unwind: '$lineItems' },
         {
@@ -200,8 +260,8 @@ router.get('/', async (req, res) => {
         { $limit: 5 }
       ]),
 
-      // Today's stats
-      Invoice.aggregate([
+      // 9. Today's stats
+      safeAggregate(Invoice, [
         {
           $match: {
             ...req.tenantFilter,
@@ -218,62 +278,418 @@ router.get('/', async (req, res) => {
         }
       ]),
 
-      businessTypes.includes('travel_agency')
-        ? TravelBooking.aggregate([
-            { $match: { ...req.tenantFilter, isActive: true } },
-            {
-              $facet: {
-                totals: [
-                  {
-                    $group: {
-                      _id: null,
-                      total: { $sum: 1 },
-                      revenue: { $sum: '$grandTotal' },
-                      open: {
-                        $sum: {
-                          $cond: [{ $in: ['$status', ['draft', 'confirmed', 'ticketed']] }, 1, 0]
-                        }
-                      }
+      // 10. Travel Agency
+      safeAggregate(TravelBooking, [
+        { $match: { ...req.tenantFilter, isActive: true } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  revenue: { $sum: '$grandTotal' },
+                  open: {
+                    $sum: {
+                      $cond: [{ $in: ['$status', ['draft', 'confirmed', 'ticketed']] }, 1, 0]
+                    }
+                  },
+                  ticketed: {
+                    $sum: {
+                      $cond: [{ $eq: ['$status', 'ticketed'] }, 1, 0]
                     }
                   }
-                ],
-                byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
-                recent: [
-                  { $sort: { createdAt: -1 } },
-                  { $limit: 5 },
-                  { $project: { bookingNumber: 1, status: 1, customerName: 1, grandTotal: 1, createdAt: 1 } }
-                ]
+                }
               }
-            }
-          ])
-        : Promise.resolve([{ totals: [{ total: 0, revenue: 0, open: 0 }], byStatus: [], recent: [] }]),
+            ],
+            byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
+            recent: [
+              { $sort: { createdAt: -1 } },
+              { $limit: 5 },
+              { $project: { bookingNumber: 1, status: 1, customerName: 1, grandTotal: 1, createdAt: 1 } }
+            ]
+          }
+        }
+      ]),
 
-      businessTypes.includes('restaurant')
-        ? RestaurantOrder.aggregate([
-            { $match: { ...req.tenantFilter, isActive: true } },
-            {
-              $facet: {
-                totals: [
-                  {
-                    $group: {
-                      _id: null,
-                      total: { $sum: 1 },
-                      revenue: { $sum: '$grandTotal' },
-                      open: { $sum: { $cond: [{ $eq: ['$status', 'open'] }, 1, 0] } }
+      // 11. Restaurant
+      safeAggregate(RestaurantOrder, [
+        { $match: { ...req.tenantFilter, isActive: true } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  revenue: { $sum: '$grandTotal' },
+                  open: { $sum: { $cond: [{ $eq: ['$status', 'open'] }, 1, 0] } },
+                  preparing: { $sum: { $cond: [{ $eq: ['$status', 'in_kitchen'] }, 1, 0] } },
+                  todayRevenue: {
+                    $sum: {
+                      $cond: [{ $gte: ['$createdAt', today] }, '$grandTotal', 0]
                     }
                   }
-                ],
-                byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
-                recent: [
-                  { $sort: { createdAt: -1 } },
-                  { $limit: 5 },
-                  { $project: { orderNumber: 1, status: 1, tableNumber: 1, grandTotal: 1, createdAt: 1 } }
-                ]
+                }
               }
-            }
-          ])
-        : Promise.resolve([{ totals: [{ total: 0, revenue: 0, open: 0 }], byStatus: [], recent: [] }])
+            ],
+            byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
+            recent: [
+              { $sort: { createdAt: -1 } },
+              { $limit: 5 },
+              { $project: { orderNumber: 1, status: 1, tableNumber: 1, grandTotal: 1, createdAt: 1 } }
+            ]
+          }
+        }
+      ]),
+
+      // 12. Car Rental
+      safeAggregate(RentalContract, [
+        { $match: { ...req.tenantFilter } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  activeCount: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+                  completedCount: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+                  revenue: { $sum: { $ifNull: ['$totalAmount', '$grandTotal'] } }
+                }
+              }
+            ],
+            recent: [
+              { $sort: { createdAt: -1 } },
+              { $limit: 5 },
+              { $project: { contractNumber: 1, status: 1, customerName: 1, totalAmount: 1, createdAt: 1 } }
+            ]
+          }
+        }
+      ]),
+
+      // 13. Laundry
+      safeAggregate(LaundryOrder, [
+        { $match: { ...req.tenantFilter } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  received: { $sum: { $cond: [{ $eq: ['$status', 'received'] }, 1, 0] } },
+                  inWash: { $sum: { $cond: [{ $in: ['$status', ['washing', 'drying', 'ironing']] }, 1, 0] } },
+                  ready: { $sum: { $cond: [{ $eq: ['$status', 'ready'] }, 1, 0] } },
+                  revenue: { $sum: '$grandTotal' }
+                }
+              }
+            ],
+            recent: [
+              { $sort: { createdAt: -1 } },
+              { $limit: 5 },
+              { $project: { orderNumber: 1, status: 1, customerName: 1, grandTotal: 1, createdAt: 1 } }
+            ]
+          }
+        }
+      ]),
+
+      // 14. Saloon & Barber
+      safeAggregate(SaloonOrder, [
+        { $match: { ...req.tenantFilter } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  revenue: { $sum: '$grandTotal' },
+                  todayOrders: { $sum: { $cond: [{ $gte: ['$createdAt', today] }, 1, 0] } }
+                }
+              }
+            ],
+            recent: [
+              { $sort: { createdAt: -1 } },
+              { $limit: 5 },
+              { $project: { orderNumber: 1, status: 1, customerName: 1, grandTotal: 1, createdAt: 1 } }
+            ]
+          }
+        }
+      ]),
+
+      // 15. Tailor & Khayyat
+      safeAggregate(KhayyatStitching, [
+        { $match: { ...req.tenantFilter } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  inProgress: { $sum: { $cond: [{ $in: ['$status', ['assigned', 'cutting', 'stitching']] }, 1, 0] } },
+                  readyForFitting: { $sum: { $cond: [{ $eq: ['$status', 'ready_for_trial'] }, 1, 0] } },
+                  completed: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } }
+                }
+              }
+            ],
+            recent: [
+              { $sort: { createdAt: -1 } },
+              { $limit: 5 },
+              { $project: { orderNumber: 1, customerName: 1, status: 1, deliveryDate: 1, createdAt: 1 } }
+            ]
+          }
+        }
+      ]),
+
+      // 16. Manpower & Labor Supply
+      safeAggregate(ManpowerWorker, [
+        { $match: { ...req.tenantFilter, isActive: true } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  deployed: { $sum: { $cond: [{ $eq: ['$status', 'deployed'] }, 1, 0] } },
+                  available: { $sum: { $cond: [{ $eq: ['$status', 'available'] }, 1, 0] } }
+                }
+              }
+            ]
+          }
+        }
+      ]),
+
+      // 17. Bakala & Supermarket
+      safeAggregate(BakalaProduct, [
+        { $match: { ...req.tenantFilter, isActive: true } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  lowStock: { $sum: { $cond: [{ $lte: ['$stock', 10] }, 1, 0] } },
+                  totalStock: { $sum: '$stock' }
+                }
+              }
+            ]
+          }
+        }
+      ]),
+
+      // 18. Manufacturing & MES
+      safeAggregate(ManufacturingWorkOrder, [
+        { $match: { ...req.tenantFilter } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  active: { $sum: { $cond: [{ $in: ['$status', ['released', 'in_progress']] }, 1, 0] } },
+                  completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }
+                }
+              }
+            ],
+            recent: [
+              { $sort: { createdAt: -1 } },
+              { $limit: 5 },
+              { $project: { workOrderNumber: 1, status: 1, plannedQty: 1, completedQty: 1, createdAt: 1 } }
+            ]
+          }
+        }
+      ]),
+
+      // 19. Boutique & Dress Rental
+      safeAggregate(BoutiqueRental, [
+        { $match: { ...req.tenantFilter } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  activeRentals: { $sum: { $cond: [{ $in: ['$status', ['reserved', 'picked_up']] }, 1, 0] } },
+                  completed: { $sum: { $cond: [{ $eq: ['$status', 'returned'] }, 1, 0] } }
+                }
+              }
+            ]
+          }
+        }
+      ]),
+
+      // 20. Car Workshop & Garage
+      safeAggregate(WorkshopJobCard, [
+        { $match: { ...req.tenantFilter } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  openCards: { $sum: { $cond: [{ $in: ['$status', ['pending', 'in_progress', 'quality_check']] }, 1, 0] } },
+                  completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+                  revenue: { $sum: '$grandTotal' }
+                }
+              }
+            ],
+            recent: [
+              { $sort: { createdAt: -1 } },
+              { $limit: 5 },
+              { $project: { jobCardNumber: 1, status: 1, grandTotal: 1, createdAt: 1 } }
+            ]
+          }
+        }
+      ]),
+
+      // 21. Bookstore & Stationery
+      safeAggregate(BookStoreProduct, [
+        { $match: { ...req.tenantFilter, isActive: true } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  lowStock: { $sum: { $cond: [{ $lte: ['$stock', 5] }, 1, 0] } }
+                }
+              }
+            ]
+          }
+        }
+      ]),
+
+      // 22. E-Commerce Store
+      safeAggregate(EcommerceOrder, [
+        { $match: { ...req.tenantFilter } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+                  processing: { $sum: { $cond: [{ $in: ['$status', ['confirmed', 'processing']] }, 1, 0] } },
+                  shipped: { $sum: { $cond: [{ $in: ['$status', ['shipped', 'out_for_delivery']] }, 1, 0] } },
+                  delivered: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+                  revenue: { $sum: '$totalAmount' }
+                }
+              }
+            ],
+            recent: [
+              { $sort: { createdAt: -1 } },
+              { $limit: 5 },
+              { $project: { orderNumber: 1, status: 1, totalAmount: 1, 'customer.name': 1, createdAt: 1 } }
+            ]
+          }
+        }
+      ]),
+
+      // 23. Furniture Showroom
+      safeAggregate(FurnitureOrder, [
+        { $match: { ...req.tenantFilter } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  inProduction: { $sum: { $cond: [{ $in: ['$status', ['in_production', 'confirmed']] }, 1, 0] } },
+                  delivered: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+                  revenue: { $sum: '$grandTotal' }
+                }
+              }
+            ]
+          }
+        }
+      ]),
+
+      // 24. Construction & Contracting Projects
+      safeAggregate(Project, [
+        { $match: { ...req.tenantFilter } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  active: { $sum: { $cond: [{ $in: ['$status', ['planned', 'in_progress']] }, 1, 0] } },
+                  completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+                  avgProgress: { $avg: '$progress' },
+                  totalBudget: { $sum: '$budget' }
+                }
+              }
+            ],
+            recent: [
+              { $sort: { createdAt: -1 } },
+              { $limit: 5 },
+              { $project: { code: 1, nameEn: 1, nameAr: 1, progress: 1, budget: 1, status: 1, createdAt: 1 } }
+            ]
+          }
+        }
+      ])
     ]);
+
+    // Build Active Installed Apps Catalog List
+    const defaultCatalogMap = new Map(DEFAULT_APP_CATALOG.map(a => [a.appId, a]));
+    const installedAppsList = DEFAULT_APP_CATALOG.map(app => {
+      const explicit = tenantInstalled[app.appId];
+      const isGrantedByBusinessType = app.businessTypeGrant && businessTypes.includes(app.businessTypeGrant);
+      const isInstalled = !!explicit?.isInstalled || !!isGrantedByBusinessType;
+      const isEnabled = explicit?.isEnabled !== false;
+      return {
+        appId: app.appId,
+        nameEn: app.nameEn,
+        nameAr: app.nameAr,
+        category: app.category,
+        appType: app.appType,
+        icon: app.icon,
+        badge: app.badge,
+        defaultRoute: app.defaultRoute,
+        businessTypeGrant: app.businessTypeGrant,
+        isInstalled,
+        isEnabled
+      };
+    });
+
+    const appsOverview = {
+      trading: {
+        totalProducts: productStats[0]?.total[0]?.count || 0,
+        stockValue: productStats[0]?.totalValue[0]?.value || 0,
+        lowStock: productStats[0]?.lowStock[0]?.count || 0
+      },
+      travel_agency: travelStats[0] || { totals: [{ total: 0, revenue: 0, open: 0, ticketed: 0 }], byStatus: [], recent: [] },
+      restaurant: restaurantStats[0] || { totals: [{ total: 0, revenue: 0, open: 0, preparing: 0, todayRevenue: 0 }], byStatus: [], recent: [] },
+      car_rental: rentalStats[0] || { totals: [{ total: 0, activeCount: 0, completedCount: 0, revenue: 0 }], recent: [] },
+      laundry: laundryStats[0] || { totals: [{ total: 0, received: 0, inWash: 0, ready: 0, revenue: 0 }], recent: [] },
+      saloon: saloonStats[0] || { totals: [{ total: 0, revenue: 0, todayOrders: 0 }], recent: [] },
+      khayyat: khayyatStats[0] || { totals: [{ total: 0, inProgress: 0, readyForFitting: 0, completed: 0 }], recent: [] },
+      manpower: manpowerStats[0] || { totals: [{ total: 0, deployed: 0, available: 0 }] },
+      bakala: bakalaStats[0] || { totals: [{ total: 0, lowStock: 0, totalStock: 0 }] },
+      manufacturing: mfgStats[0] || { totals: [{ total: 0, active: 0, completed: 0 }], recent: [] },
+      boutique: boutiqueStats[0] || { totals: [{ total: 0, activeRentals: 0, completed: 0 }] },
+      car_workshop: workshopStats[0] || { totals: [{ total: 0, openCards: 0, completed: 0, revenue: 0 }], recent: [] },
+      bookstore: bookstoreStats[0] || { totals: [{ total: 0, lowStock: 0 }] },
+      ecommerce: ecommerceStats[0] || { totals: [{ total: 0, pending: 0, processing: 0, shipped: 0, delivered: 0, revenue: 0 }], recent: [] },
+      furniture_shop: furnitureStats[0] || { totals: [{ total: 0, inProduction: 0, delivered: 0, revenue: 0 }] },
+      construction: projectStats[0] || { totals: [{ total: 0, active: 0, completed: 0, avgProgress: 0, totalBudget: 0 }], recent: [] },
+      saudi_compliance: {
+        zatcaStatuses: invoiceStats[0]?.zatcaStatus || [],
+        expiringDocumentsCount: expiringDocuments?.length || 0,
+        isPhase2Ready: req.tenant?.zatca?.isOnboarded || false
+      }
+    };
     
     res.json({
       invoices: {
@@ -302,7 +718,10 @@ router.get('/', async (req, res) => {
       topProducts,
       todayStats: todayStats[0] || { count: 0, revenue: 0 },
       travel: travelStats?.[0] || { totals: [{ total: 0, revenue: 0, open: 0 }], byStatus: [], recent: [] },
-      restaurant: restaurantStats?.[0] || { totals: [{ total: 0, revenue: 0, open: 0 }], byStatus: [], recent: [] }
+      restaurant: restaurantStats?.[0] || { totals: [{ total: 0, revenue: 0, open: 0 }], byStatus: [], recent: [] },
+      appsOverview,
+      installedApps: installedAppsList,
+      activeBusinessTypes: businessTypes
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -331,20 +750,19 @@ router.get('/charts/revenue', async (req, res) => {
       });
     };
     
-    // 1. Invoices (Trading, Travel Agency, Construction)
-    const invoiceRevenue = await Invoice.aggregate([
+    // 1. Invoices (Trading, General ERP, Travel Agency, Construction)
+    const invoiceRevenue = await safeAggregate(Invoice, [
       {
         $match: {
           ...req.tenantFilter,
           issueDate: { $gte: startDate },
           status: { $nin: ['draft', 'cancelled', 'credited'] },
-          flow: 'sell' // Only sales invoices count towards revenue
+          flow: 'sell'
         }
       },
       {
         $facet: {
           standard: [
-            // Standard Invoices
             {
               $group: {
                 _id: { year: { $year: '$issueDate' }, month: { $month: '$issueDate' } },
@@ -355,7 +773,6 @@ router.get('/charts/revenue', async (req, res) => {
             }
           ],
           travelMargin: [
-            // Travel Margin specific logic (since margin isn't part of standard taxableAmount sometimes)
             { $unwind: '$lineItems' },
             { $match: { 'lineItems.isTravelMargin': true } },
             {
@@ -363,7 +780,7 @@ router.get('/charts/revenue', async (req, res) => {
                 _id: { year: { $year: '$issueDate' }, month: { $month: '$issueDate' } },
                 revenue: { $sum: { $ifNull: ['$lineItems.marginTaxable', 0] } },
                 tax: { $sum: { $ifNull: ['$lineItems.taxAmount', 0] } },
-                count: { $sum: 0 } // Don't double count the invoice
+                count: { $sum: 0 }
               }
             }
           ]
@@ -373,13 +790,12 @@ router.get('/charts/revenue', async (req, res) => {
 
     invoiceRevenue[0]?.standard?.forEach(r => addRevenue(r._id.year, r._id.month, r.revenue, r.tax, r.count));
     if (businessTypes.includes('travel_agency')) {
-       // If travel agency, standard taxableAmount might be 0 for margin lines, so we add marginTaxable
        invoiceRevenue[0]?.travelMargin?.forEach(r => addRevenue(r._id.year, r._id.month, r.revenue, r.tax, r.count));
     }
 
     // 2. Car Rental
     if (businessTypes.includes('car_rental')) {
-      const rentalRevenue = await RentalContract.aggregate([
+      const rentalRevenue = await safeAggregate(RentalContract, [
         {
           $match: {
             ...req.tenantFilter,
@@ -401,7 +817,7 @@ router.get('/charts/revenue', async (req, res) => {
 
     // 3. Laundry
     if (businessTypes.includes('laundry')) {
-      const laundryRevenue = await LaundryOrder.aggregate([
+      const laundryRevenue = await safeAggregate(LaundryOrder, [
         {
           $match: {
             ...req.tenantFilter,
@@ -423,7 +839,7 @@ router.get('/charts/revenue', async (req, res) => {
 
     // 4. Restaurant
     if (businessTypes.includes('restaurant')) {
-      const restaurantRevenue = await RestaurantOrder.aggregate([
+      const restaurantRevenue = await safeAggregate(RestaurantOrder, [
         {
           $match: {
             ...req.tenantFilter,
@@ -441,6 +857,50 @@ router.get('/charts/revenue', async (req, res) => {
         }
       ]);
       restaurantRevenue.forEach(r => addRevenue(r._id.year, r._id.month, r.revenue, r.tax, r.count));
+    }
+
+    // 5. E-Commerce
+    if (businessTypes.includes('ecommerce')) {
+      const ecomRevenue = await safeAggregate(EcommerceOrder, [
+        {
+          $match: {
+            ...req.tenantFilter,
+            createdAt: { $gte: startDate },
+            status: { $nin: ['cancelled', 'refunded'] }
+          }
+        },
+        {
+          $group: {
+            _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+            revenue: { $sum: { $ifNull: ['$totalAmount', 0] } },
+            tax: { $sum: 0 },
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+      ecomRevenue.forEach(r => addRevenue(r._id.year, r._id.month, r.revenue, r.tax, r.count));
+    }
+
+    // 6. Car Workshop
+    if (businessTypes.includes('car_workshop')) {
+      const workshopRevenue = await safeAggregate(WorkshopJobCard, [
+        {
+          $match: {
+            ...req.tenantFilter,
+            createdAt: { $gte: startDate },
+            status: { $in: ['completed', 'in_progress'] }
+          }
+        },
+        {
+          $group: {
+            _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+            revenue: { $sum: { $ifNull: ['$grandTotal', 0] } },
+            tax: { $sum: 0 },
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+      workshopRevenue.forEach(r => addRevenue(r._id.year, r._id.month, r.revenue, r.tax, r.count));
     }
     
     const merged = Array.from(byKey.values()).sort((a, b) => {
@@ -462,7 +922,7 @@ router.get('/charts/expenses', async (req, res) => {
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - parseInt(months));
     
-    const payrollExpenses = await Payroll.aggregate([
+    const payrollExpenses = await safeAggregate(Payroll, [
       {
         $match: {
           ...req.tenantFilter,
@@ -481,7 +941,7 @@ router.get('/charts/expenses', async (req, res) => {
       { $sort: { '_id.year': 1, '_id.month': 1 } }
     ]);
 
-    const otherExpenses = await Expense.aggregate([
+    const otherExpenses = await safeAggregate(Expense, [
       {
         $match: {
           ...req.tenantFilter,

@@ -11,6 +11,7 @@ const appAddonSchema = new mongoose.Schema({
   category: {
     type: String,
     enum: [
+      'industry_verticals',
       'manufacturing',
       'pos_retail',
       'saudi_compliance',

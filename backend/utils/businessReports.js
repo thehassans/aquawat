@@ -12,6 +12,16 @@ import ManpowerWorker from '../models/ManpowerWorker.js';
 import BakalaProduct from '../models/BakalaProduct.js';
 import PosSession from '../models/PosSession.js';
 import KhayyatStitching from '../models/khayyat/KhayyatStitching.js';
+import { ManufacturingWorkOrder, ManufacturingBOM, ManufacturingJobCard } from '../models/Manufacturing.js';
+import BoutiqueRental from '../models/BoutiqueRental.js';
+import BoutiqueProduct from '../models/BoutiqueProduct.js';
+import WorkshopJobCard from '../models/WorkshopJobCard.js';
+import BookStoreProduct from '../models/BookStoreProduct.js';
+import BookRental from '../models/BookRental.js';
+import EcommerceOrder from '../models/EcommerceOrder.js';
+import EcommerceProduct from '../models/EcommerceProduct.js';
+import FurnitureOrder from '../models/FurnitureOrder.js';
+import FurnitureProduct from '../models/FurnitureProduct.js';
 import { getTenantBusinessTypes } from './businessTypes.js';
 
 // Each builder returns a uniform section so the frontend can render it generically:
@@ -43,6 +53,18 @@ const SECTION_LABELS = {
   khayyat: { en: 'Tailor / Boutique', ar: 'الخياط' },
   manpower: { en: 'Manpower & Labor', ar: 'العمالة والموارد البشرية' },
   bakala: { en: 'Bakala / Supermarket', ar: 'البقالة والسوبر ماركت' },
+  manufacturing: { en: 'Manufacturing & MES', ar: 'التصنيع والإنتاج' },
+  manufacturing_mes: { en: 'Manufacturing & MES', ar: 'التصنيع والإنتاج' },
+  boutique: { en: 'Boutique & Dress Rental', ar: 'بوتيك وتأجير الفساتين' },
+  boutique_rental: { en: 'Boutique & Dress Rental', ar: 'بوتيك وتأجير الفساتين' },
+  car_workshop: { en: 'Car Workshop & Garage', ar: 'مركز صيانة السيارات' },
+  workshop: { en: 'Car Workshop & Garage', ar: 'مركز صيانة السيارات' },
+  bookstore: { en: 'Bookstore & Stationery', ar: 'المكتبة والقرطاسية' },
+  bookstore_stationery: { en: 'Bookstore & Stationery', ar: 'المكتبة والقرطاسية' },
+  ecommerce: { en: 'E-Commerce Store', ar: 'المتجر الإلكتروني' },
+  ecommerce_store: { en: 'E-Commerce Store', ar: 'المتجر الإلكتروني' },
+  furniture_shop: { en: 'Furniture Shop', ar: 'معرض الأثاث والمفروشات' },
+  furniture: { en: 'Furniture Shop', ar: 'معرض الأثاث والمفروشات' },
 };
 
 // ─── Trading ─────────────────────────────────────────────────────────────────
@@ -833,17 +855,590 @@ async function buildBakala({ tenantFilter, startDate, endDate }) {
   };
 }
 
+// ─── Manufacturing & MES ───────────────────────────────────────────────────
+async function buildManufacturing({ tenantFilter, startDate, endDate }) {
+  const dateMatch = {
+    ...tenantFilter,
+    createdAt: { $gte: startDate, $lte: endDate },
+  };
+
+  const [orderStats, topWorkOrders, stageWip] = await Promise.all([
+    safeAggregate(ManufacturingWorkOrder, [
+      { $match: dateMatch },
+      {
+        $group: {
+          _id: null,
+          totalOrders: { $sum: 1 },
+          qtyPlanned: { $sum: { $ifNull: ['$quantityPlanned', 0] } },
+          qtyProduced: { $sum: { $ifNull: ['$quantityProduced', 0] } },
+          qtyScrapped: { $sum: { $ifNull: ['$quantityScrapped', 0] } },
+          totalStandardCost: { $sum: { $ifNull: ['$standardCostEstimated', 0] } },
+          totalActualCost: { $sum: { $ifNull: ['$totalActualCost', 0] } },
+          totalVariance: { $sum: { $ifNull: ['$costVariance', 0] } },
+        },
+      },
+    ]),
+    safeAggregate(ManufacturingWorkOrder, [
+      { $match: dateMatch },
+      {
+        $group: {
+          _id: '$orderNumber',
+          status: { $first: '$status' },
+          stage: { $first: '$wipStage' },
+          planned: { $first: '$quantityPlanned' },
+          produced: { $first: '$quantityProduced' },
+          scrapped: { $first: '$quantityScrapped' },
+          actualCost: { $first: '$totalActualCost' },
+        },
+      },
+      { $sort: { planned: -1 } },
+      { $limit: 15 },
+    ]),
+    safeAggregate(ManufacturingWorkOrder, [
+      { $match: { ...tenantFilter, status: { $in: ['in_progress', 'quality_check', 'released'] } } },
+      {
+        $group: {
+          _id: '$wipStage',
+          ordersCount: { $sum: 1 },
+          wipCost: { $sum: { $ifNull: ['$totalActualCost', 0] } },
+        },
+      },
+      { $sort: { wipCost: -1 } },
+    ]),
+  ]);
+
+  const stats = first(orderStats);
+  const planned = num(stats.qtyPlanned);
+  const produced = num(stats.qtyProduced);
+  const scrapped = num(stats.qtyScrapped);
+  const scrapRate = planned > 0 ? ((scrapped / planned) * 100).toFixed(1) : '0.0';
+  const completionRate = planned > 0 ? ((produced / planned) * 100).toFixed(1) : '0.0';
+
+  return {
+    key: 'manufacturing',
+    label: SECTION_LABELS.manufacturing,
+    kpis: [
+      { key: 'totalOrders', label: { en: 'Total Work Orders', ar: 'إجمالي أوامر الإنتاج' }, value: num(stats.totalOrders), format: 'number' },
+      { key: 'qtyProduced', label: { en: 'Units Produced', ar: 'الوحدات المصنعة' }, value: produced, format: 'number' },
+      { key: 'completionRate', label: { en: 'Completion Rate', ar: 'نسبة الإنجاز' }, value: completionRate, format: 'percent' },
+      { key: 'scrapRate', label: { en: 'Scrap Rate', ar: 'نسبة الهدر والتالف' }, value: scrapRate, format: 'percent' },
+      { key: 'totalActualCost', label: { en: 'Total Actual Production Cost', ar: 'إجمالي تكلفة الإنتاج الفعلية' }, value: num(stats.totalActualCost), format: 'money' },
+      { key: 'totalVariance', label: { en: 'Cost Variance (Actual - Std)', ar: 'انحراف التكاليف' }, value: num(stats.totalVariance), format: 'money' },
+    ],
+    tables: [
+      {
+        key: 'workOrders',
+        title: { en: 'Work Orders Progress & Cost Variance', ar: 'تقدم أوامر الإنتاج والتكلفة الفعلية' },
+        columns: [
+          { key: 'orderNumber', label: { en: 'WO #', ar: 'رقم الأمر' }, format: 'text' },
+          { key: 'status', label: { en: 'Status', ar: 'الحالة' }, format: 'text' },
+          { key: 'stage', label: { en: 'WIP Stage', ar: 'المرحلة' }, format: 'text' },
+          { key: 'planned', label: { en: 'Planned', ar: 'المخطط' }, format: 'number' },
+          { key: 'produced', label: { en: 'Produced', ar: 'المنجز' }, format: 'number' },
+          { key: 'scrapped', label: { en: 'Scrapped', ar: 'التالف' }, format: 'number' },
+          { key: 'actualCost', label: { en: 'Actual Cost', ar: 'التكلفة الفعلية' }, format: 'money' },
+        ],
+        rows: (topWorkOrders || []).map((row) => ({
+          orderNumber: row._id,
+          status: row.status,
+          stage: row.stage,
+          planned: num(row.planned),
+          produced: num(row.produced),
+          scrapped: num(row.scrapped),
+          actualCost: num(row.actualCost),
+        })),
+      },
+      {
+        key: 'wipStages',
+        title: { en: 'WIP Valuation by Production Stage', ar: 'تقييم الإنتاج تحت التشغيل حسب المرحلة' },
+        columns: [
+          { key: 'stage', label: { en: 'Stage', ar: 'المرحلة' }, format: 'text' },
+          { key: 'ordersCount', label: { en: 'Active Orders', ar: 'الأوامر النشطة' }, format: 'number' },
+          { key: 'wipCost', label: { en: 'WIP Value', ar: 'قيمة المخزون التشغيلي' }, format: 'money' },
+        ],
+        rows: (stageWip || []).map((row) => ({
+          stage: row._id || 'General',
+          ordersCount: num(row.ordersCount),
+          wipCost: num(row.wipCost),
+        })),
+      },
+    ],
+  };
+}
+
+// ─── Boutique & Dress Rental ───────────────────────────────────────────────
+async function buildBoutique({ tenantFilter, startDate, endDate }) {
+  const matchRentals = {
+    ...tenantFilter,
+    createdAt: { $gte: startDate, $lte: endDate },
+  };
+
+  const [rentalStats, topDresses, byStatus] = await Promise.all([
+    safeAggregate(BoutiqueRental, [
+      { $match: matchRentals },
+      {
+        $group: {
+          _id: null,
+          totalRentals: { $sum: 1 },
+          totalRevenue: { $sum: { $ifNull: ['$pricing.totalAmount', { $ifNull: ['$totalAmount', 0] }] } },
+          totalDeposits: { $sum: { $ifNull: ['$pricing.depositAmount', 0] } },
+          lateFees: { $sum: { $ifNull: ['$pricing.lateFee', 0] } },
+          damageFees: { $sum: { $ifNull: ['$pricing.damageFee', 0] } },
+        },
+      },
+    ]),
+    safeAggregate(BoutiqueRental, [
+      { $match: matchRentals },
+      { $unwind: { path: '$items', preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: { $ifNull: ['$items.productName', 'Dress Item'] },
+          rentalCount: { $sum: 1 },
+          revenue: { $sum: { $ifNull: ['$items.lineTotal', 0] } },
+        },
+      },
+      { $sort: { revenue: -1 } },
+      { $limit: 15 },
+    ]),
+    safeAggregate(BoutiqueRental, [
+      { $match: matchRentals },
+      { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: { $ifNull: ['$pricing.totalAmount', 0] } } } },
+      { $sort: { count: -1 } },
+    ]),
+  ]);
+
+  const stats = first(rentalStats);
+
+  return {
+    key: 'boutique',
+    label: SECTION_LABELS.boutique,
+    kpis: [
+      { key: 'totalRentals', label: { en: 'Total Dress Bookings', ar: 'إجمالي حجوزات الفساتين' }, value: num(stats.totalRentals), format: 'number' },
+      { key: 'totalRevenue', label: { en: 'Total Rental Revenue', ar: 'إجمالي إيرادات التأجير' }, value: num(stats.totalRevenue), format: 'money' },
+      { key: 'totalDeposits', label: { en: 'Security Deposits Held', ar: 'التأمينات المحصلة' }, value: num(stats.totalDeposits), format: 'money' },
+      { key: 'damageLateFees', label: { en: 'Late & Damage Fees', ar: 'رسوم التأخير والأضرار' }, value: num(stats.lateFees) + num(stats.damageFees), format: 'money' },
+    ],
+    tables: [
+      {
+        key: 'topDresses',
+        title: { en: 'Top Rented Boutique Items & Collections', ar: 'الفساتين والقطع الأكثر طلباً' },
+        columns: [
+          { key: 'productName', label: { en: 'Dress / Item', ar: 'القطعة / الفستان' }, format: 'text' },
+          { key: 'rentalCount', label: { en: 'Times Rented', ar: 'مرات التأجير' }, format: 'number' },
+          { key: 'revenue', label: { en: 'Revenue', ar: 'الإيراد' }, format: 'money' },
+        ],
+        rows: (topDresses || []).map((row) => ({
+          productName: row._id,
+          rentalCount: num(row.rentalCount),
+          revenue: num(row.revenue),
+        })),
+      },
+      {
+        key: 'byStatus',
+        title: { en: 'Rentals by Reservation Status', ar: 'حالة عقود وحجوزات التأجير' },
+        columns: [
+          { key: 'status', label: { en: 'Status', ar: 'الحالة' }, format: 'text' },
+          { key: 'count', label: { en: 'Contracts', ar: 'العقود' }, format: 'number' },
+          { key: 'total', label: { en: 'Total Value', ar: 'الإجمالي' }, format: 'money' },
+        ],
+        rows: (byStatus || []).map((row) => ({
+          status: row._id || 'Unknown',
+          count: num(row.count),
+          total: num(row.total),
+        })),
+      },
+    ],
+  };
+}
+
+// ─── Car Workshop & Garage ─────────────────────────────────────────────────
+async function buildWorkshop({ tenantFilter, startDate, endDate }) {
+  const matchJobs = {
+    ...tenantFilter,
+    createdAt: { $gte: startDate, $lte: endDate },
+  };
+
+  const [jobStats, statusList, recentJobs] = await Promise.all([
+    safeAggregate(WorkshopJobCard, [
+      { $match: matchJobs },
+      {
+        $group: {
+          _id: null,
+          totalJobs: { $sum: 1 },
+          completedJobs: { $sum: { $cond: [{ $in: ['$status', ['completed', 'delivered', 'invoiced']] }, 1, 0] } },
+          totalRevenue: { $sum: { $ifNull: ['$totalCost', { $ifNull: ['$estimatedCost', 0] }] } },
+          laborRevenue: { $sum: { $ifNull: ['$laborCost', 0] } },
+          partsRevenue: { $sum: { $ifNull: ['$partsCost', 0] } },
+        },
+      },
+    ]),
+    safeAggregate(WorkshopJobCard, [
+      { $match: matchJobs },
+      { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: { $ifNull: ['$totalCost', 0] } } } },
+      { $sort: { count: -1 } },
+    ]),
+    safeAggregate(WorkshopJobCard, [
+      { $match: matchJobs },
+      { $sort: { createdAt: -1 } },
+      { $limit: 15 },
+      {
+        $project: {
+          jobCardNumber: 1,
+          status: 1,
+          customerComplaints: 1,
+          totalCost: { $ifNull: ['$totalCost', '$estimatedCost'] },
+          laborCost: { $ifNull: ['$laborCost', 0] },
+          partsCost: { $ifNull: ['$partsCost', 0] },
+        },
+      },
+    ]),
+  ]);
+
+  const stats = first(jobStats);
+
+  return {
+    key: 'car_workshop',
+    label: SECTION_LABELS.car_workshop,
+    kpis: [
+      { key: 'totalJobs', label: { en: 'Total Job Cards', ar: 'إجمالي بطاقات الإصلاح' }, value: num(stats.totalJobs), format: 'number' },
+      { key: 'completedJobs', label: { en: 'Completed Repairs', ar: 'الإصلاحات المنجزة' }, value: num(stats.completedJobs), format: 'number' },
+      { key: 'totalRevenue', label: { en: 'Total Service Revenue', ar: 'إجمالي إيراد الصيانة' }, value: num(stats.totalRevenue), format: 'money' },
+      { key: 'laborRevenue', label: { en: 'Labor Revenue', ar: 'إيراد أجور اليد' }, value: num(stats.laborRevenue), format: 'money' },
+      { key: 'partsRevenue', label: { en: 'Parts Revenue', ar: 'إيراد قطع الغيار' }, value: num(stats.partsRevenue), format: 'money' },
+    ],
+    tables: [
+      {
+        key: 'recentJobs',
+        title: { en: 'Workshop Job Cards & Repair Billing', ar: 'بطاقات الإصلاح وفواتير الصيانة' },
+        columns: [
+          { key: 'jobCardNumber', label: { en: 'Job Card #', ar: 'رقم البطاقة' }, format: 'text' },
+          { key: 'status', label: { en: 'Status', ar: 'الحالة' }, format: 'text' },
+          { key: 'complaints', label: { en: 'Diagnosis / Complaint', ar: 'الشكوى / الفحص' }, format: 'text' },
+          { key: 'laborCost', label: { en: 'Labor (SAR)', ar: 'أجور اليد' }, format: 'money' },
+          { key: 'partsCost', label: { en: 'Parts (SAR)', ar: 'قطع الغيار' }, format: 'money' },
+          { key: 'totalCost', label: { en: 'Total (SAR)', ar: 'الإجمالي' }, format: 'money' },
+        ],
+        rows: (recentJobs || []).map((row) => ({
+          jobCardNumber: row.jobCardNumber || '—',
+          status: row.status || 'open',
+          complaints: Array.isArray(row.customerComplaints) ? row.customerComplaints.join(', ') || 'Standard Service' : 'Standard Service',
+          laborCost: num(row.laborCost),
+          partsCost: num(row.partsCost),
+          totalCost: num(row.totalCost),
+        })),
+      },
+      {
+        key: 'statusSummary',
+        title: { en: 'Job Cards by Stage & Bay Status', ar: 'توزيع البطاقات حسب الحالة ومسار العمل' },
+        columns: [
+          { key: 'status', label: { en: 'Stage', ar: 'المرحلة' }, format: 'text' },
+          { key: 'count', label: { en: 'Vehicles', ar: 'المركبات' }, format: 'number' },
+          { key: 'total', label: { en: 'Revenue', ar: 'الإيراد' }, format: 'money' },
+        ],
+        rows: (statusList || []).map((row) => ({
+          status: row._id || 'open',
+          count: num(row.count),
+          total: num(row.total),
+        })),
+      },
+    ],
+  };
+}
+
+// ─── Bookstore & Stationery ────────────────────────────────────────────────
+async function buildBookstore({ tenantFilter, startDate, endDate }) {
+  const matchRentals = {
+    ...tenantFilter,
+    createdAt: { $gte: startDate, $lte: endDate },
+  };
+
+  const [bookStats, rentalStats, topBooks, lowStock] = await Promise.all([
+    safeAggregate(BookStoreProduct, [
+      { $match: { ...tenantFilter, isActive: { $ne: false } } },
+      {
+        $group: {
+          _id: null,
+          totalTitles: { $sum: 1 },
+          totalCopies: { $sum: { $ifNull: ['$stockQuantity', 0] } },
+          inventoryValue: { $sum: { $multiply: [{ $ifNull: ['$costPrice', 0] }, { $ifNull: ['$stockQuantity', 0] }] } },
+          retailValue: { $sum: { $multiply: [{ $ifNull: ['$price', 0] }, { $ifNull: ['$stockQuantity', 0] }] } },
+        },
+      },
+    ]),
+    safeAggregate(BookRental, [
+      { $match: matchRentals },
+      {
+        $group: {
+          _id: null,
+          totalRentals: { $sum: 1 },
+          activeRentals: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+          rentalFees: { $sum: { $ifNull: ['$rentalFee', 0] } },
+          lateFees: { $sum: { $ifNull: ['$lateFee', 0] } },
+          depositsHeld: { $sum: { $cond: [{ $eq: ['$depositRefunded', false] }, { $ifNull: ['$depositAmount', 0] }, 0] } },
+        },
+      },
+    ]),
+    safeAggregate(BookStoreProduct, [
+      { $match: { ...tenantFilter, isActive: { $ne: false } } },
+      { $sort: { stockQuantity: -1 } },
+      { $limit: 15 },
+    ]),
+    safeAggregate(BookStoreProduct, [
+      { $match: { ...tenantFilter, isActive: { $ne: false }, stockQuantity: { $lte: 5 } } },
+      { $sort: { stockQuantity: 1 } },
+      { $limit: 10 },
+    ]),
+  ]);
+
+  const bStats = first(bookStats);
+  const rStats = first(rentalStats);
+
+  return {
+    key: 'bookstore',
+    label: SECTION_LABELS.bookstore,
+    kpis: [
+      { key: 'totalTitles', label: { en: 'Total Book Titles / SKU', ar: 'إجمالي عناوين الكتب والقرطاسية' }, value: num(bStats.totalTitles), format: 'number' },
+      { key: 'totalCopies', label: { en: 'In-Stock Copies', ar: 'النسخ المتوفرة بالمخزون' }, value: num(bStats.totalCopies), format: 'number' },
+      { key: 'inventoryValue', label: { en: 'Inventory Cost Value', ar: 'قيمة المخزون بالتكلفة' }, value: num(bStats.inventoryValue), format: 'money' },
+      { key: 'retailValue', label: { en: 'Inventory Retail Value', ar: 'القيمة السوقية للبيع' }, value: num(bStats.retailValue), format: 'money' },
+      { key: 'activeRentals', label: { en: 'Active Book Rentals', ar: 'الكتب المستعارة حالياً' }, value: num(rStats.activeRentals), format: 'number' },
+      { key: 'rentalRevenue', label: { en: 'Book Rental Income', ar: 'إيرادات الإعارة والتأجير' }, value: num(rStats.rentalFees) + num(rStats.lateFees), format: 'money' },
+    ],
+    tables: [
+      {
+        key: 'topBooks',
+        title: { en: 'Books & Stationery Inventory Valuation', ar: 'عناوين الكتب وتقييم المخزون' },
+        columns: [
+          { key: 'title', label: { en: 'Title', ar: 'العنوان' }, format: 'text' },
+          { key: 'isbn', label: { en: 'ISBN / Barcode', ar: 'الرقم المعياري' }, format: 'text' },
+          { key: 'category', label: { en: 'Category', ar: 'التصنيف' }, format: 'text' },
+          { key: 'stock', label: { en: 'In Stock', ar: 'المتوفر' }, format: 'number' },
+          { key: 'price', label: { en: 'Price', ar: 'السعر' }, format: 'money' },
+        ],
+        rows: (topBooks || []).map((row) => ({
+          title: row.titleEn || row.titleAr || row.name || 'Book Title',
+          isbn: row.isbn || row.barcode || '—',
+          category: row.category || 'General',
+          stock: num(row.stockQuantity),
+          price: num(row.price),
+        })),
+      },
+      {
+        key: 'lowStock',
+        title: { en: 'Low Stock Books & Reorder Alerts', ar: 'تنبيهات انخفاض مخزون الكتب والقرطاسية' },
+        columns: [
+          { key: 'title', label: { en: 'Title', ar: 'العنوان' }, format: 'text' },
+          { key: 'isbn', label: { en: 'ISBN', ar: 'الرقم المعياري' }, format: 'text' },
+          { key: 'stock', label: { en: 'Current Stock', ar: 'المتوفر' }, format: 'number' },
+        ],
+        rows: (lowStock || []).map((row) => ({
+          title: row.titleEn || row.titleAr || row.name || 'Book Title',
+          isbn: row.isbn || '—',
+          stock: num(row.stockQuantity),
+        })),
+      },
+    ],
+  };
+}
+
+// ─── E-Commerce Store ──────────────────────────────────────────────────────
+async function buildEcommerce({ tenantFilter, startDate, endDate }) {
+  const matchOrders = {
+    ...tenantFilter,
+    createdAt: { $gte: startDate, $lte: endDate },
+  };
+
+  const [orderStats, topProducts, byPayment] = await Promise.all([
+    safeAggregate(EcommerceOrder, [
+      { $match: matchOrders },
+      {
+        $group: {
+          _id: null,
+          totalOrders: { $sum: 1 },
+          paidOrders: { $sum: { $cond: [{ $eq: ['$payment.status', 'paid'] }, 1, 0] } },
+          totalSales: { $sum: { $ifNull: ['$totalAmount', 0] } },
+          totalVat: { $sum: { $ifNull: ['$taxAmount', 0] } },
+          totalShipping: { $sum: { $ifNull: ['$shippingAmount', 0] } },
+        },
+      },
+    ]),
+    safeAggregate(EcommerceOrder, [
+      { $match: matchOrders },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: { $ifNull: ['$items.productTitle', 'Online Item'] },
+          qtySold: { $sum: { $ifNull: ['$items.quantity', 1] } },
+          revenue: { $sum: { $ifNull: ['$items.lineTotal', 0] } },
+        },
+      },
+      { $sort: { revenue: -1 } },
+      { $limit: 15 },
+    ]),
+    safeAggregate(EcommerceOrder, [
+      { $match: matchOrders },
+      { $group: { _id: { $ifNull: ['$payment.method', 'cod'] }, count: { $sum: 1 }, total: { $sum: { $ifNull: ['$totalAmount', 0] } } } },
+      { $sort: { total: -1 } },
+    ]),
+  ]);
+
+  const stats = first(orderStats);
+  const totalOrders = num(stats.totalOrders);
+  const totalSales = num(stats.totalSales);
+  const aov = totalOrders > 0 ? (totalSales / totalOrders).toFixed(2) : 0;
+
+  return {
+    key: 'ecommerce',
+    label: SECTION_LABELS.ecommerce,
+    kpis: [
+      { key: 'totalOrders', label: { en: 'Total Online Orders', ar: 'إجمالي الطلبات الإلكترونية' }, value: totalOrders, format: 'number' },
+      { key: 'totalSales', label: { en: 'Gross Online Sales (GMV)', ar: 'إجمالي مبيعات المتجر' }, value: totalSales, format: 'money' },
+      { key: 'aov', label: { en: 'Average Order Value (AOV)', ar: 'متوسط قيمة الطلب' }, value: Number(aov), format: 'money' },
+      { key: 'paidOrders', label: { en: 'Successfully Paid Orders', ar: 'الطلبات المسددة' }, value: num(stats.paidOrders), format: 'number' },
+      { key: 'shippingRevenue', label: { en: 'Shipping & Delivery Fees', ar: 'رسوم الشحن والتوصيل' }, value: num(stats.totalShipping), format: 'money' },
+    ],
+    tables: [
+      {
+        key: 'topProducts',
+        title: { en: 'Top Selling Online Products', ar: 'المنتجات الأكثر مبيعاً عبر المتجر' },
+        columns: [
+          { key: 'name', label: { en: 'Product Name', ar: 'اسم المنتج' }, format: 'text' },
+          { key: 'qty', label: { en: 'Units Sold', ar: 'الكمية المباعة' }, format: 'number' },
+          { key: 'revenue', label: { en: 'Sales Revenue', ar: 'الإيراد' }, format: 'money' },
+        ],
+        rows: (topProducts || []).map((row) => ({
+          name: row._id,
+          qty: num(row.qtySold),
+          revenue: num(row.revenue),
+        })),
+      },
+      {
+        key: 'paymentGateways',
+        title: { en: 'Sales by Payment Gateway', ar: 'المبيعات حسب بوابة الدفع الإلكتروني' },
+        columns: [
+          { key: 'gateway', label: { en: 'Gateway / Method', ar: 'البوابة / الطريقة' }, format: 'text' },
+          { key: 'count', label: { en: 'Transactions', ar: 'العمليات' }, format: 'number' },
+          { key: 'total', label: { en: 'Amount', ar: 'المبلغ' }, format: 'money' },
+        ],
+        rows: (byPayment || []).map((row) => ({
+          gateway: String(row._id).toUpperCase(),
+          count: num(row.count),
+          total: num(row.total),
+        })),
+      },
+    ],
+  };
+}
+
+// ─── Furniture Shop ────────────────────────────────────────────────────────
+async function buildFurniture({ tenantFilter, startDate, endDate }) {
+  const matchOrders = {
+    ...tenantFilter,
+    createdAt: { $gte: startDate, $lte: endDate },
+  };
+
+  const [orderStats, stockStats, topFurniture] = await Promise.all([
+    safeAggregate(FurnitureOrder, [
+      { $match: matchOrders },
+      {
+        $group: {
+          _id: null,
+          totalOrders: { $sum: 1 },
+          totalSales: { $sum: { $ifNull: ['$totalAmount', 0] } },
+          totalVat: { $sum: { $ifNull: ['$vatAmount', 0] } },
+          customMadeOrders: { $sum: { $cond: [{ $eq: ['$isCustomOrder', true] }, 1, 0] } },
+        },
+      },
+    ]),
+    safeAggregate(FurnitureProduct, [
+      { $match: { ...tenantFilter, isActive: { $ne: false } } },
+      {
+        $group: {
+          _id: null,
+          totalItems: { $sum: 1 },
+          showroomPieces: { $sum: { $ifNull: ['$stockQuantity', 0] } },
+          stockCost: { $sum: { $multiply: [{ $ifNull: ['$costPrice', 0] }, { $ifNull: ['$stockQuantity', 0] }] } },
+          stockRetail: { $sum: { $multiply: [{ $ifNull: ['$sellingPrice', 0] }, { $ifNull: ['$stockQuantity', 0] }] } },
+        },
+      },
+    ]),
+    safeAggregate(FurnitureOrder, [
+      { $match: matchOrders },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: { $ifNull: ['$items.productName', 'Furniture Piece'] },
+          qtySold: { $sum: { $ifNull: ['$items.quantity', 1] } },
+          revenue: { $sum: { $ifNull: ['$items.lineTotal', 0] } },
+        },
+      },
+      { $sort: { revenue: -1 } },
+      { $limit: 15 },
+    ]),
+  ]);
+
+  const oStats = first(orderStats);
+  const sStats = first(stockStats);
+
+  return {
+    key: 'furniture_shop',
+    label: SECTION_LABELS.furniture_shop,
+    kpis: [
+      { key: 'totalOrders', label: { en: 'Furniture Orders', ar: 'إجمالي طلبات الأثاث' }, value: num(oStats.totalOrders), format: 'number' },
+      { key: 'totalSales', label: { en: 'Total Furniture Sales', ar: 'إجمالي مبيعات الأثاث' }, value: num(oStats.totalSales), format: 'money' },
+      { key: 'showroomPieces', label: { en: 'Showroom Stock Pieces', ar: 'قطع الأثاث بالمعرض' }, value: num(sStats.showroomPieces), format: 'number' },
+      { key: 'stockCost', label: { en: 'Showroom Inventory Cost', ar: 'تكلفة مخزون المعرض' }, value: num(sStats.stockCost), format: 'money' },
+      { key: 'stockRetail', label: { en: 'Showroom Retail Value', ar: 'القيمة البيعية للمعرض' }, value: num(sStats.stockRetail), format: 'money' },
+    ],
+    tables: [
+      {
+        key: 'topFurniture',
+        title: { en: 'Top Selling Furniture & Collections', ar: 'أطقم وقطع الأثاث الأكثر مبيعاً' },
+        columns: [
+          { key: 'name', label: { en: 'Collection / Piece', ar: 'القطعة / الطقم' }, format: 'text' },
+          { key: 'qty', label: { en: 'Quantity Sold', ar: 'الكمية المباعة' }, format: 'number' },
+          { key: 'revenue', label: { en: 'Revenue', ar: 'الإيراد' }, format: 'money' },
+        ],
+        rows: (topFurniture || []).map((row) => ({
+          name: row._id,
+          qty: num(row.qtySold),
+          revenue: num(row.revenue),
+        })),
+      },
+    ],
+  };
+}
+
 const BUILDERS = {
   trading: buildTrading,
   construction: buildConstruction,
+  construction_projects: buildConstruction,
   travel_agency: buildTravelAgency,
   restaurant: buildRestaurant,
+  restaurant_cafe: buildRestaurant,
   car_rental: buildCarRental,
   laundry: buildLaundry,
+  laundry_cleaning: buildLaundry,
   saloon: buildSaloon,
+  saloon_barber: buildSaloon,
   khayyat: buildKhayyat,
+  tailor_khayyat: buildKhayyat,
+  boutique: buildBoutique,
+  boutique_rental: buildBoutique,
   manpower: buildManpower,
+  manpower_supply: buildManpower,
   bakala: buildBakala,
+  bakala_supermarket: buildBakala,
+  manufacturing: buildManufacturing,
+  manufacturing_mes: buildManufacturing,
+  car_workshop: buildWorkshop,
+  workshop: buildWorkshop,
+  bookstore: buildBookstore,
+  bookstore_stationery: buildBookstore,
+  ecommerce: buildEcommerce,
+  ecommerce_store: buildEcommerce,
+  furniture_shop: buildFurniture,
+  furniture: buildFurniture,
 };
 
 export async function buildBusinessReports({ tenant, tenantFilter, startDate, endDate, only }) {

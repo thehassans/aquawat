@@ -2405,21 +2405,538 @@ export function App3DIcon({
   }
 
   // ─── 65. TRAVEL ─────────────────────────────────────────────────────────────
-  if (second === 'travel' || last === 'travel-bookings') {
+  if (cleanAppId === 'travel_agency' || second === 'travel' || last === 'travel-bookings' || cleanLabel.includes('travel') || cleanLabel.includes('سفر')) {
     return (
       <svg className={className} viewBox="0 0 64 64" fill="none">
         <defs>
           <linearGradient id={`trv_bq_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#6366F1" /><stop offset="100%" stopColor="#8B5CF6" />
+            <stop offset="0%" stopColor="#0284C7" /><stop offset="100%" stopColor="#38BDF8" />
           </linearGradient>
           <filter id={`trv_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#6366F1" floodOpacity="0.45" />
+            <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#0284C7" floodOpacity="0.45" />
           </filter>
         </defs>
         <path d="M32 8C32 8 26 14 14 24L20 26L10 38L18 36L20 42L36 30C40 36 44 44 44 52C50 46 54 38 54 30C54 18 44 8 32 8Z" fill={`url(#trv_bq_${uid})`} filter={`url(#trv_flt_${uid})`} />
-        <path d="M20 26L36 30" stroke="#FFFFFF" strokeWidth="2" strokeOpacity="0.5" />
+        <path d="M20 26L36 30" stroke="#FFFFFF" strokeWidth="2" strokeOpacity="0.8" />
+        <circle cx="32" cy="32" r="18" stroke="#38BDF8" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
         <path d="M10 38L6 50" stroke={`url(#trv_bq_${uid})`} strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.6" />
         <path d="M18 36L14 48" stroke={`url(#trv_bq_${uid})`} strokeWidth="2" strokeLinecap="round" strokeOpacity="0.45" />
+      </svg>
+    )
+  }
+
+  // ─── 66. MANUFACTURING & MES ───────────────────────────────────────────────
+  if (
+    cleanAppId === 'manufacturing' ||
+    cleanAppId === 'manufacturing_mes' ||
+    cleanIcon === 'factory' ||
+    last === 'manufacturing' ||
+    second === 'manufacturing' ||
+    cleanLabel.includes('manufacturing') ||
+    cleanLabel.includes('تصنيع') ||
+    cleanLabel.includes('إنتاج')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`mfg_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0891B2" />
+            <stop offset="100%" stopColor="#06B6D4" />
+          </linearGradient>
+          <linearGradient id={`mfg_gear_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="100%" stopColor="#CFFAFE" />
+          </linearGradient>
+          <filter id={`mfg_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0891B2" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#mfg_bg_${uid})`} filter={`url(#mfg_flt_${uid})`} />
+        {/* Factory Roof & Chimneys */}
+        <path d="M16 46V30L26 36V30L36 36V22H48V46H16Z" fill="#164E63" fillOpacity="0.4" />
+        {/* High-tech Gear */}
+        <circle cx="38" cy="28" r="8" fill={`url(#mfg_gear_${uid})`} />
+        <circle cx="38" cy="28" r="4" fill="#0891B2" />
+        <path d="M38 18V22M38 34V38M28 28H32M44 28H48" stroke={`url(#mfg_gear_${uid})`} strokeWidth="2.5" strokeLinecap="round" />
+        {/* Assembly Beam */}
+        <rect x="14" y="44" width="36" height="4" rx="2" fill="#ECFEFF" fillOpacity="0.8" />
+        <circle cx="20" cy="46" r="1.5" fill="#0891B2" />
+        <circle cx="32" cy="46" r="1.5" fill="#0891B2" />
+        <circle cx="44" cy="46" r="1.5" fill="#0891B2" />
+      </svg>
+    )
+  }
+
+  // ─── 67. BOUTIQUE & DRESS RENTAL ───────────────────────────────────────────
+  if (
+    cleanAppId === 'boutique' ||
+    cleanAppId === 'boutique_rental' ||
+    last === 'boutique-rentals' ||
+    second === 'boutique-rentals' ||
+    cleanLabel.includes('boutique') ||
+    cleanLabel.includes('فساتين') ||
+    cleanLabel.includes('أزياء')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`btq_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#C026D3" />
+            <stop offset="100%" stopColor="#F43F5E" />
+          </linearGradient>
+          <filter id={`btq_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#C026D3" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#btq_bg_${uid})`} filter={`url(#btq_flt_${uid})`} />
+        {/* Designer Dress Silhouette */}
+        <path d="M26 18C28 22 36 22 38 18C38 23 34 26 34 30L44 48H20L30 30C30 26 26 23 26 18Z" fill="#FFFFFF" fillOpacity="0.95" />
+        {/* Gold Belt */}
+        <rect x="28" y="28" width="8" height="2.5" rx="1" fill="#FDE047" />
+        {/* Crown Accent */}
+        <path d="M29 15L32 12L35 15L37 13L32 18L27 13L29 15Z" fill="#FDE047" />
+        {/* Sparkles */}
+        <circle cx="18" cy="22" r="1.5" fill="#FFFFFF" opacity="0.8" />
+        <circle cx="46" cy="26" r="2" fill="#FDE047" opacity="0.9" />
+      </svg>
+    )
+  }
+
+  // ─── 68. CAR WORKSHOP & SERVICE GARAGE ─────────────────────────────────────
+  if (
+    cleanAppId === 'car_workshop' ||
+    cleanAppId === 'workshop' ||
+    cleanIcon === 'wrench' ||
+    last === 'car-workshop' ||
+    second === 'car-workshop' ||
+    cleanLabel.includes('workshop') ||
+    cleanLabel.includes('ورشة') ||
+    cleanLabel.includes('صيانة سيارات')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`wks_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#475569" />
+          </linearGradient>
+          <linearGradient id={`wks_wrench_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#FBBF24" />
+          </linearGradient>
+          <filter id={`wks_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0F172A" floodOpacity="0.5" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#wks_bg_${uid})`} filter={`url(#wks_flt_${uid})`} />
+        {/* Brake Disc / Wheel */}
+        <circle cx="32" cy="32" r="14" stroke="#94A3B8" strokeWidth="3" opacity="0.4" />
+        <circle cx="32" cy="32" r="6" stroke="#94A3B8" strokeWidth="2" opacity="0.6" />
+        {/* Crossed Heavy Wrench */}
+        <path d="M42 16L36 22L42 28L44 26L48 26L48 20L44 20L42 16Z" fill={`url(#wks_wrench_${uid})`} />
+        <path d="M37 23L20 40C18 42 18 45 20 47C22 49 25 49 27 47L44 30" stroke={`url(#wks_wrench_${uid})`} strokeWidth="4" strokeLinecap="round" />
+        {/* Screwdriver */}
+        <path d="M22 18L44 44" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.8" />
+      </svg>
+    )
+  }
+
+  // ─── 69. BOOKSTORE & STATIONERY ───────────────────────────────────────────
+  if (
+    cleanAppId === 'bookstore' ||
+    cleanAppId === 'bookstore_stationery' ||
+    cleanIcon === 'book' ||
+    last === 'book-rentals' ||
+    second === 'book-rentals' ||
+    cleanLabel.includes('bookstore') ||
+    cleanLabel.includes('مكتبة') ||
+    cleanLabel.includes('قرطاسية')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`bks_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#D97706" />
+            <stop offset="100%" stopColor="#F59E0B" />
+          </linearGradient>
+          <filter id={`bks_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#D97706" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#bks_bg_${uid})`} filter={`url(#bks_flt_${uid})`} />
+        {/* Open Hardcover Book */}
+        <path d="M16 22C22 20 28 22 32 24C36 22 42 20 48 22V44C42 42 36 44 32 46C28 44 22 42 16 44V22Z" fill="#FFFFFF" />
+        <path d="M32 24V46" stroke="#D97706" strokeWidth="2" />
+        {/* Text Lines */}
+        <path d="M20 28H28M20 33H26M20 38H28" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M36 28H44M36 33H42M36 38H44" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Bookmark Ribbon */}
+        <path d="M30 20V32L32 30L34 32V20H30Z" fill="#EF4444" />
+      </svg>
+    )
+  }
+
+  // ─── 70. E-COMMERCE ONLINE STORE ──────────────────────────────────────────
+  if (
+    cleanAppId === 'ecommerce' ||
+    cleanAppId === 'ecommerce_store' ||
+    cleanIcon === 'shoppingbag' ||
+    last === 'ecommerce-orders' ||
+    second === 'ecommerce-orders' ||
+    cleanLabel.includes('ecommerce') ||
+    cleanLabel.includes('متجر إلكتروني')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`ecom_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#4F46E5" />
+            <stop offset="100%" stopColor="#7C3AED" />
+          </linearGradient>
+          <filter id={`ecom_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#4F46E5" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#ecom_bg_${uid})`} filter={`url(#ecom_flt_${uid})`} />
+        {/* Shopping Cart */}
+        <path d="M16 18H21L26 36H42L47 22H24" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="28" cy="44" r="3.5" fill="#38BDF8" />
+        <circle cx="40" cy="44" r="3.5" fill="#38BDF8" />
+        {/* Glowing Package inside */}
+        <rect x="29" y="22" width="10" height="9" rx="2" fill="#FDE047" />
+        <path d="M34 22V31" stroke="#CA8A04" strokeWidth="1" />
+      </svg>
+    )
+  }
+
+  // ─── 71. FURNITURE SHOWROOM & ASSEMBLY ─────────────────────────────────────
+  if (
+    cleanAppId === 'furniture_shop' ||
+    cleanAppId === 'furniture' ||
+    cleanIcon === 'armchair' ||
+    last === 'furniture-orders' ||
+    second === 'furniture-orders' ||
+    cleanLabel.includes('furniture') ||
+    cleanLabel.includes('أثاث') ||
+    cleanLabel.includes('مفروشات')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`fur_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#78716C" />
+            <stop offset="100%" stopColor="#A8A29E" />
+          </linearGradient>
+          <linearGradient id={`fur_chair_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <filter id={`fur_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#44403C" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#fur_bg_${uid})`} filter={`url(#fur_flt_${uid})`} />
+        {/* Modern Armchair */}
+        <path d="M22 22C22 18 26 16 32 16C38 16 42 18 42 22V36H22V22Z" fill={`url(#fur_chair_${uid})`} />
+        <rect x="18" y="28" width="6" height="12" rx="3" fill="#B45309" />
+        <rect x="40" y="28" width="6" height="12" rx="3" fill="#B45309" />
+        <rect x="20" y="36" width="24" height="6" rx="2" fill="#FDE68A" />
+        {/* Wooden Legs */}
+        <path d="M23 42L20 50M41 42L44 50" stroke="#78350F" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // ─── 72. CONSTRUCTION & PROJECTS ───────────────────────────────────────────
+  if (
+    cleanAppId === 'construction' ||
+    cleanAppId === 'construction_projects' ||
+    cleanIcon === 'building' ||
+    last === 'construction' ||
+    cleanLabel.includes('construction') ||
+    cleanLabel.includes('مقاولات') ||
+    cleanLabel.includes('مشاريع')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`cst_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#EA580C" />
+            <stop offset="100%" stopColor="#F97316" />
+          </linearGradient>
+          <filter id={`cst_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#EA580C" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#cst_bg_${uid})`} filter={`url(#cst_flt_${uid})`} />
+        {/* Construction Crane & Building */}
+        <rect x="30" y="22" width="18" height="26" rx="2" fill="#FFFFFF" fillOpacity="0.9" />
+        <rect x="34" y="26" width="3" height="3" fill="#EA580C" />
+        <rect x="41" y="26" width="3" height="3" fill="#EA580C" />
+        <rect x="34" y="32" width="3" height="3" fill="#EA580C" />
+        <rect x="41" y="32" width="3" height="3" fill="#EA580C" />
+        {/* Crane Tower */}
+        <path d="M18 48V16H22V48" stroke="#FEF08A" strokeWidth="2" strokeLinecap="round" />
+        <path d="M14 16H36L30 22" stroke="#FEF08A" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M30 22V32" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="2 2" />
+      </svg>
+    )
+  }
+
+  // ─── 73. CAR RENTAL & FLEET ────────────────────────────────────────────────
+  if (
+    cleanAppId === 'car_rental' ||
+    cleanIcon === 'car' ||
+    last === 'car-rental' ||
+    cleanLabel.includes('car rental') ||
+    cleanLabel.includes('تأجير سيارات')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`crnt_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#1D4ED8" />
+            <stop offset="100%" stopColor="#3B82F6" />
+          </linearGradient>
+          <filter id={`crnt_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#1D4ED8" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#crnt_bg_${uid})`} filter={`url(#crnt_flt_${uid})`} />
+        {/* Car Silhouette */}
+        <path d="M16 34L22 22H42L48 34V42H16V34Z" fill="#FFFFFF" />
+        <circle cx="23" cy="42" r="4.5" fill="#0F172A" />
+        <circle cx="23" cy="42" r="2" fill="#60A5FA" />
+        <circle cx="41" cy="42" r="4.5" fill="#0F172A" />
+        <circle cx="41" cy="42" r="2" fill="#60A5FA" />
+        {/* Windshield */}
+        <path d="M24 25L20 33H44L40 25H24Z" fill="#93C5FD" />
+        {/* Key Fob Glow */}
+        <circle cx="48" cy="18" r="3" fill="#FDE047" />
+      </svg>
+    )
+  }
+
+  // ─── 74. LAUNDRY & DRY CLEANING ───────────────────────────────────────────
+  if (
+    cleanAppId === 'laundry' ||
+    cleanAppId === 'laundry_cleaning' ||
+    cleanIcon === 'shirt' ||
+    last === 'laundry' ||
+    cleanLabel.includes('laundry') ||
+    cleanLabel.includes('مغسلة') ||
+    cleanLabel.includes('تنظيف')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`lnd_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0891B2" />
+            <stop offset="100%" stopColor="#06B6D4" />
+          </linearGradient>
+          <filter id={`lnd_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0891B2" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#lnd_bg_${uid})`} filter={`url(#lnd_flt_${uid})`} />
+        {/* Washing Machine Body */}
+        <rect x="18" y="16" width="28" height="34" rx="4" fill="#FFFFFF" />
+        {/* Door Glass & Bubbles */}
+        <circle cx="32" cy="35" r="10" fill="#E0F2FE" stroke="#0284C7" strokeWidth="2.5" />
+        <circle cx="30" cy="33" r="3" fill="#38BDF8" opacity="0.8" />
+        <circle cx="34" cy="37" r="2" fill="#38BDF8" opacity="0.6" />
+        {/* Knobs */}
+        <circle cx="24" cy="22" r="2" fill="#0284C7" />
+        <line x1="30" y1="22" x2="40" y2="22" stroke="#0284C7" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // ─── 75. SALOON & BARBER SPA ───────────────────────────────────────────────
+  if (
+    cleanAppId === 'saloon' ||
+    cleanAppId === 'saloon_barber' ||
+    cleanIcon === 'scissors' ||
+    last === 'saloon' ||
+    cleanLabel.includes('saloon') ||
+    cleanLabel.includes('صالون') ||
+    cleanLabel.includes('حلاقة')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`sal_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#DB2777" />
+            <stop offset="100%" stopColor="#EC4899" />
+          </linearGradient>
+          <filter id={`sal_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#DB2777" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#sal_bg_${uid})`} filter={`url(#sal_flt_${uid})`} />
+        {/* Crossed Stylist Scissors */}
+        <circle cx="22" cy="44" r="4" stroke="#FFFFFF" strokeWidth="2.5" />
+        <circle cx="42" cy="44" r="4" stroke="#FFFFFF" strokeWidth="2.5" />
+        <path d="M24 41L42 19M40 41L22 19" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" />
+        <circle cx="32" cy="30" r="2" fill="#FDE047" />
+      </svg>
+    )
+  }
+
+  // ─── 76. TAILOR & KHAYYAT ──────────────────────────────────────────────────
+  if (
+    cleanAppId === 'khayyat' ||
+    cleanAppId === 'tailor_khayyat' ||
+    last === 'khayyat' ||
+    cleanLabel.includes('khayyat') ||
+    cleanLabel.includes('خياط') ||
+    cleanLabel.includes('تفصيل')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`khy_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#7C3AED" />
+            <stop offset="100%" stopColor="#8B5CF6" />
+          </linearGradient>
+          <filter id={`khy_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#7C3AED" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#khy_bg_${uid})`} filter={`url(#khy_flt_${uid})`} />
+        {/* Thread Spool */}
+        <rect x="22" y="20" width="20" height="24" rx="4" fill="#C4B5FD" />
+        <path d="M22 26H42M22 32H42M22 38H42" stroke="#6D28D9" strokeWidth="2" />
+        {/* Needle */}
+        <path d="M48 14L34 28" stroke="#FDE047" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="46" cy="16" r="1" fill="#7C3AED" />
+      </svg>
+    )
+  }
+
+  // ─── 77. MANPOWER & LABOR SUPPLY ───────────────────────────────────────────
+  if (
+    cleanAppId === 'manpower' ||
+    cleanAppId === 'manpower_supply' ||
+    last === 'manpower' ||
+    cleanLabel.includes('manpower') ||
+    cleanLabel.includes('عمالة') ||
+    cleanLabel.includes('كوادر')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`mnp_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0D9488" />
+            <stop offset="100%" stopColor="#14B8A6" />
+          </linearGradient>
+          <filter id={`mnp_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0D9488" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#mnp_bg_${uid})`} filter={`url(#mnp_flt_${uid})`} />
+        {/* Multi-Worker Badges & Safety Helmets */}
+        <circle cx="32" cy="22" r="5" fill="#FFFFFF" />
+        <path d="M20 44C20 36 24 32 32 32C40 32 44 36 44 44H20Z" fill="#FFFFFF" />
+        <circle cx="20" cy="26" r="3.5" fill="#CCFBF1" />
+        <circle cx="44" cy="26" r="3.5" fill="#CCFBF1" />
+        {/* Yellow Hardhats */}
+        <path d="M27 20C27 17 29 16 32 16C35 16 37 17 37 20H27Z" fill="#FDE047" />
+      </svg>
+    )
+  }
+
+  // ─── 78. BAKALA & SUPERMARKET ──────────────────────────────────────────────
+  if (
+    cleanAppId === 'bakala' ||
+    cleanAppId === 'bakala_supermarket' ||
+    last === 'bakala' ||
+    cleanLabel.includes('bakala') ||
+    cleanLabel.includes('بقالة') ||
+    cleanLabel.includes('سوبرماركت')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`bkl_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#059669" />
+            <stop offset="100%" stopColor="#10B981" />
+          </linearGradient>
+          <filter id={`bkl_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#059669" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#bkl_bg_${uid})`} filter={`url(#bkl_flt_${uid})`} />
+        {/* Grocery Basket */}
+        <path d="M18 28H46L42 46H22L18 28Z" fill="#FFFFFF" />
+        <path d="M24 28L32 16L40 28" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+        {/* Produce: Apple & Milk */}
+        <circle cx="28" cy="35" r="3.5" fill="#EF4444" />
+        <rect x="34" y="30" width="5" height="10" rx="1" fill="#38BDF8" />
+      </svg>
+    )
+  }
+
+  // ─── 79. SAUDI GOV: ZATCA PHASE 2 ───────────────────────────────────────────
+  if (
+    cleanAppId === 'zatca' ||
+    cleanAppId === 'zatca_phase2' ||
+    cleanIcon === 'zatca' ||
+    cleanLabel.includes('zatca') ||
+    cleanLabel.includes('زاتكا') ||
+    cleanLabel.includes('فاتورة')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`zat_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#047857" />
+            <stop offset="100%" stopColor="#10B981" />
+          </linearGradient>
+          <filter id={`zat_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#047857" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#zat_bg_${uid})`} filter={`url(#zat_flt_${uid})`} />
+        {/* Official Saudi Palm & QR Code */}
+        <rect x="20" y="18" width="24" height="28" rx="3" fill="#FFFFFF" />
+        <rect x="24" y="22" width="6" height="6" fill="#047857" />
+        <rect x="34" y="22" width="6" height="6" fill="#047857" />
+        <rect x="24" y="32" width="6" height="6" fill="#047857" />
+        <path d="M34 32H40V38H34V32Z" fill="#10B981" />
+        {/* Green Verification Check */}
+        <circle cx="44" cy="42" r="6" fill="#059669" />
+        <path d="M41 42L43 44L47 40" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  // ─── 80. SAUDI GOV: QIWA & MUQEEM ──────────────────────────────────────────
+  if (
+    cleanAppId === 'qiwa' ||
+    cleanAppId === 'muqeem' ||
+    cleanLabel.includes('qiwa') ||
+    cleanLabel.includes('muqeem') ||
+    cleanLabel.includes('قوى') ||
+    cleanLabel.includes('مقيم')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`qiw_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#1E3A8A" />
+            <stop offset="100%" stopColor="#2563EB" />
+          </linearGradient>
+          <filter id={`qiw_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#1E3A8A" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="8" y="8" width="48" height="48" rx="14" fill={`url(#qiw_bg_${uid})`} filter={`url(#qiw_flt_${uid})`} />
+        {/* Passport / Iqama Emblem */}
+        <rect x="20" y="16" width="24" height="32" rx="3" fill="#FFFFFF" />
+        <circle cx="32" cy="26" r="4" fill="#2563EB" />
+        <path d="M26 36C26 33 28 32 32 32C36 32 38 33 38 36H26Z" fill="#2563EB" />
+        <path d="M24 42H40" stroke="#93C5FD" strokeWidth="2" strokeLinecap="round" />
       </svg>
     )
   }

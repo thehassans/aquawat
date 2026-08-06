@@ -23,7 +23,8 @@ import {
   AlertTriangle,
   Loader2,
   Factory,
-  ArrowRight
+  ArrowRight,
+  Store
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -39,6 +40,7 @@ const PRICING_LABELS = {
 
 const CATEGORIES = [
   { id: 'all', icon: LayoutGrid, en: 'All Apps', ar: 'جميع التطبيقات' },
+  { id: 'industry_verticals', icon: Store, en: 'Industry Verticals', ar: 'قطاعات الأعمال والأنشطة' },
   { id: 'hr_manpower', icon: Users, en: 'HR & Workforce', ar: 'الموارد البشرية والرواتب' },
   { id: 'manufacturing', icon: Factory, en: 'Manufacturing & MES', ar: 'التصنيع والإنتاج' },
   { id: 'finance_accounting', icon: Shield, en: 'Finance & Costs', ar: 'المالية والتكاليف' },
@@ -212,7 +214,13 @@ export default function AppStore() {
         (app.featuresAr || []).some((f) => f.toLowerCase().includes(q));
 
       let matchCat = activeCategory === 'all';
-      if (activeCategory === 'hr_manpower') {
+      if (activeCategory === 'industry_verticals') {
+        matchCat = app.category === 'industry_vertical' ||
+          app.appType === 'industry_vertical' ||
+          ['manufacturing', 'boutique', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'manpower', 'bakala', 'trading'].some(
+            (v) => app.appId.includes(v)
+          );
+      } else if (activeCategory === 'hr_manpower') {
         matchCat = app.category === 'hr_manpower' || app.appId.includes('hr') || app.appId.includes('fleet') || app.appId.includes('crm') || app.appId.includes('gosi');
       } else if (activeCategory === 'manufacturing') {
         matchCat = app.category === 'manufacturing' || app.appId.includes('manufacturing');

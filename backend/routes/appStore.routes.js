@@ -37,6 +37,9 @@ const getTenantForUser = async (req) => {
 
 // Built-in Apps and Add-ons Catalog Definition with distinct download sizes
 export const DEFAULT_APP_CATALOG = [
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── 1. INDUSTRY VERTICAL APPS (15 BUSINESS TENANT APPS) ───────────────────────
+  // ══════════════════════════════════════════════════════════════════════════════
   {
     appId: 'manufacturing_mes',
     nameEn: 'Manufacturing & Industrial MES',
@@ -45,7 +48,7 @@ export const DEFAULT_APP_CATALOG = [
     taglineAr: 'شجرة المواد المتعددة، تخطيط الاحتياجات MRP، تنفيذ أرضية المصنع، فحص الجودة ومؤشرات OEE.',
     descriptionEn: 'Full-scale manufacturing ERP engine: define complex assemblies, generate dynamic work orders, dispatch job cards with mobile operator timers, enforce ISO-grade QA checklists, track scrap/NCRs, and calculate standard vs. actual cost variances in real-time.',
     descriptionAr: 'منظومة صناعية متكاملة لإدارة خطوط الإنتاج، شجرة المنتجات المركبة، تخطيط المواد، أوامر الشغل، ومراقبة الجودة وتكلفة المواد والعمالة اللحظية.',
-    category: 'manufacturing',
+    category: 'industry_verticals',
     appType: 'core_vertical',
     icon: 'factory',
     version: '3.2.0',
@@ -54,7 +57,7 @@ export const DEFAULT_APP_CATALOG = [
     rating: 4.98,
     reviewsCount: 342,
     pricingTier: 'free',
-    badge: 'Enterprise',
+    badge: 'Industrial',
     defaultRoute: '/app/dashboard/manufacturing',
     businessTypeGrant: 'manufacturing',
     featuresEn: [
@@ -77,6 +80,544 @@ export const DEFAULT_APP_CATALOG = [
       { key: 'defaultScrapTolerancePercent', labelEn: 'Default Scrap Tolerance %', labelAr: 'نسبة الهدر المسموح بها افتراضياً %', type: 'number', defaultValue: 5 }
     ]
   },
+  {
+    appId: 'construction_projects',
+    nameEn: 'Construction & Contracting Management',
+    nameAr: 'إدارة المقاولات والمشاريع الإنشائية',
+    taglineEn: 'Bill of Quantities (BOQ), interim payment certificates (Mustakhlasat), subcontractor contracts, and Gantt charts.',
+    taglineAr: 'جداول الكميات BOQ، فواتير المستخلصات، إدارة مقاولي الباطن، ومخططات جانت الزمنية.',
+    descriptionEn: 'End-to-end contracting ERP suite: master BOQs, milestone progress billing, retention and advance payment accounting, subcontractor tender tracking, daily site logs, and materials delivery verification.',
+    descriptionAr: 'منظومة مقاولات ومشاريع متكاملة: إعداد جداول الكميات، إصدار المستخلصات المعتمدة، إدارة دفعات مقاولي الباطن، تتبع نسب الإنجاز وجداول جانت، وتوريدات مواقع العمل.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'folderkanban',
+    version: '3.1.0',
+    downloadSize: '16.2 MB',
+    author: 'Maqder Core',
+    rating: 4.96,
+    reviewsCount: 289,
+    pricingTier: 'free',
+    badge: 'Contracting',
+    defaultRoute: '/app/dashboard/projects',
+    businessTypeGrant: 'construction',
+    featuresEn: [
+      'Bill of Quantities (BOQ) with Unit Price Breakdowns',
+      'Interim Progress Billing & Mustakhlasat Generator',
+      'Subcontractor Agreements & Retention Deductions',
+      'Interactive Gantt Charts & Milestone Deadlines',
+      'Site Material Deliveries & Equipment Logbook'
+    ],
+    featuresAr: [
+      'جداول الكميات (BOQ) وتحليل أسعار البنود',
+      'إصدار فواتير المستخلصات ونسب الإنجاز التراكمية',
+      'عقود مقاولي الباطن وخصم مبالغ الضمان المحتجزة',
+      'مخططات جانت التفاعلية ومتابعة المواعيد النهائية',
+      'تتبع توريدات مواد الموقع وسجل تشغيل المعدات'
+    ],
+    configSchema: [
+      { key: 'defaultRetentionPercent', labelEn: 'Default Retention Withholding %', labelAr: 'نسبة الدفعة المحتجزة للضمان %', type: 'number', defaultValue: 10 },
+      { key: 'requireSitePhotoForProgress', labelEn: 'Require Site Inspection Photos for Milestones', labelAr: 'طلب صور ميدانية قبل اعتماد نسب الإنجاز', type: 'boolean', defaultValue: true }
+    ]
+  },
+  {
+    appId: 'travel_agency',
+    nameEn: 'Travel Agency & Tourism Operations',
+    nameAr: 'وكالات السفر والسياحة والحجوزات',
+    taglineEn: 'Flight and hotel bookings, visa issuance tracker, custom holiday packages, and passenger manifests.',
+    taglineAr: 'حجوزات الطيران والفنادق، تتبع إصدار التأشيرات، باقات الرحلات السياحية، وقوائم المسافرين.',
+    descriptionEn: 'Comprehensive travel management: flight and hotel reservations, Saudi & international visa workflow tracker, custom tour packaging with multi-currency pricing, passenger manifest exports, and supplier commission reconciliation.',
+    descriptionAr: 'حل متكامل لمكاتب وشركات السياحة: حجوزات الطيران والفنادق، متابعة معاملات التأشيرات، تصميم وتسعير الباقات السياحية، وتصدير قوائم الركاب ومطابقة عمولات الموردين.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'plane',
+    version: '2.8.0',
+    downloadSize: '11.5 MB',
+    author: 'Maqder Core',
+    rating: 4.92,
+    reviewsCount: 194,
+    pricingTier: 'free',
+    badge: 'Tourism',
+    defaultRoute: '/app/dashboard/travel-bookings',
+    businessTypeGrant: 'travel_agency',
+    featuresEn: [
+      'Flight & Hotel Reservation Central Hub',
+      'Visa Application Lifecycle & Document Tracker',
+      'Custom Tour & Holiday Package Builder',
+      'Passenger Manifest & PNR Management',
+      'Supplier Commission & Voucher Auto-Settlement'
+    ],
+    featuresAr: [
+      'مركز موحد لحجوزات الطيران والفنادق والمواصلات',
+      'تتبع مراحل استخراج التأشيرات السياحية والتجارية',
+      'تصميم وتسعير باقات الرحلات والبرامج السياحية',
+      'إدارة سجلات الركاب PNR وتصدير القوائم الرسمية',
+      'تسوية عمولات الموردين وإصدار قسائم الحجز تلقائياً'
+    ],
+    configSchema: [
+      { key: 'defaultCommissionPercent', labelEn: 'Default Agency Markup %', labelAr: 'نسبة عمولة الوكالة الافتراضية %', type: 'number', defaultValue: 12 }
+    ]
+  },
+  {
+    appId: 'restaurant_cafe',
+    nameEn: 'Restaurant, Cafe & Kitchen (KDS)',
+    nameAr: 'المطاعم والمقاهي وشاشات المطبخ الذكية',
+    taglineEn: 'Touch POS with table layout, Kitchen Display System (KDS), QR digital menu, and recipe cost depletion.',
+    taglineAr: 'كاشير لمسي مع خريطة الطاولات، شاشات المطبخ KDS، منيو الباركود، والخصم التلقائي للمكونات.',
+    descriptionEn: 'Full F&B operational suite: high-speed dine-in, takeaway and delivery POS, interactive table floor designer, live Kitchen Display screens with station routing, contactless QR digital menu, recipe BOMs with automated ingredient inventory deduction, and modifier combos.',
+    descriptionAr: 'منظومة المطاعم والمقاهي المتطورة: كاشير لمسي سريع للمحلي والسفري والتوصيل، خريطة تفاعلية للطاولات، شاشات المطبخ الفورية KDS، منيو رقمي بالباركود، وخصم مكونات الوجبات من المخزون.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'utensils',
+    version: '3.4.0',
+    downloadSize: '15.6 MB',
+    author: 'Maqder Core',
+    rating: 4.97,
+    reviewsCount: 512,
+    pricingTier: 'free',
+    badge: 'Popular F&B',
+    defaultRoute: '/app/dashboard/restaurant/pos',
+    businessTypeGrant: 'restaurant',
+    featuresEn: [
+      'High-Speed Touch POS & Split/Merge Table Bills',
+      'Real-Time Kitchen Display System (KDS) Routing',
+      'Interactive QR Digital Menu with Live Stock Sync',
+      'Recipe Ingredient Yields & Auto-Inventory Depletion',
+      'Delivery Aggregator Integrations (HungerStation, Jahez)'
+    ],
+    featuresAr: [
+      'كاشير لمسي سريع مع تقسيم ودمج فواتير الطاولات',
+      'شاشات المطبخ التفاعلية KDS مع توجيه الطلبات للمحطات',
+      'منيو رقمي تفاعلي بالباركود مع تزامن المخزون اللحظي',
+      'شجرة مكونات الوجبات وخصم المواد الخام تلقائياً',
+      'ربط منصات وتطبيقات التوصيل (هنقرستيشن، جاهز، تويو)'
+    ],
+    configSchema: [
+      { key: 'enableKdsSound', labelEn: 'Enable Sound Chime on New KDS Orders', labelAr: 'تفعيل التنبيه الصوتي عند وصول طلب للمطبخ', type: 'boolean', defaultValue: true },
+      { key: 'defaultServiceChargePercent', labelEn: 'Default Dine-in Service Charge %', labelAr: 'نسبة خدمة الصالة الافتراضية %', type: 'number', defaultValue: 0 }
+    ]
+  },
+  {
+    appId: 'car_rental',
+    nameEn: 'Car Rental & Fleet Leasing',
+    nameAr: 'تأجير السيارات وإدارة الأسطول والعقود',
+    taglineEn: 'Vehicle checkout/return, interactive damage matrix, customer KYC, overdue calculations, and lease contracts.',
+    taglineAr: 'تسليم واستلام المركبات، مصفوفة فحص الصدمات، التحقق من هوية المستأجر، وعقود التأجير.',
+    descriptionEn: 'Automate vehicle leasing operations: visual fleet availability calendar, digital vehicle check-out and intake with inspection photo capture, 3D body damage marker, customer KYC identity verification, automated late penalty calculation, and Tamm integration support.',
+    descriptionAr: 'إدارة متكاملة لمكاتب تأجير السيارات: جدول توفر المركبات الفوري، عقود الإيجار الرقمية، فحص المركبة وتسجيل الملاحظات والصدمات بالصور، التحقق من رخص القيادة، وحساب غرامات التأخير آلياً.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'car',
+    version: '3.0.0',
+    downloadSize: '13.4 MB',
+    author: 'Maqder Core',
+    rating: 4.93,
+    reviewsCount: 220,
+    pricingTier: 'free',
+    badge: 'Fleet',
+    defaultRoute: '/app/rental/active',
+    businessTypeGrant: 'car_rental',
+    featuresEn: [
+      'Interactive Fleet Availability & Reservation Timeline',
+      'Vehicle Damage Matrix with Pre/Post Photos',
+      'Customer ID & Driving License Verification (KYC)',
+      'Automated Kilometre Overages & Late Penalties',
+      'Periodic Maintenance & Oil Change Reminders'
+    ],
+    featuresAr: [
+      'جدول زمني تفاعلي لحجوزات وتوفر أسطول السيارات',
+      'مصفوفة فحص أضرار وخدوش المركبة بالصور قبل وبعد الإيجار',
+      'التحقق الإلكتروني من الهوية الوطنية ورخصة القيادة',
+      'احتساب الكيلومترات الزائدة وغرامات التأخير تلقائياً',
+      'تنبيهات وجدولة الصيانة الدورية وتغيير الزيوت'
+    ],
+    configSchema: [
+      { key: 'freeKmPerDay', labelEn: 'Free Kilometres per Day', labelAr: 'الكيلومترات المجانية المشمولة يومياً', type: 'number', defaultValue: 250 },
+      { key: 'extraKmRate', labelEn: 'Extra KM Charge (SAR)', labelAr: 'سعر الكيلومتر الإضافي (ريال)', type: 'number', defaultValue: 0.5 }
+    ]
+  },
+  {
+    appId: 'laundry_cleaning',
+    nameEn: 'Laundry & Dry Cleaning POS',
+    nameAr: 'نظام المغاسل والتنظيف الجاف المتقدم',
+    taglineEn: 'Garment barcode tagging, Kanban washing/ironing stages, express rush pricing, and SMS pickup alerts.',
+    taglineAr: 'ترميز الملابس بالباركود، مسار الغسيل والكي كانبان، الخدمة المستعجلة، ورسائل الجاهزية.',
+    descriptionEn: 'Purpose-built laundry management: lightning-fast garment check-in with thermal tag printing, visual Kanban pipeline for Wash/Dry/Iron/Ready states, garment weight or per-piece billing, customer pickup WhatsApp notifications, and home delivery dispatch.',
+    descriptionAr: 'منظومة ذكية للمغاسل والتنظيف الجاف: استقبال سريع للقطع مع طباعة باركود مقاوم للماء، لوحة كانبان لمتابعة مراحل الغسيل والكي والجاهزية، تسعير بالقطعة أو الكيلو، وإرسال تنبيهات واتساب للعميل عند اكتمال الطلب.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'washing-machine',
+    version: '2.9.0',
+    downloadSize: '10.2 MB',
+    author: 'Maqder Core',
+    rating: 4.89,
+    reviewsCount: 168,
+    pricingTier: 'free',
+    badge: 'Services',
+    defaultRoute: '/app/laundry/pos',
+    businessTypeGrant: 'laundry',
+    featuresEn: [
+      'Garment Thermal Tagging & Water-Resistant Barcodes',
+      'Visual Kanban Workflow (Received, Wash, Iron, Ready)',
+      'Piece & KG Pricing with Starch/Perfume Addons',
+      'Automated Customer WhatsApp Pickup Notifications',
+      'Home Delivery Route & Driver Collection Management'
+    ],
+    featuresAr: [
+      'طباعة شرائط الباركود الحرارية المقاومة للمياه على الملابس',
+      'لوحة تحكم مرئية لمراحل الاستلام والغسيل والكي والجاهزية',
+      'تسعير مرن بالقطعة أو الوزن مع خيارات النشا والتعطير',
+      'إشعار العميل آلياً عبر الواتساب فور اكتمال تجهيز ملابسه',
+      'إدارة خطوط التوصيل المنزلي واستلام الملابس من المنازل'
+    ],
+    configSchema: [
+      { key: 'autoSendReadySms', labelEn: 'Auto-Send WhatsApp Notification when Order is Ready', labelAr: 'إرسال إشعار واتساب تلقائي عند اكتمال الطلب', type: 'boolean', defaultValue: true }
+    ]
+  },
+  {
+    appId: 'saloon_barber',
+    nameEn: 'Saloon, Barber & Spa Management',
+    nameAr: 'إدارة صالونات الحلاقة والتجميل والسبا',
+    taglineEn: 'Live chair queue, walk-in POS, appointment scheduling, stylist commission tracking, and consumables ledger.',
+    taglineAr: 'طابور الكراسي المباشر، كاشير سريع، حجز المواعيد، عمولات الموظفين، وتتبع المستهلكات.',
+    descriptionEn: 'Modern beauty salon and barbershop software: live waiting room queue display, rapid POS for services and packages, appointment calendar with SMS reminders, staff commission and tip distribution, and backbar inventory depletion tracking.',
+    descriptionAr: 'برنامج إدارة صالونات الحلاقة ومراكز التجميل والسبا: شاشة ذكية لإدارة طابور الانتظار وتوزيع الكراسي، نقطة بيع فورية للخدمات والباقات، حجز المواعيد المسبقة، حساب نسب وعمولات الموظفين، وتتبع استهلاك مستحضرات التجميل.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'scissors',
+    version: '2.7.0',
+    downloadSize: '9.8 MB',
+    author: 'Maqder Core',
+    rating: 4.91,
+    reviewsCount: 185,
+    pricingTier: 'free',
+    badge: 'Care & Beauty',
+    defaultRoute: '/app/saloon/pos',
+    businessTypeGrant: 'saloon',
+    featuresEn: [
+      'Live Queue TV Display & Specialist Chair Assignment',
+      'Flexible Staff Commission & Tip Calculation Ledger',
+      'Services, Packages & Treatment Duration Scheduler',
+      'Customer Online Booking & WhatsApp Reminders',
+      'Consumables & Backbar Product Usage Tracking'
+    ],
+    featuresAr: [
+      'شاشة عرض تفاعلية لطابور الانتظار وحجز كراسي الخدمة',
+      'سجل احتساب عمولات ونسب الحلاقين والإكراميات آلياً',
+      'كتالوج الخدمات والباقات العلاجية مع ضبط مدة كل خدمة',
+      'حجز المواعيد إلكترونياً مع تنبيهات واتساب قبل الموعد',
+      'تتبع استهلاك المواد والمستحضرات التجميلية في الصالون'
+    ],
+    configSchema: [
+      { key: 'defaultCommissionPercent', labelEn: 'Default Stylist Commission %', labelAr: 'نسبة عمولة الموظف الافتراضية %', type: 'number', defaultValue: 30 }
+    ]
+  },
+  {
+    appId: 'tailor_khayyat',
+    nameEn: 'Tailoring & Custom Stitching (Khayyat)',
+    nameAr: 'إدارة المشاغل والخياطة الرجالية والنسائية',
+    taglineEn: '30+ point body measurement profiles, fabric bolt inventory, custom design styles, and worker piece rates.',
+    taglineAr: 'سجل المقاسات التفصيلي، مخزون طاقات الأقمشة، تخصيص الموديلات، وأجور الخياطين بالقطعة.',
+    descriptionEn: 'Specialized tailor shop and atelier ERP: store 30+ precise body measurements per customer, manage fabric bolts in metres/yards, customize collars, cuffs, embroidery patterns, track stitching production stages, schedule fitting trials, and calculate tailor piece-rate earnings.',
+    descriptionAr: 'النظام الرائد للمشاغل ومحلات الخياطة: حفظ ملف المقاسات الدقيقة لأكثر من 30 قياساً، إدارة طاقات الأقمشة وتتبع الأمتار المتبقية، تخصيص الياقات والجيوب والتطريز، متابعة مراحل الخياطة والبروفة، واحتساب مستحقات الخياطين بالقطعة.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'needle',
+    version: '3.1.0',
+    downloadSize: '12.1 MB',
+    author: 'Maqder Core',
+    rating: 4.95,
+    reviewsCount: 310,
+    pricingTier: 'free',
+    badge: 'Tailoring',
+    defaultRoute: '/app/dashboard/khayyat',
+    businessTypeGrant: 'khayyat',
+    featuresEn: [
+      'Detailed 30+ Point Body Measurement Database',
+      'Fabric Bolt Inventory with Precise Metre/Yard Metering',
+      'Style Customizer (Collars, Cuffs, Pockets, Embroidery)',
+      'Worker Piece-Rate Ledger & Production Timelines',
+      'Fitting Appointment Scheduler & Ready Alerts'
+    ],
+    featuresAr: [
+      'سجل قياسات تفصيلي دقيق يشمل أكثر من 30 قياساً للعميل',
+      'إدارة مخزون طاقات الأقمشة وخصم الأمتار والياردات بدقة',
+      'تخصيص كامل للتفاصيل (الياقات، الكبك، الجيوب، التطريز)',
+      'حساب أجور الخياطين بالقطعة ومتابعة مراحل الإنجاز',
+      'جدولة مواعيد البروفة وإرسال إشعار جاهزية الثوب للعميل'
+    ],
+    configSchema: [
+      { key: 'defaultThobeFabricMeters', labelEn: 'Average Meters per Standard Thobe', labelAr: 'متوسط الأمتار المستهلكة للثوب الواحد', type: 'number', defaultValue: 3.5 }
+    ]
+  },
+  {
+    appId: 'boutique_rental',
+    nameEn: 'Boutique & Designer Dress Rental',
+    nameAr: 'إدارة البوتيكات وتأجير فساتين المناسبات',
+    taglineEn: 'Event dress booking calendar, refundable security deposits, alteration work orders, and return inspections.',
+    taglineAr: 'تقويم حجوزات فساتين المناسبات، مبالغ التأمين المستردة، أوامر التعديل، وفحص ما بعد الإرجاع.',
+    descriptionEn: 'Luxury fashion boutique and dress rental suite: event date booking calendar, refundable deposit management, alteration and tailoring work orders, pre/post-rental quality inspection checklist, dry cleaning turnaround logs, and late return fee calculations.',
+    descriptionAr: 'منظومة متطورة لبوتيكات الأزياء وتأجير فساتين السهرة والأعراس: تقويم مرئي لحجوزات المناسبات، إدارة مبالغ التأمين المستردة، أوامر عمل التعديلات والمقاسات، فحص جودة القطعة بعد الإرجاع، وجدولة الغسيل الجاف وحساب غرامات التأخير.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'sparkles',
+    version: '2.8.0',
+    downloadSize: '11.0 MB',
+    author: 'Maqder Core',
+    rating: 4.90,
+    reviewsCount: 142,
+    pricingTier: 'free',
+    badge: 'Haute Couture',
+    defaultRoute: '/app/dashboard/boutique/pos',
+    businessTypeGrant: 'boutique',
+    featuresEn: [
+      'Visual Event Booking Calendar & Availability Lock',
+      'Refundable Security Deposit & Bond Ledger',
+      'Alteration & Fitting Workshop Work Orders',
+      'Post-Rental Inspection Logs & Damage Claims',
+      'Dry Cleaning Cycle & Turnaround Scheduler'
+    ],
+    featuresAr: [
+      'تقويم تفاعلي لحجز الفساتين وتثبيت مواعيد المناسبات',
+      'إدارة مبالغ التأمين والضمان المالي المسترد للعملاء',
+      'أوامر عمل التعديل والمقاسات للمشغل قبل موعد التسليم',
+      'سجل فحص حالة الفستان بعد الاسترجاع وخصم الأضرار',
+      'جدولة دورة التنظيف الجاف وتجهيز الفستان للحجز التالي'
+    ],
+    configSchema: [
+      { key: 'defaultDepositAmount', labelEn: 'Default Security Deposit (SAR)', labelAr: 'مبلغ التأمين المسترد الافتراضي (ريال)', type: 'number', defaultValue: 500 }
+    ]
+  },
+  {
+    appId: 'manpower_supply',
+    nameEn: 'Manpower & Labor Supply ERP',
+    nameAr: 'إدارة شركات الاستقدام وتوريد العمالة',
+    taglineEn: 'Worker allocations, client project contracts, Iqama/visa expiry tracker, digital timesheets, and man-hour billing.',
+    taglineAr: 'تسكين العمالة، عقود توريد الشركات، تتبع الإقامات والتأشيرات، وساعات العمل والفوترة.',
+    descriptionEn: 'Enterprise workforce supply ERP: worker master registry with Iqama/Visa/Medical expiry alerts, client project deployment contracts, digital timesheets with biometric/mobile overtime approvals, automated monthly client invoicing per man-hour/day, and WPS payroll reconciliation.',
+    descriptionAr: 'منظومة شاملة لشركات استقدام وتوريد الكوادر البشرية: سجل العمالة الشامل مع تنبيهات انتهاء الإقامات والتأشيرات والتأمين الطبي، عقود توريد العمالة للمشاريع، اعتماد ساعات العمل الإضافية (Timesheet)، والفوترة الشهرية للشركات ومطابقة حماية الأجور.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'users',
+    version: '3.3.0',
+    downloadSize: '15.2 MB',
+    author: 'Maqder Core',
+    rating: 4.96,
+    reviewsCount: 278,
+    pricingTier: 'free',
+    badge: 'Workforce',
+    defaultRoute: '/app/dashboard/manpower/workers',
+    businessTypeGrant: 'manpower',
+    featuresEn: [
+      'Worker Registry with Iqama, Visa & Medical Alerts',
+      'Client Deployment Contracts & Site Allocations',
+      'Digital Timesheets & Overtime Approval Flow',
+      'Automated Monthly Invoicing (Per Hour / Per Day / Monthly)',
+      'WPS Payroll & Worker Salary Advance Ledger'
+    ],
+    featuresAr: [
+      'سجل العمالة مع تنبيهات انتهاء الإقامة والتأشيرة والتأمين',
+      'عقود توريد الكوادر وتسكين العمال بمواقع ومشاريع العملاء',
+      'سجلات الحضور وساعات العمل الإضافية المعتمدة (Timesheet)',
+      'إصدار فواتير شهرية مؤتمتة بنظام الساعة أو اليومية أو الشهري',
+      'مطابقة كشوف الرواتب مع حماية الأجور وسلف العمال'
+    ],
+    configSchema: [
+      { key: 'iqamaAlertDaysBefore', labelEn: 'Alert Days Before Iqama Expiry', labelAr: 'عدد الأيام للتنبيه قبل انتهاء الإقامة', type: 'number', defaultValue: 60 }
+    ]
+  },
+  {
+    appId: 'bakala_supermarket',
+    nameEn: 'Bakala, Grocery & Supermarket POS',
+    nameAr: 'البقالات والسوبرماركت والتموينات الذكية',
+    taglineEn: 'Sub-second barcode scanning, RS232 scale reading, expiry date markdown alerts, and multi-pack pricing.',
+    taglineAr: 'كاشير باركود فائق السرعة، ربط الميزان الإلكتروني، تتبع تواريخ الصلاحية، وتسعير الكرتون والحبة.',
+    descriptionEn: 'High-throughput retail grocery system: sub-second barcode checkout, direct integration with RS232/USB digital weight scales for fruits/vegetables, automated batch expiry date monitoring with promotional markdowns, carton vs single-piece dual pricing, and credit Khata ledger.',
+    descriptionAr: 'نظام نقاط البيع فائق السرعة للتموينات والسوبرماركت: مسح فوري للباركود، ربط مباشر مع الموازين الإلكترونية لوزن الخضار والفواكه، تنبيهات تواريخ انتهاء الصلاحية والعروض الترويجية، بيع بالكرتون والحبة، ودفتر الحسابات الآجلة (الخاتا).',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'shopping-cart',
+    version: '3.2.0',
+    downloadSize: '12.8 MB',
+    author: 'Maqder Core',
+    rating: 4.95,
+    reviewsCount: 460,
+    pricingTier: 'free',
+    badge: 'Supermarket',
+    defaultRoute: '/app/dashboard/bakala/pos',
+    businessTypeGrant: 'bakala',
+    featuresEn: [
+      'Sub-Second Barcode Scanning & Instant POS Checkout',
+      'Direct RS232/USB Digital Weight Scale Reading',
+      'Batch Expiry Date Alerts & Markdown Promotions',
+      'Carton / Inner Pack / Single Piece Dual Pricing',
+      'Khata Customer Credit Ledger & Fast Daily P&L'
+    ],
+    featuresAr: [
+      'مسح باركود فائق السرعة وإتمام البيع في أجزاء من الثانية',
+      'قراءة مباشرة من الميزان الإلكتروني للأصناف الموزونة',
+      'تنبيهات اقتراب انتهاء الصلاحية وتخفيض الأسعار التلقائي',
+      'تسعير مرن للكرتون وعلبة التجزئة والحبة الواحدة',
+      'دفتر تسجيل ديون العملاء (الخاتا) وملخص الأرباح اليومي'
+    ],
+    configSchema: [
+      { key: 'enableScaleBarcodeParsing', labelEn: 'Auto-Parse Embedded Scale Barcodes (EAN-13 Price/Weight)', labelAr: 'قراءة باركود الميزان المدمج فيه الوزن والسعر تلقائياً', type: 'boolean', defaultValue: true }
+    ]
+  },
+  {
+    appId: 'car_workshop',
+    nameEn: 'Auto Garage & Car Workshop ERP',
+    nameAr: 'مراكز صيانة السيارات والورش المعتمدة',
+    taglineEn: 'Chassis/Plate vehicle intake, digital job cards, technician time logs, spare parts auto-billing, and Taqdeer estimates.',
+    taglineAr: 'استقبال المركبة برقم الهيكل، بطاقات الإصلاح الرقمية، صرف قطع الغيار، وتقديرات التأمين.',
+    descriptionEn: 'Automotive repair centre suite: vehicle intake by chassis/VIN and license plate, interactive digital job cards with technician time logs, spare parts inventory dispatch with real-time billing, WhatsApp photo inspection reports for customer sign-off, and Taqdeer insurance quotation estimates.',
+    descriptionAr: 'منظومة إدارة ورش ومراكز صيانة السيارات: استقبال المركبة برقم اللوحة والهيكل وسجل الصيانة السابقة، بطاقات إصلاح رقمية تتبع ساعات عمل الفنيين، صرف قطع الغيار من المستودع للفاتورة مباشرة، تقارير الفحص بالصور عبر الواتساب، وعروض أسعار معتمدة للتأمين وتقدير.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'wrench',
+    version: '3.1.0',
+    downloadSize: '14.0 MB',
+    author: 'Maqder Core',
+    rating: 4.94,
+    reviewsCount: 305,
+    pricingTier: 'free',
+    badge: 'Auto Care',
+    defaultRoute: '/app/workshop',
+    businessTypeGrant: 'car_workshop',
+    featuresEn: [
+      'Chassis / VIN & Plate Vehicle Intake & Service History',
+      'Digital Job Cards with Technician Labor Tracking',
+      'Spare Parts Inventory & Real-Time Auto-Billing',
+      'Customer WhatsApp Photo Inspection Approvals',
+      'Taqdeer & Insurance Quotation Estimates'
+    ],
+    featuresAr: [
+      'استقبال المركبة برقم الهيكل واللوحة والاطلاع على السجل',
+      'بطاقات إصلاح رقمية وتتبع ساعات عمل وأجور الفنيين',
+      'صرف قطع الغيار من المستودع وإضافتها للفاتورة آلياً',
+      'إرسال صور الفحص للعميل عبر الواتساب للاعتماد الفوري',
+      'إصدار عروض أسعار متوافقة مع متطلبات التأمين وتقدير'
+    ],
+    configSchema: [
+      { key: 'defaultLaborHourlyRate', labelEn: 'Default Technician Hourly Labor Rate (SAR)', labelAr: 'أجرة ساعة عمل الفني الافتراضية (ريال)', type: 'number', defaultValue: 120 }
+    ]
+  },
+  {
+    appId: 'bookstore_stationery',
+    nameEn: 'Bookstore & Stationery Retail',
+    nameAr: 'المكتبات والقرطاسية والأدوات المدرسية',
+    taglineEn: 'ISBN barcode lookups, publisher/author classifications, used book buyback, and school bundle packs.',
+    taglineAr: 'كاشير برقم ISBN، تصنيف دور النشر والمؤلفين، شراء الكتب المستعملة، وباقات المدارس.',
+    descriptionEn: 'Complete bookstore and stationery management: instant ISBN-10/13 barcode lookups, categorisation by author, publisher, genre and school grade, back-to-school bundle pack builders, used book buyback and exchange ledger, and wholesale vs retail stationery pricing.',
+    descriptionAr: 'نظام متكامل للمكتبات والقرطاسية: التعرف التلقائي على الكتب عبر الرقم الدولي ISBN، تصنيف حسب المؤلفين ودور النشر والمراحل الدراسية، تجهيز باقات المستلزمات المدرسية بضغطة زر، شراء واستبدال الكتب المستعملة، وتسعير الجملة والقطاعي للأدوات المكتبية.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'book-open',
+    version: '2.9.0',
+    downloadSize: '10.5 MB',
+    author: 'Maqder Core',
+    rating: 4.88,
+    reviewsCount: 135,
+    pricingTier: 'free',
+    badge: 'Bookstore',
+    defaultRoute: '/app/dashboard/bookstore/pos',
+    businessTypeGrant: 'bookstore',
+    featuresEn: [
+      'ISBN-10 / ISBN-13 Auto-Lookup & Fast POS Checkout',
+      'Publisher, Author, Subject & School Grade Filters',
+      'Back-to-School Supply List Bundles & Kit Pricing',
+      'Used Book Buy-Back & Academic Exchange Management',
+      'Bulk Stationery & Individual Item Dual Pricing'
+    ],
+    featuresAr: [
+      'تعرف فوري على الكتب عبر الرقم التسلسلي الدولي ISBN',
+      'تصنيف حسب دور النشر والمؤلفين والمراحل الدراسية',
+      'إعداد باقات مستلزمات المدارس وقوائم الفصول المدرسية',
+      'نظام استرجاع وشراء الكتب المستعملة والتبادل الدراسي',
+      'تسعير الجملة والتجزئة للقرطاسية والأدوات المدرسية'
+    ],
+    configSchema: []
+  },
+  {
+    appId: 'ecommerce_store',
+    nameEn: 'E-Commerce & Multi-Tenant Online Store',
+    nameAr: 'المتاجر الإلكترونية والبيع عبر الإنترنت',
+    taglineEn: 'No-code storefront, custom domains, payment gateways (Mada/Apple Pay), courier sync, and pixel tracking.',
+    taglineAr: 'متجر إلكتروني احترافي، ربط النطاقات، بوابات الدفع (مدى/Apple Pay)، بوالص الشحن، وبيكسل الإعلانات.',
+    descriptionEn: 'Launch your branded online store in minutes: customizable mobile-first storefront themes, custom domain mapping with free SSL, native Saudi payment gateway checkouts (Mada, Apple Pay, Tabby, Tamara), automated multi-courier shipping waybills, and abandoned cart recovery.',
+    descriptionAr: 'أطلق متجرك الإلكتروني بهويتك الخاصة: قوالب تصميم عصرية متوافقة مع الجوال، ربط نطاقك الخاص مع شهادة SSL مجانية، بوابات الدفع الإلكتروني المعتمدة (مدى، أبل باي، تابي، تمارا)، إصدار بوالص الشحن التلقائية، واستعادة السلات المتروكة.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'shopping-bag',
+    version: '3.5.0',
+    downloadSize: '16.8 MB',
+    author: 'Maqder Core',
+    rating: 4.98,
+    reviewsCount: 620,
+    pricingTier: 'free',
+    badge: 'Online Store',
+    defaultRoute: '/app/dashboard/ecommerce',
+    businessTypeGrant: 'ecommerce',
+    featuresEn: [
+      'No-Code Storefront Theme Designer & Mobile Optimized',
+      'Custom Domain Support with Free Automated SSL',
+      'Payment Gateways (Mada, Apple Pay, Visa, Tabby, Tamara)',
+      'Automated Courier Waybill Generation (SMSA, Aramex, DHL)',
+      'Abandoned Cart WhatsApp Follow-ups & Tracking Pixels'
+    ],
+    featuresAr: [
+      'محرر مرئي لتخصيص تصميم وهوية المتجر متوافق مع كافة الشاشات',
+      'ربط النطاق الخاص (Custom Domain) مع شهادات الأمان SSL مجاناً',
+      'تكامل فوري مع بوابات الدفع (مدى، أبل باي، تابي، تمارا، فيزا)',
+      'إصدار بوالص الشحن التلقائية مع كبرى شركات الشحن (سمسا، أرامكس)',
+      'استعادة السلات المتروكة وبيكسلات التتبع (تيك توك، ميتا، جوجل)'
+    ],
+    configSchema: [
+      { key: 'enableCod', labelEn: 'Enable Cash on Delivery (COD)', labelAr: 'تفعيل خيار الدفع عند الاستلام', type: 'boolean', defaultValue: true },
+      { key: 'codFeeAmount', labelEn: 'COD Extra Fee (SAR)', labelAr: 'رسوم إضافية للدفع عند الاستلام (ريال)', type: 'number', defaultValue: 15 }
+    ]
+  },
+  {
+    appId: 'furniture_shop',
+    nameEn: 'Furniture Showroom & Custom Woodwork',
+    nameAr: 'معارض الأثاث والمفروشات والتفصيل الخشبي',
+    taglineEn: 'Showroom display stock, custom dimensions & woodwork, room package bundles, and delivery & assembly teams.',
+    taglineAr: 'مخزون صالات العرض، طلبيات التفصيل والتنجيد، باقات تأثيث الغرف، وتتبع التوصيل والتركيب.',
+    descriptionEn: 'Specialized furniture showroom and custom joinery ERP: separate floor display items from warehouse inventory, configure bespoke furniture dimensions, wood finishes and upholstery fabrics, create whole-room discount packages, and track delivery and assembly team schedules.',
+    descriptionAr: 'منظومة معارض الأثاث والمفروشات وورش النجارة والتفصيل: إدارة مخزون صالات العرض التوضيحية ومستودعات البضائع، تخصيص مقاسات الأثاث ونوعية الأخشاب وأقمشة التنجيد حسب رغبة العميل، باقات تأثيث الغرف المتكاملة، وتتبع فرق التوصيل والتركيب المنزلي.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'sofa',
+    version: '3.0.0',
+    downloadSize: '13.2 MB',
+    author: 'Maqder Core',
+    rating: 4.93,
+    reviewsCount: 195,
+    pricingTier: 'free',
+    badge: 'Showroom',
+    defaultRoute: '/app/dashboard/furniture/pos',
+    businessTypeGrant: 'furniture_shop',
+    featuresEn: [
+      'Showroom Floor Display vs Warehouse Stock Management',
+      'Custom Furniture Dimensions, Wood & Upholstery Specs',
+      'Whole-Room Furniture Packages & Bundle Discounts',
+      'Delivery & Installation Route & Team Scheduling',
+      'Layaway Deposit & Installment Milestone Tracking'
+    ],
+    featuresAr: [
+      'فصل مخزون صالات العرض التوضيحية عن مخزون المستودعات الرئيسي',
+      'تخصيص المقاسات ونوعية الأخشاب وأقمشة التنجيد حسب الطلب',
+      'عروض وباقات تأثيث الغرف المتكاملة والخصومات الخاصة',
+      'جدولة فرق التوصيل والتركيب المنزلي وتتبع إتمام الخدمة',
+      'أنظمة الدفع بالأقساط وحجز البضائع حتى اكتمال التجهيز'
+    ],
+    configSchema: [
+      { key: 'defaultAssemblyWarrantyMonths', labelEn: 'Default Installation Warranty (Months)', labelAr: 'مدة ضمان التركيب الافتراضية (بالأشهر)', type: 'number', defaultValue: 12 }
+    ]
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── 2. CORE BUSINESS & OPERATIONS ADD-ONS ─────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════════
   {
     appId: 'fleet_machinery',
     nameEn: 'Fleet & Machinery Management',
