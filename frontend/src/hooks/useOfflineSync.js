@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { setOnlineStatus, setSyncStatus, setPendingItemsCount } from '../store/slices/networkSlice';
 import { getPendingSyncItems, updateSyncItemStatus, removeSyncItem } from '../lib/syncEngine';
@@ -7,6 +7,9 @@ import api from '../lib/api';
 export function useOfflineSync() {
   const dispatch = useDispatch();
   const { isOnline, syncStatus } = useSelector((state) => state.network);
+  const syncStatusRef = useRef(syncStatus);
+  syncStatusRef.current = syncStatus;
+  const isSyncingRef = useRef(false);
 
   // Monitor Network Status
   useEffect(() => {
@@ -27,20 +30,21 @@ export function useOfflineSync() {
 
   // Sync Logic
   useEffect(() => {
-    let syncInterval;
+    if (!isOnline) return;
 
     const processSyncQueue = async () => {
-      if (!isOnline || syncStatus === 'syncing') return;
+      if (isSyncingRef.current || !navigator.onLine) return;
 
       try {
         const pendingItems = await getPendingSyncItems();
         dispatch(setPendingItemsCount(pendingItems.length));
 
         if (pendingItems.length === 0) {
-          if (syncStatus !== 'idle') dispatch(setSyncStatus('idle'));
+          if (syncStatusRef.current !== 'idle') dispatch(setSyncStatus('idle'));
           return;
         }
 
+        isSyncingRef.current = true;
         dispatch(setSyncStatus('syncing'));
 
         // Process sequentially to maintain chronological ICV/PIH integrity
@@ -54,7 +58,6 @@ export function useOfflineSync() {
             let response;
             // Replay the exact original HTTP request if available
             if (item.payload && item.payload.url && item.payload.method) {
-              console.log(`[Offline-Sync] Replaying request: ${item.payload.method.toUpperCase()} ${item.payload.url}`);
               response = await api({
                 url: item.payload.url,
                 method: item.payload.method,
@@ -81,11 +84,10 @@ export function useOfflineSync() {
           } catch (error) {
             console.error(`Failed to sync item ${item.id}:`, error);
             await updateSyncItemStatus(item.id, {
-              retryCount: item.retryCount + 1,
+              retryCount: (item.retryCount || 0) + 1,
               error: error.message || 'Unknown error',
-              status: item.retryCount >= 5 ? 'FAILED' : 'PENDING' // Fail permanently after 5 tries
+              status: (item.retryCount || 0) >= 5 ? 'FAILED' : 'PENDING'
             });
-            // Stop syncing on first failure to maintain strict sequence!
             break; 
           }
         }
@@ -100,18 +102,18 @@ export function useOfflineSync() {
       } catch (err) {
         console.error('Error processing sync queue:', err);
         dispatch(setSyncStatus('error'));
+      } finally {
+        isSyncingRef.current = false;
       }
     };
 
-    if (isOnline) {
-      // Run immediately
-      processSyncQueue();
-      // Then poll every 30 seconds
-      syncInterval = setInterval(processSyncQueue, 30000);
-    }
+    // Run immediately
+    processSyncQueue();
+    // Then poll every 30 seconds
+    const syncInterval = setInterval(processSyncQueue, 30000);
 
     return () => {
-      if (syncInterval) clearInterval(syncInterval);
+      clearInterval(syncInterval);
     };
-  }, [isOnline, syncStatus, dispatch]);
+  }, [isOnline, dispatch]);
 }

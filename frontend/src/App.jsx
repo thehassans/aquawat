@@ -370,13 +370,15 @@ function App() {
     }
   }, [dispatch, token])
 
-  // Re-fetch fresh tenant data on window focus / tab visibility change
+  // Re-fetch fresh tenant data on window focus / tab visibility change (throttled)
   // so any changes made in Super Admin are immediately reflected in Admin Panel
   useEffect(() => {
     if (!token) return
 
+    let lastFetch = Date.now()
     const handleFocus = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && Date.now() - lastFetch > 60000) {
+        lastFetch = Date.now()
         dispatch(getMe())
       }
     }

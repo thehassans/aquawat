@@ -115,6 +115,7 @@ api.interceptors.response.use(
       if (config.method === 'get') {
         try {
           const db = await initDb();
+          if (!db) return Promise.reject(error);
           const cacheKey = config.url + (config.params ? JSON.stringify(config.params) : '');
           const cached = await db.get('api_cache', cacheKey);
           
