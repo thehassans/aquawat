@@ -153,6 +153,9 @@ import requestTimeout from './middleware/requestTimeout.js';
 import responseTime from './middleware/responseTime.js';
 import logger from './utils/logger.js';
 import User from './models/User.js';
+import Tenant from './models/Tenant.js';
+import Supplier from './models/Supplier.js';
+import { seedAlliedPowerTenant } from './scripts/seedAlliedPowerTenant.js';
 
 dotenv.config();
 
@@ -298,6 +301,16 @@ const connectToDatabase = async () => {
     .then(async () => {
       logger.info('MongoDB connected successfully');
       await seedSuperAdmin();
+      try {
+        const alliedTenant = await Tenant.findOne({ slug: 'allied-power' });
+        const supplierCount = alliedTenant ? await Supplier.countDocuments({ tenantId: alliedTenant._id }) : 0;
+        if (!alliedTenant || supplierCount === 0) {
+          logger.info('Auto-seeding Allied Power Industrial Company data...');
+          await seedAlliedPowerTenant();
+        }
+      } catch (seedErr) {
+        logger.error('Auto-seed Allied Power error:', seedErr.message);
+      }
       // Drop old unique indexes that prevent creating tenants without CR/VAT
       try {
         const db = mongoose.connection.db;

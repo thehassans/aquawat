@@ -17,13 +17,28 @@ import Customer from '../models/Customer.js';
 import Supplier from '../models/Supplier.js';
 import Product from '../models/Product.js';
 
+import fs from 'fs';
+
+const DATA_DIR = path.join(__dirname, 'data/allied');
 const DOWNLOADS_DIR = 'C:\\Users\\kjh\\Downloads';
 
 function readExcelFile(filename) {
-  const filePath = path.join(DOWNLOADS_DIR, filename);
-  const wb = XLSX.readFile(filePath);
-  const sheetName = wb.SheetNames[0];
-  return XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+  const jsonPath = path.join(DATA_DIR, filename.replace('.xlsx', '.json'));
+  if (fs.existsSync(jsonPath)) {
+    return JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  }
+  const relXlsx = path.join(DATA_DIR, filename);
+  if (fs.existsSync(relXlsx)) {
+    const wb = XLSX.readFile(relXlsx);
+    return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+  }
+  const dlXlsx = path.join(DOWNLOADS_DIR, filename);
+  if (fs.existsSync(dlXlsx)) {
+    const wb = XLSX.readFile(dlXlsx);
+    return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+  }
+  console.warn('⚠️ File not found:', filename);
+  return [];
 }
 
 function cleanString(val) {
@@ -91,12 +106,14 @@ function parseAddressDetails(addrStr) {
   };
 }
 
-async function runSeed() {
+async function runSeed(shouldDisconnect = false) {
   console.log('🚀 Starting Allied Power Industrial Company Import & Integration...');
 
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/maqder';
-  await mongoose.connect(mongoUri);
-  console.log('✅ Connected to MongoDB:', mongoUri);
+  if (mongoose.connection.readyState !== 1) {
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/maqder';
+    await mongoose.connect(mongoUri);
+    console.log('✅ Connected to MongoDB:', mongoUri);
+  }
 
   // 1. Find or Create Tenant
   const vatNumber = '314807049800003';
@@ -491,11 +508,20 @@ async function runSeed() {
   console.log(`Total Products:     ${productTotalCount} (${productNegativeCount} Negative Allowed)`);
   console.log('========================================\n');
 
-  await mongoose.disconnect();
-  console.log('✅ Database disconnected.');
+  if (shouldDisconnect) {
+    await mongoose.disconnect();
+    console.log('✅ Database disconnected.');
+  }
 }
 
-runSeed().catch(err => {
-  console.error('❌ Migration Error:', err);
-  process.exit(1);
-});
+export const seedAlliedPowerTenant = () => runSeed(false);
+
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+if (isMain) {
+  runSeed(true).catch(err => {
+    console.error('❌ Migration Error:', err);
+    process.exit(1);
+  });
+}
+
+export default seedAlliedPowerTenant;
