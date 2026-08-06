@@ -8,6 +8,7 @@ import api from '../../lib/api'
 import SarIcon from '../../components/ui/SarIcon'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import CardPaymentModal from '../../components/pos/CardPaymentModal'
+import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
 
 export default function SaloonPOS() {
   const { language } = useSelector((state) => state.ui)
@@ -18,6 +19,7 @@ export default function SaloonPOS() {
   const [showCardModal, setShowCardModal] = useState(false)
   const [pendingCardOrder, setPendingCardOrder] = useState(null)
   const queryClient = useQueryClient()
+  const receiptRef = useRef(null)
   
   const [cart, setCart] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -384,7 +386,7 @@ export default function SaloonPOS() {
             </h3>
             <p className="text-gray-500 mb-8">{isRtl ? 'تم إنشاء التذكرة بنجاح' : 'Ticket created successfully.'}</p>
             <div className="flex gap-3">
-              <button onClick={() => window.print()} className="btn bg-amber-500 hover:bg-amber-600 text-white flex-1 flex items-center justify-center gap-2 py-3">
+              <button onClick={() => { if (receiptRef.current) printThermalElement(receiptRef.current, getThermalPrinterSettings(tenant)) }} className="btn bg-amber-500 hover:bg-amber-600 text-white flex-1 flex items-center justify-center gap-2 py-3">
                 <Printer className="w-5 h-5" />
                 {isRtl ? 'طباعة' : 'Print'}
               </button>
@@ -396,9 +398,9 @@ export default function SaloonPOS() {
         </div>
       )}
 
-      {/* Hidden Print Content */}
-      <div className="hidden print:block">
-        {printedOrder && <ThermalReceipt order={printedOrder} type="saloon" />}
+      {/* Hidden Thermal Receipt for Print Extraction */}
+      <div style={{ position: 'fixed', top: -9999, left: -9999, pointerEvents: 'none', opacity: 0 }}>
+        {printedOrder && <ThermalReceipt ref={receiptRef} order={printedOrder} type="saloon" />}
       </div>
 
       {/* Add Staff Modal */}

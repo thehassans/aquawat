@@ -102,14 +102,16 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
       <style type="text/css" media="print">
         {`
           ${pageCss}
+          @page { margin: 0; }
           body { margin: 0; padding: 0; background: white; color: black; }
-          body * { visibility: hidden; }
-          .print-section, .print-section * { visibility: visible; }
           .print-section {
-            position: absolute;
-            left: 0;
-            top: 0;
+            width: 100% !important;
+            max-width: 100% !important;
             border: none !important;
+            visibility: visible !important;
+          }
+          .print-section * {
+            visibility: visible !important;
           }
           ${printCss}
           ::-webkit-scrollbar { display: none; }

@@ -1,6 +1,6 @@
 import express from 'express';
 import Tenant from '../models/Tenant.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, invalidateAuthCache } from '../middleware/auth.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import zlib from 'zlib';
 import multer from 'multer';
@@ -212,6 +212,8 @@ router.put('/current', authorize('admin'), async (req, res) => {
     tenant.markModified('businessTypes');
     await tenant.save();
     
+    invalidateAuthCache(req.user._id, tenant._id);
+
     res.json(tenant);
   } catch (error) {
     res.status(500).json({ error: error.message });

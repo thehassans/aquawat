@@ -258,6 +258,8 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
     }
     *, *::before, *::after {
       box-sizing: border-box !important;
+      visibility: visible !important;
+      opacity: 1 !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
@@ -268,12 +270,14 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       color: #000000 !important;
       width: ${paperWidth} !important;
       max-width: ${paperWidth} !important;
+      min-width: ${paperWidth} !important;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', Courier, monospace, 'Cairo', sans-serif !important;
       font-size: ${fontSize}px !important;
       line-height: ${lineHeight} !important;
+      visibility: visible !important;
     }
     .print-section {
-      width: ${paperWidth} !important;
+      width: 100% !important;
       max-width: ${paperWidth} !important;
       padding: ${padding} !important;
       margin: 0 auto !important;

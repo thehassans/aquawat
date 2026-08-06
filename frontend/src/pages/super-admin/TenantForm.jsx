@@ -84,17 +84,32 @@ export default function TenantForm() {
   const billingCycleRef = useRef(null)
   const extraMonthsRef = useRef(null)
 
-  // Initialize default subscription dates for new tenants
+  // Initialize default subscription dates and state for new tenants
   useEffect(() => {
     if (isEdit) return
     const start = new Date()
     start.setHours(0, 0, 0, 0)
     const end = new Date(start)
     end.setDate(end.getDate() + 30)
-    setValue('subscription.billingCycle', 'monthly')
-    setValue('subscription.startDate', start.toISOString().split('T')[0], { shouldDirty: false })
-    setValue('subscription.endDate', end.toISOString().split('T')[0], { shouldDirty: false })
-  }, [isEdit, setValue])
+    reset({
+      name: '',
+      businessType: 'trading',
+      businessTypes: ['trading'],
+      branding: {
+        logo: '',
+        primaryColor: '#0ea5e9',
+        accentColor: '#38bdf8'
+      },
+      business: {},
+      subscription: {
+        plan: 'starter',
+        status: 'active',
+        billingCycle: 'monthly',
+        startDate: start.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0]
+      }
+    })
+  }, [isEdit, reset])
 
   // Recalculate end date when billing cycle or extra months change
   useEffect(() => {

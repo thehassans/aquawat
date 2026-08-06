@@ -15,6 +15,7 @@ import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
+import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
 
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -591,7 +592,7 @@ export default function InvoiceView() {
               <button onClick={() => setPrintModalOpen(false)} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold hover:bg-gray-50 text-gray-700">
                 {language === 'ar' ? 'إغلاق' : 'Close'}
               </button>
-              <button onClick={() => { if (printModalRef.current) window.print() }} className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700">
+              <button onClick={() => { if (printModalRef.current) printThermalElement(printModalRef.current, getThermalPrinterSettings(tenant)) }} className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700">
                 {language === 'ar' ? 'طباعة' : 'Print'}
               </button>
             </div>

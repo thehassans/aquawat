@@ -33,6 +33,7 @@ import toast from 'react-hot-toast'
 import { downloadInvoicePdf, buildInvoicePdfBlob } from '../../lib/invoicePdf'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
+import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
 import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
 
@@ -933,7 +934,7 @@ export default function Invoices() {
               <button onClick={() => setPrintModalInvoice(null)} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold hover:bg-gray-50 text-gray-700">
                 {language === 'ar' ? 'إغلاق' : 'Close'}
               </button>
-              <button onClick={() => { if (printModalRef.current) window.print() }} className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700">
+              <button onClick={() => { if (printModalRef.current) printThermalElement(printModalRef.current, getThermalPrinterSettings(tenant)) }} className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700">
                 {language === 'ar' ? 'طباعة' : 'Print'}
               </button>
             </div>

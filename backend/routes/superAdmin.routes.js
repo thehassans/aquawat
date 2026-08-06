@@ -42,7 +42,7 @@ import {
   QuickReply,
   Broadcast,
 } from '../models/WhatsApp.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, invalidateAuthCache } from '../middleware/auth.js';
 import { getPrimaryBusinessType, normalizeBusinessTypes, BUSINESS_TYPES } from '../utils/businessTypes.js';
 import { sendTenantWelcomeEmail } from '../utils/emailService.js';
 import { verifyEmailDeliveryConnection, sendEmailWithConfig } from '../utils/emailProviderService.js';
@@ -1057,6 +1057,8 @@ router.put('/tenants/:id', async (req, res) => {
       return res.status(404).json({ error: 'Tenant not found' });
     }
     
+    invalidateAuthCache(null, tenant._id);
+
     res.json(serializeTenantForSuperAdmin(tenant));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1107,6 +1109,8 @@ router.put('/tenants/:id/subscription', async (req, res) => {
       return res.status(404).json({ error: 'Tenant not found' });
     }
     
+    invalidateAuthCache(null, tenant._id);
+
     res.json(tenant);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1615,6 +1619,8 @@ router.post('/tenants/:id/login-as', async (req, res) => {
       return res.status(404).json({ error: 'No admin user found for this tenant' });
     }
     
+    invalidateAuthCache(adminUser._id, tenant._id);
+
     // Generate token for the admin user
     const token = jwt.sign({ id: adminUser._id }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRE || '7d'

@@ -19,6 +19,7 @@ import SARIcon from './components/ui/SARIcon';
 import toast from 'react-hot-toast';
 import { formatSaudiRiyal } from './utils/saudi';
 import ThermalReceipt from '../../components/ui/ThermalReceipt';
+import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter';
 
 const Stitchings = () => {
   
@@ -924,7 +925,7 @@ const Stitchings = () => {
               </button>
               <button onClick={() => {
                 if (printRef.current) {
-                  window.print();
+                  printThermalElement(printRef.current, getThermalPrinterSettings(tenant));
                 }
               }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white flex-1">
                 {(language === 'ar' ? 'طباعة' : 'Print Receipt')}

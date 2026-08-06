@@ -32,6 +32,7 @@ import {
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { useTranslation } from '../lib/translations';
+import PremiumCalendarIcon from '../components/ui/PremiumCalendarIcon';
 
 const EVENT_TYPES = [
   { id: 'meeting', en: 'Meeting', ar: 'اجتماع', icon: Video, color: '#2563EB' },
@@ -362,23 +363,15 @@ export default function CalendarPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             {/* Left: Dynamic Live Mini Calendar Badge + Title */}
-            <div className="flex items-center gap-3.5">
-              {/* Apple-style Live Calendar Icon */}
-              <div className="w-12 h-12 rounded-xl bg-white dark:bg-dark-900 border border-gray-200 dark:border-dark-600 shadow-sm flex flex-col items-center justify-between overflow-hidden flex-shrink-0">
-                <div className="w-full bg-rose-600 text-white text-[9px] font-black uppercase text-center py-0.5 tracking-wider">
-                  {todayDayName}
-                </div>
-                <div className="text-lg font-black text-gray-900 dark:text-white leading-none pb-1.5">
-                  {todayDateNum}
-                </div>
-              </div>
+            <div className="flex items-center gap-4">
+              <PremiumCalendarIcon size="lg" date={today} />
 
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
                     {isAr ? 'التقويم والمواعيد' : 'Calendar & Schedule'}
                   </h1>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 dark:bg-dark-700 text-gray-600 dark:text-gray-300 border border-gray-200/60 dark:border-dark-600">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border border-rose-200/60 dark:border-rose-800/40">
                     {monthName}
                   </span>
                 </div>

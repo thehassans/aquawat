@@ -162,7 +162,7 @@ export const tenantFilter = (req, res, next) => {
   if (req.user.role === 'super_admin') {
     if (req.headers['x-tenant-id']) {
       req.tenantFilter = { tenantId: req.headers['x-tenant-id'] };
-      req.user.tenantId = req.headers['x-tenant-id']; // allow POSTs to inherit
+      req.user = Object.assign(Object.create(Object.getPrototypeOf(req.user)), req.user, { tenantId: req.headers['x-tenant-id'] });
     } else {
       req.tenantFilter = {};
     }
@@ -174,4 +174,4 @@ export const tenantFilter = (req, res, next) => {
 
 export const authenticate = protect;
 
-export default { protect, authenticate, authorize, checkPermission, tenantFilter, requireBusinessType, checkEmailAddon, tenantHasEmailAddon };
+export default { protect, authenticate, authorize, checkPermission, tenantFilter, requireBusinessType, checkEmailAddon, tenantHasEmailAddon, invalidateAuthCache };
