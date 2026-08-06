@@ -53,11 +53,23 @@ const api = axios.create({
   },
 })
 
+// In-flight GET request deduplication pool to prevent redundant parallel requests
+const inflightGetRequests = new Map();
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+
+  // Deduplicate identical simultaneous GET requests
+  if (config.method === 'get' && !config._skipDedup) {
+    const dedupKey = `${config.url || ''}?${JSON.stringify(config.params || {})}`
+    if (inflightGetRequests.has(dedupKey)) {
+      config.adapter = () => inflightGetRequests.get(dedupKey)
+    }
+  }
+
   return config
 })
 
@@ -81,11 +93,21 @@ const backgroundCacheResponse = (config, data) => {
 
 api.interceptors.response.use(
   (response) => {
+    // Clear deduplication cache entry
+    if (response.config?.method === 'get') {
+      const dedupKey = `${response.config.url || ''}?${JSON.stringify(response.config.params || {})}`
+      inflightGetRequests.delete(dedupKey)
+    }
     backgroundCacheResponse(response.config, response.data)
     return response
   },
   async (error) => {
     const config = error.config;
+    if (config?.method === 'get') {
+      const dedupKey = `${config.url || ''}?${JSON.stringify(config.params || {})}`
+      inflightGetRequests.delete(dedupKey)
+    }
+
     const isNetworkError = !error.response || !navigator.onLine;
     
     if (isNetworkError && config) {
@@ -187,22 +209,20 @@ api.interceptors.response.use(
 
     error.userMessage = getApiErrorMessage(error)
 
-    // ── 429 Rate-limit: exponential backoff retry (up to 3 attempts) ──────────
-    // React Query's default behaviour is to retry instantly on failure, which
-    // turns a single 429 into a burst of 3 more 429s. Instead we intercept here
-    // so ALL callers (query + mutation) get automatic back-off at the Axios level.
-    if (error.response?.status === 429) {
-      const cfg = error.config
-      cfg._429RetryCount = (cfg._429RetryCount || 0) + 1
-      if (cfg._429RetryCount <= 3) {
+    // ── 429 Rate-limit: exponential backoff retry with randomized jitter (up to 4 attempts) ──
+    if (error.response?.status === 429 && config) {
+      config._429RetryCount = (config._429RetryCount || 0) + 1
+      if (config._429RetryCount <= 4) {
         const retryAfterHeader = parseInt(error.response.headers?.['retry-after'] || '0', 10)
-        // Use Retry-After header if present, otherwise exponential backoff capped at 8 s
+        // Add random jitter (100-600ms) to desynchronize simultaneous clients
+        const jitter = Math.floor(Math.random() * 500) + 100
         const backoffMs = retryAfterHeader > 0
-          ? retryAfterHeader * 1000
-          : Math.min(1000 * Math.pow(2, cfg._429RetryCount), 8000)
-        console.warn(`[API] 429 received – retrying in ${backoffMs}ms (attempt ${cfg._429RetryCount}/3)`)
+          ? (retryAfterHeader * 1000) + jitter
+          : Math.min(800 * Math.pow(2, config._429RetryCount) + jitter, 10000)
+        console.warn(`[API] 429 Rate Limit encountered – retrying in ${backoffMs}ms with jitter (attempt ${config._429RetryCount}/4) for ${config.url}`)
         await new Promise(resolve => setTimeout(resolve, backoffMs))
-        return api(cfg)
+        config._skipDedup = true
+        return api(config)
       }
     }
 
@@ -215,11 +235,6 @@ api.interceptors.response.use(
 
     const requestUrl = String(error.config?.url || '')
     // Requests that handle their own 401 logic — don't intercept these.
-    // /auth/me    → getMe.rejected in authSlice clears state + token already.
-    //               Firing auth-expired here too causes a double-cleanup race
-    //               that leaves the login page stuck on the loading spinner.
-    // /auth/login, /public/demo-login, /auth/register → entry-point calls
-    //               where 401 is the expected "bad credentials" response.
     const isAuthManagedRequest = requestUrl.includes('/auth/login')
       || requestUrl.includes('/auth/me')
       || requestUrl.includes('/public/demo-login')
@@ -233,8 +248,6 @@ api.interceptors.response.use(
         localStorage.removeItem('token')
         localStorage.removeItem('auth_user')
         localStorage.removeItem('auth_tenant')
-        // Use a CustomEvent so the React app can handle the redirect via
-        // React Router instead of a hard page reload (which causes white screen).
         window.dispatchEvent(new CustomEvent('auth-expired'))
       }
     }

@@ -223,7 +223,15 @@ export default function AppStore() {
       } else if (activeCategory === 'pos_retail') {
         matchCat = app.category === 'pos_retail' || app.appId.includes('delivery') || app.appId.includes('retail');
       } else if (activeCategory === 'saudi_compliance') {
-        matchCat = app.category === 'saudi_compliance' || app.appId.includes('zatca') || app.appId.includes('gosi');
+        matchCat = app.category === 'saudi_compliance' ||
+          app.appId.includes('zatca') ||
+          app.appId.includes('gosi') ||
+          app.appId.includes('elm') ||
+          app.appId.includes('qiwa') ||
+          app.appId.includes('balady') ||
+          app.appId.includes('saber') ||
+          app.appId.includes('etimad') ||
+          app.appId.includes('tamm');
       } else if (activeCategory === 'automation_comm') {
         matchCat = app.category === 'automation_comm' || app.category === 'ai_intelligence' || app.appId.includes('whatsapp') || app.appId.includes('ai') || app.appId.includes('shipping');
       }

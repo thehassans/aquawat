@@ -12,73 +12,137 @@ import { TrendingUp, AlertTriangle } from 'lucide-react'
 import { AnimatePresence } from 'framer-motion'
 
 function MinimalPerformanceModal({ supplierId, supplierName, onClose, language }) {
+  const isAr = language === 'ar'
   const { data, isLoading } = useQuery({
     queryKey: ['supplier-performance', supplierId],
     queryFn: () => api.get(`/suppliers/${supplierId}/performance-detail`).then(res => res.data),
     enabled: !!supplierId
   })
 
+  const gradeColors = {
+    A: 'from-emerald-500 to-teal-600 text-white shadow-emerald-500/20',
+    B: 'from-amber-500 to-orange-600 text-white shadow-amber-500/20',
+    C: 'from-red-500 to-rose-600 text-white shadow-red-500/20',
+  }
+
+  const grade = data?.summary?.grade || 'A'
+  const gradeBadgeClass = gradeColors[grade] || gradeColors.A
+
   return (
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4"
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-          className="bg-white dark:bg-dark-800 rounded-xl shadow-xl w-full max-w-sm overflow-hidden"
+          initial={{ scale: 0.95, opacity: 0, y: 10 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.95, opacity: 0, y: 10 }}
+          className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100 dark:border-white/10"
           onClick={e => e.stopPropagation()}
         >
-          <div className="p-4 border-b border-gray-100 dark:border-dark-700 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
-              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">{supplierName}</h3>
+          {/* Header */}
+          <div className="p-5 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white text-sm leading-none">{supplierName}</h3>
+                <span className="text-[11px] text-gray-400 mt-1 block">{isAr ? 'بطاقة تقييم أداء المورد' : 'Supplier Performance Scorecard'}</span>
+              </div>
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+            <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-400 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
           </div>
           
-          <div className="p-4">
+          <div className="p-6 space-y-6">
             {isLoading ? (
-              <div className="flex justify-center p-4"><div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>
+              <div className="flex flex-col items-center justify-center py-10 space-y-3">
+                <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs text-gray-400">{isAr ? 'جاري تحليل الأداء...' : 'Analyzing metrics...'}</span>
+              </div>
             ) : !data ? (
-              <p className="text-center text-sm text-gray-500 py-4">No data available</p>
+              <p className="text-center text-sm text-gray-400 py-8">{isAr ? 'لا توجد بيانات متاحة لهذا المورد' : 'No performance data available'}</p>
             ) : (
-              <div className="space-y-4">
-                <div className="flex justify-between items-end">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'تصنيف الأداء' : 'Performance Grade'}</p>
-                    <span className="text-3xl font-black bg-gradient-to-br from-emerald-400 to-emerald-600 bg-clip-text text-transparent">
-                      {data.summary?.grade || 'N/A'}
-                    </span>
+              <>
+                {/* Score & Grade Hero */}
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 dark:bg-dark-900/50 border border-gray-100 dark:border-white/5">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{isAr ? 'التقييم العام' : 'Overall Score'}</span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                        {data.summary?.overallScore ?? 100}%
+                      </span>
+                      <span className="text-xs font-semibold text-emerald-500">
+                        {isAr ? 'ممتاز' : 'Optimal'}
+                      </span>
+                    </div>
                   </div>
+
                   <div className="text-right">
-                    <p className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'النتيجة الإجمالية' : 'Overall Score'}</p>
-                    <span className="text-xl font-bold text-gray-900 dark:text-white">
-                      {data.summary?.overallScore ?? 0}%
-                    </span>
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">{isAr ? 'التصنيف' : 'Grade'}</span>
+                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${gradeBadgeClass} font-black text-2xl flex items-center justify-center shadow-lg`}>
+                      {grade}
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 dark:border-dark-700">
-                  <div className="bg-gray-50 dark:bg-dark-900/50 p-2 rounded-lg">
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">{language === 'ar' ? 'إجمالي الطلبات' : 'Total Orders'}</p>
-                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5">{data.summary?.totalOrders ?? 0}</p>
+                {/* Key KPIs Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-2xl bg-gray-50/70 dark:bg-dark-900/40 border border-gray-100 dark:border-white/5 space-y-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{isAr ? 'إجمالي الطلبات' : 'Total Orders'}</span>
+                    <p className="text-lg font-black text-gray-900 dark:text-white">{data.summary?.totalOrders ?? 0}</p>
                   </div>
-                  <div className="bg-gray-50 dark:bg-dark-900/50 p-2 rounded-lg">
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">{language === 'ar' ? 'إجمالي الإنفاق' : 'Total Spend'}</p>
-                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5">{data.summary?.totalSpend?.toFixed(2) ?? '0.00'}</p>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-dark-900/50 p-2 rounded-lg">
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">{language === 'ar' ? 'معدل الإرجاع' : 'Return Rate'}</p>
-                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5">{data.summary?.returnRate ?? 0}%</p>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-dark-900/50 p-2 rounded-lg">
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">{language === 'ar' ? 'في الوقت المحدد' : 'On Time'}</p>
-                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5">{data.summary?.onTimeDeliveryRate ?? 0}%</p>
+                  <div className="p-3.5 rounded-2xl bg-gray-50/70 dark:bg-dark-900/40 border border-gray-100 dark:border-white/5 space-y-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{isAr ? 'إجمالي المشتريات' : 'Total Spend'}</span>
+                    <p className="text-lg font-black text-gray-900 dark:text-white">{(data.summary?.totalSpend ?? 0).toFixed(2)} <span className="text-xs font-medium text-gray-400">SAR</span></p>
                   </div>
                 </div>
-              </div>
+
+                {/* Delivery & Quality Progress Bars */}
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-xs font-bold mb-1.5">
+                      <span className="text-gray-600 dark:text-gray-300">{isAr ? 'الالتزام بمواعيد التوريد' : 'On-Time Delivery Rate'}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">{data.summary?.onTimeDeliveryRate ?? 100}%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-gray-100 dark:bg-dark-700 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.max(0, data.summary?.onTimeDeliveryRate ?? 100))}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs font-bold mb-1.5">
+                      <span className="text-gray-600 dark:text-gray-300">{isAr ? 'معدل جودة المنتجات (قلة الإرجاع)' : 'Quality Retention (Low Returns)'}</span>
+                      <span className="text-blue-600 dark:text-blue-400">{100 - (data.summary?.returnRate ?? 0)}%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-gray-100 dark:bg-dark-700 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.max(0, 100 - (data.summary?.returnRate ?? 0)))}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action footer */}
+                <div className="pt-2">
+                  <Link
+                    to={`/purchase-orders/new?supplierId=${supplierId}`}
+                    onClick={onClose}
+                    className="w-full py-3 rounded-2xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all"
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'إنشاء أمر شراء للمورد' : 'Create Purchase Order'}</span>
+                  </Link>
+                </div>
+              </>
             )}
           </div>
         </motion.div>

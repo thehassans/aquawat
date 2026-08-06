@@ -19,7 +19,15 @@ export const getAISettings = async () => {
   return settings || {};
 };
 
+const translationMemoryCache = new Map();
+const MAX_CACHE_ENTRIES = 2000;
+
 export const translateWithFallback = async ({ text, targetLanguage, _batchMode = false }) => {
+  const cacheKey = `${targetLanguage}:${String(text || '').trim().toLowerCase()}`;
+  if (!_batchMode && translationMemoryCache.has(cacheKey)) {
+    return translationMemoryCache.get(cacheKey);
+  }
+
   const settings = await getAISettings();
   const sourceLang = targetLanguage === 'en' ? 'Arabic' : 'English';
   const targetLangStr = targetLanguage === 'en' ? 'English' : 'Arabic';
@@ -39,6 +47,17 @@ export const translateWithFallback = async ({ text, targetLanguage, _batchMode =
 
   const backoff = async (ms) => new Promise(r => setTimeout(r, ms));
 
+  const saveCache = (resText) => {
+    if (!_batchMode && resText) {
+      if (translationMemoryCache.size >= MAX_CACHE_ENTRIES) {
+        const firstKey = translationMemoryCache.keys().next().value;
+        translationMemoryCache.delete(firstKey);
+      }
+      translationMemoryCache.set(cacheKey, resText);
+    }
+    return resText;
+  };
+
   // 1. Try Gemini
   if (settings?.gemini?.enabled !== false && settings?.gemini?.apiKey) {
     try {
@@ -48,7 +67,7 @@ export const translateWithFallback = async ({ text, targetLanguage, _batchMode =
         contents: prompt,
         config: { temperature: 0.1 }
       });
-      if (response?.text) return response.text.trim();
+      if (response?.text) return saveCache(response.text.trim());
     } catch (e) {
       lastError = e;
       attempt++;
@@ -67,7 +86,7 @@ export const translateWithFallback = async ({ text, targetLanguage, _batchMode =
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
       });
-      if (response.choices?.[0]?.message?.content) return response.choices[0].message.content.trim();
+      if (response.choices?.[0]?.message?.content) return saveCache(response.choices[0].message.content.trim());
     } catch (e) {
       lastError = e;
       attempt++;
@@ -86,7 +105,7 @@ export const translateWithFallback = async ({ text, targetLanguage, _batchMode =
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
       });
-      if (response.choices?.[0]?.message?.content) return response.choices[0].message.content.trim();
+      if (response.choices?.[0]?.message?.content) return saveCache(response.choices[0].message.content.trim());
     } catch (e) {
       lastError = e;
       attempt++;
@@ -105,7 +124,7 @@ export const translateWithFallback = async ({ text, targetLanguage, _batchMode =
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
       });
-      if (response.choices?.[0]?.message?.content) return response.choices[0].message.content.trim();
+      if (response.choices?.[0]?.message?.content) return saveCache(response.choices[0].message.content.trim());
     } catch (e) {
       lastError = e;
       console.warn('[Translation] OpenAI failed...', e.message);

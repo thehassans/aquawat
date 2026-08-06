@@ -95,9 +95,9 @@ const getNavigationStyleForTenant = (tenantId) => {
       if (['sidebar', 'launcher'].includes(map[tenantId])) return map[tenantId]
     }
     const globalSaved = localStorage.getItem('navigationStyle')
-    return ['sidebar', 'launcher'].includes(globalSaved) ? globalSaved : 'sidebar'
+    return ['sidebar', 'launcher'].includes(globalSaved) ? globalSaved : 'launcher'
   } catch {
-    return 'sidebar'
+    return 'launcher'
   }
 }
 

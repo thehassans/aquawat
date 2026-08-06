@@ -90,29 +90,14 @@ export default function Login() {
         return;
       }
 
-      // For POS-first business types, skip launcher and go directly to POS
-      if (businessTypes.includes('bakala')) {
-        navigate('/app/dashboard/bakala/pos', { replace: true });
-      } else if (businessTypes.includes('boutique')) {
-        navigate('/app/dashboard/boutique/pos', { replace: true });
-      } else if (businessTypes.includes('saloon')) {
-        navigate('/app/saloon/pos', { replace: true });
-      } else if (businessTypes.includes('laundry')) {
-        navigate('/app/laundry/pos', { replace: true });
-      } else if (businessTypes.includes('restaurant')) {
-        navigate('/app/dashboard/restaurant/pos', { replace: true });
-      } else if (businessTypes.includes('khayyat')) {
-        navigate('/app/dashboard/khayyat/analytics', { replace: true });
-      } else {
-        // For all other tenants, go to /app/dashboard and open the App Launcher
-        dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
-        dispatch(setHideSidebar(true))
-        navigate('/app/dashboard', { replace: true })
-        // Open app launcher after navigation settles
-        setTimeout(() => {
-          dispatch(setAppLauncherOpen(true))
-        }, 100)
-      }
+      // For all tenant users, open the Application Bar Launcher directly
+      dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+      dispatch(setHideSidebar(true))
+      navigate('/app/dashboard', { replace: true })
+      // Open app launcher after navigation settles
+      setTimeout(() => {
+        dispatch(setAppLauncherOpen(true))
+      }, 50)
     } catch {
       setIsAutoLoggingIn(false)
       // handled by auth slice state

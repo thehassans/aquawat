@@ -162,8 +162,8 @@ dotenv.config();
 mongoose.set('bufferCommands', false);
 
 const app = express();
-const parsedApiRateLimitMax = Number(process.env.API_RATE_LIMIT_MAX || 2000);
-const apiRateLimitMax = Number.isFinite(parsedApiRateLimitMax) && parsedApiRateLimitMax > 0 ? parsedApiRateLimitMax : 2000;
+const parsedApiRateLimitMax = Number(process.env.API_RATE_LIMIT_MAX || 10000);
+const apiRateLimitMax = Number.isFinite(parsedApiRateLimitMax) && parsedApiRateLimitMax > 0 ? parsedApiRateLimitMax : 10000;
 const parsedTrustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 1);
 const trustProxyHops = Number.isFinite(parsedTrustProxyHops) && parsedTrustProxyHops >= 0 ? parsedTrustProxyHops : 1;
 const parsedMongoServerSelectionTimeoutMs = Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 5000);
@@ -450,38 +450,44 @@ app.use(compression({ threshold: 1024 }));
 
 
 // ─── Tiered rate limiting ─────────────────────────────────────────────────────
-// 1. Auth endpoints — very strict (30 req / 15 min) to block brute-force
+// Helper to get real client IP behind load balancers/Cloudflare/Nginx
+const getClientIp = (req) => {
+  return req.headers['cf-connecting-ip'] ||
+    req.headers['x-real-ip'] ||
+    (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : null) ||
+    req.ip ||
+    '127.0.0.1';
+};
+
+// 1. Auth endpoints — 120 req / 15 min
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.AUTH_RATE_LIMIT_MAX || 30),
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX || 120),
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
   message: { error: 'Too many auth requests. Please wait and try again.' },
 });
 
-// 2. Public storefront endpoints — lenient (1 000 req / 15 min)
+// 2. Public storefront endpoints — lenient (5 000 req / 15 min)
 const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 1000),
+  max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 5000),
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
   message: { error: 'Too many requests. Please try again later.' },
 });
 
-// 3. General API — configurable (default 2 000 req / 15 min)
-//    Key by authenticated tenantId so all devices in the same office/store
-//    share a per-TENANT quota, not a per-IP quota. Multiple POS terminals,
-//    kitchen displays etc. behind the same NAT/router will no longer starve
-//    each other. Fall back to IP for unauthenticated requests.
+// 3. General API — configurable (default 10 000 req / 15 min)
+//    Key by authenticated tenantId so all devices in the same store (POS, KDS, tablets)
+//    share a generous per-TENANT quota rather than getting throttled behind a single NAT IP.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: apiRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    // req.user is populated by the auth middleware which runs before this limiter
-    // because express-rate-limit runs per-request and auth is route-level.
-    // For the general limiter we parse the JWT synchronously to get tenantId.
     try {
       const auth = req.headers?.authorization || ''
       if (auth.startsWith('Bearer ')) {
@@ -490,9 +496,15 @@ const limiter = rateLimit({
         if (payload?.id) return `user:${payload.id}`
       }
     } catch (_) { /* fall through to IP */ }
-    return req.ip
+    return getClientIp(req)
   },
-  skip: (req) => req.path === '/health' || req.path === '/health/live' || req.path === '/health/ready',
+  skip: (req) => {
+    const p = req.path || '';
+    return p.startsWith('/health') ||
+      p.startsWith('/desktop-sync/ping') ||
+      p.startsWith('/sync/status') ||
+      p.startsWith('/zatca-compliance/health');
+  },
   message: { error: 'Too many requests, please try again later.' },
 });
 
