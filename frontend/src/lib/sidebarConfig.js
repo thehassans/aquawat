@@ -75,6 +75,9 @@ import {
   UserCircle,
   Megaphone,
   Store,
+  Smartphone, 
+  CalendarRange, 
+  Info
 } from 'lucide-react'
 
 /**
@@ -395,7 +398,6 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       items: [
         { path: '/app/dashboard/profile', icon: Building2, label: language === 'ar' ? 'الملف التعريفي والمنشأة' : 'Company Profile' },
         { path: '/app/dashboard/users', icon: Users, label: t('users'), perm: { module: 'settings', action: 'read' } },
-        { path: '/app/dashboard/backup', icon: Database, label: language === 'ar' ? 'النسخ الاحتياطي' : 'Backup', perm: { module: 'settings', action: 'read' } },
         { path: '/app/dashboard/settings', icon: Settings, label: t('settings'), perm: { module: 'settings', action: 'read' } },
         { path: '/app/dashboard/hidden-navbars', icon: Menu, label: language === 'ar' ? 'القوائم المخفية' : 'Hidden Navbars', perm: { module: 'settings', action: 'read' } },
       ]
@@ -418,8 +420,6 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     {
       title: language === 'ar' ? 'الامتثال' : 'Compliance',
       items: [
-        { path: '/app/dashboard/compliance', icon: Shield, label: language === 'ar' ? 'لوحة الامتثال' : 'Compliance Dashboard' },
-        { path: '/app/dashboard/saudi-compliance', icon: Globe, label: language === 'ar' ? 'الامتثال التنظيمي السعودي' : 'Saudi Regulatory' },
         { path: '/app/dashboard/tenant-settings/government-integrations', icon: Key, label: language === 'ar' ? 'التكاملات الحكومية' : 'Gov Integrations', children: govChildrenResolved },
       ]
     },
@@ -456,6 +456,12 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       requireApp: 'etimad_procurement',
       items: [
         { path: '/app/dashboard/tenant-settings/government-integrations/etimad', icon: Globe, label: language === 'ar' ? 'بوابة اعتماد' : 'Etimad Portal' },
+      ]
+    },
+    {
+      title: language === 'ar' ? 'حول مقدر' : 'About Maqder',
+      items: [
+        { path: '/app/dashboard/maqder-updates', icon: Info, label: language === 'ar' ? 'تحديثات مقدر' : 'Maqder Updates' },
       ]
     },
   ]

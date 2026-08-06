@@ -248,6 +248,7 @@ const ManpowerContractPrint = lazy(() => import('./pages/manpower/ManpowerContra
 const SystemSettings = lazy(() => import('./pages/super-admin/SystemSettings'))
 const ZatcaManagement = lazy(() => import('./pages/super-admin/ZatcaManagement'))
 const QueriesCRM = lazy(() => import('./pages/super-admin/QueriesCRM'))
+const MaqderUpdates = lazy(() => import('./pages/MaqderUpdates'))
 const LeadsGeneration = lazy(() => import('./pages/super-admin/LeadsGeneration'))
 const LeadSetup = lazy(() => import('./pages/super-admin/LeadSetup'))
 const AppCatalogManagement = lazy(() => import('./pages/super-admin/AppCatalogManagement'))
@@ -587,6 +588,7 @@ function App() {
         <Route path="customers/:id/edit" element={<CustomerForm />} />
         
         <Route path="letterhead" element={<Letterhead />} />
+        <Route path="maqder-updates" element={<MaqderUpdates />} />
 
         {/* Manpower Routes */}
         <Route path="manpower" element={<BusinessTypeRoute allowedTypes={['manpower']}><ManpowerDashboard /></BusinessTypeRoute>} />
