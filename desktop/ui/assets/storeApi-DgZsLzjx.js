@@ -1,0 +1,1 @@
+import{a as e}from"./axios-vendor-fb8fnDRV.js";const r=e.create({baseURL:"/api/storefront",headers:{"Content-Type":"application/json"}});r.interceptors.response.use(e=>e,e=>{var r,s;const o=(null==(s=null==(r=e.response)?void 0:r.data)?void 0:s.error)||e.message||"Request failed";return Promise.reject(new Error(o))});export{r as s};

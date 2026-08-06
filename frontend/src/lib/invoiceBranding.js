@@ -130,7 +130,8 @@ const buildDefaultFooterText = (tenant, language = 'en') => {
 
 export const getInvoiceTemplateId = (tenant, businessContext = 'trading', explicitTemplateId) => {
   const context = normalizeInvoiceContext(businessContext)
-  return Number(explicitTemplateId || getInvoiceBrandingProfile(tenant, context).templateId || tenant?.settings?.invoicePdfTemplate || 1)
+  // Prioritize global invoicePdfTemplate if set, otherwise fallback to context profile or defaults
+  return Number(explicitTemplateId || tenant?.settings?.invoicePdfTemplate || getInvoiceBrandingProfile(tenant, context).templateId || 1)
 }
 
 export const getInvoiceBranding = (tenant, language = 'en', businessContext = 'trading') => {
@@ -144,10 +145,11 @@ export const getInvoiceBranding = (tenant, language = 'en', businessContext = 't
     businessContext: context,
     templateId: getInvoiceTemplateId(tenant, context),
     companyName: pickLocalizedText(business?.legalNameEn, business?.legalNameAr, language),
-    logoSrc: contextProfile.logo || invoiceBranding?.logo || tenant?.branding?.logo || '/maqdernewlogo.webp',
-    stampImage: contextProfile.stampImage || invoiceBranding?.stampImage || tenant?.branding?.stampImage || invoiceBranding?.presetStamp || tenant?.settings?.invoiceBranding?.presetStamp || null,
-    signatureImage: contextProfile.signatureImage || invoiceBranding?.signatureImage || tenant?.branding?.signatureImage || invoiceBranding?.presetSignature || tenant?.settings?.invoiceBranding?.presetSignature || null,
-    letterheadImage: contextProfile.letterheadImage || invoiceBranding?.letterheadImage || tenant?.branding?.letterheadImage || null,
+    // Prioritize global invoice logo, then tenant logo, then context profile logo
+    logoSrc: invoiceBranding?.logo || tenant?.branding?.logo || contextProfile.logo || '/maqdernewlogo.webp',
+    stampImage: invoiceBranding?.stampImage || tenant?.branding?.stampImage || contextProfile.stampImage || invoiceBranding?.presetStamp || tenant?.settings?.invoiceBranding?.presetStamp || null,
+    signatureImage: invoiceBranding?.signatureImage || tenant?.branding?.signatureImage || contextProfile.signatureImage || invoiceBranding?.presetSignature || tenant?.settings?.invoiceBranding?.presetSignature || null,
+    letterheadImage: invoiceBranding?.letterheadImage || tenant?.branding?.letterheadImage || contextProfile.letterheadImage || null,
     headerText: pickLocalizedText(
       sanitizeLegacyTravelHeaderText(pickFirstText(contextProfile.headerTextEn, invoiceBranding?.headerTextEn), context) || buildDefaultHeaderText(context, 'en'),
       sanitizeLegacyTravelHeaderText(pickFirstText(contextProfile.headerTextAr, invoiceBranding?.headerTextAr), context) || buildDefaultHeaderText(context, 'ar'),

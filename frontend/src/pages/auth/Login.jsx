@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, Loader2, Mail, Lock, ArrowRight, Shield, Zap, Globe, Phone, MessageCircle, ChevronDown, RefreshCw } from 'lucide-react'
 import { login, clearError } from '../../store/slices/authSlice'
-import { setLanguage } from '../../store/slices/uiSlice'
+import { setLanguage, setAppLauncherOpen, setHideSidebar, setNavigationStyle } from '../../store/slices/uiSlice'
 import { useTranslation } from '../../lib/translations'
 import { usePublicWebsiteSettings } from '../../lib/website'
 import DailyAyat from '../../components/ui/DailyAyat'
@@ -82,26 +82,37 @@ export default function Login() {
             ? (Array.isArray(tenant.business.businessType) ? tenant.business.businessType : [tenant.business.businessType])
             : []);
 
-      let redirectPath = '/app/dashboard';
       if (result.user?.role === 'super_admin') {
-        redirectPath = '/super-admin';
+        navigate('/super-admin', { replace: true });
+        return;
       } else if (result.user?.role === 'reseller') {
-        redirectPath = '/reseller';
-      } else if (businessTypes.includes('bakala')) {
-        redirectPath = '/app/dashboard/bakala/pos';
-      } else if (businessTypes.includes('boutique')) {
-        redirectPath = '/app/dashboard/boutique/pos';
-      } else if (businessTypes.includes('saloon')) {
-        redirectPath = '/app/saloon/pos';
-      } else if (businessTypes.includes('laundry')) {
-        redirectPath = '/app/laundry/pos';
-      } else if (businessTypes.includes('restaurant')) {
-        redirectPath = '/app/dashboard/restaurant/pos';
-      } else if (businessTypes.includes('khayyat')) {
-        redirectPath = '/app/dashboard/khayyat/analytics';
+        navigate('/reseller', { replace: true });
+        return;
       }
 
-      navigate(redirectPath, { replace: true })
+      // For POS-first business types, skip launcher and go directly to POS
+      if (businessTypes.includes('bakala')) {
+        navigate('/app/dashboard/bakala/pos', { replace: true });
+      } else if (businessTypes.includes('boutique')) {
+        navigate('/app/dashboard/boutique/pos', { replace: true });
+      } else if (businessTypes.includes('saloon')) {
+        navigate('/app/saloon/pos', { replace: true });
+      } else if (businessTypes.includes('laundry')) {
+        navigate('/app/laundry/pos', { replace: true });
+      } else if (businessTypes.includes('restaurant')) {
+        navigate('/app/dashboard/restaurant/pos', { replace: true });
+      } else if (businessTypes.includes('khayyat')) {
+        navigate('/app/dashboard/khayyat/analytics', { replace: true });
+      } else {
+        // For all other tenants, go to /app/dashboard and open the App Launcher
+        dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+        dispatch(setHideSidebar(true))
+        navigate('/app/dashboard', { replace: true })
+        // Open app launcher after navigation settles
+        setTimeout(() => {
+          dispatch(setAppLauncherOpen(true))
+        }, 100)
+      }
     } catch {
       setIsAutoLoggingIn(false)
       // handled by auth slice state

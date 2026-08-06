@@ -293,7 +293,12 @@ export default function AppLauncher() {
     dispatch(setMobileMenuOpen(false))
     dispatch(setAppLauncherOpen(false))
     if (path) {
-      navigate(path)
+      // Defer navigation until after the launcher's exit animation (250ms) has begun
+      // and React has flushed the state update. This prevents the first-click failure
+      // where the router was blocked by the launcher overlay still animating out.
+      setTimeout(() => {
+        navigate(path)
+      }, 50)
     }
   }
 

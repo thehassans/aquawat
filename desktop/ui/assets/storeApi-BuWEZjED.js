@@ -1,1 +1,0 @@
-import{a as t}from"./axios-vendor-B9ygI19o.js";const a=t.create({baseURL:"/api/storefront",headers:{"Content-Type":"application/json"}});a.interceptors.response.use(e=>e,e=>{var s,r;const o=((r=(s=e.response)==null?void 0:s.data)==null?void 0:r.error)||e.message||"Request failed";return Promise.reject(new Error(o))});export{a as s};
