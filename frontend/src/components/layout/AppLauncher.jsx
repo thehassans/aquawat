@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Menu as MenuIcon, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, LayoutList } from 'lucide-react'
+import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Menu as MenuIcon, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, LayoutList, Loader2 } from 'lucide-react'
 import { Fragment } from 'react'
 import { Transition, Popover, Menu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -118,7 +118,10 @@ export default function AppLauncher() {
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [searchQuery, setSearchQuery] = useState('')
-
+  const [navigatingTo, setNavigatingTo] = useState(null)
+  
+  const location = useLocation()
+  
   const hasEmailAddon =
     tenant?.subscription?.hasEmailAddon === true ||
     (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation')) ||
@@ -286,19 +289,31 @@ export default function AppLauncher() {
     }
   }, [appLauncherOpen])
 
+  useEffect(() => {
+    // If the path changes, and we were navigating, close the launcher
+    if (appLauncherOpen && navigatingTo) {
+      dispatch(setAppLauncherOpen(false))
+      setNavigatingTo(null)
+    }
+  }, [location.pathname, appLauncherOpen, navigatingTo, dispatch])
+
   const handleAppClick = (path) => {
     // When opening any page from here, shift to launcher mode so sidebar is hidden across screens
     dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
     dispatch(setHideSidebar(true))
     dispatch(setMobileMenuOpen(false))
-    dispatch(setAppLauncherOpen(false))
+    
     if (path) {
-      // Defer navigation until after the launcher's exit animation (250ms) has begun
-      // and React has flushed the state update. This prevents the first-click failure
-      // where the router was blocked by the launcher overlay still animating out.
-      setTimeout(() => {
+      // If we are already on the path, just close the launcher.
+      if (location.pathname === path) {
+        dispatch(setAppLauncherOpen(false))
+      } else {
+        // Show loading spinner on the icon, and wait for useEffect to close the launcher when route changes
+        setNavigatingTo(path)
         navigate(path)
-      }, 50)
+      }
+    } else {
+      dispatch(setAppLauncherOpen(false))
     }
   }
 
@@ -614,6 +629,11 @@ export default function AppLauncher() {
                         label={app.label || ''}
                         className="w-11 h-11 sm:w-12 sm:h-12 relative z-10 transition-transform duration-300 group-hover:scale-105"
                       />
+                      {navigatingTo === targetPath && (
+                        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 rounded-[22px] sm:rounded-[26px] backdrop-blur-sm">
+                          <Loader2 className="w-6 h-6 text-white animate-spin" />
+                        </div>
+                      )}
                     </div>
                     <span className="mt-3.5 text-[12px] sm:text-[13px] font-semibold text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white text-center tracking-wide line-clamp-2 max-w-[90px] transition-colors leading-snug">
                       {app.label}
