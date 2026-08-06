@@ -71,55 +71,20 @@ export function App3DIcon({
             <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodColor="#E11D48" floodOpacity="0.22" />
           </filter>
         </defs>
-
-        {/* 3D Base Card Shadow & Glossy Rounded Body */}
         <rect x="6.5" y="8.5" width="51" height="49" rx="13" fill={`url(#cal_body_${uid})`} filter={`url(#cal_flt_${uid})`} />
         <rect x="7" y="9" width="50" height="48" rx="12.5" stroke="#FFFFFF" strokeWidth="1.2" strokeOpacity="0.9" fill="none" />
-
-        {/* Top Crimson Header Banner */}
         <path d="M6.5 21.5C6.5 14.32 12.32 8.5 19.5 8.5H44.5C51.68 8.5 57.5 14.32 57.5 21.5V23.5H6.5V21.5Z" fill={`url(#cal_header_${uid})`} />
-        
-        {/* Subtle glossy highlight line on top header */}
         <path d="M12 10.5H52C54.5 10.5 55.5 11.5 55.5 13" stroke="#FFA4B6" strokeWidth="1" strokeLinecap="round" strokeOpacity="0.85" />
-
-        {/* Realistic Chrome Binder Rings */}
         <rect x="16" y="5" width="4.5" height="8" rx="2.25" fill={`url(#cal_chrome_${uid})`} stroke="#FFFFFF" strokeWidth="0.8" />
         <circle cx="18.25" cy="9" r="0.9" fill="#FFFFFF" />
-        
         <rect x="43.5" y="5" width="4.5" height="8" rx="2.25" fill={`url(#cal_chrome_${uid})`} stroke="#FFFFFF" strokeWidth="0.8" />
         <circle cx="45.75" cy="9" r="0.9" fill="#FFFFFF" />
-
-        {/* Day Name in Crimson Header */}
-        <text
-          x="32"
-          y="18.5"
-          textAnchor="middle"
-          dominantBaseline="central"
-          fill="#FFFFFF"
-          fontSize="7.5"
-          fontWeight="900"
-          letterSpacing="1.2"
-          fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-        >
+        <text x="32" y="18.5" textAnchor="middle" dominantBaseline="central" fill="#FFFFFF" fontSize="7.5" fontWeight="900" letterSpacing="1.2" fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
           {dayName}
         </text>
-
-        {/* Bold Glowing Big Date Number in Center */}
-        <text
-          x="32"
-          y="38.5"
-          textAnchor="middle"
-          dominantBaseline="central"
-          fill="#0F172A"
-          fontSize={todayDate > 9 ? "22" : "24"}
-          fontWeight="900"
-          fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-          letterSpacing="-0.8"
-        >
+        <text x="32" y="38.5" textAnchor="middle" dominantBaseline="central" fill="#0F172A" fontSize={todayDate > 9 ? "22" : "24"} fontWeight="900" fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" letterSpacing="-0.8">
           {todayDate}
         </text>
-
-        {/* Micro Event Activity Dots at Bottom */}
         <circle cx="23" cy="50" r="1.8" fill="#10B981" />
         <circle cx="32" cy="50" r="1.8" fill="#3B82F6" />
         <circle cx="41" cy="50" r="1.8" fill="#F59E0B" />
@@ -127,177 +92,1110 @@ export function App3DIcon({
     )
   }
 
-  // ─── 0.1. LANDED COSTS / MARITIME IMPORT & DUTIES (3D NAUTICAL ANCHOR & CARGO) ──
+  // ─── 0.1. SALOON, BARBER & SPA MANAGEMENT (3D BARBER POLE & GOLDEN SHEARS) ──
   if (
-    cleanAppId === 'landed_costs' ||
-    cleanIcon === 'anchor' ||
-    last === 'landed-costs' ||
-    cleanLabel.includes('landed') ||
-    cleanLabel.includes('مرسية')
+    cleanAppId === 'saloon_barber' ||
+    cleanAppId === 'saloon' ||
+    second === 'saloon' ||
+    (last === 'saloon' && second !== 'dashboard') ||
+    cleanLabel.includes('saloon') ||
+    cleanLabel.includes('barber') ||
+    cleanLabel.includes('حلاقة') ||
+    cleanLabel.includes('صالون')
   ) {
     return (
       <svg className={className} viewBox="0 0 64 64" fill="none">
         <defs>
-          <linearGradient id={`lc_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#0EA5E9" />
-            <stop offset="50%" stopColor="#0284C7" />
-            <stop offset="100%" stopColor="#0369A1" />
+          <linearGradient id={`sal_body_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#BE185D" />
+            <stop offset="50%" stopColor="#DB2777" />
+            <stop offset="100%" stopColor="#F43F5E" />
           </linearGradient>
-          <linearGradient id={`lc_gold_${uid}`} x1="16" y1="8" x2="48" y2="56" gradientUnits="userSpaceOnUse">
+          <linearGradient id={`sal_gold_${uid}`} x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#FDE047" />
             <stop offset="50%" stopColor="#F59E0B" />
             <stop offset="100%" stopColor="#D97706" />
           </linearGradient>
-          <filter id={`lc_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0284C7" floodOpacity="0.45" />
+          <linearGradient id={`sal_pole_${uid}`} x1="18" y1="12" x2="30" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="100%" stopColor="#E2E8F0" />
+          </linearGradient>
+          <filter id={`sal_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#DB2777" floodOpacity="0.45" />
           </filter>
         </defs>
-        <circle cx="32" cy="32" r="26" fill={`url(#lc_bg_${uid})`} filter={`url(#lc_flt_${uid})`} />
-        <circle cx="32" cy="32" r="25" stroke="#38BDF8" strokeWidth="1.5" strokeOpacity="0.4" fill="none" />
-        <path d="M12 40C20 36 28 44 36 40C44 36 52 44 56 40" stroke="#7DD3FC" strokeWidth="1.5" strokeOpacity="0.3" fill="none" />
-        {/* 3D Anchor */}
-        <circle cx="32" cy="18" r="5" stroke={`url(#lc_gold_${uid})`} strokeWidth="3" fill="none" />
-        <path d="M32 23V46" stroke={`url(#lc_gold_${uid})`} strokeWidth="4" strokeLinecap="round" />
-        <path d="M22 28H42" stroke={`url(#lc_gold_${uid})`} strokeWidth="3.5" strokeLinecap="round" />
-        <path d="M18 36C18 45 24 50 32 50C40 50 46 45 46 36" stroke={`url(#lc_gold_${uid})`} strokeWidth="4" strokeLinecap="round" fill="none" />
-        <path d="M14 36L18 33L22 36" stroke={`url(#lc_gold_${uid})`} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M42 36L46 33L50 36" stroke={`url(#lc_gold_${uid})`} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="32" cy="18" r="1.5" fill="#FFFFFF" />
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#sal_body_${uid})`} filter={`url(#sal_flt_${uid})`} stroke="#FDA4AF" strokeWidth="1.2" strokeOpacity="0.5" />
+        <rect x="16" y="14" width="12" height="36" rx="6" fill={`url(#sal_pole_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        <path d="M16 20L28 26M16 28L28 34M16 36L28 42" stroke="#E11D48" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M16 24L28 30M16 32L28 38M16 40L28 46" stroke="#0284C7" strokeWidth="2.5" strokeLinecap="round" />
+        <ellipse cx="22" cy="14" rx="6" ry="2.5" fill={`url(#sal_gold_${uid})`} />
+        <ellipse cx="22" cy="50" rx="6" ry="2.5" fill={`url(#sal_gold_${uid})`} />
+        {/* 3D Golden Hair Shears */}
+        <circle cx="48" cy="46" r="4.5" stroke={`url(#sal_gold_${uid})`} strokeWidth="2.5" fill="none" />
+        <circle cx="36" cy="46" r="4.5" stroke={`url(#sal_gold_${uid})`} strokeWidth="2.5" fill="none" />
+        <path d="M46 42L34 16" stroke={`url(#sal_gold_${uid})`} strokeWidth="3" strokeLinecap="round" />
+        <path d="M38 42L50 16" stroke={`url(#sal_gold_${uid})`} strokeWidth="3" strokeLinecap="round" />
+        <circle cx="42" cy="29" r="2" fill="#FFFFFF" />
+        {/* Glow sparkle */}
+        <path d="M52 10L53 14L57 15L53 16L52 20L51 16L47 15L51 14L52 10Z" fill="#FDE047" />
       </svg>
     )
   }
 
-  // ─── 0.2. PAYMENT TERMINAL / SMART POS INTEGRATION (3D POS & NFC CHIP) ──────
+  // ─── 0.2. TAILORING & CUSTOM STITCHING (KHAYYAT) (3D THOBE, THREAD & GOLD NEEDLE) ─
   if (
-    cleanAppId === 'payment_terminal_integration' ||
-    (cleanIcon === 'credit-card' && (cleanAppId.includes('terminal') || cleanLabel.includes('terminal') || cleanLabel.includes('دفع'))) ||
-    last === 'payment-terminal' ||
-    last === 'payments'
+    cleanAppId === 'tailor_khayyat' ||
+    cleanAppId === 'khayyat' ||
+    second === 'khayyat' ||
+    last === 'stitchings' ||
+    (last === 'khayyat' && second !== 'dashboard') ||
+    cleanLabel.includes('khayyat') ||
+    cleanLabel.includes('tailor') ||
+    cleanLabel.includes('stitching') ||
+    cleanLabel.includes('خياط') ||
+    cleanLabel.includes('تفصيل')
   ) {
     return (
       <svg className={className} viewBox="0 0 64 64" fill="none">
         <defs>
-          <linearGradient id={`pt_body_${uid}`} x1="12" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+          <linearGradient id={`khy_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#6D28D9" />
+            <stop offset="50%" stopColor="#7C3AED" />
+            <stop offset="100%" stopColor="#8B5CF6" />
+          </linearGradient>
+          <linearGradient id={`khy_gold_${uid}`} x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <linearGradient id={`khy_spool_${uid}`} x1="16" y1="20" x2="36" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#A78BFA" />
+            <stop offset="100%" stopColor="#7C3AED" />
+          </linearGradient>
+          <filter id={`khy_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#6D28D9" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#khy_bg_${uid})`} filter={`url(#khy_flt_${uid})`} stroke="#C4B5FD" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Tailor Spool */}
+        <rect x="14" y="22" width="18" height="24" rx="4" fill={`url(#khy_spool_${uid})`} stroke="#DDD6FE" strokeWidth="1" />
+        <ellipse cx="23" cy="22" rx="9" ry="3" fill={`url(#khy_gold_${uid})`} />
+        <ellipse cx="23" cy="46" rx="9" ry="3" fill={`url(#khy_gold_${uid})`} />
+        <line x1="14" y1="28" x2="32" y2="28" stroke="#FDE047" strokeWidth="1.8" />
+        <line x1="14" y1="34" x2="32" y2="34" stroke="#FDE047" strokeWidth="1.8" />
+        <line x1="14" y1="40" x2="32" y2="40" stroke="#FDE047" strokeWidth="1.8" />
+        {/* Measuring Tape curved ribbon */}
+        <path d="M12 50C22 52 38 46 48 52" stroke="#FCD34D" strokeWidth="3.5" strokeLinecap="round" />
+        <path d="M20 50L20 53M28 49L28 52M36 48L36 51M44 50L44 53" stroke="#92400E" strokeWidth="1" />
+        {/* 3D Golden Needle & Thread Loop */}
+        <path d="M52 14L34 32" stroke={`url(#khy_gold_${uid})`} strokeWidth="3" strokeLinecap="round" />
+        <circle cx="50" cy="16" r="1.2" fill="#7C3AED" />
+        <path d="M50 16C54 12 56 22 46 26" stroke="#FDE047" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+        {/* Sparkle */}
+        <circle cx="48" cy="38" r="2.5" fill="#FDE047" />
+      </svg>
+    )
+  }
+
+  // ─── 0.3. BOUTIQUE & DESIGNER DRESS RENTAL (3D EVENING GOWN & ROYAL TIARA) ───
+  if (
+    cleanAppId === 'boutique_rental' ||
+    cleanAppId === 'boutique' ||
+    second === 'boutique' ||
+    (last === 'boutique' && second !== 'dashboard') ||
+    last === 'boutique-rentals' ||
+    cleanLabel.includes('boutique') ||
+    cleanLabel.includes('dress') ||
+    cleanLabel.includes('فساتين') ||
+    cleanLabel.includes('بوتيك')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`btq_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#BE123C" />
+            <stop offset="50%" stopColor="#E11D48" />
+            <stop offset="100%" stopColor="#FB7185" />
+          </linearGradient>
+          <linearGradient id={`btq_dress_${uid}`} x1="16" y1="16" x2="48" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="50%" stopColor="#FFE4E6" />
+            <stop offset="100%" stopColor="#FECDD3" />
+          </linearGradient>
+          <linearGradient id={`btq_gold_${uid}`} x1="16" y1="8" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <filter id={`btq_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#E11D48" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#btq_bg_${uid})`} filter={`url(#btq_flt_${uid})`} stroke="#FDA4AF" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Golden Hanger */}
+        <path d="M32 15C32 13 34 11 36 13C37 14 36 17 32 18V20" stroke={`url(#btq_gold_${uid})`} strokeWidth="2" strokeLinecap="round" fill="none" />
+        <path d="M22 24L32 20L42 24" stroke={`url(#btq_gold_${uid})`} strokeWidth="2" strokeLinecap="round" />
+        {/* 3D Haute Couture Dress Silhouette */}
+        <path d="M25 24C28 27 36 27 39 24L37 34C44 42 48 48 50 53H14C16 48 20 42 27 34L25 24Z" fill={`url(#btq_dress_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        {/* Dress Waist Ribbon & Gem */}
+        <path d="M26 34C30 36 34 36 38 34" stroke={`url(#btq_gold_${uid})`} strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="32" cy="35" r="2.2" fill="#FDE047" />
+        {/* Sparkles */}
+        <path d="M46 14L47 18L51 19L47 20L46 24L45 20L41 19L45 18L46 14Z" fill="#FDE047" />
+        <path d="M16 32L17 34L19 35L17 36L16 38L15 36L13 35L15 34L16 32Z" fill="#FFFFFF" />
+      </svg>
+    )
+  }
+
+  // ─── 0.4. BOOKSTORE & STATIONERY RETAIL (3D OPEN HARDCOVER & GOLDEN FOUNTAIN PEN) ─
+  if (
+    cleanAppId === 'bookstore_stationery' ||
+    cleanAppId === 'bookstore' ||
+    second === 'bookstore' ||
+    (last === 'bookstore' && second !== 'dashboard') ||
+    cleanLabel.includes('bookstore') ||
+    cleanLabel.includes('stationery') ||
+    cleanLabel.includes('مكتبة') ||
+    cleanLabel.includes('قرطاسية') ||
+    cleanLabel.includes('كتب')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`bks_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0D9488" />
+            <stop offset="50%" stopColor="#0F766E" />
+            <stop offset="100%" stopColor="#115E59" />
+          </linearGradient>
+          <linearGradient id={`bks_page_${uid}`} x1="16" y1="20" x2="48" y2="50" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="100%" stopColor="#F1F5F9" />
+          </linearGradient>
+          <linearGradient id={`bks_gold_${uid}`} x1="16" y1="10" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <filter id={`bks_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#0D9488" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#bks_bg_${uid})`} filter={`url(#bks_flt_${uid})`} stroke="#5EEAD4" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Open Book Wings */}
+        <path d="M32 24C24 20 16 22 12 24V46C16 44 24 42 32 46C40 42 48 44 52 46V24C48 22 40 20 32 24Z" fill={`url(#bks_page_${uid})`} stroke="#CBD5E1" strokeWidth="1" />
+        <path d="M32 24V46" stroke="#0F766E" strokeWidth="2" />
+        <path d="M16 28H28M16 34H28M16 40H26" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M36 28H48M36 34H48M36 40H46" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Bookmark Ribbon */}
+        <path d="M32 24V14L35 17L38 14V24" fill="#EF4444" stroke="#DC2626" strokeWidth="0.8" />
+        {/* 3D Golden Fountain Pen */}
+        <path d="M48 10L52 14L38 28L34 24L48 10Z" fill={`url(#bks_gold_${uid})`} />
+        <path d="M34 24L38 28L32 30L34 24Z" fill="#334155" />
+        <circle cx="35" cy="27" r="0.6" fill="#FDE047" />
+      </svg>
+    )
+  }
+
+  // ─── 0.5. BAKALA, GROCERY & SUPERMARKET POS (3D EMERALD CART & LASER BEAM) ───
+  if (
+    cleanAppId === 'bakala_supermarket' ||
+    cleanAppId === 'bakala' ||
+    second === 'bakala' ||
+    (last === 'bakala' && second !== 'dashboard') ||
+    cleanLabel.includes('bakala') ||
+    cleanLabel.includes('supermarket') ||
+    cleanLabel.includes('grocery') ||
+    cleanLabel.includes('بقالة') ||
+    cleanLabel.includes('سوبرماركت')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`bkl_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#059669" />
+            <stop offset="50%" stopColor="#10B981" />
+            <stop offset="100%" stopColor="#34D399" />
+          </linearGradient>
+          <linearGradient id={`bkl_cart_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="100%" stopColor="#E2E8F0" />
+          </linearGradient>
+          <filter id={`bkl_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#059669" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#bkl_bg_${uid})`} filter={`url(#bkl_flt_${uid})`} stroke="#6EE7B7" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Shopping Cart Body */}
+        <path d="M14 18H20L26 38H46L50 22H22" stroke={`url(#bkl_cart_${uid})`} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <line x1="28" y1="26" x2="46" y2="26" stroke="#FFFFFF" strokeWidth="1.5" />
+        <line x1="30" y1="32" x2="44" y2="32" stroke="#FFFFFF" strokeWidth="1.5" />
+        <line x1="34" y1="22" x2="32" y2="38" stroke="#FFFFFF" strokeWidth="1.5" />
+        <line x1="40" y1="22" x2="38" y2="38" stroke="#FFFFFF" strokeWidth="1.5" />
+        {/* Produce in Cart */}
+        <circle cx="30" cy="18" r="4.5" fill="#EF4444" stroke="#DC2626" strokeWidth="1" />
+        <rect x="36" y="14" width="7" height="10" rx="2" fill="#38BDF8" />
+        {/* Cart Wheels */}
+        <circle cx="28" cy="46" r="4" fill="#064E3B" stroke="#FFFFFF" strokeWidth="1.5" />
+        <circle cx="44" cy="46" r="4" fill="#064E3B" stroke="#FFFFFF" strokeWidth="1.5" />
+        <circle cx="28" cy="46" r="1.5" fill="#34D399" />
+        <circle cx="44" cy="46" r="1.5" fill="#34D399" />
+        {/* Red Laser Barcode Line */}
+        <line x1="16" y1="12" x2="48" y2="12" stroke="#F43F5E" strokeWidth="2" strokeDasharray="3 2" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // ─── 0.6. AUTO GARAGE & CAR WORKSHOP ERP (3D V8 ENGINE, CHROME GEAR & WRENCH) ───
+  if (
+    cleanAppId === 'car_workshop' ||
+    cleanAppId === 'workshop' ||
+    cleanAppId === 'auto_garage' ||
+    second === 'workshop' ||
+    (last === 'workshop' && second !== 'dashboard') ||
+    last === 'job-cards' ||
+    cleanLabel.includes('workshop') ||
+    cleanLabel.includes('garage') ||
+    cleanLabel.includes('ورشة') ||
+    cleanLabel.includes('سيارات')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`wrk_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#1E293B" />
-            <stop offset="100%" stopColor="#0F172A" />
+            <stop offset="50%" stopColor="#0F172A" />
+            <stop offset="100%" stopColor="#020617" />
           </linearGradient>
-          <linearGradient id={`pt_screen_${uid}`} x1="16" y1="14" x2="48" y2="34" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#065F46" />
-            <stop offset="100%" stopColor="#047857" />
+          <linearGradient id={`wrk_gold_${uid}`} x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
           </linearGradient>
-          <linearGradient id={`pt_glow_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#10B981" />
-            <stop offset="100%" stopColor="#059669" />
-          </linearGradient>
-          <filter id={`pt_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#10B981" floodOpacity="0.4" />
-          </filter>
-        </defs>
-        {/* Terminal Body */}
-        <rect x="14" y="8" width="36" height="48" rx="8" fill={`url(#pt_body_${uid})`} filter={`url(#pt_flt_${uid})`} stroke="#334155" strokeWidth="1.5" />
-        {/* Screen */}
-        <rect x="18" y="12" width="28" height="18" rx="4" fill={`url(#pt_screen_${uid})`} />
-        <rect x="22" y="16" width="12" height="2" rx="1" fill="#A7F3D0" />
-        <rect x="22" y="21" width="20" height="3" rx="1.5" fill="#34D399" />
-        <path d="M38 15L42 19L40 21" stroke="#A7F3D0" strokeWidth="1.5" strokeLinecap="round" />
-        {/* Keypad */}
-        <circle cx="23" cy="36" r="2.5" fill="#334155" />
-        <circle cx="32" cy="36" r="2.5" fill="#334155" />
-        <circle cx="41" cy="36" r="2.5" fill="#334155" />
-        <circle cx="23" cy="43" r="2.5" fill="#334155" />
-        <circle cx="32" cy="43" r="2.5" fill="#334155" />
-        <circle cx="41" cy="43" r="2.5" fill="#334155" />
-        <rect x="20" y="48" width="24" height="3" rx="1.5" fill="#10B981" />
-        {/* Contactless Wave */}
-        <path d="M44 6C47 9 47 13 44 16" stroke="#34D399" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M47 3C51 7 51 15 47 19" stroke="#34D399" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6" />
-      </svg>
-    )
-  }
-
-  // ─── 0.3. WEIGHT SCALE DRIVER (3D DIGITAL HIGH-PRECISION SCALE) ──────────────
-  if (
-    cleanAppId === 'weight_scale_driver' ||
-    cleanIcon === 'scale' ||
-    last === 'weight-scale' ||
-    cleanLabel.includes('scale') ||
-    cleanLabel.includes('ميزان')
-  ) {
-    return (
-      <svg className={className} viewBox="0 0 64 64" fill="none">
-        <defs>
-          <linearGradient id={`sc_plate_${uid}`} x1="8" y1="16" x2="56" y2="40" gradientUnits="userSpaceOnUse">
+          <linearGradient id={`wrk_silver_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#E2E8F0" />
             <stop offset="50%" stopColor="#94A3B8" />
-            <stop offset="100%" stopColor="#64748B" />
+            <stop offset="100%" stopColor="#475569" />
           </linearGradient>
-          <linearGradient id={`sc_base_${uid}`} x1="12" y1="36" x2="52" y2="56" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#1E293B" />
-            <stop offset="100%" stopColor="#0F172A" />
-          </linearGradient>
-          <filter id={`sc_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#06B6D4" floodOpacity="0.4" />
+          <filter id={`wrk_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#F59E0B" floodOpacity="0.4" />
           </filter>
         </defs>
-        {/* Scale Base */}
-        <rect x="12" y="32" width="40" height="24" rx="6" fill={`url(#sc_base_${uid})`} filter={`url(#sc_flt_${uid})`} stroke="#334155" strokeWidth="1.5" />
-        {/* Stainless Steel Platform */}
-        <ellipse cx="32" cy="24" rx="22" ry="8" fill={`url(#sc_plate_${uid})`} />
-        <ellipse cx="32" cy="22" rx="20" ry="7" fill="#F8FAFC" fillOpacity="0.8" />
-        {/* Digital LED Screen */}
-        <rect x="20" y="38" width="24" height="12" rx="3" fill="#0A0F1D" stroke="#0EA5E9" strokeWidth="1" />
-        <rect x="23" y="42" width="12" height="4" rx="1" fill="#06B6D4" />
-        <text x="37" y="46" fill="#22C55E" fontSize="5" fontWeight="bold" fontFamily="monospace">kg</text>
-        {/* Feet */}
-        <rect x="16" y="54" width="6" height="3" rx="1.5" fill="#475569" />
-        <rect x="42" y="54" width="6" height="3" rx="1.5" fill="#475569" />
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#wrk_bg_${uid})`} filter={`url(#wrk_flt_${uid})`} stroke="#F59E0B" strokeWidth="1.2" strokeOpacity="0.6" />
+        {/* 3D Chrome Cog / Gear */}
+        <circle cx="32" cy="32" r="14" fill={`url(#wrk_silver_${uid})`} />
+        <circle cx="32" cy="32" r="6" fill="#0F172A" stroke="#F59E0B" strokeWidth="2" />
+        {/* Gear Teeth */}
+        <path d="M30 14H34V18H30V14ZM30 46H34V50H30V46ZM14 30H18V34H14V30ZM46 30H50V34H46V30Z" fill={`url(#wrk_silver_${uid})`} />
+        {/* 3D Crossed Golden Wrench & Screwdriver */}
+        <path d="M16 48L42 22M40 18C42 16 46 16 48 18C50 20 50 24 48 26L44 24" stroke={`url(#wrk_gold_${uid})`} strokeWidth="4" strokeLinecap="round" />
+        <circle cx="18" cy="46" r="2.5" fill="#0F172A" stroke="#F59E0B" strokeWidth="1.5" />
+        {/* Neon Spark */}
+        <circle cx="44" cy="20" r="1.5" fill="#38BDF8" />
+        <path d="M48 28L52 26L50 32L54 30" stroke="#38BDF8" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     )
   }
 
-  // ─── 0.4. AI COPILOT & INSIGHTS (3D HOLOGRAPHIC NEURAL SPARKLE) ─────────────
+  // ─── 0.7. FURNITURE SHOWROOM & CUSTOM WOODWORK (3D LUXURY SOFA & ARCHITECT LAMP) ─
+  if (
+    cleanAppId === 'furniture_shop' ||
+    cleanAppId === 'furniture' ||
+    second === 'furniture' ||
+    (last === 'furniture' && second !== 'dashboard') ||
+    cleanLabel.includes('furniture') ||
+    cleanLabel.includes('woodwork') ||
+    cleanLabel.includes('أثاث') ||
+    cleanLabel.includes('مفروشات') ||
+    cleanLabel.includes('نجارة')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`fur_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#9A3412" />
+            <stop offset="50%" stopColor="#C2410C" />
+            <stop offset="100%" stopColor="#EA580C" />
+          </linearGradient>
+          <linearGradient id={`fur_sofa_${uid}`} x1="14" y1="20" x2="50" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FEF08A" />
+            <stop offset="50%" stopColor="#FDE047" />
+            <stop offset="100%" stopColor="#EAB308" />
+          </linearGradient>
+          <filter id={`fur_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#C2410C" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#fur_bg_${uid})`} filter={`url(#fur_flt_${uid})`} stroke="#FDBA74" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Luxury Tufted Chesterfield Sofa */}
+        <rect x="14" y="24" width="36" height="18" rx="5" fill={`url(#fur_sofa_${uid})`} stroke="#78350F" strokeWidth="1.2" />
+        <rect x="12" y="28" width="6" height="14" rx="3" fill="#CA8A04" />
+        <rect x="46" y="28" width="6" height="14" rx="3" fill="#CA8A04" />
+        <rect x="18" y="32" width="28" height="10" rx="2" fill="#EAB308" />
+        {/* Sofa Tufting Buttons */}
+        <circle cx="23" cy="28" r="1.2" fill="#713F12" />
+        <circle cx="32" cy="28" r="1.2" fill="#713F12" />
+        <circle cx="41" cy="28" r="1.2" fill="#713F12" />
+        {/* Walnut Wood Sofa Legs */}
+        <line x1="16" y1="42" x2="14" y2="48" stroke="#451A03" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="48" y1="42" x2="50" y2="48" stroke="#451A03" strokeWidth="2.5" strokeLinecap="round" />
+        {/* Modern Floor Lamp Arc */}
+        <path d="M46 14C44 18 42 22 42 26" stroke="#FEF08A" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M42 14H50L48 18H44L42 14Z" fill="#FEF08A" />
+      </svg>
+    )
+  }
+
+  // ─── 0.8. E-COMMERCE & MULTI-TENANT WEB STORE (3D SHOPPING BAG & WEB GLOBE) ───
+  if (
+    cleanAppId === 'ecommerce_store' ||
+    cleanAppId === 'ecommerce' ||
+    second === 'ecommerce' ||
+    (last === 'ecommerce' && second !== 'dashboard') ||
+    cleanLabel.includes('ecommerce') ||
+    cleanLabel.includes('online store') ||
+    cleanLabel.includes('متجر إلكتروني') ||
+    cleanLabel.includes('تجارة إلكترونية')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`ecom_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#EA580C" />
+            <stop offset="50%" stopColor="#F97316" />
+            <stop offset="100%" stopColor="#FB923C" />
+          </linearGradient>
+          <linearGradient id={`ecom_bag_${uid}`} x1="16" y1="20" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="100%" stopColor="#FED7AA" />
+          </linearGradient>
+          <filter id={`ecom_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#EA580C" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#ecom_bg_${uid})`} filter={`url(#ecom_flt_${uid})`} stroke="#FDBA74" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Glossy Shopping Bag */}
+        <path d="M18 24H46L43 50H21L18 24Z" fill={`url(#ecom_bag_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        {/* Bag Handles */}
+        <path d="M26 24V16C26 13 29 11 32 11C35 11 38 13 38 16V24" stroke="#9A3412" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        {/* Holographic Digital Globe & Cloud Network on Bag */}
+        <circle cx="32" cy="36" r="7" fill="#EA580C" stroke="#FFFFFF" strokeWidth="1.2" />
+        <ellipse cx="32" cy="36" rx="7" ry="2.5" stroke="#FED7AA" strokeWidth="1" fill="none" />
+        <line x1="32" y1="29" x2="32" y2="43" stroke="#FED7AA" strokeWidth="1" />
+        {/* Floating Cart Badge */}
+        <circle cx="44" cy="22" r="5" fill="#10B981" />
+        <path d="M41 22L43 24L47 20" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  // ─── 0.9. MANPOWER & LABOR SUPPLY ERP (3D WORKFORCE TRIO & GOLD HARDBACK) ────
+  if (
+    cleanAppId === 'manpower_supply' ||
+    cleanAppId === 'manpower' ||
+    second === 'manpower' ||
+    (last === 'manpower' && second !== 'dashboard') ||
+    cleanLabel.includes('manpower') ||
+    cleanLabel.includes('workforce') ||
+    cleanLabel.includes('عمالة') ||
+    cleanLabel.includes('كوادر')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`mnp_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0F766E" />
+            <stop offset="50%" stopColor="#0D9488" />
+            <stop offset="100%" stopColor="#14B8A6" />
+          </linearGradient>
+          <linearGradient id={`mnp_gold_${uid}`} x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <filter id={`mnp_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#0D9488" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#mnp_bg_${uid})`} filter={`url(#mnp_flt_${uid})`} stroke="#5EEAD4" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Central Skilled Worker */}
+        <circle cx="32" cy="22" r="6" fill="#FFFFFF" />
+        <path d="M20 44C20 35 25 31 32 31C39 31 44 35 44 44H20Z" fill="#FFFFFF" />
+        <path d="M26 19C26 15 28 14 32 14C36 14 38 15 38 19H26Z" fill={`url(#mnp_gold_${uid})`} />
+        {/* Left Colleague */}
+        <circle cx="18" cy="26" r="4.5" fill="#99F6E4" />
+        <path d="M10 44C10 38 14 35 19 35C21 35 22 36 24 37L20 44H10Z" fill="#99F6E4" fillOpacity="0.85" />
+        {/* Right Colleague */}
+        <circle cx="46" cy="26" r="4.5" fill="#99F6E4" />
+        <path d="M54 44C54 38 50 35 45 35C43 35 42 36 40 37L44 44H54Z" fill="#99F6E4" fillOpacity="0.85" />
+        {/* Verification Check Badge */}
+        <circle cx="44" cy="46" r="5" fill="#FDE047" />
+        <path d="M42 46L43.5 47.5L46.5 44.5" stroke="#78350F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  // ─── 0.10. RESTAURANT, CAFE & KITCHEN (3D CHEF CLOCHE & GOLDEN FLAME) ────────
+  if (
+    cleanAppId === 'restaurant_cafe' ||
+    cleanAppId === 'restaurant' ||
+    second === 'restaurant' ||
+    (last === 'restaurant' && second !== 'dashboard') ||
+    cleanLabel.includes('restaurant') ||
+    cleanLabel.includes('cafe') ||
+    cleanLabel.includes('مطعم') ||
+    cleanLabel.includes('مطبخ')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`rst_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#C2410C" />
+            <stop offset="50%" stopColor="#EA580C" />
+            <stop offset="100%" stopColor="#F97316" />
+          </linearGradient>
+          <linearGradient id={`rst_gold_${uid}`} x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <linearGradient id={`rst_silver_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="50%" stopColor="#F1F5F9" />
+            <stop offset="100%" stopColor="#CBD5E1" />
+          </linearGradient>
+          <filter id={`rst_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#EA580C" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#rst_bg_${uid})`} filter={`url(#rst_flt_${uid})`} stroke="#FDBA74" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Silver Cloche Dome */}
+        <path d="M16 38C16 26 23 20 32 20C41 20 48 26 48 38H16Z" fill={`url(#rst_silver_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        <ellipse cx="32" cy="18" rx="3.5" ry="2" fill={`url(#rst_gold_${uid})`} />
+        {/* Platter Base */}
+        <rect x="12" y="38" width="40" height="4" rx="2" fill={`url(#rst_gold_${uid})`} />
+        {/* Steam Aromas */}
+        <path d="M26 14C26 11 28 9 28 6" stroke="#FEF08A" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M32 13C32 10 34 8 34 5" stroke="#FEF08A" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M38 14C38 11 40 9 40 6" stroke="#FEF08A" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Crossed Fork & Knife below */}
+        <path d="M22 47L42 47" stroke="#FEF08A" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // ─── 0.11. CAR RENTAL & FLEET OPERATIONS (3D AZURE SPORTS SEDAN & GOLD KEY) ──
+  if (
+    cleanAppId === 'car_rental' ||
+    second === 'rental' ||
+    (last === 'rental' && second !== 'dashboard') ||
+    cleanLabel.includes('car rental') ||
+    cleanLabel.includes('تأجير سيارات')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`crr_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#1E40AF" />
+            <stop offset="50%" stopColor="#2563EB" />
+            <stop offset="100%" stopColor="#3B82F6" />
+          </linearGradient>
+          <linearGradient id={`crr_car_${uid}`} x1="16" y1="20" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="100%" stopColor="#BFDBFE" />
+          </linearGradient>
+          <filter id={`crr_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#2563EB" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#crr_bg_${uid})`} filter={`url(#crr_flt_${uid})`} stroke="#93C5FD" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Luxury Sports Sedan Profile */}
+        <path d="M12 36L18 24C20 20 25 18 32 18C39 18 44 20 46 24L52 36H12Z" fill={`url(#crr_car_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        <rect x="10" y="34" width="44" height="10" rx="4" fill="#1D4ED8" />
+        {/* Windshield */}
+        <path d="M20 24H44L47 34H17L20 24Z" fill="#0284C7" fillOpacity="0.8" />
+        {/* Glowing Headlights */}
+        <circle cx="15" cy="38" r="3" fill="#FDE047" />
+        <circle cx="49" cy="38" r="3" fill="#FDE047" />
+        {/* Chrome Wheels */}
+        <circle cx="20" cy="45" r="5" fill="#0F172A" stroke="#E2E8F0" strokeWidth="2" />
+        <circle cx="44" cy="45" r="5" fill="#0F172A" stroke="#E2E8F0" strokeWidth="2" />
+        <circle cx="20" cy="45" r="2" fill="#60A5FA" />
+        <circle cx="44" cy="45" r="2" fill="#60A5FA" />
+      </svg>
+    )
+  }
+
+  // ─── 0.12. LAUNDRY & DRY CLEANING (3D FRONT-LOAD WASHER & VORTEX BUBBLES) ────
+  if (
+    cleanAppId === 'laundry_cleaning' ||
+    cleanAppId === 'laundry' ||
+    second === 'laundry' ||
+    (last === 'laundry' && second !== 'dashboard') ||
+    cleanLabel.includes('laundry') ||
+    cleanLabel.includes('مغسلة') ||
+    cleanLabel.includes('تنظيف')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`lnd_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0284C7" />
+            <stop offset="50%" stopColor="#0EA5E9" />
+            <stop offset="100%" stopColor="#38BDF8" />
+          </linearGradient>
+          <linearGradient id={`lnd_drum_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#E0F2FE" />
+            <stop offset="100%" stopColor="#0284C7" />
+          </linearGradient>
+          <filter id={`lnd_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#0EA5E9" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#lnd_bg_${uid})`} filter={`url(#lnd_flt_${uid})`} stroke="#BAE6FD" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Washing Machine Cabinet */}
+        <rect x="14" y="14" width="36" height="38" rx="6" fill="#FFFFFF" stroke="#CBD5E1" strokeWidth="1.5" />
+        {/* Top Control Panel */}
+        <rect x="17" y="17" width="30" height="6" rx="2" fill="#F1F5F9" />
+        <circle cx="22" cy="20" r="1.5" fill="#0EA5E9" />
+        <circle cx="27" cy="20" r="1.5" fill="#10B981" />
+        <rect x="36" y="18.5" width="8" height="3" rx="1" fill="#0284C7" />
+        {/* Glass Porthole Door with Swirling Vortex */}
+        <circle cx="32" cy="36" r="12" fill={`url(#lnd_drum_${uid})`} stroke="#64748B" strokeWidth="2.5" />
+        <circle cx="32" cy="36" r="8" fill="#0369A1" />
+        <path d="M28 34C30 31 34 31 36 34C38 37 34 40 32 38" stroke="#E0F2FE" strokeWidth="2" strokeLinecap="round" fill="none" />
+        {/* Soap Bubbles */}
+        <circle cx="46" cy="12" r="3.5" fill="#E0F2FE" fillOpacity="0.8" stroke="#38BDF8" strokeWidth="1" />
+        <circle cx="16" cy="46" r="2.5" fill="#E0F2FE" fillOpacity="0.8" stroke="#38BDF8" strokeWidth="1" />
+      </svg>
+    )
+  }
+
+  // ─── 0.13. MANUFACTURING & MES PRODUCTION (3D INDUSTRY FACTORY & STEEL GEARS) ─
+  if (
+    cleanAppId === 'manufacturing_mes' ||
+    cleanAppId === 'manufacturing' ||
+    second === 'manufacturing' ||
+    (last === 'manufacturing' && second !== 'dashboard') ||
+    cleanLabel.includes('manufacturing') ||
+    cleanLabel.includes('mes') ||
+    cleanLabel.includes('تصنيع') ||
+    cleanLabel.includes('إنتاج')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`mfg_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#4338CA" />
+            <stop offset="50%" stopColor="#4F46E5" />
+            <stop offset="100%" stopColor="#6366F1" />
+          </linearGradient>
+          <linearGradient id={`mfg_gold_${uid}`} x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <filter id={`mfg_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#4F46E5" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#mfg_bg_${uid})`} filter={`url(#mfg_flt_${uid})`} stroke="#C7D2FE" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Factory Silos */}
+        <path d="M12 46V28L24 36V28L36 36V46H12Z" fill="#FFFFFF" stroke="#E0E7FF" strokeWidth="1" />
+        <rect x="36" y="22" width="16" height="24" rx="2" fill="#E0E7FF" />
+        <rect x="42" y="14" width="4" height="8" fill="#FFFFFF" />
+        {/* Smoke clouds */}
+        <circle cx="44" cy="10" r="2.5" fill="#FFFFFF" fillOpacity="0.7" />
+        <circle cx="47" cy="7" r="3" fill="#FFFFFF" fillOpacity="0.5" />
+        {/* Interlocking Steel Gears */}
+        <circle cx="24" cy="38" r="7" fill={`url(#mfg_gold_${uid})`} />
+        <circle cx="24" cy="38" r="2.5" fill="#312E81" />
+        <circle cx="36" cy="42" r="5" fill="#94A3B8" />
+        <circle cx="36" cy="42" r="1.8" fill="#1E1B4B" />
+      </svg>
+    )
+  }
+
+  // ─── 0.14. CONSTRUCTION, CONTRACTING & BOQ (3D TOWER CRANE & BLUEPRINT) ──────
+  if (
+    cleanAppId === 'construction_projects' ||
+    cleanAppId === 'construction' ||
+    cleanAppId === 'contracting' ||
+    second === 'projects' ||
+    cleanLabel.includes('construction') ||
+    cleanLabel.includes('contracting') ||
+    cleanLabel.includes('مقاولات') ||
+    cleanLabel.includes('مشاريع')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`cst_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#D97706" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#FBBF24" />
+          </linearGradient>
+          <filter id={`cst_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#D97706" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#cst_bg_${uid})`} filter={`url(#cst_flt_${uid})`} stroke="#FDE68A" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Tower Crane Mast */}
+        <line x1="24" y1="50" x2="24" y2="16" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" />
+        <line x1="14" y1="20" x2="48" y2="20" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" />
+        <line x1="24" y1="16" x2="44" y2="20" stroke="#FFFFFF" strokeWidth="1.5" />
+        <line x1="24" y1="16" x2="16" y2="20" stroke="#FFFFFF" strokeWidth="1.5" />
+        {/* Crane Hook & Steel Beam */}
+        <line x1="42" y1="20" x2="42" y2="34" stroke="#78350F" strokeWidth="1.5" />
+        <rect x="36" y="34" width="14" height="4" rx="1" fill="#78350F" stroke="#FFFFFF" strokeWidth="0.8" />
+        {/* Yellow Safety Hardhat & Blueprint */}
+        <path d="M12 48H32L30 42H14L12 48Z" fill="#1E3A8A" />
+        <path d="M16 42C16 38 19 36 23 36C27 36 30 38 30 42H16Z" fill="#FDE047" stroke="#D97706" strokeWidth="1" />
+      </svg>
+    )
+  }
+
+  // ─── 0.15. TRAVEL AGENCY & TOURISM (3D JETLINER & GOLDEN COMPASS) ─────────────
+  if (
+    cleanAppId === 'travel_agency' ||
+    cleanAppId === 'travel' ||
+    cleanLabel.includes('travel') ||
+    cleanLabel.includes('tourism') ||
+    cleanLabel.includes('سفر') ||
+    cleanLabel.includes('سياحة') ||
+    cleanLabel.includes('طيران')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`trv_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0369A1" />
+            <stop offset="50%" stopColor="#0284C7" />
+            <stop offset="100%" stopColor="#38BDF8" />
+          </linearGradient>
+          <linearGradient id={`trv_gold_${uid}`} x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <filter id={`trv_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#0284C7" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#trv_bg_${uid})`} filter={`url(#trv_flt_${uid})`} stroke="#BAE6FD" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Golden Compass Rose Ring */}
+        <circle cx="32" cy="34" r="16" stroke={`url(#trv_gold_${uid})`} strokeWidth="1.8" fill="none" strokeOpacity="0.6" />
+        <path d="M32 20L34 32L46 34L34 36L32 48L30 36L18 34L30 32L32 20Z" fill={`url(#trv_gold_${uid})`} fillOpacity="0.5" />
+        {/* 3D Commercial Jetliner Soaring */}
+        <path d="M48 14L34 26L16 22L20 28L32 30L26 40L20 40L24 44L32 44L38 34L48 30C52 28 54 22 52 18L48 14Z" fill="#FFFFFF" filter={`url(#trv_flt_${uid})`} />
+        {/* Jet Vapor Contrail */}
+        <path d="M12 50C20 46 26 38 34 30" stroke="#FFFFFF" strokeWidth="1.5" strokeDasharray="3 2" strokeOpacity="0.8" />
+      </svg>
+    )
+  }
+
+  // ─── 0.16. SAUDI ZATCA PHASE 2 E-INVOICING (3D SAUDI EMBLEM & VERIFIED QR) ────
+  if (
+    cleanAppId === 'zatca_phase2_pro' ||
+    cleanAppId === 'zatca' ||
+    cleanAppId === 'zatca_phase2' ||
+    last === 'zatca' ||
+    cleanLabel.includes('zatca') ||
+    cleanLabel.includes('زاتكا') ||
+    cleanLabel.includes('فاتورة')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`zat_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#047857" />
+            <stop offset="50%" stopColor="#059669" />
+            <stop offset="100%" stopColor="#10B981" />
+          </linearGradient>
+          <linearGradient id={`zat_gold_${uid}`} x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FDE047" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
+          </linearGradient>
+          <filter id={`zat_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#047857" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#zat_bg_${uid})`} filter={`url(#zat_flt_${uid})`} stroke="#6EE7B7" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Golden Falcon Shield */}
+        <path d="M32 12L46 18V30C46 40 40 46 32 50C24 46 18 40 18 30V18L32 12Z" fill="#FFFFFF" stroke={`url(#zat_gold_${uid})`} strokeWidth="1.5" />
+        {/* Saudi Palm & Crossed Swords Emblem */}
+        <path d="M32 18V28M28 22C30 20 32 20 32 22C32 20 34 20 36 22M26 25C29 23 32 23 32 25C32 23 35 23 38 25" stroke="#047857" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M26 30L38 34M38 30L26 34" stroke={`url(#zat_gold_${uid})`} strokeWidth="1.8" strokeLinecap="round" />
+        {/* Green Verified Check Seal */}
+        <circle cx="44" cy="44" r="7" fill="#10B981" stroke="#FFFFFF" strokeWidth="1.5" />
+        <path d="M41 44L43 46L47 42" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  // ─── 0.17. THERMAL RECEIPT PRINTER DRIVER (3D ESC/POS PRINTER & ARABIC TICKET) ─
+  if (
+    cleanAppId === 'thermal_printer_driver' ||
+    cleanAppId === 'printer' ||
+    cleanIcon === 'printer' ||
+    last === 'printer' ||
+    cleanLabel.includes('printer') ||
+    cleanLabel.includes('طابعة')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`prn_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#334155" />
+            <stop offset="50%" stopColor="#1E293B" />
+            <stop offset="100%" stopColor="#0F172A" />
+          </linearGradient>
+          <filter id={`prn_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#3B82F6" floodOpacity="0.4" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#prn_bg_${uid})`} filter={`url(#prn_flt_${uid})`} stroke="#64748B" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Thermal Printer Body */}
+        <rect x="12" y="24" width="40" height="26" rx="6" fill="#1E293B" stroke="#475569" strokeWidth="1.5" />
+        <rect x="18" y="20" width="28" height="6" rx="2" fill="#0F172A" />
+        {/* Printed White Receipt feeding upwards */}
+        <path d="M20 10H44V22H20V10Z" fill="#FFFFFF" stroke="#CBD5E1" strokeWidth="1" />
+        <path d="M24 13H40M24 16H36M24 19H38" stroke="#64748B" strokeWidth="1.2" strokeLinecap="round" />
+        {/* Status LEDs & Feed Button */}
+        <circle cx="18" cy="36" r="2" fill="#10B981" />
+        <circle cx="24" cy="36" r="2" fill="#3B82F6" />
+        <rect x="36" y="33" width="10" height="6" rx="2" fill="#475569" />
+      </svg>
+    )
+  }
+
+  // ─── 0.18. WHATSAPP CLOUD AUTOMATION (3D EMERALD WHATSAPP BUBBLE & LIGHTNING) ──
+  if (
+    cleanAppId === 'whatsapp_cloud_auto' ||
+    cleanAppId === 'whatsapp' ||
+    last === 'whatsapp' ||
+    cleanLabel.includes('whatsapp') ||
+    cleanLabel.includes('واتساب')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`wa_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#15803D" />
+            <stop offset="50%" stopColor="#16A34A" />
+            <stop offset="100%" stopColor="#22C55E" />
+          </linearGradient>
+          <filter id={`wa_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#16A34A" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#wa_bg_${uid})`} filter={`url(#wa_flt_${uid})`} stroke="#86EFAC" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* WhatsApp Speech Bubble */}
+        <path d="M32 14C22 14 14 22 14 31C14 34 15 37 17 40L15 48L24 45C26 47 29 48 32 48C42 48 50 40 50 31C50 22 42 14 32 14Z" fill="#FFFFFF" />
+        {/* Phone Receiver & Lightning */}
+        <path d="M26 23C25 24 25 26 27 29C29 32 32 35 35 37C38 39 40 39 41 38L39 34L36 35L33 32L30 29L31 26L26 23Z" fill="#16A34A" />
+        <path d="M42 10L36 20H42L40 28L48 18H42L44 10Z" fill="#FDE047" stroke="#D97706" strokeWidth="0.8" />
+      </svg>
+    )
+  }
+
+  // ─── 0.19. AI COPILOT & INSIGHTS (3D HOLOGRAPHIC NEURAL CORE & CRYSTAL PRISMS) ─
   if (
     cleanAppId === 'ai_copilot_insights' ||
-    cleanIcon === 'sparkles' ||
-    cleanAppId.includes('copilot') ||
-    cleanAppId.includes('ai') ||
+    cleanAppId === 'ai_copilot' ||
+    cleanAppId === 'ai' ||
     cleanLabel.includes('copilot') ||
-    cleanLabel.includes('ai') ||
-    cleanLabel.includes('ذكاء')
+    cleanLabel.includes('ai insights') ||
+    cleanLabel.includes('ذكاء اصطناعي')
   ) {
     return (
       <svg className={className} viewBox="0 0 64 64" fill="none">
         <defs>
           <linearGradient id={`ai_core_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#8B5CF6" />
-            <stop offset="50%" stopColor="#EC4899" />
+            <stop offset="0%" stopColor="#7C3AED" />
+            <stop offset="50%" stopColor="#C026D3" />
             <stop offset="100%" stopColor="#F43F5E" />
           </linearGradient>
           <radialGradient id={`ai_glow_${uid}`} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#F43F5E" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0" />
+            <stop offset="100%" stopColor="#7C3AED" stopOpacity="0" />
           </radialGradient>
           <filter id={`ai_flt_${uid}`} x="-30%" y="-30%" width="160%" height="160%">
-            <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#EC4899" floodOpacity="0.5" />
+            <feDropShadow dx="0" dy="5" stdDeviation="6" floodColor="#C026D3" floodOpacity="0.5" />
           </filter>
         </defs>
-        {/* Central Core Glow */}
-        <circle cx="32" cy="32" r="24" fill={`url(#ai_glow_${uid})`} filter={`url(#ai_flt_${uid})`} />
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#ai_core_${uid})`} filter={`url(#ai_flt_${uid})`} stroke="#F472B6" strokeWidth="1.2" strokeOpacity="0.5" />
+        <circle cx="32" cy="32" r="18" fill={`url(#ai_glow_${uid})`} />
         {/* 3D Primary Neural Diamond */}
-        <path
-          d="M32 6L38 24L56 30L38 36L32 54L26 36L8 30L26 24L32 6Z"
-          fill={`url(#ai_core_${uid})`}
-        />
-        <path
-          d="M32 12L36 26L50 30L36 34L32 48L28 34L14 30L28 26L32 12Z"
-          fill="#FFFFFF"
-          fillOpacity="0.3"
-        />
-        {/* Floating Sparkles */}
-        <circle cx="48" cy="14" r="3.5" fill="#FDE047" />
-        <path d="M48 10V18M44 14H52" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" />
-        <circle cx="16" cy="48" r="2.5" fill="#38BDF8" />
-        <circle cx="32" cy="30" r="3" fill="#FFFFFF" />
+        <path d="M32 14L37 27L50 32L37 37L32 50L27 37L14 32L27 27L32 14Z" fill="#FFFFFF" />
+        <path d="M32 20L35 29L44 32L35 35L32 44L29 35L20 32L29 29L32 20Z" fill="#FDE047" fillOpacity="0.8" />
+        {/* Satellite Sparkles */}
+        <circle cx="48" cy="18" r="3" fill="#38BDF8" />
+        <circle cx="16" cy="46" r="2.5" fill="#FDE047" />
+      </svg>
+    )
+  }
+
+  // ─── 0.20. SAUDI QIWA & MUQEEM (3D LABOR PLATFORM SHIELD & DIGITAL CONTRACT) ───
+  if (
+    cleanAppId === 'qiwa_hr_integration' ||
+    cleanAppId === 'qiwa' ||
+    cleanAppId === 'muqeem' ||
+    cleanLabel.includes('qiwa') ||
+    cleanLabel.includes('muqeem') ||
+    cleanLabel.includes('قوى') ||
+    cleanLabel.includes('مقيم')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`qiw_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#1E3A8A" />
+            <stop offset="50%" stopColor="#1D4ED8" />
+            <stop offset="100%" stopColor="#3B82F6" />
+          </linearGradient>
+          <filter id={`qiw_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#1D4ED8" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#qiw_bg_${uid})`} filter={`url(#qiw_flt_${uid})`} stroke="#93C5FD" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Digital ID / Qiwa Smart Card */}
+        <rect x="16" y="16" width="32" height="36" rx="4" fill="#FFFFFF" stroke="#93C5FD" strokeWidth="1.5" />
+        <circle cx="32" cy="26" r="5" fill="#2563EB" />
+        <path d="M24 38C24 34 27 33 32 33C37 33 40 34 40 38H24Z" fill="#2563EB" />
+        <line x1="20" y1="44" x2="44" y2="44" stroke="#93C5FD" strokeWidth="2.5" strokeLinecap="round" />
+        {/* Verified Gold Seal */}
+        <circle cx="42" cy="42" r="5.5" fill="#FDE047" stroke="#D97706" strokeWidth="1" />
+        <path d="M40 42L41.5 43.5L44.5 40.5" stroke="#78350F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  // ─── 0.21. BALADY MUNICIPAL LICENSING (3D MUNICIPALITY SHIELD & CR PIN) ───────
+  if (
+    cleanAppId === 'balady_municipal' ||
+    cleanAppId === 'balady' ||
+    cleanLabel.includes('balady') ||
+    cleanLabel.includes('بلدي') ||
+    cleanLabel.includes('رخصة بلدية')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`bld_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#065F46" />
+            <stop offset="50%" stopColor="#047857" />
+            <stop offset="100%" stopColor="#10B981" />
+          </linearGradient>
+          <filter id={`bld_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#047857" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#bld_bg_${uid})`} filter={`url(#bld_flt_${uid})`} stroke="#6EE7B7" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Commercial Building Facade */}
+        <path d="M16 48V26L32 16L48 26V48H16Z" fill="#FFFFFF" stroke="#A7F3D0" strokeWidth="1" />
+        <rect x="22" y="30" width="6" height="6" fill="#047857" />
+        <rect x="36" y="30" width="6" height="6" fill="#047857" />
+        <rect x="28" y="40" width="8" height="8" fill="#D97706" />
+        {/* Golden Saudi Municipal License Badge */}
+        <circle cx="44" cy="20" r="6" fill="#FDE047" stroke="#D97706" strokeWidth="1" />
+        <path d="M42 20L43.5 21.5L46.5 18.5" stroke="#78350F" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // ─── 0.22. SABER PRODUCT CONFORMITY (3D SASO / SABER CERTIFICATE RIBBON) ──────
+  if (
+    cleanAppId === 'saber_conformity' ||
+    cleanAppId === 'saber' ||
+    cleanLabel.includes('saber') ||
+    cleanLabel.includes('saso') ||
+    cleanLabel.includes('سابر') ||
+    cleanLabel.includes('مطابقة')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`sbr_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#4338CA" />
+            <stop offset="50%" stopColor="#3730A3" />
+            <stop offset="100%" stopColor="#312E81" />
+          </linearGradient>
+          <filter id={`sbr_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#4338CA" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#sbr_bg_${uid})`} filter={`url(#sbr_flt_${uid})`} stroke="#A5B4FC" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Certificate Scroll */}
+        <rect x="16" y="14" width="32" height="38" rx="4" fill="#FFFFFF" stroke="#C7D2FE" strokeWidth="1.5" />
+        <line x1="22" y1="20" x2="42" y2="20" stroke="#4338CA" strokeWidth="2" strokeLinecap="round" />
+        <line x1="22" y1="26" x2="38" y2="26" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="22" y1="32" x2="42" y2="32" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Golden Rosette Stamp */}
+        <circle cx="32" cy="42" r="6" fill="#FDE047" stroke="#D97706" strokeWidth="1.2" />
+        <path d="M30 42L31.5 43.5L34.5 40.5" stroke="#78350F" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // ─── 0.23. ETIMAD GOVERNMENT TENDERS & PROCUREMENT (3D TENDER PORTAL) ─────────
+  if (
+    cleanAppId === 'etimad_procurement' ||
+    cleanAppId === 'etimad' ||
+    cleanLabel.includes('etimad') ||
+    cleanLabel.includes('اعتماد') ||
+    cleanLabel.includes('منافسات')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`etm_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#065F46" />
+            <stop offset="50%" stopColor="#047857" />
+            <stop offset="100%" stopColor="#022C22" />
+          </linearGradient>
+          <filter id={`etm_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#047857" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#etm_bg_${uid})`} filter={`url(#etm_flt_${uid})`} stroke="#6EE7B7" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Government Briefcase / Tender Box */}
+        <rect x="14" y="24" width="36" height="24" rx="5" fill="#FFFFFF" stroke="#A7F3D0" strokeWidth="1.5" />
+        <path d="M26 24V18C26 16 28 15 32 15C36 15 38 16 38 18V24" stroke="#FDE047" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <rect x="29" y="28" width="6" height="5" rx="1.5" fill="#D97706" />
+        <line x1="14" y1="36" x2="50" y2="36" stroke="#CBD5E1" strokeWidth="1.5" />
+      </svg>
+    )
+  }
+
+  // ─── 0.24. ELM & ABSHER BIOMETRIC VERIFICATION (3D ABSHER CHIP & FINGERPRINT) ─
+  if (
+    cleanAppId === 'elm_identity_pro' ||
+    cleanAppId === 'elm' ||
+    cleanAppId === 'absher' ||
+    cleanLabel.includes('elm') ||
+    cleanLabel.includes('absher') ||
+    cleanLabel.includes('علم') ||
+    cleanLabel.includes('أبشر')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`elm_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0891B2" />
+            <stop offset="50%" stopColor="#0E7490" />
+            <stop offset="100%" stopColor="#155E75" />
+          </linearGradient>
+          <filter id={`elm_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#0891B2" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#elm_bg_${uid})`} filter={`url(#elm_flt_${uid})`} stroke="#67E8F9" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Biometric Smart Card */}
+        <rect x="12" y="16" width="40" height="32" rx="4" fill="#FFFFFF" stroke="#A5F3FC" strokeWidth="1.5" />
+        <rect x="18" y="24" width="10" height="8" rx="2" fill="#FDE047" stroke="#D97706" strokeWidth="1" />
+        {/* Fingerprint Laser Arcs */}
+        <path d="M36 24C38 22 42 22 44 24M34 28C38 25 42 25 46 28M36 32C38 30 42 30 44 32" stroke="#0891B2" strokeWidth="1.8" strokeLinecap="round" />
+        <circle cx="40" cy="36" r="1.5" fill="#0891B2" />
+      </svg>
+    )
+  }
+
+  // ─── 0.25. HR & PAYROLL PRO (3D LEATHER ATTACHE & SAUDI RIYAL BANKNOTES) ──────
+  if (
+    cleanAppId === 'hr_payroll_pro' ||
+    cleanAppId === 'hr' ||
+    cleanAppId === 'payroll' ||
+    last === 'employees' ||
+    last === 'attendance' ||
+    cleanLabel.includes('payroll') ||
+    cleanLabel.includes('رواتب') ||
+    cleanLabel.includes('موظفين')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`hrp_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#475569" />
+            <stop offset="50%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#1E293B" />
+          </linearGradient>
+          <filter id={`hrp_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#334155" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#hrp_bg_${uid})`} filter={`url(#hrp_flt_${uid})`} stroke="#94A3B8" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Leather Attache Case */}
+        <rect x="12" y="24" width="40" height="26" rx="5" fill="#0F172A" stroke="#FDE047" strokeWidth="1.2" />
+        <path d="M24 24V18C24 16 26 15 32 15C38 15 40 16 40 18V24" stroke="#FDE047" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <rect x="20" y="28" width="5" height="6" rx="1" fill="#FDE047" />
+        <rect x="39" y="28" width="5" height="6" rx="1" fill="#FDE047" />
+        {/* Saudi Green Riyal Banknote sticking out */}
+        <rect x="22" y="19" width="20" height="8" rx="1.5" fill="#10B981" stroke="#059669" strokeWidth="0.8" />
+        <circle cx="32" cy="23" r="2" fill="#FFFFFF" fillOpacity="0.8" />
+      </svg>
+    )
+  }
+
+  // ─── 0.26. FOOD DELIVERY PLATFORMS INTEGRATION (3D DELIVERY SCOOTER & PACK) ────
+  if (
+    cleanAppId === 'delivery_platforms' ||
+    cleanAppId === 'delivery' ||
+    cleanLabel.includes('delivery') ||
+    cleanLabel.includes('توصيل')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`dlv_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#EA580C" />
+            <stop offset="50%" stopColor="#F97316" />
+            <stop offset="100%" stopColor="#FDBA74" />
+          </linearGradient>
+          <filter id={`dlv_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#EA580C" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#dlv_bg_${uid})`} filter={`url(#dlv_flt_${uid})`} stroke="#FED7AA" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Delivery Box Backpack on Scooter */}
+        <rect x="14" y="20" width="16" height="18" rx="3" fill="#FFFFFF" stroke="#EA580C" strokeWidth="1.5" />
+        <path d="M18 26H26M18 32H24" stroke="#EA580C" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Scooter Chassis & Wheels */}
+        <path d="M30 38H44L48 28H42" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="20" cy="46" r="5" fill="#0F172A" stroke="#FFFFFF" strokeWidth="2" />
+        <circle cx="46" cy="46" r="5" fill="#0F172A" stroke="#FFFFFF" strokeWidth="2" />
+        <circle cx="20" cy="46" r="2" fill="#F97316" />
+        <circle cx="46" cy="46" r="2" fill="#F97316" />
+      </svg>
+    )
+  }
+
+  // ─── 0.27. EMAIL & CAMPAIGN SUITE (3D WINGED ENVELOPE & POSTAL STAMP) ─────────
+  if (
+    cleanAppId === 'email_suite' ||
+    cleanAppId === 'email' ||
+    last === 'email' ||
+    cleanLabel.includes('email') ||
+    cleanLabel.includes('بريد')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`eml_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#4F46E5" />
+            <stop offset="50%" stopColor="#6366F1" />
+            <stop offset="100%" stopColor="#818CF8" />
+          </linearGradient>
+          <filter id={`eml_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#6366F1" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#eml_bg_${uid})`} filter={`url(#eml_flt_${uid})`} stroke="#C7D2FE" strokeWidth="1.2" strokeOpacity="0.5" />
+        {/* Envelope Body */}
+        <rect x="12" y="20" width="40" height="28" rx="5" fill="#FFFFFF" stroke="#E0E7FF" strokeWidth="1.2" />
+        <path d="M12 22L32 36L52 22" stroke="#4F46E5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Purple Stamp */}
+        <rect x="42" y="24" width="7" height="8" rx="1" fill="#818CF8" />
+        <circle cx="45.5" cy="28" r="1.5" fill="#FFFFFF" />
       </svg>
     )
   }
