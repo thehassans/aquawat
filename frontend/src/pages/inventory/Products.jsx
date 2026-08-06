@@ -10,6 +10,8 @@ import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
 
+import { getUomLabel } from '../../lib/uomOptions'
+
 export default function Products() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
@@ -87,6 +89,11 @@ export default function Products() {
       key: 'category',
       label: t('category'),
       value: (r) => r?.category || ''
+    },
+    {
+      key: 'unitOfMeasure',
+      label: language === 'ar' ? 'وحدة القياس (UOM)' : 'UOM',
+      value: (r) => getUomLabel(r?.unitOfMeasure, language) || r?.unitOfMeasure || 'EA'
     },
     {
       key: 'costPrice',
@@ -242,6 +249,7 @@ export default function Products() {
                   <th>{t('productName')}</th>
                   <th>{t('sku')}</th>
                   <th>{t('category')}</th>
+                  <th>{language === 'ar' ? 'الوحدة (UOM)' : 'UOM'}</th>
                   <th>{t('costPrice')}</th>
                   <th>{t('sellingPrice')}</th>
                   <th>{t('quantity')}</th>
@@ -276,12 +284,22 @@ export default function Products() {
                     </td>
                     <td className="font-mono text-sm">{product.sku}</td>
                     <td>{product.category || '-'}</td>
+                    <td>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 dark:bg-dark-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-dark-600 shadow-2xs">
+                        {getUomLabel(product.unitOfMeasure, language) || product.unitOfMeasure || 'EA'}
+                      </span>
+                    </td>
                     <td><Money value={product.costPrice} /></td>
                     <td className="font-semibold"><Money value={product.sellingPrice} /></td>
                     <td>
-                      <span className={`font-semibold ${product.totalStock <= 10 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
-                        {product.totalStock}
-                      </span>
+                      <div className="flex items-baseline gap-1">
+                        <span className={`font-semibold ${product.totalStock <= 10 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                          {product.totalStock}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {product.unitOfMeasure || 'EA'}
+                        </span>
+                      </div>
                     </td>
                     <td>
                       <span className={`badge ${product.status === 'active' ? 'badge-success' : product.status === 'out_of_stock' ? 'badge-danger' : 'badge-neutral'}`}>

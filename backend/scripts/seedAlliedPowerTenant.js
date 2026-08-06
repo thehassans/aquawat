@@ -65,18 +65,19 @@ function cleanEmail(val) {
 }
 
 function mapUOM(unitStr) {
-  const u = cleanString(unitStr).toUpperCase();
-  if (u === 'EACH' || u === 'EA' || u === 'PC' || u === 'PCS' || u === 'PIECE') return 'PCE';
-  if (u === 'METER' || u === 'MTR' || u === 'M') return 'MTR';
-  if (u === 'SET' || u === 'SETS') return 'SET';
-  if (u === 'ROLL' || u === 'RL') return 'ROL';
-  if (u === 'BOX' || u === 'BX') return 'BX';
-  if (u === 'PACK' || u === 'PK' || u === 'PKT') return 'PK';
-  if (u === 'PAIR' || u === 'PR') return 'PR';
-  if (u === 'KG' || u === 'KILOGRAM') return 'KGM';
-  if (u === 'LITER' || u === 'LTR') return 'LTR';
-  if (u === 'FT' || u === 'FEET') return 'FOT';
-  return 'PCE';
+  const u = cleanString(unitStr).toUpperCase().replace(/\.$/, '');
+  if (u === 'EACH' || u === 'EA') return { code: 'EA', ar: 'كل (EA)' };
+  if (u === 'PC' || u === 'PCS' || u === 'PIECE' || u === 'PCE') return { code: 'PCE', ar: 'حبة (PCE)' };
+  if (u === 'METER' || u === 'MTR' || u === 'M') return { code: 'MTR', ar: 'متر (MTR)' };
+  if (u === 'SET' || u === 'SETS') return { code: 'SET', ar: 'طقم (SET)' };
+  if (u === 'ROLL' || u === 'RL' || u === 'RO' || u === 'ROL') return { code: 'RO', ar: 'لفة (RO)' };
+  if (u === 'BOX' || u === 'BX') return { code: 'BX', ar: 'صندوق (BX)' };
+  if (u === 'PACK' || u === 'PK' || u === 'PKT') return { code: 'PK', ar: 'عبوة (PK)' };
+  if (u === 'PAIR' || u === 'PR') return { code: 'PR', ar: 'زوج (PR)' };
+  if (u === 'KG' || u === 'KILOGRAM' || u === 'KGM') return { code: 'KGM', ar: 'كيلوجرام (KGM)' };
+  if (u === 'LITER' || u === 'LTR') return { code: 'LTR', ar: 'لتر (LTR)' };
+  if (u === 'FT' || u === 'FEET' || u === 'FOT') return { code: 'FOT', ar: 'قدم (FOT)' };
+  return { code: 'EA', ar: 'كل (EA)' };
 }
 
 function parseAddressDetails(addrStr) {
@@ -442,7 +443,7 @@ async function runSeed(shouldDisconnect = false) {
 
     const sku = itemCode || itemName.substring(0, 30);
     const isNegativeAllowed = negativeItemCodes.has(itemCode) || negativeItemCodes.has(sku);
-    const uom = mapUOM(row.Unit);
+    const uomObj = mapUOM(row.Unit);
     const taxRate = parseFloat(row['VAT Amt %']) || 15;
 
     const productPayload = {
@@ -452,7 +453,8 @@ async function runSeed(shouldDisconnect = false) {
       nameAr: '',
       descriptionEn: `Item Code: ${itemCode}`,
       category: 'Electrical & Industrial Supplies',
-      unitOfMeasure: uom,
+      unitOfMeasure: uomObj.code,
+      unitOfMeasureAr: uomObj.ar,
       costPrice: 0,
       sellingPrice: 0,
       taxRate: taxRate,
@@ -475,7 +477,8 @@ async function runSeed(shouldDisconnect = false) {
     if (existing) {
       existing.nameEn = productPayload.nameEn;
       existing.allowNegativeStock = isNegativeAllowed;
-      existing.unitOfMeasure = uom;
+      existing.unitOfMeasure = uomObj.code;
+      existing.unitOfMeasureAr = uomObj.ar;
       existing.taxRate = taxRate;
       if (!existing.stocks || existing.stocks.length === 0) {
         existing.stocks = productPayload.stocks;
