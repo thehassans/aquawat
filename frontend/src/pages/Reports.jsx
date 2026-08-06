@@ -10,9 +10,11 @@ import ExportMenu from '../components/ui/ExportMenu'
 import { downloadBusinessReportPdf } from '../lib/businessReportPdf'
 import { downloadVatReturnReportPdf } from '../lib/vatReturnReportPdf'
 import { downloadAuditReportPdf } from '../lib/auditReportPdf'
+import { downloadMasterReportPdf } from '../lib/masterReportPdf'
+import { exportReportToCsv, exportReportToExcel } from '../lib/masterReportSpreadsheet'
 import InternalAuditView from '../components/reports/InternalAuditView'
 import ExternalAuditView from '../components/reports/ExternalAuditView'
-import { Clock3, Download, Mail, Trash2, TrendingUp, ShoppingCart, Receipt, Tag, BarChart3, FileText, AlertCircle, Calendar, ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Users, Package, Boxes, ShieldCheck, Landmark } from 'lucide-react'
+import { Clock3, Download, Mail, Trash2, TrendingUp, ShoppingCart, Receipt, Tag, BarChart3, FileText, AlertCircle, Calendar, ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Users, Package, Boxes, ShieldCheck, Landmark, FileSpreadsheet, Printer } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const OPS_PREFIX = 'ops:'
@@ -265,6 +267,8 @@ export default function Reports() {
 
   const [reportType, setReportType] = useState('vat')
   const [downloadingReportPdf, setDownloadingReportPdf] = useState(false)
+  const [downloadingExcel, setDownloadingExcel] = useState(false)
+  const [downloadingCsv, setDownloadingCsv] = useState(false)
   const [showScheduleForm, setShowScheduleForm] = useState(false)
   const [scheduleForm, setScheduleForm] = useState({
     name: '',
@@ -287,18 +291,25 @@ export default function Reports() {
   const isOps = reportType.startsWith(OPS_PREFIX)
   const opsType = isOps ? reportType.slice(OPS_PREFIX.length) : null
 
-  const reportTabs = [
+  const coreTabs = [
     { value: 'vat', label: 'VAT' },
     { value: 'business', label: language === 'ar' ? 'الأعمال' : 'Business' },
     { value: 'internal_audit', label: language === 'ar' ? 'التدقيق الداخلي' : 'Internal Audit' },
     { value: 'external_audit', label: language === 'ar' ? 'التدقيق الخارجي' : 'External Audit' },
     { value: 'daily', label: language === 'ar' ? 'اليومية' : 'Daily' },
     { value: 'sales', label: language === 'ar' ? 'مبيعات العملاء' : 'Customer Sales' },
-    ...tenantBusinessTypes.map((type) => ({
+    { value: 'ops:restaurant', label: language === 'ar' ? 'المطعم' : 'Restaurant' },
+    { value: 'ops:trading', label: language === 'ar' ? 'التجارة والمخزون' : 'Trading' },
+  ]
+
+  const otherBusinessTabs = tenantBusinessTypes
+    .filter((type) => type !== 'restaurant' && type !== 'trading')
+    .map((type) => ({
       value: `${OPS_PREFIX}${type}`,
       label: businessTypeMeta.find((meta) => meta.id === type)?.label || type,
-    })),
-  ]
+    }))
+
+  const reportTabs = [...coreTabs, ...otherBusinessTabs]
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['reports', reportType, startDate, endDate],
@@ -417,6 +428,45 @@ export default function Reports() {
     })
   }
 
+  const handleExportPdf = async () => {
+    try {
+      setDownloadingReportPdf(true)
+      await downloadMasterReportPdf({ reportType, report: data, tenant, language })
+      toast.success(language === 'ar' ? 'تم تنزيل تقرير PDF بنجاح' : 'PDF Report downloaded successfully')
+    } catch (e) {
+      console.error(e)
+      toast.error(language === 'ar' ? 'فشل تحميل PDF' : 'Failed to download PDF')
+    } finally {
+      setDownloadingReportPdf(false)
+    }
+  }
+
+  const handleExportExcel = async () => {
+    try {
+      setDownloadingExcel(true)
+      await exportReportToExcel({ reportType, report: data, tenant, language })
+      toast.success(language === 'ar' ? 'تم تصدير ملف Excel بنجاح' : 'Excel spreadsheet exported successfully')
+    } catch (e) {
+      console.error(e)
+      toast.error(language === 'ar' ? 'فشل تصدير Excel' : 'Failed to export Excel')
+    } finally {
+      setDownloadingExcel(false)
+    }
+  }
+
+  const handleExportCsv = async () => {
+    try {
+      setDownloadingCsv(true)
+      await exportReportToCsv({ reportType, report: data, tenant, language })
+      toast.success(language === 'ar' ? 'تم تصدير ملف CSV بنجاح' : 'CSV exported successfully')
+    } catch (e) {
+      console.error(e)
+      toast.error(language === 'ar' ? 'فشل تصدير CSV' : 'Failed to export CSV')
+    } finally {
+      setDownloadingCsv(false)
+    }
+  }
+
   const periodText = data?.period?.startDate && data?.period?.endDate && !hasInvalidRange
     ? (language === 'ar'
       ? `${new Date(data.period.startDate).toLocaleDateString('ar-SA')} — ${new Date(data.period.endDate).toLocaleDateString('ar-SA')}`
@@ -527,40 +577,75 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* Download PDF */}
-          {data && !isLoading && !error && !hasInvalidRange && ['business', 'vat', 'internal_audit', 'external_audit'].includes(reportType) && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              type="button"
-              onClick={async () => {
-                try {
-                  setDownloadingReportPdf(true)
-                  if (reportType === 'internal_audit') {
-                    await downloadAuditReportPdf({ report: data, tenant, language, type: 'internal' })
-                  } else if (reportType === 'external_audit') {
-                    await downloadAuditReportPdf({ report: data, tenant, language, type: 'external' })
-                  } else if (reportType === 'business') {
-                    await downloadBusinessReportPdf({ report: data, language, tenant })
-                  } else {
-                    await downloadVatReturnReportPdf({ report: data, language, tenant })
-                  }
-                } catch (e) {
-                  toast.error(language === 'ar' ? 'فشل تحميل PDF' : 'Failed to download PDF')
-                } finally {
-                  setDownloadingReportPdf(false)
-                }
-              }}
-              disabled={downloadingReportPdf}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white text-sm font-semibold shadow-sm shadow-primary-200 dark:shadow-primary-900/30 transition-all disabled:opacity-60"
-            >
-              {downloadingReportPdf ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              {language === 'ar' ? 'تحميل PDF' : 'Download PDF'}
-            </motion.button>
+          {/* Universal Export Controls for All Reports */}
+          {data && !isLoading && !error && !hasInvalidRange && (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* PDF Button */}
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                type="button"
+                onClick={handleExportPdf}
+                disabled={downloadingReportPdf}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-60"
+                title={language === 'ar' ? 'تحميل تقرير PDF احترافي بنمط الفاتورة' : 'Download Invoice-Style PDF'}
+              >
+                {downloadingReportPdf ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                <span>PDF</span>
+              </motion.button>
+
+              {/* Excel Button */}
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                type="button"
+                onClick={handleExportExcel}
+                disabled={downloadingExcel}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-60"
+                title={language === 'ar' ? 'تصدير جدول إكسيل XLSX' : 'Export Excel (.xlsx)'}
+              >
+                {downloadingExcel ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                )}
+                <span>Excel</span>
+              </motion.button>
+
+              {/* CSV Button */}
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                type="button"
+                onClick={handleExportCsv}
+                disabled={downloadingCsv}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-60"
+                title={language === 'ar' ? 'تصدير ملف CSV' : 'Export CSV'}
+              >
+                {downloadingCsv ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5" />
+                )}
+                <span>CSV</span>
+              </motion.button>
+
+              {/* Print Button */}
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-dark-700 dark:hover:bg-dark-600 text-gray-700 dark:text-gray-200 text-xs font-semibold transition-all"
+                title={language === 'ar' ? 'طباعة التقرير' : 'Print Report'}
+              >
+                <Printer className="w-3.5 h-3.5" />
+              </motion.button>
+            </div>
           )}
         </div>
       </motion.div>
@@ -1067,60 +1152,263 @@ export default function Reports() {
 
               {/* ── Daily Invoices Report ─────────────────────────────────── */}
               {reportType === 'daily' ? (
-                <div className="bg-white dark:bg-dark-800 rounded-xl border border-gray-100 dark:border-dark-700 shadow-sm overflow-hidden">
-                  <div className="px-6 py-5 border-b border-gray-100 dark:border-dark-700 flex items-center gap-3">
-                    <Calendar className="w-5 h-5 text-primary-500" />
-                    <h3 className="text-lg font-bold">{language === 'ar' ? 'تقرير المبيعات اليومية' : 'Daily Invoices Report'}</h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left rtl:text-right">
-                      <thead className="text-xs text-gray-500 uppercase bg-gray-50 dark:bg-dark-700/50">
-                        <tr>
-                          <th className="px-6 py-4">{language === 'ar' ? 'التاريخ' : 'Date'}</th>
-                          <th className="px-6 py-4">{language === 'ar' ? 'عدد الفواتير' : 'Invoices Count'}</th>
-                          <th className="px-6 py-4">{language === 'ar' ? 'إجمالي الضريبة' : 'Total Tax'}</th>
-                          <th className="px-6 py-4">{language === 'ar' ? 'الإجمالي' : 'Total Amount'}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-dark-700">
-                        {Array.isArray(data) && data.length > 0 ? data.map(row => (
-                          <tr key={row._id} className="hover:bg-gray-50 dark:hover:bg-dark-700/50">
-                            <td className="px-6 py-4 font-medium">{row._id}</td>
-                            <td className="px-6 py-4">{row.invoiceCount}</td>
-                            <td className="px-6 py-4"><Money value={row.totalTax} /></td>
-                            <td className="px-6 py-4 font-bold text-primary-600"><Money value={row.totalAmount} /></td>
-                          </tr>
-                        )) : <tr><td colSpan="4" className="p-8 text-center text-gray-500">{language === 'ar' ? 'لا توجد بيانات' : 'No data found'}</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
+                <div className="space-y-6">
+                  {/* Daily KPIs */}
+                  {(() => {
+                    const rows = Array.isArray(data) ? data : []
+                    const totalDays = rows.length
+                    const totalInvoices = rows.reduce((acc, r) => acc + (r.invoiceCount || 0), 0)
+                    const totalTax = rows.reduce((acc, r) => acc + (r.totalTax || 0), 0)
+                    const totalAmount = rows.reduce((acc, r) => acc + (r.totalAmount || 0), 0)
+                    const avgDaily = totalDays > 0 ? (totalAmount / totalDays) : 0
+
+                    return (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <KpiCard
+                            title={language === 'ar' ? 'أيام النشاط' : 'Trading Days'}
+                            value={totalDays}
+                            icon={Calendar}
+                            iconBg="bg-gradient-to-br from-blue-500 to-blue-700"
+                            isCurrency={false}
+                          />
+                          <KpiCard
+                            title={language === 'ar' ? 'إجمالي الفواتير الصادرة' : 'Invoices Issued'}
+                            value={totalInvoices}
+                            icon={Receipt}
+                            iconBg="bg-gradient-to-br from-indigo-500 to-indigo-700"
+                            isCurrency={false}
+                          />
+                          <KpiCard
+                            title={language === 'ar' ? 'إجمالي ضريبة القيمة المضافة (15%)' : 'Total VAT (15%)'}
+                            value={totalTax}
+                            icon={ShieldCheck}
+                            iconBg="bg-gradient-to-br from-amber-500 to-amber-700"
+                          />
+                          <KpiCard
+                            title={language === 'ar' ? 'إجمالي المبيعات المحققة' : 'Gross Sales Revenue'}
+                            value={totalAmount}
+                            icon={TrendingUp}
+                            iconBg="bg-gradient-to-br from-emerald-500 to-emerald-700"
+                          />
+                        </div>
+
+                        <div className="bg-white dark:bg-dark-800 rounded-2xl border border-gray-100 dark:border-dark-700 shadow-sm overflow-hidden">
+                          <div className="px-6 py-5 border-b border-gray-100 dark:border-dark-700 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Calendar className="w-5 h-5 text-primary-500" />
+                              <div>
+                                <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                                  {language === 'ar' ? 'سجل المبيعات اليومية التفصيلي' : 'Daily Sales Revenue Ledger'}
+                                </h3>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  {language === 'ar' ? `المتوسط اليومي: ` : `Daily Average: `}
+                                  <span className="font-semibold text-gray-700 dark:text-gray-300">
+                                    <Money value={avgDaily} />
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left rtl:text-right">
+                              <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-dark-700/50">
+                                <tr>
+                                  <th className="px-6 py-4">{language === 'ar' ? 'التاريخ' : 'Date (YYYY-MM-DD)'}</th>
+                                  <th className="px-6 py-4">{language === 'ar' ? 'عدد الفواتير' : 'Invoices Count'}</th>
+                                  <th className="px-6 py-4">{language === 'ar' ? 'ضريبة القيمة المضافة' : 'VAT Amount (15%)'}</th>
+                                  <th className="px-6 py-4">{language === 'ar' ? 'الإجمالي الشامل' : 'Grand Total'}</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 dark:divide-dark-700">
+                                {rows.length > 0 ? (
+                                  rows.map((row) => (
+                                    <tr key={row._id} className="hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors">
+                                      <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{row._id}</td>
+                                      <td className="px-6 py-4">
+                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 dark:bg-dark-700 text-gray-800 dark:text-gray-200">
+                                          {row.invoiceCount}
+                                        </span>
+                                      </td>
+                                      <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                        <Money value={row.totalTax} />
+                                      </td>
+                                      <td className="px-6 py-4 font-bold text-primary-600 dark:text-primary-400">
+                                        <Money value={row.totalAmount} />
+                                      </td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  <tr>
+                                    <td colSpan="4" className="p-8 text-center text-gray-500">
+                                      {language === 'ar' ? 'لا توجد بيانات للفترة المحددة' : 'No sales records found for this period'}
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                              {rows.length > 0 && (
+                                <tfoot className="bg-gray-50/80 dark:bg-dark-700/80 font-bold border-t border-gray-200 dark:border-dark-600">
+                                  <tr>
+                                    <td className="px-6 py-4 text-gray-900 dark:text-white">
+                                      {language === 'ar' ? 'الإجمالي الكلي' : 'Total'}
+                                    </td>
+                                    <td className="px-6 py-4">{totalInvoices}</td>
+                                    <td className="px-6 py-4 text-amber-600 dark:text-amber-400">
+                                      <Money value={totalTax} />
+                                    </td>
+                                    <td className="px-6 py-4 text-emerald-600 dark:text-emerald-400">
+                                      <Money value={totalAmount} />
+                                    </td>
+                                  </tr>
+                                </tfoot>
+                              )}
+                            </table>
+                          </div>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               ) : reportType === 'sales' ? (
-                <div className="bg-white dark:bg-dark-800 rounded-xl border border-gray-100 dark:border-dark-700 shadow-sm overflow-hidden">
-                  <div className="px-6 py-5 border-b border-gray-100 dark:border-dark-700 flex items-center gap-3">
-                    <Users className="w-5 h-5 text-primary-500" />
-                    <h3 className="text-lg font-bold">{language === 'ar' ? 'تقرير مبيعات العملاء' : 'Customer Sales Report'}</h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left rtl:text-right">
-                      <thead className="text-xs text-gray-500 uppercase bg-gray-50 dark:bg-dark-700/50">
-                        <tr>
-                          <th className="px-6 py-4">{language === 'ar' ? 'العميل' : 'Customer'}</th>
-                          <th className="px-6 py-4">{language === 'ar' ? 'عدد الفواتير' : 'Invoices Count'}</th>
-                          <th className="px-6 py-4">{language === 'ar' ? 'إجمالي المبيعات' : 'Total Sales'}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-dark-700">
-                        {Array.isArray(data) && data.length > 0 ? data.map(row => (
-                          <tr key={row._id} className="hover:bg-gray-50 dark:hover:bg-dark-700/50">
-                            <td className="px-6 py-4 font-medium">{row.customerName || 'Walk-in Customer'}</td>
-                            <td className="px-6 py-4">{row.invoiceCount}</td>
-                            <td className="px-6 py-4 font-bold text-emerald-600"><Money value={row.totalAmount} /></td>
-                          </tr>
-                        )) : <tr><td colSpan="3" className="p-8 text-center text-gray-500">{language === 'ar' ? 'لا توجد بيانات' : 'No data found'}</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
+                <div className="space-y-6">
+                  {/* Customer Sales KPIs */}
+                  {(() => {
+                    const rows = Array.isArray(data) ? data : []
+                    const totalCustomers = rows.length
+                    const totalInvoices = rows.reduce((acc, r) => acc + (r.invoiceCount || 0), 0)
+                    const totalRevenue = rows.reduce((acc, r) => acc + (r.totalAmount || 0), 0)
+                    const avgPerCust = totalCustomers > 0 ? totalRevenue / totalCustomers : 0
+
+                    return (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <KpiCard
+                            title={language === 'ar' ? 'العملاء النشطون' : 'Active Accounts'}
+                            value={totalCustomers}
+                            icon={Users}
+                            iconBg="bg-gradient-to-br from-blue-500 to-blue-700"
+                            isCurrency={false}
+                          />
+                          <KpiCard
+                            title={language === 'ar' ? 'إجمالي الفواتير للعملاء' : 'Billed Invoices'}
+                            value={totalInvoices}
+                            icon={Receipt}
+                            iconBg="bg-gradient-to-br from-indigo-500 to-indigo-700"
+                            isCurrency={false}
+                          />
+                          <KpiCard
+                            title={language === 'ar' ? 'إجمالي المبيعات' : 'Customer Sales Revenue'}
+                            value={totalRevenue}
+                            icon={TrendingUp}
+                            iconBg="bg-gradient-to-br from-emerald-500 to-emerald-700"
+                          />
+                          <KpiCard
+                            title={language === 'ar' ? 'متوسط الإيراد لكل عميل' : 'Avg Revenue / Account'}
+                            value={avgPerCust}
+                            icon={BarChart3}
+                            iconBg="bg-gradient-to-br from-purple-500 to-purple-700"
+                          />
+                        </div>
+
+                        <div className="bg-white dark:bg-dark-800 rounded-2xl border border-gray-100 dark:border-dark-700 shadow-sm overflow-hidden">
+                          <div className="px-6 py-5 border-b border-gray-100 dark:border-dark-700 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Users className="w-5 h-5 text-primary-500" />
+                              <div>
+                                <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                                  {language === 'ar' ? 'تقرير تحليل مبيعات العملاء' : 'Customer Revenue Breakdown'}
+                                </h3>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  {language === 'ar' ? 'مرتب حسب أعلى قيمة مبيعات مع نسبة الحصة من الإيرادات' : 'Ranked by total billed revenue with revenue share percentage'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left rtl:text-right">
+                              <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-dark-700/50">
+                                <tr>
+                                  <th className="px-6 py-4 w-16 text-center">#</th>
+                                  <th className="px-6 py-4">{language === 'ar' ? 'اسم العميل' : 'Customer Name'}</th>
+                                  <th className="px-6 py-4">{language === 'ar' ? 'عدد الفواتير' : 'Invoices Count'}</th>
+                                  <th className="px-6 py-4">{language === 'ar' ? 'إجمالي المبيعات' : 'Total Sales (SAR)'}</th>
+                                  <th className="px-6 py-4">{language === 'ar' ? 'نسبة المساهمة' : 'Revenue Share'}</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 dark:divide-dark-700">
+                                {rows.length > 0 ? (
+                                  rows.map((row, idx) => {
+                                    const share = totalRevenue > 0 ? ((row.totalAmount / totalRevenue) * 100).toFixed(1) : '0.0'
+                                    return (
+                                      <tr key={row._id || idx} className="hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors">
+                                        <td className="px-6 py-4 text-center">
+                                          <span
+                                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                                              idx === 0
+                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                                                : idx === 1
+                                                  ? 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                                                  : idx === 2
+                                                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+                                                    : 'text-gray-400'
+                                            }`}
+                                          >
+                                            {idx + 1}
+                                          </span>
+                                        </td>
+                                        <td className="px-6 py-4 font-semibold text-gray-900 dark:text-white">
+                                          {row.customerName || (language === 'ar' ? 'عميل نقدي عام' : 'Walk-in Customer')}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 dark:bg-dark-700 text-gray-800 dark:text-gray-200">
+                                            {row.invoiceCount}
+                                          </span>
+                                        </td>
+                                        <td className="px-6 py-4 font-bold text-emerald-600 dark:text-emerald-400">
+                                          <Money value={row.totalAmount} />
+                                        </td>
+                                        <td className="px-6 py-4">
+                                          <div className="flex items-center gap-2">
+                                            <div className="flex-1 w-20 bg-gray-100 dark:bg-dark-700 rounded-full h-1.5 overflow-hidden">
+                                              <div
+                                                className="bg-primary-500 h-1.5 rounded-full"
+                                                style={{ width: `${Math.min(100, Math.max(2, parseFloat(share)))}%` }}
+                                              />
+                                            </div>
+                                            <span className="text-xs font-semibold text-gray-500">{share}%</span>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )
+                                  })
+                                ) : (
+                                  <tr>
+                                    <td colSpan="5" className="p-8 text-center text-gray-500">
+                                      {language === 'ar' ? 'لا توجد بيانات عملاء' : 'No customer sales found'}
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                              {rows.length > 0 && (
+                                <tfoot className="bg-gray-50/80 dark:bg-dark-700/80 font-bold border-t border-gray-200 dark:border-dark-600">
+                                  <tr>
+                                    <td colSpan="2" className="px-6 py-4 text-gray-900 dark:text-white">
+                                      {language === 'ar' ? 'الإجمالي الكلي' : 'Total'}
+                                    </td>
+                                    <td className="px-6 py-4">{totalInvoices}</td>
+                                    <td className="px-6 py-4 text-emerald-600 dark:text-emerald-400">
+                                      <Money value={totalRevenue} />
+                                    </td>
+                                    <td className="px-6 py-4 text-xs text-gray-500">100%</td>
+                                  </tr>
+                                </tfoot>
+                              )}
+                            </table>
+                          </div>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               ) : reportType === 'business' ? (
                 <>
