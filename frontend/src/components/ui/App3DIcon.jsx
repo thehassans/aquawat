@@ -51,62 +51,55 @@ export function App3DIcon({
     return (
       <svg className={className} viewBox="0 0 64 64" fill="none">
         <defs>
-          <linearGradient id={`cal_body_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+          <linearGradient id={`cal_body_${uid}`} x1="8" y1="8" x2="56" y2="58" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#FFFFFF" />
-            <stop offset="60%" stopColor="#F8FAFC" />
-            <stop offset="100%" stopColor="#E2E8F0" />
+            <stop offset="70%" stopColor="#F8FAFC" />
+            <stop offset="100%" stopColor="#EEF2F6" />
           </linearGradient>
-          <linearGradient id={`cal_header_${uid}`} x1="8" y1="8" x2="56" y2="26" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FF3366" />
+          <linearGradient id={`cal_header_${uid}`} x1="6" y1="8" x2="58" y2="24" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FF2E5B" />
             <stop offset="50%" stopColor="#E11D48" />
             <stop offset="100%" stopColor="#BE123C" />
           </linearGradient>
-          <linearGradient id={`cal_gold_ring_${uid}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#CBD5E1" />
+          <linearGradient id={`cal_chrome_${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#E2E8F0" />
             <stop offset="50%" stopColor="#94A3B8" />
-            <stop offset="100%" stopColor="#64748B" />
+            <stop offset="100%" stopColor="#475569" />
           </linearGradient>
           <filter id={`cal_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#E11D48" floodOpacity="0.38" />
-          </filter>
-          <filter id={`cal_inner_shadow_${uid}`} x="-10%" y="-10%" width="120%" height="120%">
-            <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#0F172A" floodOpacity="0.15" />
+            <feDropShadow dx="0" dy="4" stdDeviation="4.5" floodColor="#0F172A" floodOpacity="0.16" />
+            <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodColor="#E11D48" floodOpacity="0.22" />
           </filter>
         </defs>
 
-        {/* 3D Base Card Shadow & Glossy Border */}
-        <rect x="7" y="9" width="50" height="49" rx="14" fill={`url(#cal_body_${uid})`} filter={`url(#cal_flt_${uid})`} />
-        <rect x="7.5" y="9.5" width="49" height="48" rx="13.5" stroke="#FFFFFF" strokeWidth="1.5" strokeOpacity="0.9" fill="none" />
+        {/* 3D Base Card Shadow & Glossy Rounded Body */}
+        <rect x="6.5" y="8.5" width="51" height="49" rx="13" fill={`url(#cal_body_${uid})`} filter={`url(#cal_flt_${uid})`} />
+        <rect x="7" y="9" width="50" height="48" rx="12.5" stroke="#FFFFFF" strokeWidth="1.2" strokeOpacity="0.9" fill="none" />
 
-        {/* Subtle grid pattern inside date area */}
-        <line x1="8" y1="36" x2="56" y2="36" stroke="#F1F5F9" strokeWidth="1" />
-        <line x1="8" y1="46" x2="56" y2="46" stroke="#F1F5F9" strokeWidth="1" />
-        <line x1="24" y1="26" x2="24" y2="56" stroke="#F1F5F9" strokeWidth="1" />
-        <line x1="40" y1="26" x2="40" y2="56" stroke="#F1F5F9" strokeWidth="1" />
+        {/* Top Crimson Header Banner */}
+        <path d="M6.5 21.5C6.5 14.32 12.32 8.5 19.5 8.5H44.5C51.68 8.5 57.5 14.32 57.5 21.5V23.5H6.5V21.5Z" fill={`url(#cal_header_${uid})`} />
+        
+        {/* Subtle glossy highlight line on top header */}
+        <path d="M12 10.5H52C54.5 10.5 55.5 11.5 55.5 13" stroke="#FFA4B6" strokeWidth="1" strokeLinecap="round" strokeOpacity="0.85" />
 
-        {/* Top Crimson Header with curved top corners */}
-        <path d="M7 23C7 15.268 13.268 9 21 9H43C50.732 9 57 15.268 57 23V25H7V23Z" fill={`url(#cal_header_${uid})`} />
+        {/* Realistic Chrome Binder Rings */}
+        <rect x="16" y="5" width="4.5" height="8" rx="2.25" fill={`url(#cal_chrome_${uid})`} stroke="#FFFFFF" strokeWidth="0.8" />
+        <circle cx="18.25" cy="9" r="0.9" fill="#FFFFFF" />
+        
+        <rect x="43.5" y="5" width="4.5" height="8" rx="2.25" fill={`url(#cal_chrome_${uid})`} stroke="#FFFFFF" strokeWidth="0.8" />
+        <circle cx="45.75" cy="9" r="0.9" fill="#FFFFFF" />
 
-        {/* Top Header Gloss Specular Line */}
-        <path d="M12 11.5H52C54.5 11.5 55.5 12.5 55.5 14" stroke="#FFA4B6" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.8" />
-
-        {/* Metallic Binder Rings / Pins */}
-        <rect x="17" y="5" width="5" height="9" rx="2.5" fill={`url(#cal_gold_ring_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
-        <circle cx="19.5" cy="9.5" r="1" fill="#FFFFFF" />
-        <rect x="42" y="5" width="5" height="9" rx="2.5" fill={`url(#cal_gold_ring_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
-        <circle cx="44.5" cy="9.5" r="1" fill="#FFFFFF" />
-
-        {/* Day Name in Top Header (e.g. WED, THU, MON) */}
+        {/* Day Name in Crimson Header */}
         <text
           x="32"
-          y="20.5"
+          y="18.5"
           textAnchor="middle"
+          dominantBaseline="central"
           fill="#FFFFFF"
           fontSize="7.5"
-          fontWeight="800"
+          fontWeight="900"
           letterSpacing="1.2"
-          fontFamily="system-ui, -apple-system, sans-serif"
-          filter={`url(#cal_inner_shadow_${uid})`}
+          fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
         >
           {dayName}
         </text>
@@ -114,21 +107,22 @@ export function App3DIcon({
         {/* Bold Glowing Big Date Number in Center */}
         <text
           x="32"
-          y="46"
+          y="38.5"
           textAnchor="middle"
+          dominantBaseline="central"
           fill="#0F172A"
           fontSize={todayDate > 9 ? "22" : "24"}
           fontWeight="900"
           fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-          letterSpacing="-0.5"
+          letterSpacing="-0.8"
         >
           {todayDate}
         </text>
 
-        {/* Dynamic colored micro-dots for active events at bottom */}
-        <circle cx="24" cy="51.5" r="1.8" fill="#10B981" />
-        <circle cx="32" cy="51.5" r="1.8" fill="#3B82F6" />
-        <circle cx="40" cy="51.5" r="1.8" fill="#F59E0B" />
+        {/* Micro Event Activity Dots at Bottom */}
+        <circle cx="23" cy="50" r="1.8" fill="#10B981" />
+        <circle cx="32" cy="50" r="1.8" fill="#3B82F6" />
+        <circle cx="41" cy="50" r="1.8" fill="#F59E0B" />
       </svg>
     )
   }
