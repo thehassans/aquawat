@@ -612,6 +612,192 @@ export const DEFAULT_APP_CATALOG = [
     configSchema: [
       { key: 'defaultCourier', labelEn: 'Default Primary Courier', labelAr: 'شركة الشحن الافتراضية', type: 'select', defaultValue: 'smsa', options: [{ value: 'smsa', labelEn: 'SMSA Express', labelAr: 'سمسا إكسبريس' }, { value: 'aramex', labelEn: 'Aramex', labelAr: 'أرامكس' }, { value: 'spl', labelEn: 'Saudi Post (SPL)', labelAr: 'البريد السعودي (سبل)' }] }
     ]
+  },
+  // ── Government Integration Apps ────────────────────────────────────────────────
+  {
+    appId: 'elm_identity_pro',
+    nameEn: 'Elm Identity & Verification Suite',
+    nameAr: 'منظومة علم للهوية والتحقق',
+    taglineEn: 'Yakeen ID verification, Tamm vehicle registration, Najm accident lookup, Wathiq CR verify, Nafath OTP.',
+    taglineAr: 'تحقق الهوية (يقين)، تسجيل المركبات (تامم)، سجل الحوادث (نجم)، السجل التجاري (وثيق)، نفاذ OTP.',
+    descriptionEn: 'Connect to Saudi Elm DevPortal services: verify national IDs and Iqamas with Yakeen, register rental fleet with Tamm, check accident histories with Najm, verify Commercial Registrations with Wathiq, and authenticate customers via Nafath OTP.',
+    descriptionAr: 'ربط شامل مع بوابة علم للمطورين: التحقق من الهوية الوطنية والإقامة، تسجيل المركبات، الاستعلام عن تاريخ الحوادث، التحقق من السجل التجاري، والمصادقة عبر نفاذ.',
+    category: 'saudi_compliance',
+    appType: 'saudi_compliance',
+    icon: 'shield-check',
+    version: '2.1.0',
+    downloadSize: '3.2 MB',
+    author: 'Maqder Saudi Gov Suite',
+    rating: 4.88,
+    reviewsCount: 134,
+    pricingTier: 'free',
+    badge: 'Elm Certified',
+    defaultRoute: '/app/dashboard/tenant-settings/government-integrations/elm',
+    featuresEn: [
+      'Yakeen: Saudi & Resident National ID / Iqama Verification',
+      'Tamm: Fleet Vehicle Registration & Ownership Lookup',
+      'Najm: Accident History & Insurance Status Check',
+      'Wathiq: Commercial Registration (CR) Verification',
+      'Nafath OTP: Mobile Identity Authentication'
+    ],
+    featuresAr: [
+      'يقين: التحقق من الهوية الوطنية وتصريح الإقامة',
+      'تامم: تسجيل المركبات والاستعلام عن ملكيتها',
+      'نجم: سجل الحوادث وحالة التأمين',
+      'وثيق: التحقق من السجل التجاري',
+      'نفاذ OTP: المصادقة عبر التطبيق الوطني'
+    ],
+    configSchema: [
+      { key: 'clientId', labelEn: 'Elm Client ID', labelAr: 'معرف عميل علم', type: 'text', defaultValue: '' },
+      { key: 'clientSecret', labelEn: 'Elm Client Secret', labelAr: 'مفتاح عميل علم', type: 'password', defaultValue: '' },
+      { key: 'nafathOtpEnabled', labelEn: 'Enable Nafath OTP Authentication', labelAr: 'تفعيل المصادقة عبر نفاذ', type: 'boolean', defaultValue: false },
+      { key: 'tammEnabled', labelEn: 'Enable Tamm Vehicle Integration', labelAr: 'تفعيل تكامل تامم للمركبات', type: 'boolean', defaultValue: false }
+    ]
+  },
+  {
+    appId: 'qiwa_hr_integration',
+    nameEn: 'Qiwa HR Portal Integration',
+    nameAr: 'ربط بوابة قوى للموارد البشرية',
+    taglineEn: 'Contract authentication, Nitaqat Saudization tracking, and MHRSD compliance automation.',
+    taglineAr: 'توثيق العقود، متابعة نطاقات التوطين، والامتثال لوزارة الموارد البشرية.',
+    descriptionEn: 'Connect your HR module directly to the Ministry of Human Resources Qiwa platform: authenticate employee contracts digitally, monitor real-time Saudization ratios, and automate compliance reporting.',
+    descriptionAr: 'ربط مباشر مع منصة قوى لوزارة الموارد البشرية: توثيق عقود الموظفين إلكترونياً، ومراقبة نسب التوطين، وأتمتة تقارير الامتثال.',
+    category: 'saudi_compliance',
+    appType: 'saudi_compliance',
+    icon: 'users-round',
+    version: '1.8.0',
+    downloadSize: '2.8 MB',
+    author: 'Maqder Saudi Gov Suite',
+    rating: 4.85,
+    reviewsCount: 112,
+    pricingTier: 'free',
+    badge: 'MHRSD Linked',
+    defaultRoute: '/app/dashboard/tenant-settings/government-integrations/qiwa',
+    featuresEn: [
+      'Digital Employee Contract Authentication via Qiwa',
+      'Real-time Nitaqat Saudization Calculator',
+      'Establishment ID Management & OAuth Integration',
+      'Automated Labor Law Compliance Monitoring'
+    ],
+    featuresAr: [
+      'توثيق عقود الموظفين إلكترونياً عبر قوى',
+      'حاسبة نطاقات التوطين الفورية',
+      'إدارة معرّف المنشأة وتكامل OAuth',
+      'مراقبة تلقائية لامتثال نظام العمل'
+    ],
+    configSchema: [
+      { key: 'establishmentId', labelEn: 'Qiwa Establishment ID', labelAr: 'رقم منشأة قوى', type: 'text', defaultValue: '' },
+      { key: 'accessToken', labelEn: 'Qiwa Access Token', labelAr: 'رمز وصول قوى', type: 'password', defaultValue: '' },
+      { key: 'contractAuthAutomationEnabled', labelEn: 'Auto-submit Contracts for Authentication', labelAr: 'إرسال العقود تلقائياً للتوثيق', type: 'boolean', defaultValue: false },
+      { key: 'saudizationWidgetEnabled', labelEn: 'Show Saudization Widget on Dashboard', labelAr: 'عرض مؤشر نطاقات في لوحة التحكم', type: 'boolean', defaultValue: true }
+    ]
+  },
+  {
+    appId: 'balady_municipal',
+    nameEn: 'Balady Municipal Licensing',
+    nameAr: 'بلدي - الترخيص والصحة البلدية',
+    taglineEn: 'Municipal health certificates and business licensing compliance for food, bakery, and retail.',
+    taglineAr: 'شهادات الصحة البلدية وتراخيص الأعمال للمطاعم والمخابز والبقالات.',
+    descriptionEn: 'Manage your municipal health certificates, food safety compliance, and business licensing requirements via the Balady platform — track expiry dates, store certificates, and receive renewal alerts.',
+    descriptionAr: 'إدارة شهادات الصحة البلدية، ومتطلبات السلامة الغذائية والتراخيص التجارية عبر منصة بلدي، مع تتبع تواريخ الانتهاء وتنبيهات التجديد.',
+    category: 'saudi_compliance',
+    appType: 'saudi_compliance',
+    icon: 'building',
+    version: '1.4.0',
+    downloadSize: '1.9 MB',
+    author: 'Maqder Saudi Gov Suite',
+    rating: 4.79,
+    reviewsCount: 87,
+    pricingTier: 'free',
+    badge: 'Balady Ready',
+    defaultRoute: '/app/dashboard/tenant-settings/government-integrations/balady',
+    featuresEn: [
+      'Municipal Health Certificate Storage & Tracking',
+      'Business License Expiry Alerts',
+      'Food Safety Compliance Checklist',
+      'Worker Health Certificate Management'
+    ],
+    featuresAr: [
+      'حفظ وتتبع شهادات الصحة البلدية',
+      'تنبيهات انتهاء صلاحية التراخيص التجارية',
+      'قوائم فحص امتثال سلامة الأغذية',
+      'إدارة شهادات صحة العمال'
+    ],
+    configSchema: [
+      { key: 'baladyApiKey', labelEn: 'Balady API Key', labelAr: 'مفتاح API بلدي', type: 'password', defaultValue: '' },
+      { key: 'expiryAlertDays', labelEn: 'Alert Days Before Expiry', labelAr: 'أيام التنبيه قبل الانتهاء', type: 'number', defaultValue: 30 }
+    ]
+  },
+  {
+    appId: 'saber_conformity',
+    nameEn: 'Saber Product Conformity',
+    nameAr: 'سابر - شهادات المطابقة (SASO)',
+    taglineEn: 'SASO product conformity certificate management and shipment release tracking.',
+    taglineAr: 'إدارة شهادات مطابقة SASO وتتبع الإفراج عن الشحنات.',
+    descriptionEn: 'Manage your Saudi product conformity requirements through Saber: store and track SASO conformity certificates for regulated products, monitor certificate expiry, and link certificates to inventory items and purchase orders.',
+    descriptionAr: 'إدارة شهادات المطابقة السعودية عبر منصة سابر: تخزين شهادات SASO للمنتجات الخاضعة للتنظيم، وربطها بالمخزون وأوامر الشراء.',
+    category: 'saudi_compliance',
+    appType: 'saudi_compliance',
+    icon: 'badge-check',
+    version: '1.2.0',
+    downloadSize: '1.6 MB',
+    author: 'Maqder Saudi Gov Suite',
+    rating: 4.75,
+    reviewsCount: 64,
+    pricingTier: 'free',
+    badge: 'SASO Verified',
+    defaultRoute: '/app/dashboard/tenant-settings/government-integrations/saber',
+    featuresEn: [
+      'SASO Conformity Certificate Storage & Linking',
+      'Certificate Expiry Tracking & Renewal Alerts',
+      'Link Certificates to Products & Purchase Orders',
+      'Shipment Release Document Management'
+    ],
+    featuresAr: [
+      'حفظ شهادات المطابقة وربطها بالمنتجات',
+      'تتبع انتهاء الشهادات وتنبيهات التجديد',
+      'ربط الشهادات بأوامر الشراء',
+      'إدارة وثائق الإفراج عن الشحنات'
+    ],
+    configSchema: [
+      { key: 'saberToken', labelEn: 'Saber API Token', labelAr: 'رمز API سابر', type: 'password', defaultValue: '' }
+    ]
+  },
+  {
+    appId: 'etimad_procurement',
+    nameEn: 'Etimad Government Procurement',
+    nameAr: 'اعتماد - المشتريات الحكومية',
+    taglineEn: 'Manage Saudi government procurement portal bids, contracts, and vendor credentials.',
+    taglineAr: 'إدارة عطاءات ومشتريات البوابة الحكومية السعودية اعتماد.',
+    descriptionEn: 'Connect your business to the Saudi Etimad government procurement portal: manage vendor credentials, track active tenders and bid submissions, store contract documents, and monitor payment status from government entities.',
+    descriptionAr: 'ربط منشأتك ببوابة اعتماد للمشتريات الحكومية السعودية: إدارة بيانات المورد، تتبع المناقصات وتقديم العروض، وتخزين وثائق العقود.',
+    category: 'saudi_compliance',
+    appType: 'saudi_compliance',
+    icon: 'landmark',
+    version: '1.1.0',
+    downloadSize: '2.1 MB',
+    author: 'Maqder Saudi Gov Suite',
+    rating: 4.71,
+    reviewsCount: 48,
+    pricingTier: 'free',
+    badge: 'Gov Procurement',
+    defaultRoute: '/app/dashboard/tenant-settings/government-integrations/etimad',
+    featuresEn: [
+      'Etimad Vendor Portal Credential Management',
+      'Government Tender Tracking & Bid Submissions',
+      'Contract Document Storage & Version Control',
+      'Government Payment Status Monitoring'
+    ],
+    featuresAr: [
+      'إدارة بيانات اعتماد المورد في البوابة الحكومية',
+      'تتبع المناقصات الحكومية وتقديم العروض',
+      'حفظ وثائق العقود وإدارة الإصدارات',
+      'مراقبة حالة المدفوعات الحكومية'
+    ],
+    configSchema: [
+      { key: 'etimadUsername', labelEn: 'Etimad Portal Username', labelAr: 'اسم مستخدم بوابة اعتماد', type: 'text', defaultValue: '' },
+      { key: 'etimadPassword', labelEn: 'Etimad Portal Password', labelAr: 'كلمة مرور بوابة اعتماد', type: 'password', defaultValue: '' }
+    ]
   }
 ];
 

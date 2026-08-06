@@ -469,11 +469,29 @@ const publicLimiter = rateLimit({
 });
 
 // 3. General API — configurable (default 2 000 req / 15 min)
+//    Key by authenticated tenantId so all devices in the same office/store
+//    share a per-TENANT quota, not a per-IP quota. Multiple POS terminals,
+//    kitchen displays etc. behind the same NAT/router will no longer starve
+//    each other. Fall back to IP for unauthenticated requests.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: apiRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    // req.user is populated by the auth middleware which runs before this limiter
+    // because express-rate-limit runs per-request and auth is route-level.
+    // For the general limiter we parse the JWT synchronously to get tenantId.
+    try {
+      const auth = req.headers?.authorization || ''
+      if (auth.startsWith('Bearer ')) {
+        const payload = JSON.parse(Buffer.from(auth.split('.')[1], 'base64').toString())
+        if (payload?.tenantId) return `tenant:${payload.tenantId}`
+        if (payload?.id) return `user:${payload.id}`
+      }
+    } catch (_) { /* fall through to IP */ }
+    return req.ip
+  },
   skip: (req) => req.path === '/health' || req.path === '/health/live' || req.path === '/health/ready',
   message: { error: 'Too many requests, please try again later.' },
 });

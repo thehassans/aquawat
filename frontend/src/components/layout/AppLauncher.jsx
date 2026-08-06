@@ -70,7 +70,16 @@ const APP_STYLE_MAP = {
   '/app/dashboard/profile': { gradient: 'from-[#4776E6] to-[#8E54E9]' },
   '/app/dashboard/settings': { gradient: 'from-[#4B79A1] to-[#283E51]' },
   '/app/dashboard/users': { gradient: 'from-[#4B79A1] to-[#283E51]' },
-  '/app/dashboard/tenant-settings/government-integrations': { gradient: 'from-[#4B79A1] to-[#283E51]' },
+  '/app/dashboard/tenant-settings/government-integrations': { gradient: 'from-[#134E4A] to-[#0F766E]' },
+
+  // Government Integration Apps — each gets a distinct Saudi-palette gradient
+  '/app/dashboard/tenant-settings/government-integrations/zatca': { gradient: 'from-[#006633] to-[#00A34A]' },
+  '/app/dashboard/tenant-settings/government-integrations/elm': { gradient: 'from-[#1D4ED8] to-[#3B82F6]' },
+  '/app/dashboard/tenant-settings/government-integrations/qiwa': { gradient: 'from-[#7C3AED] to-[#A855F7]' },
+  '/app/dashboard/tenant-settings/government-integrations/gosi': { gradient: 'from-[#B45309] to-[#D97706]' },
+  '/app/dashboard/tenant-settings/government-integrations/balady': { gradient: 'from-[#065F46] to-[#10B981]' },
+  '/app/dashboard/tenant-settings/government-integrations/saber': { gradient: 'from-[#9D174D] to-[#EC4899]' },
+  '/app/dashboard/tenant-settings/government-integrations/etimad': { gradient: 'from-[#1E3A5F] to-[#2563EB]' },
 
   // Dashboard (Cyan / Bright Blue)
   '/app/dashboard': { gradient: 'from-[#4facfe] to-[#00f2fe]' },
@@ -196,11 +205,17 @@ export default function AppLauncher() {
   const hasQiwa = si.qiwaConnectionStatus === 'connected';
   const hasGosi = si.gosiConnectionStatus === 'connected';
 
+  const installedApps = tenant?.settings?.installedApps || {}
+  const isAppActive = (appId) => installedApps[appId]?.isInstalled && installedApps[appId]?.isEnabled
+
   const govChildren = [];
   if (hasZatca) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/zatca', label: language === 'ar' ? `بوابة زاتكا ${isZatcaPhase1 ? '(المرحلة 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal` });
-  if (hasElm) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/elm', label: language === 'ar' ? 'بوابة علم / يقين' : 'Elm Portal' });
-  if (hasQiwa) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/qiwa', label: language === 'ar' ? 'بوابة قوى' : 'Qiwa Portal' });
-  if (hasGosi) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/gosi', label: language === 'ar' ? 'بوابة التأمينات / مدد' : 'GOSI/Mudad Portal' });
+  if (hasElm || isAppActive('elm_identity_pro')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/elm', label: language === 'ar' ? 'بوابة علم / يقين' : 'Elm Portal' });
+  if (hasQiwa || isAppActive('qiwa_hr_integration')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/qiwa', label: language === 'ar' ? 'بوابة قوى' : 'Qiwa Portal' });
+  if (hasGosi || isAppActive('gosi_mudad_compliance')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/gosi', label: language === 'ar' ? 'بوابة التأمينات / مدد' : 'GOSI/Mudad Portal' });
+  if (isAppActive('balady_municipal')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/balady', label: language === 'ar' ? 'بوابة بلدي' : 'Balady Portal' });
+  if (isAppActive('saber_conformity')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/saber', label: language === 'ar' ? 'بوابة سابر (SASO)' : 'Saber Portal (SASO)' });
+  if (isAppActive('etimad_procurement')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/etimad', label: language === 'ar' ? 'بوابة اعتماد' : 'Etimad Portal' });
 
   const hasAccess = (module, action) => {
     if (!user) return false

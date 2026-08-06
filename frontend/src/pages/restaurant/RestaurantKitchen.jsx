@@ -62,8 +62,8 @@ export default function RestaurantKitchen() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['restaurant-kitchen', statuses],
     queryFn: () => api.get('/restaurant/orders/kitchen', { params: { statuses: statuses.join(',') } }).then((res) => res.data),
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 8000,
+    refetchIntervalInBackground: false,
   })
 
   const orders = data?.orders || []

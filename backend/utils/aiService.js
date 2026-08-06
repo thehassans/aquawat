@@ -19,14 +19,25 @@ export const getAISettings = async () => {
   return settings || {};
 };
 
-export const translateWithFallback = async ({ text, targetLanguage }) => {
+export const translateWithFallback = async ({ text, targetLanguage, _batchMode = false }) => {
   const settings = await getAISettings();
   const sourceLang = targetLanguage === 'en' ? 'Arabic' : 'English';
   const targetLangStr = targetLanguage === 'en' ? 'English' : 'Arabic';
   
-  const prompt = `Translate the following text from ${sourceLang} to ${targetLangStr}. If the text is a proper name, transliterate it appropriately. Return only the translated text without quotes or extra commentary.\n\nText:\n"""${text}"""`;
+  // In batch mode the caller already constructs the full prompt
+  const prompt = _batchMode
+    ? text
+    : `Translate the following text from ${sourceLang} to ${targetLangStr}. If the text is a proper name, transliterate it appropriately. Return only the translated text without quotes or extra commentary.\n\nText:\n"""${text}"""`;
 
   let lastError = null;
+  let attempt = 0;
+
+  // Helper: detect if an error is a rate-limit (429) response
+  const isRateLimited = (e) => e?.status === 429 || e?.response?.status === 429
+    || String(e?.message || '').toLowerCase().includes('rate limit')
+    || String(e?.message || '').toLowerCase().includes('quota');
+
+  const backoff = async (ms) => new Promise(r => setTimeout(r, ms));
 
   // 1. Try Gemini
   if (settings?.gemini?.enabled !== false && settings?.gemini?.apiKey) {
@@ -40,6 +51,9 @@ export const translateWithFallback = async ({ text, targetLanguage }) => {
       if (response?.text) return response.text.trim();
     } catch (e) {
       lastError = e;
+      attempt++;
+      const waitMs = isRateLimited(e) ? Math.min(1000 * Math.pow(2, attempt), 10000) : 0;
+      if (waitMs > 0) await backoff(waitMs);
       console.warn('[Translation] Gemini failed, falling back...', e.message);
     }
   }
@@ -56,6 +70,9 @@ export const translateWithFallback = async ({ text, targetLanguage }) => {
       if (response.choices?.[0]?.message?.content) return response.choices[0].message.content.trim();
     } catch (e) {
       lastError = e;
+      attempt++;
+      const waitMs = isRateLimited(e) ? Math.min(1000 * Math.pow(2, attempt), 10000) : 0;
+      if (waitMs > 0) await backoff(waitMs);
       console.warn('[Translation] Grok failed, falling back...', e.message);
     }
   }
@@ -72,11 +89,14 @@ export const translateWithFallback = async ({ text, targetLanguage }) => {
       if (response.choices?.[0]?.message?.content) return response.choices[0].message.content.trim();
     } catch (e) {
       lastError = e;
+      attempt++;
+      const waitMs = isRateLimited(e) ? Math.min(1000 * Math.pow(2, attempt), 10000) : 0;
+      if (waitMs > 0) await backoff(waitMs);
       console.warn('[Translation] Groq failed, falling back...', e.message);
     }
   }
 
-  // 3. Try OpenAI
+  // 4. Try OpenAI
   if (settings?.openai?.enabled !== false && settings?.openai?.apiKey) {
     try {
       const client = new OpenAI({ apiKey: settings.openai.apiKey });

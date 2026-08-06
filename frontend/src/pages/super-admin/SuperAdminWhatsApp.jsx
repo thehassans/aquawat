@@ -32,7 +32,7 @@ export default function SuperAdminWhatsApp() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['super-admin-whatsapp-status'],
     queryFn: () => api.get('/super-admin/whatsapp/status').then(r => r.data),
-    refetchInterval: (data) => (data?.status === 'QR_READY' || data?.status === 'INITIALIZING' ? 2000 : false),
+    refetchInterval: (data) => (data?.status === 'QR_READY' || data?.status === 'INITIALIZING' ? 4000 : false),
   })
 
   const initMutation = useMutation({

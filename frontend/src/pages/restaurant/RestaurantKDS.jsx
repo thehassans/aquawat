@@ -237,8 +237,8 @@ export default function RestaurantKDS() {
   const { data, isLoading } = useQuery({
     queryKey: ['kds-board', selectedStation],
     queryFn: () => api.get('/restaurant/kds/board', { params: { stationId: selectedStation || undefined } }).then(res => res.data),
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 8000,
+    refetchIntervalInBackground: false,
   })
 
   const { data: stations = [] } = useQuery({

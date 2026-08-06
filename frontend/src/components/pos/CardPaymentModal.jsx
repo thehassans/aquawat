@@ -147,7 +147,7 @@ export default function CardPaymentModal({
       } catch {
         // transient errors ignored; keep polling until timeout
       }
-    }, 2000)
+    }, 3000)
 
     return clearPolling
     // eslint-disable-next-line react-hooks/exhaustive-deps

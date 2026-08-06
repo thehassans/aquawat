@@ -33,7 +33,7 @@ export default function CashierPanel() {
     queryKey: ['restaurant-orders', 'open'],
     queryFn: () => api.get('/restaurant/orders', { params: { limit: 100, status: 'open' } }).then((res) => res.data),
     refetchInterval: 10000,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   })
 
   const orders = data?.orders || []

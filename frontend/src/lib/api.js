@@ -187,6 +187,25 @@ api.interceptors.response.use(
 
     error.userMessage = getApiErrorMessage(error)
 
+    // ── 429 Rate-limit: exponential backoff retry (up to 3 attempts) ──────────
+    // React Query's default behaviour is to retry instantly on failure, which
+    // turns a single 429 into a burst of 3 more 429s. Instead we intercept here
+    // so ALL callers (query + mutation) get automatic back-off at the Axios level.
+    if (error.response?.status === 429) {
+      const cfg = error.config
+      cfg._429RetryCount = (cfg._429RetryCount || 0) + 1
+      if (cfg._429RetryCount <= 3) {
+        const retryAfterHeader = parseInt(error.response.headers?.['retry-after'] || '0', 10)
+        // Use Retry-After header if present, otherwise exponential backoff capped at 8 s
+        const backoffMs = retryAfterHeader > 0
+          ? retryAfterHeader * 1000
+          : Math.min(1000 * Math.pow(2, cfg._429RetryCount), 8000)
+        console.warn(`[API] 429 received – retrying in ${backoffMs}ms (attempt ${cfg._429RetryCount}/3)`)
+        await new Promise(resolve => setTimeout(resolve, backoffMs))
+        return api(cfg)
+      }
+    }
+
     // Trial limit reached — dispatch event for TrialLimitModal
     if (error.response?.status === 403 && error.response?.data?.error === 'TRIAL_LIMIT_REACHED') {
       window.dispatchEvent(new CustomEvent('trial-limit-reached', {

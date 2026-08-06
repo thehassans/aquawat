@@ -2,127 +2,167 @@ import { translateWithFallback } from './aiService.js'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 const hasTranslatableText = (value = '') => /[A-Za-z\u0600-\u06FF]/.test(String(value || '').trim())
-const translationTimeoutMs = 2500
-const enrichmentTimeoutMs = 4000
 
-const resolveWithin = (promise, timeoutMs, fallbackValue = '') => Promise.race([
-  promise,
-  new Promise((resolve) => setTimeout(() => resolve(fallbackValue), timeoutMs)),
-])
+// ── Global translation cache (persists across calls within same process) ────────
+// Avoids re-translating the same product name in every invoice view/print
+const GLOBAL_TRANSLATION_CACHE = new Map()
+const MAX_CACHE_SIZE = 2000 // Limit memory usage
+
+const getCached = (key) => GLOBAL_TRANSLATION_CACHE.get(key)
+const setCache = (key, value) => {
+  if (GLOBAL_TRANSLATION_CACHE.size >= MAX_CACHE_SIZE) {
+    // Evict the first (oldest) entry when cache is full
+    const firstKey = GLOBAL_TRANSLATION_CACHE.keys().next().value
+    GLOBAL_TRANSLATION_CACHE.delete(firstKey)
+  }
+  GLOBAL_TRANSLATION_CACHE.set(key, value)
+}
+
+// ── Batch translation engine ─────────────────────────────────────────────────────
+// Instead of firing N parallel LLM calls (one per field), we collect ALL texts
+// that need the same target language and send ONE batched prompt.
+// This drops 15-30 API calls per invoice down to at most 2 (one per direction).
+
+const BATCH_SEPARATOR = '\n|||ITEM|||\n'
+
+const batchTranslate = async (items, targetLanguage) => {
+  if (items.length === 0) return {}
+
+  const uncachedItems = []
+  const result = {}
+
+  // Pull what we can from cache first
+  for (const item of items) {
+    const cacheKey = `${targetLanguage}:${item.text}`
+    const cached = getCached(cacheKey)
+    if (cached !== undefined) {
+      result[item.id] = cached
+    } else {
+      uncachedItems.push(item)
+    }
+  }
+
+  if (uncachedItems.length === 0) return result
+
+  try {
+    const sourceLang = targetLanguage === 'en' ? 'Arabic' : 'English'
+    const targetLangStr = targetLanguage === 'en' ? 'English' : 'Arabic'
+
+    // Send all texts in one prompt, separated by a unique delimiter
+    const combinedText = uncachedItems.map(item => item.text).join(BATCH_SEPARATOR)
+    const prompt = `Translate each of the following texts from ${sourceLang} to ${targetLangStr}. Each text is separated by "|||ITEM|||". Return ONLY the translations in the exact same order, each separated by "|||ITEM|||". Do not add any commentary, explanations, or extra text. Transliterate proper names instead of translating.\n\nTexts:\n${combinedText}`
+
+    const translated = await translateWithFallback({ text: prompt, targetLanguage, _batchMode: true })
+    const parts = translated.split(BATCH_SEPARATOR)
+
+    uncachedItems.forEach((item, i) => {
+      const translatedText = (parts[i] || '').trim()
+      if (translatedText) {
+        result[item.id] = translatedText
+        setCache(`${targetLanguage}:${item.text}`, translatedText)
+      }
+    })
+  } catch (err) {
+    console.warn('[invoiceArabic] Batch translation failed:', err.message)
+    // Graceful degradation: return what we have from cache
+  }
+
+  return result
+}
 
 export const enrichInvoiceArabicFields = async (invoiceData = {}) => {
   const next = JSON.parse(JSON.stringify(invoiceData || {}))
-  const translationCache = new Map()
-  const tasks = []
 
-  const queueTranslation = ({ sourceValue, targetLanguage, onResolved }) => {
-    const source = String(sourceValue || '').trim()
-    if (!source || !hasTranslatableText(source)) return
+  // Collect all fields that need translation, grouped by target language
+  const toEnQueue = [] // { id, text, targetLanguage, apply: (translated) => void }
 
-    const cacheKey = `${targetLanguage}:${source}`
-    const cached = translationCache.get(cacheKey)
-    if (cached) {
-      tasks.push(
-        cached.then((translated) => {
-          if (translated) onResolved(translated)
-        })
-      )
-      return
-    }
-
-    const pending = resolveWithin(
-      translateWithFallback({ text: source, targetLanguage }),
-      translationTimeoutMs,
-      ''
-    )
-      .then((translated) => {
-        const value = String(translated || '').trim()
-        return value || ''
-      })
-      .catch(() => '')
-
-    translationCache.set(cacheKey, pending)
-    tasks.push(
-      pending.then((translated) => {
-        if (translated) onResolved(translated)
-      })
-    )
-  }
-
-  const assignBilingualValue = (holder, primaryKey, arabicKey) => {
+  const queueBilingual = (holder, primaryKey, arabicKey) => {
     if (!holder) return
-
     const primaryValue = String(holder[primaryKey] || '').trim()
     const arabicValue = String(holder[arabicKey] || '').trim()
 
     if (primaryValue && hasArabicText(primaryValue)) {
-      if (!arabicValue) {
-        holder[arabicKey] = primaryValue
-      }
-
-      queueTranslation({
-        sourceValue: primaryValue,
+      if (!arabicValue) holder[arabicKey] = primaryValue
+      if (!hasTranslatableText(primaryValue)) return
+      toEnQueue.push({
+        id: `${primaryKey}_${toEnQueue.length}`,
+        text: primaryValue,
         targetLanguage: 'en',
-        onResolved: (translated) => {
-          if (translated && (!holder[primaryKey] || hasArabicText(holder[primaryKey]))) {
-            holder[primaryKey] = translated
-          }
-        },
+        apply: (t) => {
+          if (t && (!holder[primaryKey] || hasArabicText(holder[primaryKey]))) holder[primaryKey] = t
+        }
       })
-      return
-    }
-
-    if (primaryValue && !arabicValue) {
-      queueTranslation({
-        sourceValue: primaryValue,
+    } else if (primaryValue && !arabicValue) {
+      if (!hasTranslatableText(primaryValue)) return
+      toEnQueue.push({
+        id: `${primaryKey}_ar_${toEnQueue.length}`,
+        text: primaryValue,
         targetLanguage: 'ar',
-        onResolved: (translated) => {
-          if (translated && !holder[arabicKey]) {
-            holder[arabicKey] = translated
-          }
-        },
+        apply: (t) => { if (t && !holder[arabicKey]) holder[arabicKey] = t }
       })
-      return
-    }
-
-    if (!primaryValue && arabicValue) {
-      queueTranslation({
-        sourceValue: arabicValue,
+    } else if (!primaryValue && arabicValue) {
+      if (!hasTranslatableText(arabicValue)) return
+      toEnQueue.push({
+        id: `${primaryKey}_en_${toEnQueue.length}`,
+        text: arabicValue,
         targetLanguage: 'en',
-        onResolved: (translated) => {
-          if (translated && !holder[primaryKey]) {
-            holder[primaryKey] = translated
-          }
-        },
+        apply: (t) => { if (t && !holder[primaryKey]) holder[primaryKey] = t }
       })
     }
   }
 
-  assignBilingualValue(next?.buyer, 'name', 'nameAr')
-  assignBilingualValue(next?.seller, 'name', 'nameAr')
+  // Queue all fields
+  queueBilingual(next?.buyer, 'name', 'nameAr')
+  queueBilingual(next?.seller, 'name', 'nameAr')
 
   for (const lineItem of Array.isArray(next?.lineItems) ? next.lineItems : []) {
-    assignBilingualValue(lineItem, 'productName', 'productNameAr')
-    assignBilingualValue(lineItem, 'description', 'descriptionAr')
+    queueBilingual(lineItem, 'productName', 'productNameAr')
+    queueBilingual(lineItem, 'description', 'descriptionAr')
   }
 
   if (next?.travelDetails) {
-    assignBilingualValue(next.travelDetails, 'travelerName', 'travelerNameAr')
-    assignBilingualValue(next.travelDetails, 'airlineName', 'airlineNameAr')
-    assignBilingualValue(next.travelDetails, 'routeFrom', 'routeFromAr')
-    assignBilingualValue(next.travelDetails, 'routeTo', 'routeToAr')
-    assignBilingualValue(next.travelDetails, 'layoverStay', 'layoverStayAr')
+    queueBilingual(next.travelDetails, 'travelerName', 'travelerNameAr')
+    queueBilingual(next.travelDetails, 'airlineName', 'airlineNameAr')
+    queueBilingual(next.travelDetails, 'routeFrom', 'routeFromAr')
+    queueBilingual(next.travelDetails, 'routeTo', 'routeToAr')
+    queueBilingual(next.travelDetails, 'layoverStay', 'layoverStayAr')
 
     for (const segment of Array.isArray(next.travelDetails?.segments) ? next.travelDetails.segments : []) {
-      assignBilingualValue(segment, 'from', 'fromAr')
-      assignBilingualValue(segment, 'to', 'toAr')
+      queueBilingual(segment, 'from', 'fromAr')
+      queueBilingual(segment, 'to', 'toAr')
     }
-
     for (const passenger of Array.isArray(next.travelDetails?.passengers) ? next.travelDetails?.passengers : []) {
-      assignBilingualValue(passenger, 'name', 'nameAr')
+      queueBilingual(passenger, 'name', 'nameAr')
     }
   }
 
-  await resolveWithin(Promise.allSettled(tasks), enrichmentTimeoutMs, [])
+  if (toEnQueue.length === 0) return next
+
+  // Split into two batches by direction (en→ar and ar→en) — at most 2 LLM calls total
+  const toAr = toEnQueue.filter(i => i.targetLanguage === 'ar')
+  const toEn = toEnQueue.filter(i => i.targetLanguage === 'en')
+
+  const timeout = (ms) => new Promise(r => setTimeout(r, ms))
+
+  const [arResults, enResults] = await Promise.allSettled([
+    toAr.length > 0
+      ? Promise.race([batchTranslate(toAr, 'ar'), timeout(5000).then(() => ({}))])
+      : Promise.resolve({}),
+    toEn.length > 0
+      ? Promise.race([batchTranslate(toEn, 'en'), timeout(5000).then(() => ({}))])
+      : Promise.resolve({}),
+  ])
+
+  const arMap = arResults.status === 'fulfilled' ? arResults.value : {}
+  const enMap = enResults.status === 'fulfilled' ? enResults.value : {}
+
+  // Apply results back to holders
+  for (const item of toAr) {
+    if (arMap[item.id]) item.apply(arMap[item.id])
+  }
+  for (const item of toEn) {
+    if (enMap[item.id]) item.apply(enMap[item.id])
+  }
+
   return next
 }
