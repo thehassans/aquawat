@@ -212,6 +212,7 @@ const Manufacturing = lazy(() => import('./pages/manufacturing/Manufacturing'))
 const AppStore = lazy(() => import('./pages/app-store/AppStore'))
 const WhatsApp = lazy(() => import('./pages/WhatsApp'))
 const Contacts = lazy(() => import('./pages/Contacts'))
+const Calendar = lazy(() => import('./pages/Calendar'))
 const Expenses = lazy(() => import('./pages/Expenses'))
 const ExpenseForm = lazy(() => import('./pages/ExpenseForm'))
 const CustomerList = lazy(() => import('./pages/customers/CustomerList'))
@@ -578,6 +579,7 @@ function App() {
         <Route path="quotations/:id/edit" element={<QuotationEditPage />} />
         <Route path="quotations/:id" element={<QuotationView />} />
         <Route path="contacts" element={<Contacts />} />
+        <Route path="calendar" element={<Calendar />} />
         <Route path="customers" element={<CustomerList />} />
         <Route path="customers/new" element={<CustomerForm />} />
         <Route path="customers/:id" element={<CustomerForm />} />

@@ -34,6 +34,105 @@ export function App3DIcon({
     </filter>
   )
 
+  // ─── 0.0. ULTRA-PREMIUM DYNAMIC LIVE 3D CALENDAR (APPLE / MAQDER DYNAMIC DATE) ──
+  if (
+    cleanAppId === 'calendar' ||
+    last === 'calendar' ||
+    cleanIcon === 'calendar' ||
+    cleanIcon === 'calendardays' ||
+    cleanLabel.includes('calendar') ||
+    cleanLabel.includes('تقويم')
+  ) {
+    const today = new Date()
+    const todayDate = today.getDate()
+    const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+    const dayName = dayNames[today.getDay()]
+
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`cal_body_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="60%" stopColor="#F8FAFC" />
+            <stop offset="100%" stopColor="#E2E8F0" />
+          </linearGradient>
+          <linearGradient id={`cal_header_${uid}`} x1="8" y1="8" x2="56" y2="26" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FF3366" />
+            <stop offset="50%" stopColor="#E11D48" />
+            <stop offset="100%" stopColor="#BE123C" />
+          </linearGradient>
+          <linearGradient id={`cal_gold_ring_${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#CBD5E1" />
+            <stop offset="50%" stopColor="#94A3B8" />
+            <stop offset="100%" stopColor="#64748B" />
+          </linearGradient>
+          <filter id={`cal_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="5" stdDeviation="5" floodColor="#E11D48" floodOpacity="0.38" />
+          </filter>
+          <filter id={`cal_inner_shadow_${uid}`} x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#0F172A" floodOpacity="0.15" />
+          </filter>
+        </defs>
+
+        {/* 3D Base Card Shadow & Glossy Border */}
+        <rect x="7" y="9" width="50" height="49" rx="14" fill={`url(#cal_body_${uid})`} filter={`url(#cal_flt_${uid})`} />
+        <rect x="7.5" y="9.5" width="49" height="48" rx="13.5" stroke="#FFFFFF" strokeWidth="1.5" strokeOpacity="0.9" fill="none" />
+
+        {/* Subtle grid pattern inside date area */}
+        <line x1="8" y1="36" x2="56" y2="36" stroke="#F1F5F9" strokeWidth="1" />
+        <line x1="8" y1="46" x2="56" y2="46" stroke="#F1F5F9" strokeWidth="1" />
+        <line x1="24" y1="26" x2="24" y2="56" stroke="#F1F5F9" strokeWidth="1" />
+        <line x1="40" y1="26" x2="40" y2="56" stroke="#F1F5F9" strokeWidth="1" />
+
+        {/* Top Crimson Header with curved top corners */}
+        <path d="M7 23C7 15.268 13.268 9 21 9H43C50.732 9 57 15.268 57 23V25H7V23Z" fill={`url(#cal_header_${uid})`} />
+
+        {/* Top Header Gloss Specular Line */}
+        <path d="M12 11.5H52C54.5 11.5 55.5 12.5 55.5 14" stroke="#FFA4B6" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.8" />
+
+        {/* Metallic Binder Rings / Pins */}
+        <rect x="17" y="5" width="5" height="9" rx="2.5" fill={`url(#cal_gold_ring_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        <circle cx="19.5" cy="9.5" r="1" fill="#FFFFFF" />
+        <rect x="42" y="5" width="5" height="9" rx="2.5" fill={`url(#cal_gold_ring_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        <circle cx="44.5" cy="9.5" r="1" fill="#FFFFFF" />
+
+        {/* Day Name in Top Header (e.g. WED, THU, MON) */}
+        <text
+          x="32"
+          y="20.5"
+          textAnchor="middle"
+          fill="#FFFFFF"
+          fontSize="7.5"
+          fontWeight="800"
+          letterSpacing="1.2"
+          fontFamily="system-ui, -apple-system, sans-serif"
+          filter={`url(#cal_inner_shadow_${uid})`}
+        >
+          {dayName}
+        </text>
+
+        {/* Bold Glowing Big Date Number in Center */}
+        <text
+          x="32"
+          y="46"
+          textAnchor="middle"
+          fill="#0F172A"
+          fontSize={todayDate > 9 ? "22" : "24"}
+          fontWeight="900"
+          fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+          letterSpacing="-0.5"
+        >
+          {todayDate}
+        </text>
+
+        {/* Dynamic colored micro-dots for active events at bottom */}
+        <circle cx="24" cy="51.5" r="1.8" fill="#10B981" />
+        <circle cx="32" cy="51.5" r="1.8" fill="#3B82F6" />
+        <circle cx="40" cy="51.5" r="1.8" fill="#F59E0B" />
+      </svg>
+    )
+  }
+
   // ─── 0.1. LANDED COSTS / MARITIME IMPORT & DUTIES (3D NAUTICAL ANCHOR & CARGO) ──
   if (
     cleanAppId === 'landed_costs' ||

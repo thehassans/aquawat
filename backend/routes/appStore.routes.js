@@ -472,6 +472,42 @@ export const DEFAULT_APP_CATALOG = [
     ]
   },
   {
+    appId: 'email_suite',
+    nameEn: 'Email Suite & Automation',
+    nameAr: 'منظومة البريد الإلكتروني والأتمتة',
+    taglineEn: 'Unified IMAP/SMTP inbox, auto-fetch, HTML templates, and transaction notifications.',
+    taglineAr: 'صندوق بريد متكامل، جلب تلقائي للرسائل، قوالب الفواتير، وإشعارات العمليات.',
+    descriptionEn: 'Full-featured email communications engine: connect enterprise IMAP/SMTP inboxes, auto-sync incoming emails, design custom brand templates, and dispatch quotation and invoice PDF notifications automatically.',
+    descriptionAr: 'منظومة مراسلات بريدية متقدمة: ربط خوادم IMAP/SMTP، مزامنة تلقائية للبريد الوارد، وتصميم قوالب إرسال الفواتير والعروض للعملاء.',
+    category: 'automation_comm',
+    appType: 'automation_comm',
+    icon: 'mail',
+    version: '2.8.0',
+    downloadSize: '5.2 MB',
+    author: 'Maqder Connect',
+    rating: 4.92,
+    reviewsCount: 310,
+    pricingTier: 'free',
+    badge: 'Popular',
+    defaultRoute: '/app/dashboard/email',
+    featuresEn: [
+      'IMAP/SMTP Mailbox Integration & Auto-Sync',
+      'Direct Email Dispatch for Invoices & Quotes',
+      'Rich HTML Email Templates & Signature Builder',
+      'Delivery Tracking & Unread Notifications'
+    ],
+    featuresAr: [
+      'ربط صناديق البريد IMAP/SMTP ومزامنة الرسائل الواردة',
+      'إرسال الفواتير وعروض الأسعار مباشرة للعملاء عبر البريد',
+      'قوالب بريد HTML متجاوبة وتوقيع رقمي مخصص',
+      'تتبع التسليم وإشعارات الرسائل غير المقروءة'
+    ],
+    configSchema: [
+      { key: 'autoEmailInvoices', labelEn: 'Auto-email PDF copy on invoice issuance', labelAr: 'إرسال نسخة الفاتورة PDF تلقائياً عند الإصدار', type: 'boolean', defaultValue: true },
+      { key: 'syncIntervalMinutes', labelEn: 'Inbox Sync Interval (Minutes)', labelAr: 'معدل مزامنة البريد الوارد (دقائق)', type: 'number', defaultValue: 15 }
+    ]
+  },
+  {
     appId: 'ai_copilot_insights',
     nameEn: 'Maqder AI Financial & Operations Copilot',
     nameAr: 'مساعد الذكاء الاصطناعي للأعمال والعمليات',

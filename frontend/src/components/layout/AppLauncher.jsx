@@ -37,6 +37,7 @@ const APP_STYLE_MAP = {
   '/app/dashboard/customers': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
   '/app/dashboard/quotations': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
   '/app/dashboard/contacts': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
+  '/app/dashboard/calendar': { gradient: 'from-[#E11D48] to-[#FB7185]' },
   '/app/dashboard/crm': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
   '/app/dashboard/leads': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
 
@@ -118,7 +119,10 @@ export default function AppLauncher() {
   const { t } = useTranslation(language)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
+  const hasEmailAddon =
+    tenant?.subscription?.hasEmailAddon === true ||
+    (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation')) ||
+    (tenant?.settings?.installedApps?.email_suite?.isInstalled && tenant?.settings?.installedApps?.email_suite?.isEnabled)
 
   const notificationsQuery = useQuery({
     queryKey: ['header-email-notifications'],

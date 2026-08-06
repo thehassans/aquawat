@@ -137,6 +137,7 @@ import furnitureRoutes from './routes/furniture.routes.js';
 import branchRoutes from './routes/branch.routes.js';
 import appStoreRoutes from './routes/appStore.routes.js';
 import manufacturingRoutes from './routes/manufacturing.routes.js';
+import calendarRoutes from './routes/calendar.routes.js';
 
 import { checkIqamaExpiry } from './jobs/iqamaChecker.js';
 import { processScheduledReports } from './jobs/reportScheduleJob.js';
@@ -556,6 +557,7 @@ app.use('/api/desktop/sync', ensureDatabaseReady, desktopSyncRoutes);
 app.use('/api/customers', ensureDatabaseReady, customerRoutes);
 app.use('/api/communicate', ensureDatabaseReady, communicateRoutes);
 app.use('/api/contacts', ensureDatabaseReady, contactsRoutes);
+app.use('/api/calendar', ensureDatabaseReady, calendarRoutes);
 app.use('/api/expenses', ensureDatabaseReady, expenseRoutes);
 app.use('/api/expense-claims', ensureDatabaseReady, expenseClaimRoutes);
 app.use('/api/users', ensureDatabaseReady, usersRoutes);
