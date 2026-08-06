@@ -10,24 +10,77 @@ import './index.css'
 import { registerSW } from 'virtual:pwa-register'
 import { ErrorBoundary } from './lib/errorBoundary'
 
-// Recover from stale PWA chunks after a new deploy: if a lazy chunk fails to
-// load (old index.html referencing purged hashed files), reload once to fetch
-// the fresh build instead of showing a white screen.
-window.addEventListener('vite:preloadError', () => {
-  const KEY = 'vite-preload-reloaded'
-  if (!sessionStorage.getItem(KEY)) {
-    sessionStorage.setItem(KEY, '1')
-    window.location.reload()
+// ─── Self-Healing Deploy & Chunk Load Auto-Recovery ────────────────────────────
+// When a new build is deployed on the server, old hashed JS chunks are deleted.
+// If a user's browser attempts to fetch a purged chunk, automatically purge
+// the stale service worker and CacheStorage, then perform a clean hard reload
+// so the user never gets stuck in an infinite loading loop.
+
+export const purgeStaleCachesAndReload = async () => {
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((k) => caches.delete(k)))
+    }
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(registrations.map((r) => r.unregister()))
+    }
+  } catch (err) {
+    console.warn('[PWA] Cache purge warning:', err)
+  }
+  const target = new URL(window.location.href)
+  target.searchParams.set('_v', Date.now().toString())
+  window.location.replace(target.toString())
+}
+
+const isChunkLoadError = (err) => {
+  const msg = String(err?.message || err?.reason || err || '').toLowerCase()
+  return (
+    msg.includes('failed to fetch dynamically imported module') ||
+    msg.includes('importing a module script failed') ||
+    msg.includes('loading chunk') ||
+    msg.includes('unexpected token <') ||
+    msg.includes('error loading dynamically imported module')
+  )
+}
+
+window.addEventListener('vite:preloadError', (event) => {
+  event?.preventDefault?.()
+  const KEY = 'vite-preload-reloaded-ts'
+  const lastReload = Number(sessionStorage.getItem(KEY) || 0)
+  if (Date.now() - lastReload > 8000) {
+    sessionStorage.setItem(KEY, Date.now().toString())
+    purgeStaleCachesAndReload()
+  }
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  if (isChunkLoadError(event.reason)) {
+    event?.preventDefault?.()
+    const KEY = 'chunk-load-retry-ts'
+    const lastReload = Number(sessionStorage.getItem(KEY) || 0)
+    if (Date.now() - lastReload > 8000) {
+      sessionStorage.setItem(KEY, Date.now().toString())
+      purgeStaleCachesAndReload()
+    }
   }
 })
 
 const updateSW = registerSW({
+  immediate: true,
   onNeedRefresh() {
-    console.log('New content available, activating and reloading...')
+    console.log('[PWA] New version detected, updating service worker...')
     updateSW(true)
   },
-  onOfflineReady() {
-    console.log('App is ready for offline usage.')
+  onRegisteredSW(swUrl, registration) {
+    if (registration) {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          registration.update().catch(() => {})
+        }
+      })
+    }
   },
 })
 
@@ -44,8 +97,8 @@ const queryClient = new QueryClient({
   },
 })
 
-const isDesktop = import.meta.env.VITE_IS_DESKTOP === 'true';
-const Router = isDesktop ? HashRouter : BrowserRouter;
+const isDesktop = import.meta.env.VITE_IS_DESKTOP === 'true'
+const Router = isDesktop ? HashRouter : BrowserRouter
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

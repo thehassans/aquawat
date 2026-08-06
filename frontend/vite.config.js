@@ -16,28 +16,43 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         devOptions: {
-          enabled: true,
-          type: 'module'
+          enabled: false,
+          type: 'module',
         },
         workbox: {
+          skipWaiting: true,
+          clientsClaim: true,
+          cleanupOutdatedCaches: true,
           maximumFileSizeToCacheInBytes: 4_000_000, // 4 MB
           navigateFallback: '/index.html',
-          // Pre-cache HTML, CSS, icons, fonts — JS chunks handled by StaleWhileRevalidate
-          globPatterns: ['**/*.{html,css,ico,svg,png,woff,woff2}'],
+          navigateFallbackDenylist: [/^\/api/, /^\/uploads/, /^\/assets/],
+          // Pre-cache static assets but NOT index.html (so new deploys take effect immediately)
+          globPatterns: ['**/*.{css,ico,svg,png,woff,woff2}'],
           runtimeCaching: [
             {
-              // Never cache API routes — let Redux / IDB handle offline sync
+              // Never cache API routes
               urlPattern: ({ url }) => url.pathname.startsWith('/api'),
               handler: 'NetworkOnly',
             },
             {
-              // Hashed JS chunks — stale-while-revalidate so the app stays fast
-              urlPattern: /\.js$/i,
-              handler: 'StaleWhileRevalidate',
+              // Navigation requests (HTML): NetworkFirst with 2s timeout so updates load immediately
+              urlPattern: ({ request }) => request.mode === 'navigate',
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'html-cache',
+                networkTimeoutSeconds: 2,
+                expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 },
+              },
+            },
+            {
+              // Hashed JS chunks — NetworkFirst to guarantee fresh code on deploy
+              urlPattern: /\/assets\/.*\.js$/i,
+              handler: 'NetworkFirst',
               options: {
                 cacheName: 'js-chunks-cache',
-                expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
-                cacheableResponse: { statuses: [0, 200] },
+                networkTimeoutSeconds: 3,
+                expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 3 },
+                cacheableResponse: { statuses: [200] },
               },
             },
             {

@@ -1,5 +1,34 @@
 import { Component } from 'react'
 
+const isChunkLoadError = (error) => {
+  const msg = String(error?.message || error || '').toLowerCase()
+  return (
+    msg.includes('failed to fetch dynamically imported module') ||
+    msg.includes('importing a module script failed') ||
+    msg.includes('loading chunk') ||
+    msg.includes('unexpected token <') ||
+    msg.includes('error loading dynamically imported module')
+  )
+}
+
+const purgeAndReload = async () => {
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((k) => caches.delete(k)))
+    }
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(regs.map((r) => r.unregister()))
+    }
+  } catch (err) {
+    console.warn('[ErrorBoundary] Cache purge warning:', err)
+  }
+  const target = new URL(window.location.href)
+  target.searchParams.set('_v', Date.now().toString())
+  window.location.replace(target.toString())
+}
+
 export class ErrorBoundary extends Component {
   constructor(props) {
     super(props)
@@ -7,15 +36,12 @@ export class ErrorBoundary extends Component {
   }
 
   static getDerivedStateFromError(error) {
-    // Handle Vite/Webpack dynamic import failures (usually due to a new deployment removing old chunks)
-    if (
-      error?.message?.includes('Failed to fetch dynamically imported module') ||
-      error?.message?.includes('Importing a module script failed')
-    ) {
-      if (!sessionStorage.getItem('chunk-load-retry')) {
-        sessionStorage.setItem('chunk-load-retry', '1');
-        window.location.reload();
-        return { hasError: false, error: null };
+    if (isChunkLoadError(error)) {
+      const lastRetry = Number(sessionStorage.getItem('chunk-error-retry-ts') || 0)
+      if (Date.now() - lastRetry > 8000) {
+        sessionStorage.setItem('chunk-error-retry-ts', Date.now().toString())
+        purgeAndReload()
+        return { hasError: false, error: null }
       }
     }
     return { hasError: true, error }
@@ -23,7 +49,6 @@ export class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo)
-    // Report to error tracking if configured
     if (window.__ERROR_TRACKING_ENABLED__ && window.__captureError__) {
       window.__captureError__(error, { componentStack: errorInfo.componentStack })
     }
@@ -41,17 +66,17 @@ export class ErrorBoundary extends Component {
           <div className="text-center">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Something went wrong</h3>
             <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-              {this.props.fallbackMessage || 'An unexpected error occurred in this section. The rest of the application is unaffected.'}
+              {this.props.fallbackMessage || 'An unexpected error occurred. The application may have updated in the background.'}
             </p>
           </div>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => purgeAndReload()}
             className="btn btn-primary inline-flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Reload Page
+            Refresh Application
           </button>
           {process.env.NODE_ENV === 'development' && this.state.error && (
             <pre className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 p-4 rounded-xl max-w-full overflow-auto">
