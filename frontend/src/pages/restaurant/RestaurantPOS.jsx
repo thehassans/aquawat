@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSelector } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Search, Coffee, Truck, UtensilsCrossed, Gift, Receipt, Sparkles, Printer } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Search, Coffee, Truck, UtensilsCrossed, Gift, Receipt, Sparkles, Printer, X, Check, Users, Phone, User, MapPin, Grid, ChevronRight } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import api, { getImageUrl } from '../../lib/api'
 import { toast } from 'react-hot-toast'
@@ -32,8 +32,12 @@ export default function RestaurantPOS() {
   const [cart, setCart] = useState([])
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
+  const [deliveryAddress, setDeliveryAddress] = useState('')
   const [orderType, setOrderType] = useState('dine_in') // dine_in, takeaway, delivery
   const [selectedTable, setSelectedTable] = useState('')
+  const [showTableModal, setShowTableModal] = useState(false)
+  const [tableModalFilter, setTableModalFilter] = useState('all')
+  const [tableSearchQuery, setTableSearchQuery] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [applyVat, setApplyVat] = useState(false)
   
@@ -75,7 +79,7 @@ export default function RestaurantPOS() {
       setLoading(true)
       const [menuRes, tablesRes, combosRes] = await Promise.all([
         api.get('/restaurant/menu-items?limit=200'),
-        api.get('/restaurant/tables?status=available'),
+        api.get('/restaurant/tables?isActive=true'),
         tenant?.subscription?.hasCombosAddon ? api.get('/restaurant/combos?isActive=true') : Promise.resolve({ data: { combos: [] } })
       ])
       const loadedMenuItems = menuRes.data.items || []
@@ -91,6 +95,7 @@ export default function RestaurantPOS() {
             setEditingOrder(order)
             setCustomerName(order.customerName || '')
             setCustomerPhone(order.customerPhone || '')
+            setDeliveryAddress(order.deliveryAddress || '')
             setOrderType(order.orderType || 'dine_in')
             if (order.tableId) setSelectedTable(order.tableId)
             if (order.paymentMethod) setPaymentMethod(order.paymentMethod)
@@ -219,6 +224,7 @@ export default function RestaurantPOS() {
     setCart([])
     setCustomerName('')
     setCustomerPhone('')
+    setDeliveryAddress('')
     setSelectedTable('')
   }
 
@@ -246,6 +252,7 @@ export default function RestaurantPOS() {
         orderType,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
+        deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
         paymentMethod: targetStatus === 'paid' ? paymentMethod : undefined,
         lineItems: cart.map(item => ({
           menuItemId: item.menuItem._id,
@@ -310,6 +317,7 @@ export default function RestaurantPOS() {
         orderType,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
+        deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
         lineItems: cart.map(item => ({
           menuItemId: item.menuItem._id,
           name: item.nameEn,
@@ -367,6 +375,7 @@ export default function RestaurantPOS() {
         orderType,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
+        deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
         paymentMethod: 'card',
         lineItems: cart.map(item => ({
           menuItemId: item.menuItem._id,
@@ -628,40 +637,142 @@ export default function RestaurantPOS() {
         </div>
 
         {/* Customer & Table Inputs */}
-        <div className="px-4 sm:px-5 py-4 flex-shrink-0 z-10 space-y-3">
+        <div className="px-4 sm:px-5 py-3.5 flex-shrink-0 z-10 space-y-2.5">
           {orderType === 'dine_in' && (
-            <select
-              value={selectedTable}
-              onChange={(e) => setSelectedTable(e.target.value)}
-              className="w-full bg-white dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-2xl py-3 px-4 text-sm focus:ring-2 focus:ring-amber-500 font-bold text-gray-800 dark:text-gray-200 shadow-sm appearance-none cursor-pointer"
-            >
-              <option value="">{isRtl ? 'اختر الطاولة...' : 'Select Table...'}</option>
-              {tables.map(t => (
-                <option key={t._id} value={t._id}>
-                  {isRtl ? 'طاولة' : 'Table'} {t.tableNumber} ({t.seats} {isRtl ? 'مقاعد' : 'seats'})
-                </option>
-              ))}
-            </select>
+            <div className="space-y-2">
+              {selectedTable ? (
+                (() => {
+                  const curT = tables.find(t => String(t._id) === String(selectedTable) || String(t.tableNumber) === String(selectedTable))
+                  return (
+                    <div className="bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 dark:border-amber-500/20 rounded-2xl p-2.5 flex items-center justify-between transition-all">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                          curT?.status === 'occupied' ? 'bg-rose-500 ring-2 ring-rose-500/20' :
+                          curT?.status === 'reserved' ? 'bg-blue-500 ring-2 ring-blue-500/20' :
+                          'bg-emerald-500 ring-2 ring-emerald-500/20'
+                        }`} />
+                        <div className="truncate">
+                          <span className="text-xs font-bold text-gray-900 dark:text-white">
+                            {isRtl ? 'طاولة' : 'Table'} {curT?.tableNumber || selectedTable} {curT?.name ? `(${curT.name})` : ''}
+                          </span>
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400 ms-1.5 font-medium">
+                            • {curT?.seats || 4} {isRtl ? 'مقاعد' : 'seats'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowTableModal(true)}
+                          className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-lg px-2 py-1 transition-colors"
+                        >
+                          {isRtl ? 'تغيير' : 'Change'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTable('')}
+                          className="p-1 text-gray-400 hover:text-rose-500 dark:hover:text-rose-400 rounded-lg transition-colors"
+                          title={isRtl ? 'إلغاء التحديد' : 'Clear Table'}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })()
+              ) : (
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowTableModal(true)}
+                    className="w-full bg-white dark:bg-dark-900 border border-dashed border-gray-300 dark:border-dark-600 hover:border-amber-500 dark:hover:border-amber-500/70 rounded-2xl py-2 px-3 text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center justify-between transition-all group shadow-sm"
+                  >
+                    <span className="flex items-center gap-2">
+                      <UtensilsCrossed className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
+                      {isRtl ? 'اختر طاولة للطلب المحلي' : 'Select Dine-In Table'}
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
+                      {tables.filter(t => t.status === 'available').length} {isRtl ? 'متاحة' : 'Available'}
+                    </span>
+                  </button>
+
+                  {/* Quick Table Chips */}
+                  {tables.length > 0 && (
+                    <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-0.5 pt-0.5">
+                      {tables.slice(0, 6).map(t => {
+                        const isSelected = String(selectedTable) === String(t._id)
+                        const isAvail = t.status === 'available'
+                        return (
+                          <button
+                            key={t._id}
+                            type="button"
+                            onClick={() => setSelectedTable(isSelected ? '' : t._id)}
+                            className={`flex-shrink-0 px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border ${
+                              isSelected
+                                ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                                : isAvail
+                                ? 'bg-white dark:bg-dark-900 border-gray-200 dark:border-dark-700 text-gray-700 dark:text-gray-300 hover:border-amber-400'
+                                : 'bg-gray-100 dark:bg-dark-800/60 border-transparent text-gray-400 opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              t.status === 'occupied' ? 'bg-rose-500' :
+                              t.status === 'reserved' ? 'bg-blue-500' : 'bg-emerald-500'
+                            }`} />
+                            <span>T{t.tableNumber}</span>
+                            <span className="text-[9px] opacity-70">({t.seats})</span>
+                          </button>
+                        )
+                      })}
+                      {tables.length > 6 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowTableModal(true)}
+                          className="flex-shrink-0 px-2 py-1 rounded-xl text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-dark-700 transition-colors"
+                        >
+                          +{tables.length - 6}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
-          <div className="flex gap-3">
-            <input 
-              type="text" 
-              placeholder={isRtl ? 'اسم العميل (اختياري)' : 'Customer Name'} 
-              className="w-full bg-white dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-2xl py-3 px-4 text-sm focus:ring-2 focus:ring-amber-500 font-medium shadow-sm transition-shadow"
-              value={customerName}
-              onChange={e => setCustomerName(e.target.value)}
-            />
-            {(orderType === 'delivery' || orderType === 'takeaway') && (
+          {/* Customer Name & Phone Number (Always available for Dine-In, Takeaway, Delivery) */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="relative">
               <input 
                 type="text" 
-                placeholder={isRtl ? 'رقم الهاتف' : 'Phone'} 
-                className="w-full bg-white dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-2xl py-3 px-4 text-sm focus:ring-2 focus:ring-amber-500 font-medium shadow-sm transition-shadow"
+                placeholder={isRtl ? 'اسم العميل (اختياري)' : 'Customer Name'} 
+                className="w-full bg-white dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-2xl py-2 px-3 text-xs focus:ring-2 focus:ring-amber-500 font-medium shadow-sm transition-shadow text-gray-800 dark:text-gray-200"
+                value={customerName}
+                onChange={e => setCustomerName(e.target.value)}
+              />
+            </div>
+            <div className="relative">
+              <input 
+                type="tel" 
+                placeholder={isRtl ? 'رقم الهاتف' : 'Phone Number'} 
+                className="w-full bg-white dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-2xl py-2 px-3 text-xs focus:ring-2 focus:ring-amber-500 font-medium shadow-sm transition-shadow text-gray-800 dark:text-gray-200"
                 value={customerPhone}
                 onChange={e => setCustomerPhone(e.target.value)}
               />
-            )}
+            </div>
           </div>
+
+          {orderType === 'delivery' && (
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder={isRtl ? 'عنوان التوصيل' : 'Delivery Address'} 
+                className="w-full bg-white dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-2xl py-2 px-3 text-xs focus:ring-2 focus:ring-amber-500 font-medium shadow-sm transition-shadow text-gray-800 dark:text-gray-200"
+                value={deliveryAddress}
+                onChange={e => setDeliveryAddress(e.target.value)}
+              />
+            </div>
+          )}
         </div>
 
         {/* Cart Item List */}
@@ -919,6 +1030,181 @@ export default function RestaurantPOS() {
           </div>
         </div>
       )}
+
+      {/* Ultra-Minimalistic Table Selection Modal */}
+      <AnimatePresence>
+        {showTableModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100 dark:border-dark-700"
+            >
+              <div className="p-5 border-b border-gray-100 dark:border-dark-700 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl">
+                    <UtensilsCrossed className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 dark:text-white text-base">
+                      {isRtl ? 'اختيار طاولة' : 'Select Table'}
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {isRtl ? 'حدد الطاولة لطلب المحلي' : 'Choose a table for dine-in order'}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowTableModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Filter & Search Bar */}
+              <div className="p-4 bg-gray-50/70 dark:bg-dark-900/50 border-b border-gray-100 dark:border-dark-700 space-y-3">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute top-2.5 left-3 rtl:left-auto rtl:right-3 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder={isRtl ? 'بحث برقم أو اسم الطاولة...' : 'Search table number or name...'}
+                    value={tableSearchQuery}
+                    onChange={e => setTableSearchQuery(e.target.value)}
+                    className="w-full bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl py-2 pl-9 pr-4 rtl:pl-4 rtl:pr-9 text-xs sm:text-sm focus:ring-2 focus:ring-amber-500 text-gray-800 dark:text-gray-200"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {[
+                    { id: 'all', label: isRtl ? 'الكل' : 'All', count: tables.length },
+                    { id: 'available', label: isRtl ? 'متاحة' : 'Available', count: tables.filter(t => t.status === 'available').length, color: 'text-emerald-600' },
+                    { id: 'occupied', label: isRtl ? 'مشغولة' : 'Occupied', count: tables.filter(t => t.status === 'occupied').length, color: 'text-rose-600' },
+                    { id: 'reserved', label: isRtl ? 'محجوزة' : 'Reserved', count: tables.filter(t => t.status === 'reserved').length, color: 'text-blue-600' },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setTableModalFilter(tab.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        tableModalFilter === tab.id
+                          ? 'bg-white dark:bg-dark-800 text-gray-900 dark:text-white shadow-sm border border-gray-200 dark:border-dark-700'
+                          : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span className={`text-[10px] font-semibold opacity-80 ${tab.color || ''}`}>({tab.count})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tables Grid */}
+              <div className="p-4 max-h-[340px] overflow-y-auto custom-scrollbar">
+                {tables.filter(t => {
+                  const matchesFilter = tableModalFilter === 'all' || t.status === tableModalFilter
+                  const matchesSearch = !tableSearchQuery || 
+                    t.tableNumber?.toLowerCase().includes(tableSearchQuery.toLowerCase()) || 
+                    t.name?.toLowerCase().includes(tableSearchQuery.toLowerCase())
+                  return matchesFilter && matchesSearch
+                }).length === 0 ? (
+                  <div className="text-center py-10 text-gray-400">
+                    <UtensilsCrossed className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                    <p className="text-sm font-semibold">{isRtl ? 'لا توجد طاولات مطابقة' : 'No matching tables found'}</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                    {tables
+                      .filter(t => {
+                        const matchesFilter = tableModalFilter === 'all' || t.status === tableModalFilter
+                        const matchesSearch = !tableSearchQuery || 
+                          t.tableNumber?.toLowerCase().includes(tableSearchQuery.toLowerCase()) || 
+                          t.name?.toLowerCase().includes(tableSearchQuery.toLowerCase())
+                        return matchesFilter && matchesSearch
+                      })
+                      .map(t => {
+                        const isSelected = String(selectedTable) === String(t._id)
+                        const isAvail = t.status === 'available'
+                        return (
+                          <button
+                            key={t._id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedTable(t._id)
+                              setShowTableModal(false)
+                            }}
+                            className={`p-3 rounded-2xl border text-left rtl:text-right transition-all flex flex-col justify-between h-24 relative overflow-hidden group ${
+                              isSelected
+                                ? 'border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30'
+                                : isAvail
+                                ? 'border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 hover:border-amber-400 hover:shadow-sm'
+                                : 'border-gray-200/60 dark:border-dark-700/60 bg-gray-50 dark:bg-dark-900/60 opacity-75 hover:opacity-100'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between w-full">
+                              <span className="text-sm font-black text-gray-900 dark:text-white">
+                                T{t.tableNumber}
+                              </span>
+                              <div className={`w-2.5 h-2.5 rounded-full ${
+                                t.status === 'occupied' ? 'bg-rose-500' :
+                                t.status === 'reserved' ? 'bg-blue-500' : 'bg-emerald-500'
+                              }`} />
+                            </div>
+
+                            {t.name && (
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate w-full font-medium">
+                                {t.name}
+                              </p>
+                            )}
+
+                            <div className="flex items-center justify-between w-full pt-1 border-t border-gray-100 dark:border-dark-700/50">
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1 font-semibold">
+                                <Users className="w-3 h-3" />
+                                {t.seats || 4}
+                              </span>
+                              <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                                t.status === 'occupied' ? 'text-rose-600 dark:text-rose-400' :
+                                t.status === 'reserved' ? 'text-blue-600 dark:text-blue-400' :
+                                'text-emerald-600 dark:text-emerald-400'
+                              }`}>
+                                {t.status === 'available' ? (isRtl ? 'متاحة' : 'Avail') :
+                                 t.status === 'occupied' ? (isRtl ? 'مشغولة' : 'Occ') :
+                                 (isRtl ? 'محجوزة' : 'Res')}
+                              </span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-gray-50/70 dark:bg-dark-900/50 border-t border-gray-100 dark:border-dark-700 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTable('')
+                    setShowTableModal(false)
+                  }}
+                  className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-3 py-2 rounded-xl transition-colors"
+                >
+                  {isRtl ? 'إلغاء تعيين الطاولة' : 'Clear Table'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTableModal(false)}
+                  className="btn btn-secondary text-xs px-4 py-2 rounded-xl font-bold"
+                >
+                  {isRtl ? 'إغلاق' : 'Close'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <CardPaymentModal
         open={showCardModal}
