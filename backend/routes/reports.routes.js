@@ -53,7 +53,7 @@ router.get('/schedules', checkEmailAddon, async (req, res) => {
       return res.status(400).json({ error: 'Tenant context is required' });
     }
 
-    const schedules = await ReportSchedule.find({ tenantId: req.user.tenantId }).sort({ createdAt: -1 });
+    const schedules = await ReportSchedule.find({ tenantId: req.user.tenantId }).sort({ createdAt: -1 }).lean();
     return res.json({ schedules: schedules.map(serializeReportSchedule) });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -94,7 +94,7 @@ router.put('/schedules/:id', checkEmailAddon, authorize('admin'), async (req, re
       return res.status(400).json({ error: 'Tenant context is required' });
     }
 
-    const schedule = await ReportSchedule.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+    const schedule = await ReportSchedule.findOne({ _id: req.params.id, tenantId: req.user.tenantId }).lean();
     if (!schedule) {
       return res.status(404).json({ error: 'Scheduled report not found' });
     }
@@ -340,7 +340,7 @@ async function buildVatReturnPayload({ tenantId, tenantFilterValue, startDate, e
   const periodKey = resolvePeriodKey(startDate);
 
   const [savedReturn, invoiceLines, expenseAggregation] = await Promise.all([
-    VatReturn.findOne({ tenantId, periodKey }),
+    VatReturn.findOne({ tenantId, periodKey }).lean(),
     Invoice.aggregate([
       { $match: invoiceMatch },
       { $unwind: '$lineItems' },

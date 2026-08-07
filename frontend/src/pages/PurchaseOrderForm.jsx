@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
+import { autoTranslateText } from '../lib/builtInTranslator'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
@@ -143,31 +144,27 @@ export default function PurchaseOrderForm() {
   // Auto-translate logic for Quick Add Supplier
   useEffect(() => {
     const s = supplierForm.nameEn?.trim()
-    if (!s || s.length < 3 || !showSupplierModal) return
-    const timer = setTimeout(async () => {
+    if (!s || s.length < 2 || !showSupplierModal) return
+    const timer = setTimeout(() => {
       if (supplierForm.nameAr?.trim()) return // Don't overwrite if user typed AR
-      try {
-        const { data } = await api.post('/ai/translate', { text: s, sourceLang: 'English', targetLang: 'Arabic' })
-        if (data?.translatedText) {
-          setSupplierForm((p) => ({ ...p, nameAr: data.translatedText.trim() }))
-        }
-      } catch (e) {}
-    }, 900)
+      const translated = autoTranslateText(s, 'en', 'ar')
+      if (translated) {
+        setSupplierForm((p) => ({ ...p, nameAr: translated }))
+      }
+    }, 120)
     return () => clearTimeout(timer)
   }, [supplierForm.nameEn, showSupplierModal])
 
   useEffect(() => {
     const s = supplierForm.nameAr?.trim()
-    if (!s || s.length < 3 || !showSupplierModal) return
-    const timer = setTimeout(async () => {
+    if (!s || s.length < 2 || !showSupplierModal) return
+    const timer = setTimeout(() => {
       if (supplierForm.nameEn?.trim()) return // Don't overwrite if user typed EN
-      try {
-        const { data } = await api.post('/ai/translate', { text: s, sourceLang: 'Arabic', targetLang: 'English' })
-        if (data?.translatedText) {
-          setSupplierForm((p) => ({ ...p, nameEn: data.translatedText.trim() }))
-        }
-      } catch (e) {}
-    }, 900)
+      const translated = autoTranslateText(s, 'ar', 'en')
+      if (translated) {
+        setSupplierForm((p) => ({ ...p, nameEn: translated }))
+      }
+    }, 120)
     return () => clearTimeout(timer)
   }, [supplierForm.nameAr, showSupplierModal])
 

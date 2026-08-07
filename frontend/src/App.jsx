@@ -6,6 +6,7 @@ import { setLanguage, setTheme, setDisplayMode, loadThemeForTenant, loadHiddenMe
 import { applyTenantBranding } from './lib/branding'
 import { getTenantBusinessTypes } from './lib/businessTypes'
 import { ErrorBoundary } from './lib/errorBoundary'
+import { initSocket, disconnectSocket } from './lib/socket'
 
 // Lazy-load all layouts for code-splitting
 const MainLayout = lazy(() => import('./layouts/MainLayout'))
@@ -367,8 +368,16 @@ function App() {
   useEffect(() => {
     if (token) {
       dispatch(getMe())
+      initSocket(token)
+    } else {
+      disconnectSocket()
     }
   }, [dispatch, token])
+
+  // Cleanup socket on unmount
+  useEffect(() => {
+    return () => disconnectSocket();
+  }, [])
 
   // Re-fetch fresh tenant data on window focus / tab visibility change (throttled)
   // so any changes made in Super Admin are immediately reflected in Admin Panel

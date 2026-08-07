@@ -8,14 +8,14 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { autoTranslateText } from '../../lib/builtInTranslator'
 import { useTranslation } from '../../lib/translations'
 
 const tCache = new Map()
-function useAutoTranslate({ source, sourceLang, targetLang, enabled = true, debounceMs = 800, minLength = 3 }) {
+function useAutoTranslate({ source, sourceLang, targetLang, enabled = true, debounceMs = 120, minLength = 2 }) {
   const [translated, setTranslated] = useState('')
   const [isTranslating, setIsTranslating] = useState(false)
   const timerRef = useRef(null)
-  const seqRef = useRef(0)
   useEffect(() => {
     if (!enabled) return
     const s = String(source || '').trim()
@@ -24,19 +24,15 @@ function useAutoTranslate({ source, sourceLang, targetLang, enabled = true, debo
     const key = `${sourceLang}:${targetLang}:${s}`
     const cached = tCache.get(key)
     if (cached) { setTranslated(cached); return }
-    timerRef.current = setTimeout(async () => {
-      const n = ++seqRef.current
+    timerRef.current = setTimeout(() => {
       try {
         setIsTranslating(true)
-        const { data } = await api.post('/ai/translate', {
-          text: s,
-          sourceLang: sourceLang === 'ar' ? 'Arabic' : 'English',
-          targetLang: targetLang === 'ar' ? 'Arabic' : 'English',
-        })
-        const t = String(data?.translatedText || '').trim()
-        if (!t || seqRef.current !== n) return
-        tCache.set(key, t); setTranslated(t)
-      } catch (_) { } finally { if (seqRef.current === n) setIsTranslating(false) }
+        const t = autoTranslateText(s, sourceLang, targetLang)
+        if (t) {
+          tCache.set(key, t)
+          setTranslated(t)
+        }
+      } catch (_) { } finally { setIsTranslating(false) }
     }, debounceMs)
     return () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null } }
   }, [source, sourceLang, targetLang, enabled, debounceMs, minLength])

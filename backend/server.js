@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
 import fs from 'fs';
@@ -12,6 +13,8 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+import { initSocket } from './lib/socket.js';
 
 import authRoutes from './routes/auth.routes.js';
 import tenantRoutes from './routes/tenant.routes.js';
@@ -151,6 +154,8 @@ import { runZatcaMonitoring, runCertExpiryCheck } from './jobs/zatcaMonitoringJo
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import requestTimeout from './middleware/requestTimeout.js';
 import responseTime from './middleware/responseTime.js';
+import { etag } from './middleware/httpCache.js';
+import { getRedisClient, isRedisReady } from './lib/redis.js';
 import logger from './utils/logger.js';
 import User from './models/User.js';
 import Tenant from './models/Tenant.js';
@@ -160,6 +165,17 @@ import { seedAlliedPowerTenant } from './scripts/seedAlliedPowerTenant.js';
 dotenv.config();
 
 mongoose.set('bufferCommands', false);
+
+// Global Mongoose query timeout — prevents runaway queries from blocking workers
+mongoose.set('debug', false);
+// Apply a 25-second timeout to all queries automatically
+mongoose.plugin((schema) => {
+  schema.pre(['find', 'findOne', 'findOneAndUpdate', 'count', 'countDocuments', 'aggregate'], function () {
+    if (!this._mongooseOptions?.timeout) {
+      this.maxTimeMS(25000);
+    }
+  });
+});
 
 const app = express();
 const parsedApiRateLimitMax = Number(process.env.API_RATE_LIMIT_MAX || 10000);
@@ -187,6 +203,13 @@ let reconnectTimer = null;
 let jobsStarted = false;
 let databaseConnectionPromise = null;
 
+// Cron worker identity — in cluster mode, only worker #1 runs crons.
+// WORKER_ID is set by cluster.js when forking. In single-process mode (node server.js) it is undefined.
+const WORKER_ID = Number(process.env.WORKER_ID || 1);
+const IS_CRON_WORKER = process.env.CRON_WORKER === '1' ||
+  process.env.NODE_ENV === 'development' ||
+  WORKER_ID === 1;
+
 const seedSuperAdmin = async () => {
   try {
     const existingAdmin = await User.findOne({ role: 'super_admin' });
@@ -211,6 +234,13 @@ const seedSuperAdmin = async () => {
 
 const startJobs = () => {
   if (jobsStarted) {
+    return;
+  }
+
+  // Only the designated cron worker (worker #1) runs background jobs.
+  // This prevents duplicate emails, double ZATCA submissions, etc. in cluster mode.
+  if (!IS_CRON_WORKER) {
+    logger.info(`[server] Worker ${WORKER_ID} — skipping cron jobs (not cron worker)`);
     return;
   }
 
@@ -459,12 +489,25 @@ const getClientIp = (req) => {
     '127.0.0.1';
 };
 
+// ── Redis-backed shared rate-limit store (works across all cluster workers) ───
+// Falls back to in-memory if Redis is not available.
+const makeRateLimitStore = (prefix) => {
+  if (isRedisReady()) {
+    return new RedisStore({
+      prefix: `rl:${prefix}:`,
+      sendCommand: (...args) => getRedisClient().call(...args),
+    });
+  }
+  return undefined; // express-rate-limit uses in-memory by default
+};
+
 // 1. Auth endpoints — 120 req / 15 min
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.AUTH_RATE_LIMIT_MAX || 120),
   standardHeaders: true,
   legacyHeaders: false,
+  store: makeRateLimitStore('auth'),
   keyGenerator: (req) => getClientIp(req),
   message: { error: 'Too many auth requests. Please wait and try again.' },
 });
@@ -475,6 +518,7 @@ const publicLimiter = rateLimit({
   max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 5000),
   standardHeaders: true,
   legacyHeaders: false,
+  store: makeRateLimitStore('public'),
   keyGenerator: (req) => getClientIp(req),
   message: { error: 'Too many requests. Please try again later.' },
 });
@@ -487,6 +531,7 @@ const limiter = rateLimit({
   max: apiRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
+  store: makeRateLimitStore('api'),
   keyGenerator: (req) => {
     try {
       const auth = req.headers?.authorization || ''
@@ -511,6 +556,7 @@ const limiter = rateLimit({
 app.use('/api/auth/', authLimiter);
 app.use('/api/public/', publicLimiter);
 app.use('/api/', limiter);
+app.use('/api/', etag());
 
 // ─── Request timeout (30 s hard cap on all API routes) ────────────────────────
 const apiTimeoutMs = Number(process.env.API_REQUEST_TIMEOUT_MS || 30_000);
@@ -783,6 +829,9 @@ const PORT = process.env.PORT || 5000;
 const httpServer = app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
 });
+
+// Initialize Socket.io using the HTTP server
+initSocket(httpServer);
 
 // ─── Keep-alive tuning ───────────────────────────────────────────────────────
 // Prevents Nginx upstream connection resets under load.

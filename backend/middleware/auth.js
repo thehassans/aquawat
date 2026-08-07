@@ -2,14 +2,19 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
 import { getTenantBusinessTypes } from '../utils/businessTypes.js';
+import { cacheGet, cacheSet, cacheDel, isRedisReady } from '../lib/redis.js';
 
-// In-memory cache for ultra-fast auth checks (eliminates 2 DB queries per request)
-const USER_CACHE_TTL_MS = 30 * 1000; // 30s TTL
-const TENANT_CACHE_TTL_MS = 60 * 1000; // 60s TTL
+// ─── L1: In-process memory cache (microsecond hits, private per worker) ────────
+const USER_CACHE_TTL_MS = 30 * 1000;   // 30s
+const TENANT_CACHE_TTL_MS = 60 * 1000; // 60s
 const userCache = new Map();
 const tenantCache = new Map();
 
-// Periodic cleanup to avoid memory leaks
+// ─── L2: Redis shared cache (cross-worker, surviving worker restarts) ──────────
+const USER_REDIS_TTL_S = 60;   // 60 seconds
+const TENANT_REDIS_TTL_S = 120; // 2 minutes
+
+// Periodic L1 cleanup to avoid memory leaks
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of userCache.entries()) {
@@ -20,9 +25,15 @@ setInterval(() => {
   }
 }, 60 * 1000).unref();
 
-export const invalidateAuthCache = (userId, tenantId) => {
-  if (userId) userCache.delete(String(userId));
-  if (tenantId) tenantCache.delete(String(tenantId));
+export const invalidateAuthCache = async (userId, tenantId) => {
+  if (userId) {
+    userCache.delete(String(userId));
+    await cacheDel(`user:${userId}`);
+  }
+  if (tenantId) {
+    tenantCache.delete(String(tenantId));
+    await cacheDel(`tenant:${tenantId}`);
+  }
 };
 
 export const tenantHasEmailAddon = (tenant) => {
@@ -47,15 +58,24 @@ export const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = String(decoded.id);
 
-    // 1. Resolve User from Cache or DB
+    // 1. Resolve User — L1 in-process → L2 Redis → MongoDB
     let user;
     const cachedUser = userCache.get(userId);
     if (cachedUser && (Date.now() - cachedUser.timestamp < USER_CACHE_TTL_MS)) {
       user = cachedUser.user;
     } else {
-      user = await User.findById(decoded.id).select('-password');
-      if (user) {
+      // Try Redis L2 (shared across workers)
+      const redisUser = await cacheGet(`user:${userId}`);
+      if (redisUser) {
+        user = redisUser;
         userCache.set(userId, { user, timestamp: Date.now() });
+      } else {
+        // Fetch from MongoDB
+        user = await User.findById(decoded.id).select('-password').lean();
+        if (user) {
+          userCache.set(userId, { user, timestamp: Date.now() });
+          await cacheSet(`user:${userId}`, user, USER_REDIS_TTL_S);
+        }
       }
     }
 
@@ -65,10 +85,11 @@ export const protect = async (req, res, next) => {
 
     if (!user.isActive) {
       userCache.delete(userId);
+      await cacheDel(`user:${userId}`);
       return res.status(401).json({ error: 'User account is deactivated' });
     }
 
-    // 2. Resolve Tenant from Cache or DB (for non-super admins)
+    // 2. Resolve Tenant — L1 → L2 → MongoDB (for non-super admins)
     if (user.role !== 'super_admin' && user.tenantId) {
       const tenantId = String(user.tenantId);
       let tenant;
@@ -76,9 +97,18 @@ export const protect = async (req, res, next) => {
       if (cachedTenant && (Date.now() - cachedTenant.timestamp < TENANT_CACHE_TTL_MS)) {
         tenant = cachedTenant.tenant;
       } else {
-        tenant = await Tenant.findById(user.tenantId).lean();
-        if (tenant) {
+        // Try Redis L2
+        const redisTenant = await cacheGet(`tenant:${tenantId}`);
+        if (redisTenant) {
+          tenant = redisTenant;
           tenantCache.set(tenantId, { tenant, timestamp: Date.now() });
+        } else {
+          // Fetch from MongoDB
+          tenant = await Tenant.findById(user.tenantId).lean();
+          if (tenant) {
+            tenantCache.set(tenantId, { tenant, timestamp: Date.now() });
+            await cacheSet(`tenant:${tenantId}`, tenant, TENANT_REDIS_TTL_S);
+          }
         }
       }
 

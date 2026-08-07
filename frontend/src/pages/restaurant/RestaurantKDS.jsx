@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
+import { getSocket } from '../../lib/socket'
 import {
   Loader2, Flame, CheckCircle, Clock, AlertTriangle,
   UtensilsCrossed, Settings, X, Plus, Trash2,
@@ -237,9 +238,28 @@ export default function RestaurantKDS() {
   const { data, isLoading } = useQuery({
     queryKey: ['kds-board', selectedStation],
     queryFn: () => api.get('/restaurant/kds/board', { params: { stationId: selectedStation || undefined } }).then(res => res.data),
-    refetchInterval: 8000,
-    refetchIntervalInBackground: false,
   })
+
+  // Listen to WebSocket for live updates instead of polling
+  useEffect(() => {
+    const socket = getSocket()
+    if (!socket) return
+
+    const handleUpdate = () => {
+      queryClient.invalidateQueries(['kds-board'])
+    }
+
+    // Must join the 'kitchen' room to get KDS updates
+    socket.emit('join_room', 'kitchen')
+    socket.on('new_order', handleUpdate)
+    socket.on('order_updated', handleUpdate)
+
+    return () => {
+      socket.off('new_order', handleUpdate)
+      socket.off('order_updated', handleUpdate)
+      socket.emit('leave_room', 'kitchen')
+    }
+  }, [queryClient])
 
   const { data: stations = [] } = useQuery({
     queryKey: ['kds-stations'],

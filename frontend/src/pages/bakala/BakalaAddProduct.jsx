@@ -304,16 +304,16 @@ export default function BakalaAddProduct() {
     // Only auto-translate if the other field is empty or was auto-filled before
     if (form[otherKey] && form[otherKey] !== form[lang === 'en' ? 'name' : 'nameAr']) return
 
-    translateTimerRef.current = setTimeout(async () => {
+    translateTimerRef.current = setTimeout(() => {
       setTranslatingName(true)
       const fromLang = lang === 'en' ? 'en' : 'ar'
       const toLang = lang === 'en' ? 'ar' : 'en'
-      const translated = await translate(value, fromLang, toLang)
+      const translated = translate(value, fromLang, toLang)
       if (translated) {
         update({ [otherKey]: translated })
       }
       setTranslatingName(false)
-    }, 800)
+    }, 120)
   }
 
   // Format price to 2 decimals on blur

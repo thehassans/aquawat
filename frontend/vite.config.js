@@ -81,6 +81,10 @@ export default defineConfig(({ mode }) => {
             if (id.includes('@radix-ui')) return 'radix-vendor';
             // ── IndexedDB / idb ─────────────────────────────────────────────
             if (id.includes('/idb/')) return 'idb-vendor';
+            // ── Virtual scrolling ───────────────────────────────────────────────
+            if (id.includes('react-window')) return 'ui-vendor';
+            // ── Built-in translator ─────────────────────────────────────
+            if (id.includes('builtInTranslator')) return 'translator-vendor';
           },
         },
       },

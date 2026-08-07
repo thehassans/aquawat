@@ -1,15 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useWatch } from 'react-hook-form'
-import api from './api'
+import { autoTranslateText } from './builtInTranslator'
 
 const translationCache = new Map()
-
-const normalizeLang = (lang) => {
-  const l = String(lang || '').toLowerCase()
-  if (l === 'ar') return 'Arabic'
-  if (l === 'en') return 'English'
-  return lang || 'English'
-}
 
 export const useLiveTranslation = ({
   control,
@@ -20,21 +13,19 @@ export const useLiveTranslation = ({
   sourceLang,
   targetLang,
   enabled = true,
-  debounceMs = 900,
-  minLength = 3,
+  debounceMs = 120, // Instant built-in debounce
+  minLength = 2,
   initialTargetValue = '',
 }) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const timerRef = useRef(null)
   const lastAutoSourceRef = useRef('')
-  // Seed with initialTargetValue so existing translations don't block auto-translate on changes
   const lastAutoResultRef = useRef(String(initialTargetValue || '').trim())
-  const requestSequenceRef = useRef(0)
 
   const watchedSource = useWatch({ control, name: sourceField })
   const watchedTarget = useWatch({ control, name: targetField })
-  const source = control ? watchedSource : watch(sourceField)
-  const target = control ? watchedTarget : watch(targetField)
+  const source = control ? watchedSource : (watch ? watch(sourceField) : '')
+  const target = control ? watchedTarget : (watch ? watch(targetField) : '')
   const cacheKey = useMemo(() => `${sourceLang}:${targetLang}:${String(source || '').trim()}`, [source, sourceLang, targetLang])
 
   useEffect(() => {
@@ -68,31 +59,22 @@ export const useLiveTranslation = ({
       return
     }
 
-    timerRef.current = setTimeout(async () => {
-      const nextRequest = requestSequenceRef.current + 1
-      requestSequenceRef.current = nextRequest
-
+    timerRef.current = setTimeout(() => {
       try {
         setIsTranslating(true)
-        const { data } = await api.post('/ai/translate', {
-          text: s,
-          sourceLang: normalizeLang(sourceLang),
-          targetLang: normalizeLang(targetLang),
-        })
+        // Perform instant built-in translation
+        const translated = autoTranslateText(s, sourceLang, targetLang)
 
-        const translated = String(data?.translatedText || '').trim()
-        if (!translated) return
-        if (requestSequenceRef.current !== nextRequest) return
-
-        lastAutoSourceRef.current = s
-        lastAutoResultRef.current = translated
-        translationCache.set(cacheKey, translated)
-        setValue(targetField, translated, { shouldDirty: true, shouldValidate: false, shouldTouch: false })
-      } catch (_) {
-      } finally {
-        if (requestSequenceRef.current === nextRequest) {
-          setIsTranslating(false)
+        if (translated) {
+          lastAutoSourceRef.current = s
+          lastAutoResultRef.current = translated
+          translationCache.set(cacheKey, translated)
+          setValue(targetField, translated, { shouldDirty: true, shouldValidate: false, shouldTouch: false })
         }
+      } catch (err) {
+        console.warn('[useLiveTranslation] Translation error:', err)
+      } finally {
+        setIsTranslating(false)
       }
     }, debounceMs)
 
@@ -102,7 +84,7 @@ export const useLiveTranslation = ({
         timerRef.current = null
       }
     }
-  }, [cacheKey, debounceMs, enabled, minLength, setValue, source, sourceField, target, targetField])
+  }, [cacheKey, debounceMs, enabled, minLength, setValue, source, sourceField, target, targetField, sourceLang, targetLang])
 
   return { isTranslating }
 }

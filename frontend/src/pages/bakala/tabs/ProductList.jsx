@@ -41,16 +41,16 @@ export default function ProductList() {
     const otherKey = lang === 'en' ? 'nameAr' : 'name';
     if (formData[otherKey] && formData[otherKey] !== formData[lang === 'en' ? 'name' : 'nameAr']) return;
 
-    translateTimerRef.current = setTimeout(async () => {
+    translateTimerRef.current = setTimeout(() => {
       setTranslatingName(true);
       const fromLang = lang === 'en' ? 'en' : 'ar';
       const toLang = lang === 'en' ? 'ar' : 'en';
-      const translated = await translate(value, fromLang, toLang);
+      const translated = translate(value, fromLang, toLang);
       if (translated) {
         setFormData(prev => ({ ...prev, [otherKey]: translated }));
       }
       setTranslatingName(false);
-    }, 800);
+    }, 120);
   };
 
   const fetchItems = async () => {

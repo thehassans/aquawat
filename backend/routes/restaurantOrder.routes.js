@@ -4,6 +4,7 @@ import RestaurantMenuItem from '../models/RestaurantMenuItem.js';
 import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
 import Branch from '../models/Branch.js';
+import { emitToTenant } from '../lib/socket.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { sendRestaurantWhatsApp, sendRestaurantOpenNotification } from '../services/restaurantWhatsAppService.js';
@@ -389,6 +390,9 @@ router.put('/:id/kitchen-status', checkPermission('restaurant', 'update'), async
 
     if (!updated) return res.status(404).json({ error: 'Order not found' });
 
+    // Emit live update to kitchen & POS clients
+    emitToTenant(req.user.tenantId, 'order_updated', updated);
+
     // Auto WhatsApp on kitchen status change
     try {
       const tenant = await Tenant.findById(req.user.tenantId).select('settings.restaurant.whatsapp');
@@ -467,6 +471,9 @@ router.post('/', checkTrialLimits('restaurantOrders'), checkPermission('restaura
       createdBy: req.user._id,
     });
 
+    // Emit live update to kitchen & POS clients
+    emitToTenant(req.user.tenantId, 'new_order', order);
+
     if (order.status === 'paid') {
       await createInvoiceForOrder(order, req);
     }
@@ -530,6 +537,9 @@ router.put('/:id', checkPermission('restaurant', 'update'), async (req, res) => 
     if (updated.status === 'paid' && !updated.invoiceId) {
       await createInvoiceForOrder(updated, req);
     }
+
+    // Emit live update
+    emitToTenant(req.user.tenantId, 'order_updated', updated);
 
     res.json(updated);
   } catch (error) {

@@ -224,7 +224,7 @@ export default function RestaurantMenuItems() {
                             </div>
                           ) : it.imageUrl ? (
                             <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-gray-100">
-                              <img src={getImageUrl(it.imageUrl)} alt={it.nameEn} className="w-full h-full object-cover" />
+                              <img src={getImageUrl(it.imageUrl)} alt={it.nameEn} loading="lazy" className="w-full h-full object-cover" />
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <Camera className="w-4 h-4 text-white" />
                               </div>

@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { Building2, Mail, Phone, Globe, MapPin, Printer } from 'lucide-react';
 import debounce from 'lodash.debounce';
 import api from '../lib/api';
+import { autoTranslateText } from '../lib/builtInTranslator';
 
 export default function Letterhead() {
   const { tenant } = useSelector((state) => state.auth);
@@ -24,22 +25,16 @@ export default function Letterhead() {
   const [senderTitleEn, setSenderTitleEn] = useState('');
   const [senderTitleAr, setSenderTitleAr] = useState('');
 
-  const translateText = async (text, targetLanguage) => {
+  const translateText = (text, targetLanguage) => {
     if (!text.trim()) return '';
-    try {
-      const res = await api.post('/ai/translate', { text, targetLanguage });
-      return res.data.translatedText;
-    } catch (e) {
-      console.error('Translation error', e);
-      return '';
-    }
+    return autoTranslateText(text, targetLanguage === 'Arabic' ? 'en' : 'ar', targetLanguage === 'Arabic' ? 'ar' : 'en');
   };
 
   const translateEnToAr = useCallback(
-    debounce(async (text, setter) => {
-      const translated = await translateText(text, 'Arabic');
+    debounce((text, setter) => {
+      const translated = translateText(text, 'Arabic');
       if (translated) setter(translated);
-    }, 1000),
+    }, 150),
     []
   );
 

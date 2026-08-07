@@ -1,28 +1,23 @@
 import { translateWithFallback } from './aiService.js'
+import { autoTranslateText } from './builtInTranslator.js'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 const hasTranslatableText = (value = '') => /[A-Za-z\u0600-\u06FF]/.test(String(value || '').trim())
 
 // ── Global translation cache (persists across calls within same process) ────────
-// Avoids re-translating the same product name in every invoice view/print
 const GLOBAL_TRANSLATION_CACHE = new Map()
-const MAX_CACHE_SIZE = 2000 // Limit memory usage
+const MAX_CACHE_SIZE = 3000
 
 const getCached = (key) => GLOBAL_TRANSLATION_CACHE.get(key)
 const setCache = (key, value) => {
   if (GLOBAL_TRANSLATION_CACHE.size >= MAX_CACHE_SIZE) {
-    // Evict the first (oldest) entry when cache is full
     const firstKey = GLOBAL_TRANSLATION_CACHE.keys().next().value
     GLOBAL_TRANSLATION_CACHE.delete(firstKey)
   }
   GLOBAL_TRANSLATION_CACHE.set(key, value)
 }
 
-// ── Batch translation engine ─────────────────────────────────────────────────────
-// Instead of firing N parallel LLM calls (one per field), we collect ALL texts
-// that need the same target language and send ONE batched prompt.
-// This drops 15-30 API calls per invoice down to at most 2 (one per direction).
-
+// ── Batch translation engine with Built-in First ──────────────────────────────
 const BATCH_SEPARATOR = '\n|||ITEM|||\n'
 
 const batchTranslate = async (items, targetLanguage) => {
@@ -31,40 +26,56 @@ const batchTranslate = async (items, targetLanguage) => {
   const uncachedItems = []
   const result = {}
 
-  // Pull what we can from cache first
+  // 1. Pull from cache OR built-in translator first
   for (const item of items) {
     const cacheKey = `${targetLanguage}:${item.text}`
     const cached = getCached(cacheKey)
     if (cached !== undefined) {
       result[item.id] = cached
-    } else {
-      uncachedItems.push(item)
+      continue
     }
+
+    // Built-in translator
+    const builtIn = autoTranslateText(item.text, targetLanguage === 'en' ? 'ar' : 'en', targetLanguage)
+    if (builtIn && builtIn !== item.text) {
+      result[item.id] = builtIn
+      setCache(cacheKey, builtIn)
+      continue
+    }
+
+    uncachedItems.push(item)
   }
 
   if (uncachedItems.length === 0) return result
 
+  // 2. Fallback to LLM only for uncached/unrecognized complex sentences
   try {
     const sourceLang = targetLanguage === 'en' ? 'Arabic' : 'English'
     const targetLangStr = targetLanguage === 'en' ? 'English' : 'Arabic'
 
-    // Send all texts in one prompt, separated by a unique delimiter
     const combinedText = uncachedItems.map(item => item.text).join(BATCH_SEPARATOR)
     const prompt = `Translate each of the following texts from ${sourceLang} to ${targetLangStr}. Each text is separated by "|||ITEM|||". Return ONLY the translations in the exact same order, each separated by "|||ITEM|||". Do not add any commentary, explanations, or extra text. Transliterate proper names instead of translating.\n\nTexts:\n${combinedText}`
 
     const translated = await translateWithFallback({ text: prompt, targetLanguage, _batchMode: true })
-    const parts = translated.split(BATCH_SEPARATOR)
+    const parts = (translated || '').split(BATCH_SEPARATOR)
 
     uncachedItems.forEach((item, i) => {
       const translatedText = (parts[i] || '').trim()
       if (translatedText) {
         result[item.id] = translatedText
         setCache(`${targetLanguage}:${item.text}`, translatedText)
+      } else {
+        // Fallback to built-in transliteration
+        const fallback = autoTranslateText(item.text, targetLanguage === 'en' ? 'ar' : 'en', targetLanguage)
+        result[item.id] = fallback || item.text
       }
     })
   } catch (err) {
-    console.warn('[invoiceArabic] Batch translation failed:', err.message)
-    // Graceful degradation: return what we have from cache
+    console.warn('[invoiceArabic] Batch translation fallback to built-in:', err.message)
+    uncachedItems.forEach(item => {
+      const fallback = autoTranslateText(item.text, targetLanguage === 'en' ? 'ar' : 'en', targetLanguage)
+      result[item.id] = fallback || item.text
+    })
   }
 
   return result
@@ -74,7 +85,7 @@ export const enrichInvoiceArabicFields = async (invoiceData = {}) => {
   const next = JSON.parse(JSON.stringify(invoiceData || {}))
 
   // Collect all fields that need translation, grouped by target language
-  const toEnQueue = [] // { id, text, targetLanguage, apply: (translated) => void }
+  const toEnQueue = []
 
   const queueBilingual = (holder, primaryKey, arabicKey) => {
     if (!holder) return
@@ -138,7 +149,7 @@ export const enrichInvoiceArabicFields = async (invoiceData = {}) => {
 
   if (toEnQueue.length === 0) return next
 
-  // Split into two batches by direction (en→ar and ar→en) — at most 2 LLM calls total
+  // Split into two batches by direction (en→ar and ar→en)
   const toAr = toEnQueue.filter(i => i.targetLanguage === 'ar')
   const toEn = toEnQueue.filter(i => i.targetLanguage === 'en')
 
@@ -146,10 +157,10 @@ export const enrichInvoiceArabicFields = async (invoiceData = {}) => {
 
   const [arResults, enResults] = await Promise.allSettled([
     toAr.length > 0
-      ? Promise.race([batchTranslate(toAr, 'ar'), timeout(5000).then(() => ({}))])
+      ? Promise.race([batchTranslate(toAr, 'ar'), timeout(3000).then(() => ({}))])
       : Promise.resolve({}),
     toEn.length > 0
-      ? Promise.race([batchTranslate(toEn, 'en'), timeout(5000).then(() => ({}))])
+      ? Promise.race([batchTranslate(toEn, 'en'), timeout(3000).then(() => ({}))])
       : Promise.resolve({}),
   ])
 
@@ -166,3 +177,5 @@ export const enrichInvoiceArabicFields = async (invoiceData = {}) => {
 
   return next
 }
+
+export default enrichInvoiceArabicFields

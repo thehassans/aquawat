@@ -1,31 +1,26 @@
 import { useState, useCallback } from 'react';
-import api from '../lib/api';
+import { autoTranslateText } from '../lib/builtInTranslator';
 
 /**
- * A hook to automatically translate text between English and Arabic.
- * Uses the backend /api/ai/translate endpoint (Gemini/Grok/Groq/OpenAI fallbacks).
+ * Built-in lightweight auto-translator hook for English <-> Arabic.
+ * Operates with 0 latency directly in browser without AI API dependency or rate limits.
  */
 export function useAutoTranslate() {
   const [isTranslating, setIsTranslating] = useState(false);
 
-  const translate = useCallback(async (text, fromLang, toLang) => {
+  const translate = useCallback((text, fromLang, toLang) => {
     if (!text || !text.trim()) return '';
 
-    setIsTranslating(true);
     try {
-      const { data } = await api.post('/ai/translate', {
-        text: text.trim(),
-        sourceLang: fromLang,
-        targetLang: toLang,
-      });
-      return String(data?.translatedText || '').trim();
+      const result = autoTranslateText(text.trim(), fromLang, toLang);
+      return result || '';
     } catch (error) {
-      console.error('Translation failed:', error);
+      console.warn('[useAutoTranslate] Translation failed:', error);
       return '';
-    } finally {
-      setIsTranslating(false);
     }
   }, []);
 
   return { translate, isTranslating };
 }
+
+export default useAutoTranslate;

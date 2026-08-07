@@ -2,7 +2,8 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { ClipboardList, RefreshCw, Receipt, CheckCircle, Clock, Printer } from 'lucide-react'
+import { getSocket } from '../../lib/socket'
+import { ClipboardList, RefreshCw, Receipt, CheckCircle, Clock, Printer, X, Filter, LayoutGrid, LayoutList, Bell, Volume2, VolumeX, Zap, Maximize, FileText, Loader2, Maximize2, Minimize2, Edit, Save, Trash2, Edit2, Play, Users } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api, { getImageUrl } from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -62,9 +63,27 @@ export default function RestaurantKitchen() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['restaurant-kitchen', statuses],
     queryFn: () => api.get('/restaurant/orders/kitchen', { params: { statuses: statuses.join(',') } }).then((res) => res.data),
-    refetchInterval: 8000,
-    refetchIntervalInBackground: false,
   })
+
+  // Listen to WebSocket for live updates instead of polling
+  useEffect(() => {
+    const socket = getSocket()
+    if (!socket) return
+
+    const handleUpdate = () => {
+      queryClient.invalidateQueries(['restaurant-kitchen'])
+    }
+
+    socket.emit('join_room', 'kitchen')
+    socket.on('new_order', handleUpdate)
+    socket.on('order_updated', handleUpdate)
+
+    return () => {
+      socket.off('new_order', handleUpdate)
+      socket.off('order_updated', handleUpdate)
+      socket.emit('leave_room', 'kitchen')
+    }
+  }, [queryClient])
 
   const orders = data?.orders || []
 

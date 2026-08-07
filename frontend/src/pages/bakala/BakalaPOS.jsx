@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { List as VirtualList } from 'react-window';
 import { useCartEngine } from '../../hooks/useCartEngine';
 import { useBakalaSync } from '../../hooks/useBakalaSync';
 import { getProductByBarcode, saveOfflineInvoice } from '../../lib/bakalaDb';
@@ -13,6 +14,70 @@ import toast from 'react-hot-toast';
 import { generateZatcaQrValue } from '../../lib/zatcaQr';
 import { getThermalPrinterSettings, getBodyWidthCss, getPageCss } from '../../lib/thermalPrinter';
 import { isAndroidPos, isAndroidDevice, detectBridge, isWebUsbSupported, isWebSerialSupported, printText as androidPrintText, openCashDrawer as androidOpenCashDrawer, openCashDrawerViaRaw, openCashDrawerViaWebUSB, openCashDrawerViaSerial, openCashDrawerViaSystemPrint, printViaSystemPrint, buildReceiptHtml } from '../../lib/androidPosPrinter';
+
+// ─── Memoized single product card — only re-renders if this specific product changes ───
+const ProductCard = React.memo(function ProductCard({ item, onAddItem, style }) {
+  return (
+    <div style={style} className="px-1">
+      <button
+        onClick={() => onAddItem(item)}
+        className="w-full h-full p-3 rounded-2xl border border-gray-100 bg-white hover:border-emerald-400 hover:shadow-md transition-all text-left active:scale-95 flex flex-col justify-between"
+      >
+        <span className="font-semibold text-gray-700 line-clamp-2 leading-snug text-sm">{item.name}</span>
+        <span className="text-sm font-bold text-emerald-600 mt-1">SAR {(item.retailPrice || 0).toFixed(2)}</span>
+      </button>
+    </div>
+  );
+}, (prev, next) => prev.item._id === next.item._id && prev.item.retailPrice === next.item.retailPrice);
+
+const COLS = 3;
+const ROW_HEIGHT = 120;
+
+// ─── Virtualized grid — only visible rows are in the DOM ───────────────────────
+function VirtualProductGrid({ items, onAddItem }) {
+  const containerRef = useRef(null);
+  const [containerHeight, setContainerHeight] = useState(400);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver(entries => {
+      setContainerHeight(entries[0].contentRect.height || 400);
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // Group flat items into rows of COLS
+  const rows = useMemo(() => {
+    const r = [];
+    for (let i = 0; i < items.length; i += COLS) {
+      r.push(items.slice(i, i + COLS));
+    }
+    return r;
+  }, [items]);
+
+  const Row = useCallback(({ index, style }) => (
+    <div style={{ ...style, display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: '8px', padding: '4px 0' }}>
+      {rows[index].map(item => (
+        <ProductCard key={item._id} item={item} onAddItem={onAddItem} />
+      ))}
+    </div>
+  ), [rows, onAddItem]);
+
+  return (
+    <div ref={containerRef} className="flex-1 min-h-0">
+      <VirtualList
+        height={containerHeight}
+        itemCount={rows.length}
+        itemSize={ROW_HEIGHT}
+        width="100%"
+        overscanCount={3}
+      >
+        {Row}
+      </VirtualList>
+    </div>
+  );
+}
 
 export default function BakalaPOS() {
   const navigate = useNavigate();
@@ -1272,29 +1337,21 @@ export default function BakalaPOS() {
           </form>
         </div>
         
-        {/* Fast Grid Menu */}
-        <div className="flex-1 px-6 pb-6 pt-2 overflow-y-auto">
+        {/* Fast Grid Menu — Virtualized for 60fps with 1000+ products */}
+        <div className="flex-1 px-6 pb-6 pt-2 overflow-hidden flex flex-col">
           {fastItems.length === 0 ? (
             <div className="text-gray-400 text-sm text-center py-10 rounded-2xl bg-white border border-gray-100">
               {searchTerm ? 'No products found matching your search.' : 'Type or scan a barcode to search for products.'}
             </div>
           ) : (
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-              {fastItems.map(item => (
-                <button 
-                  key={item._id}
-                  onClick={() => {
-                    addItem(item);
-                    setSearchTerm('');
-                    barcodeInputRef.current?.focus();
-                  }}
-                  className="p-4 rounded-2xl border border-gray-100 bg-white hover:border-emerald-400 hover:shadow-md transition-all text-left active:scale-95 flex flex-col justify-between min-h-[110px]"
-                >
-                  <span className="font-semibold text-gray-700 line-clamp-2 leading-snug">{item.name}</span>
-                  <span className="text-sm font-bold text-emerald-600 mt-2">SAR {(item.retailPrice || 0).toFixed(2)}</span>
-                </button>
-              ))}
-            </div>
+            <VirtualProductGrid
+              items={fastItems}
+              onAddItem={(item) => {
+                addItem(item);
+                setSearchTerm('');
+                barcodeInputRef.current?.focus();
+              }}
+            />
           )}
         </div>
 

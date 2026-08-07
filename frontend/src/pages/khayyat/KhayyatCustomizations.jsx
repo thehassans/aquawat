@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Edit3, Trash2, Image as ImageIcon, X, Upload, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { autoTranslateText } from '../../lib/builtInTranslator';
 import { Card } from './components/ui/Card';
 import { Modal } from './components/ui/Modal';
 
@@ -53,19 +54,17 @@ export default function KhayyatCustomizations() {
   const [removeImage, setRemoveImage] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
 
-  const handleTranslateName = async (source) => {
+  const handleTranslateName = (source) => {
     if (source === 'en' && formData.nameEn && !formData.nameAr) {
       try {
-        setIsTranslating(true);
-        const res = await api.post('/ai/translate', { text: formData.nameEn, sourceLang: 'en', targetLang: 'ar' });
-        if (res.data?.translatedText) setFormData(prev => ({ ...prev, nameAr: res.data.translatedText }));
-      } catch (err) { console.error('Translation failed:', err); } finally { setIsTranslating(false); }
+        const translated = autoTranslateText(formData.nameEn, 'en', 'ar');
+        if (translated) setFormData(prev => ({ ...prev, nameAr: translated }));
+      } catch (err) { console.error('Translation failed:', err); }
     } else if (source === 'ar' && formData.nameAr && !formData.nameEn) {
       try {
-        setIsTranslating(true);
-        const res = await api.post('/ai/translate', { text: formData.nameAr, sourceLang: 'ar', targetLang: 'en' });
-        if (res.data?.translatedText) setFormData(prev => ({ ...prev, nameEn: res.data.translatedText }));
-      } catch (err) { console.error('Translation failed:', err); } finally { setIsTranslating(false); }
+        const translated = autoTranslateText(formData.nameAr, 'ar', 'en');
+        if (translated) setFormData(prev => ({ ...prev, nameEn: translated }));
+      } catch (err) { console.error('Translation failed:', err); }
     }
   };
 

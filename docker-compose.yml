@@ -1,16 +1,57 @@
 version: '3.8'
 
 services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Redis — Shared cache & rate-limit store for all cluster workers.
+  # Eliminates per-worker in-memory rate limit counters and enables
+  # Tenant/Product response caching to cut MongoDB reads by 50-80%.
+  # ─────────────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: maqder_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+      --appendonly no
+    networks:
+      - maqder_net
+    # Do not expose 6379 outside the container network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 300M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
   mongo:
     image: mongo:7.0
     container_name: maqder_mongo
     restart: unless-stopped
-    # ── Limit WiredTiger cache to 512 MB so Mongo doesn't eat all VPS RAM ─────
-    # Default is 50% of system RAM (= ~2 GB on a 4 GB VPS) which leaves nothing
-    # for Node.js, Plesk, and the OS. 512 MB is fine for an ERP workload.
+    # ── Increased WiredTiger cache: 1.0 GB (was 0.5 GB)
+    # With 127 Mongoose models, 1 GB significantly reduces disk I/O for hot
+    # collections (Invoices, Products, Tenants, Users).
     command: >
       mongod
-      --wiredTigerCacheSizeGB 0.5
+      --wiredTigerCacheSizeGB 1.0
       --wiredTigerJournalCompressor snappy
       --quiet
     environment:
@@ -21,22 +62,18 @@ services:
     networks:
       - maqder_net
     # Do not expose 27017 outside the container network
-    # Backend connects via service name: mongo
 
-    # ── Resource limits ───────────────────────────────────────────────────────
-    # Prevent MongoDB from consuming all RAM on a shared VPS.
+    # ── Resource limits (increased to accommodate larger WiredTiger cache) ─────
     deploy:
       resources:
         limits:
           cpus: '1.0'
-          memory: 1G
+          memory: 1.5G
         reservations:
           cpus: '0.25'
-          memory: 256M
+          memory: 512M
 
-    # ── Health check ──────────────────────────────────────────────────────────
-    # Backend will only start once this passes, avoiding "MongoNotConnected"
-    # errors on fast container restarts.
+    # ── Health check ───────────────────────────────────────────────────────────
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
@@ -44,7 +81,6 @@ services:
       retries: 5
       start_period: 20s
 
-    # ── Log rotation ─────────────────────────────────────────────────────────
     logging:
       driver: json-file
       options:
@@ -61,25 +97,29 @@ services:
       - .env
     environment:
       MONGODB_URI: mongodb://mongo:27017/maqder
+      REDIS_URL: redis://redis:6379
+      REDIS_ENABLED: "true"
       NODE_ENV: production
       PORT: 3000
       # Performance env-vars (override in .env as needed)
-      MONGODB_MAX_POOL_SIZE: "20"
+      MONGODB_MAX_POOL_SIZE: "10"      # per-worker pool — 2 workers × 10 = 20 total
       MONGODB_MIN_POOL_SIZE: "2"
       API_REQUEST_TIMEOUT_MS: "30000"
       AUTH_RATE_LIMIT_MAX: "30"
       PUBLIC_RATE_LIMIT_MAX: "1000"
       CLUSTER_WORKERS: "2"
-      LOG_CONSOLE: "true"    # Forward logs to Docker log driver
+      LOG_CONSOLE: "true"              # Forward logs to Docker log driver
     depends_on:
       mongo:
-        condition: service_healthy   # Wait for Mongo healthcheck to pass
+        condition: service_healthy     # Wait for Mongo healthcheck to pass
+      redis:
+        condition: service_healthy     # Wait for Redis healthcheck to pass
     networks:
       - maqder_net
     volumes:
       - ./uploads:/app/public/uploads
 
-    # ── Resource limits ───────────────────────────────────────────────────────
+    # ── Resource limits ────────────────────────────────────────────────────────
     deploy:
       resources:
         limits:
@@ -89,7 +129,7 @@ services:
           cpus: '0.25'
           memory: 256M
 
-    # ── Health check ──────────────────────────────────────────────────────────
+    # ── Health check ───────────────────────────────────────────────────────────
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health/ready || exit 1"]
       interval: 15s
@@ -97,7 +137,6 @@ services:
       retries: 3
       start_period: 30s
 
-    # ── Log rotation ─────────────────────────────────────────────────────────
     logging:
       driver: json-file
       options:
@@ -112,7 +151,7 @@ services:
     restart: unless-stopped
     depends_on:
       backend:
-        condition: service_healthy   # Wait for backend healthcheck to pass
+        condition: service_healthy     # Wait for backend healthcheck to pass
     networks:
       - maqder_net
     ports:
@@ -120,7 +159,7 @@ services:
     # Plesk Docker proxy will forward host port 8080 to this container
     # /api is proxied internally to the backend container via upstream pool
 
-    # ── Resource limits ───────────────────────────────────────────────────────
+    # ── Resource limits ────────────────────────────────────────────────────────
     deploy:
       resources:
         limits:
@@ -130,7 +169,6 @@ services:
           cpus: '0.10'
           memory: 64M
 
-    # ── Log rotation ─────────────────────────────────────────────────────────
     logging:
       driver: json-file
       options:

@@ -23,6 +23,7 @@ import {
   Printer
 } from 'lucide-react'
 import api from '../../lib/api'
+import { autoTranslateText } from '../../lib/builtInTranslator'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import InvoiceLivePreview from '../../components/invoices/InvoiceLivePreview'
@@ -151,18 +152,13 @@ export default function FurniturePOS() {
     return { lines, subtotal, totalTax, grandTotal, discountAmount }
   })()
 
-  // ─── Auto-translate customer name between EN/AR ───
-  const autoTranslateName = async (text, fromLang) => {
+  // ─── Auto-translate customer name between EN/AR (Instant Built-in) ───
+  const autoTranslateName = (text, fromLang) => {
     if (!text || !text.trim()) return
     const toLang = fromLang === 'ar' ? 'en' : 'ar'
     const targetSetter = fromLang === 'ar' ? setCustomerName : setCustomerNameAr
     try {
-      const res = await api.post('/ai/translate', {
-        text: text.trim(),
-        sourceLang: fromLang,
-        targetLang: toLang,
-      })
-      const translated = res.data?.translatedText
+      const translated = autoTranslateText(text.trim(), fromLang, toLang)
       if (translated) targetSetter(translated)
     } catch (err) {
       console.warn('Auto-translate name failed', err)

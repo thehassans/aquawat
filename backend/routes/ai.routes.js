@@ -5,6 +5,7 @@ import Product from '../models/Product.js';
 import Invoice from '../models/Invoice.js';
 import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
 import { translateWithFallback, extractKhayyatMeasurements, extractRestaurantMenu, extractSmartInvoice } from '../utils/aiService.js';
+import { autoTranslateText } from '../utils/builtInTranslator.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -145,18 +146,38 @@ router.post('/translate', async (req, res) => {
       return res.status(400).json({ error: 'Text is too long (max 1000 chars)' });
     }
 
-    const translatedText = await translateWithFallback({
-      text: trimmed,
-      targetLanguage: targetLang
-    });
+    // 1. Built-in instant translator (0ms latency, zero API limit)
+    const builtInResult = autoTranslateText(trimmed, sourceLang, targetLang);
+    if (builtInResult && builtInResult !== trimmed) {
+      return res.json({
+        success: true,
+        translatedText: builtInResult,
+        source: 'built-in'
+      });
+    }
 
-    if (!translatedText) {
-      return res.status(502).json({ error: 'Empty translation response' });
+    // 2. Optional fallback to LLM if text is complex prose
+    try {
+      const translatedText = await translateWithFallback({
+        text: trimmed,
+        targetLanguage: targetLang
+      });
+
+      if (translatedText) {
+        return res.json({
+          success: true,
+          translatedText,
+          source: 'ai-fallback'
+        });
+      }
+    } catch (_) {
+      // Fallback failed, use built-in translation result
     }
 
     res.json({
       success: true,
-      translatedText
+      translatedText: builtInResult || trimmed,
+      source: 'built-in'
     });
   } catch (error) {
     const apiError = error.response?.data?.error?.message || error.response?.data?.error || error.message;
