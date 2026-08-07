@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
-import { getRedisClient } from './redis.js';
+import Redis from 'ioredis';
 import { createAdapter } from '@socket.io/redis-adapter';
 import logger from '../utils/logger.js';
 
@@ -14,11 +14,31 @@ export const initSocket = (server) => {
     }
   });
 
-  const redisClient = getRedisClient();
-  // If Redis is ready, use the Redis adapter so events are shared across PM2 cluster workers
-  if (redisClient) {
-    const subClient = redisClient.duplicate();
-    io.adapter(createAdapter(redisClient, subClient));
+  // Create dedicated Redis clients for Socket.io Pub/Sub
+  const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+  const REDIS_ENABLED = process.env.REDIS_ENABLED !== 'false';
+
+  if (REDIS_ENABLED) {
+    try {
+      const pubClient = new Redis(REDIS_URL, {
+        maxRetriesPerRequest: 1,
+        // For socket.io pub/sub, we must keep the offline queue enabled (default)
+        // or handle errors gracefully, otherwise socket.io crashes the server.
+        retryStrategy: (times) => {
+          if (times > 3) return null; // stop retrying
+          return Math.min(times * 500, 2000);
+        },
+      });
+      const subClient = pubClient.duplicate();
+      
+      pubClient.on('error', (err) => logger.warn(`[Socket.io Redis Pub] ${err.message}`));
+      subClient.on('error', (err) => logger.warn(`[Socket.io Redis Sub] ${err.message}`));
+
+      io.adapter(createAdapter(pubClient, subClient));
+      logger.info('Socket.io Redis adapter initialized successfully');
+    } catch (err) {
+      logger.warn(`Failed to initialize Socket.io Redis adapter: ${err.message}`);
+    }
   }
 
   // Authentication Middleware
