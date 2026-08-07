@@ -33,7 +33,10 @@ import {
   ShieldCheck,
   ChevronRight,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Utensils,
+  Car,
+  Hammer
 } from 'lucide-react'
 import { 
   BarChart,
@@ -57,7 +60,6 @@ import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
 import { App3DIcon } from '../components/ui/App3DIcon'
-import { AppWorkspaceDock } from '../components/dashboard/AppWorkspaceDock'
 import { AppVerticalView } from '../components/dashboard/AppVerticalView'
 
 const COLORS = ['rgb(var(--color-primary-500))', '#f59e0b', '#ef4444', 'rgb(var(--color-secondary-500))', '#8b5cf6', '#06b6d4', '#ec4899']
@@ -76,6 +78,10 @@ export default function Dashboard() {
 
   const businessTypes = getTenantBusinessTypes(tenant)
   const isTrading = businessTypes.includes('trading')
+  const isRestaurant = businessTypes.includes('restaurant') || businessTypes.includes('food_beverage')
+  const isCarRental = businessTypes.includes('car_rental')
+  const isTravel = businessTypes.includes('travel_agency')
+  const isConstruction = businessTypes.includes('construction')
 
   // Fetch Dashboard Aggregated Data
   const { data: dashboard, isLoading } = useQuery({
@@ -152,6 +158,39 @@ export default function Dashboard() {
     staleTime: DASHBOARD_CHART_REFRESH_MS,
     retry: false,
     enabled: isTrading
+  })
+
+  // Vertical-specific Stats
+  const { data: restaurantStats } = useQuery({
+    queryKey: ['dashboard-restaurant-stats'],
+    queryFn: () => api.get('/restaurant/orders/stats').then(res => res.data),
+    refetchInterval: DASHBOARD_REFRESH_MS,
+    retry: false,
+    enabled: isRestaurant
+  })
+
+  const { data: carRentalStats } = useQuery({
+    queryKey: ['dashboard-car-rental-stats'],
+    queryFn: () => api.get('/rental-contracts/stats').then(res => res.data),
+    refetchInterval: DASHBOARD_REFRESH_MS,
+    retry: false,
+    enabled: isCarRental
+  })
+
+  const { data: travelStats } = useQuery({
+    queryKey: ['dashboard-travel-stats'],
+    queryFn: () => api.get('/travel-bookings/stats').then(res => res.data),
+    refetchInterval: DASHBOARD_REFRESH_MS,
+    retry: false,
+    enabled: isTravel
+  })
+
+  const { data: projectStats } = useQuery({
+    queryKey: ['dashboard-project-stats'],
+    queryFn: () => api.get('/projects/stats').then(res => res.data),
+    refetchInterval: DASHBOARD_REFRESH_MS,
+    retry: false,
+    enabled: isConstruction
   })
 
   const installedApps = dashboard?.installedApps || []
@@ -252,7 +291,73 @@ export default function Dashboard() {
           },
         ]
       : []),
-  ], [dashboard, payrollPaidNet, openPoCount, inTransitShipments, overdueTasks, mrpSuggestions, isTrading, isAr, t])
+    ...(isRestaurant
+      ? [
+          {
+            label: isAr ? 'طلبات المطعم (اليوم)' : 'Restaurant Orders (Today)',
+            value: restaurantStats?.totals?.[0]?.total || 0,
+            icon: Utensils,
+            color: 'from-orange-500 to-orange-600',
+            change: isAr ? 'مفتوح' : 'Open: ' + (restaurantStats?.totals?.[0]?.open || 0),
+            positive: true
+          },
+          {
+            label: isAr ? 'مبيعات المطعم (اليوم)' : 'Restaurant Revenue',
+            value: restaurantStats?.totals?.[0]?.revenue || 0,
+            format: 'currency',
+            icon: Receipt,
+            color: 'from-amber-500 to-orange-600',
+            change: isAr ? 'صافي' : 'Net',
+            positive: true
+          },
+        ]
+      : []),
+    ...(isCarRental
+      ? [
+          {
+            label: isAr ? 'عقود التأجير النشطة' : 'Active Car Leases',
+            value: carRentalStats?.statusAgg?.find(s => s._id === 'OPEN')?.count || 0,
+            icon: Car,
+            color: 'from-blue-500 to-blue-600',
+            change: isAr ? 'متأخر: ' : 'Overdue: ' + (carRentalStats?.overdueCount || 0),
+            positive: (carRentalStats?.overdueCount || 0) === 0
+          },
+          {
+            label: isAr ? 'مبيعات التأجير (الشهر)' : 'Rental Revenue (Month)',
+            value: carRentalStats?.revenueMonth?.[0]?.total || 0,
+            format: 'currency',
+            icon: Wallet,
+            color: 'from-cyan-500 to-blue-600',
+            change: isAr ? 'إغلاق' : 'Closed',
+            positive: true
+          },
+        ]
+      : []),
+    ...(isTravel
+      ? [
+          {
+            label: isAr ? 'حجوزات السفر המفتوحة' : 'Open Travel Bookings',
+            value: travelStats?.totals?.[0]?.open || 0,
+            icon: Plane,
+            color: 'from-sky-500 to-indigo-600',
+            change: isAr ? 'مجموع' : 'Total: ' + (travelStats?.totals?.[0]?.total || 0),
+            positive: true
+          },
+        ]
+      : []),
+    ...(isConstruction
+      ? [
+          {
+            label: isAr ? 'المشاريع النشطة' : 'Active Projects',
+            value: projectStats?.totals?.[0]?.active || 0,
+            icon: Hammer,
+            color: 'from-emerald-500 to-teal-600',
+            change: isAr ? 'مجموع' : 'Total: ' + (projectStats?.totals?.[0]?.total || 0),
+            positive: true
+          },
+        ]
+      : []),
+  ], [dashboard, payrollPaidNet, openPoCount, inTransitShipments, overdueTasks, mrpSuggestions, isTrading, isRestaurant, restaurantStats, isCarRental, carRentalStats, isTravel, travelStats, isConstruction, projectStats, isAr, t])
 
   const zatcaStatusData = dashboard?.invoices?.zatcaStatus?.map(s => ({
     name: s._id || 'Pending',
@@ -476,13 +581,7 @@ export default function Dashboard() {
               </div>
             </motion.div>
 
-            {/* Installed Apps Live Command Grid */}
-            <AppWorkspaceDock 
-              installedApps={installedApps}
-              appsOverview={appsOverview}
-              language={language}
-              onSelectAppTab={(grant) => setActiveTab(grant)}
-            />
+            {/* Removed Installed Apps Live Command Grid as per user request to use unified KPIs */}
 
             {/* Master Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
