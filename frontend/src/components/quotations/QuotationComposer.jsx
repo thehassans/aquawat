@@ -15,6 +15,7 @@ import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslatio
 import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
 import InvoiceTemplateSelector from '../invoices/InvoiceTemplateSelector'
 import Select from 'react-select'
+import { useForm, useFieldArray } from 'react-hook-form'
 
 const emptyLine = {
   productId: '',
