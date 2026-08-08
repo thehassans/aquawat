@@ -1,22 +1,41 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { Plus, Search, Download, Edit, Eye, FileText, CheckCircle, XCircle } from 'lucide-react'
+import {
+  Plus,
+  Search,
+  Edit,
+  Eye,
+  FileText,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Download,
+  Printer,
+} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
-import { downloadQuotationPdf } from '../../lib/invoicePdf'
+import { downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoicePdf'
 
-const isEditableQuotation = (quotation) => ['draft', 'sent', 'rejected'].includes(String(quotation?.status || '').toLowerCase())
-const hasConvertedInvoice = (quotation) => Boolean(quotation?.convertedInvoiceId)
-const canApproveQuotation = (quotation) => ['draft', 'sent', 'accepted', 'rejected'].includes(String(quotation?.status || '').toLowerCase()) && !quotation?.convertedInvoiceId
-const canRejectQuotation = (quotation) => ['draft', 'sent', 'accepted', 'approved'].includes(String(quotation?.status || '').toLowerCase()) && !quotation?.convertedInvoiceId
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
-const getQuotationStatusMeta = (quotation, language = 'en') => {
-  const status = String(quotation?.status || 'draft').toLowerCase()
+const isEditableQuotation = (q) =>
+  ['draft', 'sent', 'rejected'].includes(String(q?.status || '').toLowerCase())
+const hasConvertedInvoice = (q) => Boolean(q?.convertedInvoiceId)
+const canApproveQuotation = (q) =>
+  ['draft', 'sent', 'accepted', 'rejected'].includes(String(q?.status || '').toLowerCase()) &&
+  !q?.convertedInvoiceId
+const canRejectQuotation = (q) =>
+  ['draft', 'sent', 'accepted', 'approved'].includes(String(q?.status || '').toLowerCase()) &&
+  !q?.convertedInvoiceId
+
+const getQuotationStatusMeta = (q, language = 'en') => {
+  const status = String(q?.status || 'draft').toLowerCase()
   const labels = {
     draft: language === 'ar' ? 'مسودة' : 'Draft',
     sent: language === 'ar' ? 'مرسل' : 'Sent',
@@ -27,87 +46,133 @@ const getQuotationStatusMeta = (quotation, language = 'en') => {
     cancelled: language === 'ar' ? 'ملغي' : 'Cancelled',
     converted: language === 'ar' ? 'تم التحويل' : 'Converted',
   }
-  const className = status === 'accepted'
-    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-    : status === 'approved'
-      ? 'border-teal-200 bg-teal-50 text-teal-700'
-    : status === 'converted'
-      ? 'border-violet-200 bg-violet-50 text-violet-700'
-    : status === 'sent'
-      ? 'border-sky-200 bg-sky-50 text-sky-700'
-      : status === 'rejected' || status === 'cancelled'
-        ? 'border-rose-200 bg-rose-50 text-rose-700'
-        : status === 'expired'
-          ? 'border-amber-200 bg-amber-50 text-amber-700'
-          : 'border-slate-200 bg-slate-50 text-slate-700'
+  const tone =
+    status === 'approved' || status === 'accepted' || status === 'converted'
+      ? 'success'
+      : status === 'rejected' || status === 'cancelled' || status === 'expired'
+      ? 'danger'
+      : status === 'sent'
+      ? 'info'
+      : 'neutral'
 
-  return {
-    label: labels[status] || quotation?.status || 'Draft',
-    className,
-  }
+  return { label: labels[status] || q?.status || 'Draft', tone }
 }
 
+// ─── component ───────────────────────────────────────────────────────────────
+
 export default function Quotations() {
-  const { language } = useSelector((state) => state.ui)
-  const { tenant } = useSelector((state) => state.auth)
+  const { language } = useSelector((s) => s.ui)
+  const { tenant } = useSelector((s) => s.auth)
   const { t } = useTranslation(language)
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const printRef = useRef(null)
+
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('')
-  const [pdfLoadingId, setPdfLoadingId] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [pdfLoadingId, setPdfLoadingId] = useState(null)
+  const [printLoadingId, setPrintLoadingId] = useState(null)
+  const [approveModalQ, setApproveModalQ] = useState(null)
+  const [rejectModalQ, setRejectModalQ] = useState(null)
+
+  // Debounce search
+  useEffect(() => {
+    const h = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(h)
+  }, [search])
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['quotations', page, debouncedSearch, statusFilter],
+    queryFn: () =>
+      api
+        .get('/quotations', { params: { page, limit: 20, search: debouncedSearch, status: statusFilter } })
+        .then((r) => r.data),
+    placeholderData: (prev) => prev,
+    staleTime: 30_000,
+  })
 
   const approveMutation = useMutation({
-    mutationFn: async (quotationId) => await api.post(`/quotations/${quotationId}/approve`),
+    mutationFn: (id) => api.post(`/quotations/${id}/approve`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] })
-      toast.success(language === 'ar' ? 'تم اعتماد عرض السعر' : 'Quotation approved successfully')
+      toast.success(language === 'ar' ? 'تم اعتماد عرض السعر' : 'Quotation approved')
+      setApproveModalQ(null)
     },
-    onError: (error) => {
-      toast.error(error?.response?.data?.error || error?.message || (language === 'ar' ? 'تعذر اعتماد عرض السعر' : 'Unable to approve quotation'))
-    },
+    onError: (e) =>
+      toast.error(
+        e?.response?.data?.error || (language === 'ar' ? 'تعذر الاعتماد' : 'Unable to approve'),
+      ),
   })
 
   const rejectMutation = useMutation({
-    mutationFn: async (quotationId) => await api.post(`/quotations/${quotationId}/reject`),
+    mutationFn: (id) => api.post(`/quotations/${id}/reject`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] })
-      toast.success(language === 'ar' ? 'تم رفض عرض السعر' : 'Quotation rejected successfully')
+      toast.success(language === 'ar' ? 'تم رفض عرض السعر' : 'Quotation rejected')
+      setRejectModalQ(null)
     },
-    onError: (error) => {
-      toast.error(error?.response?.data?.error || error?.message || (language === 'ar' ? 'تعذر رفض عرض السعر' : 'Unable to reject quotation'))
-    },
+    onError: (e) =>
+      toast.error(
+        e?.response?.data?.error || (language === 'ar' ? 'تعذر الرفض' : 'Unable to reject'),
+      ),
   })
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['quotations', page, search, status],
-    queryFn: () => api.get('/quotations', { params: { page, limit: 20, search, status } }).then((res) => res.data),
-  })
+  // Export rows for Excel/CSV
+  const exportRows = useMemo(
+    () =>
+      (data?.quotations || []).map((q) => ({
+        quotationNumber: q?.quotationNumber || '',
+        customer:
+          language === 'ar'
+            ? q?.buyer?.nameAr || q?.buyer?.name || ''
+            : q?.buyer?.name || q?.buyer?.nameAr || '',
+        status: q?.status || '',
+        issueDate: q?.issueDate
+          ? new Date(q.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')
+          : '',
+        validUntil: q?.validUntil
+          ? new Date(q.validUntil).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')
+          : '',
+        total: Number(q?.grandTotal || 0),
+      })),
+    [data?.quotations, language],
+  )
 
-  const rows = useMemo(() => (data?.quotations || []).map((quotation) => ({
-    quotationNumber: quotation?.quotationNumber || '',
-    customer: language === 'ar' ? (quotation?.buyer?.nameAr || quotation?.buyer?.name || '') : (quotation?.buyer?.name || quotation?.buyer?.nameAr || ''),
-    businessContext: quotation?.businessContext || '',
-    status: quotation?.status || '',
-    issueDate: quotation?.issueDate ? new Date(quotation.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : '',
-    validUntil: quotation?.validUntil ? new Date(quotation.validUntil).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : '',
-    total: Number(quotation?.grandTotal || 0),
-  })), [data?.quotations, language])
-
-  const quotationStats = useMemo(() => {
-    const quotations = data?.quotations || []
-    return {
-      total: quotations.length,
-      draft: quotations.filter((quotation) => String(quotation?.status || '').toLowerCase() === 'draft').length,
-      active: quotations.filter((quotation) => ['draft', 'sent'].includes(String(quotation?.status || '').toLowerCase())).length,
-      value: quotations.reduce((sum, quotation) => sum + Number(quotation?.grandTotal || 0), 0),
+  const getExportRows = useCallback(async () => {
+    let currentPage = 1
+    let all = []
+    while (true) {
+      const res = await api.get('/quotations', {
+        params: { page: currentPage, limit: 200, search: debouncedSearch, status: statusFilter },
+      })
+      const batch = res.data?.quotations || []
+      all = all.concat(batch)
+      if (currentPage >= (res.data?.pagination?.pages || 1)) break
+      currentPage++
+      if (all.length >= 5000) break
     }
-  }, [data?.quotations])
+    return all.map((q) => ({
+      quotationNumber: q?.quotationNumber || '',
+      customer:
+        language === 'ar'
+          ? q?.buyer?.nameAr || q?.buyer?.name || ''
+          : q?.buyer?.name || q?.buyer?.nameAr || '',
+      status: q?.status || '',
+      issueDate: q?.issueDate
+        ? new Date(q.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')
+        : '',
+      validUntil: q?.validUntil
+        ? new Date(q.validUntil).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')
+        : '',
+      total: Number(q?.grandTotal || 0),
+    }))
+  }, [debouncedSearch, statusFilter, language])
 
   const exportColumns = [
     { key: 'quotationNumber', label: language === 'ar' ? 'رقم عرض السعر' : 'Quotation #' },
     { key: 'customer', label: language === 'ar' ? 'العميل' : 'Customer' },
-    { key: 'businessContext', label: language === 'ar' ? 'النشاط' : 'Business Context' },
     { key: 'status', label: language === 'ar' ? 'الحالة' : 'Status' },
     { key: 'issueDate', label: language === 'ar' ? 'تاريخ الإصدار' : 'Issue Date' },
     { key: 'validUntil', label: language === 'ar' ? 'صالح حتى' : 'Valid Until' },
@@ -116,196 +181,468 @@ export default function Quotations() {
 
   const pagination = data?.pagination || { page: 1, pages: 1 }
 
+  const getStatusBadge = useCallback(
+    (q) => {
+      const meta = getQuotationStatusMeta(q, language)
+      const cls =
+        meta.tone === 'success'
+          ? 'badge-success'
+          : meta.tone === 'danger'
+          ? 'badge-danger'
+          : meta.tone === 'info'
+          ? 'badge-info'
+          : 'badge-neutral'
+      const icon =
+        meta.tone === 'success' ? (
+          <CheckCircle className="w-3 h-3 me-1" />
+        ) : meta.tone === 'danger' ? (
+          <XCircle className="w-3 h-3 me-1" />
+        ) : (
+          <Clock className="w-3 h-3 me-1" />
+        )
+      return (
+        <span className={`badge ${cls}`}>
+          {icon}
+          {meta.label}
+        </span>
+      )
+    },
+    [language],
+  )
+
+  // ─── render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* ── Approve confirm modal ── */}
+      <AnimatePresence>
+        {approveModalQ && (
+          <motion.div
+            key="approve-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setApproveModalQ(null) }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              className="relative w-full max-w-md rounded-2xl bg-white dark:bg-dark-800 shadow-2xl ring-1 ring-black/10 dark:ring-white/10"
+            >
+              <div className="flex items-center gap-3 p-5 border-b border-gray-100 dark:border-dark-700">
+                <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
+                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-white">
+                    {language === 'ar' ? 'اعتماد عرض السعر' : 'Approve Quotation'}
+                  </p>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">{approveModalQ.quotationNumber}</p>
+                </div>
+              </div>
+              <div className="p-5">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  {language === 'ar'
+                    ? 'هل تريد اعتماد عرض السعر هذا؟ سيصبح جاهزاً للتحويل إلى فاتورة.'
+                    : 'Approve this quotation? It will become ready to convert into an invoice.'}
+                </p>
+              </div>
+              <div className="flex gap-3 p-5 pt-0">
+                <button
+                  className="flex-1 btn btn-secondary"
+                  disabled={approveMutation.isPending}
+                  onClick={() => setApproveModalQ(null)}
+                >
+                  {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  className="flex-1 btn btn-primary"
+                  disabled={approveMutation.isPending}
+                  onClick={() => approveMutation.mutate(approveModalQ._id)}
+                >
+                  {approveMutation.isPending ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4" />
+                  )}
+                  {language === 'ar' ? 'اعتماد' : 'Approve'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Reject confirm modal ── */}
+      <AnimatePresence>
+        {rejectModalQ && (
+          <motion.div
+            key="reject-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setRejectModalQ(null) }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              className="relative w-full max-w-md rounded-2xl bg-white dark:bg-dark-800 shadow-2xl ring-1 ring-black/10 dark:ring-white/10"
+            >
+              <div className="flex items-center gap-3 p-5 border-b border-gray-100 dark:border-dark-700">
+                <div className="p-2 rounded-xl bg-rose-100 dark:bg-rose-900/30">
+                  <XCircle className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-white">
+                    {language === 'ar' ? 'رفض عرض السعر' : 'Reject Quotation'}
+                  </p>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">{rejectModalQ.quotationNumber}</p>
+                </div>
+              </div>
+              <div className="p-5">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  {language === 'ar'
+                    ? 'هل تريد رفض هذا العرض؟'
+                    : 'Are you sure you want to reject this quotation?'}
+                </p>
+              </div>
+              <div className="flex gap-3 p-5 pt-0">
+                <button
+                  className="flex-1 btn btn-secondary"
+                  disabled={rejectMutation.isPending}
+                  onClick={() => setRejectModalQ(null)}
+                >
+                  {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  className="flex-1 btn bg-rose-600 hover:bg-rose-700 text-white"
+                  disabled={rejectMutation.isPending}
+                  onClick={() => rejectMutation.mutate(rejectModalQ._id)}
+                >
+                  {rejectMutation.isPending ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <XCircle className="w-4 h-4" />
+                  )}
+                  {language === 'ar' ? 'رفض' : 'Reject'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{language === 'ar' ? 'عروض الأسعار' : 'Quotations'}</h1>
-          <p className="mt-1 text-gray-500 dark:text-gray-400">{language === 'ar' ? 'واجهة هادئة لعروض الأسعار مع مراجعة سريعة وتنزيل وطباعة ومتابعة الحالة.' : 'A quieter quotation workspace with fast review, download, print, and status tracking.'}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {language === 'ar' ? 'عروض الأسعار' : 'Quotations'}
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            {language === 'ar'
+              ? 'إدارة عروض الأسعار وتحويلها إلى فواتير'
+              : 'Manage quotations and convert them to invoices'}
+          </p>
         </div>
         <div className="flex gap-2">
           <ExportMenu
             language={language}
             t={t}
-            rows={rows}
+            rows={exportRows}
+            getRows={getExportRows}
             columns={exportColumns}
-            fileBaseName="quotations"
+            fileBaseName={language === 'ar' ? 'عروض-الأسعار' : 'Quotations'}
             title={language === 'ar' ? 'عروض الأسعار' : 'Quotations'}
+            disabled={isLoading || (data?.quotations || []).length === 0}
           />
-          <Link to="/app/dashboard/quotations/new" className="btn btn-primary">
+          <Link to="/app/dashboard/quotations/new" className="btn btn-action-dark">
             <Plus className="w-4 h-4" />
             {language === 'ar' ? 'عرض سعر جديد' : 'New Quotation'}
           </Link>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{language === 'ar' ? 'الإجمالي' : 'Visible Quotations'}</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{quotationStats.total}</p>
-        </div>
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{language === 'ar' ? 'المسودات' : 'Drafts'}</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{quotationStats.draft}</p>
-        </div>
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{language === 'ar' ? 'قابلة للتعديل' : 'Editable'}</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{quotationStats.active}</p>
-        </div>
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{language === 'ar' ? 'قيمة العروض' : 'Visible Value'}</p>
-          <p className="mt-3 text-xl font-semibold tracking-tight text-slate-950"><Money value={quotationStats.value} /></p>
+      {/* ── Filters ── */}
+      <div className="card p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1 relative">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder={language === 'ar' ? 'بحث برقم العرض أو العميل...' : 'Search by number or customer...'}
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              className="input ps-10"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+            className="select w-full sm:w-48"
+          >
+            <option value="">{language === 'ar' ? 'كل الحالات' : 'All Statuses'}</option>
+            <option value="draft">{language === 'ar' ? 'مسودة' : 'Draft'}</option>
+            <option value="sent">{language === 'ar' ? 'مرسل' : 'Sent'}</option>
+            <option value="accepted">{language === 'ar' ? 'مقبول' : 'Accepted'}</option>
+            <option value="approved">{language === 'ar' ? 'معتمد' : 'Approved'}</option>
+            <option value="converted">{language === 'ar' ? 'تم التحويل' : 'Converted'}</option>
+            <option value="rejected">{language === 'ar' ? 'مرفوض' : 'Rejected'}</option>
+            <option value="expired">{language === 'ar' ? 'منتهي' : 'Expired'}</option>
+          </select>
+          {(isFetching && !isLoading) && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-400 self-center">
+              <div className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+              {language === 'ar' ? 'جارٍ التحديث...' : 'Updating...'}
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-          <div className="md:col-span-8">
-            <label className="label">{language === 'ar' ? 'بحث' : 'Search'}</label>
-            <div className="relative">
-              <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value)
-                  setPage(1)
-                }}
-                className="input ps-10"
-                placeholder={language === 'ar' ? 'رقم عرض السعر أو العميل' : 'Quotation number or customer'}
-              />
-            </div>
-          </div>
-          <div className="md:col-span-4">
-            <label className="label">{language === 'ar' ? 'الحالة' : 'Status'}</label>
-            <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }} className="select">
-              <option value="">{language === 'ar' ? 'كل الحالات' : 'All statuses'}</option>
-              <option value="draft">{language === 'ar' ? 'مسودة' : 'Draft'}</option>
-              <option value="sent">{language === 'ar' ? 'مرسل' : 'Sent'}</option>
-              <option value="accepted">{language === 'ar' ? 'مقبول' : 'Accepted'}</option>
-              <option value="approved">{language === 'ar' ? 'معتمد' : 'Approved'}</option>
-              <option value="converted">{language === 'ar' ? 'تم التحويل' : 'Converted'}</option>
-              <option value="rejected">{language === 'ar' ? 'مرفوض' : 'Rejected'}</option>
-              <option value="expired">{language === 'ar' ? 'منتهي' : 'Expired'}</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4">
+      {/* ── Table ── */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
         {isLoading ? (
-          <div className="rounded-[1.75rem] border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
-            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
-          </div>
-        ) : (data?.quotations || []).length === 0 ? (
-          <div className="rounded-[1.75rem] border border-slate-200 bg-white px-6 py-16 text-center text-gray-500 shadow-sm">
-            {language === 'ar' ? 'لا توجد عروض أسعار حتى الآن.' : 'No quotations found yet.'}
+          <div className="p-8 text-center">
+            <div className="inline-block w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {(data?.quotations || []).map((quotation) => {
-              const statusMeta = getQuotationStatusMeta(quotation, language)
-              return (
-                <div key={quotation._id} className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{language === 'ar' ? 'رقم العرض' : 'Quotation #'}</p>
-                      <h3 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">{quotation.quotationNumber}</h3>
-                      <p className="mt-2 text-sm text-slate-600">{language === 'ar' ? (quotation?.buyer?.nameAr || quotation?.buyer?.name || '—') : (quotation?.buyer?.name || quotation?.buyer?.nameAr || '—')}</p>
-                    </div>
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusMeta.className}`}>
-                      {statusMeta.label}
-                    </span>
-                  </div>
+          <>
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{language === 'ar' ? 'رقم العرض' : 'Quotation #'}</th>
+                    <th>{language === 'ar' ? 'العميل' : 'Customer'}</th>
+                    <th>{language === 'ar' ? 'تاريخ الإصدار' : 'Issue Date'}</th>
+                    <th>{language === 'ar' ? 'صالح حتى' : 'Valid Until'}</th>
+                    <th>{language === 'ar' ? 'الإجمالي' : 'Total'}</th>
+                    <th>{language === 'ar' ? 'الحالة' : 'Status'}</th>
+                    <th>{language === 'ar' ? 'الإجراءات' : 'Actions'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.quotations || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-gray-400">
+                        {language === 'ar' ? 'لا توجد عروض أسعار' : 'No quotations found'}
+                      </td>
+                    </tr>
+                  ) : (
+                    (data?.quotations || []).map((q) => (
+                      <tr key={q._id}>
+                        {/* Number */}
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/app/dashboard/quotations/${q._id}`)}
+                            className="flex items-center gap-3 group text-start"
+                          >
+                            <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg group-hover:bg-primary-200 dark:group-hover:bg-primary-900/50 transition-colors">
+                              <FileText className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                            </div>
+                            <div>
+                              <p className="font-mono text-sm font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 transition-colors">
+                                {q.quotationNumber}
+                              </p>
+                            </div>
+                          </button>
+                        </td>
 
-                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{language === 'ar' ? 'الإصدار' : 'Issue'}</p>
-                      <p className="mt-1 text-sm font-medium text-slate-900">{quotation?.issueDate ? new Date(quotation.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : '—'}</p>
-                    </div>
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{language === 'ar' ? 'صالح حتى' : 'Valid Until'}</p>
-                      <p className="mt-1 text-sm font-medium text-slate-900">{quotation?.validUntil ? new Date(quotation.validUntil).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : '—'}</p>
-                    </div>
-                    <div className="rounded-2xl bg-slate-950 px-4 py-3 text-white">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-300">{language === 'ar' ? 'الإجمالي' : 'Total'}</p>
-                      <p className="mt-1 text-sm font-semibold"><Money value={quotation?.grandTotal || 0} /></p>
-                    </div>
-                  </div>
+                        {/* Customer */}
+                        <td>
+                          <p className="font-medium text-gray-900 dark:text-white text-sm">
+                            {language === 'ar'
+                              ? q?.buyer?.nameAr || q?.buyer?.name || '—'
+                              : q?.buyer?.name || q?.buyer?.nameAr || '—'}
+                          </p>
+                        </td>
 
-                  <div className="mt-5 flex items-center justify-end gap-2">
-                    {canApproveQuotation(quotation) ? (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-icon"
-                        title={language === 'ar' ? 'اعتماد' : 'Approve'}
-                        disabled={approveMutation.isPending}
-                        onClick={() => approveMutation.mutate(quotation._id)}
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                    {canRejectQuotation(quotation) ? (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-icon"
-                        title={language === 'ar' ? 'رفض' : 'Reject'}
-                        disabled={rejectMutation.isPending}
-                        onClick={() => rejectMutation.mutate(quotation._id)}
-                      >
-                        <XCircle className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                    <Link to={`/app/dashboard/quotations/${quotation._id}`} className="btn btn-ghost btn-icon" title={language === 'ar' ? 'عرض' : 'View'}>
-                      <Eye className="h-4 w-4" />
-                    </Link>
-                    {hasConvertedInvoice(quotation) ? (
-                      <Link to={`/app/dashboard/invoices/${quotation.convertedInvoiceId}`} className="btn btn-ghost btn-icon" title={language === 'ar' ? 'عرض الفاتورة' : 'View Invoice'}>
-                        <FileText className="h-4 w-4" />
-                      </Link>
-                    ) : null}
-                    {isEditableQuotation(quotation) ? (
-                      <Link to={`/app/dashboard/quotations/${quotation._id}/edit`} className="btn btn-ghost btn-icon" title={language === 'ar' ? 'تعديل' : 'Edit'}>
-                        <Edit className="h-4 w-4" />
-                      </Link>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-icon"
-                      title={language === 'ar' ? 'تنزيل PDF' : 'Download PDF'}
-                      disabled={pdfLoadingId === quotation._id}
-                      onClick={async () => {
-                        try {
-                          setPdfLoadingId(quotation._id)
-                          const full = await api.get(`/quotations/${quotation._id}`).then((res) => res.data)
-                          await downloadQuotationPdf({ quotation: full, language, tenant })
-                        } catch {
-                          toast.error(language === 'ar' ? 'فشل تحميل PDF' : 'Failed to download PDF')
-                        } finally {
-                          setPdfLoadingId('')
-                        }
-                      }}
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                        {/* Issue Date */}
+                        <td className="text-sm text-gray-600 dark:text-gray-300">
+                          {q?.issueDate
+                            ? new Date(q.issueDate).toLocaleDateString(
+                                language === 'ar' ? 'ar-SA' : 'en-US',
+                              )
+                            : '—'}
+                        </td>
+
+                        {/* Valid Until */}
+                        <td className="text-sm text-gray-600 dark:text-gray-300">
+                          {q?.validUntil
+                            ? new Date(q.validUntil).toLocaleDateString(
+                                language === 'ar' ? 'ar-SA' : 'en-US',
+                              )
+                            : '—'}
+                        </td>
+
+                        {/* Total */}
+                        <td className="font-semibold text-gray-900 dark:text-white text-sm">
+                          <Money value={q?.grandTotal || 0} />
+                        </td>
+
+                        {/* Status */}
+                        <td>{getStatusBadge(q)}</td>
+
+                        {/* Actions */}
+                        <td>
+                          <div className="flex items-center gap-1">
+                            {/* View */}
+                            <Link
+                              to={`/app/dashboard/quotations/${q._id}`}
+                              className="btn btn-ghost btn-icon"
+                              title={language === 'ar' ? 'عرض' : 'View'}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Link>
+
+                            {/* Edit */}
+                            {isEditableQuotation(q) && (
+                              <Link
+                                to={`/app/dashboard/quotations/${q._id}/edit`}
+                                className="btn btn-ghost btn-icon"
+                                title={language === 'ar' ? 'تعديل' : 'Edit'}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Link>
+                            )}
+
+                            {/* Approve */}
+                            {canApproveQuotation(q) && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-icon text-emerald-600"
+                                title={language === 'ar' ? 'اعتماد' : 'Approve'}
+                                onClick={() => setApproveModalQ(q)}
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* Reject */}
+                            {canRejectQuotation(q) && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-icon text-rose-500"
+                                title={language === 'ar' ? 'رفض' : 'Reject'}
+                                onClick={() => setRejectModalQ(q)}
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* View converted invoice */}
+                            {hasConvertedInvoice(q) && (
+                              <Link
+                                to={`/app/dashboard/invoices/${q.convertedInvoiceId}`}
+                                className="btn btn-ghost btn-icon"
+                                title={language === 'ar' ? 'عرض الفاتورة' : 'View Invoice'}
+                              >
+                                <FileText className="w-4 h-4" />
+                              </Link>
+                            )}
+
+                            {/* Print */}
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-icon"
+                              title={language === 'ar' ? 'طباعة' : 'Print'}
+                              disabled={printLoadingId === q._id}
+                              onClick={async () => {
+                                try {
+                                  setPrintLoadingId(q._id)
+                                  const full = await api
+                                    .get(`/quotations/${q._id}`)
+                                    .then((r) => r.data)
+                                  const ok = await printQuotationSnapshot({
+                                    quotation: full,
+                                    language,
+                                    tenant,
+                                  })
+                                  if (!ok) throw new Error('print failed')
+                                } catch {
+                                  toast.error(
+                                    language === 'ar'
+                                      ? 'تعذر تجهيز الطباعة'
+                                      : 'Unable to prepare print view',
+                                  )
+                                } finally {
+                                  setPrintLoadingId(null)
+                                }
+                              }}
+                            >
+                              {printLoadingId === q._id ? (
+                                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Printer className="w-4 h-4" />
+                              )}
+                            </button>
+
+                            {/* Download PDF */}
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-icon"
+                              title={language === 'ar' ? 'تنزيل PDF' : 'Download PDF'}
+                              disabled={pdfLoadingId === q._id}
+                              onClick={async () => {
+                                try {
+                                  setPdfLoadingId(q._id)
+                                  const full = await api
+                                    .get(`/quotations/${q._id}`)
+                                    .then((r) => r.data)
+                                  await downloadQuotationPdf({ quotation: full, language, tenant })
+                                } catch {
+                                  toast.error(
+                                    language === 'ar' ? 'فشل تحميل PDF' : 'Failed to download PDF',
+                                  )
+                                } finally {
+                                  setPdfLoadingId(null)
+                                }
+                              }}
+                            >
+                              {pdfLoadingId === q._id ? (
+                                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Download className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-dark-700">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {language === 'ar'
+                  ? `الصفحة ${pagination.page} من ${pagination.pages || 1}`
+                  : `Page ${pagination.page} of ${pagination.pages || 1}`}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={pagination.page <= 1}
+                >
+                  {language === 'ar' ? 'السابق' : 'Previous'}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setPage((p) => Math.min(pagination.pages || 1, p + 1))}
+                  disabled={pagination.page >= (pagination.pages || 1)}
+                >
+                  {language === 'ar' ? 'التالي' : 'Next'}
+                </button>
+              </div>
+            </div>
+          </>
         )}
-      </div>
-
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {language === 'ar'
-            ? `الصفحة ${pagination.page} من ${pagination.pages || 1}`
-            : `Page ${pagination.page} of ${pagination.pages || 1}`}
-        </p>
-        <div className="flex gap-2">
-          <button className="btn btn-secondary" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={pagination.page <= 1}>{language === 'ar' ? 'السابق' : 'Previous'}</button>
-          <button className="btn btn-secondary" onClick={() => setPage((p) => Math.min(pagination.pages || 1, p + 1))} disabled={pagination.page >= (pagination.pages || 1)}>{language === 'ar' ? 'التالي' : 'Next'}</button>
-        </div>
-      </div>
+      </motion.div>
     </div>
   )
 }
