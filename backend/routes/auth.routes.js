@@ -150,16 +150,25 @@ router.post('/login', async (req, res) => {
       } else {
         // Multiple users share this email across tenants.
         // Try to find one whose password matches.
-        const passwordMatches = (
-          await Promise.all(
-            matchingUsers.map(async (candidate) => ({
-              candidate,
-              isMatch: await candidate.comparePassword(password),
-            }))
-          )
-        )
-          .filter(({ isMatch }) => isMatch)
-          .map(({ candidate }) => candidate);
+        // Group by password hash to prevent thread pool exhaustion and redundant bcrypt operations.
+        const hashGroups = new Map();
+        for (const candidate of matchingUsers) {
+          const hash = candidate.password;
+          if (!hashGroups.has(hash)) {
+            hashGroups.set(hash, []);
+          }
+          hashGroups.get(hash).push(candidate);
+        }
+
+        const passwordMatches = [];
+        for (const [hash, candidates] of hashGroups.entries()) {
+          // We only check each unique hash once, which saves significant CPU if hashes match.
+          // Doing this sequentially also prevents starving the Node.js event loop.
+          const isMatch = await candidates[0].comparePassword(password);
+          if (isMatch) {
+            passwordMatches.push(...candidates);
+          }
+        }
 
         if (passwordMatches.length === 1) {
           user = passwordMatches[0];
