@@ -68,8 +68,11 @@ const sanitizeLegacyTravelHeaderText = (value, context) => {
 }
 
 export const getInvoiceCurrencyDisplay = (tenant) => {
+  const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
   const rawDisplay = String(tenant?.settings?.invoiceCurrencyDisplay || '').trim().toLowerCase()
-  const display = rawDisplay === 'icon' ? 'icon' : 'text'
+  // Saudi Riyal icon only applies to SAR; every other currency always uses
+  // the ISO code text so display matches the tenant's default currency.
+  const display = currency === 'SAR' && rawDisplay === 'icon' ? 'icon' : 'text'
   const rawPosition = String(tenant?.settings?.invoiceCurrencyPosition || '').trim().toLowerCase()
   const position = rawPosition === 'before' ? 'before' : 'after'
   return { display, position }

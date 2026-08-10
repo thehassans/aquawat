@@ -9,11 +9,16 @@
 // Pakistan → Urdu). Tenants can always override this explicitly in Settings.
 
 export const INVOICE_LANGUAGE_OPTIONS = [
-  { value: 'auto', labelEn: 'Auto (based on country)', labelAr: 'تلقائي (حسب الدولة)' },
+  { value: 'auto', labelEn: 'Auto (based on currency)', labelAr: 'تلقائي (حسب العملة)' },
   { value: 'en', labelEn: 'English Only', labelAr: 'الإنجليزية فقط' },
   { value: 'en_ar', labelEn: 'English + Arabic', labelAr: 'الإنجليزية + العربية' },
   { value: 'en_ur', labelEn: 'English + Urdu', labelAr: 'الإنجليزية + الأردية' },
 ]
+
+// Currencies that naturally pair with Arabic on invoices.
+const ARABIC_CURRENCIES = new Set(['SAR', 'AED', 'QAR', 'KWD', 'BHD', 'OMR', 'EGP', 'JOD', 'YER', 'IQD'])
+// Currencies that naturally pair with Urdu on invoices.
+const URDU_CURRENCIES = new Set(['PKR'])
 
 // Countries whose natural invoicing companion language is Arabic.
 const ARABIC_COUNTRIES = new Set([
@@ -29,21 +34,26 @@ const normalizeMode = (tenant) => {
   return ['en', 'en_ar', 'en_ur'].includes(raw) ? raw : 'auto'
 }
 
-const getCountryCode = (tenant) => String(tenant?.business?.address?.country || 'SA').trim().toUpperCase()
+const getCountryCode = (tenant) => String(tenant?.business?.address?.country || '').trim().toUpperCase()
+const getCurrencyCode = (tenant) => String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
 
-/** The secondary language 'auto' mode would pick for this tenant's country. */
+/** The secondary language 'auto' mode would pick — currency first, then country. */
 export const getAutoSecondaryLanguage = (tenant) => {
+  const currency = getCurrencyCode(tenant)
+  if (URDU_CURRENCIES.has(currency)) return 'ur'
+  if (ARABIC_CURRENCIES.has(currency)) return 'ar'
+
   const country = getCountryCode(tenant)
   if (URDU_COUNTRIES.has(country)) return 'ur'
   if (ARABIC_COUNTRIES.has(country)) return 'ar'
-  // Default fallback keeps pre-existing app behavior (Arabic-first) for
-  // tenants who haven't set a country / are outside the mapped lists.
-  return 'ar'
+  // Non-SAR / non-Arabic markets default to English-only invoices.
+  return null
 }
 
 /**
  * Resolves the tenant's invoice secondary language: 'ar' | 'ur' | null.
- * null means English-only (tenant explicitly disabled bilingual invoices).
+ * null means English-only (tenant explicitly disabled bilingual invoices,
+ * or auto mode for a non-Arabic/Urdu currency).
  */
 export const getInvoiceSecondaryLanguage = (tenant) => {
   const mode = normalizeMode(tenant)
@@ -58,14 +68,17 @@ export const getInvoiceSecondaryLanguage = (tenant) => {
  * the tenant's language preference with the existing per-context defaults
  * (quotations, travel tickets, and a few business contexts have always been
  * bilingual). Explicit tenant choices always win:
- *   - 'en'            → never bilingual, regardless of document context
- *   - 'en_ar'/'en_ur' → always bilingual, for every document
- *   - 'auto' (default) → unchanged legacy per-context behavior
+ *   - 'en'            → never bilingual
+ *   - 'en_ar'/'en_ur' → always bilingual
+ *   - 'auto'          → bilingual only when currency/country has a secondary
+ *                       language AND the document context expects it
  */
 export const resolveInvoiceBilingual = (tenant, contextBilingual = false) => {
   const mode = normalizeMode(tenant)
   if (mode === 'en') return false
   if (mode === 'en_ar' || mode === 'en_ur') return true
+  const secondary = getAutoSecondaryLanguage(tenant)
+  if (!secondary) return false
   return contextBilingual
 }
 

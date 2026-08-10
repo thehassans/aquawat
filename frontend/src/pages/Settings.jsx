@@ -1163,7 +1163,16 @@ export default function Settings() {
                   <div className="card-glass p-4 mt-2">
                     <div>
                       <label className="text-xs text-gray-500 dark:text-gray-400">{language === 'ar' ? 'العملة الافتراضية' : 'Default Currency'}</label>
-                      <select value={defaultCurrency} onChange={(e) => setDefaultCurrency(e.target.value)} className="select mt-1 w-full md:w-1/2">
+                      <select
+                        value={defaultCurrency}
+                        onChange={(e) => {
+                          const next = e.target.value
+                          setDefaultCurrency(next)
+                          // Riyal icon only makes sense for SAR — keep display in sync.
+                          if (String(next).toUpperCase() !== 'SAR') setInvoiceCurrencyDisplay('text')
+                        }}
+                        className="select mt-1 w-full md:w-1/2"
+                      >
                         {CURRENCIES.map((cur) => (
                           <option key={cur.code} value={cur.code}>
                             {language === 'ar' ? `${cur.nameAr} (${cur.code})` : `${cur.nameEn} (${cur.code})`}
@@ -1173,15 +1182,33 @@ export default function Settings() {
                       <p className="text-[10px] text-gray-500 mt-1">
                         {language === 'ar'
                           ? 'تُستخدم هذه العملة كافتراضي في كل صفحات النظام. ملاحظة: تتطلب فاتورة زاتكا الإلكترونية الريال السعودي.'
-                          : 'Used as the default currency across the app. Note: ZATCA e-invoicing requires SAR.'}
+                          : 'Used as the default currency across the app (POS, receipts, invoices). Note: ZATCA e-invoicing requires SAR.'}
                       </p>
                     </div>
                     <div className="mt-3">
                       <label className="text-xs text-gray-500 dark:text-gray-400">{language === 'ar' ? 'عرض العملة' : 'Currency Display'}</label>
-                      <select value={invoiceCurrencyDisplay} onChange={(e) => setInvoiceCurrencyDisplay(e.target.value === 'icon' ? 'icon' : 'text')} className="select mt-1 w-full md:w-1/2">
-                        <option value="text">{language === 'ar' ? 'نص (SAR)' : 'Text (SAR)'}</option>
-                        <option value="icon">{language === 'ar' ? 'رمز الريال السعودي (ï·¼)' : 'Saudi Riyal Icon (ï·¼)'}</option>
+                      <select
+                        value={String(defaultCurrency).toUpperCase() === 'SAR' ? invoiceCurrencyDisplay : 'text'}
+                        onChange={(e) => setInvoiceCurrencyDisplay(e.target.value === 'icon' ? 'icon' : 'text')}
+                        className="select mt-1 w-full md:w-1/2"
+                        disabled={String(defaultCurrency).toUpperCase() !== 'SAR'}
+                      >
+                        <option value="text">
+                          {language === 'ar'
+                            ? `نص (${defaultCurrency})`
+                            : `Text (${defaultCurrency})`}
+                        </option>
+                        {String(defaultCurrency).toUpperCase() === 'SAR' && (
+                          <option value="icon">{language === 'ar' ? 'رمز الريال السعودي (﷼)' : 'Saudi Riyal Icon (﷼)'}</option>
+                        )}
                       </select>
+                      {String(defaultCurrency).toUpperCase() !== 'SAR' && (
+                        <p className="text-[10px] text-gray-500 mt-1">
+                          {language === 'ar'
+                            ? `يتم عرض مبالغك دائماً كـ ${defaultCurrency} لتتوافق مع العملة الافتراضية.`
+                            : `Amounts always show as ${defaultCurrency} to match your default currency.`}
+                        </p>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                       <div>
@@ -1209,8 +1236,8 @@ export default function Settings() {
                       </select>
                       <p className="text-[10px] text-gray-500 mt-1">
                         {language === 'ar'
-                          ? 'يحدد اللغة الثانية التي تظهر بجانب الإنجليزية في الفواتير وعروض الأسعار. "تلقائي" يختار العربية أو الأردية حسب دولة عنوان منشأتك.'
-                          : 'Controls the second language shown alongside English on invoices & quotations. "Auto" picks Arabic or Urdu based on your business address country.'}
+                          ? 'يحدد اللغة الثانية بجانب الإنجليزية في الفواتير وعروض الأسعار. "تلقائي" يختار العربية للريال السعودي، والأردية للروبية الباكستانية، والإنجليزية فقط لباقي العملات.'
+                          : 'Controls the second language on invoices & quotations. "Auto" picks Arabic for SAR, Urdu for PKR, and English-only for other currencies.'}
                       </p>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
@@ -1328,7 +1355,7 @@ export default function Settings() {
                         invoiceWhatsappAutoSend: waAutoInvoiceSend,
                         invoiceWhatsappMessageEn: waInvoiceMsgEn,
                         invoiceWhatsappMessageAr: waInvoiceMsgAr,
-                        invoiceCurrencyDisplay,
+                        invoiceCurrencyDisplay: String(defaultCurrency).toUpperCase() === 'SAR' ? invoiceCurrencyDisplay : 'text',
                         invoiceCurrencyPosition,
                         invoiceLanguage,
                         invoiceBranding: {
