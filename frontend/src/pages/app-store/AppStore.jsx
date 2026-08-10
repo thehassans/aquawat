@@ -73,7 +73,8 @@ const PRICING_LABELS = {
 const CATEGORIES = [
   { id: 'all', icon: LayoutGrid, en: 'All Ecosystem', ar: 'كل المنظومة' },
   { id: 'industry_verticals', icon: Store, en: 'Industry Verticals', ar: 'قطاعات الأعمال' },
-  { id: 'saudi_compliance', icon: CheckCircle2, en: 'Saudi Gov & ZATCA', ar: 'الامتثال وزاتكا' },
+  { id: 'saudi_compliance', icon: CheckCircle2, en: 'Saudi Gov & ZATCA', ar: 'الامتثال وزاتكا', currencies: ['SAR'] },
+  { id: 'bangladesh_compliance', icon: CheckCircle2, en: 'Bangladesh NBR & Tax', ar: 'بنغلاديش NBR والضرائب', currencies: ['BDT'] },
   { id: 'manufacturing', icon: Factory, en: 'Manufacturing & MES', ar: 'التصنيع والإنتاج' },
   { id: 'pos_retail', icon: Zap, en: 'Retail & POS', ar: 'نقاط البيع والمطاعم' },
   { id: 'hr_manpower', icon: Users, en: 'HR & Workforce', ar: 'الموارد البشرية والرواتب' },
@@ -90,6 +91,11 @@ export default function AppStore() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const isAr = language === 'ar';
+  const tenantCurrency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase();
+  const visibleCategories = useMemo(
+    () => CATEGORIES.filter((cat) => !cat.currencies || cat.currencies.includes(tenantCurrency)),
+    [tenantCurrency]
+  );
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -115,10 +121,14 @@ export default function AppStore() {
   // Spotlight featured showcase apps
   const spotlightApps = useMemo(() => {
     if (!apps.length) return [];
-    const spotlightIds = ['zatca_phase2_pro', 'manufacturing_mes', 'bakala_supermarket', 'payment_terminal_integration'];
+    const spotlightIds = tenantCurrency === 'BDT'
+      ? ['bangladesh_nbr_einvoicing', 'manufacturing_mes', 'bakala_supermarket', 'thermal_printer_driver']
+      : tenantCurrency === 'SAR'
+        ? ['zatca_phase2_pro', 'manufacturing_mes', 'bakala_supermarket', 'payment_terminal_integration']
+        : ['manufacturing_mes', 'bakala_supermarket', 'thermal_printer_driver', 'premium_invoice_templates'];
     const found = spotlightIds.map(id => apps.find(a => a.appId === id)).filter(Boolean);
     return found.length > 0 ? found : apps.slice(0, 3);
-  }, [apps]);
+  }, [apps, tenantCurrency]);
 
   // Auto rotate spotlight
   useEffect(() => {
@@ -317,6 +327,12 @@ export default function AppStore() {
           app.appId.includes('saber') ||
           app.appId.includes('etimad') ||
           app.appId.includes('tamm');
+      } else if (activeCategory === 'bangladesh_compliance') {
+        matchCat =
+          app.category === 'bangladesh_compliance' ||
+          app.appId.includes('nbr') ||
+          app.appId.includes('bangladesh') ||
+          app.appId.includes('mushak');
       } else if (activeCategory === 'automation_comm') {
         matchCat = app.category === 'automation_comm' || app.category === 'ai_intelligence' || app.appId.includes('whatsapp') || app.appId.includes('ai') || app.appId.includes('shipping') || app.appId.includes('email');
       }
@@ -614,7 +630,7 @@ export default function AppStore() {
         {/* Category Pills Navigation */}
         <div className="relative">
           <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none snap-x">
-            {CATEGORIES.map((cat) => {
+            {visibleCategories.map((cat) => {
               const Icon = cat.icon;
               const isActive = activeCategory === cat.id;
               return (

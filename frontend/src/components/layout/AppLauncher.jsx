@@ -73,6 +73,8 @@ const APP_STYLE_MAP = {
   '/app/dashboard/tenant-settings/government-integrations': { gradient: 'from-[#134E4A] to-[#0F766E]' },
 
   // Government Integration Apps — each gets a distinct Saudi-palette gradient
+  '/app/dashboard/tenant-settings/zatca-dashboard': { gradient: 'from-[#006633] to-[#00A34A]' },
+  '/app/dashboard/tenant-settings/nbr-dashboard': { gradient: 'from-[#006A4E] to-[#F42A41]' },
   '/app/dashboard/tenant-settings/government-integrations/zatca': { gradient: 'from-[#006633] to-[#00A34A]' },
   '/app/dashboard/tenant-settings/government-integrations/elm': { gradient: 'from-[#1D4ED8] to-[#3B82F6]' },
   '/app/dashboard/tenant-settings/government-integrations/qiwa': { gradient: 'from-[#7C3AED] to-[#A855F7]' },
@@ -198,6 +200,7 @@ export default function AppLauncher() {
 
   const si = tenant?.settings?.saudiIntegrations || {};
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR';
+  const isBdtCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'BDT';
   const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1;
   const business = tenant?.business || {};
   const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country);
@@ -208,6 +211,7 @@ export default function AppLauncher() {
 
   const installedApps = tenant?.settings?.installedApps || {}
   const isAppActive = (appId) => isSarCurrencyTenant && installedApps[appId]?.isInstalled && installedApps[appId]?.isEnabled
+  const isBdAppActive = (appId) => isBdtCurrencyTenant && installedApps[appId]?.isInstalled && installedApps[appId]?.isEnabled !== false
 
   const govChildren = [];
   if (hasZatca) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/zatca', label: language === 'ar' ? `بوابة زاتكا ${isZatcaPhase1 ? '(المرحلة 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal` });
@@ -217,7 +221,9 @@ export default function AppLauncher() {
   if (isAppActive('balady_municipal')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/balady', label: language === 'ar' ? 'بوابة بلدي' : 'Balady Portal' });
   if (isAppActive('saber_conformity')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/saber', label: language === 'ar' ? 'بوابة سابر (SASO)' : 'Saber Portal (SASO)' });
   if (isAppActive('etimad_procurement')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/etimad', label: language === 'ar' ? 'بوابة اعتماد' : 'Etimad Portal' });
-
+  if (isBdAppActive('bangladesh_nbr_einvoicing') || (isBdtCurrencyTenant && (tenant?.nbr?.isOnboarded || tenant?.nbr?.binNumber))) {
+    govChildren.push({ path: '/app/dashboard/tenant-settings/nbr-dashboard', label: language === 'ar' ? 'بوابة NBR / Mushak' : 'NBR / Mushak Portal' });
+  }
   const hasAccess = (module, action) => {
     if (!user) return false
     if (user.role === 'super_admin' || user.role === 'admin') return true

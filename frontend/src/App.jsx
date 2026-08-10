@@ -33,6 +33,7 @@ const SaloonLayout = lazy(() => import('./layouts/SaloonLayout'))
 
 // Auth pages (lazy — only needed at login)
 const Login = lazy(() => import('./pages/auth/Login'))
+const AuthHandoff = lazy(() => import('./pages/auth/AuthHandoff'))
 const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'))
 const InactiveTenant = lazy(() => import('./pages/auth/InactiveTenant'))
 
@@ -271,6 +272,7 @@ const SaudiCompliance = lazy(() => import('./pages/compliance/SaudiCompliance'))
 const GovernmentIntegrations = lazy(() => import('./pages/tenant-settings/GovernmentIntegrations'))
 const GovernmentIntegrationDetail = lazy(() => import('./pages/tenant-settings/GovernmentIntegrationDetail'))
 const ZatcaDashboard = lazy(() => import('./pages/tenant-settings/ZatcaDashboard'))
+const NbrDashboard = lazy(() => import('./pages/tenant-settings/NbrDashboard'))
 const FleetList = lazy(() => import('./pages/car-rental/FleetList'))
 const CarForm = lazy(() => import('./pages/car-rental/CarForm'))
 const CustomerRegistry = lazy(() => import('./pages/car-rental/CustomerRegistry'))
@@ -473,6 +475,7 @@ function App() {
       <Route path="/demo-checkout" element={<Suspense fallback={<PageLoader />}><DemoCheckout /></Suspense>} />
 
       {/* Auth Routes */}
+      <Route path="/auth/handoff" element={<Suspense fallback={<PageLoader />}><AuthHandoff /></Suspense>} />
       <Route element={<Suspense fallback={<PageLoader />}><AuthLayout /></Suspense>}>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
@@ -788,6 +791,7 @@ function App() {
         <Route path="tenant-settings/government-integrations" element={<GovernmentIntegrations />} />
         <Route path="tenant-settings/government-integrations/:service" element={<GovernmentIntegrationDetail />} />
         <Route path="tenant-settings/zatca-dashboard" element={<ZatcaDashboard />} />
+        <Route path="tenant-settings/nbr-dashboard" element={<NbrDashboard />} />
         <Route path="backup" element={<Backup />} />
         <Route path="super-admin" element={<BusinessTypeRoute allowedTypes={['super_admin']}><SuperAdminDashboard /></BusinessTypeRoute>} />
         <Route path="super-admin/resellers" element={<BusinessTypeRoute allowedTypes={['super_admin']}><ResellerManagement /></BusinessTypeRoute>} />

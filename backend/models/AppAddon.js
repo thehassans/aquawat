@@ -15,6 +15,7 @@ const appAddonSchema = new mongoose.Schema({
       'manufacturing',
       'pos_retail',
       'saudi_compliance',
+      'bangladesh_compliance',
       'hardware_iot',
       'automation_comm',
       'ai_intelligence',
@@ -31,6 +32,7 @@ const appAddonSchema = new mongoose.Schema({
       'core_vertical',
       'hardware_integration',
       'saudi_compliance',
+      'bangladesh_compliance',
       'automation_comm',
       'ai_tool',
       'premium_addon'
@@ -38,6 +40,8 @@ const appAddonSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  /** When set, app is only offered to tenants whose default currency matches (e.g. 'BDT', 'SAR'). */
+  requiredCurrency: { type: String, default: '', index: true },
   icon: { type: String, default: 'layers' },
   version: { type: String, default: '2.4.0' },
   author: { type: String, default: 'Maqder Core' },

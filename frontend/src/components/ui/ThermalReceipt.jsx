@@ -2,9 +2,10 @@ import React, { forwardRef } from 'react'
 import { useSelector } from 'react-redux'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
+import { generateNbrQrValue } from '../../lib/nbrQr'
 import { getThermalPrinterSettings, getReceiptStyle, getPrintCss, getPageCss } from '../../lib/thermalPrinter'
 import { CURRENCY_CODE } from '../../lib/currency'
-import { isSaudiTenant } from '../../lib/saudiTenant'
+import { isSaudiTenant, isBangladeshTenant } from '../../lib/saudiTenant'
 
 const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false, isUpdated = false }, ref) => {
   const { tenant } = useSelector(state => state.auth)
@@ -14,6 +15,10 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
   const currency = String(tenant?.settings?.currency || order?.currency || CURRENCY_CODE).trim().toUpperCase()
   const bilingualAr = isSaudiTenant(tenant)
   const isZatcaApplicable = bilingualAr
+  const isBangladesh = isBangladeshTenant(tenant) || currency === 'BDT'
+  const vatRate = isBangladesh
+    ? (Number(tenant?.nbr?.defaultVatRate) || 15)
+    : (bilingualAr ? 15 : null)
 
   const lbl = (en, ar) => (bilingualAr ? `${en} / ${ar}` : en)
   const money = (value) => `${currency} ${(Number(value) || 0).toFixed(2)}`
@@ -23,6 +28,8 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
   const businessNameEn = tenant?.business?.legalNameEn || tenant?.name || 'Maqder POS'
   const businessNameAr = tenant?.business?.legalNameAr || tenant?.name || 'مقدر نقاط البيع'
   const vatNumber = tenant?.business?.vatNumber || ''
+  const binNumber = tenant?.nbr?.binNumber || tenant?.business?.binNumber || ''
+  const mushakForm = tenant?.nbr?.mushakForm || '6.3'
 
   const dateStr = new Date(order.createdAt || Date.now()).toLocaleString(isRtl ? 'ar-SA' : 'en-US')
   const orderNumber = order.receiptNumber || order.orderNumber || order._id?.slice(-8) || 'N/A'
@@ -95,6 +102,23 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
     }
   }
 
+  let nbrQrPayload = null
+  if (isBangladesh && tenant?.nbr?.autoGenerateQr !== false) {
+    try {
+      nbrQrPayload = generateNbrQrValue({
+        sellerName: businessNameEn,
+        binNumber: binNumber || vatNumber,
+        invoiceNumber: orderNumber,
+        timestamp: new Date(order.createdAt || Date.now()).toISOString(),
+        totalWithVat: order.grandTotal || order.total || 0,
+        vatTotal: order.totalVat || order.totalTax || 0,
+        mushakForm,
+      })
+    } catch (err) {
+      console.error('Failed to generate NBR QR code value:', err)
+    }
+  }
+
   const receiptStyle = getReceiptStyle(thermalSettings)
   const printCss = getPrintCss('print-section', thermalSettings)
   const pageCss = getPageCss(thermalSettings)
@@ -161,7 +185,11 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
           <div className="border-t border-dashed border-gray-300 w-full my-2"></div>
           
           <div className="text-[10px] font-bold text-gray-700 tracking-wider">
-            {bilingualAr ? 'SIMPLIFIED TAX INVOICE | فاتورة ضريبية مبسطة' : 'SALES RECEIPT'}
+            {bilingualAr
+              ? 'SIMPLIFIED TAX INVOICE | فاتورة ضريبية مبسطة'
+              : isBangladesh
+                ? `MUSHAK ${mushakForm} — VAT TAX INVOICE`
+                : 'SALES RECEIPT'}
             {isUpdated && (
               <div className="mt-0.5 text-amber-600 font-extrabold">
                 {bilingualAr ? 'UPDATED | محدثة' : 'UPDATED'}
@@ -170,8 +198,11 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
           </div>
           
           <div className="text-[9px] mt-1 text-gray-600">
+            {isBangladesh && binNumber && (
+              <div>BIN: <span className="font-bold">{binNumber}</span></div>
+            )}
             {vatNumber && (
-              <div>{lbl(bilingualAr ? 'VAT' : 'Tax No', 'الرقم الضريبي')}: <span className="font-bold">{vatNumber}</span></div>
+              <div>{lbl(bilingualAr ? 'VAT' : (isBangladesh ? 'VAT Reg.' : 'Tax No'), 'الرقم الضريبي')}: <span className="font-bold">{vatNumber}</span></div>
             )}
             {addressText && <div className="mt-0.5 leading-tight">{addressText}</div>}
           </div>
@@ -343,7 +374,14 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
             )}
             {type !== 'khayyat' && Number(order.totalVat || order.totalTax || 0) > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-600">{lbl(bilingualAr ? 'VAT (15%)' : 'Tax', 'ضريبة القيمة المضافة')}:</span>
+                <span className="text-gray-600">
+                  {lbl(
+                    bilingualAr
+                      ? 'VAT (15%)'
+                      : (isBangladesh ? `VAT (${vatRate}%)` : 'Tax'),
+                    'ضريبة القيمة المضافة'
+                  )}:
+                </span>
                 <span>{money(order.totalVat || order.totalTax || 0)}</span>
               </div>
             )}
@@ -364,6 +402,22 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
                     value={zatcaQrPayload} 
                     size={80} 
                     level="M" 
+                    includeMargin={false}
+                  />
+                </div>
+              </div>
+            )}
+
+            {thermalSettings.showQrCode && nbrQrPayload && (
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="text-[7px] text-gray-500 mb-1 font-bold whitespace-nowrap">
+                  NBR | MUSHAK {mushakForm}
+                </div>
+                <div className="bg-white p-1 border border-gray-200 rounded-lg">
+                  <QRCodeSVG
+                    value={nbrQrPayload}
+                    size={80}
+                    level="M"
                     includeMargin={false}
                   />
                 </div>

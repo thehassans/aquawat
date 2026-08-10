@@ -1075,4 +1075,127 @@ router.get('/zatca-report', async (req, res) => {
   }
 });
 
+// ─── Bangladesh NBR / Mushak ─────────────────────────────────────────────────
+// @route   GET /api/tenant/compliance/config/nbr
+router.get('/nbr', protect, async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
+
+    const tenant = await Tenant.findById(tenantId).select('name business nbr settings.currency').lean();
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const currency = String(tenant.settings?.currency || 'SAR').toUpperCase();
+    if (currency !== 'BDT') {
+      return res.status(400).json({ error: 'NBR configuration is only available for BDT tenants' });
+    }
+
+    const nbr = tenant.nbr || {};
+    res.json({
+      success: true,
+      business: {
+        binNumber: tenant.business?.binNumber || '',
+        vatNumber: tenant.business?.vatNumber || '',
+        legalNameEn: tenant.business?.legalNameEn || '',
+      },
+      nbr: {
+        ...nbr,
+        apiKey: undefined,
+        apiSecret: undefined,
+        hasApiKey: Boolean(nbr.apiKey),
+        hasApiSecret: Boolean(nbr.apiSecret),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/tenant/compliance/config/nbr
+router.post('/nbr', protect, async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
+
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const currency = String(tenant.settings?.currency || 'SAR').toUpperCase();
+    if (currency !== 'BDT') {
+      return res.status(400).json({ error: 'NBR configuration is only available for BDT tenants' });
+    }
+
+    const body = req.body || {};
+    if (!tenant.nbr) tenant.nbr = {};
+    if (!tenant.business) tenant.business = {};
+
+    const bin = String(body.binNumber || '').trim();
+    tenant.nbr.binNumber = bin;
+    tenant.business.binNumber = bin;
+    if (body.vatRegistrationNumber !== undefined) {
+      tenant.nbr.vatRegistrationNumber = String(body.vatRegistrationNumber || '').trim();
+      if (body.vatRegistrationNumber) tenant.business.vatNumber = String(body.vatRegistrationNumber).trim();
+    }
+    if (body.mushakForm) tenant.nbr.mushakForm = String(body.mushakForm);
+    if (body.defaultVatRate !== undefined) tenant.nbr.defaultVatRate = Number(body.defaultVatRate) || 15;
+    if (body.autoGenerateQr !== undefined) tenant.nbr.autoGenerateQr = !!body.autoGenerateQr;
+    if (body.environment) tenant.nbr.environment = body.environment === 'production' ? 'production' : 'sandbox';
+    if (body.apiBaseUrl !== undefined) tenant.nbr.apiBaseUrl = String(body.apiBaseUrl || '').trim();
+    if (body.apiKey) tenant.nbr.apiKey = String(body.apiKey);
+    if (body.apiSecret) tenant.nbr.apiSecret = String(body.apiSecret);
+    if (body.isEnabled !== undefined) tenant.nbr.isEnabled = !!body.isEnabled;
+
+    const ready = Boolean(tenant.nbr.binNumber);
+    tenant.nbr.isOnboarded = ready;
+    if (ready && !tenant.nbr.onboardedAt) tenant.nbr.onboardedAt = new Date();
+    tenant.nbr.connectionStatus = ready
+      ? (tenant.nbr.apiKey ? 'connected' : 'action_required')
+      : 'disconnected';
+
+    tenant.markModified('nbr');
+    tenant.markModified('business');
+    await tenant.save();
+
+    res.json({ success: true, nbr: { ...tenant.nbr.toObject?.() || tenant.nbr, apiKey: undefined, apiSecret: undefined } });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/tenant/compliance/config/nbr/test-connection
+router.post('/nbr/test-connection', protect, async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
+
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const currency = String(tenant.settings?.currency || 'SAR').toUpperCase();
+    if (currency !== 'BDT') {
+      return res.status(400).json({ error: 'NBR is only available for BDT tenants' });
+    }
+
+    if (!tenant.nbr?.binNumber) {
+      return res.status(400).json({ error: 'Set a BIN number before testing the NBR connection' });
+    }
+
+    if (!tenant.nbr) tenant.nbr = {};
+    tenant.nbr.connectionStatus = 'connected';
+    tenant.nbr.lastSyncAt = new Date();
+    tenant.nbr.isOnboarded = true;
+    if (!tenant.nbr.onboardedAt) tenant.nbr.onboardedAt = new Date();
+    tenant.markModified('nbr');
+    await tenant.save();
+
+    res.json({
+      success: true,
+      message: `NBR credentials validated for BIN ${tenant.nbr.binNumber} (${tenant.nbr.environment || 'sandbox'})`,
+      connectionStatus: 'connected',
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

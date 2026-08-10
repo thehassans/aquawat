@@ -14,7 +14,7 @@ import { getInvoiceBrandingProfile, getInvoiceTemplateId, getInvoiceTypography, 
 import { CURRENCIES, CURRENCY_CODE } from '../lib/currency'
 import { INVOICE_LANGUAGE_OPTIONS } from '../lib/invoiceLanguage'
 import { getTenantAliasUrl } from '../lib/tenantHost'
-import { showArabicFields } from '../lib/saudiTenant'
+import { showArabicFields, isBangladeshTenant } from '../lib/saudiTenant'
 import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 import { getNavSections } from '../lib/sidebarConfig'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
@@ -63,6 +63,7 @@ function MenuVisibilitySettings() {
 
   const si = tenant?.settings?.saudiIntegrations || {}
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
+  const isBdtCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'BDT'
   const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1
   const business = tenant?.business || {}
   const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country)
@@ -70,12 +71,14 @@ function MenuVisibilitySettings() {
   const hasElm = isSarCurrencyTenant && si.elmConnectionStatus === 'connected'
   const hasQiwa = isSarCurrencyTenant && si.qiwaConnectionStatus === 'connected'
   const hasGosi = isSarCurrencyTenant && si.gosiConnectionStatus === 'connected'
+  const hasNbr = isBdtCurrencyTenant && (tenant?.nbr?.isOnboarded || tenant?.nbr?.connectionStatus === 'connected' || !!tenant?.nbr?.binNumber || !!business.binNumber)
 
   const govChildren = []
   if (hasZatca) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/zatca', label: language === 'ar' ? `بوابة زاتكا ${isZatcaPhase1 ? '(المرحلة 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal` })
   if (hasElm) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/elm', label: language === 'ar' ? 'بوابة علم / يقين' : 'Elm Portal' })
   if (hasQiwa) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/qiwa', label: language === 'ar' ? 'بوابة قوى' : 'Qiwa Portal' })
   if (hasGosi) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/gosi', label: language === 'ar' ? 'بوابة التأمينات / مدد' : 'GOSI/Mudad Portal' })
+  if (hasNbr) govChildren.push({ path: '/app/dashboard/tenant-settings/nbr-dashboard', label: language === 'ar' ? 'بوابة NBR / Mushak' : 'NBR / Mushak Portal' })
 
   const businessTypes = getTenantBusinessTypes(tenant)
   const navSections = getNavSections({ language, t, tenant, businessTypes, govChildren })
@@ -359,6 +362,7 @@ export default function Settings() {
       legalNameEn: tenant.business?.legalNameEn || '',
       legalNameAr: tenant.business?.legalNameAr || '',
       vatNumber: tenant.business?.vatNumber || '',
+      binNumber: tenant.business?.binNumber || tenant.nbr?.binNumber || '',
       crNumber: tenant.business?.crNumber || '',
       address: {
         city: tenant.business?.address?.city || '',
@@ -582,9 +586,19 @@ export default function Settings() {
                     </div>
                   )}
                   <div>
-                    <label className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
+                    <label className="label">
+                      {isBangladeshTenant(tenant) || String(defaultCurrency).toUpperCase() === 'BDT'
+                        ? (language === 'ar' ? 'رقم تسجيل ضريبة القيمة المضافة' : 'VAT Registration Number')
+                        : (language === 'ar' ? 'الرقم الضريبي' : 'VAT Number')}
+                    </label>
                     <input {...register('vatNumber')} className="input" />
                   </div>
+                  {(isBangladeshTenant(tenant) || String(defaultCurrency).toUpperCase() === 'BDT') && (
+                    <div>
+                      <label className="label">{language === 'ar' ? 'رقم BIN (بنغلاديش)' : 'BIN (Bangladesh)'}</label>
+                      <input {...register('binNumber')} className="input" placeholder="123456789-0123" />
+                    </div>
+                  )}
                   <div>
                     <label className="label">{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</label>
                     <input {...register('crNumber')} className="input" />
@@ -1170,6 +1184,10 @@ export default function Settings() {
                           setDefaultCurrency(next)
                           // Riyal icon only makes sense for SAR — keep display in sync.
                           if (String(next).toUpperCase() !== 'SAR') setInvoiceCurrencyDisplay('text')
+                          // Keep UI language aligned with the market currency.
+                          const code = String(next).toUpperCase()
+                          if (code === 'SAR') dispatch(setLanguage('ar'))
+                          else dispatch(setLanguage('en'))
                         }}
                         className="select mt-1 w-full md:w-1/2"
                       >
@@ -1181,8 +1199,8 @@ export default function Settings() {
                       </select>
                       <p className="text-[10px] text-gray-500 mt-1">
                         {language === 'ar'
-                          ? 'تُستخدم هذه العملة كافتراضي في كل صفحات النظام. ملاحظة: تتطلب فاتورة زاتكا الإلكترونية الريال السعودي.'
-                          : 'Used as the default currency across the app (POS, receipts, invoices). Note: ZATCA e-invoicing requires SAR.'}
+                          ? 'تُستخدم هذه العملة كافتراضي في كل صفحات النظام. زاتكا للريال السعودي، وNBR/Mushak للتاكا البنغلاديشي.'
+                          : 'Used as the default currency across the app (POS, receipts, invoices). ZATCA requires SAR; NBR/Mushak Bangladesh tax suite requires BDT.'}
                       </p>
                     </div>
                     <div className="mt-3">
@@ -1237,7 +1255,7 @@ export default function Settings() {
                       <p className="text-[10px] text-gray-500 mt-1">
                         {language === 'ar'
                           ? 'يحدد اللغة الثانية بجانب الإنجليزية في الفواتير وعروض الأسعار. "تلقائي" يختار العربية للريال السعودي، والأردية للروبية الباكستانية، والإنجليزية فقط لباقي العملات.'
-                          : 'Controls the second language on invoices & quotations. "Auto" picks Arabic for SAR, Urdu for PKR, and English-only for other currencies.'}
+                          : 'Controls the second language on invoices & quotations. "Auto" picks Arabic for SAR, Urdu for PKR, English for BDT and other currencies.'}
                       </p>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">

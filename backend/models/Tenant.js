@@ -42,6 +42,8 @@ const businessDetailsSchema = new mongoose.Schema({
   legalNameEn: { type: String, required: true },
   tradeName: { type: String },
   vatNumber: { type: String, default: '' },
+  /** Bangladesh NBR Business Identification Number (BIN) */
+  binNumber: { type: String, default: '' },
   crNumber: { type: String, default: '' },
   address: {
     street: { type: String },
@@ -116,6 +118,29 @@ const zatcaConfigSchema = new mongoose.Schema({
   deviceSerialNumber: { type: String },
   onboardedAt: { type: Date },
   environment: { type: String, enum: ['sandbox', 'simulation', 'production'], default: 'sandbox' }
+});
+
+/** Bangladesh National Board of Revenue (NBR) / Mushak e-invoicing config */
+const nbrConfigSchema = new mongoose.Schema({
+  isEnabled: { type: Boolean, default: false },
+  isOnboarded: { type: Boolean, default: false },
+  binNumber: { type: String, default: '' },
+  vatRegistrationNumber: { type: String, default: '' },
+  mushakForm: { type: String, default: '6.3' },
+  defaultVatRate: { type: Number, default: 15 },
+  autoGenerateQr: { type: Boolean, default: true },
+  environment: { type: String, enum: ['sandbox', 'production'], default: 'sandbox' },
+  apiBaseUrl: { type: String, default: '' },
+  apiKey: { type: String, default: '' },
+  apiSecret: { type: String, default: '' },
+  connectionStatus: {
+    type: String,
+    enum: ['disconnected', 'action_required', 'connected'],
+    default: 'disconnected',
+  },
+  lastSyncAt: { type: Date },
+  onboardedAt: { type: Date },
+  invoiceCounter: { type: Number, default: 0 },
 });
 
 const invoiceBrandingProfileSchema = new mongoose.Schema({
@@ -317,6 +342,7 @@ const tenantSchema = new mongoose.Schema({
     reason: { type: String }
   },
   zatca: zatcaConfigSchema,
+  nbr: nbrConfigSchema,
   ecommerce: { type: ecommerceSchema, default: () => ({}) },
   settings: {
     installedApps: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },

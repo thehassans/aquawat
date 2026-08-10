@@ -8,7 +8,7 @@ import { login, clearError } from '../../store/slices/authSlice'
 import { setLanguage, setAppLauncherOpen, setHideSidebar, setNavigationStyle } from '../../store/slices/uiSlice'
 import { useTranslation } from '../../lib/translations'
 import { usePublicWebsiteSettings, usePublicTenantBranding } from '../../lib/website'
-import { getAliasSlugFromHost } from '../../lib/tenantHost'
+import { getAliasSlugFromHost, isApexHost, isOnTenantAliasHost, getTenantAliasHandoffUrl } from '../../lib/tenantHost'
 import DailyAyat from '../../components/ui/DailyAyat'
 
 const complianceLogos = [
@@ -93,6 +93,15 @@ export default function Login() {
       } else if (result.user?.role === 'reseller') {
         navigate('/reseller', { replace: true });
         return;
+      }
+
+      // Apex login → send the user to their dedicated {slug}.maqder.com workspace
+      // (token handoff required because localStorage is origin-scoped).
+      const tenantSlug = String(tenant?.slug || '').trim().toLowerCase()
+      const sessionToken = result.token || localStorage.getItem('token')
+      if (tenantSlug && sessionToken && isApexHost() && !isOnTenantAliasHost()) {
+        window.location.replace(getTenantAliasHandoffUrl(tenantSlug, sessionToken))
+        return
       }
 
       // For all tenant users, open the Application Bar Launcher directly

@@ -23,6 +23,7 @@ const serializeAuthTenant = (tenant) => {
     subscription: source.subscription,
     terminationNotice: source.terminationNotice,
     zatca: source.zatca,
+    nbr: source.nbr,
   };
 };
 
@@ -1342,6 +1343,49 @@ export const DEFAULT_APP_CATALOG = [
     ]
   },
   // ══════════════════════════════════════════════════════════════════════════════
+  // ── BANGLADESH NBR / MUSHAK COMPLIANCE ───────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════════
+  {
+    appId: 'bangladesh_nbr_einvoicing',
+    nameEn: 'NBR Mushak E-Invoicing (Bangladesh)',
+    nameAr: 'الفوترة الإلكترونية NBR / Mushak (بنغلاديش)',
+    taglineEn: 'BIN, Mushak 6.3 VAT invoices, and NBR-ready QR on receipts — Bangladesh tax suite.',
+    taglineAr: 'رقم BIN وفواتير Mushak 6.3 ورمز QR جاهز لهيئة الإيرادات الوطنية البنغلاديشية.',
+    descriptionEn: 'Complete Bangladesh National Board of Revenue (NBR) compliance pack for BDT businesses: Business Identification Number (BIN) management, Mushak 6.3 VAT tax invoice formatting on POS receipts and PDFs, standard 15% VAT defaults, sandbox/production API credentials for e-invoicing gateways, and verification QR codes on every receipt. Mirrors the ZATCA hub for Saudi tenants — install only when your default currency is BDT.',
+    descriptionAr: 'حزمة امتثال هيئة الإيرادات الوطنية البنغلاديشية (NBR) للمنشآت بعملة التاكا: إدارة رقم BIN، تنسيق فواتير ضريبة Mushak 6.3، معدل ضريبة 15%، وبيانات API للربط، ورموز تحقق QR على الإيصالات.',
+    category: 'bangladesh_compliance',
+    appType: 'bangladesh_compliance',
+    requiredCurrency: 'BDT',
+    icon: 'shield',
+    version: '1.0.0',
+    downloadSize: '4.8 MB',
+    author: 'Maqder Bangladesh Gov Suite',
+    rating: 4.9,
+    reviewsCount: 42,
+    pricingTier: 'free',
+    badge: 'NBR Ready',
+    defaultRoute: '/app/dashboard/tenant-settings/nbr-dashboard',
+    featuresEn: [
+      'Business Identification Number (BIN) & VAT registration',
+      'Mushak 6.3 tax invoice titles on POS thermal receipts',
+      'NBR verification QR on sales receipts',
+      'Sandbox / production API credential vault',
+      'Default 15% Bangladesh VAT rate helpers'
+    ],
+    featuresAr: [
+      'إدارة رقم BIN وتسجيل ضريبة القيمة المضافة',
+      'عناوين فاتورة Mushak 6.3 على إيصالات نقاط البيع',
+      'رمز QR للتحقق من NBR على إيصالات البيع',
+      'خزنة بيانات API لبيئتي التجربة والإنتاج',
+      'مساعدات معدل ضريبة بنغلاديش 15%'
+    ],
+    configSchema: [
+      { key: 'environment', labelEn: 'NBR Environment', labelAr: 'بيئة NBR', type: 'select', defaultValue: 'sandbox', options: [{ value: 'sandbox', labelEn: 'Sandbox (Testing)', labelAr: 'بيئة التجربة' }, { value: 'production', labelEn: 'Live Production', labelAr: 'البيئة الإنتاجية' }] },
+      { key: 'mushakForm', labelEn: 'Default Mushak Form', labelAr: 'نموذج Mushak الافتراضي', type: 'select', defaultValue: '6.3', options: [{ value: '6.3', labelEn: 'Mushak 6.3 (Tax Invoice)', labelAr: 'Mushak 6.3 (فاتورة ضريبية)' }, { value: '6.4', labelEn: 'Mushak 6.4 (Credit Note)', labelAr: 'Mushak 6.4 (إشعار دائن)' }] },
+      { key: 'autoGenerateQr', labelEn: 'Auto-generate NBR QR on receipts', labelAr: 'توليد رمز QR تلقائياً على الإيصالات', type: 'boolean', defaultValue: true }
+    ]
+  },
+  // ══════════════════════════════════════════════════════════════════════════════
   // ── DOCUMENT DESIGN ADD-ONS ────────────────────────────────────────────────────
   // ══════════════════════════════════════════════════════════════════════════════
   {
@@ -1407,7 +1451,8 @@ export const ensureCatalogInitialized = async () => {
             requiresHardware: app.requiresHardware,
             featuresEn: app.featuresEn,
             featuresAr: app.featuresAr,
-            configSchema: app.configSchema
+            configSchema: app.configSchema,
+            requiredCurrency: app.requiredCurrency || '',
           },
           $setOnInsert: {
             pricingTier: app.pricingTier || 'free',
@@ -1439,8 +1484,21 @@ router.get('/apps', protect, async (req, res) => {
 
     const defaultCatalogMap = new Map(DEFAULT_APP_CATALOG.map(a => [a.appId, a]));
     const tenantInstalled = tenant.settings?.installedApps || {};
+    const tenantCurrency = String(tenant.settings?.currency || 'SAR').trim().toUpperCase();
 
-    const appsWithStatus = finalApps.map((app) => {
+    const isAppVisibleForCurrency = (app) => {
+      const required = String(app.requiredCurrency || defaultCatalogMap.get(app.appId)?.requiredCurrency || '').trim().toUpperCase();
+      if (required) return tenantCurrency === required;
+      if (app.category === 'saudi_compliance' || app.appType === 'saudi_compliance') {
+        return tenantCurrency === 'SAR';
+      }
+      if (app.category === 'bangladesh_compliance' || app.appType === 'bangladesh_compliance') {
+        return tenantCurrency === 'BDT';
+      }
+      return true;
+    };
+
+    const appsWithStatus = finalApps.filter(isAppVisibleForCurrency).map((app) => {
       const defApp = defaultCatalogMap.get(app.appId);
       const isExplicitlyInstalled = !!tenantInstalled[app.appId]?.isInstalled;
       // Grandfather tenants who already had premium invoice templates
@@ -1484,6 +1542,20 @@ router.post('/apps/:appId/install', protect, async (req, res) => {
     const tenant = await getTenantForUser(req);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
+    const tenantCurrency = String(tenant.settings?.currency || 'SAR').trim().toUpperCase();
+    const required = String(appDef.requiredCurrency || '').trim().toUpperCase();
+    if (required && tenantCurrency !== required) {
+      return res.status(400).json({
+        error: `This app requires default currency ${required}. Current tenant currency is ${tenantCurrency}.`,
+      });
+    }
+    if ((appDef.category === 'saudi_compliance' || appDef.appType === 'saudi_compliance') && tenantCurrency !== 'SAR') {
+      return res.status(400).json({ error: 'Saudi government apps require SAR as the tenant default currency.' });
+    }
+    if ((appDef.category === 'bangladesh_compliance' || appDef.appType === 'bangladesh_compliance') && tenantCurrency !== 'BDT') {
+      return res.status(400).json({ error: 'Bangladesh NBR apps require BDT as the tenant default currency.' });
+    }
+
     if (!tenant.settings) tenant.settings = {};
     if (!tenant.settings.installedApps) tenant.settings.installedApps = {};
 
@@ -1505,6 +1577,19 @@ router.post('/apps/:appId/install', protect, async (req, res) => {
     };
 
     tenant.settings.installedApps[appId] = appConfig;
+
+    // Bangladesh NBR app → enable tenant.nbr suite
+    if (appId === 'bangladesh_nbr_einvoicing') {
+      if (!tenant.nbr) tenant.nbr = {};
+      tenant.nbr.isEnabled = true;
+      if (appConfig.config?.environment) tenant.nbr.environment = appConfig.config.environment;
+      if (appConfig.config?.mushakForm) tenant.nbr.mushakForm = appConfig.config.mushakForm;
+      if (appConfig.config?.autoGenerateQr !== undefined) tenant.nbr.autoGenerateQr = !!appConfig.config.autoGenerateQr;
+      if (!tenant.nbr.connectionStatus || tenant.nbr.connectionStatus === 'disconnected') {
+        tenant.nbr.connectionStatus = 'action_required';
+      }
+      tenant.markModified('nbr');
+    }
 
     // If app grants a business type (e.g. manufacturing), ensure it is added to tenant.businessTypes
     let currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);

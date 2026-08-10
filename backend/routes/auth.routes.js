@@ -40,7 +40,7 @@ const generateToken = (id) => {
   });
 };
 
-const authTenantSelect = 'name slug businessType businessTypes business settings branding subscription isActive terminationNotice zatca';
+const authTenantSelect = 'name slug businessType businessTypes business settings branding subscription isActive terminationNotice zatca nbr';
 
 const serializeAuthTenant = (tenant) => {
   if (!tenant) return null;
@@ -59,6 +59,7 @@ const serializeAuthTenant = (tenant) => {
     subscription: source.subscription,
     terminationNotice: source.terminationNotice,
     zatca: source.zatca,
+    nbr: source.nbr,
   };
 };
 

@@ -429,6 +429,43 @@ export default function GovernmentIntegrations() {
 
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   if (!isSarCurrencyTenant) {
+    const isBdt = String(tenant?.settings?.currency || '').toUpperCase() === 'BDT'
+    if (isBdt) {
+      return (
+        <div className="max-w-3xl mx-auto space-y-6 py-8 px-4">
+          <div>
+            <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+              Bangladesh Government Integrations
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
+              National Board of Revenue (NBR) Mushak VAT e-invoicing — the Bangladesh counterpart to Saudi ZATCA.
+            </p>
+          </div>
+          <div className="card p-6 space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                <Shield className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-gray-900 dark:text-white">NBR / Mushak E-Invoicing</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Configure BIN, Mushak 6.3 tax invoice defaults, VAT rate, and API credentials. Install the
+                  &quot;NBR Mushak E-Invoicing&quot; app from the App Store for full access.
+                </p>
+                <div className="flex flex-wrap gap-3 mt-4">
+                  <a href="/app/dashboard/tenant-settings/nbr-dashboard" className="btn btn-primary text-sm">
+                    Open NBR Dashboard
+                  </a>
+                  <a href="/app/dashboard/app-store" className="btn btn-secondary text-sm">
+                    App Store
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="max-w-2xl mx-auto text-center py-16 px-6">
         <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-dark-700 flex items-center justify-center mx-auto mb-5">
@@ -439,7 +476,7 @@ export default function GovernmentIntegrations() {
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
           {t(
-            'ZATCA, Elm, Qiwa and GOSI are Saudi Arabian government integrations that only apply to SAR-denominated businesses. Set your default currency to SAR in Settings to enable this section.',
+            'ZATCA, Elm, Qiwa and GOSI are Saudi Arabian government integrations that only apply to SAR-denominated businesses. Set your default currency to SAR in Settings to enable this section. Bangladesh tenants (BDT) should use the NBR / Mushak suite instead.',
             'زاتكا وعلم وقوى والتأمينات الاجتماعية تكاملات حكومية سعودية تنطبق فقط على المنشآت التي تتعامل بالريال السعودي. غيّر العملة الافتراضية إلى الريال السعودي من الإعدادات لتفعيل هذا القسم.'
           )}
         </p>
