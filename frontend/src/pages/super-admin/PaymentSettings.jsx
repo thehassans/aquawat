@@ -238,26 +238,52 @@ export default function PaymentSettings() {
 
         <div>
           <label className={labelCls}>
-            Secret Key {stripe.hasSecretKey && <span className="text-xs text-gray-400">(currently set: {stripe.secretKeyMasked})</span>}
+            Secret Key{' '}
+            {stripe.hasSecretKey ? (
+              <span className="text-xs text-emerald-600">(saved: {stripe.secretKeyMasked})</span>
+            ) : (
+              <span className="text-xs text-amber-600">(not saved yet — paste sk_live_… or sk_test_…)</span>
+            )}
           </label>
           <div className="relative">
-            <input type={showStripeSecret ? 'text' : 'password'} value={stripeForm.secretKey} onChange={(e) => setStripeForm({ ...stripeForm, secretKey: e.target.value })} placeholder={stripe.hasSecretKey ? '•••••••• (enter new to replace)' : 'sk_test_...'} className={`${inputCls} pr-10`} />
+            <input
+              type={showStripeSecret ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={stripeForm.secretKey}
+              onChange={(e) => setStripeForm({ ...stripeForm, secretKey: e.target.value })}
+              placeholder={stripe.hasSecretKey ? 'Leave blank to keep saved key, or paste a new sk_…' : 'sk_live_… or sk_test_…'}
+              className={`${inputCls} pr-10`}
+            />
             <button type="button" onClick={() => setShowStripeSecret(!showStripeSecret)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
               {showStripeSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+          <p className="mt-1 text-[11px] text-gray-500">From Stripe → Developers → API keys. Eye icon only shows what you type here — not a previously saved key.</p>
         </div>
 
         <div>
           <label className={labelCls}>
-            Webhook Secret {stripe.hasWebhookSecret && <span className="text-xs text-gray-400">(currently set: {stripe.webhookSecretMasked})</span>}
+            Webhook Secret{' '}
+            {stripe.hasWebhookSecret ? (
+              <span className="text-xs text-emerald-600">(saved: {stripe.webhookSecretMasked})</span>
+            ) : (
+              <span className="text-xs text-amber-600">(not saved yet — paste whsec_… from Snapshot destination)</span>
+            )}
           </label>
           <div className="relative">
-            <input type={showStripeWebhook ? 'text' : 'password'} value={stripeForm.webhookSecret} onChange={(e) => setStripeForm({ ...stripeForm, webhookSecret: e.target.value })} placeholder={stripe.hasWebhookSecret ? '•••••••• (enter new to replace)' : 'whsec_...'} className={`${inputCls} pr-10`} />
+            <input
+              type={showStripeWebhook ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={stripeForm.webhookSecret}
+              onChange={(e) => setStripeForm({ ...stripeForm, webhookSecret: e.target.value })}
+              placeholder={stripe.hasWebhookSecret ? 'Leave blank to keep saved secret, or paste a new whsec_…' : 'whsec_…'}
+              className={`${inputCls} pr-10`}
+            />
             <button type="button" onClick={() => setShowStripeWebhook(!showStripeWebhook)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
               {showStripeWebhook ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+          <p className="mt-1 text-[11px] text-gray-500">From the Snapshot webhook destination Signing secret. Then click Save All Settings at the bottom.</p>
         </div>
 
         <div className="rounded-lg bg-gray-50 dark:bg-dark-700 p-3 space-y-1">
