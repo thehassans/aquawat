@@ -577,26 +577,28 @@ const publicLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
 });
 
+// Key by authenticated tenantId so all devices in the same store (POS, KDS, tablets)
+// share a single per-TENANT quota rather than getting throttled behind a single NAT IP.
+const getTenantOrIpKey = (req) => {
+  try {
+    const auth = req.headers?.authorization || ''
+    if (auth.startsWith('Bearer ')) {
+      const payload = JSON.parse(Buffer.from(auth.split('.')[1], 'base64').toString())
+      if (payload?.tenantId) return `tenant:${payload.tenantId}`
+      if (payload?.id) return `user:${payload.id}`
+    }
+  } catch (_) { /* fall through to IP */ }
+  return getClientIp(req)
+};
+
 // 3. General API — configurable (default 10 000 req / 15 min)
-//    Key by authenticated tenantId so all devices in the same store (POS, KDS, tablets)
-//    share a generous per-TENANT quota rather than getting throttled behind a single NAT IP.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: apiRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
   store: makeRateLimitStore('api'),
-  keyGenerator: (req) => {
-    try {
-      const auth = req.headers?.authorization || ''
-      if (auth.startsWith('Bearer ')) {
-        const payload = JSON.parse(Buffer.from(auth.split('.')[1], 'base64').toString())
-        if (payload?.tenantId) return `tenant:${payload.tenantId}`
-        if (payload?.id) return `user:${payload.id}`
-      }
-    } catch (_) { /* fall through to IP */ }
-    return getClientIp(req)
-  },
+  keyGenerator: getTenantOrIpKey,
   skip: (req) => {
     const p = req.path || '';
     return p.startsWith('/health') ||
@@ -607,8 +609,22 @@ const limiter = rateLimit({
   message: { error: 'Too many requests, please try again later.' },
 });
 
+// 4. AI/OCR endpoints — expensive (external model calls, image/document processing).
+//    Much tighter than the general API cap so a runaway client or abuse can't
+//    exhaust paid AI quota or hog CPU on document parsing/OCR.
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.AI_RATE_LIMIT_MAX || 60),
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeRateLimitStore('ai'),
+  keyGenerator: getTenantOrIpKey,
+  message: { error: 'Too many AI requests. Please wait a few minutes and try again.' },
+});
+
 app.use('/api/auth/', authLimiter);
 app.use('/api/public/', publicLimiter);
+app.use('/api/ai/', aiLimiter);
 app.use('/api/', limiter);
 app.use('/api/', etag());
 

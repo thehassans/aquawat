@@ -746,6 +746,15 @@ async function buildDashboardPayload(req) {
 router.get('/charts/revenue', async (req, res) => {
   try {
     const { months = 12 } = req.query;
+    const cacheKey = `dashboard:v1:charts:revenue:${req.tenant?._id || req.tenantFilter?.tenantId || 'unknown'}:${months}`;
+    const merged = await cacheAside(cacheKey, DASHBOARD_CACHE_TTL_SECONDS, () => buildRevenueChart(req, months));
+    return res.json(merged);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+async function buildRevenueChart(req, months) {
     const businessTypes = getTenantBusinessTypes(req.tenant);
     
     const startDate = new Date();
@@ -917,22 +926,25 @@ router.get('/charts/revenue', async (req, res) => {
       workshopRevenue.forEach(r => addRevenue(r._id.year, r._id.month, r.revenue, r.tax, r.count));
     }
     
-    const merged = Array.from(byKey.values()).sort((a, b) => {
+    return Array.from(byKey.values()).sort((a, b) => {
       if (a._id.year !== b._id.year) return a._id.year - b._id.year;
       return a._id.month - b._id.month;
     });
-
-    res.json(merged);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+}
 
 // @route   GET /api/dashboard/charts/expenses
 router.get('/charts/expenses', async (req, res) => {
   try {
     const { months = 12 } = req.query;
-    
+    const cacheKey = `dashboard:v1:charts:expenses:${req.tenant?._id || req.tenantFilter?.tenantId || 'unknown'}:${months}`;
+    const merged = await cacheAside(cacheKey, DASHBOARD_CACHE_TTL_SECONDS, () => buildExpensesChart(req, months));
+    return res.json(merged);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+async function buildExpensesChart(req, months) {
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - parseInt(months));
     
@@ -1000,7 +1012,7 @@ router.get('/charts/expenses', async (req, res) => {
       });
     }
 
-    const merged = Array.from(byKey.values()).sort((a, b) => {
+    return Array.from(byKey.values()).sort((a, b) => {
       const ay = a?._id?.year || 0;
       const by = b?._id?.year || 0;
       if (ay !== by) return ay - by;
@@ -1008,11 +1020,6 @@ router.get('/charts/expenses', async (req, res) => {
       const bm = b?._id?.month || 0;
       return am - bm;
     });
-
-    res.json(merged);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+}
 
 export default router;

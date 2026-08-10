@@ -23,6 +23,12 @@ export const initSocket = (token) => {
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
+    // Skip the HTTP long-polling handshake entirely and connect straight
+    // over WebSocket. The backend runs multiple cluster workers/containers
+    // without sticky sessions, so polling's multi-request handshake can land
+    // on a different worker mid-negotiation and fail; a single persistent
+    // WebSocket connection has no such requirement.
+    transports: ['websocket'],
   });
 
   socket.on('connect', () => {

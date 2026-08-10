@@ -11,7 +11,13 @@ export const initSocket = (server) => {
     cors: {
       origin: '*', // Adjust this for production
       methods: ['GET', 'POST']
-    }
+    },
+    // Websocket-only: avoids the multi-request HTTP long-polling handshake,
+    // which requires sticky sessions to consistently reach the same cluster
+    // worker/container. A single persistent WebSocket connection lands on
+    // one worker for its whole lifetime, so this scales across the cluster
+    // (and multiple backend replicas behind Nginx) without sticky sessions.
+    transports: ['websocket'],
   });
 
   // Create dedicated Redis clients for Socket.io Pub/Sub
