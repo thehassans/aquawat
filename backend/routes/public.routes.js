@@ -172,7 +172,7 @@ router.get('/tenant-branding/:slug', async (req, res) => {
     if (!slug) return res.status(400).json({ error: 'Slug is required' })
 
     const tenant = await withQueryTimeout(
-      Tenant.findOne({ slug, isActive: true }).select('name slug business.legalNameEn business.legalNameAr branding.logo branding.primaryColor branding.secondaryColor')
+      Tenant.findOne({ slug, isActive: true }).select('name slug business.legalNameEn business.legalNameAr branding.logo branding.primaryColor branding.secondaryColor settings.currency')
     )
 
     if (!tenant) return res.status(404).json({ found: false })
@@ -185,6 +185,7 @@ router.get('/tenant-branding/:slug', async (req, res) => {
       logo: tenant.branding?.logo || null,
       primaryColor: tenant.branding?.primaryColor || '#14B8A6',
       secondaryColor: tenant.branding?.secondaryColor || '#D946EF',
+      currency: String(tenant.settings?.currency || 'SAR').trim().toUpperCase(),
     })
   } catch (error) {
     sendRouteError(res, error)

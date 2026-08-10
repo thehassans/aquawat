@@ -42,6 +42,7 @@ export default function Login() {
   const initialTenantSlug = String(searchParams.get('tenant') || searchParams.get('tenantSlug') || aliasSlug || '').trim().toLowerCase()
   const { data: aliasTenantBranding } = usePublicTenantBranding(aliasSlug)
   const brandedTenant = aliasTenantBranding?.found ? aliasTenantBranding : null
+  const isSaudiBrandedLogin = !brandedTenant || String(brandedTenant.currency || 'SAR').toUpperCase() === 'SAR'
   const salesPhone = String(websiteSettings?.contactPhone || '+966596775485').trim()
   const salesEmail = String(websiteSettings?.contactEmail || 'info@maqder.com').trim()
   const whatsappNumber = salesPhone.replace(/\D/g, '')
@@ -230,7 +231,9 @@ export default function Login() {
                 <h1 className="text-5xl font-bold leading-tight mb-4">
                   {language === 'ar' ? 'نظام ERP متكامل' : 'Complete ERP System'}
                   <br />
-                  <span className="text-white/80">{language === 'ar' ? 'متوافق مع السعودية' : 'Saudi Compliant'}</span>
+                  <span className="text-white/80">
+                    {language === 'ar' ? 'متوافق مع السعودية' : 'Saudi Compliant'}
+                  </span>
                 </h1>
               )}
               <p className="text-xl text-white/70 max-w-md">
@@ -242,11 +245,18 @@ export default function Login() {
 
             {/* Features */}
             <div className="grid grid-cols-1 gap-4">
-              {[
-                { icon: Shield, text: language === 'ar' ? 'متوافق مع فاتورة المرحلة الثانية' : 'ZATCA Phase 2 Compliant' },
-                { icon: Zap, text: language === 'ar' ? 'حسابات GOSI و EOSB التلقائية' : 'Auto GOSI & EOSB Calculations' },
-                { icon: Globe, text: language === 'ar' ? 'دعم كامل للغة العربية' : 'Full Arabic RTL Support' },
-              ].map((feature, i) => (
+              {(isSaudiBrandedLogin
+                ? [
+                    { icon: Shield, text: language === 'ar' ? 'متوافق مع فاتورة المرحلة الثانية' : 'ZATCA Phase 2 Compliant' },
+                    { icon: Zap, text: language === 'ar' ? 'حسابات GOSI و EOSB التلقائية' : 'Auto GOSI & EOSB Calculations' },
+                    { icon: Globe, text: language === 'ar' ? 'دعم كامل للغة العربية' : 'Full Arabic RTL Support' },
+                  ]
+                : [
+                    { icon: Shield, text: language === 'ar' ? 'فوترة ومبيعات متكاملة' : 'Invoicing & Sales Built-In' },
+                    { icon: Zap, text: language === 'ar' ? 'نقاط بيع ومخزون سريعة' : 'Fast POS & Inventory' },
+                    { icon: Globe, text: language === 'ar' ? 'متعدد العملات واللغات' : 'Multi-Currency & Multi-Language' },
+                  ]
+              ).map((feature, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, x: -20 }}
@@ -637,6 +647,7 @@ export default function Login() {
           </div>
 
           {/* Trust Badges */}
+          {isSaudiBrandedLogin && (
           <div className="mt-10 pt-8 border-t border-gray-200">
             <p className="text-center text-xs text-gray-400 mb-4">{language === 'ar' ? 'معتمد من' : 'Trusted & Certified'}</p>
             <div className="flex flex-wrap items-center justify-center gap-4">
@@ -667,6 +678,27 @@ export default function Login() {
               </button>
             </div>
           </div>
+          )}
+          {!isSaudiBrandedLogin && (
+            <div className="mt-10 pt-8 border-t border-gray-200 flex justify-center">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(key => caches.delete(key)));
+                    window.location.reload(true);
+                  } catch (e) {
+                    window.location.reload(true);
+                  }
+                }}
+                className="group flex items-center gap-2 px-4 py-2 rounded-full border border-gray-100 bg-gray-50/50 text-xs font-medium text-gray-400 hover:text-gray-900 hover:bg-gray-100 hover:border-gray-200 transition-all duration-300 shadow-sm hover:shadow"
+              >
+                <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500" />
+                {language === 'ar' ? 'تحديث النظام (مسح التخزين المؤقت)' : 'Clear Cache & Reload'}
+              </button>
+            </div>
+          )}
         </motion.div>
       </div>
     </div>

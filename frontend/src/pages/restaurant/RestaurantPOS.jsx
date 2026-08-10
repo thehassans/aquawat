@@ -257,6 +257,7 @@ export default function RestaurantPOS() {
         customerPhone: customerPhone.trim(),
         deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
         paymentMethod: targetStatus === 'paid' ? paymentMethod : undefined,
+        currency,
         lineItems: cart.map(item => ({
           menuItemId: item.menuItem._id,
           name: item.nameEn,
@@ -321,6 +322,7 @@ export default function RestaurantPOS() {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
+        currency,
         lineItems: cart.map(item => ({
           menuItemId: item.menuItem._id,
           name: item.nameEn,
@@ -380,6 +382,7 @@ export default function RestaurantPOS() {
         customerPhone: customerPhone.trim(),
         deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
         paymentMethod: 'card',
+        currency,
         lineItems: cart.map(item => ({
           menuItemId: item.menuItem._id,
           name: item.nameEn,

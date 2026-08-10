@@ -11,7 +11,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
   const { language } = useSelector(state => state.ui)
   const isRtl = language === 'ar'
   const thermalSettings = getThermalPrinterSettings(tenant)
-  const currency = String(order?.currency || tenant?.settings?.currency || CURRENCY_CODE).trim().toUpperCase()
+  const currency = String(tenant?.settings?.currency || order?.currency || CURRENCY_CODE).trim().toUpperCase()
   const bilingualAr = isSaudiTenant(tenant)
   const isZatcaApplicable = bilingualAr
 

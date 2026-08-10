@@ -459,9 +459,13 @@ router.post('/', checkTrialLimits('restaurantOrders'), checkPermission('restaura
     const enriched = await enrichLineItemsWithMenuItems(req.body.lineItems, req.tenantFilter);
     const { normalized, subtotal, totalTax, grandTotal } = computeTotals(enriched);
 
+    const tenantCurrencyDoc = await Tenant.findById(req.user.tenantId).select('settings.currency').lean();
+    const tenantCurrency = String(tenantCurrencyDoc?.settings?.currency || req.tenant?.settings?.currency || 'SAR').trim().toUpperCase() || 'SAR';
+
     const order = await RestaurantOrder.create({
       ...req.body,
       orderNumber,
+      currency: req.body.currency || tenantCurrency,
       lineItems: normalized,
       subtotal,
       totalTax,
