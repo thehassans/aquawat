@@ -35,6 +35,8 @@ export default function TenantForm() {
   const businessTypeOptions = getBusinessTypeOptions(language)
   const watchedBusinessTypes = normalizeBusinessTypes(watch('businessTypes'), watch('businessType') || 'trading')
   const watchedPrimaryBusinessType = watch('businessType') || 'trading'
+  const watchedCurrency = String(watch('settings.currency') || CURRENCY_CODE).toUpperCase()
+  const isSaudiTenant = watchedCurrency === 'SAR'
 
   const { data: tenant, isLoading } = useQuery({
     queryKey: ['tenant', id],
@@ -323,14 +325,6 @@ export default function TenantForm() {
             </div>
             
             <div>
-              <label className="label">{language === 'ar' ? 'مرحلة زاتكا (ZATCA)' : 'ZATCA Phase'} *</label>
-              <select {...register('zatca.phase', { valueAsNumber: true })} className="select">
-                <option value={1}>{language === 'ar' ? 'المرحلة الأولى' : 'Phase 1'}</option>
-                <option value={2}>{language === 'ar' ? 'المرحلة الثانية' : 'Phase 2'}</option>
-              </select>
-            </div>
-
-            <div>
               <label className="label">{language === 'ar' ? 'العملة الافتراضية' : 'Default Currency'}</label>
               <select {...register('settings.currency')} defaultValue={CURRENCY_CODE} className="select">
                 {CURRENCIES.map((cur) => (
@@ -341,10 +335,20 @@ export default function TenantForm() {
               </select>
               <p className="text-xs text-gray-500 mt-1">
                 {language === 'ar'
-                  ? 'تحدد هذه العملة كافتراضية لجميع صفحات هذا المستأجر.'
-                  : 'Sets the default currency used across all pages for this tenant.'}
+                  ? 'تحدد هذه العملة كافتراضية لجميع صفحات هذا المستأجر. تنطبق أحكام هيئة الزكاة (زاتكا) فقط عند اختيار الريال السعودي.'
+                  : 'Sets the default currency used across all pages for this tenant. Saudi ZATCA e-invoicing rules only apply when SAR is selected.'}
               </p>
             </div>
+
+            {isSaudiTenant && (
+              <div>
+                <label className="label">{language === 'ar' ? 'مرحلة زاتكا (ZATCA)' : 'ZATCA Phase'} *</label>
+                <select {...register('zatca.phase', { valueAsNumber: true })} className="select">
+                  <option value={1}>{language === 'ar' ? 'المرحلة الأولى' : 'Phase 1'}</option>
+                  <option value={2}>{language === 'ar' ? 'المرحلة الثانية' : 'Phase 2'}</option>
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="label">{language === 'ar' ? 'نوع النشاط' : 'Business Type'}</label>
@@ -391,11 +395,11 @@ export default function TenantForm() {
               <input {...register('business.legalNameAr', { required: true })} className="input" dir="rtl" />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
-              <input {...register('business.vatNumber')} className="input" placeholder="3XXXXXXXXXX00003" />
+              <label className="label">{language === 'ar' ? 'الرقم الضريبي' : isSaudiTenant ? 'VAT Number' : 'Tax / VAT Number'}</label>
+              <input {...register('business.vatNumber')} className="input" placeholder={isSaudiTenant ? '3XXXXXXXXXX00003' : ''} />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</label>
+              <label className="label">{language === 'ar' ? 'السجل التجاري' : isSaudiTenant ? 'CR Number' : 'Business Registration Number'}</label>
               <input {...register('business.crNumber')} className="input" />
             </div>
             {isEdit && (
@@ -449,7 +453,8 @@ export default function TenantForm() {
           </div>
         </motion.div>
 
-        {/* National Address */}
+        {/* National Address — Saudi Post / ZATCA-specific, SAR tenants only */}
+        {isSaudiTenant && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }} className="card p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg"><MapPin className="w-5 h-5 text-blue-600" /></div>
@@ -498,8 +503,10 @@ export default function TenantForm() {
             </div>
           </div>
         </motion.div>
+        )}
 
-        {/* Commercial Registration */}
+        {/* Commercial Registration — detailed Saudi CR metadata for ZATCA UBL, SAR tenants only */}
+        {isSaudiTenant && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }} className="card p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg"><Briefcase className="w-5 h-5 text-amber-600" /></div>
@@ -532,8 +539,10 @@ export default function TenantForm() {
             </div>
           </div>
         </motion.div>
+        )}
 
-        {/* VAT Registration Certificate */}
+        {/* VAT Registration Certificate — Saudi ZATCA VAT certificate, SAR tenants only */}
+        {isSaudiTenant && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="card p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-lg"><Receipt className="w-5 h-5 text-teal-600" /></div>
@@ -570,7 +579,7 @@ export default function TenantForm() {
             </div>
           </div>
         </motion.div>
-
+        )}
 
         {/* Reseller Assignment */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-6">
@@ -801,10 +810,17 @@ export default function TenantForm() {
                 <p className="text-sm text-gray-500">{language === 'ar' ? 'الفواتير' : 'Invoices'}</p>
                 <p className="text-2xl font-bold">{tenant.invoiceStats?.reduce((sum, s) => sum + s.count, 0) || 0}</p>
               </div>
-              <div className="p-4 bg-gray-50 dark:bg-dark-700 rounded-xl">
-                <p className="text-sm text-gray-500">ZATCA</p>
-                <p className="text-lg font-bold">{tenant.tenant?.zatca?.isOnboarded ? '✓ Active' : '○ Pending'}</p>
-              </div>
+              {isSaudiTenant ? (
+                <div className="p-4 bg-gray-50 dark:bg-dark-700 rounded-xl">
+                  <p className="text-sm text-gray-500">ZATCA</p>
+                  <p className="text-lg font-bold">{tenant.tenant?.zatca?.isOnboarded ? '✓ Active' : '○ Pending'}</p>
+                </div>
+              ) : (
+                <div className="p-4 bg-gray-50 dark:bg-dark-700 rounded-xl">
+                  <p className="text-sm text-gray-500">{language === 'ar' ? 'العملة' : 'Currency'}</p>
+                  <p className="text-lg font-bold">{watchedCurrency}</p>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
