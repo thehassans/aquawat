@@ -28,10 +28,10 @@ export default function Sidebar() {
   const hasGosi = si.gosiConnectionStatus === 'connected';
 
   const govChildren = [];
-  if (hasZatca) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/zatca', label: language === 'ar' ? `Ø¨ÙˆØ§Ø¨Ø© Ø²Ø§ØªÙƒØ§ ${isZatcaPhase1 ? '(Ø§Ù„Ù…Ø±Ø­Ù„Ø© 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal` });
-  if (hasElm) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/elm', label: language === 'ar' ? 'Ø¨ÙˆØ§Ø¨Ø© Ø¹Ù„Ù… / ÙŠÙ‚ÙŠÙ†' : 'Elm Portal' });
-  if (hasQiwa) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/qiwa', label: language === 'ar' ? 'Ø¨ÙˆØ§Ø¨Ø© Ù‚ÙˆÙ‰' : 'Qiwa Portal' });
-  if (hasGosi) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/gosi', label: language === 'ar' ? 'Ø¨ÙˆØ§Ø¨Ø© Ø§Ù„ØªØ£Ù…ÙŠÙ†Ø§Øª / Ù…Ø¯Ø¯' : 'GOSI/Mudad Portal' });
+  if (hasZatca) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/zatca', label: language === 'ar' ? `بوابة زاتكا ${isZatcaPhase1 ? '(المرحلة 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal` });
+  if (hasElm) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/elm', label: language === 'ar' ? 'بوابة علم / يقين' : 'Elm Portal' });
+  if (hasQiwa) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/qiwa', label: language === 'ar' ? 'بوابة قوى' : 'Qiwa Portal' });
+  if (hasGosi) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/gosi', label: language === 'ar' ? 'بوابة التأمينات / مدد' : 'GOSI/Mudad Portal' });
 
   const hiddenMenuSet = new Set((hiddenMenuItems || []).filter((p) => !['/app/dashboard/settings', '/app/dashboard/hidden-navbars'].includes(p)))
 
@@ -151,7 +151,7 @@ export default function Sidebar() {
           )}
           {user?.branchId && (
             <div className="mt-2 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-semibold">
-              {language === 'ar' ? 'ÙØ±Ø¹' : 'Branch'}
+              {language === 'ar' ? 'فرع' : 'Branch'}
             </div>
           )}
         </div>
@@ -236,7 +236,7 @@ export default function Sidebar() {
           ) : (
             <>
               <ChevronLeft className="w-5 h-5" />
-              <span>{language === 'ar' ? 'Ø·ÙŠ Ø§Ù„Ù‚Ø§Ø¦Ù…Ø©' : 'Collapse'}</span>
+              <span>{language === 'ar' ? 'طي القائمة' : 'Collapse'}</span>
             </>
           )}
         </button>
@@ -246,7 +246,7 @@ export default function Sidebar() {
             className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-1 text-xs text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
           >
             <PanelLeftClose className="w-4 h-4" />
-            <span>{language === 'ar' ? 'Ø¥Ø®ÙØ§Ø¡ Ø§Ù„Ø´Ø±ÙŠØ·' : 'Hide sidebar'}</span>
+            <span>{language === 'ar' ? 'إخÙاء الشريط' : 'Hide sidebar'}</span>
           </button>
         )}
       </div>

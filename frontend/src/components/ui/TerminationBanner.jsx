@@ -191,7 +191,7 @@ export function TerminationBlocker() {
   )
 }
 
-// â”€â”€â”€ Inactive Blocker (tenant stopped by super admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Inactive Blocker (tenant stopped by super admin) ─────────────────────────
 
 export function isTenantInactive(tenant) {
   if (!tenant) return false

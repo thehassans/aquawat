@@ -26,7 +26,7 @@ function resolvePdfTemplateId(requestedTemplateId, tenant, businessContext = 'tr
   const contextTemplateId = tenant?.settings?.invoiceBranding?.contextProfiles?.[normalizedContext]?.templateId;
   const value = Number(requestedTemplateId || contextTemplateId || tenant?.settings?.invoicePdfTemplate || 1);
   if (!Number.isFinite(value)) return 1;
-  return Math.min(6, Math.max(1, value));
+  return Math.min(8, Math.max(1, value));
 }
 
 function normalizeText(value) {
@@ -302,13 +302,15 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
     const currentPage = Math.max(1, Number(page) || 1);
     const limitNumber = Math.max(1, Math.min(200, Number(limit) || 20));
 
-    const quotations = await Quotation.find(query)
-      .populate('createdBy', 'firstName lastName firstNameAr lastNameAr')
-      .sort({ issueDate: -1, createdAt: -1 })
-      .skip((currentPage - 1) * limitNumber)
-      .limit(limitNumber);
-
-    const total = await Quotation.countDocuments(query);
+    const [quotations, total] = await Promise.all([
+      Quotation.find(query)
+        .populate('createdBy', 'firstName lastName firstNameAr lastNameAr')
+        .sort({ issueDate: -1, createdAt: -1 })
+        .skip((currentPage - 1) * limitNumber)
+        .limit(limitNumber)
+        .lean(),
+      Quotation.countDocuments(query),
+    ]);
 
     res.json({
       quotations,

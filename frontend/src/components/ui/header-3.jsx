@@ -58,11 +58,11 @@ export function Header3({ isArabic, setIsArabic }) {
           <NavigationMenu className="hidden md:flex">
             <NavigationMenuList className="gap-2">
               {[
-                { href: '#', label: isArabic ? 'Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©' : 'Home' },
-                { href: '#features', label: isArabic ? 'Ø§Ù„Ù…Ù…ÙŠØ²Ø§Øª' : 'Features' },
-                { href: '#modules', label: isArabic ? 'Ø§Ù„ÙˆØ­Ø¯Ø§Øª' : 'Modules' },
-                { href: '#pricing', label: isArabic ? 'Ø§Ù„Ø£Ø³Ø¹Ø§Ø±' : 'Pricing' },
-                { href: '#contact', label: isArabic ? 'Ø§ØªØµÙ„ Ø¨Ù†Ø§' : 'Contact' },
+                { href: '#', label: isArabic ? 'الرئيسية' : 'Home' },
+                { href: '#features', label: isArabic ? 'المميزات' : 'Features' },
+                { href: '#modules', label: isArabic ? 'الوحدات' : 'Modules' },
+                { href: '#pricing', label: isArabic ? 'الأسعار' : 'Pricing' },
+                { href: '#contact', label: isArabic ? 'اتصل بنا' : 'Contact' },
               ].map((link) => (
                 <NavigationMenuItem key={link.label}>
                   <NavigationMenuLink href={link.href} className="px-4 py-2 hover:bg-accent hover:text-accent-foreground rounded-md text-sm font-medium transition-colors">
@@ -110,11 +110,11 @@ export function Header3({ isArabic, setIsArabic }) {
       <MobileMenu open={open} className="flex flex-col justify-between gap-2 overflow-y-auto">
         <div className="flex flex-col gap-4 mt-8">
           {[
-            { href: '#', label: isArabic ? 'Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©' : 'Home' },
-            { href: '#features', label: isArabic ? 'Ø§Ù„Ù…Ù…ÙŠØ²Ø§Øª' : 'Features' },
-            { href: '#modules', label: isArabic ? 'Ø§Ù„ÙˆØ­Ø¯Ø§Øª' : 'Modules' },
-            { href: '#pricing', label: isArabic ? 'Ø§Ù„Ø£Ø³Ø¹Ø§Ø±' : 'Pricing' },
-            { href: '#contact', label: isArabic ? 'Ø§ØªØµÙ„ Ø¨Ù†Ø§' : 'Contact' },
+            { href: '#', label: isArabic ? 'الرئيسية' : 'Home' },
+            { href: '#features', label: isArabic ? 'المميزات' : 'Features' },
+            { href: '#modules', label: isArabic ? 'الوحدات' : 'Modules' },
+            { href: '#pricing', label: isArabic ? 'الأسعار' : 'Pricing' },
+            { href: '#contact', label: isArabic ? 'اتصل بنا' : 'Contact' },
           ].map((link) => (
             <a key={link.label} href={link.href} className="text-lg font-medium p-2 hover:bg-accent rounded-md" onClick={() => setOpen(false)}>
               {link.label}
@@ -126,15 +126,15 @@ export function Header3({ isArabic, setIsArabic }) {
             className="flex justify-center items-center gap-2 px-4 py-3 rounded-md border border-gray-200 font-medium hover:bg-gray-50 transition-colors"
           >
             <GlobeIcon className="w-5 h-5" />
-            {isArabic ? 'Switch to English' : 'Ø§Ù„ØªØ¨Ø¯ÙŠÙ„ Ù„Ù„Ø¹Ø±Ø¨ÙŠØ©'}
+            {isArabic ? 'Switch to English' : 'التبديل للعربية'}
           </button>
         </div>
         <div className="flex flex-col gap-2 mt-auto pb-4">
           <Button variant="outline" className="w-full bg-transparent" asChild>
-            <a href="/login">{isArabic ? 'ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„' : 'Sign In'}</a>
+            <a href="/login">{isArabic ? 'تسجيل الدخول' : 'Sign In'}</a>
           </Button>
           <Button className="w-full" asChild>
-            <a href="/login">{isArabic ? 'Ø§Ø¨Ø¯Ø£ Ø§Ù„Ø¢Ù†' : 'Get Started'}</a>
+            <a href="/login">{isArabic ? 'ابدأ الآن' : 'Get Started'}</a>
           </Button>
         </div>
       </MobileMenu>
@@ -241,7 +241,7 @@ const companyLinks = [
   {
     title: 'Customer Stories',
     href: '#',
-    description: 'See how weâ€™ve helped our clients succeed',
+    description: 'See how we’ve helped our clients succeed',
     icon: Star,
   },
   {

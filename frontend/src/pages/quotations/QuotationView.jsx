@@ -317,6 +317,7 @@ export default function QuotationView() {
             tenant={tenant}
             language={language}
             templateId={templateId}
+            bilingual
             documentType="quotation"
           />
         </div>

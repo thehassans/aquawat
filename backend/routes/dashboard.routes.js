@@ -33,6 +33,14 @@ import Tenant from '../models/Tenant.js';
 import { protect, tenantFilter } from '../middleware/auth.js';
 import { getTenantBusinessTypes, normalizeBusinessTypes } from '../utils/businessTypes.js';
 import { DEFAULT_APP_CATALOG } from './appStore.routes.js';
+import { cacheAside } from '../lib/redis.js';
+
+// Dashboard aggregates ~24 collections per request (see below) — this is the
+// single most expensive endpoint tenants hit on every page load. Values are
+// cached for a short window per-tenant (cache-aside via Redis, gracefully
+// falling back to a live computation when Redis is unavailable) to absorb
+// repeated navigation/refresh hits without serving meaningfully stale data.
+const DASHBOARD_CACHE_TTL_SECONDS = 20;
 
 const router = express.Router();
 
@@ -58,6 +66,15 @@ const safeCount = async (model, filter) => {
 // @route   GET /api/dashboard
 router.get('/', async (req, res) => {
   try {
+    const cacheKey = `dashboard:v1:${req.tenant?._id || req.tenantFilter?.tenantId || 'unknown'}`;
+    const payload = await cacheAside(cacheKey, DASHBOARD_CACHE_TTL_SECONDS, () => buildDashboardPayload(req));
+    res.json(payload);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+async function buildDashboardPayload(req) {
     const businessTypes = getTenantBusinessTypes(req.tenant);
     const currentMonth = new Date().getMonth() + 1;
     const currentYear = new Date().getFullYear();
@@ -691,7 +708,7 @@ router.get('/', async (req, res) => {
       }
     };
     
-    res.json({
+    return {
       invoices: {
         total: invoiceStats[0]?.total[0] || { count: 0, revenue: 0, tax: 0, discount: 0 },
         thisMonth: invoiceStats[0]?.thisMonth[0] || { count: 0, revenue: 0, discount: 0 },
@@ -722,11 +739,8 @@ router.get('/', async (req, res) => {
       appsOverview,
       installedApps: installedAppsList,
       activeBusinessTypes: businessTypes
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+    };
+}
 
 // @route   GET /api/dashboard/charts/revenue
 router.get('/charts/revenue', async (req, res) => {

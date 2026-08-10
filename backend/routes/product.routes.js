@@ -53,25 +53,28 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
       ];
     }
     
-    let products = await Product.find(query)
-      .select('-landedCostHistory')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+    const [products, total] = await Promise.all([
+      Product.find(query)
+        .select('-landedCostHistory')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean(),
+      Product.countDocuments(query),
+    ]);
 
-    products.forEach(computeTotalStock);
-    
+    let filteredProducts = products;
+    filteredProducts.forEach(computeTotalStock);
+
     if (lowStock === 'true') {
-      products = products.filter(p => {
+      filteredProducts = filteredProducts.filter(p => {
         const minStock = p.stocks.reduce((min, s) => Math.min(min, s.reorderPoint), Infinity);
         return p.totalStock <= minStock;
       });
     }
     
-    const total = await Product.countDocuments(query);
-    
     res.json({
-      products,
+      products: filteredProducts,
       pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / limit) }
     });
   } catch (error) {

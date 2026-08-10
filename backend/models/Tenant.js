@@ -119,7 +119,7 @@ const zatcaConfigSchema = new mongoose.Schema({
 });
 
 const invoiceBrandingProfileSchema = new mongoose.Schema({
-  templateId: { type: Number, min: 1, max: 6 },
+  templateId: { type: Number, min: 1, max: 8 },
   logo: { type: String },
   stampImage: { type: String },
   letterheadImage: { type: String },

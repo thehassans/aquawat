@@ -801,7 +801,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}</h3>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'تتحدث المعاينة فوراً مع تغيير القالب والبيانات.' : 'Preview updates instantly as you change the template and form data.'}</p>
           </div>
-          <InvoiceLivePreview invoice={previewQuotation} tenant={tenant} language={language} templateId={selectedTemplateId} documentType="quotation" />
+          <InvoiceLivePreview invoice={previewQuotation} tenant={tenant} language={language} templateId={selectedTemplateId} bilingual documentType="quotation" />
         </div>
       </div>
     </div>

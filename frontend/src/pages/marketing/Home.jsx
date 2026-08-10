@@ -68,7 +68,7 @@ export default function MarketingHome() {
   return (
     <main className="bg-white text-slate-900 overflow-hidden">
 
-      {/* â”€â”€ HERO â”€â”€ */}
+      {/* ── HERO ── */}
       <section className="relative bg-[#030c06] text-white overflow-hidden">
         {/* Grid texture */}
         <div
@@ -244,7 +244,7 @@ export default function MarketingHome() {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-white to-transparent" />
       </section>
 
-      {/* â”€â”€ CERTIFICATIONS STRIP â”€â”€ */}
+      {/* ── CERTIFICATIONS STRIP ── */}
       <section className="border-b border-slate-100 bg-white py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <p className="mb-7 text-center text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
@@ -267,7 +267,7 @@ export default function MarketingHome() {
         </div>
       </section>
 
-      {/* â”€â”€ STATS â”€â”€ */}
+      {/* ── STATS ── */}
       <section className="bg-white py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-6">
@@ -297,7 +297,7 @@ export default function MarketingHome() {
 
       <div className="border-t border-slate-100" />
 
-      {/* â”€â”€ MODULES GRID â”€â”€ */}
+      {/* ── MODULES GRID ── */}
       <section className="bg-slate-50/70 py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-16 text-center">
@@ -335,7 +335,7 @@ export default function MarketingHome() {
         </div>
       </section>
 
-      {/* â”€â”€ DARK FEATURES â”€â”€ */}
+      {/* ── DARK FEATURES ── */}
       <section className="bg-slate-950 py-24 text-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid items-center gap-16 lg:grid-cols-2">
@@ -416,7 +416,7 @@ export default function MarketingHome() {
         </div>
       </section>
 
-      {/* â”€â”€ TESTIMONIALS â”€â”€ */}
+      {/* ── TESTIMONIALS ── */}
       <section className="bg-white py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-14 text-center">
@@ -450,7 +450,7 @@ export default function MarketingHome() {
         </div>
       </section>
 
-      {/* â”€â”€ CTA â”€â”€ */}
+      {/* ── CTA ── */}
       <section className="pb-24 pt-4">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-[2rem] bg-[#030c06] p-10 text-white shadow-[0_40px_100px_-30px_rgba(0,0,0,0.7)] lg:p-16">

@@ -2,7 +2,6 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { QRCodeSVG } from 'qrcode.react'
 import InvoiceLivePreview from '../components/invoices/InvoiceLivePreview'
-import QuotationDocumentPreview from '../components/quotations/QuotationDocumentPreview'
 import ThermalReceipt from '../components/ui/ThermalReceipt'
 import api from './api'
 import { formatCurrency, isSarCurrency } from './currency'
@@ -207,7 +206,8 @@ const renderQrToDataUrl = async (value, size = 112) => {
   }
 }
 
-const shouldRenderBilingualInvoice = (invoice) => invoice?.invoiceSubtype === 'travel_ticket'
+const shouldRenderBilingualInvoice = (invoice, documentType = 'invoice') => documentType === 'quotation'
+  || invoice?.invoiceSubtype === 'travel_ticket'
   || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
 
 const isPosInvoice = (invoice) => ['restaurant', 'bakala', 'saloon', 'laundry', 'khayyat'].includes(invoice?.businessContext)
@@ -459,21 +459,15 @@ const buildSnapshotElement = async ({ invoice, tenant, language, documentType = 
   host.style.pointerEvents = 'none'
 
   const templateId = getInvoiceTemplateId(tenant, invoice?.businessContext, invoice?.pdfTemplateId)
-  const previewElement = documentType === 'quotation'
-    ? createElement(QuotationDocumentPreview, {
-        quotation: invoice,
-        tenant,
-        language,
-      })
-    : createElement(InvoiceLivePreview, {
-        invoice,
-        tenant,
-        language,
-        templateId,
-        bilingual: shouldRenderBilingualInvoice(invoice),
-        currencyRenderMode: 'snapshot-icon',
-        documentType,
-      })
+  const previewElement = createElement(InvoiceLivePreview, {
+    invoice,
+    tenant,
+    language,
+    templateId,
+    bilingual: shouldRenderBilingualInvoice(invoice, documentType),
+    currencyRenderMode: 'snapshot-icon',
+    documentType,
+  })
   const snapshotMarkup = renderToStaticMarkup(
     createElement('div', { style: { background: '#ffffff' } }, previewElement)
   )
@@ -770,7 +764,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   if (!invoice) return
 
   const snapshotCurrency = invoice.currency || tenant?.settings?.currency || 'SAR'
-  const shouldUseSnapshotRenderer = Boolean(sourceElement) || shouldRenderBilingualInvoice(invoice) || isSarCurrency(snapshotCurrency)
+  const shouldUseSnapshotRenderer = Boolean(sourceElement) || shouldRenderBilingualInvoice(invoice, documentType) || isSarCurrency(snapshotCurrency)
 
   const jspdfModule = await import('jspdf')
   const jsPDF = jspdfModule?.jsPDF || jspdfModule?.default || jspdfModule

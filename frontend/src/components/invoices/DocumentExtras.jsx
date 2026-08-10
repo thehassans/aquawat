@@ -5,8 +5,8 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
   const isAr = language === 'ar'
   
   const hasSubject = Boolean(invoice?.subject || invoice?.subjectAr)
-  const hasNotes = Boolean(invoice?.notes)
-  const hasTerms = Boolean(invoice?.termsAndConditions)
+  const hasNotes = Boolean(invoice?.notes || invoice?.notesAr)
+  const hasTerms = Boolean(invoice?.termsAndConditions || invoice?.termsAndConditionsAr)
   
   const stampImage = invoiceBranding?.stampImage || invoice?.stampImage
   const signatureImage = invoice?.authorizedPersonSignature || invoiceBranding?.signatureImage
@@ -29,11 +29,16 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">
               {isAr ? 'الموضوع' : 'Subject'}
             </h4>
-            <p className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed">
-              {bilingual
-                ? `${invoice?.subject || ''} ${invoice?.subjectAr ? `\n${invoice.subjectAr}` : ''}`
-                : (isAr ? (invoice?.subjectAr || invoice?.subject) : (invoice?.subject || invoice?.subjectAr))}
-            </p>
+            {bilingual ? (
+              <>
+                {invoice?.subject && <p className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed">{invoice.subject}</p>}
+                {invoice?.subjectAr && <p dir="rtl" className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed mt-1">{invoice.subjectAr}</p>}
+              </>
+            ) : (
+              <p dir={isAr ? 'rtl' : 'ltr'} className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed">
+                {isAr ? (invoice?.subjectAr || invoice?.subject) : (invoice?.subject || invoice?.subjectAr)}
+              </p>
+            )}
           </div>
         )}
 
@@ -42,9 +47,16 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">
               {isAr ? 'ملاحظات' : 'Notes'}
             </h4>
-            <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
-              {invoice?.notes}
-            </p>
+            {bilingual ? (
+              <>
+                {invoice?.notes && <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">{invoice.notes}</p>}
+                {invoice?.notesAr && <p dir="rtl" className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed mt-1">{invoice.notesAr}</p>}
+              </>
+            ) : (
+              <p dir={isAr ? 'rtl' : 'ltr'} className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
+                {isAr ? (invoice?.notesAr || invoice?.notes) : (invoice?.notes || invoice?.notesAr)}
+              </p>
+            )}
           </div>
         )}
 
@@ -53,9 +65,16 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">
               {isAr ? 'الشروط والأحكام' : 'Terms & Conditions'}
             </h4>
-            <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
-              {invoice?.termsAndConditions}
-            </p>
+            {bilingual ? (
+              <>
+                {invoice?.termsAndConditions && <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">{invoice.termsAndConditions}</p>}
+                {invoice?.termsAndConditionsAr && <p dir="rtl" className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed mt-1">{invoice.termsAndConditionsAr}</p>}
+              </>
+            ) : (
+              <p dir={isAr ? 'rtl' : 'ltr'} className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
+                {isAr ? (invoice?.termsAndConditionsAr || invoice?.termsAndConditions) : (invoice?.termsAndConditions || invoice?.termsAndConditionsAr)}
+              </p>
+            )}
           </div>
         )}
       </div>

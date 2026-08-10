@@ -40,7 +40,7 @@ function resolvePdfTemplateId(requestedTemplateId, tenant, businessContext = 'tr
   const contextTemplateId = tenant?.settings?.invoiceBranding?.contextProfiles?.[normalizedContext]?.templateId;
   const value = Number(requestedTemplateId || contextTemplateId || tenant?.settings?.invoicePdfTemplate || 1);
   if (!Number.isFinite(value)) return 1;
-  return Math.min(6, Math.max(1, value));
+  return Math.min(8, Math.max(1, value));
 }
 
 function resolvePaymentStatus(invoiceData) {

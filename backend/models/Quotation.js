@@ -84,7 +84,7 @@ const quotationSchema = new mongoose.Schema({
   quotationNumber: { type: String, required: true },
   subject: { type: String },
   subjectAr: { type: String },
-  pdfTemplateId: { type: Number, min: 1, max: 6 },
+  pdfTemplateId: { type: Number, min: 1, max: 8 },
   transactionType: { type: String, enum: ['B2B', 'B2C'], default: 'B2C', required: true },
   issueDate: { type: Date, required: true },
   issueDateHijri: { type: String },

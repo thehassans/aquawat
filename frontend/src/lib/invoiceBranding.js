@@ -1,9 +1,9 @@
 export const DEFAULT_VISION_2030_LOGO = '/saudi-vision-2030-logo.webp'
 export const INVOICE_BRANDING_CONTEXTS = ['trading', 'construction', 'travel_agency']
 export const INVOICE_FONT_OPTIONS = [
-  { value: 'helvetica', labelEn: 'Helvetica', labelAr: 'Ù‡ÙŠÙ„ÙÙŠØªÙŠÙƒØ§' },
-  { value: 'times', labelEn: 'Times', labelAr: 'ØªØ§ÙŠÙ…Ø²' },
-  { value: 'courier', labelEn: 'Courier', labelAr: 'ÙƒÙˆØ±ÙŠÙŠØ±' },
+  { value: 'helvetica', labelEn: 'Helvetica', labelAr: 'هيلفيتيكا' },
+  { value: 'times', labelEn: 'Times', labelAr: 'تايمز' },
+  { value: 'courier', labelEn: 'Courier', labelAr: 'كوريير' },
 ]
 
 const CONTEXT_TEMPLATE_DEFAULTS = {
@@ -20,7 +20,7 @@ const DEFAULT_INVOICE_TYPOGRAPHY = {
 }
 
 const LEGACY_TRAVEL_HEADER_TEXT_EN = 'Professional travel management and reservation services tailored for corporate and international journeys.'
-const LEGACY_TRAVEL_HEADER_TEXT_AR = 'Ø®Ø¯Ù…Ø§Øª Ø³ÙØ± ÙˆØ­Ø¬ÙˆØ²Ø§Øª Ø§Ø­ØªØ±Ø§ÙÙŠØ© Ù…ØµÙ…Ù…Ø© Ù„Ø±Ø­Ù„Ø§Øª Ø§Ù„Ø£Ø¹Ù…Ø§Ù„ ÙˆØ§Ù„Ø±Ø­Ù„Ø§Øª Ø§Ù„Ø¯ÙˆÙ„ÙŠØ© Ø¨Ø«Ù‚Ø© Ø¹Ø§Ù„ÙŠØ©.'
+const LEGACY_TRAVEL_HEADER_TEXT_AR = 'خدمات سفر وحجوزات احترافية مصممة لرحلات الأعمال والرحلات الدولية بثقة عالية.'
 
 const pickLocalizedText = (englishValue, arabicValue, language = 'en') => {
   if (language === 'ar') return arabicValue || englishValue || ''
@@ -36,8 +36,8 @@ const buildDefaultHeaderText = (context, language = 'en') => {
 const buildDefaultContextFooterText = (context, language = 'en') => {
   if (context === 'travel_agency') {
     return language === 'ar'
-      ? 'ØªØ°Ø§ÙƒØ± Ø·ÙŠØ±Ø§Ù† â€¢ Ø­Ø¬ÙˆØ²Ø§Øª ÙÙ†Ø§Ø¯Ù‚ â€¢ Ø¨Ø±Ø§Ù…Ø¬ Ø³ÙØ± â€¢ Ø¯Ø¹Ù… Ø§Ø­ØªØ±Ø§ÙÙŠ Ù…ØªÙˆØ§ØµÙ„'
-      : 'Air Ticketing â€¢ Hotel Reservations â€¢ Travel Programs â€¢ Professional Support'
+      ? 'تذاكر طيران • حجوزات فنادق • برامج سفر • دعم احترافي متواصل'
+      : 'Air Ticketing • Hotel Reservations • Travel Programs • Professional Support'
   }
 
   return ''
@@ -114,7 +114,7 @@ const buildDefaultFooterText = (tenant, language = 'en') => {
     business?.address?.city,
     business?.address?.postalCode,
     business?.address?.country,
-  ].filter(Boolean).join(language === 'ar' ? 'ØŒ ' : ', ')
+  ].filter(Boolean).join(language === 'ar' ? '، ' : ', ')
 
   const contactParts = []
   if (business?.contactPhone) contactParts.push(business.contactPhone)
@@ -124,7 +124,7 @@ const buildDefaultFooterText = (tenant, language = 'en') => {
 
   return [
     address,
-    contactParts.join(' â€¢ '),
+    contactParts.join(' • '),
   ].filter(Boolean).join('\n')
 }
 

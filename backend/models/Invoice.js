@@ -164,7 +164,7 @@ const invoiceSchema = new mongoose.Schema({
   invoiceNumber: { type: String, required: true },
   invoiceType: { type: String, enum: ['388', '381', '383'], default: '388' },
   invoiceSubtype: { type: String, enum: ['standard', 'travel_ticket', 'proforma'], default: 'standard' },
-  pdfTemplateId: { type: Number, min: 1, max: 6 },
+  pdfTemplateId: { type: Number, min: 1, max: 8 },
   invoiceTypeCode: {
     type: String,
     enum: ['0100000', '0200000', '0100100', '0200100'],

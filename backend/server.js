@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { MemoryStore } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
@@ -491,15 +491,69 @@ const getClientIp = (req) => {
 
 // ── Redis-backed shared rate-limit store (works across all cluster workers) ───
 // Falls back to in-memory if Redis is not available.
-const makeRateLimitStore = (prefix) => {
-  if (isRedisReady()) {
-    return new RedisStore({
-      prefix: `rl:${prefix}:`,
-      sendCommand: (...args) => getRedisClient().call(...args),
-    });
+//
+// Redis connects lazily/asynchronously (see lib/redis.js), so checking
+// `isRedisReady()` once at limiter-construction time (server boot) almost
+// always finds Redis not-yet-connected and would permanently pin the limiter
+// to an in-memory store for the whole process lifetime — defeating the whole
+// point of a shared store across cluster workers. This hybrid store instead
+// re-checks readiness on every call and transparently swaps between an
+// in-memory store (before Redis is ready / if it drops) and the shared Redis
+// store (once available), self-healing without ever crashing the request path.
+class HybridRateLimitStore {
+  constructor(prefix) {
+    this.prefix = prefix;
+    this.memoryStore = new MemoryStore();
+    this.redisStore = null;
+    this.options = null;
   }
-  return undefined; // express-rate-limit uses in-memory by default
-};
+
+  init(options) {
+    this.options = options;
+    this.memoryStore.init?.(options);
+  }
+
+  _activeStore() {
+    if (isRedisReady()) {
+      if (!this.redisStore) {
+        this.redisStore = new RedisStore({
+          prefix: `rl:${this.prefix}:`,
+          sendCommand: (...args) => getRedisClient().call(...args),
+        });
+        if (this.options) this.redisStore.init?.(this.options);
+      }
+      return this.redisStore;
+    }
+    return this.memoryStore;
+  }
+
+  async increment(key) {
+    try {
+      return await this._activeStore().increment(key);
+    } catch {
+      // Redis hiccup mid-request — degrade to in-memory rather than 500
+      return this.memoryStore.increment(key);
+    }
+  }
+
+  async decrement(key) {
+    try {
+      return await this._activeStore().decrement(key);
+    } catch {
+      return this.memoryStore.decrement(key);
+    }
+  }
+
+  async resetKey(key) {
+    try {
+      return await this._activeStore().resetKey(key);
+    } catch {
+      return this.memoryStore.resetKey(key);
+    }
+  }
+}
+
+const makeRateLimitStore = (prefix) => new HybridRateLimitStore(prefix);
 
 // 1. Auth endpoints — 120 req / 15 min
 const authLimiter = rateLimit({
