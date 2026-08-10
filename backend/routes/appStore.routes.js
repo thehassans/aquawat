@@ -4,8 +4,115 @@ import Tenant from '../models/Tenant.js';
 import { AppAddon } from '../models/AppAddon.js';
 import { normalizeBusinessTypes } from '../utils/businessTypes.js';
 import { PREMIUM_TEMPLATE_APP_ID as PREMIUM_INVOICE_TEMPLATES_APP_ID, hasPremiumTemplateAccess, ESSENTIAL_TEMPLATE_ID } from '../utils/premiumTemplates.js';
+import { createStripeCheckoutSession, getStripeConfig, retrieveStripeCheckoutSession } from '../services/platformStripe.js';
 
 const router = express.Router();
+
+const getAppPrice = (appDef, billingCycle = 'monthly') => {
+  const cycle = billingCycle === 'yearly' ? 'yearly' : 'monthly';
+  const price = cycle === 'yearly'
+    ? Number(appDef?.yearlyPrice || 0)
+    : Number(appDef?.monthlyPrice || 0);
+  return Number.isFinite(price) ? price : 0;
+};
+
+const isPaidApp = (appDef, billingCycle = 'monthly') => {
+  const tier = String(appDef?.pricingTier || 'free').toLowerCase();
+  if (tier === 'free') return false;
+  return getAppPrice(appDef, billingCycle) > 0;
+};
+
+const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}, paymentMeta = null }) => {
+  if (!tenant.settings) tenant.settings = {};
+  if (!tenant.settings.installedApps) tenant.settings.installedApps = {};
+
+  const defaultCfg = {};
+  if (appDef.configSchema) {
+    for (const field of appDef.configSchema) {
+      if (field.defaultValue !== undefined) {
+        defaultCfg[field.key] = field.defaultValue;
+      }
+    }
+  }
+
+  const existing = tenant.settings.installedApps[appId] || {};
+  const appConfig = {
+    isInstalled: true,
+    isEnabled: true,
+    installedAt: existing.installedAt || new Date(),
+    version: appDef.version,
+    config: { ...defaultCfg, ...(existing.config || {}), ...(customConfig || {}) },
+  };
+
+  if (paymentMeta) {
+    appConfig.billing = {
+      provider: paymentMeta.provider || 'stripe',
+      billingCycle: paymentMeta.billingCycle || 'monthly',
+      amount: Number(paymentMeta.amountMajor || 0),
+      currency: String(paymentMeta.currency || 'SAR').toUpperCase(),
+      paymentId: paymentMeta.paymentId || '',
+      paidAt: new Date(),
+    };
+  }
+
+  tenant.settings.installedApps[appId] = appConfig;
+
+  if (appId === 'bangladesh_nbr_einvoicing') {
+    if (!tenant.nbr) tenant.nbr = {};
+    tenant.nbr.isEnabled = true;
+    if (appConfig.config?.environment) tenant.nbr.environment = appConfig.config.environment;
+    if (appConfig.config?.mushakForm) tenant.nbr.mushakForm = appConfig.config.mushakForm;
+    if (appConfig.config?.autoGenerateQr !== undefined) tenant.nbr.autoGenerateQr = !!appConfig.config.autoGenerateQr;
+    if (!tenant.nbr.connectionStatus || tenant.nbr.connectionStatus === 'disconnected') {
+      tenant.nbr.connectionStatus = 'action_required';
+    }
+    tenant.markModified('nbr');
+  }
+
+  let currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
+  if (appDef.businessTypeGrant && !currentTypes.includes(appDef.businessTypeGrant)) {
+    currentTypes.push(appDef.businessTypeGrant);
+    tenant.businessTypes = currentTypes;
+  }
+
+  tenant.markModified('settings.installedApps');
+  tenant.markModified('settings');
+  tenant.markModified('businessTypes');
+  await tenant.save();
+  return tenant;
+};
+
+/** Called from Stripe webhook / session confirm after successful App Store payment. */
+export async function fulfillAppStorePurchase({
+  tenantId,
+  appId,
+  billingCycle = 'monthly',
+  amountMajor = 0,
+  currency = 'SAR',
+  paymentId = '',
+  provider = 'stripe',
+}) {
+  if (!tenantId || !appId) throw new Error('tenantId and appId are required');
+
+  const tenant = await Tenant.findById(tenantId);
+  if (!tenant) throw new Error('Tenant not found');
+
+  const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find((a) => a.appId === appId);
+  if (!appDef) throw new Error('App not found in catalog');
+
+  if (tenant.settings?.installedApps?.[appId]?.isInstalled) {
+    return { alreadyInstalled: true, tenant };
+  }
+
+  await applyAppInstall({
+    tenant,
+    appDef,
+    appId,
+    paymentMeta: { provider, billingCycle, amountMajor, currency, paymentId },
+  });
+
+  return { alreadyInstalled: false, tenant };
+}
 
 // Helper to serialize tenant for Redux auth state
 const serializeAuthTenant = (tenant) => {
@@ -1512,18 +1619,29 @@ router.get('/apps', protect, async (req, res) => {
       return {
         ...app,
         downloadSize: app.downloadSize || defApp?.downloadSize || '4.5 MB',
+        monthlyPrice: Number(app.monthlyPrice ?? defApp?.monthlyPrice ?? 0) || 0,
+        yearlyPrice: Number(app.yearlyPrice ?? defApp?.yearlyPrice ?? 0) || 0,
+        pricingTier: app.pricingTier || defApp?.pricingTier || 'free',
         isInstalled,
         isEnabled,
         installedAt: tenantInstalled[app.appId]?.installedAt || (isInstalled ? tenant.createdAt : null),
-        config
+        config,
+        requiresPayment: isPaidApp({ ...app, monthlyPrice: app.monthlyPrice ?? defApp?.monthlyPrice, yearlyPrice: app.yearlyPrice ?? defApp?.yearlyPrice, pricingTier: app.pricingTier || defApp?.pricingTier }),
+        billing: tenantInstalled[app.appId]?.billing || null,
       };
     });
+
+    const stripe = await getStripeConfig().catch(() => ({ enabled: false }));
 
     res.json({
       success: true,
       apps: appsWithStatus,
       totalCount: appsWithStatus.length,
-      installedCount: appsWithStatus.filter(a => a.isInstalled).length
+      installedCount: appsWithStatus.filter(a => a.isInstalled).length,
+      payments: {
+        stripeEnabled: stripe.enabled === true && !!stripe.secretKey,
+        currency: tenantCurrency,
+      },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1534,7 +1652,7 @@ router.get('/apps', protect, async (req, res) => {
 router.post('/apps/:appId/install', protect, async (req, res) => {
   try {
     const { appId } = req.params;
-    const { customConfig } = req.body || {};
+    const { customConfig, billingCycle = 'monthly', skipPayment } = req.body || {};
 
     const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find(a => a.appId === appId);
     if (!appDef) return res.status(404).json({ error: 'App not found in catalog' });
@@ -1556,52 +1674,21 @@ router.post('/apps/:appId/install', protect, async (req, res) => {
       return res.status(400).json({ error: 'Bangladesh NBR apps require BDT as the tenant default currency.' });
     }
 
-    if (!tenant.settings) tenant.settings = {};
-    if (!tenant.settings.installedApps) tenant.settings.installedApps = {};
-
-    const defaultCfg = {};
-    if (appDef.configSchema) {
-      for (const field of appDef.configSchema) {
-        if (field.defaultValue !== undefined) {
-          defaultCfg[field.key] = field.defaultValue;
-        }
-      }
+    // Paid apps must go through Stripe unless Super Admin forced skip (not exposed to clients).
+    if (isPaidApp(appDef, billingCycle) && skipPayment !== true) {
+      return res.status(402).json({
+        error: 'Payment required',
+        requiresPayment: true,
+        appId,
+        pricingTier: appDef.pricingTier,
+        monthlyPrice: Number(appDef.monthlyPrice || 0),
+        yearlyPrice: Number(appDef.yearlyPrice || 0),
+        currency: tenantCurrency,
+        checkoutPath: `/app-store/apps/${appId}/checkout`,
+      });
     }
 
-    const appConfig = {
-      isInstalled: true,
-      isEnabled: true,
-      installedAt: new Date(),
-      version: appDef.version,
-      config: { ...defaultCfg, ...(customConfig || {}) }
-    };
-
-    tenant.settings.installedApps[appId] = appConfig;
-
-    // Bangladesh NBR app → enable tenant.nbr suite
-    if (appId === 'bangladesh_nbr_einvoicing') {
-      if (!tenant.nbr) tenant.nbr = {};
-      tenant.nbr.isEnabled = true;
-      if (appConfig.config?.environment) tenant.nbr.environment = appConfig.config.environment;
-      if (appConfig.config?.mushakForm) tenant.nbr.mushakForm = appConfig.config.mushakForm;
-      if (appConfig.config?.autoGenerateQr !== undefined) tenant.nbr.autoGenerateQr = !!appConfig.config.autoGenerateQr;
-      if (!tenant.nbr.connectionStatus || tenant.nbr.connectionStatus === 'disconnected') {
-        tenant.nbr.connectionStatus = 'action_required';
-      }
-      tenant.markModified('nbr');
-    }
-
-    // If app grants a business type (e.g. manufacturing), ensure it is added to tenant.businessTypes
-    let currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
-    if (appDef.businessTypeGrant && !currentTypes.includes(appDef.businessTypeGrant)) {
-      currentTypes.push(appDef.businessTypeGrant);
-      tenant.businessTypes = currentTypes;
-    }
-
-    tenant.markModified('settings.installedApps');
-    tenant.markModified('settings');
-    tenant.markModified('businessTypes');
-    await tenant.save();
+    await applyAppInstall({ tenant, appDef, appId, customConfig });
 
     res.json({
       success: true,
@@ -1613,6 +1700,116 @@ router.post('/apps/:appId/install', protect, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── 2b. Stripe checkout for paid App Store apps ───
+router.post('/apps/:appId/checkout', protect, async (req, res) => {
+  try {
+    const { appId } = req.params;
+    const billingCycle = req.body?.billingCycle === 'yearly' ? 'yearly' : 'monthly';
+
+    const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find(a => a.appId === appId);
+    if (!appDef) return res.status(404).json({ error: 'App not found in catalog' });
+
+    const tenant = await getTenantForUser(req);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    if (tenant.settings?.installedApps?.[appId]?.isInstalled) {
+      return res.status(400).json({ error: 'App is already installed' });
+    }
+
+    const amount = getAppPrice(appDef, billingCycle);
+    if (!isPaidApp(appDef, billingCycle) || amount <= 0) {
+      return res.status(400).json({ error: 'This app does not require payment. Use install instead.' });
+    }
+
+    const stripe = await getStripeConfig();
+    if (!stripe.enabled || !stripe.secretKey) {
+      return res.status(400).json({ error: 'Stripe is not configured. Ask your platform admin to enable Stripe in Payment Settings.' });
+    }
+
+    const currency = String(tenant.settings?.currency || 'SAR').trim().toUpperCase() || 'SAR';
+    const frontendUrl = (process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`).split(',')[0].trim().replace(/\/$/, '');
+    const successUrl = `${frontendUrl}/app/dashboard/app-store?paid=1&appId=${encodeURIComponent(appId)}&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${frontendUrl}/app/dashboard/app-store?canceled=1&appId=${encodeURIComponent(appId)}`;
+
+    const session = await createStripeCheckoutSession({
+      amountMajor: amount,
+      currency,
+      productName: appDef.nameEn || appId,
+      productDescription: `${billingCycle} — Maqder App Store`,
+      customerEmail: req.user?.email || tenant.business?.contactEmail || '',
+      successUrl,
+      cancelUrl,
+      clientReferenceId: `${tenant._id}:${appId}`,
+      metadata: {
+        type: 'app_store',
+        tenantId: String(tenant._id),
+        appId,
+        billingCycle,
+        amountMajor: String(amount),
+        currency,
+      },
+    });
+
+    res.json({
+      success: true,
+      requiresPayment: true,
+      provider: 'stripe',
+      sessionId: session.id,
+      url: session.url,
+      amount,
+      currency,
+      billingCycle,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ─── 2c. Confirm Stripe payment from App Store success redirect ───
+router.post('/apps/:appId/confirm-payment', protect, async (req, res) => {
+  try {
+    const { appId } = req.params;
+    const sessionId = req.body?.sessionId || req.query?.session_id;
+    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
+
+    const tenant = await getTenantForUser(req);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const session = await retrieveStripeCheckoutSession(sessionId);
+    if (session.payment_status !== 'paid' && session.status !== 'complete') {
+      return res.status(400).json({ error: 'Payment is not completed yet', status: session.payment_status });
+    }
+
+    const meta = session.metadata || {};
+    if (meta.type === 'app_store' && meta.appId && meta.appId !== appId) {
+      return res.status(400).json({ error: 'Session app mismatch' });
+    }
+    if (meta.tenantId && String(meta.tenantId) !== String(tenant._id)) {
+      return res.status(403).json({ error: 'Session tenant mismatch' });
+    }
+
+    const result = await fulfillAppStorePurchase({
+      tenantId: tenant._id,
+      appId: meta.appId || appId,
+      billingCycle: meta.billingCycle || 'monthly',
+      amountMajor: Number(meta.amountMajor || (session.amount_total || 0) / 100),
+      currency: (meta.currency || session.currency || 'SAR').toUpperCase(),
+      paymentId: session.id,
+      provider: 'stripe',
+    });
+
+    const refreshed = await Tenant.findById(tenant._id);
+    res.json({
+      success: true,
+      alreadyInstalled: result.alreadyInstalled,
+      appId,
+      tenant: serializeAuthTenant(refreshed),
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

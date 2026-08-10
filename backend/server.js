@@ -66,7 +66,7 @@ import tenantComplianceRoutes from './routes/tenantCompliance.routes.js';
 import superAdminZatcaRoutes from './routes/superAdminZatca.routes.js';
 import resellerRoutes from './routes/reseller.routes.js';
 import resellerPanelRoutes from './routes/resellerPanel.routes.js';
-import paymentRoutes from './routes/payment.routes.js';
+import paymentRoutes, { stripeWebhookHandler } from './routes/payment.routes.js';
 import rentalCarRoutes from './routes/rentalCar.routes.js';
 import rentalCustomerRoutes from './routes/rentalCustomer.routes.js';
 import rentalContractRoutes from './routes/rentalContract.routes.js';
@@ -632,7 +632,9 @@ app.use('/api/', etag());
 const apiTimeoutMs = Number(process.env.API_REQUEST_TIMEOUT_MS || 30_000);
 app.use('/api/', requestTimeout(Number.isFinite(apiTimeoutMs) && apiTimeoutMs > 0 ? apiTimeoutMs : 30_000));
 
-// Body parsing
+// Body parsing — Stripe webhook needs the raw body for signature verification
+app.post('/api/payments/stripe-webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.locals.waitForDatabaseReady = waitForDatabaseReady;

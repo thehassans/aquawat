@@ -2825,6 +2825,7 @@ router.get('/settings/payment', async (req, res) => {
     const stcPay = payment?.stcPay || {};
     const tabby = payment?.tabby || {};
     const tamara = payment?.tamara || {};
+    const stripe = payment?.stripe || {};
 
     res.json({
       payment: {
@@ -2863,6 +2864,15 @@ router.get('/settings/payment', async (req, res) => {
           hasNotificationToken: !!tamara.notificationToken,
           notificationTokenMasked: maskSecret(tamara.notificationToken),
         },
+        stripe: {
+          enabled: stripe.enabled === true,
+          publishableKey: stripe.publishableKey || '',
+          hasSecretKey: !!stripe.secretKey,
+          secretKeyMasked: maskSecret(stripe.secretKey),
+          hasWebhookSecret: !!stripe.webhookSecret,
+          webhookSecretMasked: maskSecret(stripe.webhookSecret),
+          environment: stripe.environment || 'test',
+        },
       },
     });
   } catch (error) {
@@ -2879,6 +2889,7 @@ router.put('/settings/payment', async (req, res) => {
     const stcPayPayload = payload?.stcPay || {};
     const tabbyPayload = payload?.tabby || {};
     const tamaraPayload = payload?.tamara || {};
+    const stripePayload = payload?.stripe || {};
 
     const settings = await getGlobalSettings();
     const currentPayment = settings?.payment?.toObject?.() || settings?.payment || {};
@@ -2887,6 +2898,7 @@ router.put('/settings/payment', async (req, res) => {
     const currentStcPay = currentPayment?.stcPay || {};
     const currentTabby = currentPayment?.tabby || {};
     const currentTamara = currentPayment?.tamara || {};
+    const currentStripe = currentPayment?.stripe || {};
 
     // ── Moyasar ──
     const nextMoyasar = {
@@ -2967,7 +2979,33 @@ router.put('/settings/payment', async (req, res) => {
       nextTamara.notificationToken = currentTamara.notificationToken || '';
     }
 
-    settings.payment = { moyasar: nextMoyasar, applePay: nextApplePay, stcPay: nextStcPay, tabby: nextTabby, tamara: nextTamara };
+    // ── Stripe ──
+    const nextStripe = {
+      enabled: stripePayload.enabled !== undefined ? stripePayload.enabled === true : currentStripe.enabled,
+      publishableKey: String(stripePayload.publishableKey || currentStripe.publishableKey || '').trim(),
+      environment: stripePayload.environment || currentStripe.environment || 'test',
+    };
+    if (stripePayload.secretKey !== undefined) {
+      const trimmed = String(stripePayload.secretKey || '').trim();
+      nextStripe.secretKey = trimmed || currentStripe.secretKey || '';
+    } else {
+      nextStripe.secretKey = currentStripe.secretKey || '';
+    }
+    if (stripePayload.webhookSecret !== undefined) {
+      const trimmed = String(stripePayload.webhookSecret || '').trim();
+      nextStripe.webhookSecret = trimmed || currentStripe.webhookSecret || '';
+    } else {
+      nextStripe.webhookSecret = currentStripe.webhookSecret || '';
+    }
+
+    settings.payment = {
+      moyasar: nextMoyasar,
+      applePay: nextApplePay,
+      stcPay: nextStcPay,
+      tabby: nextTabby,
+      tamara: nextTamara,
+      stripe: nextStripe,
+    };
     settings.markModified('payment');
     await settings.save();
 
@@ -2984,20 +3022,20 @@ router.put('/settings/payment', async (req, res) => {
         },
         applePay: {
           ...serializePaymentProvider(nextApplePay),
-          merchantId: nextApplePay.merchantId,
-          merchantCertificatePath: nextApplePay.merchantCertificatePath,
-          merchantCertificateKeyPath: nextApplePay.merchantCertificateKeyPath,
+          merchantId: nextApplePay.merchantId || '',
+          merchantCertificatePath: nextApplePay.merchantCertificatePath || '',
+          merchantCertificateKeyPath: nextApplePay.merchantCertificateKeyPath || '',
         },
         stcPay: {
           ...serializePaymentProvider(nextStcPay),
-          merchantId: nextStcPay.merchantId,
+          merchantId: nextStcPay.merchantId || '',
           hasApiKey: !!nextStcPay.apiKey,
           apiKeyMasked: maskSecret(nextStcPay.apiKey),
         },
         tabby: {
           ...serializePaymentProvider(nextTabby),
-          publicKey: nextTabby.publicKey,
-          merchantCode: nextTabby.merchantCode,
+          publicKey: nextTabby.publicKey || '',
+          merchantCode: nextTabby.merchantCode || '',
           hasSecretKey: !!nextTabby.secretKey,
           secretKeyMasked: maskSecret(nextTabby.secretKey),
         },
@@ -3007,6 +3045,15 @@ router.put('/settings/payment', async (req, res) => {
           apiTokenMasked: maskSecret(nextTamara.apiToken),
           hasNotificationToken: !!nextTamara.notificationToken,
           notificationTokenMasked: maskSecret(nextTamara.notificationToken),
+        },
+        stripe: {
+          enabled: nextStripe.enabled === true,
+          publishableKey: nextStripe.publishableKey || '',
+          hasSecretKey: !!nextStripe.secretKey,
+          secretKeyMasked: maskSecret(nextStripe.secretKey),
+          hasWebhookSecret: !!nextStripe.webhookSecret,
+          webhookSecretMasked: maskSecret(nextStripe.webhookSecret),
+          environment: nextStripe.environment || 'test',
         },
       },
     });
@@ -3118,7 +3165,12 @@ router.post('/settings/payment/test-connection', async (req, res) => {
       }
     }
 
-    return res.status(400).json({ error: 'Unknown provider. Use moyasar, applePay, stcPay, tabby, or tamara.' });
+    if (provider === 'stripe') {
+      const { testStripeConnection } = await import('../services/platformStripe.js');
+      return res.json(await testStripeConnection());
+    }
+
+    return res.status(400).json({ error: 'Unknown provider. Use moyasar, applePay, stcPay, tabby, tamara, or stripe.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

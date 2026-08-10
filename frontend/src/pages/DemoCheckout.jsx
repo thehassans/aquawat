@@ -131,9 +131,11 @@ export default function DemoCheckout() {
       tabby: 'tabby',
       tamara: 'tamara',
       stcpay: 'stcPay',
+      stripe: 'stripe',
     }
     if (isEnabled(methodMap[paymentMethod])) return
     const firstAvailable = [
+      { id: 'stripe', key: 'stripe' },
       { id: 'creditcard', key: 'moyasar' },
       { id: 'applepay', key: 'applePay' },
       { id: 'tabby', key: 'tabby' },
@@ -499,6 +501,22 @@ export default function DemoCheckout() {
                 {isArabic ? 'اختر طريقة الدفع' : 'Select Payment Method'}
               </label>
               <div className="flex flex-wrap justify-center gap-3">
+                {isPaymentEnabled('stripe') && (
+                  <button
+                    onClick={() => setPaymentMethod('stripe')}
+                    className={`flex min-w-[90px] flex-1 flex-col items-center justify-center gap-2 rounded-2xl border-2 p-3 transition-all sm:flex-none ${
+                      paymentMethod === 'stripe'
+                        ? 'border-[#635BFF] bg-[#635BFF]/[0.06] dark:bg-[#635BFF]/15 shadow-md'
+                        : 'border-gray-100 dark:border-dark-600 hover:border-gray-300 dark:hover:border-dark-500'
+                    }`}
+                  >
+                    <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#635BFF] to-[#0A2540] text-white shadow-lg">
+                      <CreditCard className="relative h-6 w-6" />
+                    </div>
+                    <span className="text-xs font-bold text-gray-800 dark:text-white">Stripe</span>
+                  </button>
+                )}
+
                 {isPaymentEnabled('moyasar') && (
                   <button
                     onClick={() => setPaymentMethod('creditcard')}
@@ -572,12 +590,13 @@ export default function DemoCheckout() {
               </div>
 
               {[
+                isPaymentEnabled('stripe'),
                 isPaymentEnabled('moyasar'),
                 isPaymentEnabled('applePay'),
                 isPaymentEnabled('tabby'),
                 isPaymentEnabled('tamara'),
                 isPaymentEnabled('stcPay'),
-              ].every(Boolean) === false && (
+              ].some(Boolean) === false && (
                 <div className="mt-3 rounded-xl bg-gray-50 dark:bg-dark-700 px-4 py-3 text-center text-xs text-gray-500 dark:text-gray-400">
                   {isArabic ? 'لا توجد طرق دفع متاحة حالياً. يرجى التواصل مع الدعم.' : 'No payment methods are currently available. Please contact support.'}
                 </div>

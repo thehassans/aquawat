@@ -10,6 +10,7 @@ const cardCls = 'max-w-2xl space-y-5 rounded-xl border border-gray-200 dark:bord
 export default function PaymentSettings() {
   const queryClient = useQueryClient()
   const [moyasarForm, setMoyasarForm] = useState({ enabled: false, publishableKey: '', secretKey: '', webhookSecret: '', environment: 'test' })
+  const [stripeForm, setStripeForm] = useState({ enabled: false, publishableKey: '', secretKey: '', webhookSecret: '', environment: 'test' })
   const [applePayForm, setApplePayForm] = useState({ enabled: false, merchantId: '', merchantCertificatePath: '', merchantCertificateKeyPath: '', environment: 'test' })
   const [stcPayForm, setStcPayForm] = useState({ enabled: false, merchantId: '', apiKey: '', environment: 'test' })
   const [tabbyForm, setTabbyForm] = useState({ enabled: false, publicKey: '', secretKey: '', merchantCode: '', environment: 'test' })
@@ -17,6 +18,8 @@ export default function PaymentSettings() {
 
   const [showSecret, setShowSecret] = useState(false)
   const [showWebhook, setShowWebhook] = useState(false)
+  const [showStripeSecret, setShowStripeSecret] = useState(false)
+  const [showStripeWebhook, setShowStripeWebhook] = useState(false)
   const [showStcKey, setShowStcKey] = useState(false)
   const [showTabbyKey, setShowTabbyKey] = useState(false)
   const [showTamaraToken, setShowTamaraToken] = useState(false)
@@ -33,6 +36,8 @@ export default function PaymentSettings() {
     if (data?.payment) {
       const m = data.payment.moyasar || {}
       setMoyasarForm({ enabled: m.enabled, publishableKey: m.publishableKey || '', secretKey: '', webhookSecret: '', environment: m.environment || 'test' })
+      const stripe = data.payment.stripe || {}
+      setStripeForm({ enabled: stripe.enabled, publishableKey: stripe.publishableKey || '', secretKey: '', webhookSecret: '', environment: stripe.environment || 'test' })
       const a = data.payment.applePay || {}
       setApplePayForm({ enabled: a.enabled, merchantId: a.merchantId || '', merchantCertificatePath: a.merchantCertificatePath || '', merchantCertificateKeyPath: a.merchantCertificateKeyPath || '', environment: a.environment || 'test' })
       const s = data.payment.stcPay || {}
@@ -58,14 +63,23 @@ export default function PaymentSettings() {
   })
 
   const handleSave = () => {
-    const payload = { moyasar: { ...moyasarForm }, applePay: { ...applePayForm }, stcPay: { ...stcPayForm }, tabby: { ...tabbyForm }, tamara: { ...tamaraForm } }
+    const payload = {
+      moyasar: { ...moyasarForm },
+      stripe: { ...stripeForm },
+      applePay: { ...applePayForm },
+      stcPay: { ...stcPayForm },
+      tabby: { ...tabbyForm },
+      tamara: { ...tamaraForm },
+    }
     if (!payload.moyasar.secretKey) delete payload.moyasar.secretKey
     if (!payload.moyasar.webhookSecret) delete payload.moyasar.webhookSecret
+    if (!payload.stripe.secretKey) delete payload.stripe.secretKey
+    if (!payload.stripe.webhookSecret) delete payload.stripe.webhookSecret
     if (!payload.stcPay.apiKey) delete payload.stcPay.apiKey
     if (!payload.tabby.secretKey) delete payload.tabby.secretKey
     if (!payload.tamara.apiToken) delete payload.tamara.apiToken
     if (!payload.tamara.notificationToken) delete payload.tamara.notificationToken
-    saveMutation.mutate({ payment: payload })
+    saveMutation.mutate(payload)
   }
 
   const handleTest = (provider) => {
@@ -85,6 +99,7 @@ export default function PaymentSettings() {
   }
 
   const moyasar = data?.payment?.moyasar || {}
+  const stripe = data?.payment?.stripe || {}
   const applePay = data?.payment?.applePay || {}
   const stcPay = data?.payment?.stcPay || {}
   const tabby = data?.payment?.tabby || {}
@@ -184,6 +199,73 @@ export default function PaymentSettings() {
         </div>
 
         <TestResult provider="moyasar" />
+      </div>
+
+      {/* ── Stripe ── */}
+      <div className={cardCls}>
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-dark-700 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/30">
+              <CreditCard className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 dark:text-white">Stripe</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Global cards & App Store paid add-ons — Checkout Sessions + webhooks</p>
+            </div>
+          </div>
+          <TestButton provider="stripe" />
+        </div>
+
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={stripeForm.enabled} onChange={(e) => setStripeForm({ ...stripeForm, enabled: e.target.checked })} className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Stripe Payments</span>
+          </label>
+        </div>
+
+        <div>
+          <label className={labelCls}>Environment</label>
+          <select value={stripeForm.environment} onChange={(e) => setStripeForm({ ...stripeForm, environment: e.target.value })} className={inputCls}>
+            <option value="test">Test (Sandbox)</option>
+            <option value="live">Live (Production)</option>
+          </select>
+        </div>
+
+        <div>
+          <label className={labelCls}>Publishable Key</label>
+          <input type="text" value={stripeForm.publishableKey} onChange={(e) => setStripeForm({ ...stripeForm, publishableKey: e.target.value })} placeholder="pk_test_..." className={inputCls} />
+        </div>
+
+        <div>
+          <label className={labelCls}>
+            Secret Key {stripe.hasSecretKey && <span className="text-xs text-gray-400">(currently set: {stripe.secretKeyMasked})</span>}
+          </label>
+          <div className="relative">
+            <input type={showStripeSecret ? 'text' : 'password'} value={stripeForm.secretKey} onChange={(e) => setStripeForm({ ...stripeForm, secretKey: e.target.value })} placeholder={stripe.hasSecretKey ? '•••••••• (enter new to replace)' : 'sk_test_...'} className={`${inputCls} pr-10`} />
+            <button type="button" onClick={() => setShowStripeSecret(!showStripeSecret)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              {showStripeSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>
+            Webhook Secret {stripe.hasWebhookSecret && <span className="text-xs text-gray-400">(currently set: {stripe.webhookSecretMasked})</span>}
+          </label>
+          <div className="relative">
+            <input type={showStripeWebhook ? 'text' : 'password'} value={stripeForm.webhookSecret} onChange={(e) => setStripeForm({ ...stripeForm, webhookSecret: e.target.value })} placeholder={stripe.hasWebhookSecret ? '•••••••• (enter new to replace)' : 'whsec_...'} className={`${inputCls} pr-10`} />
+            <button type="button" onClick={() => setShowStripeWebhook(!showStripeWebhook)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              {showStripeWebhook ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-gray-50 dark:bg-dark-700 p-3 space-y-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400"><span className="font-semibold">Webhook URL:</span> POST /api/payments/stripe-webhook</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Listen for <code className="font-mono">checkout.session.completed</code> — powers plan upgrades and paid App Store installs.</p>
+        </div>
+
+        <TestResult provider="stripe" />
       </div>
 
       {/* ── Apple Pay ── */}

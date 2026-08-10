@@ -25,6 +25,7 @@ export default function PaymentResult() {
   const tenantId = searchParams.get('tenantId')
   const invoiceId = searchParams.get('invoice_id')
   const method = searchParams.get('method')
+  const sessionId = searchParams.get('session_id')
   const logo = paymentLogos[method]
 
   useEffect(() => {
@@ -34,6 +35,31 @@ export default function PaymentResult() {
       if (paymentStatus === 'failed' || paymentStatus === 'canceled') {
         setStatus('failed')
         setMessage(paymentStatus === 'failed' ? 'Payment failed. Please try again.' : 'Payment was canceled.')
+        return
+      }
+
+      // Stripe Checkout success redirect
+      if (method === 'stripe' && sessionId) {
+        try {
+          await api.get(`/payments/stripe-session/${sessionId}`)
+          await dispatch(getMe())
+          setStatus('success')
+        } catch {
+          if (tenantId) {
+            for (let attempt = 0; attempt < 6; attempt++) {
+              try {
+                const { data } = await api.get(`/payments/tenant-status/${tenantId}`)
+                if (data.demoUpgraded) {
+                  await dispatch(getMe())
+                  setStatus('success')
+                  return
+                }
+              } catch { /* retry */ }
+              await sleep(1200)
+            }
+          }
+          setStatus('pending')
+        }
         return
       }
 

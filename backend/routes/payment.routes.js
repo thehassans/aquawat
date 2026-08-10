@@ -4,6 +4,12 @@ import Tenant from '../models/Tenant.js'
 import DemoUser from '../models/DemoUser.js'
 import { protect } from '../middleware/auth.js'
 import { sendUpgradeWelcomeEmail } from '../utils/emailService.js'
+import {
+  getStripeConfig,
+  createStripeCheckoutSession,
+  retrieveStripeCheckoutSession,
+  verifyStripeWebhookSignature,
+} from '../services/platformStripe.js'
 
 const router = express.Router()
 
@@ -109,24 +115,79 @@ router.post('/create-payment', protect, async (req, res) => {
       return res.status(400).json({ error: 'Only demo accounts can upgrade' })
     }
 
-    const config = await getMoyasarConfig()
-    if (!config.enabled || !config.secretKey) {
-      return res.status(400).json({ error: 'Payment gateway is not configured' })
-    }
-
-    if (paymentMethod === 'stcpay') {
-      return res.status(400).json({ error: 'STC Pay integration is coming soon. Please use Credit Card or Apple Pay.' })
-    }
-
     const finalAmount = Math.round(Number(amount) * 100)
 
     if (!finalAmount || finalAmount < 100) {
       return res.status(400).json({ error: `Invalid amount: ${amount} (converted to ${finalAmount} halalas)` })
     }
 
-    const frontendUrl = (process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`).split(',')[0].trim().replace(/\/$$/, '')
+    const frontendUrl = (process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`).split(',')[0].trim().replace(/\/$/, '')
     const successUrl = `${frontendUrl}/payment-result?status=paid&tenantId=${tenant._id}&method=${paymentMethod}`
     const backUrl = `${frontendUrl}/demo-checkout`
+
+    // --- Stripe checkout (platform SaaS upgrade) ---
+    if (paymentMethod === 'stripe') {
+      try {
+        const session = await createStripeCheckoutSession({
+          amountMajor: Number(amount),
+          currency,
+          productName: `Maqder ERP — ${plan} (${billingCycle})`,
+          productDescription: `Upgrade demo tenant to ${plan} plan`,
+          customerEmail: tenant.demoEmail || tenant.business?.contactEmail || '',
+          successUrl: `${frontendUrl}/payment-result?status=paid&tenantId=${tenant._id}&method=stripe&session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: backUrl,
+          clientReferenceId: String(tenant._id),
+          metadata: {
+            type: 'tenant_upgrade',
+            tenantId: String(tenant._id),
+            demoEmail: tenant.demoEmail || '',
+            plan,
+            billingCycle,
+            amountMajor: String(amount),
+            currency,
+          },
+        })
+        return res.json({ id: session.id, status: session.status, url: session.url, provider: 'stripe' })
+      } catch (err) {
+        return res.status(400).json({ error: err.message || 'Failed to create Stripe checkout' })
+      }
+    }
+
+    const config = await getMoyasarConfig()
+    if (!config.enabled || !config.secretKey) {
+      const stripeCfg = await getStripeConfig()
+      if (stripeCfg.enabled && stripeCfg.secretKey) {
+        try {
+          const session = await createStripeCheckoutSession({
+            amountMajor: Number(amount),
+            currency,
+            productName: `Maqder ERP — ${plan} (${billingCycle})`,
+            productDescription: `Upgrade demo tenant to ${plan} plan`,
+            customerEmail: tenant.demoEmail || tenant.business?.contactEmail || '',
+            successUrl: `${frontendUrl}/payment-result?status=paid&tenantId=${tenant._id}&method=stripe&session_id={CHECKOUT_SESSION_ID}`,
+            cancelUrl: backUrl,
+            clientReferenceId: String(tenant._id),
+            metadata: {
+              type: 'tenant_upgrade',
+              tenantId: String(tenant._id),
+              demoEmail: tenant.demoEmail || '',
+              plan,
+              billingCycle,
+              amountMajor: String(amount),
+              currency,
+            },
+          })
+          return res.json({ id: session.id, status: session.status, url: session.url, provider: 'stripe' })
+        } catch (err) {
+          return res.status(400).json({ error: err.message || 'Failed to create Stripe checkout' })
+        }
+      }
+      return res.status(400).json({ error: 'Payment gateway is not configured' })
+    }
+
+    if (paymentMethod === 'stcpay') {
+      return res.status(400).json({ error: 'STC Pay integration is coming soon. Please use Credit Card, Apple Pay, or Stripe.' })
+    }
 
     // --- Tabby checkout ---
     if (paymentMethod === 'tabby') {
@@ -624,6 +685,84 @@ router.get('/tenant-status/:tenantId', protect, async (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+const handleStripeCheckoutCompleted = async (session) => {
+  const meta = session?.metadata || {}
+  const type = meta.type || 'tenant_upgrade'
+
+  if (type === 'app_store') {
+    const { fulfillAppStorePurchase } = await import('./appStore.routes.js')
+    await fulfillAppStorePurchase({
+      tenantId: meta.tenantId,
+      appId: meta.appId,
+      billingCycle: meta.billingCycle || 'monthly',
+      amountMajor: Number(meta.amountMajor || (session.amount_total || 0) / 100),
+      currency: (meta.currency || session.currency || 'SAR').toUpperCase(),
+      paymentId: session.id,
+      provider: 'stripe',
+    })
+    return { type: 'app_store', appId: meta.appId }
+  }
+
+  await applyTenantUpgrade({
+    tenantId: meta.tenantId,
+    demoEmail: meta.demoEmail,
+    plan: meta.plan || 'professional',
+    billingCycle: meta.billingCycle || 'monthly',
+    amountHalalas: Math.round(Number(meta.amountMajor || (session.amount_total || 0) / 100) * 100),
+    currency: (meta.currency || session.currency || 'SAR').toUpperCase(),
+    paymentId: session.id,
+  })
+  return { type: 'tenant_upgrade', tenantId: meta.tenantId }
+}
+
+// @route   GET /api/payments/stripe-session/:id
+// @desc    Confirm Stripe Checkout Session and fulfill entitlements (success-page fallback)
+router.get('/stripe-session/:id', protect, async (req, res) => {
+  try {
+    const session = await retrieveStripeCheckoutSession(req.params.id)
+    if (session.payment_status !== 'paid' && session.status !== 'complete') {
+      return res.json({ paid: false, status: session.payment_status || session.status, sessionId: session.id })
+    }
+    const result = await handleStripeCheckoutCompleted(session)
+    res.json({ paid: true, sessionId: session.id, ...result })
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+
+// Stripe webhook — mounted with express.raw in server.js
+export async function stripeWebhookHandler(req, res) {
+  try {
+    const config = await getStripeConfig()
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}))
+
+    if (config.webhookSecret) {
+      const ok = verifyStripeWebhookSignature({
+        headers: req.headers,
+        rawBody,
+        webhookSecret: config.webhookSecret,
+      })
+      if (!ok) {
+        return res.status(400).json({ error: 'Invalid Stripe signature' })
+      }
+    }
+
+    const event = typeof req.body === 'object' && !Buffer.isBuffer(req.body)
+      ? req.body
+      : JSON.parse(rawBody)
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data?.object
+      if (session) await handleStripeCheckoutCompleted(session)
+    }
+
+    res.json({ received: true })
+  } catch (error) {
+    console.error('[Stripe webhook]', error.message)
+    res.status(500).json({ error: error.message })
+  }
+}
 
 // @route   GET /api/payments/:id
 // @desc    Get payment status by ID

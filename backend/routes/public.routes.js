@@ -156,7 +156,9 @@ router.get('/website', async (req, res) => {
         stcPay: stcPay.enabled === true,
         tabby: tabby.enabled === true,
         tamara: tamara.enabled === true,
+        stripe: payment?.stripe?.enabled === true,
       },
+      stripePublishableKey: payment?.stripe?.enabled ? (payment?.stripe?.publishableKey || '') : '',
     })
   } catch (error) {
     sendRouteError(res, error)

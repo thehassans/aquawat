@@ -107,6 +107,7 @@ export default function AppStore() {
   const [uninstallConfirmApp, setUninstallConfirmApp] = useState(null);
   const [activeSpotlightIndex, setActiveSpotlightIndex] = useState(0);
   const [selectedTemplateId, setSelectedTemplateId] = useState(() => Number(tenant?.settings?.invoicePdfTemplate) || 1);
+  const [billingCycle, setBillingCycle] = useState('monthly'); // for paid app pricing display / checkout
 
   // Animated Installation State: { appId, name, size, progress, stage }
   const [installingState, setInstallingState] = useState(null);
@@ -115,6 +116,24 @@ export default function AppStore() {
     queryKey: ['app-store-apps'],
     queryFn: () => api.get('/app-store/apps').then((r) => r.data),
   });
+
+  const paymentsMeta = data?.payments || {};
+  const storeCurrency = String(paymentsMeta.currency || tenantCurrency || 'SAR').toUpperCase();
+
+  const formatAppPrice = useCallback((app, cycle = billingCycle) => {
+    const amount = cycle === 'yearly' ? Number(app?.yearlyPrice || 0) : Number(app?.monthlyPrice || 0);
+    if (!amount) return null;
+    return `${storeCurrency} ${amount.toFixed(amount % 1 ? 2 : 0)}${cycle === 'yearly' ? (isAr ? '/سنة' : '/yr') : (isAr ? '/شهر' : '/mo')}`;
+  }, [billingCycle, storeCurrency, isAr]);
+
+  const appNeedsPayment = useCallback((app) => {
+    if (!app || app.isInstalled) return false;
+    if (app.requiresPayment) return true;
+    const tier = String(app.pricingTier || 'free').toLowerCase();
+    if (tier === 'free') return false;
+    const amount = billingCycle === 'yearly' ? Number(app.yearlyPrice || 0) : Number(app.monthlyPrice || 0);
+    return amount > 0;
+  }, [billingCycle]);
 
   const apps = useMemo(() => data?.apps || [], [data?.apps]);
 
@@ -159,7 +178,7 @@ export default function AppStore() {
   };
 
   const installMutation = useMutation({
-    mutationFn: (appId) => api.post(`/app-store/apps/${appId}/install`),
+    mutationFn: (appId) => api.post(`/app-store/apps/${appId}/install`, { billingCycle }),
     onSuccess: (res) => {
       const updatedTenant = res.data?.tenant || res.data;
       if (updatedTenant?.settings) {
@@ -168,9 +187,39 @@ export default function AppStore() {
       queryClient.invalidateQueries(['app-store-apps']);
       refreshTenant();
     },
+    onError: async (err) => {
+      const payload = err.response?.data;
+      if (err.response?.status === 402 || payload?.requiresPayment) {
+        try {
+          const checkout = await api.post(`/app-store/apps/${payload.appId || installingState?.appId}/checkout`, { billingCycle });
+          if (checkout.data?.url) {
+            window.location.href = checkout.data.url;
+            return;
+          }
+        } catch (checkoutErr) {
+          setInstallingState(null);
+          toast.error(checkoutErr.response?.data?.error || (isAr ? 'تعذر بدء الدفع عبر Stripe' : 'Could not start Stripe checkout'));
+          return;
+        }
+      }
+      setInstallingState(null);
+      toast.error(payload?.error || (isAr ? 'فشل التثبيت' : 'Installation failed'));
+    },
+  });
+
+  const checkoutMutation = useMutation({
+    mutationFn: ({ appId, cycle }) => api.post(`/app-store/apps/${appId}/checkout`, { billingCycle: cycle || billingCycle }),
+    onSuccess: (res) => {
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+        return;
+      }
+      toast.error(isAr ? 'لم يتم إرجاع رابط الدفع' : 'No checkout URL returned');
+      setInstallingState(null);
+    },
     onError: (err) => {
       setInstallingState(null);
-      toast.error(err.response?.data?.error || (isAr ? 'فشل التثبيت' : 'Installation failed'));
+      toast.error(err.response?.data?.error || (isAr ? 'فشل الدفع' : 'Checkout failed'));
     },
   });
 
@@ -230,11 +279,52 @@ export default function AppStore() {
       name: isAr ? app.nameAr : app.nameEn,
       size: app.downloadSize || '5.2 MB',
       progress: 15,
-      stage: isAr ? 'جاري الاتصال بالسحابة وتحميل الحزمة...' : 'Initiating secure package download...'
+      stage: appNeedsPayment(app)
+        ? (isAr ? 'جاري فتح بوابة Stripe…' : 'Opening Stripe checkout…')
+        : (isAr ? 'جاري الاتصال بالسحابة وتحميل الحزمة...' : 'Initiating secure package download...')
     });
 
+    if (appNeedsPayment(app)) {
+      checkoutMutation.mutate({ appId: app.appId, cycle: billingCycle });
+      return;
+    }
+
     installMutation.mutate(app.appId);
-  }, [installingState, installMutation, isAr]);
+  }, [installingState, installMutation, checkoutMutation, isAr, appNeedsPayment, billingCycle]);
+
+  // Confirm Stripe return from App Store paid install
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paid = params.get('paid');
+    const sessionId = params.get('session_id');
+    const appId = params.get('appId');
+    const canceled = params.get('canceled');
+    if (canceled === '1') {
+      toast.error(isAr ? 'تم إلغاء الدفع' : 'Payment canceled');
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+    if (paid !== '1' || !sessionId || !appId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.post(`/app-store/apps/${appId}/confirm-payment`, { sessionId });
+        if (cancelled) return;
+        if (res.data?.tenant) dispatch(updateTenant(res.data.tenant));
+        queryClient.invalidateQueries(['app-store-apps']);
+        toast.success(isAr ? 'تم الدفع وتثبيت التطبيق بنجاح' : 'Payment successful — app installed');
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err.response?.data?.error || (isAr ? 'تعذر تأكيد الدفع' : 'Could not confirm payment'));
+        }
+      } finally {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    })();
+
+    return () => { cancelled = true };
+  }, [dispatch, isAr, queryClient]);
 
   // Installation progress simulation ticker
   useEffect(() => {
@@ -374,6 +464,22 @@ export default function AppStore() {
                 ? 'قم بتوسيع إمكانيات منشأتك بضغطة زر واحدة. ثبّت وحدات التصنيع، المقاولات، الامتثال الحكومي السعودي، وأجهزة نقاط البيع.'
                 : 'Instantly empower your enterprise. One-click deploy specialized modules for MES, Contracting, Saudi Gov Compliance, and Smart IoT.'}
             </p>
+            <div className="mt-4 inline-flex rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setBillingCycle('monthly')}
+                className={`px-3 py-1.5 ${billingCycle === 'monthly' ? 'bg-primary-600 text-white' : 'bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-300'}`}
+              >
+                {isAr ? 'شهري' : 'Monthly'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingCycle('yearly')}
+                className={`px-3 py-1.5 ${billingCycle === 'yearly' ? 'bg-primary-600 text-white' : 'bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-300'}`}
+              >
+                {isAr ? 'سنوي' : 'Yearly'}
+              </button>
+            </div>
           </div>
 
           {/* Quick Stats Banner */}
@@ -795,6 +901,11 @@ export default function AppStore() {
                     <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${pricing(app.pricingTier).color}`}>
                       {isAr ? pricing(app.pricingTier).ar : pricing(app.pricingTier).en}
                     </span>
+                    {formatAppPrice(app) && (
+                      <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                        {formatAppPrice(app)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -886,7 +997,11 @@ export default function AppStore() {
                         ) : (
                           <>
                             <Download className="w-3.5 h-3.5" />
-                            <span>{isAr ? 'تثبيت' : 'Install'}</span>
+                            <span>
+                              {appNeedsPayment(app)
+                                ? (formatAppPrice(app) || (isAr ? 'شراء' : 'Buy'))
+                                : (isAr ? 'تثبيت' : 'Install')}
+                            </span>
                           </>
                         )}
                       </button>
@@ -1163,9 +1278,13 @@ export default function AppStore() {
                   >
                     <Download className="w-4 h-4" />
                     <span>
-                      {isAr
-                        ? `تثبيت التطبيق (${detailApp.downloadSize || '4.8 MB'})`
-                        : `Install Module (${detailApp.downloadSize || '4.8 MB'})`}
+                      {appNeedsPayment(detailApp)
+                        ? (isAr
+                          ? `ادفع وثبّت ${formatAppPrice(detailApp) ? `(${formatAppPrice(detailApp)})` : 'via Stripe'}`
+                          : `Pay & Install ${formatAppPrice(detailApp) ? `(${formatAppPrice(detailApp)})` : 'via Stripe'}`)
+                        : (isAr
+                          ? `تثبيت التطبيق (${detailApp.downloadSize || '4.8 MB'})`
+                          : `Install Module (${detailApp.downloadSize || '4.8 MB'})`)}
                     </span>
                   </button>
                 )}

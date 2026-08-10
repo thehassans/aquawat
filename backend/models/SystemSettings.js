@@ -329,6 +329,13 @@ const systemSettingsSchema = new mongoose.Schema({
       notificationToken: { type: String, default: '' },
       environment: { type: String, enum: ['test', 'live'], default: 'test' },
     },
+    stripe: {
+      enabled: { type: Boolean, default: false },
+      publishableKey: { type: String, default: '' },
+      secretKey: { type: String, default: '' },
+      webhookSecret: { type: String, default: '' },
+      environment: { type: String, enum: ['test', 'live'], default: 'test' },
+    },
   },
   tenantMonitoring: {
     enabled: { type: Boolean, default: false },
