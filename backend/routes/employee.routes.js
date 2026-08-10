@@ -233,14 +233,34 @@ router.get('/', checkPermission('hr', 'read'), async (req, res) => {
       ];
     }
     
-    const employees = await Employee.find(query)
-      .select('-documents.fileUrl -salaryHistory -idCardProof -idCardFront -idCardBack')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
-    
-    const total = await Employee.countDocuments(query);
-    
+    const [employeesData, total] = await Promise.all([
+      Employee.find(query)
+        .select('-documents.fileUrl -salaryHistory -idCardProof -idCardFront -idCardBack')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean(),
+      Employee.countDocuments(query),
+    ]);
+
+    // .lean() skips schema virtuals (fullNameEn/Ar, totalSalary, yearsOfService)
+    // that the frontend relies on — recompute them manually to preserve parity.
+    const employees = employeesData.map((e) => {
+      const s = e.currentSalary;
+      const totalSalary = s
+        ? (s.basicSalary || 0) + (s.housingAllowance || 0) + (s.transportAllowance || 0) + (s.foodAllowance || 0) + (s.otherAllowances || 0)
+        : 0;
+      const endDate = e.terminationDate || new Date();
+      const yearsOfService = e.joinDate ? Math.round(((endDate - e.joinDate) / (365.25 * 24 * 60 * 60 * 1000)) * 100) / 100 : 0;
+      return {
+        ...e,
+        fullNameEn: `${e.firstNameEn || ''} ${e.lastNameEn || ''}`.trim(),
+        fullNameAr: `${e.firstNameAr || ''} ${e.lastNameAr || ''}`.trim(),
+        totalSalary,
+        yearsOfService,
+      };
+    });
+
     res.json({
       employees,
       pagination: {

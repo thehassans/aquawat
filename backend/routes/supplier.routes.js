@@ -44,12 +44,14 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
       ];
     }
 
-    const suppliers = await Supplier.find(query)
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
-
-    const total = await Supplier.countDocuments(query);
+    const [suppliers, total] = await Promise.all([
+      Supplier.find(query)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean(),
+      Supplier.countDocuments(query),
+    ]);
 
     res.json({
       suppliers,

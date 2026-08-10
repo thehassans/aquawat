@@ -497,11 +497,11 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const mutedText = 'text-slate-500'
   const titleText = 'text-slate-900'
   const shellStyle = {
-    fontFamily: bilingual ? '"InvoiceTajawal", Arial, Helvetica, sans-serif' : getInvoiceCssFontFamily(typography.bodyFontFamily),
+    fontFamily: bilingual ? '"InvoiceAlmarai", "Almarai", Arial, Helvetica, sans-serif' : getInvoiceCssFontFamily(typography.bodyFontFamily),
     fontSize: `${typography.bodyFontSize || 12}px`,
   }
   const headingStyle = {
-    fontFamily: bilingual ? '"InvoiceTajawal", Arial, Helvetica, sans-serif' : getInvoiceCssFontFamily(typography.headingFontFamily),
+    fontFamily: bilingual ? '"InvoiceAlmarai", "Almarai", Arial, Helvetica, sans-serif' : getInvoiceCssFontFamily(typography.headingFontFamily),
   }
   const companyHeadingStyle = {
     ...headingStyle,
@@ -779,7 +779,6 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
                 <p key={`${line}-${index}`} dir="auto" className="whitespace-pre-line">{line}</p>
               ))}
             </div>
-            {invoice?.notes ? <p className={`mt-4 text-sm font-semibold leading-7 text-slate-700`}>{invoice.notes}</p> : null}
           </div>
           <div className={`rounded-2xl p-4 ${styles.block}`}>
             <div className="flex items-center justify-between text-sm font-bold text-slate-800">
