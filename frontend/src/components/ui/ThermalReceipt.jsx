@@ -73,9 +73,13 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
 
   const logoSrc = tenant?.branding?.logo || tenant?.branding?.logoUrl || tenant?.settings?.invoiceBranding?.logo
 
+  // ZATCA only applies to SAR-denominated tenants; skip generating/printing
+  // the Saudi TLV QR entirely for tenants configured with another currency.
+  const isZatcaApplicable = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
+
   // Generate ZATCA QR payload dynamically in the frontend if not present on order
-  let zatcaQrPayload = order.zatcaQrCode
-  if (!zatcaQrPayload) {
+  let zatcaQrPayload = isZatcaApplicable ? order.zatcaQrCode : null
+  if (isZatcaApplicable && !zatcaQrPayload) {
     try {
       zatcaQrPayload = generateZatcaQrValue({
         sellerName: businessNameAr,

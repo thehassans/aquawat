@@ -8,12 +8,22 @@ import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { verifyQrIntegrity, verifyHashChain } from '../lib/zatcaQr.js';
 import { preSubmissionValidation } from '../utils/zatca/ublValidator.js';
 import { isKeyEncrypted } from '../utils/zatcaKeyVault.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 const router = express.Router();
 
 // Apply auth middleware
 router.use(protect);
 router.use(authorize('admin'));
+
+// ZATCA, Elm, Qiwa and GOSI/Mudad are Saudi government integrations that
+// only apply to SAR-denominated tenants.
+router.use((req, res, next) => {
+  if (!isZatcaCurrency(req.tenant)) {
+    return res.status(400).json({ error: 'Saudi government integrations (ZATCA/Elm/Qiwa/GOSI) only apply to SAR-denominated tenants.' });
+  }
+  next();
+});
 
 // Helper to log integration events
 const logEvent = async (tenantId, service, { type, reference, status, message, details }) => {

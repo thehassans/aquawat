@@ -2,11 +2,21 @@ import express from 'express';
 import Employee from '../models/Employee.js';
 import Invoice from '../models/Invoice.js';
 import { protect, tenantFilter } from '../middleware/auth.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+
+// Iqama/Saudization/ZATCA compliance tracking only applies to Saudi
+// (SAR-denominated) tenants.
+router.use((req, res, next) => {
+  if (!isZatcaCurrency(req.tenant)) {
+    return res.status(400).json({ error: 'Saudi compliance tracking (Iqama/Saudization/ZATCA) only applies to SAR-denominated tenants.' });
+  }
+  next();
+});
 
 // ─── Overview ──────────────────────────────────────────────────────────────────
 

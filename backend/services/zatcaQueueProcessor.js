@@ -5,6 +5,7 @@ import ZatcaAuditLog from '../models/ZatcaAuditLog.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { decryptZatcaConfig } from '../utils/zatcaKeyVault.js';
 import logger from '../utils/logger.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 const MAX_RETRIES = 5;
 const BASE_RETRY_DELAY_MS = 30_000;
@@ -139,7 +140,7 @@ export async function processQueue(batchSize = 25) {
 
     const tenantIds = [...new Set(pendingItems.map((item) => item.tenantId.toString()))];
     const tenants = await Tenant.find({ _id: { $in: tenantIds } })
-      .select('name slug business zatca')
+      .select('name slug business zatca settings')
       .lean();
 
     const tenantMap = new Map(tenants.map((t) => [t._id.toString(), t]));
@@ -157,6 +158,15 @@ export async function processQueue(batchSize = 25) {
         await ZatcaQueue.findByIdAndUpdate(item._id, {
           status: 'cancelled',
           lastError: 'Tenant not found',
+        });
+        results.skipped++;
+        continue;
+      }
+
+      if (!isZatcaCurrency(tenant)) {
+        await ZatcaQueue.findByIdAndUpdate(item._id, {
+          status: 'cancelled',
+          lastError: 'Tenant currency is not SAR; ZATCA does not apply',
         });
         results.skipped++;
         continue;

@@ -8,6 +8,7 @@ import { decryptZatcaConfig } from '../utils/zatcaKeyVault.js';
 import { sendEmailWithConfig } from '../utils/emailProviderService.js';
 import logger from '../utils/logger.js';
 import crypto from 'crypto';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 const DEFAULT_SEED = 'NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZjNmQ2OTZjNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyN2ZiNTdlOQ==';
 const CERT_EXPIRY_WARNING_DAYS = 30;
@@ -207,12 +208,16 @@ export async function runZatcaMonitoring() {
   };
 
   try {
-    const tenants = await Tenant.find({
+    const allOnboardedTenants = await Tenant.find({
       isActive: true,
       'zatca.isOnboarded': true,
     })
-      .select('name slug business zatca')
+      .select('name slug business zatca settings')
       .lean();
+
+    // ZATCA monitoring only applies to SAR-denominated tenants; skip any
+    // tenant that has since switched to a non-Saudi default currency.
+    const tenants = allOnboardedTenants.filter((tenant) => isZatcaCurrency(tenant));
 
     report.tenantsChecked = tenants.length;
 
@@ -342,12 +347,14 @@ export async function runCertExpiryCheck() {
   const alerts = [];
 
   try {
-    const tenants = await Tenant.find({
+    const allOnboardedTenants = await Tenant.find({
       isActive: true,
       'zatca.isOnboarded': true,
     })
-      .select('name slug zatca')
+      .select('name slug zatca settings')
       .lean();
+
+    const tenants = allOnboardedTenants.filter((tenant) => isZatcaCurrency(tenant));
 
     for (const tenant of tenants) {
       const certAlerts = await checkCertificateExpiry(tenant);

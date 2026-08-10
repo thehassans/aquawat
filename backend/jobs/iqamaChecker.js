@@ -2,6 +2,7 @@ import Employee from '../models/Employee.js';
 import Tenant from '../models/Tenant.js';
 import nodemailer from 'nodemailer';
 import logger from '../utils/logger.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -45,6 +46,10 @@ export async function checkIqamaExpiry() {
     const alertsByTenant = {};
     
     for (const emp of employees) {
+      // Iqama (Saudi residency permit) tracking only applies to Saudi
+      // (SAR-denominated) tenants.
+      if (!isZatcaCurrency(emp.tenant)) continue;
+
       const tenantId = emp.tenantId.toString();
       if (!alertsByTenant[tenantId]) {
         alertsByTenant[tenantId] = {

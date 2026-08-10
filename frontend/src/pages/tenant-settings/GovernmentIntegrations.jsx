@@ -427,6 +427,26 @@ export default function GovernmentIntegrations() {
     { id: 'industry', label: t('Industry Specific', 'خاص بالقطاع'), icon: Sliders, highlight: true }
   ]
 
+  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
+  if (!isSarCurrencyTenant) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-16 px-6">
+        <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-dark-700 flex items-center justify-center mx-auto mb-5">
+          <Shield className="w-8 h-8 text-gray-400" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+          {t('Not Applicable For Your Tenant Currency', 'غير متاح لعملة منشأتك الحالية')}
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+          {t(
+            'ZATCA, Elm, Qiwa and GOSI are Saudi Arabian government integrations that only apply to SAR-denominated businesses. Set your default currency to SAR in Settings to enable this section.',
+            'زاتكا وعلم وقوى والتأمينات الاجتماعية تكاملات حكومية سعودية تنطبق فقط على المنشآت التي تتعامل بالريال السعودي. غيّر العملة الافتراضية إلى الريال السعودي من الإعدادات لتفعيل هذا القسم.'
+          )}
+        </p>
+      </div>
+    )
+  }
+
   if (isConfigLoading) {
     return (
       <div className="space-y-6 animate-pulse">

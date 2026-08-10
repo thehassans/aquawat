@@ -107,7 +107,9 @@ const buildStatementFromManual = ({ baseStatement, savedManual, currentManual, c
 export default function VatReturns() {
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const isArabic = language === 'ar'
+  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   const [filters, setFilters] = useState(getCurrentPeriod)
 
   const { register, handleSubmit, reset, watch } = useForm({
@@ -124,6 +126,7 @@ export default function VatReturns() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['vat-returns', filters.startDate, filters.endDate],
     queryFn: () => api.get('/reports/vat-return', { params: filters }).then((res) => res.data),
+    enabled: isSarCurrencyTenant,
   })
 
   useEffect(() => {
@@ -231,6 +234,24 @@ export default function VatReturns() {
       tone: 'bg-white border-slate-200 text-rose-600',
     },
   ]
+
+  if (!isSarCurrencyTenant) {
+    return (
+      <div className="max-w-xl mx-auto text-center py-20 px-6">
+        <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-5">
+          <ShieldCheck className="w-7 h-7 text-slate-400" />
+        </div>
+        <h2 className="text-lg font-bold text-slate-900 mb-2">
+          {isArabic ? 'غير متاح لعملة منشأتك الحالية' : 'Not Applicable For Your Tenant Currency'}
+        </h2>
+        <p className="text-sm text-slate-500 leading-relaxed">
+          {isArabic
+            ? 'هذا الإقرار مصمم وفق نموذج هيئة الزكاة والضريبة والجمارك السعودية (زاتكا) وينطبق فقط على المنشآت التي تتعامل بالريال السعودي.'
+            : 'This return follows the Saudi ZATCA/GAZT VAT return format and only applies to SAR-denominated businesses.'}
+        </p>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (

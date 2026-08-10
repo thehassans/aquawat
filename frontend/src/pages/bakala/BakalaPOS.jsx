@@ -939,9 +939,10 @@ export default function BakalaPOS() {
     const items = order.lineItems || [];
     const pmLabel = paymentMethod === 'cash' ? 'Cash | نقدي' : paymentMethod === 'card' ? 'Card | بطاقة' : paymentMethod === 'split' ? 'Split | مقسم' : paymentMethod === 'khata' ? 'Khata | خطة' : String(paymentMethod);
 
+    const isZatcaApplicable = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR';
     let zatcaQrPayload = '';
     try {
-      zatcaQrPayload = generateZatcaQrValue({
+      if (isZatcaApplicable) zatcaQrPayload = generateZatcaQrValue({
         sellerName: businessNameAr,
         vatNumber,
         timestamp: new Date().toISOString(),

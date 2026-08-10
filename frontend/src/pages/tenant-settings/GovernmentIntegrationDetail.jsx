@@ -47,8 +47,10 @@ export default function GovernmentIntegrationDetail() {
   const queryClient = useQueryClient()
   const dispatch = useDispatch()
   const { language } = useSelector(state => state.ui)
+  const { tenant } = useSelector(state => state.auth)
   const isAr = language === 'ar'
   const t = (en, ar) => isAr ? ar : en
+  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
 
   const [testResult, setTestResult] = useState(null)
   const [logFilter, setLogFilter] = useState('all')
@@ -161,6 +163,19 @@ export default function GovernmentIntegrationDetail() {
   }
 
   const meta = getServiceMeta()
+
+  if (!isSarCurrencyTenant) {
+    return (
+      <div className="card p-8 text-center space-y-4">
+        <Shield className="w-12 h-12 text-gray-400 mx-auto" />
+        <h3 className="text-lg font-bold">{t('Not Applicable For Your Tenant Currency', 'غير متاح لعملة منشأتك الحالية')}</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+          {t('This Saudi government integration only applies to SAR-denominated businesses.', 'هذا التكامل الحكومي السعودي ينطبق فقط على المنشآت التي تتعامل بالريال السعودي.')}
+        </p>
+        <button onClick={() => navigate('/app/dashboard/tenant-settings/government-integrations')} className="btn btn-primary">{t('Go Back', 'الرجوع')}</button>
+      </div>
+    )
+  }
 
   if (!meta) {
     return (

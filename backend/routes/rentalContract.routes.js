@@ -5,6 +5,7 @@ import RentalCustomer from '../models/RentalCustomer.js';
 import RentalInvoice from '../models/RentalInvoice.js';
 import { protect, tenantFilter, requireBusinessType } from '../middleware/auth.js';
 import { generateContractZatcaQr } from '../lib/zatcaQr.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 const router = express.Router();
 
@@ -358,11 +359,13 @@ router.post('/:id/checkin', async (req, res) => {
     contract.grandTotal = grandTotal;
     contract.finalBalance = finalBalance;
 
-    // ── 10. Generate ZATCA QR ─────────────────────────────────────────────────
-    try {
-      contract.zatcaQrCode = generateContractZatcaQr(contract, req.tenant);
-    } catch (_) {
-      // Non-fatal — invoice can still be issued without QR
+    // ── 10. Generate ZATCA QR (SAR-denominated tenants only) ──────────────────
+    if (isZatcaCurrency(req.tenant)) {
+      try {
+        contract.zatcaQrCode = generateContractZatcaQr(contract, req.tenant);
+      } catch (_) {
+        // Non-fatal — invoice can still be issued without QR
+      }
     }
 
     await contract.save();

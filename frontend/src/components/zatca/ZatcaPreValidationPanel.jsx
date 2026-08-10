@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { useSelector } from 'react-redux'
 import {
   ShieldCheck, AlertTriangle, CheckCircle2, XCircle,
   Loader2, RefreshCw, ChevronDown, ChevronUp, Sparkles, Check
@@ -9,7 +10,9 @@ import { useTranslation } from '../../lib/translations'
 
 export default function ZatcaPreValidationPanel({ invoiceData, language = 'en' }) {
   const { t } = useTranslation(language)
+  const { tenant } = useSelector((state) => state.auth)
   const [expanded, setExpanded] = useState(false)
+  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
 
   const validateMutation = useMutation({
     mutationFn: () => api.post('/tenant/compliance/config/zatca-validate', { invoiceData }).then(res => res.data),
@@ -27,6 +30,8 @@ export default function ZatcaPreValidationPanel({ invoiceData, language = 'en' }
   const isCompliant = hasResult && result.valid
   const hasErrors = hasResult && result.errors && result.errors.length > 0
   const hasWarnings = hasResult && result.warnings && result.warnings.length > 0
+
+  if (!isSarCurrencyTenant) return null
 
   return (
     <div className="rounded-2xl border border-gray-200/90 dark:border-dark-700 bg-white dark:bg-dark-800 shadow-xs transition-all">

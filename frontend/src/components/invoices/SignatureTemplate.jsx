@@ -26,13 +26,14 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
 
   const logoSrc = invoiceBranding.logoSrc
   
-  const qrValue = invoice?.zatca?.qrCodeData || generateZatcaQrValue({
+  const isZatcaApplicable = String(currency || 'SAR').toUpperCase() === 'SAR'
+  const qrValue = !isZatcaApplicable ? null : (invoice?.zatca?.qrCodeData || generateZatcaQrValue({
     sellerName: sellerNameEn || sellerNameAr,
     vatNumber: invoice?.seller?.vatNumber || tenant?.business?.vatNumber,
     timestamp: invoice?.issueDate || new Date().toISOString(),
     totalWithVat: toNumber(invoice?.grandTotal),
     vatTotal: toNumber(invoice?.totalTax),
-  })
+  }))
 
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]

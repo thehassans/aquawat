@@ -91,10 +91,10 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
   const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1;
   const business = tenant?.business || {};
   const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country);
-  const hasZatca = si.zatcaConnectionStatus === 'connected' || tenant?.zatca?.isOnboarded || isZatcaPhase1Ready;
-  const hasElm = si.elmConnectionStatus === 'connected';
-  const hasQiwa = si.qiwaConnectionStatus === 'connected';
-  const hasGosi = si.gosiConnectionStatus === 'connected';
+  const hasZatca = isSarCurrencyTenant && (si.zatcaConnectionStatus === 'connected' || tenant?.zatca?.isOnboarded || isZatcaPhase1Ready);
+  const hasElm = isSarCurrencyTenant && si.elmConnectionStatus === 'connected';
+  const hasQiwa = isSarCurrencyTenant && si.qiwaConnectionStatus === 'connected';
+  const hasGosi = isSarCurrencyTenant && si.gosiConnectionStatus === 'connected';
 
   const govChildrenResolved = Array.isArray(govChildren) ? govChildren : [];
 
@@ -312,7 +312,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/finance', icon: Landmark, label: language === 'ar' ? 'المالية' : 'Finance', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/vouchers', icon: Receipt, label: language === 'ar' ? 'السندات' : 'Vouchers', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/expenses', icon: Receipt, label: language === 'ar' ? 'المصروفات' : 'Expenses', perm: { module: 'finance', action: 'read' } },
-        { path: '/app/dashboard/vat-returns', icon: Calculator, label: language === 'ar' ? 'إقرارات القيمة المضافة' : 'VAT Returns', perm: { module: 'finance', action: 'read' } },
+        ...(isSarCurrencyTenant ? [{ path: '/app/dashboard/vat-returns', icon: Calculator, label: language === 'ar' ? 'إقرارات القيمة المضافة (زاتكا)' : 'VAT Returns (ZATCA)', perm: { module: 'finance', action: 'read' } }] : []),
         ...(isSarCurrencyTenant && tenant?.zatca?.phase !== 1 ? [{ path: '/app/dashboard/finance/zatca-logs', icon: Shield, label: language === 'ar' ? 'سجل زاتكا' : 'ZATCA Logs', perm: { module: 'finance', action: 'read' } }] : []),
         { path: '/app/dashboard/reports', icon: BarChart3, label: language === 'ar' ? 'التقارير' : 'Reports', perm: { module: 'invoicing', action: 'read' } },
       ]
@@ -342,12 +342,12 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       items: [
         { path: '/app/dashboard/employees', icon: Users, label: t('employees'), perm: { module: 'hr', action: 'read' } },
         { path: '/app/dashboard/hr/attendance', icon: Fingerprint, label: language === 'ar' ? 'الحضور والبيومتري' : 'Attendance & Biometrics', perm: { module: 'hr', action: 'read' } },
-        { path: '/app/dashboard/hr/compliance', icon: ShieldCheck, label: language === 'ar' ? 'الامتثال (بلدي وإقامة)' : 'Compliance (Balady/Iqama)', perm: { module: 'hr', action: 'read' }, excludeBusinessTypes: ['bakala'] },
+        ...(isSarCurrencyTenant ? [{ path: '/app/dashboard/hr/compliance', icon: ShieldCheck, label: language === 'ar' ? 'الامتثال (بلدي وإقامة)' : 'Compliance (Balady/Iqama)', perm: { module: 'hr', action: 'read' }, excludeBusinessTypes: ['bakala'] }] : []),
         { path: '/app/dashboard/hr/hiring', icon: Briefcase, label: language === 'ar' ? 'التوظيف' : 'Hiring', perm: { module: 'hr', action: 'read' } },
         { path: '/app/dashboard/hr/leaves', icon: CalendarDays, label: language === 'ar' ? 'الإجازات' : 'Leaves', perm: { module: 'hr', action: 'read' } },
         { path: '/app/dashboard/hr/performance', icon: Target, label: language === 'ar' ? 'الأداء' : 'Performance', perm: { module: 'hr', action: 'read' } },
         { path: '/app/dashboard/payroll', icon: Wallet, label: t('payroll'), perm: { module: 'payroll', action: 'read' }, excludeBusinessTypes: ['bakala'] },
-        { path: '/app/dashboard/payroll/calculators', icon: Calculator, label: 'GOSI/EOSB', perm: { module: 'payroll', action: 'read' }, excludeBusinessTypes: ['bakala'] },
+        ...(isSarCurrencyTenant ? [{ path: '/app/dashboard/payroll/calculators', icon: Calculator, label: 'GOSI/EOSB', perm: { module: 'payroll', action: 'read' }, excludeBusinessTypes: ['bakala'] }] : []),
         { path: '/app/dashboard/hr/reports', icon: BarChart3, label: language === 'ar' ? 'تقارير الموارد البشرية' : 'HR Reports', perm: { module: 'hr', action: 'read' } },
         { path: '/app/dashboard/hr/expense-claims', icon: Wallet, label: language === 'ar' ? 'مطالبات المصروفات' : 'Expense Claims', perm: { module: 'hr', action: 'read' } },
       ]

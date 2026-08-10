@@ -388,16 +388,19 @@ export default function BookStorePOS() {
     const items = order.lineItems || [];
     const pmLabel = paymentMethod === 'cash' ? 'Cash | نقدي' : paymentMethod === 'card' ? 'Card | بطاقة' : paymentMethod === 'split' ? 'Split | مقسم' : paymentMethod === 'khata' ? 'Khata | خطة' : String(paymentMethod);
 
+    const isZatcaApplicable = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR';
     let zatcaQrPayload = '';
-    try {
-      zatcaQrPayload = generateZatcaQrValue({
-        sellerName: businessNameAr,
-        vatNumber,
-        timestamp: new Date().toISOString(),
-        totalWithVat: order.grandTotal || 0,
-        vatTotal: order.totalTax || 0,
-      });
-    } catch (_) {}
+    if (isZatcaApplicable) {
+      try {
+        zatcaQrPayload = generateZatcaQrValue({
+          sellerName: businessNameAr,
+          vatNumber,
+          timestamp: new Date().toISOString(),
+          totalWithVat: order.grandTotal || 0,
+          vatTotal: order.totalTax || 0,
+        });
+      } catch (_) {}
+    }
 
     const escapeHtml = (text) => {
       const div = document.createElement('div');

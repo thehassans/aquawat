@@ -73,8 +73,10 @@ const cardVariants = {
 export default function Compliance() {
   const navigate = useNavigate()
   const { language } = useSelector(s => s.ui)
+  const { tenant } = useSelector(s => s.auth)
   const isAr = language === 'ar'
   const t = (en, ar) => isAr ? ar : en
+  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
 
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -90,7 +92,29 @@ export default function Compliance() {
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { fetchOverview() }, [fetchOverview])
+  useEffect(() => {
+    if (isSarCurrencyTenant) fetchOverview()
+    else setLoading(false)
+  }, [fetchOverview, isSarCurrencyTenant])
+
+  if (!isSarCurrencyTenant) {
+    return (
+      <div className="max-w-xl mx-auto text-center py-20 px-6">
+        <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-dark-700 flex items-center justify-center mx-auto mb-5">
+          <Shield className="w-7 h-7 text-gray-400" />
+        </div>
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+          {t('Not Applicable For Your Tenant Currency', 'غير متاح لعملة منشأتك الحالية')}
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+          {t(
+            'Balady/Iqama compliance and Saudization tracking are Saudi Arabian requirements that only apply to SAR-denominated businesses.',
+            'الامتثال البلدي والإقامة وتتبع نسب السعودة متطلبات سعودية تنطبق فقط على المنشآت التي تتعامل بالريال السعودي.'
+          )}
+        </p>
+      </div>
+    )
+  }
 
   const iqama = data?.iqamaAlerts || { critical: [], warning: [], upcoming: [] }
   const zatca = data?.zatcaStatus || {}

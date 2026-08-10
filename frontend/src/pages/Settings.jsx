@@ -59,13 +59,14 @@ function MenuVisibilitySettings() {
   if (!tenant) return null
 
   const si = tenant?.settings?.saudiIntegrations || {}
+  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1
   const business = tenant?.business || {}
   const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country)
-  const hasZatca = si.zatcaConnectionStatus === 'connected' || tenant?.zatca?.isOnboarded || isZatcaPhase1Ready
-  const hasElm = si.elmConnectionStatus === 'connected'
-  const hasQiwa = si.qiwaConnectionStatus === 'connected'
-  const hasGosi = si.gosiConnectionStatus === 'connected'
+  const hasZatca = isSarCurrencyTenant && (si.zatcaConnectionStatus === 'connected' || tenant?.zatca?.isOnboarded || isZatcaPhase1Ready)
+  const hasElm = isSarCurrencyTenant && si.elmConnectionStatus === 'connected'
+  const hasQiwa = isSarCurrencyTenant && si.qiwaConnectionStatus === 'connected'
+  const hasGosi = isSarCurrencyTenant && si.gosiConnectionStatus === 'connected'
 
   const govChildren = []
   if (hasZatca) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/zatca', label: language === 'ar' ? `بوابة زاتكا ${isZatcaPhase1 ? '(المرحلة 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal` })

@@ -160,7 +160,9 @@ export const getInvoiceBranding = (tenant, language = 'en', businessContext = 't
       pickFirstText(contextProfile.footerTextAr, invoiceBranding?.footerTextAr) || buildDefaultContextFooterText(context, 'ar'),
       language,
     ) || buildDefaultFooterText(tenant, language),
-    showVision2030: invoiceBranding?.showVision2030 !== false,
+    // Vision 2030 is a Saudi government initiative — never show it for
+    // tenants configured with a non-SAR default currency.
+    showVision2030: invoiceBranding?.showVision2030 !== false && String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR',
     vision2030LogoSrc: invoiceBranding?.vision2030Logo || DEFAULT_VISION_2030_LOGO,
     vatNumber: business?.vatNumber || '',
     crNumber: business?.crNumber || '',

@@ -72,6 +72,7 @@ export default function Dashboard() {
   const { t } = useTranslation(language)
   const navigate = useNavigate()
   const isAr = language === 'ar'
+  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
 
   // Active Tab state: 'overview' or an appId / businessTypeGrant
   const [activeTab, setActiveTab] = useState('overview')
@@ -619,7 +620,7 @@ export default function Dashboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="lg:col-span-2 card p-6"
+                className={isSarCurrencyTenant ? "lg:col-span-2 card p-6" : "lg:col-span-3 card p-6"}
               >
                 <div className="flex items-center justify-between mb-6">
                   <div>
@@ -692,7 +693,8 @@ export default function Dashboard() {
                 </div>
               </motion.div>
 
-              {/* ZATCA Clearance Status */}
+              {/* ZATCA Clearance Status — Saudi (SAR) tenants only */}
+              {isSarCurrencyTenant && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -741,6 +743,7 @@ export default function Dashboard() {
                   ))}
                 </div>
               </motion.div>
+              )}
             </div>
 
             {/* Bottom Row: Recent Invoices & Expiring Documents */}
@@ -770,16 +773,28 @@ export default function Dashboard() {
                     dashboard?.recentInvoices?.map((invoice) => (
                       <div key={invoice._id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors">
                         <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-xl ${
-                            invoice.zatca?.submissionStatus === 'cleared' ? 'bg-emerald-100 dark:bg-emerald-900/30' :
-                            invoice.zatca?.submissionStatus === 'reported' ? 'bg-blue-100 dark:bg-blue-900/30' :
-                            invoice.zatca?.submissionStatus === 'rejected' ? 'bg-red-100 dark:bg-red-900/30' :
-                            'bg-amber-100 dark:bg-amber-900/30'
-                          }`}>
-                            {invoice.zatca?.submissionStatus === 'cleared' ? <CheckCircle className="w-4 h-4 text-emerald-600" /> :
-                             invoice.zatca?.submissionStatus === 'rejected' ? <XCircle className="w-4 h-4 text-red-600" /> :
-                             <Clock className="w-4 h-4 text-amber-600" />}
-                          </div>
+                          {isSarCurrencyTenant ? (
+                            <div className={`p-2 rounded-xl ${
+                              invoice.zatca?.submissionStatus === 'cleared' ? 'bg-emerald-100 dark:bg-emerald-900/30' :
+                              invoice.zatca?.submissionStatus === 'reported' ? 'bg-blue-100 dark:bg-blue-900/30' :
+                              invoice.zatca?.submissionStatus === 'rejected' ? 'bg-red-100 dark:bg-red-900/30' :
+                              'bg-amber-100 dark:bg-amber-900/30'
+                            }`}>
+                              {invoice.zatca?.submissionStatus === 'cleared' ? <CheckCircle className="w-4 h-4 text-emerald-600" /> :
+                               invoice.zatca?.submissionStatus === 'rejected' ? <XCircle className="w-4 h-4 text-red-600" /> :
+                               <Clock className="w-4 h-4 text-amber-600" />}
+                            </div>
+                          ) : (
+                            <div className={`p-2 rounded-xl ${
+                              invoice.status === 'approved' ? 'bg-emerald-100 dark:bg-emerald-900/30' :
+                              invoice.status === 'rejected' ? 'bg-red-100 dark:bg-red-900/30' :
+                              'bg-amber-100 dark:bg-amber-900/30'
+                            }`}>
+                              {invoice.status === 'approved' ? <CheckCircle className="w-4 h-4 text-emerald-600" /> :
+                               invoice.status === 'rejected' ? <XCircle className="w-4 h-4 text-red-600" /> :
+                               <Clock className="w-4 h-4 text-amber-600" />}
+                            </div>
+                          )}
                           <div>
                             <p className="font-bold text-sm text-gray-900 dark:text-white">{invoice.invoiceNumber}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">{invoice.buyer?.name || (isAr ? 'عميل نقدي' : 'Cash Customer')}</p>
@@ -816,10 +831,12 @@ export default function Dashboard() {
                       {dashboard?.expiringDocuments?.length || 0}
                     </span>
                   </div>
-                  <Link to="/app/dashboard/tenant-settings/government-integrations" className="text-xs text-primary-600 hover:text-primary-700 font-bold flex items-center gap-1">
-                    {isAr ? 'بوابة الامتثال' : 'Gov Portal'}
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </Link>
+                  {isSarCurrencyTenant && (
+                    <Link to="/app/dashboard/tenant-settings/government-integrations" className="text-xs text-primary-600 hover:text-primary-700 font-bold flex items-center gap-1">
+                      {isAr ? 'بوابة الامتثال' : 'Gov Portal'}
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
                 </div>
                 <div className="divide-y divide-gray-100 dark:divide-dark-700">
                   {dashboard?.expiringDocuments?.length === 0 ? (

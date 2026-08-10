@@ -2,6 +2,7 @@ import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import logger from '../utils/logger.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 export async function syncZatcaInvoices() {
   try {
@@ -42,6 +43,11 @@ export async function syncZatcaInvoices() {
     for (const tenantId in invoicesByTenant) {
       const { tenant, invoices } = invoicesByTenant[tenantId];
       
+      if (!isZatcaCurrency(tenant)) {
+        logger.warn(`Tenant ${tenant.name} is not SAR-denominated, skipping ${invoices.length} ZATCA invoices`);
+        continue;
+      }
+
       if (!tenant.zatca?.isOnboarded || !tenant.zatca?.productionCsid) {
         logger.warn(`Tenant ${tenant.name} not onboarded to ZATCA, skipping ${invoices.length} invoices`);
         continue;

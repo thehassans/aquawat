@@ -11,6 +11,7 @@ import { getTenantBusinessTypes } from '../utils/businessTypes.js';
 import { buildBusinessReports } from '../utils/businessReports.js';
 import { buildInternalAuditReport, buildExternalAuditReport } from '../utils/auditReports.js';
 import { computeNextRunAt, normalizeRecipients, serializeReportSchedule, REPORT_SCHEDULE_FREQUENCIES, REPORT_SCHEDULE_PRESETS, REPORT_SCHEDULE_TYPES } from '../utils/reportScheduleService.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 const router = express.Router();
 
@@ -406,6 +407,9 @@ async function buildVatReturnPayload({ tenantId, tenantFilterValue, startDate, e
 
 router.get('/vat-return', async (req, res) => {
   try {
+    if (!isZatcaCurrency(req.tenant)) {
+      return res.status(400).json({ error: 'The Saudi VAT return format only applies to SAR-denominated tenants.' });
+    }
     const { startDate, endDate } = resolvePeriod(req);
     const invoiceTaxableAmountExpression = buildVatReportInvoiceLineSumExpression(buildVatReportLineAmountExpression);
     const invoiceVatAmountExpression = buildVatReportInvoiceLineSumExpression(buildVatReportLineVatExpression);
@@ -588,6 +592,9 @@ router.get('/vat-return', async (req, res) => {
 
 router.put('/vat-return', authorize('admin'), async (req, res) => {
   try {
+    if (!isZatcaCurrency(req.tenant)) {
+      return res.status(400).json({ error: 'The Saudi VAT return format only applies to SAR-denominated tenants.' });
+    }
     const { month, year, startDate, endDate, businessLocation, manual, correctionsPreviousPeriod, vatCreditCarriedForward, notes, status } = req.body || {};
     const periodStart = startDate ? new Date(startDate) : new Date(Number(year), Number(month) - 1, 1);
     const periodEnd = endDate ? new Date(endDate) : new Date(Number(year), Number(month), 0, 23, 59, 59, 999);
