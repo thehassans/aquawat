@@ -26,13 +26,15 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
 
   const logoSrc = invoiceBranding.logoSrc
   
-  const qrValue = invoice?.zatca?.qrCodeData || generateZatcaQrValue({
+  // ZATCA is a Saudi-only requirement tied to SAR-denominated invoices.
+  const isZatcaApplicable = String(currency || 'SAR').toUpperCase() === 'SAR'
+  const qrValue = !isZatcaApplicable ? null : (invoice?.zatca?.qrCodeData || generateZatcaQrValue({
     sellerName: sellerNameEn || sellerNameAr,
     vatNumber: invoice?.seller?.vatNumber || tenant?.business?.vatNumber,
     timestamp: invoice?.issueDate || new Date().toISOString(),
     totalWithVat: toNumber(invoice?.grandTotal),
     vatTotal: toNumber(invoice?.totalTax),
-  })
+  }))
 
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
@@ -566,7 +568,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             </div>
           </div>
 
-          {!isQuotation && (
+          {!isQuotation && isZatcaApplicable && (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50/50 p-3 w-full md:w-56">
               <QRCodeSVG value={qrValue} size={100} bgColor="transparent" fgColor="#111827" />
               <p className="mt-2 text-xs text-center text-gray-500">ZATCA Compliant QR</p>

@@ -24,6 +24,7 @@ import { buildInvoicePdfAttachment } from '../utils/invoicePdfService.js';
 import { createInvoiceFromMultipleDNs } from '../controllers/invoiceController.js';
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
 import { clampTemplateId } from '../utils/premiumTemplates.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -347,12 +348,19 @@ async function syncTravelBookingFromInvoice({ invoice, tenantFilterValue, userId
 
 function resolveInitialSellInvoiceStatus(requestedStatus, tenant) {
   if (normalizeText(requestedStatus).toLowerCase() === 'draft') return 'draft';
+  // Non-SAR tenants skip the ZATCA sign/clearance workflow entirely, so
+  // there is nothing to wait on - finalize immediately like Phase 1.
+  if (!isZatcaCurrency(tenant)) return 'approved';
   // ZATCA Phase 1: auto-finalize since only QR code is required (no XML signing/clearance)
   if (tenant?.zatca?.phase === 1) return 'approved';
   return 'pending';
 }
 
-async function attachDraftQr(invoice, seller) {
+async function attachDraftQr(invoice, seller, tenant) {
+  // ZATCA only applies to SAR-denominated invoices. Skip the Saudi TLV QR
+  // entirely for tenants configured with a different default currency.
+  if (!isZatcaCurrency(tenant)) return invoice;
+
   const qr = await buildDraftInvoiceQr({
     seller,
     issueDate: invoice.issueDate,
@@ -977,7 +985,7 @@ router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoi
         
         const isB2C = invoice.transactionType === 'B2C';
         const isPhase1 = tenant?.zatca?.phase === 1;
-        if (isB2C && isPhase1) {
+        if (isB2C && isPhase1 && isZatcaCurrency(tenant)) {
           invoice.zatca = {
             ...invoice.zatca,
             qrCode: buildDraftInvoiceQr(invoice, tenant)
@@ -1321,7 +1329,7 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
 
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const createdInvoice = await Invoice.create(enrichedInvoiceData);
-    const invoice = await attachDraftQr(createdInvoice, tenant.business);
+    const invoice = await attachDraftQr(createdInvoice, tenant.business, tenant);
 
     if (restaurantOrder) {
       await RestaurantOrder.updateOne(
@@ -1511,7 +1519,7 @@ router.post('/purchase', checkPermission('invoicing', 'create'), async (req, res
 
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const createdInvoice = await Invoice.create(enrichedInvoiceData);
-    const invoice = await attachDraftQr(createdInvoice, seller);
+    const invoice = await attachDraftQr(createdInvoice, seller, tenant);
 
     if (businessContext === 'trading') {
       const posted = await postInventoryForInvoice(invoice, req.tenantFilter);
@@ -1678,6 +1686,10 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
     const tenant = await Tenant.findById(req.user.tenantId);
     if (!tenant) {
       return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    if (!isZatcaCurrency(tenant)) {
+      return res.status(400).json({ error: 'ZATCA e-invoicing only applies to SAR-denominated invoices. Set your tenant currency to SAR to enable ZATCA signing and submission.' });
     }
 
     let privateKey = tenant.zatca?.privateKey;
@@ -1985,7 +1997,7 @@ router.post('/:id/convert-proforma', checkPermission('invoicing', 'create'), asy
     invoiceData.status = 'draft';
 
     const createdInvoice = await Invoice.create(invoiceData);
-    const invoice = await attachDraftQr(createdInvoice, tenant.business);
+    const invoice = await attachDraftQr(createdInvoice, tenant.business, tenant);
 
     // Update proforma status to avoid double conversion
     proforma.status = 'sent';

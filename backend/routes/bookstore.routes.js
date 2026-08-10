@@ -8,6 +8,7 @@ import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
 import PosSession from '../models/PosSession.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -254,7 +255,7 @@ router.post('/sync', protect, async (req, res) => {
           newInvoice.invoiceNumber = `BOOK-${seq}`;
         }
 
-        if (zatcaConfig.isOnboarded && zatcaConfig.privateKey) {
+        if (zatcaConfig.isOnboarded && zatcaConfig.privateKey && isZatcaCurrency(tenant)) {
           const processed = await zatcaService.processInvoice(newInvoice.toObject(), tenant.business, true);
           newInvoice.zatca = { ...processed, submissionStatus: 'pending' };
           tenant.zatca.lastInvoiceHash = processed.invoiceHash;

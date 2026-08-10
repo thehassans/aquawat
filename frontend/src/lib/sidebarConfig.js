@@ -87,6 +87,7 @@ import {
  */
 export function getNavSections({ language, t, tenant, businessTypes, govChildren }) {
   const si = tenant?.settings?.saudiIntegrations || {};
+  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR';
   const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1;
   const business = tenant?.business || {};
   const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country);
@@ -312,7 +313,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/vouchers', icon: Receipt, label: language === 'ar' ? 'السندات' : 'Vouchers', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/expenses', icon: Receipt, label: language === 'ar' ? 'المصروفات' : 'Expenses', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/vat-returns', icon: Calculator, label: language === 'ar' ? 'إقرارات القيمة المضافة' : 'VAT Returns', perm: { module: 'finance', action: 'read' } },
-        ...(tenant?.zatca?.phase !== 1 ? [{ path: '/app/dashboard/finance/zatca-logs', icon: Shield, label: language === 'ar' ? 'سجل زاتكا' : 'ZATCA Logs', perm: { module: 'finance', action: 'read' } }] : []),
+        ...(isSarCurrencyTenant && tenant?.zatca?.phase !== 1 ? [{ path: '/app/dashboard/finance/zatca-logs', icon: Shield, label: language === 'ar' ? 'سجل زاتكا' : 'ZATCA Logs', perm: { module: 'finance', action: 'read' } }] : []),
         { path: '/app/dashboard/reports', icon: BarChart3, label: language === 'ar' ? 'التقارير' : 'Reports', perm: { module: 'invoicing', action: 'read' } },
       ]
     },

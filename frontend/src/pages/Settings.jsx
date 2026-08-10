@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector, useDispatch } from 'react-redux'
 import { useForm } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Building2, Shield, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid, Lock, Sparkles } from 'lucide-react'
+import { Building2, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
@@ -12,7 +11,6 @@ import { setLanguage, setTheme, setHideSidebar, setHiddenMenuItems, setHiddenMen
 import { updateTenant, getMe } from '../store/slices/authSlice'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getInvoiceBrandingProfile, getInvoiceTemplateId, getInvoiceTypography, INVOICE_FONT_OPTIONS } from '../lib/invoiceBranding'
-import { invoiceTemplateOptions } from '../lib/invoiceTemplates'
 import { CURRENCIES, CURRENCY_CODE } from '../lib/currency'
 import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 import { getNavSections } from '../lib/sidebarConfig'
@@ -20,8 +18,6 @@ import { getTenantBusinessTypes } from '../lib/businessTypes'
 import PosTerminalSettings from '../components/settings/PosTerminalSettings'
 import HardwareSettings from '../components/settings/HardwareSettings'
 import CarRentalApiSettings from '../components/settings/CarRentalApiSettings'
-import GovernmentIntegrations from './tenant-settings/GovernmentIntegrations'
-import InvoiceLivePreview from '../components/invoices/InvoiceLivePreview'
 
 const invoiceBrandingContexts = [
   { key: 'trading', labelEn: 'Trading Invoice', labelAr: 'فاتورة تجارة' },
@@ -206,11 +202,8 @@ function MenuVisibilitySettings() {
   )
 }
 
-const PREMIUM_TEMPLATE_APP_ID = 'premium_invoice_templates'
-
 export default function Settings() {
   const dispatch = useDispatch()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { language, theme, hideSidebar, hiddenMenuItems, displayMode, navigationStyle } = useSelector((state) => state.ui)
   const { user } = useSelector((state) => state.auth)
@@ -283,16 +276,6 @@ export default function Settings() {
     queryKey: ['tenant-settings'],
     queryFn: () => api.get('/tenants/current').then(res => res.data)
   })
-
-  // Templates 2-8 are bundled inside the "Premium Invoice & Quotation
-  // Templates" App Store add-on. Existing tenants who already had a
-  // non-essential template configured are grandfathered in automatically.
-  const premiumTemplateApp = tenant?.settings?.installedApps?.[PREMIUM_TEMPLATE_APP_ID]
-  const hasPremiumTemplates = Boolean(
-    (premiumTemplateApp?.isInstalled && premiumTemplateApp?.isEnabled !== false) ||
-    Number(tenant?.settings?.invoicePdfTemplate) > 1 ||
-    Object.values(tenant?.settings?.invoiceBranding?.contextProfiles || {}).some((p) => Number(p?.templateId) > 1)
-  )
 
   useEffect(() => {
     if (!tenant) return
@@ -506,9 +489,7 @@ export default function Settings() {
 
   const tabs = [
     { id: 'company', label: t('companySettings'), icon: Building2 },
-    { id: 'templates', label: language === 'ar' ? 'قوالب الفواتير' : 'Invoice Templates', icon: FileText },
     { id: 'uom', label: language === 'ar' ? 'وحدات القياس' : 'UOM', icon: FileText },
-    { id: 'govIntegrations', label: language === 'ar' ? 'التكاملات الحكومية' : 'Government Integrations', icon: Shield },
     { id: 'preferences', label: language === 'ar' ? 'التفضيلات' : 'Preferences', icon: Palette },
     { id: 'hardware', label: language === 'ar' ? 'الأجهزة والطباعة' : 'Hardware & Printers', icon: Terminal },
     ...(hasRestaurant ? [{ id: 'restaurant', label: language === 'ar' ? 'إعدادات المطعم' : 'Restaurant', icon: UtensilsCrossed }] : []),
@@ -810,16 +791,8 @@ export default function Settings() {
                 )}
               </form>
 
-
-            </motion.div>
-          )}
-
-          {activeTab === 'templates' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6">
-              <h3 className="text-lg font-semibold mb-6 flex items-center gap-2"><FileText className="w-5 h-5 text-primary-500" />{language === 'ar' ? 'قوالب الفواتير' : 'Invoice Templates'}</h3>
-              
-              {/* Brand Identity - moved here from company tab */}
-              <div className="mb-8 pb-8 border-b border-gray-100 dark:border-dark-700 space-y-5">
+              {/* Brand Identity */}
+              <div className="mt-8 pt-8 border-t border-gray-100 dark:border-dark-700 space-y-5">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow">
                     <Image className="w-4 h-4 text-white" />
@@ -965,131 +938,6 @@ export default function Settings() {
                   </button>
                 </div>
               </div>
-
-              <div className="space-y-8">
-                {/* Default Invoice Template */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="label flex items-center gap-2 mb-0">{language === 'ar' ? 'القالب الافتراضي للفواتير' : 'Default Invoice Template'}</label>
-                    {!hasPremiumTemplates && (
-                      <button
-                        type="button"
-                        onClick={() => navigate('/app/dashboard/app-store')}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        {language === 'ar' ? 'افتح جميع القوالب من متجر التطبيقات' : 'Unlock all templates from the App Store'}
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    {invoiceTemplateOptions.map((tpl) => {
-                      const isLocked = tpl.id > 1 && !hasPremiumTemplates
-                      return (
-                      <div
-                        key={tpl.id}
-                        onClick={() => {
-                          if (isLocked) {
-                            toast.error(language === 'ar'
-                              ? 'قم بتثبيت إضافة "قوالب الفواتير المميزة" من متجر التطبيقات لاستخدام هذا القالب'
-                              : 'Install the "Premium Invoice Templates" add-on from the App Store to use this template')
-                            navigate('/app/dashboard/app-store')
-                            return
-                          }
-                          setInvoicePdfTemplate(tpl.id)
-                        }}
-                        className={`relative cursor-pointer rounded-2xl border-2 transition-all p-4 ${invoicePdfTemplate === tpl.id ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-600 hover:border-gray-300 dark:hover:border-dark-500'} ${isLocked ? 'opacity-70' : ''}`}
-                      >
-                        {isLocked && (
-                          <span className="absolute top-3 end-3 inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-900/80 text-white dark:bg-white/10">
-                            <Lock className="w-3 h-3" />
-                          </span>
-                        )}
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold text-sm text-gray-900 dark:text-white">{language === 'ar' ? tpl.nameAr : tpl.nameEn}</span>
-                          {!isLocked && (
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${invoicePdfTemplate === tpl.id ? 'border-primary-500' : 'border-gray-300'}`}>
-                              {invoicePdfTemplate === tpl.id && <div className="w-2.5 h-2.5 bg-primary-500 rounded-full" />}
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{language === 'ar' ? tpl.descriptionAr : tpl.descriptionEn}</p>
-                      </div>
-                      )
-                    })}
-                  </div>
-
-                  <div className="border border-gray-200 dark:border-dark-600 rounded-2xl p-6 bg-gray-50/50 dark:bg-dark-800/50">
-                    <label className="label mb-4">{language === 'ar' ? 'معاينة مباشرة للقالب الافتراضي' : 'Live Preview of Default Template'}</label>
-                    <div className="rounded-xl border border-gray-200 dark:border-dark-600 bg-gray-100 dark:bg-dark-900 p-4 md:p-8 flex justify-center h-[500px] md:h-[700px] lg:h-[900px] overflow-y-auto relative custom-scrollbar">
-                      <div className="origin-top scale-[0.45] sm:scale-[0.55] md:scale-[0.7] lg:scale-[0.8] transition-all" style={{ width: '1000px' }}>
-                        <div className="pointer-events-none shadow-2xl bg-white">
-                          <InvoiceLivePreview
-                            invoice={{
-                              invoiceNumber: 'INV-2026-001',
-                              issueDate: new Date(),
-                              grandTotal: 1150,
-                              totalTax: 150,
-                              subtotal: 1000,
-                              totalDiscount: 0,
-                              currency: tenant?.settings?.currency || 'SAR',
-                              buyer: { name: 'Acme Corp', nameAr: 'شركة أكامي', vatNumber: '310000000000003' },
-                              seller: { name: tenant?.business?.legalNameEn || 'My Company', nameAr: tenant?.business?.legalNameAr || 'شركتي', vatNumber: tenant?.business?.vatNumber || '300000000000003' },
-                              lines: [
-                                { raw: { productName: 'Professional Services', productNameAr: 'خدمات احترافية' }, quantity: 1, unitPrice: 1000, lineTotalWithTax: 1150, taxAmount: 150 }
-                              ]
-                            }}
-                            tenant={{
-                              ...tenant,
-                              branding: { ...tenant?.branding, logo: logoDataUrl || tenant?.branding?.logo },
-                              settings: {
-                                ...tenant?.settings,
-                                invoicePdfTemplate,
-                                invoiceBranding: {
-                                  logo: invoiceLogoDataUrl || tenant?.settings?.invoiceBranding?.logo || logoDataUrl || tenant?.branding?.logo,
-                                  stampImage: stampDataUrl || tenant?.branding?.stampImage || null,
-                                  signatureImage: signatureDataUrl || tenant?.branding?.signatureImage || null,
-                                }
-                              }
-                            }}
-                            templateId={invoicePdfTemplate}
-                            language={language}
-                            bilingual={true}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-dark-700">
-                  <button
-                    type="button"
-                    disabled={updateMutation.isPending}
-                    onClick={() => updateMutation.mutate({
-                      branding: {
-                        ...(tenant?.branding || {}),
-                        logo: logoDataUrl || tenant?.branding?.logo || null,
-                        stampImage: stampDataUrl !== undefined ? stampDataUrl : (tenant?.branding?.stampImage || null),
-                        signatureImage: signatureDataUrl !== undefined ? signatureDataUrl : (tenant?.branding?.signatureImage || null),
-                      },
-                      settings: {
-                        ...(tenant?.settings || {}),
-                        invoicePdfTemplate,
-                        invoiceBranding: {
-                          ...(tenant?.settings?.invoiceBranding || {}),
-                          logo: logoDataUrl || tenant?.branding?.logo || null,
-                          stampImage: stampDataUrl !== undefined ? stampDataUrl : (tenant?.branding?.stampImage || null),
-                          signatureImage: signatureDataUrl !== undefined ? signatureDataUrl : (tenant?.branding?.signatureImage || null),
-                        }
-                      }
-                    })}
-                    className="btn btn-primary"
-                  >
-                    {updateMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Save className="w-4 h-4" />{t('save')}</>}
-                  </button>
-                </div>
-              </div>
             </motion.div>
           )}
 
@@ -1144,12 +992,6 @@ export default function Settings() {
                   </button>
                 </div>
               </div>
-            </motion.div>
-          )}
-
-          {activeTab === 'govIntegrations' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <GovernmentIntegrations />
             </motion.div>
           )}
 

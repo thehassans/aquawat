@@ -345,7 +345,10 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
     : (invoice?.flow === 'purchase' ? (language === 'ar' ? 'المشتري' : 'Buyer') : (language === 'ar' ? 'العميل' : 'Customer'))
   const logoSrc = invoiceBranding.logoSrc
   const vatNumber = invoice?.seller?.vatNumber || tenant?.business?.vatNumber
+  // ZATCA is a Saudi-only requirement tied to SAR-denominated invoices.
+  const isZatcaApplicable = String(currency || 'SAR').toUpperCase() === 'SAR'
   const qrValue = (() => {
+    if (!isZatcaApplicable) return null
     try {
       return invoice?.zatca?.qrCodeData || generateZatcaQrValue({
         sellerName: sellerNameEn || sellerNameAr,
@@ -607,7 +610,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
               </div>
             </div>
             <div className="flex min-w-[148px] flex-col items-center gap-3 self-start text-center">
-              {!isTravelInvoice && !isQuotation && (
+              {!isTravelInvoice && !isQuotation && isZatcaApplicable && (
                 <div className="rounded-[1.5rem] border border-slate-200 bg-white p-2 shadow-sm">
                   {qrValue ? (
                     <QRCodeSVG value={qrValue} size={88} bgColor="transparent" fgColor="#0F172A" />

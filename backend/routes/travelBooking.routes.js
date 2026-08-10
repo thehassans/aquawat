@@ -7,6 +7,7 @@ import { protect, tenantFilter, checkPermission, requireBusinessType } from '../
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 import { buildDraftInvoiceQr } from '../utils/zatca/draftInvoiceQr.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 const router = express.Router();
 
@@ -343,17 +344,19 @@ router.post('/:id/create-invoice', checkPermission('travel', 'update'), checkPer
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const createdInvoice = await Invoice.create(enrichedInvoiceData);
 
-    const draftQr = await buildDraftInvoiceQr({
-      seller: tenant.business,
-      issueDate: createdInvoice.issueDate,
-      grandTotal: createdInvoice.grandTotal,
-      totalTax: createdInvoice.totalTax,
-    });
+    if (isZatcaCurrency(tenant)) {
+      const draftQr = await buildDraftInvoiceQr({
+        seller: tenant.business,
+        issueDate: createdInvoice.issueDate,
+        grandTotal: createdInvoice.grandTotal,
+        totalTax: createdInvoice.totalTax,
+      });
 
-    createdInvoice.zatca = {
-      ...(createdInvoice.zatca || {}),
-      ...draftQr,
-    };
+      createdInvoice.zatca = {
+        ...(createdInvoice.zatca || {}),
+        ...draftQr,
+      };
+    }
 
     const invoice = await createdInvoice.save();
 

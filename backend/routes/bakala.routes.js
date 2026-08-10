@@ -3,6 +3,7 @@ import { protect } from '../middleware/auth.js';
 import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
+import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 import mongoose from 'mongoose';
 import BakalaProduct from '../models/BakalaProduct.js';
 import PosSession from '../models/PosSession.js';
@@ -104,8 +105,8 @@ router.post('/sync', protect, async (req, res) => {
           newInvoice.invoiceNumber = `BAKALA-${seq}`;
         }
 
-        // Apply ZATCA processing
-        if (zatcaConfig.isOnboarded && zatcaConfig.privateKey) {
+        // Apply ZATCA processing (SAR-only)
+        if (zatcaConfig.isOnboarded && zatcaConfig.privateKey && isZatcaCurrency(tenant)) {
           const processed = await zatcaService.processInvoice(
             newInvoice.toObject(),
             tenant.business,

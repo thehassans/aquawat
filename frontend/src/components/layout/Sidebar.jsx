@@ -19,10 +19,11 @@ export default function Sidebar() {
   const [pendingReviews, setPendingReviews] = useState(0)
 
   const si = tenant?.settings?.saudiIntegrations || {};
+  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR';
   const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1;
   const business = tenant?.business || {};
   const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country);
-  const hasZatca = si.zatcaConnectionStatus === 'connected' || tenant?.zatca?.isOnboarded || isZatcaPhase1Ready;
+  const hasZatca = isSarCurrencyTenant && (si.zatcaConnectionStatus === 'connected' || tenant?.zatca?.isOnboarded || isZatcaPhase1Ready);
   const hasElm = si.elmConnectionStatus === 'connected';
   const hasQiwa = si.qiwaConnectionStatus === 'connected';
   const hasGosi = si.gosiConnectionStatus === 'connected';

@@ -304,7 +304,7 @@ export default function InvoiceView() {
               {language === 'ar' ? 'إرسال بالبريد' : 'Send Email'}
             </button>
           )}
-          {['draft', 'pending'].includes(invoice?.status) && !invoice?.zatca?.signedXml && invoice?.flow !== 'purchase' && invoice?.invoiceSubtype !== 'proforma' && (
+          {String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR' && ['draft', 'pending'].includes(invoice?.status) && !invoice?.zatca?.signedXml && invoice?.flow !== 'purchase' && invoice?.invoiceSubtype !== 'proforma' && (
             <button
               onClick={() => signMutation.mutate()}
               disabled={signMutation.isPending}
@@ -513,8 +513,8 @@ export default function InvoiceView() {
             </motion.div>
           )}
 
-          {/* ZATCA Info */}
-          {invoice?.invoiceSubtype !== 'proforma' && (
+          {/* ZATCA Info — only relevant for SAR-denominated invoices */}
+          {String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR' && invoice?.invoiceSubtype !== 'proforma' && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
