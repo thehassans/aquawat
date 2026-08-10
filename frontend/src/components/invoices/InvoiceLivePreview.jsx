@@ -6,6 +6,7 @@ import { getZatcaStatusMeta } from '../../lib/zatcaStatus'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { formatCurrency, formatCurrencyAmount, isSarCurrency } from '../../lib/currency'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
+import { setActiveInvoiceSecondaryLanguage, localizeSecondaryText } from '../../lib/invoiceLanguage'
 import SarIcon from '../ui/SarIcon'
 import ModernZatcaTemplate from './ModernZatcaTemplate'
 import ClassicElegantTemplate from './ClassicElegantTemplate'
@@ -96,7 +97,7 @@ const uniqueLines = (...values) => {
 }
 
 const toBilingualText = (englishValue, arabicValue, fallback = '—') => {
-  const lines = uniqueLines(englishValue, arabicValue)
+  const lines = uniqueLines(englishValue, localizeSecondaryText(arabicValue))
   return lines.length > 0 ? lines.join('\n') : fallback
 }
 
@@ -327,7 +328,9 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
   return language === 'ar' ? 'فاتورة ضريبية' : 'Tax Invoice'
 }
 
-export default function InvoiceLivePreview({ invoice, tenant, language = 'en', templateId = 1, bilingual = false, currencyRenderMode = 'icon', currencyDisplay, currencyPosition, documentType = 'invoice' }) {
+export default function InvoiceLivePreview({ invoice, tenant, language = 'en', templateId = 1, bilingual = false, secondaryLanguage, currencyRenderMode = 'icon', currencyDisplay, currencyPosition, documentType = 'invoice' }) {
+  const resolvedSecondaryLanguage = secondaryLanguage === 'ur' ? 'ur' : 'ar'
+  setActiveInvoiceSecondaryLanguage(resolvedSecondaryLanguage)
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   const resolvedCurrency = getInvoiceCurrencyDisplay(tenant)
@@ -381,7 +384,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const amountInWordsLines = bilingual
     ? uniqueLines(
         getAmountInWords(totals.grandTotal, currency, 'en'),
-        getAmountInWords(totals.grandTotal, currency, 'ar'),
+        getAmountInWords(totals.grandTotal, currency, resolvedSecondaryLanguage),
       )
     : [getAmountInWords(totals.grandTotal, currency, language)]
   const hideTaxOnInvoice = isTravelInvoice && toNumber(totals.totalTax) <= 0
@@ -398,7 +401,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
     return (
       <span className="flex flex-col gap-1 leading-tight">
         <span className={uppercaseEnglish ? 'uppercase tracking-[0.2em]' : ''}>{english}</span>
-        <span dir="rtl" className="tracking-normal normal-case">{arabic}</span>
+        <span dir="rtl" className="tracking-normal normal-case">{localizeSecondaryText(arabic)}</span>
       </span>
     )
   }
@@ -499,12 +502,15 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   }
   const mutedText = 'text-slate-500'
   const titleText = 'text-slate-900'
+  const bilingualFontFamily = resolvedSecondaryLanguage === 'ur'
+    ? '"Noto Nastaliq Urdu", "InvoiceAlmarai", "Almarai", Arial, Helvetica, sans-serif'
+    : '"InvoiceAlmarai", "Almarai", Arial, Helvetica, sans-serif'
   const shellStyle = {
-    fontFamily: bilingual ? '"InvoiceAlmarai", "Almarai", Arial, Helvetica, sans-serif' : getInvoiceCssFontFamily(typography.bodyFontFamily),
+    fontFamily: bilingual ? bilingualFontFamily : getInvoiceCssFontFamily(typography.bodyFontFamily),
     fontSize: `${typography.bodyFontSize || 12}px`,
   }
   const headingStyle = {
-    fontFamily: bilingual ? '"InvoiceAlmarai", "Almarai", Arial, Helvetica, sans-serif' : getInvoiceCssFontFamily(typography.headingFontFamily),
+    fontFamily: bilingual ? bilingualFontFamily : getInvoiceCssFontFamily(typography.headingFontFamily),
   }
   const companyHeadingStyle = {
     ...headingStyle,

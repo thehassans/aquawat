@@ -12,6 +12,9 @@ import { updateTenant, getMe } from '../store/slices/authSlice'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getInvoiceBrandingProfile, getInvoiceTemplateId, getInvoiceTypography, INVOICE_FONT_OPTIONS } from '../lib/invoiceBranding'
 import { CURRENCIES, CURRENCY_CODE } from '../lib/currency'
+import { INVOICE_LANGUAGE_OPTIONS } from '../lib/invoiceLanguage'
+import { getTenantAliasUrl } from '../lib/tenantHost'
+import { showArabicFields } from '../lib/saudiTenant'
 import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 import { getNavSections } from '../lib/sidebarConfig'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
@@ -224,6 +227,7 @@ export default function Settings() {
   const [invoiceCurrencyDisplay, setInvoiceCurrencyDisplay] = useState('text')
   const [invoiceCurrencyPosition, setInvoiceCurrencyPosition] = useState('after')
   const [defaultCurrency, setDefaultCurrency] = useState(CURRENCY_CODE)
+  const [invoiceLanguage, setInvoiceLanguage] = useState('auto')
   const [invoiceLogoDataUrl, setInvoiceLogoDataUrl] = useState(null)
   const [stampDataUrl, setStampDataUrl] = useState(null)
   const [signatureDataUrl, setSignatureDataUrl] = useState(null)
@@ -294,6 +298,7 @@ export default function Settings() {
     setDefaultCurrency(String(tenant.settings?.currency || CURRENCY_CODE).toUpperCase())
     setInvoiceCurrencyDisplay(tenant.settings?.invoiceCurrencyDisplay === 'icon' ? 'icon' : 'text')
     setInvoiceCurrencyPosition(tenant.settings?.invoiceCurrencyPosition === 'before' ? 'before' : 'after')
+    setInvoiceLanguage(['en', 'en_ar', 'en_ur'].includes(tenant.settings?.invoiceLanguage) ? tenant.settings.invoiceLanguage : 'auto')
     setInvoiceLogoDataUrl(tenant.settings?.invoiceBranding?.logo || tenant.branding?.logo || null)
     setStampDataUrl(tenant.settings?.invoiceBranding?.presetStamp || tenant.settings?.invoiceBranding?.stampImage || null)
     setSignatureDataUrl(tenant.settings?.invoiceBranding?.presetSignature || tenant.settings?.invoiceBranding?.signatureImage || null)
@@ -570,10 +575,12 @@ export default function Settings() {
                     <label className="label">{language === 'ar' ? 'الاسم القانوني (EN)' : 'Legal Name (EN)'}</label>
                     <input {...register('legalNameEn')} className="input" />
                   </div>
-                  <div>
-                    <label className="label">{language === 'ar' ? 'الاسم القانوني (AR)' : 'Legal Name (AR)'}</label>
-                    <input {...register('legalNameAr')} className="input" dir="rtl" />
-                  </div>
+                  {showArabicFields(tenant) && (
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الاسم القانوني (AR)' : 'Legal Name (AR)'}</label>
+                      <input {...register('legalNameAr')} className="input" dir="rtl" />
+                    </div>
+                  )}
                   <div>
                     <label className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
                     <input {...register('vatNumber')} className="input" />
@@ -586,26 +593,32 @@ export default function Settings() {
                     <label className="label">{language === 'ar' ? 'المدينة' : 'City'}</label>
                     <input {...register('address.city')} className="input" />
                   </div>
-                  <div>
-                    <label className="label">{language === 'ar' ? 'المدينة (AR)' : 'City (AR)'}</label>
-                    <input {...register('address.cityAr')} className="input" dir="rtl" />
-                  </div>
+                  {showArabicFields(tenant) && (
+                    <div>
+                      <label className="label">{language === 'ar' ? 'المدينة (AR)' : 'City (AR)'}</label>
+                      <input {...register('address.cityAr')} className="input" dir="rtl" />
+                    </div>
+                  )}
                   <div>
                     <label className="label">{language === 'ar' ? 'الحي' : 'District'}</label>
                     <input {...register('address.district')} className="input" />
                   </div>
-                  <div>
-                    <label className="label">{language === 'ar' ? 'الحي (AR)' : 'District (AR)'}</label>
-                    <input {...register('address.districtAr')} className="input" dir="rtl" />
-                  </div>
+                  {showArabicFields(tenant) && (
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الحي (AR)' : 'District (AR)'}</label>
+                      <input {...register('address.districtAr')} className="input" dir="rtl" />
+                    </div>
+                  )}
                   <div>
                     <label className="label">{language === 'ar' ? 'الشارع' : 'Street'}</label>
                     <input {...register('address.street')} className="input" />
                   </div>
-                  <div>
-                    <label className="label">{language === 'ar' ? 'الشارع (AR)' : 'Street (AR)'}</label>
-                    <input {...register('address.streetAr')} className="input" dir="rtl" />
-                  </div>
+                  {showArabicFields(tenant) && (
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الشارع (AR)' : 'Street (AR)'}</label>
+                      <input {...register('address.streetAr')} className="input" dir="rtl" />
+                    </div>
+                  )}
                   <div>
                     <label className="label">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
                     <input {...register('address.postalCode')} className="input" />
@@ -942,6 +955,33 @@ export default function Settings() {
             </motion.div>
           )}
 
+          {activeTab === 'company' && tenant?.slug && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6 mt-6">
+              <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                <Globe className="w-5 h-5 text-primary-500" />
+                {language === 'ar' ? 'رابط الدخول الخاص بمنشأتك' : 'Your Dedicated Login Link'}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                {language === 'ar'
+                  ? 'حصلت منشأتك تلقائياً على نطاق فرعي خاص بها لتسجيل الدخول مباشرة، بجانب رابط تسجيل الدخول العام maqder.com/login.'
+                  : 'Your tenant was automatically given a dedicated subdomain for direct login, alongside the general maqder.com/login page.'}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input readOnly value={getTenantAliasUrl(tenant.slug)} className="input flex-1 font-mono text-sm" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(getTenantAliasUrl(tenant.slug))
+                    toast.success(language === 'ar' ? 'تم نسخ الرابط' : 'Link copied')
+                  }}
+                  className="btn btn-secondary whitespace-nowrap"
+                >
+                  {language === 'ar' ? 'نسخ الرابط' : 'Copy Link'}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           {activeTab === 'uom' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6">
               <h3 className="text-lg font-semibold mb-6 flex items-center gap-2"><FileText className="w-5 h-5 text-primary-500" />{language === 'ar' ? 'وحدات القياس' : 'UOM Configuration'}</h3>
@@ -1158,6 +1198,21 @@ export default function Settings() {
                         </select>
                       </div>
                     </div>
+                    <div className="mt-3">
+                      <label className="text-xs text-gray-500 dark:text-gray-400">{language === 'ar' ? 'لغة الفواتير' : 'Invoice Language'}</label>
+                      <select value={invoiceLanguage} onChange={(e) => setInvoiceLanguage(e.target.value)} className="select mt-1 w-full md:w-1/2">
+                        {INVOICE_LANGUAGE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {language === 'ar' ? opt.labelAr : opt.labelEn}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        {language === 'ar'
+                          ? 'يحدد اللغة الثانية التي تظهر بجانب الإنجليزية في الفواتير وعروض الأسعار. "تلقائي" يختار العربية أو الأردية حسب دولة عنوان منشأتك.'
+                          : 'Controls the second language shown alongside English on invoices & quotations. "Auto" picks Arabic or Urdu based on your business address country.'}
+                      </p>
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       {language === 'ar' ? 'يتم تطبيق هذا القالب عند تحميل PDF من شاشة الفواتير.' : 'This template is used when downloading invoice PDFs.'}
                     </p>
@@ -1275,6 +1330,7 @@ export default function Settings() {
                         invoiceWhatsappMessageAr: waInvoiceMsgAr,
                         invoiceCurrencyDisplay,
                         invoiceCurrencyPosition,
+                        invoiceLanguage,
                         invoiceBranding: {
                           ...(tenant?.settings?.invoiceBranding || {}),
                           logo: logoDataUrl !== undefined ? (logoDataUrl || null) : (invoiceLogoDataUrl || tenant?.settings?.invoiceBranding?.logo || tenant?.branding?.logo || null),

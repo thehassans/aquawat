@@ -144,8 +144,66 @@ const numberToWordsAr = (value) => {
   return parts.filter(Boolean).join(' و')
 }
 
+// Urdu numbers 0-99 use unique compound words (like Hindi), not a simple
+// tens+ones composition — so we use a full lookup table rather than deriving them.
+const UR_0_99 = [
+  'صفر', 'ایک', 'دو', 'تین', 'چار', 'پانچ', 'چھ', 'سات', 'آٹھ', 'نو',
+  'دس', 'گیارہ', 'بارہ', 'تیرہ', 'چودہ', 'پندرہ', 'سولہ', 'سترہ', 'اٹھارہ', 'انیس',
+  'بیس', 'اکیس', 'بائیس', 'تیئس', 'چوبیس', 'پچیس', 'چھبیس', 'ستائیس', 'اٹھائیس', 'انتیس',
+  'تیس', 'اکتیس', 'بتیس', 'تینتیس', 'چونتیس', 'پینتیس', 'چھتیس', 'سینتیس', 'اڑتیس', 'انتالیس',
+  'چالیس', 'اکتالیس', 'بیالیس', 'تینتالیس', 'چوالیس', 'پینتالیس', 'چھیالیس', 'سینتالیس', 'اڑتالیس', 'انچاس',
+  'پچاس', 'اکاون', 'باون', 'ترپن', 'چون', 'پچپن', 'چھپن', 'ستاون', 'اٹھاون', 'انسٹھ',
+  'ساٹھ', 'اکسٹھ', 'باسٹھ', 'تریسٹھ', 'چونسٹھ', 'پینسٹھ', 'چھیاسٹھ', 'سڑسٹھ', 'اڑسٹھ', 'انہتر',
+  'ستر', 'اکہتر', 'بہتر', 'تہتر', 'چوہتر', 'پچہتر', 'چھہتر', 'ستتر', 'اٹھہتر', 'اناسی',
+  'اسی', 'اکاسی', 'بیاسی', 'تراسی', 'چوراسی', 'پچاسی', 'چھیاسی', 'ستاسی', 'اٹھاسی', 'نواسی',
+  'نوے', 'اکانوے', 'بانوے', 'ترانوے', 'چورانوے', 'پچانوے', 'چھیانوے', 'ستانوے', 'اٹھانوے', 'ننانوے',
+]
+const UR_SCALES = ['', 'ہزار', 'ملین', 'ارب', 'کھرب']
+
+const convertHundredsUr = (value) => {
+  const number = Number(value)
+  if (!number) return ''
+
+  const hundreds = Math.floor(number / 100)
+  const remainder = number % 100
+  const parts = []
+
+  if (hundreds) parts.push(`${UR_0_99[hundreds]} سو`)
+  if (remainder) parts.push(UR_0_99[remainder])
+
+  return parts.join(' ')
+}
+
+const numberToWordsUr = (value) => {
+  const number = Number(value)
+  if (!number) return UR_0_99[0]
+
+  const parts = []
+  let remainder = number
+  let scaleIndex = 0
+
+  while (remainder > 0) {
+    const chunk = remainder % 1000
+    if (chunk) {
+      const chunkText = convertHundredsUr(chunk)
+      const scale = UR_SCALES[scaleIndex]
+      parts.unshift([chunkText, scale].filter(Boolean).join(' '))
+    }
+    remainder = Math.floor(remainder / 1000)
+    scaleIndex += 1
+  }
+
+  return parts.join(' ')
+}
+
 const getCurrencyLabels = (currency = 'SAR', language = 'en', type = 'major', count = 0) => {
   const normalized = String(currency || 'SAR').trim().toUpperCase()
+
+  if (language === 'ur') {
+    if (normalized === 'PKR') return type === 'major' ? 'روپے' : 'پیسے'
+    if (normalized === 'SAR') return type === 'major' ? 'سعودی ریال' : 'ہلالہ'
+    return type === 'major' ? normalized : 'پیسے'
+  }
 
   if (language === 'ar') {
     if (normalized === 'SAR') {
@@ -165,6 +223,12 @@ const getCurrencyLabels = (currency = 'SAR', language = 'en', type = 'major', co
 
 export const getAmountInWords = (value, currency = 'SAR', language = 'en') => {
   const { major, minor } = splitAmount(value)
+
+  if (language === 'ur') {
+    const majorWords = `${numberToWordsUr(major)} ${getCurrencyLabels(currency, 'ur', 'major', major)}`.trim()
+    const minorWords = minor ? ` اور ${numberToWordsUr(minor)} ${getCurrencyLabels(currency, 'ur', 'minor', minor)}` : ''
+    return `صرف ${majorWords}${minorWords}`.trim()
+  }
 
   if (language === 'ar') {
     const majorWords = `${numberToWordsAr(major)} ${getCurrencyLabels(currency, 'ar', 'major', major)}`.trim()

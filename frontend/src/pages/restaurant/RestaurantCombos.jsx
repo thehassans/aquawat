@@ -9,6 +9,8 @@ import {
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
+import { showArabicFields } from '../../lib/saudiTenant'
+import { CURRENCY_CODE } from '../../lib/currency'
 
 const COMBO_TYPES = [
   { value: 'combo', label: 'Combo Meal', icon: Tag },
@@ -30,7 +32,11 @@ const TYPE_CONFIG = {
 
 function ComboModal({ menuItems, onClose, editCombo }) {
   const queryClient = useQueryClient()
-  const isAr = localStorage.getItem('language') === 'ar'
+  const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
+  const isAr = language === 'ar'
+  const bilingualAr = showArabicFields(tenant)
+  const currencyCode = String(tenant?.settings?.currency || CURRENCY_CODE).toUpperCase()
   
   const [form, setForm] = useState({
     name: editCombo?.name || '',
@@ -164,15 +170,17 @@ function ComboModal({ menuItems, onClose, editCombo }) {
           </div>
 
           <div className="p-6 space-y-5">
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid gap-3 ${bilingualAr ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <div>
                 <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">{isAr ? 'اسم العرض (إنجليزي)' : 'Name *'}</label>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input text-sm" placeholder="e.g., Family Feast Combo" />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">{isAr ? 'اسم العرض (عربي) *' : 'Name (Arabic)'}</label>
-                <input value={form.nameAr} onChange={(e) => setForm({ ...form, nameAr: e.target.value })} className="input text-sm" placeholder="مثال: وجبة التوفير العائلية" dir="rtl" />
-              </div>
+              {bilingualAr && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">{isAr ? 'اسم العرض (عربي) *' : 'Name (Arabic)'}</label>
+                  <input value={form.nameAr} onChange={(e) => setForm({ ...form, nameAr: e.target.value })} className="input text-sm" placeholder="مثال: وجبة التوفير العائلية" dir="rtl" />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -218,7 +226,7 @@ function ComboModal({ menuItems, onClose, editCombo }) {
                       <option value="">{isAr ? 'اختر الوجبة / الصنف...' : 'Select item...'}</option>
                       {menuItems.map(m => (
                         <option key={m._id} value={m._id}>
-                          {isAr ? (m.nameAr || m.nameEn) : (m.nameEn || m.nameAr)} ({m.sellingPrice || 0} SAR)
+                          {isAr ? (m.nameAr || m.nameEn) : (m.nameEn || m.nameAr)} (<Money value={m.sellingPrice || 0} className="inline" />)
                         </option>
                       ))}
                     </select>
@@ -235,7 +243,7 @@ function ComboModal({ menuItems, onClose, editCombo }) {
                     </div>
 
                     <div className="w-20 text-right font-bold text-xs text-gray-700 dark:text-gray-300">
-                      {((item.unitPrice || 0) * (item.quantity || 1)).toFixed(2)} SAR
+                      <Money value={((item.unitPrice || 0) * (item.quantity || 1))} />
                     </div>
 
                     <button
@@ -256,7 +264,7 @@ function ComboModal({ menuItems, onClose, editCombo }) {
               <div className="pt-3 border-t border-gray-200/60 dark:border-white/5 space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500 dark:text-gray-400">{isAr ? 'مجموع أسعار الأصناف الفردية:' : 'Original Items Sum:'}</span>
-                  <span className="font-bold text-gray-900 dark:text-white">{computedOriginal.toFixed(2)} SAR</span>
+                  <span className="font-bold text-gray-900 dark:text-white"><Money value={computedOriginal} /></span>
                 </div>
 
                 <div className="p-3 rounded-xl bg-white dark:bg-dark-800 border border-primary-100 dark:border-primary-500/20 space-y-2">
@@ -289,7 +297,7 @@ function ComboModal({ menuItems, onClose, editCombo }) {
                       placeholder={computedOriginal.toFixed(2)}
                       className="input flex-1 font-black text-base text-primary-600 dark:text-primary-400"
                     />
-                    <span className="text-xs font-bold text-gray-500">SAR</span>
+                    <span className="text-xs font-bold text-gray-500">{currencyCode}</span>
                   </div>
 
                   {/* Quick Discount Presets */}
@@ -311,7 +319,7 @@ function ComboModal({ menuItems, onClose, editCombo }) {
                 {savings > 0 && (
                   <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-bold border border-emerald-200/60 dark:border-emerald-500/20">
                     <span>{isAr ? 'توفير العميل:' : 'Customer Savings:'}</span>
-                    <span>{savings.toFixed(2)} SAR ({savingsPercent}% OFF)</span>
+                    <span><Money value={savings} /> ({savingsPercent}% OFF)</span>
                   </div>
                 )}
               </div>
@@ -469,7 +477,7 @@ export default function RestaurantCombos() {
                     {c.items?.map((item, i) => (
                       <div key={i} className="flex items-center justify-between text-xs">
                         <span className="text-gray-600 dark:text-gray-400">{item.quantity}x {item.name}</span>
-                        <span className="text-gray-400">{item.unitPrice || 0} SAR</span>
+                        <span className="text-gray-400"><Money value={item.unitPrice || 0} /></span>
                       </div>
                     ))}
                   </div>

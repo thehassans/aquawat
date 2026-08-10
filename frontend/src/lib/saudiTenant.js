@@ -6,3 +6,8 @@
 export function isSaudiTenant(tenant) {
   return String(tenant?.settings?.currency || 'SAR').trim().toUpperCase() === 'SAR'
 }
+
+/** Arabic bilingual form fields (nameAr, legalNameAr, etc.) — SAR tenants only. */
+export function showArabicFields(tenant) {
+  return isSaudiTenant(tenant)
+}

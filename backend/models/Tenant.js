@@ -322,6 +322,13 @@ const tenantSchema = new mongoose.Schema({
     installedApps: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
     language: { type: String, enum: ['en', 'ar'], default: 'ar' },
     currency: { type: String, default: 'SAR' },
+    // Controls which second language (if any) invoices/quotations are rendered
+    // bilingually in, alongside English.
+    //   'auto'  → derived from business.address.country (e.g. SA → Arabic, PK → Urdu)
+    //   'en'    → English only, no second language
+    //   'en_ar' → English + Arabic
+    //   'en_ur' → English + Urdu
+    invoiceLanguage: { type: String, enum: ['auto', 'en', 'en_ar', 'en_ur'], default: 'auto' },
     timezone: { type: String, default: 'Asia/Riyadh' },
     fiscalYearStart: { type: Number, default: 1 },
     dateFormat: { type: String, default: 'DD/MM/YYYY' },

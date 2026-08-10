@@ -13,6 +13,7 @@ import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { buildInvoicePdfBlob, downloadInvoicePdf, printInvoiceSnapshot } from '../../lib/invoicePdf'
 import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
+import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
@@ -71,7 +72,9 @@ export default function InvoiceView() {
   const invoiceTypeLabel = invoice?.transactionType === 'B2B' ? t('b2bInvoice') : t('b2cInvoice')
   const zatcaStatusMeta = getZatcaStatusMeta(invoice, language, tenant?.zatca?.phase || 2)
   const travelInvoiceLabelMeta = isTravelAgencyInvoice(invoice) ? getTravelInvoiceLabelMeta(invoice, language) : null
-  const isBilingualInvoice = invoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
+  const isBilingualInvoiceContext = invoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
+  const isBilingualInvoice = resolveInvoiceBilingual(tenant, isBilingualInvoiceContext)
+  const invoiceSecondaryLanguage = getInvoiceSecondaryLanguage(tenant) || 'ar'
   const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
   
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
@@ -437,6 +440,7 @@ export default function InvoiceView() {
                   language={language}
                   templateId={templateId}
                   bilingual={isBilingualInvoice}
+                  secondaryLanguage={invoiceSecondaryLanguage}
                   currencyRenderMode="icon"
                 />
               )}

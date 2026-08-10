@@ -7,7 +7,8 @@ import { Eye, EyeOff, Loader2, Mail, Lock, ArrowRight, Shield, Zap, Globe, Phone
 import { login, clearError } from '../../store/slices/authSlice'
 import { setLanguage, setAppLauncherOpen, setHideSidebar, setNavigationStyle } from '../../store/slices/uiSlice'
 import { useTranslation } from '../../lib/translations'
-import { usePublicWebsiteSettings } from '../../lib/website'
+import { usePublicWebsiteSettings, usePublicTenantBranding } from '../../lib/website'
+import { getAliasSlugFromHost } from '../../lib/tenantHost'
 import DailyAyat from '../../components/ui/DailyAyat'
 
 const complianceLogos = [
@@ -37,7 +38,10 @@ export default function Login() {
   const [phoneLoginStatus, setPhoneLoginStatus] = useState(null)
 
   const { data: websiteSettings } = usePublicWebsiteSettings()
-  const initialTenantSlug = String(searchParams.get('tenant') || searchParams.get('tenantSlug') || '').trim().toLowerCase()
+  const aliasSlug = getAliasSlugFromHost()
+  const initialTenantSlug = String(searchParams.get('tenant') || searchParams.get('tenantSlug') || aliasSlug || '').trim().toLowerCase()
+  const { data: aliasTenantBranding } = usePublicTenantBranding(aliasSlug)
+  const brandedTenant = aliasTenantBranding?.found ? aliasTenantBranding : null
   const salesPhone = String(websiteSettings?.contactPhone || '+966596775485').trim()
   const salesEmail = String(websiteSettings?.contactEmail || 'info@maqder.com').trim()
   const whatsappNumber = salesPhone.replace(/\D/g, '')
@@ -207,18 +211,28 @@ export default function Login() {
           {/* Logo */}
           <div className="flex items-center gap-3 -ml-4 -mt-4 mb-4">
             <div className="w-full h-40 flex items-center justify-start">
-              <img src="maqdernewlogo.webp" alt="Maqder" className="h-full w-auto object-contain object-left scale-110 origin-left" />
+              {brandedTenant?.logo ? (
+                <img src={brandedTenant.logo} alt={brandedTenant.name} className="h-full w-auto object-contain object-left scale-110 origin-left" />
+              ) : (
+                <img src="maqdernewlogo.webp" alt="Maqder" className="h-full w-auto object-contain object-left scale-110 origin-left" />
+              )}
             </div>
           </div>
 
           {/* Hero */}
           <div className="space-y-8">
             <div>
-              <h1 className="text-5xl font-bold leading-tight mb-4">
-                {language === 'ar' ? 'نظام ERP متكامل' : 'Complete ERP System'}
-                <br />
-                <span className="text-white/80">{language === 'ar' ? 'متوافق مع السعودية' : 'Saudi Compliant'}</span>
-              </h1>
+              {brandedTenant ? (
+                <h1 className="text-4xl font-bold leading-tight mb-4">
+                  {language === 'ar' ? (brandedTenant.nameAr || brandedTenant.name) : brandedTenant.name}
+                </h1>
+              ) : (
+                <h1 className="text-5xl font-bold leading-tight mb-4">
+                  {language === 'ar' ? 'نظام ERP متكامل' : 'Complete ERP System'}
+                  <br />
+                  <span className="text-white/80">{language === 'ar' ? 'متوافق مع السعودية' : 'Saudi Compliant'}</span>
+                </h1>
+              )}
               <p className="text-xl text-white/70 max-w-md">
                 {language === 'ar' 
                   ? 'الفوترة الإلكترونية، الموارد البشرية، المخزون - كل شيء في مكان واحد'
@@ -298,6 +312,14 @@ export default function Login() {
 
           {/* Header */}
           <div className="text-center lg:text-start mb-8">
+            {brandedTenant && (
+              <div className="inline-flex items-center gap-2 mb-3 px-3 py-1.5 rounded-full bg-[#244D33]/10 text-[#244D33] text-xs font-semibold">
+                {brandedTenant.logo && <img src={brandedTenant.logo} alt="" className="w-4 h-4 rounded-full object-cover" />}
+                {language === 'ar'
+                  ? `تسجيل الدخول إلى ${brandedTenant.nameAr || brandedTenant.name}`
+                  : `Signing in to ${brandedTenant.name}`}
+              </div>
+            )}
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               {isForgotPassword ? (language === 'ar' ? 'استعادة كلمة المرور' : 'Reset Password') : t('welcomeBack') + ' 👋'}
             </h1>

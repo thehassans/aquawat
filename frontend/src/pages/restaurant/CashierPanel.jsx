@@ -11,11 +11,13 @@ import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { useRef } from 'react'
 import CardPaymentModal from '../../components/pos/CardPaymentModal'
 import { getThermalPrinterSettings, printThermalElement } from '../../lib/thermalPrinter'
+import { CURRENCY_CODE } from '../../lib/currency'
 
 export default function CashierPanel() {
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
+  const currency = String(tenant?.settings?.currency || CURRENCY_CODE).toUpperCase()
   const { t } = useTranslation(language)
   const isRtl = language === 'ar'
   const thermalSettings = getThermalPrinterSettings(tenant)
@@ -280,7 +282,7 @@ export default function CashierPanel() {
       <CardPaymentModal
         open={showCardModal}
         amount={selectedOrder?.grandTotal || 0}
-        currency="SAR"
+        currency={currency}
         source="restaurant"
         orderType="restaurant"
         orderNumber={selectedOrder?.orderNumber || ''}

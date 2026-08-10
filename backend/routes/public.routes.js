@@ -163,6 +163,34 @@ router.get('/website', async (req, res) => {
   }
 })
 
+// @route   GET /api/public/tenant-branding/:slug
+// @desc    Minimal, safe-to-expose branding for a tenant's alias login page
+//          (`{slug}.maqder.com`). No auth — only non-sensitive display fields.
+router.get('/tenant-branding/:slug', async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim().toLowerCase()
+    if (!slug) return res.status(400).json({ error: 'Slug is required' })
+
+    const tenant = await withQueryTimeout(
+      Tenant.findOne({ slug, isActive: true }).select('name slug business.legalNameEn business.legalNameAr branding.logo branding.primaryColor branding.secondaryColor')
+    )
+
+    if (!tenant) return res.status(404).json({ found: false })
+
+    res.json({
+      found: true,
+      slug: tenant.slug,
+      name: tenant.business?.legalNameEn || tenant.business?.legalNameAr || tenant.name,
+      nameAr: tenant.business?.legalNameAr || tenant.name,
+      logo: tenant.branding?.logo || null,
+      primaryColor: tenant.branding?.primaryColor || '#14B8A6',
+      secondaryColor: tenant.branding?.secondaryColor || '#D946EF',
+    })
+  } catch (error) {
+    sendRouteError(res, error)
+  }
+})
+
 router.post('/demo-login', async (req, res) => {
   try {
     const databaseReady = await req.app.locals.waitForDatabaseReady?.()

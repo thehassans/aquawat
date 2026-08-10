@@ -435,7 +435,7 @@ function PlatformCard({ platform, config, onConnect, onEdit, onTest, onSync, onD
               {config.displayName ? (
                 <div className="flex justify-between"><span className="text-gray-400">Name</span><span className="font-medium text-gray-700 dark:text-gray-300">{config.displayName}</span></div>
               ) : null}
-              <div className="flex justify-between"><span className="text-gray-400">Commission</span><span className="font-medium text-gray-700 dark:text-gray-300">{config.commissionPercent}%{config.commissionFixed > 0 ? ' + ' + config.commissionFixed + ' SAR' : ''}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Commission</span><span className="font-medium text-gray-700 dark:text-gray-300">{config.commissionPercent}%{config.commissionFixed > 0 ? ' + ' + config.commissionFixed : ''}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Auto-accept</span><span className={`font-medium ${config.autoAcceptOrders ? 'text-emerald-500' : 'text-gray-400'}`}>{config.autoAcceptOrders ? 'Enabled' : 'Disabled'}</span></div>
               {config.lastOrderAt ? (
                 <div className="flex justify-between"><span className="text-gray-400">Last order</span><span className="font-medium text-gray-700 dark:text-gray-300">{new Date(config.lastOrderAt).toLocaleDateString()}</span></div>

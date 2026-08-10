@@ -9,7 +9,10 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import SarIcon from '../../components/ui/SarIcon'
+import Money from '../../components/ui/Money'
 import { useLiveTranslation } from '../../lib/liveTranslation'
+import { showArabicFields } from '../../lib/saudiTenant'
+import { CURRENCY_CODE } from '../../lib/currency'
 
 export default function RestaurantMenuItemForm() {
   const { id } = useParams()
@@ -18,8 +21,11 @@ export default function RestaurantMenuItemForm() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const isRtl = language === 'ar'
+  const bilingualAr = showArabicFields(tenant)
+  const currencyCode = String(tenant?.settings?.currency || CURRENCY_CODE).toUpperCase()
 
   const [imageUrl, setImageUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -47,6 +53,7 @@ export default function RestaurantMenuItemForm() {
     targetField: 'nameAr',
     sourceLang: 'en',
     targetLang: 'ar',
+    enabled: bilingualAr,
   })
 
   useLiveTranslation({
@@ -57,6 +64,7 @@ export default function RestaurantMenuItemForm() {
     targetField: 'descriptionAr',
     sourceLang: 'en',
     targetLang: 'ar',
+    enabled: bilingualAr,
   })
 
   const { data: itemData, isLoading } = useQuery({
@@ -96,6 +104,10 @@ export default function RestaurantMenuItemForm() {
   const mutation = useMutation({
     mutationFn: (data) => {
       const payload = { ...data, imageUrl }
+      if (!bilingualAr) {
+        payload.nameAr = payload.nameAr || payload.nameEn || ''
+        payload.descriptionAr = payload.descriptionAr || payload.descriptionEn || ''
+      }
       payload.sellingPrice = Number(payload.sellingPrice) || 0
       payload.halfPlatePrice = Number(payload.halfPlatePrice) || 0
       payload.taxRate = Number(payload.taxRate) || 0
@@ -195,20 +207,24 @@ export default function RestaurantMenuItemForm() {
               <input {...register('nameEn', { required: true })} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl" placeholder="e.g. Hummus" />
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{isRtl ? 'الاسم (AR)' : 'Name (AR)'}</label>
-              <input {...register('nameAr')} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl" dir="rtl" placeholder="e.g. الحمص" />
-            </div>
+            {bilingualAr && (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{isRtl ? 'الاسم (AR)' : 'Name (AR)'}</label>
+                <input {...register('nameAr')} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl" dir="rtl" placeholder="e.g. الحمص" />
+              </div>
+            )}
 
-            <div className="md:col-span-2">
+            <div className={bilingualAr ? 'md:col-span-2' : 'md:col-span-2'}>
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{isRtl ? 'الوصف (EN)' : 'Description (EN)'}</label>
               <textarea {...register('descriptionEn')} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl min-h-[80px]" placeholder="Describe the dish..."></textarea>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{isRtl ? 'الوصف (AR)' : 'Description (AR)'}</label>
-              <textarea {...register('descriptionAr')} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl min-h-[80px]" dir="rtl" placeholder="وصف الطبق..."></textarea>
-            </div>
+            {bilingualAr && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{isRtl ? 'الوصف (AR)' : 'Description (AR)'}</label>
+                <textarea {...register('descriptionAr')} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl min-h-[80px]" dir="rtl" placeholder="وصف الطبق..."></textarea>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{isRtl ? 'التصنيف' : 'Category'}</label>
@@ -238,7 +254,8 @@ export default function RestaurantMenuItemForm() {
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-1 block">
-                    {isRtl ? 'السعر الأساسي' : 'Base Price'} <SarIcon className="inline w-3 h-3 ml-1" />
+                    {isRtl ? 'السعر الأساسي' : 'Base Price'}{' '}
+                    {currencyCode === 'SAR' ? <SarIcon className="inline w-3 h-3 ml-1" /> : <span className="ml-1">({currencyCode})</span>}
                   </label>
                   <input type="number" step="0.01" {...register('sellingPrice', { valueAsNumber: true, required: true })} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl font-bold text-lg" />
                 </div>
@@ -252,7 +269,8 @@ export default function RestaurantMenuItemForm() {
                   {hasHalfPlate && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-2">
                       <label className="text-xs font-semibold text-gray-500 mb-1 block">
-                        {isRtl ? 'سعر نصف حصة' : 'Half Plate Price'} <SarIcon className="inline w-3 h-3 ml-1" />
+                        {isRtl ? 'سعر نصف حصة' : 'Half Plate Price'}{' '}
+                        {currencyCode === 'SAR' ? <SarIcon className="inline w-3 h-3 ml-1" /> : <span className="ml-1">({currencyCode})</span>}
                       </label>
                       <input type="number" step="0.01" {...register('halfPlatePrice', { valueAsNumber: true })} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl font-bold text-lg text-indigo-600" />
                     </motion.div>

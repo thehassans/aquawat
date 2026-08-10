@@ -9,6 +9,7 @@ import { calculateInvoiceSummary, normalizeTravelDetails } from './invoiceDocume
 import { getInvoiceBranding, getInvoiceTemplateId, splitBrandingText } from './invoiceBranding'
 import { getAmountInWords } from './amountInWords'
 import { generateZatcaQrValue } from './zatcaQr'
+import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from './invoiceLanguage'
 
 const sanitizeFileName = (value) => {
   return String(value || 'invoice')
@@ -206,9 +207,12 @@ const renderQrToDataUrl = async (value, size = 112) => {
   }
 }
 
-const shouldRenderBilingualInvoice = (invoice, documentType = 'invoice') => documentType === 'quotation'
-  || invoice?.invoiceSubtype === 'travel_ticket'
-  || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
+const shouldRenderBilingualInvoice = (invoice, documentType = 'invoice', tenant = null) => {
+  const contextBilingual = documentType === 'quotation'
+    || invoice?.invoiceSubtype === 'travel_ticket'
+    || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
+  return resolveInvoiceBilingual(tenant, contextBilingual)
+}
 
 const isPosInvoice = (invoice) => ['restaurant', 'bakala', 'saloon', 'laundry', 'khayyat'].includes(invoice?.businessContext)
 
@@ -441,6 +445,8 @@ const waitForElementImages = async (element) => {
     await Promise.allSettled([
       document.fonts.load('400 16px "InvoiceAlmarai"'),
       document.fonts.load('700 16px "InvoiceAlmarai"'),
+      document.fonts.load('400 16px "Noto Nastaliq Urdu"'),
+      document.fonts.load('700 16px "Noto Nastaliq Urdu"'),
     ])
   }
 }
@@ -464,7 +470,8 @@ const buildSnapshotElement = async ({ invoice, tenant, language, documentType = 
     tenant,
     language,
     templateId,
-    bilingual: shouldRenderBilingualInvoice(invoice, documentType),
+    bilingual: shouldRenderBilingualInvoice(invoice, documentType, tenant),
+    secondaryLanguage: getInvoiceSecondaryLanguage(tenant) || 'ar',
     currencyRenderMode: 'snapshot-icon',
     documentType,
   })
@@ -764,7 +771,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   if (!invoice) return
 
   const snapshotCurrency = invoice.currency || tenant?.settings?.currency || 'SAR'
-  const shouldUseSnapshotRenderer = Boolean(sourceElement) || shouldRenderBilingualInvoice(invoice, documentType) || isSarCurrency(snapshotCurrency)
+  const shouldUseSnapshotRenderer = Boolean(sourceElement) || shouldRenderBilingualInvoice(invoice, documentType, tenant) || isSarCurrency(snapshotCurrency)
 
   const jspdfModule = await import('jspdf')
   const jsPDF = jspdfModule?.jsPDF || jspdfModule?.default || jspdfModule

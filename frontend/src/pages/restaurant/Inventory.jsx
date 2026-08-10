@@ -4,10 +4,14 @@ import { Plus, Search, Edit2, Trash2, PackageOpen, AlertTriangle } from 'lucide-
 import { motion } from 'framer-motion'
 import { toast } from 'react-hot-toast'
 import api from '../../lib/api'
+import Money from '../../components/ui/Money'
+import { showArabicFields } from '../../lib/saudiTenant'
 
 export default function RestaurantInventory() {
   const { language } = useSelector(state => state.ui)
+  const { tenant } = useSelector(state => state.auth)
   const isRtl = language === 'ar'
+  const bilingualAr = showArabicFields(tenant)
 
   const [inventory, setInventory] = useState([])
   const [loading, setLoading] = useState(true)
@@ -205,7 +209,7 @@ export default function RestaurantInventory() {
                       </td>
                       <td className={`p-4 ${isRtl ? 'text-right' : 'text-left'}`}>
                         <div className="font-semibold text-gray-900 dark:text-white">
-                          SAR {item.costPerUnit.toFixed(2)}
+                          <Money value={item.costPerUnit} />
                         </div>
                       </td>
                       <td className="p-4">
@@ -250,7 +254,7 @@ export default function RestaurantInventory() {
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid gap-4 ${bilingualAr ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
                     {isRtl ? 'الاسم (EN) *' : 'Name (EN) *'}
@@ -263,17 +267,19 @@ export default function RestaurantInventory() {
                     className="w-full input border-gray-200 focus:border-amber-500 focus:ring-amber-500 rounded-xl"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                    {isRtl ? 'الاسم (AR)' : 'Name (AR)'}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.nameAr}
-                    onChange={(e) => setFormData({...formData, nameAr: e.target.value})}
-                    className="w-full input border-gray-200 focus:border-amber-500 focus:ring-amber-500 rounded-xl"
-                  />
-                </div>
+                {bilingualAr && (
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                      {isRtl ? 'الاسم (AR)' : 'Name (AR)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.nameAr}
+                      onChange={(e) => setFormData({...formData, nameAr: e.target.value})}
+                      className="w-full input border-gray-200 focus:border-amber-500 focus:ring-amber-500 rounded-xl"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

@@ -76,6 +76,7 @@ export default {
       fontFamily: {
         sans: ['Inter', 'Tajawal', 'sans-serif'],
         arabic: ['Tajawal', 'sans-serif'],
+        urdu: ['"Noto Nastaliq Urdu"', 'Tajawal', 'sans-serif'],
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-in-out',

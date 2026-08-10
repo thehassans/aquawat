@@ -390,10 +390,14 @@ export default function TenantForm() {
               <label className="label">{language === 'ar' ? 'الاسم القانوني (EN)' : 'Legal Name (EN)'} *</label>
               <input {...register('business.legalNameEn', { required: true })} className="input" />
             </div>
-            <div>
-              <label className="label">{language === 'ar' ? 'الاسم القانوني (AR)' : 'Legal Name (AR)'} *</label>
-              <input {...register('business.legalNameAr', { required: true })} className="input" dir="rtl" />
-            </div>
+            {isSaudiTenant ? (
+              <div>
+                <label className="label">{language === 'ar' ? 'الاسم القانوني (AR)' : 'Legal Name (AR)'} *</label>
+                <input {...register('business.legalNameAr', { required: true })} className="input" dir="rtl" />
+              </div>
+            ) : (
+              <input type="hidden" {...register('business.legalNameAr')} />
+            )}
             <div>
               <label className="label">{language === 'ar' ? 'الرقم الضريبي' : isSaudiTenant ? 'VAT Number' : 'Tax / VAT Number'}</label>
               <input {...register('business.vatNumber')} className="input" placeholder={isSaudiTenant ? '3XXXXXXXXXX00003' : ''} />

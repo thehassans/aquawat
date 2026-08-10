@@ -9,3 +9,14 @@ export function usePublicWebsiteSettings() {
     retry: 1,
   })
 }
+
+/** Fetches minimal branding (logo, name, colors) for a tenant alias login page. */
+export function usePublicTenantBranding(slug) {
+  return useQuery({
+    queryKey: ['public-tenant-branding', slug],
+    queryFn: () => api.get(`/public/tenant-branding/${encodeURIComponent(slug)}`).then((res) => res.data),
+    enabled: Boolean(slug),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  })
+}

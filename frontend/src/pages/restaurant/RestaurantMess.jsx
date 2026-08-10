@@ -123,17 +123,17 @@ function PlanModal({ onClose, editPlan }) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Price per Cycle (SAR)</label>
+                <label className="label">Price per Cycle</label>
                 <input type="number" step="0.01" min="0" value={form.pricePerCycle} onChange={(e) => setForm({ ...form, pricePerCycle: e.target.value })} className="input" />
               </div>
               <div>
-                <label className="label">Price per Meal (SAR)</label>
+                <label className="label">Price per Meal</label>
                 <input type="number" step="0.01" min="0" value={form.pricePerMeal} onChange={(e) => setForm({ ...form, pricePerMeal: e.target.value })} className="input" />
               </div>
             </div>
             {form.billingMode === 'hybrid' && (
               <div>
-                <label className="label">Base Price (SAR)</label>
+                <label className="label">Base Price</label>
                 <input type="number" step="0.01" min="0" value={form.basePrice} onChange={(e) => setForm({ ...form, basePrice: e.target.value })} className="input" />
               </div>
             )}
@@ -212,7 +212,7 @@ function SubscriberModal({ plans, onClose, editSubscriber }) {
               <label className="label">Meal Plan *</label>
               <select value={form.planId} onChange={(e) => setForm({ ...form, planId: e.target.value })} className="select">
                 <option value="">Select plan...</option>
-                {plans.map(p => <option key={p._id} value={p._id}>{p.name} — {p.pricePerCycle} SAR/{p.billingCycle}</option>)}
+                {plans.map(p => <option key={p._id} value={p._id}>{p.name} — {p.pricePerCycle}/{p.billingCycle}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">

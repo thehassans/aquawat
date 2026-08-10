@@ -8,6 +8,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import InvoiceLivePreview from '../../components/invoices/InvoiceLivePreview'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
+import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { buildQuotationPdfBlob, downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoicePdf'
 import { exportToExcel } from '../../lib/export'
 
@@ -317,7 +318,8 @@ export default function QuotationView() {
             tenant={tenant}
             language={language}
             templateId={templateId}
-            bilingual
+            bilingual={resolveInvoiceBilingual(tenant, true)}
+            secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || 'ar'}
             documentType="quotation"
           />
         </div>

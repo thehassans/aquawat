@@ -1,8 +1,11 @@
 import React from 'react'
 import NaturalStamp from './NaturalStamp'
+import { localizeSecondaryText } from '../../lib/invoiceLanguage'
 
 export default function DocumentExtras({ invoice, invoiceBranding = {}, language = 'en', bilingual = false }) {
   const isAr = language === 'ar'
+  const sectionTitle = (english, arabic) => (bilingual ? `${english} / ${localizeSecondaryText(arabic)}` : (isAr ? arabic : english))
+  const signatoryLabel = (arabic) => localizeSecondaryText(arabic)
   
   const hasSubject = Boolean(invoice?.subject || invoice?.subjectAr)
   const hasNotes = Boolean(invoice?.notes || invoice?.notesAr)
@@ -27,7 +30,7 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
         {hasSubject && (
           <div>
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">
-              {isAr ? 'الموضوع' : 'Subject'}
+              {sectionTitle('Subject', 'الموضوع')}
             </h4>
             {bilingual ? (
               <>
@@ -45,7 +48,7 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
         {hasNotes && (
           <div>
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">
-              {isAr ? 'ملاحظات' : 'Notes'}
+              {sectionTitle('Notes', 'ملاحظات')}
             </h4>
             {bilingual ? (
               <>
@@ -63,7 +66,7 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
         {hasTerms && (
           <div>
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">
-              {isAr ? 'الشروط والأحكام' : 'Terms & Conditions'}
+              {sectionTitle('Terms & Conditions', 'الشروط والأحكام')}
             </h4>
             {bilingual ? (
               <>
@@ -113,7 +116,7 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
                       ? `${invoice?.authorizedPersonName || ''} ${invoice?.authorizedPersonNameAr ? ` / ${invoice.authorizedPersonNameAr}` : ''}`
                       : (isAr ? (invoice?.authorizedPersonNameAr || invoice?.authorizedPersonName) : (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr))
                   ) : (
-                    isAr ? 'المفوض بالتوقيع' : 'Authorized Signature'
+                    isAr ? 'المفوض بالتوقيع' : (bilingual ? `Authorized Signature / ${signatoryLabel('المفوض بالتوقيع')}` : 'Authorized Signature')
                   )}
                 </p>
                 {authorizedTitle && (

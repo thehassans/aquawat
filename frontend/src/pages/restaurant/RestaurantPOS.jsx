@@ -7,12 +7,15 @@ import api, { getImageUrl } from '../../lib/api'
 import { toast } from 'react-hot-toast'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import CardPaymentModal from '../../components/pos/CardPaymentModal'
+import Money from '../../components/ui/Money'
+import { CURRENCY_CODE } from '../../lib/currency'
 import { getThermalPrinterSettings, printThermalElement } from '../../lib/thermalPrinter'
 
 export default function RestaurantPOS() {
   const { language } = useSelector(state => state.ui)
   const { tenant } = useSelector(state => state.auth)
   const isRtl = language === 'ar'
+  const currency = String(tenant?.settings?.currency || CURRENCY_CODE).toUpperCase()
   const thermalSettings = getThermalPrinterSettings(tenant)
   const cardTerminalEnabled = Boolean(tenant?.settings?.posTerminal?.enabled)
   const terminalLabel = tenant?.settings?.posTerminal?.terminalLabel || ''
@@ -531,7 +534,7 @@ export default function RestaurantPOS() {
                       {isRtl ? (combo.nameAr || combo.name) : combo.name}
                     </div>
                     <div className="text-base font-black text-pink-600 flex items-center justify-between">
-                      <span>SAR {(combo.comboPrice || 0).toFixed(2)}</span>
+                      <Money value={combo.comboPrice || 0} />
                       <div className="w-6 h-6 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center text-pink-600 group-hover:bg-pink-500 group-hover:text-white transition-colors">
                         <Plus className="w-4 h-4" />
                       </div>
@@ -570,7 +573,7 @@ export default function RestaurantPOS() {
                       {isRtl ? (item.nameAr || item.nameEn) : item.nameEn}
                     </div>
                     <div className="text-base font-black text-amber-600 flex items-center justify-between">
-                      <span>SAR {(item.sellingPrice || 0).toFixed(2)}</span>
+                      <Money value={item.sellingPrice || 0} />
                       <div className="w-6 h-6 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
                         <Plus className="w-4 h-4" />
                       </div>
@@ -799,7 +802,7 @@ export default function RestaurantPOS() {
                       {isRtl ? item.nameAr : item.nameEn}
                     </div>
                     <div className="text-xs text-amber-600 font-black mt-1">
-                      SAR {item.unitPrice.toFixed(2)}
+                      <Money value={item.unitPrice} />
                     </div>
                   </div>
                   
@@ -851,11 +854,11 @@ export default function RestaurantPOS() {
           <div className="space-y-2 mb-4">
             <div className="flex justify-between text-sm font-semibold text-gray-500 dark:text-gray-400">
               <span>{isRtl ? 'المجموع الفرعي' : 'Subtotal'}</span>
-              <span>SAR {cartSubtotal.toFixed(2)}</span>
+              <Money value={cartSubtotal} />
             </div>
             <div className="flex justify-between text-sm font-semibold text-gray-500 dark:text-gray-400 items-center">
               <div className="flex items-center gap-2">
-                <span>{isRtl ? 'الضريبة' : 'VAT'}</span>
+                <span>{isRtl ? 'الضريبة' : (currency === 'SAR' ? 'VAT' : 'Tax')}</span>
                 <button
                   onClick={() => setApplyVat(!applyVat)}
                   className={`text-xs px-2 py-0.5 rounded-md font-bold transition-colors ${applyVat ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' : 'bg-gray-200 text-gray-500 dark:bg-dark-700'}`}
@@ -863,14 +866,14 @@ export default function RestaurantPOS() {
                   {applyVat ? '15%' : '0%'}
                 </button>
               </div>
-              <span>SAR {cartTax.toFixed(2)}</span>
+              <Money value={cartTax} />
             </div>
           </div>
           
           <div className="flex justify-between items-end pt-3 border-t border-gray-200/80 dark:border-dark-700/80 mb-5">
             <span className="text-sm font-bold text-gray-500 uppercase tracking-widest">{isRtl ? 'الإجمالي' : 'Total'}</span>
             <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-orange-500">
-              SAR {cartTotal.toFixed(2)}
+              <Money value={cartTotal} className="text-3xl font-black" />
             </span>
           </div>
           
@@ -935,7 +938,7 @@ export default function RestaurantPOS() {
                     {isRtl ? 'نصف' : 'Half'}
                   </div>
                   <div className="text-sm font-bold text-gray-500 group-hover:text-indigo-500">
-                    SAR {(selectedHalfPlateItem.halfPlatePrice || 0).toFixed(2)}
+                    <Money value={selectedHalfPlateItem.halfPlatePrice || 0} />
                   </div>
                 </button>
                 <button
@@ -946,7 +949,7 @@ export default function RestaurantPOS() {
                     {isRtl ? 'كامل' : 'Full'}
                   </div>
                   <div className="text-sm font-bold text-gray-500 group-hover:text-amber-500">
-                    SAR {(selectedHalfPlateItem.sellingPrice || 0).toFixed(2)}
+                    <Money value={selectedHalfPlateItem.sellingPrice || 0} />
                   </div>
                 </button>
               </div>
@@ -1209,7 +1212,7 @@ export default function RestaurantPOS() {
       <CardPaymentModal
         open={showCardModal}
         amount={cartTotal}
-        currency="SAR"
+        currency={currency}
         source="restaurant"
         orderType="restaurant"
         orderNumber={''}
