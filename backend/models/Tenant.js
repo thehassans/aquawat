@@ -350,11 +350,12 @@ const tenantSchema = new mongoose.Schema({
     currency: { type: String, default: 'SAR' },
     // Controls which second language (if any) invoices/quotations are rendered
     // bilingually in, alongside English.
-    //   'auto'  → derived from business.address.country (e.g. SA → Arabic, PK → Urdu)
-    //   'en'    → English only, no second language
+    //   'auto'  → GCC currencies → Arabic, PKR → Urdu, BDT → Bangla, else English-only
+    //   'en'    → English only
     //   'en_ar' → English + Arabic
     //   'en_ur' → English + Urdu
-    invoiceLanguage: { type: String, enum: ['auto', 'en', 'en_ar', 'en_ur'], default: 'auto' },
+    //   'en_bn' → English + Bangla
+    invoiceLanguage: { type: String, enum: ['auto', 'en', 'en_ar', 'en_ur', 'en_bn'], default: 'auto' },
     timezone: { type: String, default: 'Asia/Riyadh' },
     fiscalYearStart: { type: Number, default: 1 },
     dateFormat: { type: String, default: 'DD/MM/YYYY' },

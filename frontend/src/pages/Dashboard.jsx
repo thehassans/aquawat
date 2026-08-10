@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -29,7 +29,6 @@ import {
   Boxes,
   Percent,
   Layers,
-  LayoutGrid,
   ShieldCheck,
   ChevronRight,
   Sparkles,
@@ -59,8 +58,6 @@ import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
-import { App3DIcon } from '../components/ui/App3DIcon'
-import { AppVerticalView } from '../components/dashboard/AppVerticalView'
 
 const COLORS = ['rgb(var(--color-primary-500))', '#f59e0b', '#ef4444', 'rgb(var(--color-secondary-500))', '#8b5cf6', '#06b6d4', '#ec4899']
 const DASHBOARD_REFRESH_MS = 60 * 1000 // 60s
@@ -73,9 +70,6 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const isAr = language === 'ar'
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
-
-  // Active Tab state: 'overview' or an appId / businessTypeGrant
-  const [activeTab, setActiveTab] = useState('overview')
 
   const businessTypes = getTenantBusinessTypes(tenant)
   const isTrading = businessTypes.includes('trading')
@@ -193,9 +187,6 @@ export default function Dashboard() {
     retry: false,
     enabled: isConstruction
   })
-
-  const installedApps = dashboard?.installedApps || []
-  const appsOverview = dashboard?.appsOverview || {}
 
   const payrollPaidNet = (dashboard?.payroll?.stats || []).find((s) => s._id === 'paid')?.totalNet || 0
   const openPoCount = poStats?.totals?.[0]?.openCount || 0
@@ -418,25 +409,6 @@ export default function Dashboard() {
     value: s.count || 0
   }))
 
-  // Available tabs
-  const tabItems = useMemo(() => {
-    const tabs = [
-      { id: 'overview', label: isAr ? 'النظرة العامة وجميع التطبيقات' : 'Overview & Workspaces', icon: LayoutGrid }
-    ]
-
-    installedApps.forEach(app => {
-      const grant = app.businessTypeGrant || app.appId
-      tabs.push({
-        id: grant,
-        label: isAr ? app.nameAr || app.nameEn : app.nameEn || app.nameAr,
-        appId: app.appId,
-        icon: app.icon
-      })
-    })
-
-    return tabs
-  }, [installedApps, isAr])
-
   if (isLoading) {
     return (
       <div className="space-y-6 animate-pulse">
@@ -460,10 +432,6 @@ export default function Dashboard() {
             <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
               {t('dashboard')}
             </h1>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-primary-500 animate-ping" />
-              {installedApps.length} {isAr ? 'تطبيق مفعّل' : 'Active Apps'}
-            </span>
           </div>
           <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
             {isAr 
@@ -492,40 +460,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Modern App Switcher Tab Bar */}
-      {tabItems.length > 1 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-dark-700">
-          {tabItems.map((tab) => {
-            const isActive = activeTab === tab.id
-            const IconComp = tab.icon || LayoutGrid
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`group flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold whitespace-nowrap transition-all duration-200 shrink-0 ${
-                  isActive
-                    ? 'bg-primary-600 text-white shadow-md shadow-primary-600/25 scale-[1.02]'
-                    : 'bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-700 border border-gray-200/70 dark:border-dark-700/70'
-                }`}
-              >
-                {tab.appId ? (
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <App3DIcon appId={tab.appId} icon={tab.icon} className="w-5 h-5" />
-                  </div>
-                ) : (
-                  <IconComp className="w-4 h-4" />
-                )}
-                <span>{tab.label}</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Main Tab Content */}
+      {/* Main dashboard content */}
       <AnimatePresence mode="wait">
-        {activeTab === 'overview' ? (
-          <motion.div
+        <motion.div
             key="overview"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1101,22 +1038,6 @@ export default function Dashboard() {
               </div>
             )}
           </motion.div>
-        ) : (
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-          >
-            <AppVerticalView
-              verticalKey={activeTab}
-              appsOverview={appsOverview}
-              language={language}
-              tenant={tenant}
-            />
-          </motion.div>
-        )}
       </AnimatePresence>
     </div>
   )

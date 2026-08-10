@@ -74,7 +74,7 @@ export default function InvoiceView() {
   const travelInvoiceLabelMeta = isTravelAgencyInvoice(invoice) ? getTravelInvoiceLabelMeta(invoice, language) : null
   const isBilingualInvoiceContext = invoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
   const isBilingualInvoice = resolveInvoiceBilingual(tenant, isBilingualInvoiceContext)
-  const invoiceSecondaryLanguage = getInvoiceSecondaryLanguage(tenant) || 'ar'
+  const invoiceSecondaryLanguage = getInvoiceSecondaryLanguage(tenant) || undefined
   const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
   
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)

@@ -8,11 +8,19 @@ import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { Building2, Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info } from 'lucide-react'
 import { getAmountInWords } from '../../lib/amountInWords'
+import { bilingualLabel, localizeSecondaryText, setActiveInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 const toEasternArabicNumerals = (str) => String(str || '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d])
 
-export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', bilingual = false, documentType = 'invoice' }) {
+export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', bilingual = false, secondaryLanguage, documentType = 'invoice' }) {
+  const resolvedSecondary = ['ur', 'bn', 'ar'].includes(secondaryLanguage) ? secondaryLanguage : null
+  setActiveInvoiceSecondaryLanguage(resolvedSecondary)
+  const secondaryDir = resolvedSecondary === 'bn' ? 'ltr' : 'rtl'
+  const isArabicSecondary = bilingual && resolvedSecondary === 'ar'
+  const L = (en, ar) => bilingualLabel(en, ar, bilingual)
+  const S = (ar) => localizeSecondaryText(ar)
+
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   
@@ -69,7 +77,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
       <span className="inline-flex items-center gap-[0.3em] whitespace-nowrap">
         <span className="tabular-nums">{amount}</span>
         <span className="text-[0.85em] font-medium">{currency}</span>
-        {isBoutiqueRental && (
+        {isBoutiqueRental && isArabicSecondary && (
           <>
             <span className="text-gray-400">/</span>
             <span className="font-['Almarai'] text-[0.85em] font-medium" dir="rtl">
@@ -159,14 +167,14 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             }`}>
               <FileText className="mr-2 h-4 w-4" />
               {invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
-                ? 'Furniture Sale Invoice / فاتورة بيع مفروشات'
+                ? L('Furniture Sale Invoice', 'فاتورة بيع مفروشات')
                 : invoice?.businessContext === 'boutique'
                 ? invoice?.boutiqueDetails?.transactionType === 'sale'
-                  ? 'Boutique Sale Invoice / فاتورة بيع بوتيك'
-                  : 'Boutique Rental Invoice / فاتورة إيجار بوتيك'
+                  ? L('Boutique Sale Invoice', 'فاتورة بيع بوتيك')
+                  : L('Boutique Rental Invoice', 'فاتورة إيجار بوتيك')
                 : isQuotation
-                ? 'Quotation / عرض سعر'
-                : 'Tax Invoice / فاتورة ضريبية'}
+                ? L('Quotation', 'عرض سعر')
+                : L('Tax Invoice', 'فاتورة ضريبية')}
             </div>
             
             <div className="mt-2 space-y-1 text-sm text-gray-600 md:text-right">
@@ -182,10 +190,10 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                     <span className="font-semibold text-gray-900">VAT No:</span>
                     <span className="font-mono">{invoice?.seller?.vatNumber || tenant?.business?.vatNumber}</span>
                   </div>
-                  {bilingual && (
-                    <div className="flex items-center justify-end gap-2" dir="rtl">
-                      <span className="font-semibold text-gray-900">الرقم الضريبي:</span>
-                      <span className="font-sans">{toEasternArabicNumerals(invoice?.seller?.vatNumber || tenant?.business?.vatNumber)}</span>
+                  {bilingual && S('الرقم الضريبي') && (
+                    <div className="flex items-center justify-end gap-2" dir={secondaryDir}>
+                      <span className="font-semibold text-gray-900">{S('الرقم الضريبي')}:</span>
+                      <span className="font-sans">{isArabicSecondary ? toEasternArabicNumerals(invoice?.seller?.vatNumber || tenant?.business?.vatNumber) : (invoice?.seller?.vatNumber || tenant?.business?.vatNumber)}</span>
                     </div>
                   )}
                 </div>
@@ -207,7 +215,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
           <div className="rounded-xl border bg-gray-50 p-3">
             <h3 className="mb-2 flex items-center gap-2 font-semibold text-gray-900 border-b pb-1 text-sm">
               <User className="h-4 w-4 text-primary-600" />
-              Bill To / الفاتورة إلى
+              {L('Bill To', 'الفاتورة إلى')}
             </h3>
             <div className="space-y-1 text-sm text-gray-700">
               <p className="font-bold text-gray-900 text-base">{buyerName}</p>
@@ -237,11 +245,11 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                       <span className="font-mono">{invoice.buyer.idNumber || invoice.buyer.customerIdNumber}</span>
                     </p>
                     {bilingual && (
-                      <p className="flex gap-2" dir="rtl">
+                      <p className="flex gap-2" dir={secondaryDir}>
                         <span className="font-semibold text-gray-900">
-                          {invoice?.buyer?.idType === 'vat' ? 'الرقم الضريبي' : invoice?.buyer?.idType === 'id' ? 'الهوية' : 'الإقامة'}:
+                          {invoice?.buyer?.idType === 'vat' ? S('الرقم الضريبي') : invoice?.buyer?.idType === 'id' ? (isArabicSecondary ? 'الهوية' : 'ID') : (isArabicSecondary ? 'الإقامة' : 'Iqama')}:
                         </span>
-                        <span className="font-sans">{toEasternArabicNumerals(invoice.buyer.idNumber || invoice.buyer.customerIdNumber)}</span>
+                        <span className="font-sans">{isArabicSecondary ? toEasternArabicNumerals(invoice.buyer.idNumber || invoice.buyer.customerIdNumber) : (invoice.buyer.idNumber || invoice.buyer.customerIdNumber)}</span>
                       </p>
                     )}
                   </div>
@@ -252,10 +260,10 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                       <span className="font-semibold text-gray-900">VAT No:</span>{" "}
                       <span className="font-mono">{invoice.buyer.vatNumber}</span>
                     </p>
-                    {bilingual && (
-                      <p className="flex gap-2" dir="rtl">
-                        <span className="font-semibold text-gray-900">الرقم الضريبي:</span>
-                        <span className="font-sans">{toEasternArabicNumerals(invoice.buyer.vatNumber)}</span>
+                    {bilingual && S('الرقم الضريبي') && (
+                      <p className="flex gap-2" dir={secondaryDir}>
+                        <span className="font-semibold text-gray-900">{S('الرقم الضريبي')}:</span>
+                        <span className="font-sans">{isArabicSecondary ? toEasternArabicNumerals(invoice.buyer.vatNumber) : invoice.buyer.vatNumber}</span>
                       </p>
                     )}
                   </div>
@@ -267,20 +275,20 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
           <div className="rounded-xl border bg-gray-50 p-3">
             <h3 className="mb-2 flex items-center gap-2 font-semibold text-gray-900 border-b pb-1 text-sm">
               <Calendar className="h-4 w-4 text-primary-600" />
-              Details / التفاصيل
+              {L('Details', 'التفاصيل')}
             </h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">No:</span>
                 <span className="font-mono font-bold text-gray-900">{documentNumber}</span>
-                {bilingual && <span className="text-gray-500" dir="rtl">:رقم</span>}
+                {bilingual && S('رقم') && <span className="text-gray-500" dir={secondaryDir}>:{S('رقم')}</span>}
               </div>
               <hr className="border-gray-200" />
               
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">Date:</span>
                 <span className="font-semibold text-gray-900">{formatDate(invoice?.issueDate)}</span>
-                {bilingual && <span className="text-gray-500" dir="rtl">:التاريخ</span>}
+                {bilingual && S('التاريخ') && <span className="text-gray-500" dir={secondaryDir}>:{S('التاريخ')}</span>}
               </div>
               {!(invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental') && (
                 <>
@@ -288,7 +296,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Due Date:</span>
                     <span className="font-semibold text-gray-900">{formatDate(invoice?.dueDate || invoice?.validUntil)}</span>
-                    {bilingual && <span className="text-gray-500" dir="rtl">:تاريخ الاستحقاق</span>}
+                    {bilingual && S('تاريخ الاستحقاق') && <span className="text-gray-500" dir={secondaryDir}>:{S('تاريخ الاستحقاق')}</span>}
                   </div>
                 </>
               )}
@@ -299,13 +307,13 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Rental Start:</span>
                     <span className="font-semibold text-gray-900">{formatDate(invoice.boutiqueDetails.startDate)}</span>
-                    {bilingual && <span className="text-gray-500" dir="rtl">:بداية الإيجار</span>}
+                    {bilingual && S('بداية الإيجار') && <span className="text-gray-500" dir={secondaryDir}>:{S('بداية الإيجار')}</span>}
                   </div>
                   <hr className="border-gray-200" />
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Rental End:</span>
                     <span className="font-semibold text-gray-900">{formatDate(invoice.boutiqueDetails.endDate)}</span>
-                    {bilingual && <span className="text-gray-500" dir="rtl">:نهاية الإيجار</span>}
+                    {bilingual && S('نهاية الإيجار') && <span className="text-gray-500" dir={secondaryDir}>:{S('نهاية الإيجار')}</span>}
                   </div>
                   <hr className="border-gray-200" />
                   <div className="flex justify-between items-center">
@@ -318,21 +326,21 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                         return days
                       })()}
                     </span>
-                    {bilingual && <span className="text-gray-500" dir="rtl">:عدد أيام الإيجار</span>}
+                    {bilingual && S('عدد أيام الإيجار') && <span className="text-gray-500" dir={secondaryDir}>:{S('عدد أيام الإيجار')}</span>}
                   </div>
                   <hr className="border-gray-200" />
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Security Deposit:</span>
                     <span className="font-semibold text-gray-900">{renderMoney(toNumber(invoice.boutiqueDetails.totalDeposit))}</span>
-                    {bilingual && <span className="text-gray-500" dir="rtl">:تأمين</span>}
+                    {bilingual && S('تأمين') && <span className="text-gray-500" dir={secondaryDir}>:{S('تأمين')}</span>}
                   </div>
                   <hr className="border-gray-200" />
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Payment Method:</span>
                     <span className="font-semibold text-gray-900 capitalize">{invoice.boutiqueDetails.paymentMethod === 'card' ? 'Card' : 'Cash'}</span>
-                    {bilingual && (
-                      <span className="font-semibold text-gray-900" dir="rtl">
-                        {invoice.boutiqueDetails.paymentMethod === 'card' ? 'بطاقة' : 'نقدي'}:طريقة الدفع
+                    {bilingual && S('طريقة الدفع') && (
+                      <span className="font-semibold text-gray-900" dir={secondaryDir}>
+                        {invoice.boutiqueDetails.paymentMethod === 'card' ? (isArabicSecondary ? 'بطاقة' : 'Card') : (isArabicSecondary ? 'نقدي' : 'Cash')}:{S('طريقة الدفع')}
                       </span>
                     )}
                   </div>
@@ -340,7 +348,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Amount Paid:</span>
                     <span className="font-semibold text-gray-900">{renderMoney(toNumber(invoice.boutiqueDetails.amountPaid))}</span>
-                    {bilingual && <span className="text-gray-500" dir="rtl">:المبلغ المدفوع</span>}
+                    {bilingual && S('المبلغ المدفوع') && <span className="text-gray-500" dir={secondaryDir}>:{S('المبلغ المدفوع')}</span>}
                   </div>
                   {toNumber(invoice.boutiqueDetails.amountPaid) < toNumber(invoice.grandTotal) && (
                     <>
@@ -348,7 +356,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                       <div className="flex justify-between items-center">
                         <span className="text-gray-500">Pending Amount:</span>
                         <span className="font-semibold text-rose-600">{renderMoney(toNumber(invoice.grandTotal) - toNumber(invoice.boutiqueDetails.amountPaid))}</span>
-                        {bilingual && <span className="text-gray-500" dir="rtl">:المبلغ المتبقي</span>}
+                        {bilingual && S('المبلغ المتبقي') && <span className="text-gray-500" dir={secondaryDir}>:{S('المبلغ المتبقي')}</span>}
                       </div>
                     </>
                   )}
@@ -367,40 +375,40 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                 <th className="px-3 py-2 text-start font-semibold text-gray-900">
                   <div className="flex flex-col">
                     <span>Description</span>
-                    {bilingual && <span className="text-xs text-gray-500" dir="rtl">الوصف</span>}
+                    {bilingual && S('الوصف') && <span className="text-xs text-gray-500" dir={secondaryDir}>{S('الوصف')}</span>}
                   </div>
                 </th>
                 {invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' ? (
                   <th className="px-3 py-2 text-center font-semibold text-gray-900">
                     <div className="flex flex-col">
                       <span>Days</span>
-                      {bilingual && <span className="text-xs text-gray-500" dir="rtl">الأيام</span>}
+                      {bilingual && S('الأيام') && <span className="text-xs text-gray-500" dir={secondaryDir}>{S('الأيام')}</span>}
                     </div>
                   </th>
                 ) : (
                   <th className="px-3 py-2 text-center font-semibold text-gray-900">
                     <div className="flex flex-col">
                       <span>Qty</span>
-                      {bilingual && <span className="text-xs text-gray-500" dir="rtl">الكمية</span>}
+                      {bilingual && S('الكمية') && <span className="text-xs text-gray-500" dir={secondaryDir}>{S('الكمية')}</span>}
                     </div>
                   </th>
                 )}
                 <th className="px-3 py-2 text-right font-semibold text-gray-900">
                   <div className="flex flex-col items-end">
                     <span>Unit Price</span>
-                    {bilingual && <span className="text-xs text-gray-500" dir="rtl">سعر الوحدة</span>}
+                    {bilingual && S('سعر الوحدة') && <span className="text-xs text-gray-500" dir={secondaryDir}>{S('سعر الوحدة')}</span>}
                   </div>
                 </th>
                 <th className="px-3 py-2 text-right font-semibold text-gray-900">
                   <div className="flex flex-col items-end">
                     <span>Tax</span>
-                    {bilingual && <span className="text-xs text-gray-500" dir="rtl">الضريبة</span>}
+                    {bilingual && S('الضريبة') && <span className="text-xs text-gray-500" dir={secondaryDir}>{S('الضريبة')}</span>}
                   </div>
                 </th>
                 <th className="px-3 py-2 text-right font-semibold text-gray-900">
                   <div className="flex flex-col items-end">
                     <span>Total</span>
-                    {bilingual && <span className="text-xs text-gray-500" dir="rtl">المجموع</span>}
+                    {bilingual && S('المجموع') && <span className="text-xs text-gray-500" dir={secondaryDir}>{S('المجموع')}</span>}
                   </div>
                 </th>
               </tr>
@@ -463,7 +471,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             <div className="flex-1 rounded-xl border bg-gray-50 p-3">
               {(invoice?.notes || invoice?.notesAr) && (
                 <>
-                  <h4 className="mb-2 font-semibold text-gray-900 border-b pb-1 text-sm">Notes / ملاحظات</h4>
+                  <h4 className="mb-2 font-semibold text-gray-900 border-b pb-1 text-sm">{L('Notes', 'ملاحظات')}</h4>
                   <p className="text-sm text-gray-600 whitespace-pre-wrap">{invoice?.notes || '—'}</p>
                   {bilingual && invoice?.notesAr && (
                     <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap" dir="rtl">{invoice?.notesAr}</p>
@@ -486,7 +494,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                 <>
                   {(invoice?.notes || invoice?.notesAr || invoice?.paymentMethod) && <hr className="my-3 border-gray-200" />}
                   <div className="text-sm space-y-1 text-gray-700">
-                    <h4 className="font-semibold text-gray-900 border-b pb-1 mb-2">Bank Details / بيانات البنك</h4>
+                    <h4 className="font-semibold text-gray-900 border-b pb-1 mb-2">{L('Bank Details', 'بيانات البنك')}</h4>
                     <p><span className="font-medium text-gray-900">Bank:</span> {tenant.business.bankDetails.bankName}</p>
                     {tenant.business.bankDetails.accountName && <p><span className="font-medium text-gray-900">Account:</span> {tenant.business.bankDetails.accountName}</p>}
                     {tenant.business.bankDetails.accountNumber && <p><span className="font-medium text-gray-900">Acc No:</span> {tenant.business.bankDetails.accountNumber}</p>}
@@ -502,7 +510,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               <div className="flex justify-between text-sm">
                 <div className="flex flex-col">
                   <span className="text-gray-500">Subtotal</span>
-                  {bilingual && <span className="text-xs text-gray-400" dir="rtl">المجموع الفرعي</span>}
+                  {bilingual && S('المجموع الفرعي') && <span className="text-xs text-gray-400" dir={secondaryDir}>{S('المجموع الفرعي')}</span>}
                 </div>
                 <span className="font-mono font-semibold text-gray-900">
                   {renderMoney(totals.subtotal)}
@@ -513,7 +521,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               <div className="flex justify-between text-sm">
                 <div className="flex flex-col">
                   <span className="text-gray-500">VAT Total</span>
-                  {bilingual && <span className="text-xs text-gray-400" dir="rtl">إجمالي الضريبة</span>}
+                  {bilingual && S('إجمالي الضريبة') && <span className="text-xs text-gray-400" dir={secondaryDir}>{S('إجمالي الضريبة')}</span>}
                 </div>
                 <span className="font-mono font-semibold text-gray-900">
                   {renderMoney(totals.totalTax)}
@@ -526,7 +534,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   <div className="flex justify-between text-sm">
                     <div className="flex flex-col">
                       <span className="text-gray-500">Security Deposit</span>
-                      {bilingual && <span className="text-xs text-gray-400" dir="rtl">تأمين</span>}
+                      {bilingual && S('تأمين') && <span className="text-xs text-gray-400" dir={secondaryDir}>{S('تأمين')}</span>}
                     </div>
                     <span className="font-mono font-semibold text-gray-900">
                       {renderMoney(toNumber(invoice.boutiqueDetails.totalDeposit))}
@@ -539,7 +547,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               <div className="flex justify-between rounded-lg bg-primary-100/50 p-3 border border-primary-100">
                 <div className="flex flex-col">
                   <span className="font-bold text-gray-900">Total</span>
-                  {bilingual && <span className="text-xs font-semibold text-gray-600" dir="rtl">الإجمالي</span>}
+                  {bilingual && S('الإجمالي') && <span className="text-xs font-semibold text-gray-600" dir={secondaryDir}>{S('الإجمالي')}</span>}
                 </div>
                 <span className="font-mono text-xl font-bold text-primary-700">
                   {renderMoney(totals.grandTotal)}
@@ -556,12 +564,12 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               <Hash className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
               <div className="flex-1 text-sm text-gray-600">
                 <p className="mb-1 font-semibold text-gray-900">
-                  Amount in Words / المبلغ كتابةً
+                  {L('Amount in Words', 'المبلغ كتابةً')}
                 </p>
                 <p className="font-medium text-gray-800">{getAmountInWords(totals.grandTotal, currency, 'en')}</p>
-                {bilingual && (
-                  <p dir="rtl" className="mt-1 font-medium text-gray-800">
-                    {getAmountInWords(totals.grandTotal, currency, 'ar')}
+                {bilingual && resolvedSecondary && resolvedSecondary !== 'bn' && (
+                  <p dir={secondaryDir} className="mt-1 font-medium text-gray-800">
+                    {getAmountInWords(totals.grandTotal, currency, resolvedSecondary)}
                   </p>
                 )}
               </div>
@@ -581,13 +589,13 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
           <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50/50 p-2 text-[10px] leading-[1.25] print:break-inside-avoid font-bold">
             <div className="flex justify-between items-center mb-1">
               <h4 className="font-bold text-gray-900">Rental Terms</h4>
-              <h4 className="font-bold text-gray-900 font-['Almarai']" dir="rtl">شروط الإيجار</h4>
+              {bilingual && S('شروط الإيجار') && <h4 className="font-bold text-gray-900" dir={secondaryDir}>{S('شروط الإيجار')}</h4>}
             </div>
             <div className="text-[9px] text-gray-700 mb-1">
               <span className="block">To protect the item from damage, the customer must adhere to the following:</span>
-              <span className="block font-['Almarai']" dir="rtl">حفاظاً على السلعة من التلف يرجى التزام العميل بالآتي:</span>
+              {isArabicSecondary && <span className="block font-['Almarai']" dir="rtl">حفاظاً على السلعة من التلف يرجى التزام العميل بالآتي:</span>}
             </div>
-            <div className="grid grid-cols-2 gap-3 items-start">
+            <div className={`grid gap-3 items-start ${isArabicSecondary ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <div dir="ltr">
                 <div className="space-y-0.5 text-left">
                   <div className="flex gap-1.5"><span className="shrink-0 w-3">1.</span><span>The down payment is non-refundable after the invoice is issued.</span></div>
@@ -596,6 +604,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   <div className="flex gap-1.5"><span className="shrink-0 w-3">4.</span><span>The customer will be charged 200 Riyals for washing the Maleka (Engagement) dress, and 200 Riyals for washing the Meel (Train).</span></div>
                 </div>
               </div>
+              {isArabicSecondary && (
               <div dir="rtl" className="font-['Almarai']">
                 <div className="space-y-0.5 pr-0 [direction:rtl]">
                   <div className="flex gap-1.5 text-right"><span className="shrink-0 w-3">١.</span><span>لا يتم إرجاع العربون بعد تحرير الفاتورة.</span></div>
@@ -604,6 +613,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   <div className="flex gap-1.5 text-right"><span className="shrink-0 w-3">٤.</span><span>يخصم على العميل قيمة غسيل فستان الملكة ٢٠٠ ريال، وغسيل الميل ٢٠٠ ريال.</span></div>
                 </div>
               </div>
+              )}
             </div>
           </div>
         )}

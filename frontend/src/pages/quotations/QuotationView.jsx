@@ -319,7 +319,7 @@ export default function QuotationView() {
             language={language}
             templateId={templateId}
             bilingual={resolveInvoiceBilingual(tenant, true)}
-            secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || 'ar'}
+            secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
             documentType="quotation"
           />
         </div>

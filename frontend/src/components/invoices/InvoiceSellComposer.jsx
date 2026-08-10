@@ -1319,7 +1319,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             language={language}
             templateId={selectedTemplateId}
             bilingual={resolveInvoiceBilingual(tenant, previewInvoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction'].includes(previewInvoice?.businessContext))}
-            secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || 'ar'}
+            secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
           />
         </div>
       </div>

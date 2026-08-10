@@ -1,5 +1,6 @@
 import React from 'react'
 import { CURRENCY_CODE, formatCurrencyAmount } from '../../lib/currency'
+import { getInvoiceSecondaryLanguage, resolveInvoiceBilingual } from '../../lib/invoiceLanguage'
 
 // ─── Formatters & Helpers ─────────────────────────────────────────────────────
 
@@ -393,6 +394,8 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
   const vatNumber = tenant?.business?.vatNumber || tenant?.business?.vatCertificate?.vatNumber || '—'
   const location = tenant?.business?.city ? `${tenant.business.city}, Saudi Arabia` : 'Saudi Arabia'
   const logo = tenant?.branding?.logo
+  const secondaryLanguage = getInvoiceSecondaryLanguage(tenant)
+  const showSecondaryAr = resolveInvoiceBilingual(tenant, true) && secondaryLanguage === 'ar'
 
   const startDate = report?.period?.startDate || (Array.isArray(report) && report[0]?._id)
   const endDate = report?.period?.endDate || (Array.isArray(report) && report[report.length - 1]?._id)
@@ -407,7 +410,7 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
           <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: kpi.color || primaryColor }} />
           <div>
             <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">{kpi.labelEn}</div>
-            {kpi.labelAr && <div className="text-[10px] text-slate-600 font-medium mt-0.5 leading-tight">{kpi.labelAr}</div>}
+            {showSecondaryAr && kpi.labelAr && <div className="text-[10px] text-slate-600 font-medium mt-0.5 leading-tight">{kpi.labelAr}</div>}
           </div>
           <div className="text-base font-extrabold text-slate-900 mt-2 tracking-tight tabular-nums">{kpi.value}</div>
         </div>
@@ -420,7 +423,7 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
       <div className="w-1 h-5 rounded-full" style={{ backgroundColor: primaryColor }} />
       <div className="flex items-baseline gap-2">
         <h2 className="text-sm font-bold text-slate-900">{number}. {titleEn}</h2>
-        {titleAr && <span className="text-xs font-semibold text-slate-600">/ {titleAr}</span>}
+        {showSecondaryAr && titleAr && <span className="text-xs font-semibold text-slate-600">/ {titleAr}</span>}
       </div>
     </div>
   )
@@ -433,7 +436,7 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
           <div className="text-xs font-bold text-slate-800">OFFICIAL VERIFIED REPORT</div>
         </div>
-        <div className="text-[11px] font-semibold text-slate-600 mt-0.5">وثيقة تدقيق رسمية معتمدة من النظام</div>
+        {showSecondaryAr && <div className="text-[11px] font-semibold text-slate-600 mt-0.5">وثيقة تدقيق رسمية معتمدة من النظام</div>}
         <div className="text-[10px] text-slate-500 mt-2 leading-relaxed">
           Generated automatically via Maqder ERP Enterprise Financial Reporting Engine. ZATCA Phase 2 Standard Compliant.
         </div>
@@ -445,7 +448,7 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
           <div key={i} className={`flex justify-between items-center py-1 ${r.isHighlight ? 'bg-slate-200/60 -mx-2 px-2 rounded font-bold text-slate-900' : 'text-slate-700 text-xs'}`}>
             <div>
               <div className="font-semibold text-[11px]">{r.labelEn}</div>
-              <div className="text-[10px] text-slate-500">{r.labelAr}</div>
+              {showSecondaryAr && <div className="text-[10px] text-slate-500">{r.labelAr}</div>}
             </div>
             <div className={`tabular-nums ${r.isHighlight ? 'text-sm font-extrabold text-slate-900' : 'font-medium'}`}>{r.value}</div>
           </div>
@@ -816,23 +819,23 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
                 <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-semibold">
                   <th className="py-2.5 px-3">
                     <div>Invoice Number</div>
-                    <div className="text-[10px] text-slate-500 font-normal">رقم الفاتورة</div>
+                    {showSecondaryAr && <div className="text-[10px] text-slate-500 font-normal">رقم الفاتورة</div>}
                   </th>
                   <th className="py-2.5 px-3">
                     <div>Issue Date</div>
-                    <div className="text-[10px] text-slate-500 font-normal">تاريخ الإصدار</div>
+                    {showSecondaryAr && <div className="text-[10px] text-slate-500 font-normal">تاريخ الإصدار</div>}
                   </th>
                   <th className="py-2.5 px-3">
                     <div>Customer</div>
-                    <div className="text-[10px] text-slate-500 font-normal">العميل</div>
+                    {showSecondaryAr && <div className="text-[10px] text-slate-500 font-normal">العميل</div>}
                   </th>
                   <th className="py-2.5 px-3 text-right">
                     <div>Amount (SAR)</div>
-                    <div className="text-[10px] text-slate-500 font-normal">المبلغ</div>
+                    {showSecondaryAr && <div className="text-[10px] text-slate-500 font-normal">المبلغ</div>}
                   </th>
                   <th className="py-2.5 px-3">
                     <div>Cancellation Reason</div>
-                    <div className="text-[10px] text-slate-500 font-normal">سبب الإلغاء</div>
+                    {showSecondaryAr && <div className="text-[10px] text-slate-500 font-normal">سبب الإلغاء</div>}
                   </th>
                 </tr>
               </thead>
@@ -1041,18 +1044,18 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
             )}
             <div className="space-y-1">
               <div className="text-base font-extrabold text-slate-900 leading-tight">
-                {companyEn} {companyAr && <span className="font-semibold text-slate-700">/ {companyAr}</span>}
+                {companyEn} {showSecondaryAr && companyAr && <span className="font-semibold text-slate-700">/ {companyAr}</span>}
               </div>
               <div className="text-xs text-slate-600 flex items-center gap-2">
-                <span className="font-medium text-slate-500">CR No. / السجل التجاري:</span>
+                <span className="font-medium text-slate-500">{showSecondaryAr ? 'CR No. / السجل التجاري:' : 'CR No.:'}</span>
                 <span className="font-semibold text-slate-800">{crNumber}</span>
               </div>
               <div className="text-xs text-slate-600 flex items-center gap-2">
-                <span className="font-medium text-slate-500">VAT TRN / الرقم الضريبي:</span>
+                <span className="font-medium text-slate-500">{showSecondaryAr ? 'VAT TRN / الرقم الضريبي:' : 'VAT TRN:'}</span>
                 <span className="font-semibold text-slate-800">{vatNumber}</span>
               </div>
               <div className="text-xs text-slate-600 flex items-center gap-2">
-                <span className="font-medium text-slate-500">Location / الموقع:</span>
+                <span className="font-medium text-slate-500">{showSecondaryAr ? 'Location / الموقع:' : 'Location:'}</span>
                 <span className="font-semibold text-slate-800">{location}</span>
               </div>
             </div>
@@ -1061,7 +1064,7 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
           {/* Right Column: Report Meta & Document Details */}
           <div className="text-right space-y-1.5 max-w-[45%]">
             <h1 className="text-base font-black text-slate-900 tracking-tight leading-tight">{meta.titleEn}</h1>
-            <div className="text-xs font-bold text-slate-700">{meta.titleAr}</div>
+            {showSecondaryAr && <div className="text-xs font-bold text-slate-700">{meta.titleAr}</div>}
 
             <div className="inline-block mt-1">
               <span
@@ -1072,7 +1075,7 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
                   backgroundColor: '#f8fafc',
                 }}
               >
-                {meta.badgeEn} / {meta.badgeAr}
+                {showSecondaryAr ? `${meta.badgeEn} / ${meta.badgeAr}` : meta.badgeEn}
               </span>
             </div>
 

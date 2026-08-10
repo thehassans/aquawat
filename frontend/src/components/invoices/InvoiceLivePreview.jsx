@@ -329,8 +329,9 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
 }
 
 export default function InvoiceLivePreview({ invoice, tenant, language = 'en', templateId = 1, bilingual = false, secondaryLanguage, currencyRenderMode = 'icon', currencyDisplay, currencyPosition, documentType = 'invoice' }) {
-  const resolvedSecondaryLanguage = secondaryLanguage === 'ur' ? 'ur' : 'ar'
+  const resolvedSecondaryLanguage = ['ur', 'bn', 'ar'].includes(secondaryLanguage) ? secondaryLanguage : null
   setActiveInvoiceSecondaryLanguage(resolvedSecondaryLanguage)
+  const secondaryDir = resolvedSecondaryLanguage === 'bn' ? 'ltr' : 'rtl'
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   const resolvedCurrency = getInvoiceCurrencyDisplay(tenant)
@@ -384,7 +385,9 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const amountInWordsLines = bilingual
     ? uniqueLines(
         getAmountInWords(totals.grandTotal, currency, 'en'),
-        getAmountInWords(totals.grandTotal, currency, resolvedSecondaryLanguage),
+        (resolvedSecondaryLanguage && resolvedSecondaryLanguage !== 'bn')
+          ? getAmountInWords(totals.grandTotal, currency, resolvedSecondaryLanguage)
+          : '',
       )
     : [getAmountInWords(totals.grandTotal, currency, language)]
   const hideTaxOnInvoice = isTravelInvoice && toNumber(totals.totalTax) <= 0
@@ -401,7 +404,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
     return (
       <span className="flex flex-col gap-1 leading-tight">
         <span className={uppercaseEnglish ? 'uppercase tracking-[0.2em]' : ''}>{english}</span>
-        <span dir="rtl" className="tracking-normal normal-case">{localizeSecondaryText(arabic)}</span>
+        <span dir={secondaryDir} className="tracking-normal normal-case">{localizeSecondaryText(arabic)}</span>
       </span>
     )
   }
@@ -504,7 +507,9 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const titleText = 'text-slate-900'
   const bilingualFontFamily = resolvedSecondaryLanguage === 'ur'
     ? '"Noto Nastaliq Urdu", "InvoiceAlmarai", "Almarai", Arial, Helvetica, sans-serif'
-    : '"InvoiceAlmarai", "Almarai", Arial, Helvetica, sans-serif'
+    : resolvedSecondaryLanguage === 'bn'
+      ? '"Noto Sans Bengali", "Noto Sans", Arial, Helvetica, sans-serif'
+      : '"InvoiceAlmarai", "Almarai", Arial, Helvetica, sans-serif'
   const shellStyle = {
     fontFamily: bilingual ? bilingualFontFamily : getInvoiceCssFontFamily(typography.bodyFontFamily),
     fontSize: `${typography.bodyFontSize || 12}px`,
@@ -576,7 +581,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   if (!isTravelInvoice) {
     switch (Number(templateId)) {
       case 1:
-        return <ModernZatcaTemplate invoice={invoice} tenant={tenant} language={language} bilingual={bilingual} documentType={documentType} />
+        return <ModernZatcaTemplate invoice={invoice} tenant={tenant} language={language} bilingual={bilingual} secondaryLanguage={resolvedSecondaryLanguage} documentType={documentType} />
       case 2:
         return <ModernTemplate invoice={invoice} tenant={tenant} language={language} bilingual={bilingual} documentType={documentType} />
       case 3:

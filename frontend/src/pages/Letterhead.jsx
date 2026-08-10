@@ -4,12 +4,14 @@ import { Building2, Mail, Phone, Globe, MapPin, Printer } from 'lucide-react';
 import debounce from 'lodash.debounce';
 import api from '../lib/api';
 import { autoTranslateText } from '../lib/builtInTranslator';
+import { getInvoiceSecondaryLanguage } from '../lib/invoiceLanguage';
 
 export default function Letterhead() {
   const { tenant } = useSelector((state) => state.auth);
   const uiLanguage = useSelector((state) => state.ui.language);
+  const invoiceSecondary = getInvoiceSecondaryLanguage(tenant);
   
-  const [outputLang, setOutputLang] = useState('both'); // 'en', 'ar', 'both'
+  const [outputLang, setOutputLang] = useState(() => (invoiceSecondary === 'ar' ? 'both' : 'en')); // 'en', 'ar', 'both'
   const [contentEn, setContentEn] = useState('');
   const [contentAr, setContentAr] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));

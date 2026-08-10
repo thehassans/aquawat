@@ -301,7 +301,7 @@ export default function Settings() {
     setDefaultCurrency(String(tenant.settings?.currency || CURRENCY_CODE).toUpperCase())
     setInvoiceCurrencyDisplay(tenant.settings?.invoiceCurrencyDisplay === 'icon' ? 'icon' : 'text')
     setInvoiceCurrencyPosition(tenant.settings?.invoiceCurrencyPosition === 'before' ? 'before' : 'after')
-    setInvoiceLanguage(['en', 'en_ar', 'en_ur'].includes(tenant.settings?.invoiceLanguage) ? tenant.settings.invoiceLanguage : 'auto')
+    setInvoiceLanguage(['en', 'en_ar', 'en_ur', 'en_bn'].includes(tenant.settings?.invoiceLanguage) ? tenant.settings.invoiceLanguage : 'auto')
     setInvoiceLogoDataUrl(tenant.settings?.invoiceBranding?.logo || tenant.branding?.logo || null)
     setStampDataUrl(tenant.settings?.invoiceBranding?.presetStamp || tenant.settings?.invoiceBranding?.stampImage || null)
     setSignatureDataUrl(tenant.settings?.invoiceBranding?.presetSignature || tenant.settings?.invoiceBranding?.signatureImage || null)
@@ -1254,8 +1254,8 @@ export default function Settings() {
                       </select>
                       <p className="text-[10px] text-gray-500 mt-1">
                         {language === 'ar'
-                          ? 'يحدد اللغة الثانية بجانب الإنجليزية في الفواتير وعروض الأسعار. "تلقائي" يختار العربية للريال السعودي، والأردية للروبية الباكستانية، والإنجليزية فقط لباقي العملات.'
-                          : 'Controls the second language on invoices & quotations. "Auto" picks Arabic for SAR, Urdu for PKR, English for BDT and other currencies.'}
+                          ? 'يحدد اللغة الثانية بجانب الإنجليزية في الفواتير وعروض الأسعار والخطابات والتقارير. "تلقائي" يستخدم العربية لدول الخليج فقط، والأردية للروبية، والبنغالية للتاكا؛ وإلا الإنجليزية فقط.'
+                          : 'Controls the second language on invoices, quotations, letterheads & reports. "Auto" uses Arabic only for GCC (SAR/OMR/KWD/QAR/BHD/AED), Urdu for PKR, Bangla for BDT; otherwise English only.'}
                       </p>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
