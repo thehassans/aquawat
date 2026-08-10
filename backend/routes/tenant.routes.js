@@ -2,6 +2,7 @@ import express from 'express';
 import Tenant from '../models/Tenant.js';
 import { protect, authorize, invalidateAuthCache } from '../middleware/auth.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
+import { hasPremiumTemplateAccess, ESSENTIAL_TEMPLATE_ID, MAX_TEMPLATE_ID } from '../utils/premiumTemplates.js';
 import zlib from 'zlib';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -120,6 +121,12 @@ router.put('/current', authorize('admin'), async (req, res) => {
       return res.status(404).json({ error: 'Tenant not found' });
     }
 
+    // Snapshot premium template entitlement BEFORE any settings are merged
+    // in, so a request can't grant itself access by setting the template id
+    // and having that very same (not-yet-saved) field read back as "already
+    // premium".
+    const hadPremiumTemplateAccess = hasPremiumTemplateAccess(tenant);
+
     // Merge business fields instead of replacing entire object
     if (business) {
       tenant.business = {
@@ -227,6 +234,30 @@ router.put('/current', authorize('admin'), async (req, res) => {
     } else if (settings?.invoiceBranding?.logo !== undefined) {
       if (!tenant.branding) tenant.branding = {};
       tenant.branding.logo = settings.invoiceBranding.logo;
+    }
+
+    // Templates 2-8 require the "Premium Invoice & Quotation Templates" App
+    // Store add-on. Clamp any attempt to set a locked template back to the
+    // free Essential template (1) instead of trusting the client. Uses the
+    // pre-merge entitlement snapshot so this can't be self-granted in the
+    // same request.
+    if (settings) {
+      const clampAgainstPriorAccess = (value) => {
+        const numeric = Number(value);
+        const safe = Number.isFinite(numeric) ? Math.min(MAX_TEMPLATE_ID, Math.max(1, numeric)) : ESSENTIAL_TEMPLATE_ID;
+        return safe === ESSENTIAL_TEMPLATE_ID || hadPremiumTemplateAccess ? safe : ESSENTIAL_TEMPLATE_ID;
+      };
+      if (tenant.settings.invoicePdfTemplate !== undefined) {
+        tenant.settings.invoicePdfTemplate = clampAgainstPriorAccess(tenant.settings.invoicePdfTemplate);
+      }
+      const contextProfiles = tenant.settings?.invoiceBranding?.contextProfiles;
+      if (contextProfiles && typeof contextProfiles === 'object') {
+        for (const key of Object.keys(contextProfiles)) {
+          if (contextProfiles[key]?.templateId !== undefined) {
+            contextProfiles[key].templateId = clampAgainstPriorAccess(contextProfiles[key].templateId);
+          }
+        }
+      }
     }
 
     if (businessType || businessTypes) {

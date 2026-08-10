@@ -3,6 +3,7 @@ import { protect } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import { AppAddon } from '../models/AppAddon.js';
 import { normalizeBusinessTypes } from '../utils/businessTypes.js';
+import { PREMIUM_TEMPLATE_APP_ID as PREMIUM_INVOICE_TEMPLATES_APP_ID, hasPremiumTemplateAccess, ESSENTIAL_TEMPLATE_ID } from '../utils/premiumTemplates.js';
 
 const router = express.Router();
 
@@ -1339,6 +1340,42 @@ export const DEFAULT_APP_CATALOG = [
       { key: 'etimadUsername', labelEn: 'Etimad Portal Username', labelAr: 'اسم مستخدم بوابة اعتماد', type: 'text', defaultValue: '' },
       { key: 'etimadPassword', labelEn: 'Etimad Portal Password', labelAr: 'كلمة مرور بوابة اعتماد', type: 'password', defaultValue: '' }
     ]
+  },
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── DOCUMENT DESIGN ADD-ONS ────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════════
+  {
+    appId: PREMIUM_INVOICE_TEMPLATES_APP_ID,
+    nameEn: 'Premium Invoice & Quotation Templates',
+    nameAr: 'قوالب الفواتير وعروض الأسعار المميزة',
+    taglineEn: 'Unlock 7 additional professionally designed PDF templates',
+    taglineAr: 'افتح 7 قوالب PDF احترافية إضافية للفواتير وعروض الأسعار',
+    descriptionEn: 'Give your invoices and quotations a distinctive, professional identity. This add-on unlocks the full design library — Modern, Mono, Air, Ledger, Signature, Classic Elegant and Modern Split — on top of the free Essential template. Switch templates anytime from Settings without losing your logo, stamp, signature or bilingual Arabic layout.',
+    descriptionAr: 'امنح فواتيرك وعروض أسعارك هوية احترافية مميزة. تفتح هذه الإضافة مكتبة التصميم الكاملة (حديث، أحادي، هواء، سجل، توقيع، كلاسيكي أنيق، وحديث منقسم) بالإضافة إلى القالب الأساسي المجاني. بدّل بين القوالب في أي وقت من الإعدادات دون فقدان شعارك أو ختمك أو توقيعك أو التصميم العربي ثنائي اللغة.',
+    category: 'finance_accounting',
+    appType: 'premium_addon',
+    icon: 'file-text',
+    version: '1.0.0',
+    downloadSize: '3.2 MB',
+    author: 'Maqder Core',
+    rating: 4.95,
+    reviewsCount: 156,
+    pricingTier: 'free',
+    badge: 'Design Pack',
+    defaultRoute: '/app/dashboard/settings',
+    featuresEn: [
+      '7 additional professional PDF templates: Modern, Mono, Air, Ledger, Signature, Classic Elegant & Modern Split',
+      'Full bilingual Arabic/English layout support on every template',
+      'Switch templates instantly from Settings — applies to invoices, quotations & PDF exports',
+      'Keeps your logo, stamp, signature and brand colors intact'
+    ],
+    featuresAr: [
+      '7 قوالب PDF احترافية إضافية: حديث، أحادي، هواء، سجل، توقيع، كلاسيكي أنيق، وحديث منقسم',
+      'دعم كامل للتصميم ثنائي اللغة عربي/إنجليزي على كل قالب',
+      'بدّل القوالب فورًا من الإعدادات - تنطبق على الفواتير وعروض الأسعار وملفات PDF',
+      'يحافظ على شعارك وختمك وتوقيعك وألوان علامتك التجارية'
+    ],
+    configSchema: []
   }
 ];
 
@@ -1406,7 +1443,11 @@ router.get('/apps', protect, async (req, res) => {
     const appsWithStatus = finalApps.map((app) => {
       const defApp = defaultCatalogMap.get(app.appId);
       const isExplicitlyInstalled = !!tenantInstalled[app.appId]?.isInstalled;
-      const isInstalled = isExplicitlyInstalled;
+      // Grandfather tenants who already had premium invoice templates
+      // configured before this app-store gating existed, so nothing breaks
+      // retroactively for existing customers.
+      const isGrandfatheredPremiumTemplates = app.appId === PREMIUM_INVOICE_TEMPLATES_APP_ID && !isExplicitlyInstalled && hasPremiumTemplateAccess(tenant);
+      const isInstalled = isExplicitlyInstalled || isGrandfatheredPremiumTemplates;
       const isEnabled = tenantInstalled[app.appId]?.isEnabled !== false;
       const config = tenantInstalled[app.appId]?.config || {};
 
@@ -1503,6 +1544,23 @@ router.post('/apps/:appId/uninstall', protect, async (req, res) => {
       installedApps[appId].isInstalled = false;
       installedApps[appId].isEnabled = false;
       installedApps[appId].uninstalledAt = new Date();
+    }
+
+    // Revoke premium PDF templates on uninstall so tenants actually lose
+    // access instead of staying grandfathered in via their prior default.
+    if (appId === PREMIUM_INVOICE_TEMPLATES_APP_ID) {
+      if (!tenant.settings) tenant.settings = {};
+      if (Number(tenant.settings.invoicePdfTemplate) > ESSENTIAL_TEMPLATE_ID) {
+        tenant.settings.invoicePdfTemplate = ESSENTIAL_TEMPLATE_ID;
+      }
+      const contextProfiles = tenant.settings?.invoiceBranding?.contextProfiles;
+      if (contextProfiles && typeof contextProfiles === 'object') {
+        for (const key of Object.keys(contextProfiles)) {
+          if (Number(contextProfiles[key]?.templateId) > ESSENTIAL_TEMPLATE_ID) {
+            contextProfiles[key].templateId = ESSENTIAL_TEMPLATE_ID;
+          }
+        }
+      }
     }
 
     const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find(a => a.appId === appId);

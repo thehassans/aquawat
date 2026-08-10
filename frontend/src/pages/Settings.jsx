@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector, useDispatch } from 'react-redux'
 import { useForm } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Building2, Shield, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid } from 'lucide-react'
+import { Building2, Shield, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid, Lock, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
@@ -12,6 +13,7 @@ import { updateTenant, getMe } from '../store/slices/authSlice'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getInvoiceBrandingProfile, getInvoiceTemplateId, getInvoiceTypography, INVOICE_FONT_OPTIONS } from '../lib/invoiceBranding'
 import { invoiceTemplateOptions } from '../lib/invoiceTemplates'
+import { CURRENCIES, CURRENCY_CODE } from '../lib/currency'
 import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 import { getNavSections } from '../lib/sidebarConfig'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
@@ -204,8 +206,11 @@ function MenuVisibilitySettings() {
   )
 }
 
+const PREMIUM_TEMPLATE_APP_ID = 'premium_invoice_templates'
+
 export default function Settings() {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { language, theme, hideSidebar, hiddenMenuItems, displayMode, navigationStyle } = useSelector((state) => state.ui)
   const { user } = useSelector((state) => state.auth)
@@ -224,6 +229,7 @@ export default function Settings() {
   const [khayyatWhatsappLanguage, setKhayyatWhatsappLanguage] = useState('both')
   const [invoiceCurrencyDisplay, setInvoiceCurrencyDisplay] = useState('text')
   const [invoiceCurrencyPosition, setInvoiceCurrencyPosition] = useState('after')
+  const [defaultCurrency, setDefaultCurrency] = useState(CURRENCY_CODE)
   const [invoiceLogoDataUrl, setInvoiceLogoDataUrl] = useState(null)
   const [stampDataUrl, setStampDataUrl] = useState(null)
   const [signatureDataUrl, setSignatureDataUrl] = useState(null)
@@ -278,6 +284,16 @@ export default function Settings() {
     queryFn: () => api.get('/tenants/current').then(res => res.data)
   })
 
+  // Templates 2-8 are bundled inside the "Premium Invoice & Quotation
+  // Templates" App Store add-on. Existing tenants who already had a
+  // non-essential template configured are grandfathered in automatically.
+  const premiumTemplateApp = tenant?.settings?.installedApps?.[PREMIUM_TEMPLATE_APP_ID]
+  const hasPremiumTemplates = Boolean(
+    (premiumTemplateApp?.isInstalled && premiumTemplateApp?.isEnabled !== false) ||
+    Number(tenant?.settings?.invoicePdfTemplate) > 1 ||
+    Object.values(tenant?.settings?.invoiceBranding?.contextProfiles || {}).some((p) => Number(p?.templateId) > 1)
+  )
+
   useEffect(() => {
     if (!tenant) return
 
@@ -291,6 +307,7 @@ export default function Settings() {
     setInvoicePdfOrientation(tenant.settings?.invoicePdfOrientation || 'portrait')
     setInvoiceSequencePattern(tenant.settings?.invoiceSequencePattern || 'RCPT-{N}')
     setKhayyatWhatsappLanguage(tenant.settings?.khayyat?.whatsappLanguage || 'both')
+    setDefaultCurrency(String(tenant.settings?.currency || CURRENCY_CODE).toUpperCase())
     setInvoiceCurrencyDisplay(tenant.settings?.invoiceCurrencyDisplay === 'icon' ? 'icon' : 'text')
     setInvoiceCurrencyPosition(tenant.settings?.invoiceCurrencyPosition === 'before' ? 'before' : 'after')
     setInvoiceLogoDataUrl(tenant.settings?.invoiceBranding?.logo || tenant.branding?.logo || null)
@@ -952,23 +969,54 @@ export default function Settings() {
               <div className="space-y-8">
                 {/* Default Invoice Template */}
                 <div>
-                  <label className="label flex items-center gap-2 mb-4">{language === 'ar' ? 'القالب الافتراضي للفواتير' : 'Default Invoice Template'}</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    {invoiceTemplateOptions.map((tpl) => (
-                      <div 
-                        key={tpl.id}
-                        onClick={() => setInvoicePdfTemplate(tpl.id)}
-                        className={`cursor-pointer rounded-2xl border-2 transition-all p-4 ${invoicePdfTemplate === tpl.id ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-600 hover:border-gray-300 dark:hover:border-dark-500'}`}
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="label flex items-center gap-2 mb-0">{language === 'ar' ? 'القالب الافتراضي للفواتير' : 'Default Invoice Template'}</label>
+                    {!hasPremiumTemplates && (
+                      <button
+                        type="button"
+                        onClick={() => navigate('/app/dashboard/app-store')}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                       >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        {language === 'ar' ? 'افتح جميع القوالب من متجر التطبيقات' : 'Unlock all templates from the App Store'}
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    {invoiceTemplateOptions.map((tpl) => {
+                      const isLocked = tpl.id > 1 && !hasPremiumTemplates
+                      return (
+                      <div
+                        key={tpl.id}
+                        onClick={() => {
+                          if (isLocked) {
+                            toast.error(language === 'ar'
+                              ? 'قم بتثبيت إضافة "قوالب الفواتير المميزة" من متجر التطبيقات لاستخدام هذا القالب'
+                              : 'Install the "Premium Invoice Templates" add-on from the App Store to use this template')
+                            navigate('/app/dashboard/app-store')
+                            return
+                          }
+                          setInvoicePdfTemplate(tpl.id)
+                        }}
+                        className={`relative cursor-pointer rounded-2xl border-2 transition-all p-4 ${invoicePdfTemplate === tpl.id ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-600 hover:border-gray-300 dark:hover:border-dark-500'} ${isLocked ? 'opacity-70' : ''}`}
+                      >
+                        {isLocked && (
+                          <span className="absolute top-3 end-3 inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-900/80 text-white dark:bg-white/10">
+                            <Lock className="w-3 h-3" />
+                          </span>
+                        )}
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-bold text-sm text-gray-900 dark:text-white">{language === 'ar' ? tpl.nameAr : tpl.nameEn}</span>
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${invoicePdfTemplate === tpl.id ? 'border-primary-500' : 'border-gray-300'}`}>
-                            {invoicePdfTemplate === tpl.id && <div className="w-2.5 h-2.5 bg-primary-500 rounded-full" />}
-                          </div>
+                          {!isLocked && (
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${invoicePdfTemplate === tpl.id ? 'border-primary-500' : 'border-gray-300'}`}>
+                              {invoicePdfTemplate === tpl.id && <div className="w-2.5 h-2.5 bg-primary-500 rounded-full" />}
+                            </div>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{language === 'ar' ? tpl.descriptionAr : tpl.descriptionEn}</p>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
 
                   <div className="border border-gray-200 dark:border-dark-600 rounded-2xl p-6 bg-gray-50/50 dark:bg-dark-800/50">
@@ -1230,6 +1278,21 @@ export default function Settings() {
                 <div className="pt-2">
                   <label className="label flex items-center gap-2"><FileText className="w-4 h-4" />{language === 'ar' ? 'تصميم PDF للفواتير' : 'Invoice PDF Design'}</label>
                   <div className="card-glass p-4 mt-2">
+                    <div>
+                      <label className="text-xs text-gray-500 dark:text-gray-400">{language === 'ar' ? 'العملة الافتراضية' : 'Default Currency'}</label>
+                      <select value={defaultCurrency} onChange={(e) => setDefaultCurrency(e.target.value)} className="select mt-1 w-full md:w-1/2">
+                        {CURRENCIES.map((cur) => (
+                          <option key={cur.code} value={cur.code}>
+                            {language === 'ar' ? `${cur.nameAr} (${cur.code})` : `${cur.nameEn} (${cur.code})`}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        {language === 'ar'
+                          ? 'تُستخدم هذه العملة كافتراضي في كل صفحات النظام. ملاحظة: تتطلب فاتورة زاتكا الإلكترونية الريال السعودي.'
+                          : 'Used as the default currency across the app. Note: ZATCA e-invoicing requires SAR.'}
+                      </p>
+                    </div>
                     <div className="mt-3">
                       <label className="text-xs text-gray-500 dark:text-gray-400">{language === 'ar' ? 'عرض العملة' : 'Currency Display'}</label>
                       <select value={invoiceCurrencyDisplay} onChange={(e) => setInvoiceCurrencyDisplay(e.target.value === 'icon' ? 'icon' : 'text')} className="select mt-1 w-full md:w-1/2">
@@ -1355,6 +1418,7 @@ export default function Settings() {
                     onClick={() => updateMutation.mutate({
                       settings: {
                         ...(tenant?.settings || {}),
+                        currency: defaultCurrency,
                         invoicePdfTemplate,
                         invoicePdfPageSize,
                         invoicePdfOrientation,

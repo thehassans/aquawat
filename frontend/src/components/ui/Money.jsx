@@ -1,5 +1,5 @@
 import { useSelector } from 'react-redux'
-import { formatCurrency, formatCurrencyAmount, isSarCurrency } from '../../lib/currency'
+import { formatCurrency, formatCurrencyAmount, isSarCurrency, CURRENCY_CODE } from '../../lib/currency'
 import { getInvoiceCurrencyDisplay } from '../../lib/invoiceBranding'
 import SarIcon from './SarIcon'
 
@@ -43,7 +43,7 @@ export default function Money({
   iconClassName = '',
   minimumFractionDigits,
   maximumFractionDigits,
-  currency = 'SAR',
+  currency: currencyProp,
   language: providedLanguage,
   display,
   position,
@@ -51,6 +51,10 @@ export default function Money({
   const { language: storeLanguage } = useSelector((state) => state.ui)
   const tenant = useSelector((state) => state.auth?.tenant)
   const language = providedLanguage || storeLanguage
+  // Falls back to the tenant's configured default currency (Settings ->
+  // Preferences) so amounts across the app follow the tenant's choice
+  // whenever a specific record doesn't carry its own currency.
+  const currency = currencyProp || tenant?.settings?.currency || CURRENCY_CODE
   const resolved = getInvoiceCurrencyDisplay(tenant)
   const effectiveDisplay = display || resolved.display
   const effectivePosition = position || resolved.position

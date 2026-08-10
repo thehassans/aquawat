@@ -10,6 +10,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import SarIcon from '../../components/ui/SarIcon'
 import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes, normalizeBusinessTypes } from '../../lib/businessTypes'
+import { CURRENCIES, CURRENCY_CODE } from '../../lib/currency'
 
 export default function TenantForm() {
   const { id } = useParams()
@@ -101,6 +102,9 @@ export default function TenantForm() {
         accentColor: '#38bdf8'
       },
       business: {},
+      settings: {
+        currency: CURRENCY_CODE,
+      },
       subscription: {
         plan: 'starter',
         status: 'active',
@@ -324,6 +328,22 @@ export default function TenantForm() {
                 <option value={1}>{language === 'ar' ? 'المرحلة الأولى' : 'Phase 1'}</option>
                 <option value={2}>{language === 'ar' ? 'المرحلة الثانية' : 'Phase 2'}</option>
               </select>
+            </div>
+
+            <div>
+              <label className="label">{language === 'ar' ? 'العملة الافتراضية' : 'Default Currency'}</label>
+              <select {...register('settings.currency')} defaultValue={CURRENCY_CODE} className="select">
+                {CURRENCIES.map((cur) => (
+                  <option key={cur.code} value={cur.code}>
+                    {language === 'ar' ? `${cur.nameAr} (${cur.code})` : `${cur.nameEn} (${cur.code})`}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {language === 'ar'
+                  ? 'تحدد هذه العملة كافتراضية لجميع صفحات هذا المستأجر.'
+                  : 'Sets the default currency used across all pages for this tenant.'}
+              </p>
             </div>
 
             <div>

@@ -23,6 +23,7 @@ import { autoSendInvoice, sendInvoiceToRecipient } from '../utils/tenantEmailSer
 import { buildInvoicePdfAttachment } from '../utils/invoicePdfService.js';
 import { createInvoiceFromMultipleDNs } from '../controllers/invoiceController.js';
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
+import { clampTemplateId } from '../utils/premiumTemplates.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -38,9 +39,8 @@ function toNumber(value, fallback = 0) {
 function resolvePdfTemplateId(requestedTemplateId, tenant, businessContext = 'trading') {
   const normalizedContext = ['trading', 'construction', 'travel_agency'].includes(businessContext) ? businessContext : 'trading';
   const contextTemplateId = tenant?.settings?.invoiceBranding?.contextProfiles?.[normalizedContext]?.templateId;
-  const value = Number(requestedTemplateId || contextTemplateId || tenant?.settings?.invoicePdfTemplate || 1);
-  if (!Number.isFinite(value)) return 1;
-  return Math.min(8, Math.max(1, value));
+  const value = requestedTemplateId || contextTemplateId || tenant?.settings?.invoicePdfTemplate || 1;
+  return clampTemplateId(tenant, value);
 }
 
 function resolvePaymentStatus(invoiceData) {

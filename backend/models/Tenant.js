@@ -336,7 +336,7 @@ const tenantSchema = new mongoose.Schema({
     khayyat: {
       whatsappLanguage: { type: String, enum: ['ar', 'en', 'both'], default: 'both' }
     },
-    invoicePdfTemplate: { type: Number, default: 1, min: 1, max: 6 },
+    invoicePdfTemplate: { type: Number, default: 1, min: 1, max: 8 },
     invoicePdfPageSize: { type: String, enum: ['a4', 'letter', 'a5'], default: 'a4' },
     invoicePdfOrientation: { type: String, enum: ['portrait', 'landscape'], default: 'portrait' },
     // How SAR is rendered next to amounts on invoices and PDFs.
