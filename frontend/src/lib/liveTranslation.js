@@ -40,7 +40,20 @@ export const useLiveTranslation = ({
       timerRef.current = null
     }
 
-    if (!s || s.length < minLength) return
+    if (!s) {
+      // Source was cleared (e.g. user backspaced the whole name). If the
+      // target still holds exactly what we auto-translated into it, clear it
+      // too so both language fields empty out together. If the user typed
+      // the target independently, leave it alone.
+      if (t && t === String(lastAutoResultRef.current || '').trim()) {
+        lastAutoSourceRef.current = ''
+        lastAutoResultRef.current = ''
+        setValue(targetField, '', { shouldDirty: true, shouldValidate: false, shouldTouch: false })
+      }
+      return
+    }
+
+    if (s.length < minLength) return
 
     if (s === String(lastAutoSourceRef.current || '').trim() && t === String(lastAutoResultRef.current || '').trim()) {
       return

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, Receipt, Edit, Printer, Utensils, History, Clock, Calendar, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import { Search, Receipt, Edit, Printer, Utensils, History, Clock, Calendar, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import api from '../../lib/api'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { useTranslation } from '../../lib/translations'
@@ -67,10 +67,6 @@ export default function RestaurantOrders() {
             {language === 'ar' ? 'إدارة الطلبات والمدفوعات' : 'Manage orders and payments seamlessly'}
           </p>
         </div>
-        <Link to="/app/dashboard/restaurant/orders/new" className="relative z-10 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-amber-500/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0">
-          <Plus className="w-5 h-5" />
-          {language === 'ar' ? 'طلب جديد' : 'New Order'}
-        </Link>
       </div>
 
       <div className="bg-white/60 dark:bg-dark-800/60 backdrop-blur-xl p-4 sm:p-5 rounded-3xl shadow-sm border border-white/50 dark:border-white/5">

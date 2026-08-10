@@ -1315,6 +1315,112 @@ const AR_NAMES = {
   "روان": "Rawan"
 };
 
+// English proper names -> canonical Arabic spelling. Built from the reverse of
+// AR_NAMES plus common alternate English transliterations, so everyday names
+// (e.g. "Hassan") translate to their correct, natural Arabic spelling instead
+// of being run through the generic letter-by-letter phonetic engine below.
+const EN_NAMES = {};
+Object.entries(AR_NAMES).forEach(([ar, en]) => {
+  const key = en.toLowerCase();
+  if (!EN_NAMES[key]) EN_NAMES[key] = ar;
+});
+Object.assign(EN_NAMES, {
+  "muhammad": "محمد",
+  "mohammad": "محمد",
+  "mohamed": "محمد",
+  "ahmad": "أحمد",
+  "hasan": "حسن",
+  "hussain": "حسين",
+  "husain": "حسين",
+  "khaled": "خالد",
+  "abdallah": "عبدالله",
+  "abdulla": "عبدالله",
+  "abdurrahman": "عبدالرحمن",
+  "fahd": "فهد",
+  "faysal": "فيصل",
+  "nasir": "ناصر",
+  "mansur": "منصور",
+  "said": "سعيد",
+  "umar": "عمر",
+  "uthman": "عثمان",
+  "yousef": "يوسف",
+  "yusuf": "يوسف",
+  "yasir": "ياسر",
+  "tarek": "طارق",
+  "majid": "ماجد",
+  "walid": "وليد",
+  "salih": "صالح",
+  "fatimah": "فاطمة",
+  "mariam": "مريم",
+  "miriam": "مريم",
+  "nora": "نورة",
+  "norah": "نورة",
+  "sarah": "سارة",
+  "rim": "ريم",
+  "muna": "منى",
+  "abir": "عبير",
+  "kholoud": "خلود",
+  "khulood": "خلود",
+  "mishal": "مشعل",
+  "abdulkarim": "عبدالكريم",
+  "abdulmajeed": "عبدالمجيد",
+  "abdulmajid": "عبدالمجيد",
+  "rashid": "راشد",
+  "rashed": "راشد",
+  "hamad": "حمد",
+  "hamad ": "حمد",
+  "jaber": "جابر",
+  "jabir": "جابر",
+  "talal": "طلال",
+  "badr": "بدر",
+  "nawaf": "نواف",
+  "fawaz": "فواز",
+  "sami": "سامي",
+  "ziad": "زياد",
+  "amjad": "أمجد",
+  "anas": "أنس",
+  "karim": "كريم",
+  "kareem": "كريم",
+  "yazan": "يزن",
+  "adel": "عادل",
+  "emad": "عماد",
+  "imad": "عماد",
+  "bassam": "بسام",
+  "rami": "رامي",
+  "nabil": "نبيل",
+  "hisham": "هشام",
+  "bilal": "بلال",
+  "hamza": "حمزة",
+  "zaid": "زيد",
+  "zayd": "زيد",
+  "malik": "مالك",
+  "aziz": "عزيز",
+  "rakan": "راكان",
+  "layla": "ليلى",
+  "laila": "ليلى",
+  "rania": "رانيا",
+  "lama": "لمى",
+  "ghada": "غادة",
+  "latifa": "لطيفة",
+  "basma": "بسمة",
+  "munira": "منيرة",
+  "areej": "أريج",
+  "alia": "عالية",
+  "aliya": "عالية",
+  "nada": "ندى",
+  "rahaf": "رهف",
+  "joud": "جود",
+  "elaf": "إيلاف",
+  "retaj": "رتاج",
+  "renad": "ريناد",
+  "danah": "دانة",
+  "asma": "أسماء",
+  "asmaa": "أسماء",
+  "raghad": "رغد",
+  "wafa": "وفاء",
+  "wafaa": "وفاء"
+});
+
 // ── 3. SMART PHONETIC TRANSLITERATION ENGINE ─────────────────────────────────
 // High-fidelity English-to-Arabic phonetic rules
 const PHONETIC_EN_TO_AR = [
@@ -1370,6 +1476,7 @@ export function transliterateEnToAr(word) {
   if (!word) return '';
   const lower = word.toLowerCase().trim();
   if (DICTIONARY[lower]) return DICTIONARY[lower];
+  if (EN_NAMES[lower]) return EN_NAMES[lower];
   
   let res = lower;
   for (const [pattern, rep] of PHONETIC_EN_TO_AR) {
@@ -1430,6 +1537,13 @@ export function translateEnglishToArabic(text) {
     return cleanTranslation(DICTIONARY[normalized]);
   }
 
+  // 1b. Known proper name match (people's names) — takes priority over the
+  // generic phonetic engine, which cannot reliably guess correct Arabic
+  // spelling for names (e.g. double letters, silent sounds).
+  if (EN_NAMES[normalized]) {
+    return EN_NAMES[normalized];
+  }
+
   // 2. Extract unit/measurement suffix or prefix if present e.g. "Almarai Milk 1L" -> "حليب المراعي 1 لتر"
   let extractedUnitAr = '';
   let cleanedBaseText = trimmed;
@@ -1484,6 +1598,8 @@ export function translateEnglishToArabic(text) {
       translatedTokens.push(words[i]);
     } else if (DICTIONARY[singleWord]) {
       translatedTokens.push(cleanTranslation(DICTIONARY[singleWord]));
+    } else if (EN_NAMES[singleWord]) {
+      translatedTokens.push(EN_NAMES[singleWord]);
     } else {
       // Phonetic transliteration for unknown proper names / brand words
       translatedTokens.push(transliterateEnToAr(words[i]));

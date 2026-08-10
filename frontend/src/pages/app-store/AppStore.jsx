@@ -356,109 +356,137 @@ export default function AppStore() {
         {currentSpotlight && (
           <div className="relative rounded-[2.5rem] p-6 sm:p-10 mb-10 overflow-hidden bg-gradient-to-br from-gray-900 via-gray-900 to-primary-950 text-white shadow-[0_20px_50px_-15px_rgba(0,0,0,0.3)] border border-white/10">
             {/* Ambient Background Glow */}
-            <div className="absolute -top-24 -right-24 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+            <motion.div
+              key={`glow-a-${currentSpotlight.appId}`}
+              className="absolute -top-24 -right-24 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl pointer-events-none"
+              animate={{ scale: [1, 1.15, 1] }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <motion.div
+              className="absolute -bottom-24 -left-24 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+            />
+            {/* Subtle premium grid texture */}
+            <div
+              className="absolute inset-0 opacity-[0.07] pointer-events-none"
+              style={{
+                backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
+                backgroundSize: '36px 36px',
+                maskImage: 'radial-gradient(ellipse 80% 80% at 50% 0%, black 40%, transparent 100%)',
+              }}
+            />
 
-            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              {/* Left Info Column */}
-              <div className="lg:col-span-8 space-y-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-white/10 border border-white/15 text-primary-300 backdrop-blur-md">
-                    ★ {isAr ? 'تطبيق مميز' : 'Featured Spotlight'}
-                  </span>
-                  {currentSpotlight.badge && (
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 border border-amber-400/30 text-amber-300 backdrop-blur-md">
-                      {currentSpotlight.badge}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentSpotlight.appId}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
+              >
+                {/* Left Info Column */}
+                <div className="lg:col-span-8 space-y-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-white/10 border border-white/15 text-primary-300 backdrop-blur-md">
+                      ★ {isAr ? 'تطبيق مميز' : 'Featured Spotlight'}
                     </span>
-                  )}
-                  <span className="text-xs text-gray-400 font-medium">
-                    v{currentSpotlight.version || '3.2.0'} • {currentSpotlight.downloadSize || '14.8 MB'}
-                  </span>
-                </div>
-
-                <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-                  {isAr ? currentSpotlight.nameAr : currentSpotlight.nameEn}
-                </h2>
-
-                <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-2xl font-medium">
-                  {isAr ? currentSpotlight.taglineAr : currentSpotlight.taglineEn}
-                </p>
-
-                {/* Key Feature Chips */}
-                <div className="flex flex-wrap gap-2 pt-2">
-                  {(isAr ? currentSpotlight.featuresAr : currentSpotlight.featuresEn)?.slice(0, 3).map((feat, idx) => (
-                    <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs text-gray-200 font-medium">
-                      <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      {feat}
+                    {currentSpotlight.badge && (
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 border border-amber-400/30 text-amber-300 backdrop-blur-md">
+                        {currentSpotlight.badge}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-400 font-medium">
+                      v{currentSpotlight.version || '3.2.0'} • {currentSpotlight.downloadSize || '14.8 MB'}
                     </span>
-                  ))}
-                </div>
+                  </div>
 
-                {/* Action Buttons */}
-                <div className="flex flex-wrap items-center gap-4 pt-4">
-                  {currentSpotlight.isInstalled ? (
+                  <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
+                    {isAr ? currentSpotlight.nameAr : currentSpotlight.nameEn}
+                  </h2>
+
+                  <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-2xl font-medium">
+                    {isAr ? currentSpotlight.taglineAr : currentSpotlight.taglineEn}
+                  </p>
+
+                  {/* Key Feature Chips */}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {(isAr ? currentSpotlight.featuresAr : currentSpotlight.featuresEn)?.slice(0, 3).map((feat, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs text-gray-200 font-medium">
+                        <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        {feat}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap items-center gap-4 pt-4">
+                    {currentSpotlight.isInstalled ? (
+                      <button
+                        onClick={() => currentSpotlight.defaultRoute && navigate(currentSpotlight.defaultRoute)}
+                        className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-white text-gray-900 font-black text-sm hover:bg-gray-100 transition-all shadow-lg hover:shadow-xl active:scale-95"
+                      >
+                        <span>{isAr ? 'فتح مساحة العمل' : 'Launch Workspace'}</span>
+                        <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleStartInstall(currentSpotlight)}
+                        disabled={installMutation.isPending || installingState?.appId === currentSpotlight.appId}
+                        className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-400 hover:to-primary-500 text-white font-black text-sm transition-all shadow-lg shadow-primary-500/25 active:scale-95 disabled:opacity-50"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>{isAr ? 'تثبيت مجاني' : '1-Click Install'}</span>
+                      </button>
+                    )}
+
                     <button
-                      onClick={() => currentSpotlight.defaultRoute && navigate(currentSpotlight.defaultRoute)}
-                      className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-white text-gray-900 font-black text-sm hover:bg-gray-100 transition-all shadow-lg hover:shadow-xl active:scale-95"
+                      onClick={() => setSelectedAppId(currentSpotlight.appId)}
+                      className="px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-sm transition-all backdrop-blur-md"
                     >
-                      <span>{isAr ? 'فتح مساحة العمل' : 'Launch Workspace'}</span>
-                      <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+                      {isAr ? 'تفاصيل التطبيق' : 'View Details'}
                     </button>
-                  ) : (
-                    <button
-                      onClick={() => handleStartInstall(currentSpotlight)}
-                      disabled={installMutation.isPending || installingState?.appId === currentSpotlight.appId}
-                      className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-400 hover:to-primary-500 text-white font-black text-sm transition-all shadow-lg shadow-primary-500/25 active:scale-95 disabled:opacity-50"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>{isAr ? 'تثبيت مجاني' : '1-Click Install'}</span>
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => setSelectedAppId(currentSpotlight.appId)}
-                    className="px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-sm transition-all backdrop-blur-md"
-                  >
-                    {isAr ? 'تفاصيل التطبيق' : 'View Details'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Right Big 3D Icon Presentation */}
-              <div className="lg:col-span-4 flex flex-col items-center justify-center relative">
-                <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-white/10 backdrop-blur-2xl border border-white/20 p-6 flex items-center justify-center shadow-2xl shadow-black/40 group">
-                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary-500/20 to-purple-500/20 animate-pulse" />
-                  <App3DIcon
-                    appId={currentSpotlight.appId}
-                    icon={currentSpotlight.icon}
-                    path={currentSpotlight.defaultRoute}
-                    label={currentSpotlight.nameEn}
-                    className="w-full h-full relative z-10 transition-transform duration-500 group-hover:scale-110 drop-shadow-2xl"
-                  />
+                  </div>
                 </div>
 
-                {/* Spotlight Navigator Dots */}
-                <div className="flex items-center gap-2 mt-6">
-                  {spotlightApps.map((app, idx) => (
-                    <button
-                      key={app.appId}
-                      onClick={() => setActiveSpotlightIndex(idx)}
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        idx === activeSpotlightIndex ? 'w-8 bg-white' : 'w-2 bg-white/30 hover:bg-white/50'
-                      }`}
-                      aria-label={`Spotlight slide ${idx + 1}`}
+                {/* Right Big 3D Icon Presentation */}
+                <div className="lg:col-span-4 flex flex-col items-center justify-center relative">
+                  <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-white/10 backdrop-blur-2xl border border-white/20 p-6 flex items-center justify-center shadow-2xl shadow-black/40 group">
+                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary-500/20 to-purple-500/20 animate-pulse" />
+                    <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-primary-400/20 via-transparent to-purple-400/20 blur-2xl pointer-events-none" />
+                    <App3DIcon
+                      appId={currentSpotlight.appId}
+                      icon={currentSpotlight.icon}
+                      path={currentSpotlight.defaultRoute}
+                      label={currentSpotlight.nameEn}
+                      className="w-full h-full relative z-10 transition-transform duration-500 group-hover:scale-110 drop-shadow-2xl"
                     />
-                  ))}
+                  </div>
+
+                  {/* Spotlight Navigator Dots */}
+                  <div className="flex items-center gap-2 mt-6">
+                    {spotlightApps.map((app, idx) => (
+                      <button
+                        key={app.appId}
+                        onClick={() => setActiveSpotlightIndex(idx)}
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          idx === activeSpotlightIndex ? 'w-8 bg-white' : 'w-2 bg-white/30 hover:bg-white/50'
+                        }`}
+                        aria-label={`Spotlight slide ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
         )}
 
         {/* ─── 4 Pillars of Maqder Ecosystem ─── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-dark-800/80 border border-gray-100 dark:border-white/5 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+          <div className="group p-4 sm:p-5 rounded-2xl bg-white dark:bg-dark-800/80 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-emerald-500/30 transition-all duration-300 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
               <BadgeCheck className="w-6 h-6" />
             </div>
             <div>
@@ -471,8 +499,8 @@ export default function AppStore() {
             </div>
           </div>
 
-          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-dark-800/80 border border-gray-100 dark:border-white/5 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+          <div className="group p-4 sm:p-5 rounded-2xl bg-white dark:bg-dark-800/80 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-blue-500/30 transition-all duration-300 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
               <Zap className="w-6 h-6" />
             </div>
             <div>
@@ -485,8 +513,8 @@ export default function AppStore() {
             </div>
           </div>
 
-          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-dark-800/80 border border-gray-100 dark:border-white/5 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+          <div className="group p-4 sm:p-5 rounded-2xl bg-white dark:bg-dark-800/80 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-purple-500/30 transition-all duration-300 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
               <Boxes className="w-6 h-6" />
             </div>
             <div>
@@ -499,8 +527,8 @@ export default function AppStore() {
             </div>
           </div>
 
-          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-dark-800/80 border border-gray-100 dark:border-white/5 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+          <div className="group p-4 sm:p-5 rounded-2xl bg-white dark:bg-dark-800/80 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-amber-500/30 transition-all duration-300 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
               <Shield className="w-6 h-6" />
             </div>
             <div>
@@ -520,18 +548,19 @@ export default function AppStore() {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           {/* Modern Search Bar */}
           <div className="relative flex-1 max-w-xl group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
+            <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-primary-500/0 via-primary-500/0 to-primary-500/0 group-focus-within:from-primary-500/30 group-focus-within:via-purple-500/20 group-focus-within:to-primary-500/30 blur-md transition-all duration-500 pointer-events-none" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-primary-500 transition-colors z-10" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={isAr ? 'ابحث باسم التطبيق، الكلمات المفتاحية، أو الميزات...' : 'Search apps, vertical features, hardware drivers...'}
-              className="w-full pl-12 pr-10 py-3.5 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-dark-800/90 text-sm sm:text-base text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+              className="relative w-full pl-12 pr-10 py-3.5 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-dark-800/90 text-sm sm:text-base text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors z-10"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -565,14 +594,21 @@ export default function AppStore() {
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={`relative flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap snap-center ${
+                  className={`relative flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap snap-center transition-colors duration-300 ${
                     isActive
-                      ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md'
-                      : 'bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-300 border border-gray-200/70 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/20'
+                      ? 'text-white dark:text-gray-900'
+                      : 'text-gray-600 dark:text-gray-300 bg-white dark:bg-dark-800 border border-gray-200/70 dark:border-white/5 hover:border-gray-300 dark:hover:border-white/20'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? (isAr ? 'text-primary-300' : 'text-primary-400 dark:text-primary-600') : 'text-gray-400'}`} />
-                  <span>{isAr ? cat.ar : cat.en}</span>
+                  {isActive && (
+                    <motion.span
+                      layoutId="app-store-category-pill"
+                      transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                      className="absolute inset-0 rounded-2xl bg-gray-900 dark:bg-white shadow-md shadow-gray-900/10"
+                    />
+                  )}
+                  <Icon className={`relative w-4 h-4 ${isActive ? (isAr ? 'text-primary-300' : 'text-primary-400 dark:text-primary-600') : 'text-gray-400'}`} />
+                  <span className="relative">{isAr ? cat.ar : cat.en}</span>
                 </button>
               );
             })}
@@ -649,7 +685,9 @@ export default function AppStore() {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-72 rounded-[2rem] bg-gray-100 dark:bg-dark-800 animate-pulse" />
+            <div key={i} className="relative h-72 rounded-[2rem] bg-gray-100 dark:bg-dark-800 border border-gray-200/60 dark:border-white/5 overflow-hidden">
+              <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/50 dark:via-white/10 to-transparent" />
+            </div>
           ))}
         </div>
       ) : filtered.length === 0 ? (
@@ -674,13 +712,25 @@ export default function AppStore() {
                 layout
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`group relative bg-white dark:bg-dark-800/90 rounded-[2rem] border transition-all duration-300 flex flex-col p-6 cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 ${
-                  isInstalled
-                    ? 'border-emerald-500/30 hover:border-emerald-500/60'
-                    : 'border-gray-200/80 dark:border-white/5 hover:border-primary-500/40'
-                }`}
+                transition={{ duration: 0.35, delay: Math.min(0.03 * (filtered.indexOf(app) % 12), 0.3) }}
+                className="group relative"
                 onClick={() => setSelectedAppId(app.appId)}
               >
+                {/* Premium gradient glow ring on hover */}
+                <div
+                  className={`absolute -inset-px rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-[2px] pointer-events-none ${
+                    isInstalled
+                      ? 'bg-gradient-to-br from-emerald-400/50 via-emerald-500/20 to-transparent'
+                      : 'bg-gradient-to-br from-primary-400/50 via-purple-400/30 to-transparent'
+                  }`}
+                />
+                <div
+                  className={`relative bg-white dark:bg-dark-800/90 rounded-[2rem] border transition-all duration-300 flex flex-col p-6 cursor-pointer shadow-sm group-hover:shadow-2xl group-hover:-translate-y-1.5 h-full ${
+                    isInstalled
+                      ? 'border-emerald-500/30 group-hover:border-emerald-500/60'
+                      : 'border-gray-200/80 dark:border-white/5 group-hover:border-primary-500/40'
+                  }`}
+                >
                 {/* Top Row: 3D Icon & Status Badges */}
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="relative w-16 h-16 rounded-2xl bg-gray-50 dark:bg-dark-700/60 border border-gray-100 dark:border-white/10 p-2.5 shrink-0 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform duration-300">
@@ -736,8 +786,15 @@ export default function AppStore() {
 
                 {/* Bottom Action Footer */}
                 <div className="pt-3 border-t border-gray-100 dark:border-white/5 flex items-center justify-between mt-auto" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center gap-1.5 bg-amber-500/10 px-2 py-1 rounded-lg">
-                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  <div className="flex items-center gap-1.5 bg-amber-500/10 px-2 py-1 rounded-lg" title={`${(app.rating || 4.9).toFixed(1)} / 5`}>
+                    <div className="flex items-center -space-x-0.5 rtl:space-x-0">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-3 h-3 ${star <= Math.round(app.rating || 4.9) ? 'text-amber-500 fill-amber-500' : 'text-gray-300 dark:text-gray-600 fill-gray-300 dark:fill-gray-600'}`}
+                        />
+                      ))}
+                    </div>
                     <span className="text-xs font-black text-amber-700 dark:text-amber-300">
                       {app.rating?.toFixed(1) || '4.9'}
                     </span>
@@ -792,6 +849,7 @@ export default function AppStore() {
                       </button>
                     )}
                   </div>
+                </div>
                 </div>
               </motion.div>
             );
