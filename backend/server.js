@@ -910,8 +910,13 @@ initSocket(httpServer);
 // keepAliveTimeout must be > Nginx's keepalive_timeout (default 65 s).
 httpServer.keepAliveTimeout = 65_000;
 httpServer.headersTimeout   = 66_000; // must be > keepAliveTimeout
-// Allow more simultaneous connections on a single-process VPS
-httpServer.maxConnections   = Number(process.env.HTTP_MAX_CONNECTIONS || 0); // 0 = unlimited
+// Allow more simultaneous connections on a single-process VPS.
+// IMPORTANT: Node treats maxConnections=0 as "accept zero connections" (ECONNRESET),
+// not "unlimited". Only set when a positive limit is configured.
+const maxConnections = Number(process.env.HTTP_MAX_CONNECTIONS || 0)
+if (Number.isFinite(maxConnections) && maxConnections > 0) {
+  httpServer.maxConnections = maxConnections
+}
 
 // ─── Graceful shutdown ────────────────────────────────────────────────────────
 const gracefulShutdown = (signal) => {
