@@ -32,7 +32,7 @@ const purgeAndReload = async () => {
 export class ErrorBoundary extends Component {
   constructor(props) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false, error: null, recovering: false }
   }
 
   static getDerivedStateFromError(error) {
@@ -40,11 +40,13 @@ export class ErrorBoundary extends Component {
       const lastRetry = Number(sessionStorage.getItem('chunk-error-retry-ts') || 0)
       if (Date.now() - lastRetry > 8000) {
         sessionStorage.setItem('chunk-error-retry-ts', Date.now().toString())
+        // Keep a visible loader while purge+reload runs — never return hasError:false
+        // (that remounts broken children and leaves #root blank until refresh).
         purgeAndReload()
-        return { hasError: false, error: null }
+        return { hasError: true, error: null, recovering: true }
       }
     }
-    return { hasError: true, error }
+    return { hasError: true, error, recovering: false }
   }
 
   componentDidCatch(error, errorInfo) {
@@ -55,6 +57,18 @@ export class ErrorBoundary extends Component {
   }
 
   render() {
+    if (this.state.recovering) {
+      return (
+        <div className="min-h-screen bg-[#1a3d28] flex items-center justify-center px-4">
+          <div className="text-center flex flex-col items-center gap-5">
+            <img src="/maqdernewlogo.webp" alt="Maqder" className="h-20 w-auto object-contain" />
+            <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+            <p className="text-white/70 text-sm font-medium">Updating application…</p>
+          </div>
+        </div>
+      )
+    }
+
     if (this.state.hasError) {
       return (
         <div className="min-h-[400px] flex flex-col items-center justify-center gap-6 p-8">

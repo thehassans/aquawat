@@ -34,6 +34,14 @@
           }
         } catch (e) {}
 
+        // Avoid a blank #root while the JS bundle boots (tenant cold origins especially)
+        try {
+          var root = document.getElementById('root');
+          if (root && !root.innerHTML) {
+            root.innerHTML = '<div style="min-height:100vh;background:#1a3d28;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;color:rgba(255,255,255,0.7);font-size:14px">Loading…</div>';
+          }
+        } catch (e) {}
+
         // Global chunk loading error handler: catches dynamic import errors before React renders
         var handleChunkError = function(e) {
           var msg = ((e && e.message) || (e && e.reason && e.reason.message) || String(e || '')).toLowerCase();

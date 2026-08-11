@@ -31,12 +31,6 @@ const WorkshopLayout = lazy(() => import('./layouts/WorkshopLayout'))
 const LaundryLayout = lazy(() => import('./layouts/LaundryLayout'))
 const SaloonLayout = lazy(() => import('./layouts/SaloonLayout'))
 
-// Auth pages (lazy — only needed at login)
-const Login = lazy(() => import('./pages/auth/Login'))
-const AuthHandoff = lazy(() => import('./pages/auth/AuthHandoff'))
-const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'))
-const InactiveTenant = lazy(() => import('./pages/auth/InactiveTenant'))
-
 // Storefront shell (lazy — encapsulates layout + all providers)
 const StorefrontShell = lazy(() => import('./components/storefront/StorefrontShell'))
 
@@ -308,6 +302,16 @@ const PublicMenu = lazy(() => import('./pages/public/PublicMenu'))
 const PublicServices = lazy(() => import('./pages/public/PublicServices'))
 
 import PageLoader from './components/ui/PageLoader'
+import LoadingScreen from './components/ui/LoadingScreen'
+import { isOnTenantAliasHost } from './lib/tenantHost'
+
+// Auth pages are eager — tenant `{slug}.maqder.com` is a cold origin with no shared
+// chunk cache from apex. Lazy Login + pale PageLoader looked like a white screen
+// until refresh warmed the cache.
+import Login from './pages/auth/Login'
+import AuthHandoff from './pages/auth/AuthHandoff'
+import ResetPassword from './pages/auth/ResetPassword'
+import InactiveTenant from './pages/auth/InactiveTenant'
 
 function LegacyDashboardRedirect() {
   const location = useLocation()
@@ -328,7 +332,7 @@ function ProtectedRoute({ children, allowedRoles, redirectSuperAdmin }) {
   if (!token) return <Navigate to="/login" replace />
   
   // Has token but still verifying initial cold start
-  if (isLoading && !isAuthenticated) return <PageLoader />
+  if (isLoading && !isAuthenticated) return <LoadingScreen />
   
   if (!isAuthenticated) return <Navigate to="/login" replace />
   
@@ -456,8 +460,13 @@ function App() {
 
   return (
     <Routes>
-      {/* Public Marketing Website */}
-      <Route path="/" element={<Suspense fallback={<PageLoader />}><MarketingLayout /></Suspense>}>
+      {/* Tenant alias hosts land on login — must precede marketing `/` */}
+      {isOnTenantAliasHost() && (
+        <Route path="/" element={<Navigate to="/login" replace />} />
+      )}
+
+      {/* Public Marketing Website (apex / www only in practice) */}
+      <Route path="/" element={<Suspense fallback={<LoadingScreen />}><MarketingLayout /></Suspense>}>
         <Route index element={<MarketingHome />} />
         <Route path="solutions" element={<MarketingSolutions />} />
         <Route path="solutions/:slug" element={<SolutionDetail />} />
@@ -474,9 +483,9 @@ function App() {
       <Route path="/payment-result" element={<Suspense fallback={<PageLoader />}><PaymentResult /></Suspense>} />
       <Route path="/demo-checkout" element={<Suspense fallback={<PageLoader />}><DemoCheckout /></Suspense>} />
 
-      {/* Auth Routes */}
-      <Route path="/auth/handoff" element={<Suspense fallback={<PageLoader />}><AuthHandoff /></Suspense>} />
-      <Route element={<Suspense fallback={<PageLoader />}><AuthLayout /></Suspense>}>
+      {/* Auth Routes — eager imports (no Suspense white flash on cold tenant origins) */}
+      <Route path="/auth/handoff" element={<AuthHandoff />} />
+      <Route element={<AuthLayout />}>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/inactive" element={<InactiveTenant />} />

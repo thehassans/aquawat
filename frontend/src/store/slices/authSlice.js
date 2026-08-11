@@ -152,6 +152,11 @@ const authSlice = createSlice({
       state.tenant = null
       state.token = null
       state.error = null
+      try {
+        localStorage.removeItem('token')
+        localStorage.removeItem('auth_user')
+        localStorage.removeItem('auth_tenant')
+      } catch {}
     },
   },
   extraReducers: (builder) => {
