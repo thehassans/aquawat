@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDispatch, useSelector } from 'react-redux'
-import { Mail, Sparkles, CheckCircle2, Loader2, AlertCircle, ArrowRight } from 'lucide-react'
+import { Mail, CheckCircle2, Loader2, AlertCircle, ArrowRight, ImagePlus, X } from 'lucide-react'
 import { demoSignup } from '../../store/slices/authSlice'
 import { getBusinessTypeOptions } from '../../lib/businessTypes'
 import { COUNTRY_OPTIONS, currencyForCountry } from '../../lib/countryCurrency'
@@ -9,12 +9,15 @@ import { CURRENCIES } from '../../lib/currency'
 import { isApexHost, isOnTenantAliasHost, getTenantAliasHandoffUrl } from '../../lib/tenantHost'
 import { setLanguage } from '../../store/slices/uiSlice'
 
+const MAX_LOGO_BYTES = 3 * 1024 * 1024
+
 export default function TrialSignup({ variant = 'light' }) {
   const dispatch = useDispatch()
   const { language } = useSelector((state) => state.ui)
   const { isLoading, error } = useSelector((state) => state.auth)
   const isArabic = language === 'ar'
   const premium = variant === 'premium'
+  const logoInputRef = useRef(null)
 
   const [step, setStep] = useState(1)
   const [email, setEmail] = useState('')
@@ -22,6 +25,8 @@ export default function TrialSignup({ variant = 'light' }) {
   const [country, setCountry] = useState('')
   const [currency, setCurrency] = useState('')
   const [selectedType, setSelectedType] = useState('')
+  const [logo, setLogo] = useState('')
+  const [logoName, setLogoName] = useState('')
   const [localError, setLocalError] = useState('')
 
   const businessOptions = getBusinessTypeOptions(language)
@@ -30,6 +35,32 @@ export default function TrialSignup({ variant = 'light' }) {
   const onCountryChange = (code) => {
     setCountry(code)
     setCurrency(currencyForCountry(code))
+  }
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setLocalError(isArabic ? 'الملف يجب أن يكون صورة' : 'Please upload an image file')
+      return
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setLocalError(isArabic ? 'حجم الشعار يجب ألا يتجاوز 3 ميجابايت' : 'Logo must be 3MB or smaller')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setLogo(String(event.target?.result || ''))
+      setLogoName(file.name)
+      setLocalError('')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const clearLogo = () => {
+    setLogo('')
+    setLogoName('')
+    if (logoInputRef.current) logoInputRef.current.value = ''
   }
 
   const validateStep = () => {
@@ -76,6 +107,7 @@ export default function TrialSignup({ variant = 'light' }) {
       country,
       currency,
       companyName: companyName.trim(),
+      logo: logo || undefined,
     }))
 
     if (result.meta.requestStatus !== 'fulfilled') return
@@ -98,9 +130,6 @@ export default function TrialSignup({ variant = 'light' }) {
     window.location.assign('/app/dashboard')
   }
 
-  // ── theme tokens ─────────────────────────────────────────────────────────
-  // "premium" = dark glass (used inside dark hero sections)
-  // "light"   = crisp white card (used on white/light sections) — DEFAULT
   const isDark = premium
 
   const shell = isDark
@@ -127,6 +156,9 @@ export default function TrialSignup({ variant = 'light' }) {
   const chipIdle = isDark
     ? 'border-white/10 hover:border-white/25 text-white/70'
     : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:text-emerald-800'
+  const uploadCls = isDark
+    ? 'flex w-full items-center gap-3 rounded-xl border border-dashed border-white/20 bg-white/[0.04] px-4 py-3 text-sm text-white/70 transition hover:border-emerald-400/50 hover:bg-white/[0.06]'
+    : 'flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-3 text-sm text-slate-600 transition hover:border-emerald-400 hover:bg-emerald-50/40'
 
   return (
     <div className={premium ? 'mx-auto w-full max-w-2xl' : 'mx-auto max-w-xl'}>
@@ -138,16 +170,13 @@ export default function TrialSignup({ variant = 'light' }) {
         className={shell}
       >
         <div className={headerCls}>
-          <div className="flex items-center gap-2.5">
-            <Sparkles className={`h-5 w-5 ${premium ? 'text-emerald-300' : 'text-emerald-700'}`} />
-            <div>
-              <h3 className={titleCls}>
-                {isArabic ? 'تجربة مباشرة مجانية' : 'Start live demo'}
-              </h3>
-              <p className={subCls}>
-                {isArabic ? 'الدولة ← الشركة ← النشاط ← البريد' : 'Country → company → business → email'}
-              </p>
-            </div>
+          <div>
+            <h3 className={titleCls}>
+              {isArabic ? 'تجربة مباشرة مجانية' : 'Start live demo'}
+            </h3>
+            <p className={subCls}>
+              {isArabic ? 'الدولة ← الشركة ← النشاط ← البريد' : 'Country → company → business → email'}
+            </p>
           </div>
           <div className="mt-3 flex gap-1.5">
             {[1, 2, 3].map((n) => (
@@ -176,6 +205,49 @@ export default function TrialSignup({ variant = 'light' }) {
                   className={inputCls}
                   placeholder={isArabic ? 'اسم منشأتك' : 'Your company name'}
                 />
+              </div>
+              <div>
+                <label className={labelCls}>
+                  {isArabic ? 'شعار الشركة' : 'Company logo'}
+                  <span className={`ml-2 font-medium normal-case tracking-normal ${isDark ? 'text-white/35' : 'text-slate-400'}`}>
+                    ({isArabic ? 'اختياري' : 'optional'})
+                  </span>
+                </label>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                />
+                {logo ? (
+                  <div className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/15 bg-white/[0.06]' : 'border-slate-200 bg-white'}`}>
+                    <img src={logo} alt="Logo preview" className="h-12 w-12 rounded-lg object-contain bg-white ring-1 ring-black/5" />
+                    <div className="min-w-0 flex-1">
+                      <p className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>{logoName || 'logo'}</p>
+                      <p className={`text-xs ${isDark ? 'text-white/40' : 'text-slate-500'}`}>
+                        {isArabic ? 'سيتم استخدامه في الفواتير والعلامة التجارية' : 'Used on invoices and branding'}
+                      </p>
+                    </div>
+                    <button type="button" onClick={clearLogo} className={`rounded-lg p-2 ${isDark ? 'text-white/50 hover:bg-white/10 hover:text-white' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`} aria-label="Remove logo">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => logoInputRef.current?.click()} className={uploadCls}>
+                    <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${isDark ? 'bg-white/10 text-emerald-300' : 'bg-emerald-50 text-emerald-600'}`}>
+                      <ImagePlus className="h-5 w-5" />
+                    </span>
+                    <span className="text-left">
+                      <span className={`block font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                        {isArabic ? 'رفع الشعار' : 'Upload logo'}
+                      </span>
+                      <span className={`block text-xs ${isDark ? 'text-white/40' : 'text-slate-500'}`}>
+                        {isArabic ? 'PNG أو JPG حتى 3 ميجابايت' : 'PNG or JPG up to 3MB'}
+                      </span>
+                    </span>
+                  </button>
+                )}
               </div>
               <div>
                 <label className={labelCls}>{isArabic ? 'العملة' : 'Currency'}</label>
@@ -226,7 +298,7 @@ export default function TrialSignup({ variant = 'light' }) {
                 />
               </div>
               <p className={`mt-2 text-xs ${premium ? 'text-white/40' : 'text-slate-500'}`}>
-                {companyName} · {country} · {currency}
+                {companyName} · {country} · {currency}{logo ? (isArabic ? ' · شعار مرفق' : ' · logo attached') : ''}
               </p>
             </div>
           )}

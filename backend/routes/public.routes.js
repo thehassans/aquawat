@@ -302,7 +302,7 @@ router.post('/demo-signup', async (req, res) => {
       return res.status(503).json({ error: 'Service temporarily unavailable. Please try again in a moment.' })
     }
 
-    const { email, businessType, country, currency, companyName } = req.body
+    const { email, businessType, country, currency, companyName, logo } = req.body
 
     const normalizedEmail = String(email || '').trim().toLowerCase()
     if (!normalizedEmail) {
@@ -329,6 +329,9 @@ router.post('/demo-signup', async (req, res) => {
     const resolvedCurrency = String(currency || COUNTRY_CURRENCY[countryCode] || 'USD').trim().toUpperCase()
     const company = String(companyName || '').trim() || `Demo - ${normalizedEmail}`
     const isGcc = GCC.has(countryCode) || ['SAR', 'AED', 'QAR', 'KWD', 'BHD', 'OMR'].includes(resolvedCurrency)
+
+    const rawLogo = typeof logo === 'string' ? logo.trim() : ''
+    const logoDataUrl = rawLogo.startsWith('data:image/') && rawLogo.length <= 4_200_000 ? rawLogo : ''
 
     const existingDemo = await DemoUser.findOne({ email: normalizedEmail })
     if (existingDemo) {
@@ -359,6 +362,11 @@ router.post('/demo-signup', async (req, res) => {
         address: {
           country: countryCode === 'OTHER' ? '' : countryCode,
         },
+      },
+      branding: {
+        ...(logoDataUrl ? { logo: logoDataUrl } : {}),
+        primaryColor: '#059669',
+        secondaryColor: '#0D9488',
       },
       settings: {
         currency: resolvedCurrency,
@@ -414,7 +422,7 @@ router.post('/demo-signup', async (req, res) => {
       businessType: primaryBusinessType,
       trialEndDate,
       password,
-      preferredLanguage: isGcc ? 'ar' : 'en',
+      preferredLanguage: 'en',
     })
 
     const token = generateToken(user._id)

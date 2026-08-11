@@ -86,30 +86,118 @@ const buildSecondaryLinesHtml = (secondaryLines = []) => secondaryLines
   .map((line) => `<p style="margin:0;color:#475569;font-size:13px;line-height:1.8;">${escapeHtml(line)}</p>`)
   .join('');
 
-const buildEmailShell = ({ brandName, title, body, secondaryLines = [], dir = 'ltr' }) => {
-  const bodyHtml = escapeHtml(body).replace(/\r?\n/g, '<br />');
+const buildEmailShell = ({ brandName, title, body, htmlBody, secondaryLines = [], dir = 'ltr', cta } = {}) => {
   const secondaryHtml = buildSecondaryLinesHtml(secondaryLines);
+  const contentHtml = htmlBody || escapeHtml(body || '').replace(/\r?\n/g, '<br />');
+  const ctaHtml = cta?.href
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 8px;">
+        <tr>
+          <td align="center" style="border-radius:999px;background:linear-gradient(135deg,#059669 0%,#047857 100%);box-shadow:0 12px 28px -12px rgba(5,150,105,0.65);">
+            <a href="${escapeHtml(cta.href)}" style="display:inline-block;padding:14px 28px;font-family:'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.02em;color:#ffffff;text-decoration:none;">
+              ${escapeHtml(cta.label || 'Open dashboard')}
+            </a>
+          </td>
+        </tr>
+      </table>`
+    : '';
 
   return `<!DOCTYPE html>
-<html dir="${dir}">
+<html lang="en" dir="${dir}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
   <title>${escapeHtml(title)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    @keyframes maqderFadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes maqderPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.35); }
+      50% { box-shadow: 0 0 0 10px rgba(16,185,129,0); }
+    }
+    @keyframes maqderShimmer {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+    .maqder-card { animation: maqderFadeUp 0.7s ease-out both; }
+    .maqder-badge { animation: maqderPulse 2.4s ease-in-out infinite; }
+    .maqder-hero {
+      background: linear-gradient(120deg, #064e3b 0%, #059669 42%, #0d9488 100%);
+      background-size: 180% 180%;
+      animation: maqderShimmer 8s ease-in-out infinite alternate;
+    }
+    @media only screen and (max-width: 620px) {
+      .maqder-pad { padding: 24px 18px !important; }
+      .maqder-title { font-size: 22px !important; }
+    }
+  </style>
 </head>
-<body style="margin:0;padding:24px;background:#f8fafc;font-family:Segoe UI,Arial,sans-serif;color:#0f172a;">
-  <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;overflow:hidden;box-shadow:0 20px 45px -35px rgba(15,23,42,0.35);">
-    <div style="background:linear-gradient(135deg,#1a3d28 0%,#2d5a3f 100%);padding:28px 32px;color:#ffffff;">
-      <div style="font-size:13px;letter-spacing:0.18em;text-transform:uppercase;opacity:0.78;">${escapeHtml(brandName)}</div>
-      <h1 style="margin:12px 0 0;font-size:24px;line-height:1.35;font-weight:700;">${escapeHtml(title)}</h1>
-    </div>
-    <div style="padding:32px;">
-      <div style="font-size:15px;line-height:1.95;color:#1e293b;">${bodyHtml}</div>
-      ${secondaryHtml ? `<div style="margin-top:24px;padding:20px;border-radius:18px;background:#f8fafc;border:1px solid #e2e8f0;display:grid;gap:8px;">${secondaryHtml}</div>` : ''}
-    </div>
-  </div>
+<body style="margin:0;padding:0;background:#eef2f7;font-family:'Plus Jakarta Sans','Segoe UI',Arial,Helvetica,sans-serif;color:#0f172a;-webkit-font-smoothing:antialiased;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(title)} — ${escapeHtml(brandName)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7;padding:32px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="maqder-card" style="max-width:640px;background:#ffffff;border-radius:28px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 28px 60px -36px rgba(15,23,42,0.45);">
+          <tr>
+            <td class="maqder-hero maqder-pad" style="padding:36px 40px;color:#ffffff;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="left" valign="middle">
+                    <div class="maqder-badge" style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.22);font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;">
+                      ${escapeHtml(brandName)}
+                    </div>
+                    <h1 class="maqder-title" style="margin:16px 0 0;font-size:28px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:#ffffff;">
+                      ${escapeHtml(title)}
+                    </h1>
+                  </td>
+                  <td align="right" valign="middle" width="72">
+                    <img src="https://maqder.com/maqderlogolandingpage.webp" alt="${escapeHtml(brandName)}" width="56" height="56" style="display:block;width:56px;height:56px;border-radius:16px;background:#ffffff;object-fit:contain;padding:6px;box-shadow:0 10px 24px -12px rgba(0,0,0,0.45);" />
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td class="maqder-pad" style="padding:36px 40px;">
+              <div style="font-size:15px;line-height:1.85;color:#1e293b;text-align:left;">${contentHtml}</div>
+              ${secondaryHtml ? `<div style="margin-top:24px;padding:18px 20px;border-radius:18px;background:linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%);border:1px solid #e2e8f0;">${secondaryHtml}</div>` : ''}
+              ${ctaHtml}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px 32px;">
+              <div style="height:1px;background:linear-gradient(90deg,transparent,#e2e8f0,transparent);"></div>
+              <p style="margin:18px 0 0;font-size:12px;line-height:1.7;color:#94a3b8;text-align:center;">
+                Sent by ${escapeHtml(brandName)} · <a href="https://maqder.com" style="color:#059669;text-decoration:none;font-weight:600;">maqder.com</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
+};
+
+const buildCredentialRowsHtml = (rows = []) => {
+  const items = rows.filter((row) => row?.label && row?.value);
+  if (items.length === 0) return '';
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;border-collapse:separate;border-spacing:0;border:1px solid #d1fae5;border-radius:18px;overflow:hidden;background:#ecfdf5;">
+    ${items.map((row, index) => `
+      <tr>
+        <td style="padding:14px 18px;border-top:${index === 0 ? '0' : '1px solid #d1fae5'};width:38%;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#047857;vertical-align:top;">
+          ${escapeHtml(row.label)}
+        </td>
+        <td style="padding:14px 18px;border-top:${index === 0 ? '0' : '1px solid #d1fae5'};font-size:14px;font-weight:600;color:#0f172a;word-break:break-word;vertical-align:top;">
+          ${row.href ? `<a href="${escapeHtml(row.href)}" style="color:#059669;text-decoration:none;">${escapeHtml(row.value)}</a>` : escapeHtml(row.value)}
+        </td>
+      </tr>`).join('')}
+  </table>`;
 };
 
 const buildBilingualEmailShell = ({ brandName, title, sections = [] }) => {
@@ -219,6 +307,7 @@ const buildLocalizedTenantWelcomeMessage = ({ template, brandName, tenant, admin
       body,
       secondaryLines: buildTenantWelcomeSecondaryLines(variables, normalizedLanguage),
       dir: normalizedLanguage === 'ar' ? 'rtl' : 'ltr',
+      cta: { href: 'https://maqder.com/login', label: 'Open your dashboard' },
     }),
     language: normalizedLanguage,
   };
@@ -293,7 +382,7 @@ export const sendEmailMessage = async ({ to, subject, html, replyTo, config: pro
   return { to: recipients, from: config.fromEmail, provider: delivery.provider, providerMessageId: delivery.providerMessageId };
 };
 
-export const sendTenantOnboardingEmail = async ({ tenant, adminUser, rawPassword, personalEmail, billingCleared, preferredLanguage } = {}) => {
+export const sendTenantOnboardingEmail = async ({ tenant, adminUser, rawPassword, personalEmail, billingCleared } = {}) => {
   try {
     const settings = await getGlobalSettings();
     const config = resolveEmailConfig(settings, { allowEnvFallback: false });
@@ -311,26 +400,27 @@ export const sendTenantOnboardingEmail = async ({ tenant, adminUser, rawPassword
 
     const brandName = config.brandName;
     const loginUrl = 'https://maqder.com/login';
-    const subject = `Welcome to the ${brandName} Family!`;
+    const subject = `Welcome to ${brandName} — your workspace is ready`;
+    const firstName = escapeHtml(adminUser?.firstName || 'there');
 
     const htmlBody = `
-      <p>Hello ${adminUser?.firstName || 'Customer'},</p>
-      <p>Welcome to <strong>${brandName}</strong>! Your account has been successfully created.</p>
-      <p>Here are your login credentials:</p>
-      <ul>
-        <li><strong>Login URL:</strong> <a href="${loginUrl}">${loginUrl}</a></li>
-        <li><strong>Email:</strong> ${adminUser?.email}</li>
-        <li><strong>Password:</strong> ${rawPassword}</li>
-      </ul>
-      ${billingCleared ? '<p style="color: #16a34a; font-weight: bold; margin-top: 20px;">Your billing amount has been cleared successfully!</p>' : ''}
-      <p>If you have any questions, feel free to reply to this email.</p>
+      <p style="margin:0 0 14px;">Hello ${firstName},</p>
+      <p style="margin:0 0 14px;">Welcome to <strong>${escapeHtml(brandName)}</strong>. Your account is live and ready to use.</p>
+      ${buildCredentialRowsHtml([
+        { label: 'Login URL', value: loginUrl, href: loginUrl },
+        { label: 'Email', value: adminUser?.email || '' },
+        { label: 'Password', value: rawPassword || '' },
+      ])}
+      ${billingCleared ? '<p style="margin:0 0 14px;padding:12px 14px;border-radius:14px;background:#ecfdf5;border:1px solid #a7f3d0;color:#047857;font-weight:700;">Billing has been cleared successfully.</p>' : ''}
+      <p style="margin:0;">Need help? Just reply to this email — our team is here for you.</p>
     `;
 
     const fullHtml = buildEmailShell({
       brandName,
       title: subject,
-      htmlBody: htmlBody,
-      dir: 'ltr'
+      htmlBody,
+      cta: { href: loginUrl, label: 'Open your dashboard' },
+      dir: 'ltr',
     });
 
     let attachments = [];
@@ -359,7 +449,7 @@ export const sendTenantOnboardingEmail = async ({ tenant, adminUser, rawPassword
   }
 };
 
-export const sendTenantWelcomeEmail = async ({ tenant, adminUser, preferredLanguage } = {}) => {
+export const sendTenantWelcomeEmail = async ({ tenant, adminUser } = {}) => {
   try {
     const settings = await getGlobalSettings();
     const config = resolveEmailConfig(settings, { allowEnvFallback: false });
@@ -376,10 +466,13 @@ export const sendTenantWelcomeEmail = async ({ tenant, adminUser, preferredLangu
     }
 
     const template = config.templates?.tenantCreated || {};
-    const explicitLanguage = normalizeLanguage(preferredLanguage);
-    const message = explicitLanguage
-      ? buildLocalizedTenantWelcomeMessage({ template, brandName: config.brandName, tenant, adminUser, language: explicitLanguage })
-      : buildBilingualTenantWelcomeMessage({ template, brandName: config.brandName, tenant, adminUser });
+    const message = buildLocalizedTenantWelcomeMessage({
+      template,
+      brandName: config.brandName,
+      tenant,
+      adminUser,
+      language: 'en',
+    });
 
     await sendEmailMessage({
       to: recipients,
@@ -389,7 +482,7 @@ export const sendTenantWelcomeEmail = async ({ tenant, adminUser, preferredLangu
       config,
     });
 
-    return { sent: true, to: recipients, language: message.language };
+    return { sent: true, to: recipients, language: 'en' };
   } catch (error) {
     logger.error(`Failed to send tenant welcome email: ${error.message}`);
     return { sent: false, reason: 'send_failed', error: error.message };
@@ -457,7 +550,7 @@ export const sendInvoiceEmail = async ({ tenant, invoice, recipient, customerNam
   return { sent: true, to: recipients, language: preferredLanguage };
 };
 
-export const sendDemoWelcomeEmail = async ({ email, tenant, businessType, trialEndDate, password, preferredLanguage } = {}) => {
+export const sendDemoWelcomeEmail = async ({ email, tenant, businessType, trialEndDate, password } = {}) => {
   try {
     const settings = await getGlobalSettings();
     const config = resolveEmailConfig(settings, { allowEnvFallback: false });
@@ -477,68 +570,31 @@ export const sendDemoWelcomeEmail = async ({ email, tenant, businessType, trialE
     const salesEmail = String(settings?.email?.salesEmail || config.replyTo || config.fromEmail || '').trim();
     const loginUrl = 'https://maqder.com/login';
     const trialEndStr = trialEndDate
-      ? new Date(trialEndDate).toLocaleDateString(preferredLanguage === 'ar' ? 'ar-SA' : 'en-GB')
+      ? new Date(trialEndDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
       : '';
+    const companyName = String(tenant?.business?.legalNameEn || tenant?.name || 'Your company').trim();
+    const subject = `Welcome to ${brandName} — your free trial is ready`;
 
-    const subject = preferredLanguage === 'ar'
-      ? `مرحباً بك في ${brandName} — تجربتك المجانية جاهزة!`
-      : `Welcome to ${brandName} — Your Free Trial is Ready!`;
+    const htmlBody = `
+      <p style="margin:0 0 14px;">Hello,</p>
+      <p style="margin:0 0 14px;">Your <strong>7-day free trial</strong> for <strong>${escapeHtml(companyName)}</strong> is live on ${escapeHtml(brandName)}. Full access is unlocked — finance, HR, inventory, and more.</p>
+      ${buildCredentialRowsHtml([
+        { label: 'Login URL', value: loginUrl, href: loginUrl },
+        { label: 'Email', value: email },
+        { label: 'Password', value: password || '' },
+        { label: 'Business type', value: businessType || '' },
+        { label: 'Trial expires', value: trialEndStr },
+      ])}
+      <p style="margin:0 0 14px;">Keep this email handy — you will need these credentials to sign back in.</p>
+      <p style="margin:0;">Questions? Reply anytime and our sales team will help. When you are ready, choose <strong>Get Full Version</strong> in your dashboard header.</p>
+    `;
 
-    const bodyEn = `Hello,
-
-Welcome to ${brandName}! Your 7-day free demo account has been created successfully.
-
-Here are your account details:
-• Login URL: ${loginUrl}
-• Email: ${email}
-• Password: ${password}
-• Business Type: ${businessType}
-• Trial Expires: ${trialEndStr}
-
-Keep this email safe — you'll need these credentials to log back in.
-
-During your trial, you'll have full access to all features. If you have any questions, our sales team is here to help — just reply to this email.
-
-Ready to upgrade? Click "Get Full Version" in your dashboard header to continue your journey with ${brandName}.
-
-Best regards,
-The ${brandName} Sales Team`;
-
-    const bodyAr = `مرحباً بك،
-
-تم إنشاء حسابك التجريبي المجاني لمدة 7 أيام في ${brandName} بنجاح.
-
-تفاصيل حسابك:
-• رابط الدخول: ${loginUrl}
-• البريد الإلكتروني: ${email}
-• كلمة المرور: ${password}
-• نوع النشاط: ${businessType}
-• تنتهي التجربة في: ${trialEndStr}
-
-احتفظ بهذا البريد — ستحتاج هذه البيانات لتسجيل الدخول مرة أخرى.
-
-خلال فترة التجربة، سيكون لديك وصول كامل لجميع الميزات. إذا كان لديك أي أسئلة، فريق المبيعات لدينا جاهز لمساعدتك — فقط قم بالرد على هذا البريد.
-
-جاهز للترقية؟ اضغط على "احصل على النسخة الكاملة" في رأس لوحة التحكم لمتابعة رحلتك مع ${brandName}.
-
-مع تحيات،
-فريق مبيعات ${brandName}`;
-
-    const html = buildBilingualEmailShell({
+    const html = buildEmailShell({
       brandName,
-      title: subject,
-      sections: [
-        {
-          title: `Welcome to ${brandName}`,
-          body: bodyEn,
-          dir: 'ltr',
-        },
-        {
-          title: `مرحباً بك في ${brandName}`,
-          body: bodyAr,
-          dir: 'rtl',
-        },
-      ],
+      title: 'Your free trial is ready',
+      htmlBody,
+      cta: { href: loginUrl, label: 'Launch your workspace' },
+      dir: 'ltr',
     });
 
     await sendEmailWithConfig({
@@ -556,7 +612,7 @@ The ${brandName} Sales Team`;
   }
 };
 
-export const sendUpgradeWelcomeEmail = async ({ email, tenant, plan, billingCycle, amount, currency = 'SAR', preferredLanguage } = {}) => {
+export const sendUpgradeWelcomeEmail = async ({ email, tenant, plan, billingCycle, amount, currency = 'SAR' } = {}) => {
   try {
     const settings = await getGlobalSettings();
     const config = resolveEmailConfig(settings, { allowEnvFallback: false });
@@ -579,75 +635,38 @@ export const sendUpgradeWelcomeEmail = async ({ email, tenant, plan, billingCycl
     const cycleLabel = billingCycle === 'yearly' ? 'Annual' : 'Monthly';
     const amountStr = amount ? `${amount} ${currency}` : '';
     const now = new Date();
-    const startDate = now.toLocaleDateString(preferredLanguage === 'ar' ? 'ar-SA' : 'en-GB');
+    const startDate = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     const endDate = new Date(now.getTime() + (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000);
-    const endDateStr = endDate.toLocaleDateString(preferredLanguage === 'ar' ? 'ar-SA' : 'en-GB');
+    const endDateStr = endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const companyName = String(tenant?.name || 'Valued customer').trim();
+    const subject = `Welcome to ${brandName} — your subscription is active`;
 
-    const subject = preferredLanguage === 'ar'
-      ? `مرحباً بك في ${brandName} — تم تفعيل اشتراكك!`
-      : `Welcome to ${brandName} — Your Subscription is Active!`;
+    const htmlBody = `
+      <p style="margin:0 0 14px;">Dear ${escapeHtml(companyName)},</p>
+      <p style="margin:0 0 14px;">Congratulations — your full ${escapeHtml(brandName)} subscription is active. Here is a clear summary of your plan:</p>
+      ${buildCredentialRowsHtml([
+        { label: 'Plan', value: planName },
+        { label: 'Billing cycle', value: cycleLabel },
+        { label: 'Amount', value: amountStr },
+        { label: 'Start date', value: startDate },
+        { label: 'Next renewal', value: endDateStr },
+      ])}
+      <p style="margin:0 0 10px;font-weight:700;color:#0f172a;">What you now have access to</p>
+      <ul style="margin:0 0 16px;padding-left:18px;color:#334155;line-height:1.8;">
+        <li>ZATCA Phase 2 e-invoicing</li>
+        <li>HR &amp; payroll management</li>
+        <li>Inventory &amp; warehouses</li>
+        <li>Advanced reports &amp; analytics</li>
+      </ul>
+      <p style="margin:0;">Thank you for choosing ${escapeHtml(brandName)}. Reply to this email anytime if you need assistance.</p>
+    `;
 
-    const bodyEn = `Dear ${tenant?.name || 'Valued Customer'},
-
-Congratulations and welcome to the full version of ${brandName}!
-
-Your subscription has been activated successfully. Here are your subscription details:
-• Plan: ${planName}
-• Billing Cycle: ${cycleLabel}
-• Amount: ${amountStr}
-• Start Date: ${startDate}
-• Next Renewal: ${endDateStr}
-
-You now have full access to all features:
-• ZATCA Phase 2 E-Invoicing
-• HR & Payroll Management
-• Inventory & Warehouse
-• Advanced Reports & Analytics
-• And much more!
-
-Login URL: ${loginUrl}
-
-If you have any questions or need assistance, our support team is here to help — just reply to this email.
-
-Thank you for choosing ${brandName}!
-
-Best regards,
-The ${brandName} Team`;
-
-    const bodyAr = `عميلنا العزيز ${tenant?.name || ''}،
-
-تهانينا ومرحباً بك في النسخة الكاملة من ${brandName}!
-
-تم تفعيل اشتراكك بنجاح. إليك تفاصيل اشتراكك:
-• الباقة: ${planName}
-• دورة الفوترة: ${billingCycle === 'yearly' ? 'سنوية' : 'شهرية'}
-• المبلغ: ${amountStr}
-• تاريخ البدء: ${startDate}
-• تاريخ التجديد القادم: ${endDateStr}
-
-لديك الآن وصول كامل لجميع الميزات:
-• الفوترة الإلكترونية المتوافقة مع هيئة الزكاة والضريبة والجمارك
-• إدارة الموارد البشرية والرواتب
-• المخزون والمستودعات
-• تقارير وتحليلات متقدمة
-• والمزيد!
-
-رابط الدخول: ${loginUrl}
-
-إذا كان لديك أي أسئلة أو تحتاج مساعدة، فريق الدعم لدينا جاهز لمساعدتك — فقط قم بالرد على هذا البريد.
-
-شكراً لاختيارك ${brandName}!
-
-مع تحيات،
-فريق ${brandName}`;
-
-    const html = buildBilingualEmailShell({
+    const html = buildEmailShell({
       brandName,
-      title: subject,
-      sections: [
-        { title: `Welcome to ${brandName} — Subscription Active`, body: bodyEn, dir: 'ltr' },
-        { title: `مرحباً بك في ${brandName} — اشتراك مفعّل`, body: bodyAr, dir: 'rtl' },
-      ],
+      title: 'Your subscription is active',
+      htmlBody,
+      cta: { href: loginUrl, label: 'Open your dashboard' },
+      dir: 'ltr',
     });
 
     await sendEmailWithConfig({
@@ -689,24 +708,20 @@ export const sendPasswordResetEmail = async ({ user, resetUrl, personalEmail } =
     }
 
     const brandName = config.brandName;
-    const subject = `Password Reset Request - ${brandName}`;
+    const subject = `Password reset request — ${brandName}`;
 
     const htmlBody = `
-      <p>Hello ${user.firstName || 'User'},</p>
-      <p>We received a request to reset your password for your <strong>${brandName}</strong> account.</p>
-      <p>Click the button below to reset your password. This link will expire in 1 hour.</p>
-      <div style="margin: 30px 0;">
-        <a href="${resetUrl}" style="background-color: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
-      </div>
-      <p>If you did not request a password reset, please ignore this email or contact support if you have questions.</p>
-      <p>Thanks,<br/>The ${brandName} Team</p>
+      <p style="margin:0 0 14px;">Hello ${escapeHtml(user.firstName || 'there')},</p>
+      <p style="margin:0 0 14px;">We received a request to reset the password for your <strong>${escapeHtml(brandName)}</strong> account.</p>
+      <p style="margin:0 0 14px;">This link expires in <strong>1 hour</strong>. If you did not request a reset, you can safely ignore this email.</p>
     `;
 
     const fullHtml = buildEmailShell({
       brandName,
-      title: subject,
-      htmlBody: htmlBody,
-      dir: 'ltr'
+      title: 'Reset your password',
+      htmlBody,
+      cta: { href: resetUrl, label: 'Reset password' },
+      dir: 'ltr',
     });
 
     await sendEmailWithConfig({
