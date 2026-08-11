@@ -14,7 +14,7 @@ import { getInvoiceBrandingProfile, getInvoiceTemplateId, getInvoiceTypography, 
 import { CURRENCIES, CURRENCY_CODE } from '../lib/currency'
 import { INVOICE_LANGUAGE_OPTIONS, isGccArabicMarket } from '../lib/invoiceLanguage'
 import { getTenantAliasUrl } from '../lib/tenantHost'
-import { showArabicFields, isBangladeshTenant, isSaudiTenant } from '../lib/saudiTenant'
+import { showArabicFields, isBangladeshTenant, isSaudiTenant, showArabicUi } from '../lib/saudiTenant'
 import { COUNTRY_OPTIONS } from '../lib/countryCurrency'
 import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 import { getNavSections } from '../lib/sidebarConfig'
@@ -1106,13 +1106,20 @@ export default function Settings() {
                     >
                       <span className="font-medium">{t('english')}</span>
                     </button>
-                    <button
-                      onClick={() => dispatch(setLanguage('ar'))}
-                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${language === 'ar' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}
-                    >
-                      <span className="font-medium">{t('arabic')}</span>
-                    </button>
+                    {showArabicUi(tenant) && (
+                      <button
+                        onClick={() => dispatch(setLanguage('ar'))}
+                        className={`flex-1 p-4 rounded-xl border-2 transition-all ${language === 'ar' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}
+                      >
+                        <span className="font-medium">{t('arabic')}</span>
+                      </button>
+                    )}
                   </div>
+                  {!showArabicUi(tenant) && (
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      Arabic UI is available for Middle East (GCC) tenants only.
+                    </p>
+                  )}
                 </div>
 
                 <div>

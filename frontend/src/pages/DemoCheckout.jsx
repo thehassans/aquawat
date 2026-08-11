@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import api from '../lib/api'
 import { getPrimaryBusinessType } from '../lib/businessTypes'
-import { isSaudiTenant } from '../lib/saudiTenant'
+import { isSaudiTenant, showArabicUi } from '../lib/saudiTenant'
 import {
   CHECKOUT_CURRENCY,
   isZatcaFeatureText,
@@ -107,6 +107,7 @@ export default function DemoCheckout() {
   const [websiteSettings, setWebsiteSettings] = useState(null)
   const [settingsLoading, setSettingsLoading] = useState(true)
   const saudiTenant = isSaudiTenant(tenant)
+  const arabicUi = showArabicUi(tenant)
   const [zatcaPhase2Enabled, setZatcaPhase2Enabled] = useState(
     () => saudiTenant && (tenant?.zatca?.phase === 2 || false)
   )
@@ -121,6 +122,10 @@ export default function DemoCheckout() {
   useEffect(() => {
     if (!saudiTenant) setZatcaPhase2Enabled(false)
   }, [saudiTenant])
+
+  useEffect(() => {
+    if (!arabicUi && language === 'ar') dispatch(setLanguage('en'))
+  }, [arabicUi, language, dispatch])
 
   const primaryBusinessType = getPrimaryBusinessType(tenant)
 
@@ -271,7 +276,9 @@ export default function DemoCheckout() {
                   ? { icon: Shield, text: isArabic ? 'متوافق مع فاتورة المرحلة الثانية' : 'ZATCA Phase 2 Compliant' }
                   : { icon: Shield, text: isArabic ? 'فوترة وتقارير احترافية' : 'Professional invoicing & reports' },
                 { icon: Zap, text: isArabic ? 'تفعيل فوري بعد الدفع' : 'Instant activation after payment' },
-                { icon: Star, text: isArabic ? 'دعم كامل للغة العربية' : 'Full Arabic RTL support' },
+                arabicUi
+                  ? { icon: Star, text: isArabic ? 'دعم كامل للغة العربية' : 'Full Arabic RTL support' }
+                  : { icon: Star, text: 'Multi-language ready workspace' },
                 { icon: Sparkles, text: isArabic ? 'جميع الميزات بدون قيود' : 'All features, no limits' },
               ].map((feature, i) => (
                 <motion.div
@@ -331,16 +338,18 @@ export default function DemoCheckout() {
             <img src="/maqderlogolandingpage.webp" alt="Maqder" className="h-24 w-auto object-contain" />
           </div>
 
-          {/* Language Toggle */}
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={() => dispatch(setLanguage(isArabic ? 'en' : 'ar'))}
-              className="flex items-center gap-2 rounded-full border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 shadow-sm hover:shadow-md transition-all"
-            >
-              <Globe className="w-4 h-4" />
-              {isArabic ? 'English' : 'العربية'}
-            </button>
-          </div>
+          {/* Language Toggle — GCC / Middle East only */}
+          {arabicUi && (
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => dispatch(setLanguage(isArabic ? 'en' : 'ar'))}
+                className="flex items-center gap-2 rounded-full border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 shadow-sm hover:shadow-md transition-all"
+              >
+                <Globe className="w-4 h-4" />
+                {isArabic ? 'English' : 'العربية'}
+              </button>
+            </div>
+          )}
 
           {/* Header */}
           <div className="text-center mb-6">

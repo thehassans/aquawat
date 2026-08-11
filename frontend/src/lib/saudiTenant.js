@@ -15,6 +15,14 @@ export function showArabicFields(tenant) {
   return isGccArabicMarket(tenant)
 }
 
+/**
+ * Arabic UI language switcher (header / settings / login).
+ * Same GCC Middle East set as invoice Arabic — Pakistan, Bangladesh, etc. stay English-only.
+ */
+export function showArabicUi(tenant) {
+  return isGccArabicMarket(tenant)
+}
+
 export function isBangladeshTenant(tenant) {
   return getTenantCurrency(tenant) === 'BDT'
 }

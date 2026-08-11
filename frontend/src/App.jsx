@@ -5,6 +5,7 @@ import { getMe, setTenantInactive, forceLogout } from './store/slices/authSlice'
 import { setLanguage, setTheme, setDisplayMode, loadThemeForTenant, loadHiddenMenuItemsForTenant, loadDisplayModeForTenant, loadNavigationStyleForTenant } from './store/slices/uiSlice'
 import { applyTenantBranding } from './lib/branding'
 import { getTenantBusinessTypes } from './lib/businessTypes'
+import { showArabicUi } from './lib/saudiTenant'
 import { ErrorBoundary } from './lib/errorBoundary'
 import { initSocket, disconnectSocket } from './lib/socket'
 
@@ -438,6 +439,14 @@ function App() {
     // Clear chunk loading retry flag on successful app load
     sessionStorage.removeItem('chunk-load-retry')
   }, [])
+
+  // Non–Middle East tenants (PK, BD, …) must stay on English UI — no Arabic chrome.
+  useEffect(() => {
+    if (!tenant) return
+    if (!showArabicUi(tenant) && language === 'ar') {
+      dispatch(setLanguage('en'))
+    }
+  }, [dispatch, tenant, language])
 
   useEffect(() => {
     if (tenant?._id) {

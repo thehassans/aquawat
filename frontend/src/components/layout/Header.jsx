@@ -12,6 +12,7 @@ import DemoBanner from './DemoBanner'
 import TrialLimitModal from './TrialLimitModal'
 import GlobalSearch from './GlobalSearch'
 import SubscriptionBadge from './SubscriptionBadge'
+import { showArabicUi } from '../../lib/saudiTenant'
 
 export default function Header() {
   const dispatch = useDispatch()
@@ -21,6 +22,7 @@ export default function Header() {
   const { tenant, user } = useSelector((state) => state.auth)
   const { theme, language, navigationStyle } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
+  const arabicUi = showArabicUi(tenant)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef(null)
@@ -160,16 +162,18 @@ export default function Header() {
             </button>
           )}
 
-          {/* Language Toggle */}
-          <button
-            onClick={() => dispatch(setLanguage(language === 'en' ? 'ar' : 'en'))}
-            className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors group relative"
-          >
-            <Globe className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            <span className="tooltip -bottom-10 start-1/2 -translate-x-1/2 whitespace-nowrap">
-              {language === 'en' ? 'العربية' : 'English'}
-            </span>
-          </button>
+          {/* Language Toggle — Arabic only for GCC / Middle East tenants */}
+          {arabicUi && (
+            <button
+              onClick={() => dispatch(setLanguage(language === 'en' ? 'ar' : 'en'))}
+              className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors group relative"
+            >
+              <Globe className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <span className="tooltip -bottom-10 start-1/2 -translate-x-1/2 whitespace-nowrap">
+                {language === 'en' ? 'العربية' : 'English'}
+              </span>
+            </button>
+          )}
 
           {/* Navigation Style Toggle */}
           <button

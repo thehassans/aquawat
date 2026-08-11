@@ -9,6 +9,7 @@ import { setLanguage, setAppLauncherOpen, setHideSidebar, setNavigationStyle } f
 import { useTranslation } from '../../lib/translations'
 import { usePublicWebsiteSettings, usePublicTenantBranding } from '../../lib/website'
 import { getAliasSlugFromHost, isApexHost, isOnTenantAliasHost, getTenantAliasHandoffUrl } from '../../lib/tenantHost'
+import { isGccArabicMarket } from '../../lib/invoiceLanguage'
 import DailyAyat from '../../components/ui/DailyAyat'
 
 const complianceLogos = [
@@ -43,6 +44,16 @@ export default function Login() {
   const { data: aliasTenantBranding } = usePublicTenantBranding(aliasSlug)
   const brandedTenant = aliasTenantBranding?.found ? aliasTenantBranding : null
   const isSaudiBrandedLogin = !brandedTenant || String(brandedTenant.currency || 'SAR').toUpperCase() === 'SAR'
+  // Apex login keeps Arabic; tenant subdomains only show it for GCC / Middle East currencies.
+  const arabicUiOnLogin = !isOnTenantAliasHost()
+    || (brandedTenant ? isGccArabicMarket({ settings: { currency: brandedTenant.currency } }) : false)
+
+  useEffect(() => {
+    if (!arabicUiOnLogin && language === 'ar') {
+      dispatch(setLanguage('en'))
+    }
+  }, [arabicUiOnLogin, language, dispatch])
+
   const salesPhone = String(websiteSettings?.contactPhone || '+966596775485').trim()
   const salesEmail = String(websiteSettings?.contactEmail || 'info@maqder.com').trim()
   const whatsappNumber = salesPhone.replace(/\D/g, '')
@@ -313,16 +324,18 @@ export default function Login() {
           transition={{ duration: 0.5 }}
           className="w-full max-w-md"
         >
-          {/* Language Toggle */}
-          <div className="flex justify-end mb-8">
-            <button
-              onClick={() => dispatch(setLanguage(language === 'ar' ? 'en' : 'ar'))}
-              className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-gray-200 hover:shadow-md transition-all text-sm font-medium text-gray-600"
-            >
-              <Globe className="w-4 h-4" />
-              {language === 'ar' ? 'English' : 'العربية'}
-            </button>
-          </div>
+          {/* Language Toggle — Arabic only on apex or GCC tenant hosts */}
+          {arabicUiOnLogin && (
+            <div className="flex justify-end mb-8">
+              <button
+                onClick={() => dispatch(setLanguage(language === 'ar' ? 'en' : 'ar'))}
+                className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-gray-200 hover:shadow-md transition-all text-sm font-medium text-gray-600"
+              >
+                <Globe className="w-4 h-4" />
+                {language === 'ar' ? 'English' : 'العربية'}
+              </button>
+            </div>
+          )}
 
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
