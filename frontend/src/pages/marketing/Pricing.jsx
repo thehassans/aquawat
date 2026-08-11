@@ -71,13 +71,13 @@ export default function MarketingPricing() {
             const features = isArabic ? (plan.featuresAr || plan.featuresEn || plan.features || []) : (plan.featuresEn || plan.features || plan.featuresAr || [])
             const monthly = Number(
               String(currency).toUpperCase() === 'USD'
-                ? (plan.priceMonthlyUsd ?? plan.priceMonthly || 0)
-                : (plan.priceMonthlySar ?? plan.priceMonthly || 0)
+                ? (plan.priceMonthlyUsd ?? plan.priceMonthly ?? 0)
+                : (plan.priceMonthlySar ?? plan.priceMonthly ?? 0)
             )
             const yearly = Number(
               String(currency).toUpperCase() === 'USD'
-                ? (plan.priceYearlyUsd ?? plan.priceYearly || 0)
-                : (plan.priceYearlySar ?? plan.priceYearly || 0)
+                ? (plan.priceYearlyUsd ?? plan.priceYearly ?? 0)
+                : (plan.priceYearlySar ?? plan.priceYearly ?? 0)
             )
 
             return (
