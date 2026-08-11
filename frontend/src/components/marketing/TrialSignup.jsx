@@ -9,11 +9,12 @@ import { CURRENCIES } from '../../lib/currency'
 import { isApexHost, isOnTenantAliasHost, getTenantAliasHandoffUrl } from '../../lib/tenantHost'
 import { setLanguage } from '../../store/slices/uiSlice'
 
-export default function TrialSignup() {
+export default function TrialSignup({ variant = 'light' }) {
   const dispatch = useDispatch()
   const { language } = useSelector((state) => state.ui)
   const { isLoading, error } = useSelector((state) => state.auth)
   const isArabic = language === 'ar'
+  const premium = variant === 'premium'
 
   const [step, setStep] = useState(1)
   const [email, setEmail] = useState('')
@@ -97,75 +98,88 @@ export default function TrialSignup() {
     window.location.assign('/app/dashboard')
   }
 
+  const shell = premium
+    ? 'overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_30px_80px_-20px_rgba(0,0,0,0.7)] backdrop-blur-xl'
+    : 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm'
+  const headerCls = premium ? 'border-b border-white/10 px-5 py-4' : 'border-b border-slate-100 px-5 py-4'
+  const titleCls = premium ? 'text-base font-semibold text-white' : 'text-base font-semibold text-slate-900'
+  const subCls = premium ? 'text-xs text-white/50' : 'text-xs text-slate-500'
+  const labelCls = premium ? 'mb-1.5 block text-xs font-medium text-white/60' : 'mb-1.5 block text-xs font-medium text-slate-600'
+  const inputCls = premium
+    ? 'w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/30 focus:border-emerald-400/50'
+    : 'w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-700'
+  const stepTrack = premium ? 'bg-white/15' : 'bg-slate-200'
+  const stepActive = premium ? 'bg-emerald-400' : 'bg-emerald-700'
+  const btnPrimary = premium
+    ? 'inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-[#04140c] disabled:opacity-60'
+    : 'inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60'
+  const btnGhost = premium
+    ? 'rounded-xl border border-white/15 px-4 py-2.5 text-sm font-medium text-white/80'
+    : 'rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700'
+  const chipActive = premium
+    ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200'
+    : 'border-emerald-700 bg-emerald-50 text-emerald-900'
+  const chipIdle = premium
+    ? 'border-white/10 hover:border-white/25 text-white/80'
+    : 'border-slate-200 hover:border-slate-300'
+
   return (
-    <div className="mx-auto max-w-xl">
+    <div className={premium ? 'mx-auto w-full max-w-2xl' : 'mx-auto max-w-xl'}>
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.4 }}
-        className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className={shell}
       >
-        <div className="border-b border-slate-100 px-5 py-4">
+        <div className={headerCls}>
           <div className="flex items-center gap-2.5">
-            <Sparkles className="h-5 w-5 text-emerald-700" />
+            <Sparkles className={`h-5 w-5 ${premium ? 'text-emerald-300' : 'text-emerald-700'}`} />
             <div>
-              <h3 className="text-base font-semibold text-slate-900">
-                {isArabic ? 'تجربة مجانية 7 أيام' : '7-day free demo'}
+              <h3 className={titleCls}>
+                {isArabic ? 'تجربة مباشرة مجانية' : 'Start live demo'}
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className={subCls}>
                 {isArabic ? 'الدولة ← الشركة ← النشاط ← البريد' : 'Country → company → business → email'}
               </p>
             </div>
           </div>
           <div className="mt-3 flex gap-1.5">
             {[1, 2, 3].map((n) => (
-              <div key={n} className={`h-1 flex-1 rounded-full ${step >= n ? 'bg-emerald-700' : 'bg-slate-200'}`} />
+              <div key={n} className={`h-1 flex-1 rounded-full ${step >= n ? stepActive : stepTrack}`} />
             ))}
           </div>
         </div>
 
-        <form onSubmit={step < 3 ? handleNext : handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={step < 3 ? handleNext : handleSubmit} className="space-y-4 p-5">
           {step === 1 && (
             <>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-600">
-                  {isArabic ? 'الدولة' : 'Country'}
-                </label>
-                <select
-                  value={country}
-                  onChange={(e) => onCountryChange(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-700"
-                >
+                <label className={labelCls}>{isArabic ? 'الدولة' : 'Country'}</label>
+                <select value={country} onChange={(e) => onCountryChange(e.target.value)} className={inputCls}>
                   <option value="">{isArabic ? 'اختر الدولة' : 'Select country'}</option>
                   {COUNTRY_OPTIONS.map((c) => (
-                    <option key={c.code} value={c.code}>{isArabic ? c.nameAr : c.nameEn}</option>
+                    <option key={c.code} value={c.code} className="text-slate-900">{isArabic ? c.nameAr : c.nameEn}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-600">
-                  {isArabic ? 'اسم الشركة' : 'Company name'}
-                </label>
+                <label className={labelCls}>{isArabic ? 'اسم الشركة' : 'Company name'}</label>
                 <input
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-700"
+                  className={inputCls}
                   placeholder={isArabic ? 'اسم منشأتك' : 'Your company name'}
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-600">
-                  {isArabic ? 'العملة' : 'Currency'}
-                </label>
-                <select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-700"
-                >
+                <label className={labelCls}>{isArabic ? 'العملة' : 'Currency'}</label>
+                <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputCls}>
                   <option value="">{isArabic ? 'اختر العملة' : 'Select currency'}</option>
                   {currencyOptions.map((c) => (
-                    <option key={c.code} value={c.code}>{c.code} — {isArabic ? (c.nameAr || c.nameEn) : c.nameEn}</option>
+                    <option key={c.code} value={c.code} className="text-slate-900">
+                      {c.code} — {isArabic ? (c.nameAr || c.nameEn) : c.nameEn}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -174,19 +188,15 @@ export default function TrialSignup() {
 
           {step === 2 && (
             <div>
-              <label className="mb-2 block text-xs font-medium text-slate-600">
-                {isArabic ? 'نوع النشاط' : 'Business type'}
-              </label>
-              <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+              <label className={`${labelCls} mb-2`}>{isArabic ? 'نوع النشاط' : 'Business type'}</label>
+              <div className="grid max-h-56 grid-cols-2 gap-2 overflow-y-auto">
                 {businessOptions.map((option) => (
                   <button
                     key={option.id}
                     type="button"
                     onClick={() => setSelectedType(option.id)}
-                    className={`rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
-                      selectedType === option.id
-                        ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
-                        : 'border-slate-200 hover:border-slate-300'
+                    className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
+                      selectedType === option.id ? chipActive : chipIdle
                     }`}
                   >
                     <span className="font-medium">{option.label}</span>
@@ -198,21 +208,19 @@ export default function TrialSignup() {
 
           {step === 3 && (
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-600">
-                {isArabic ? 'بريد Gmail' : 'Gmail address'}
-              </label>
+              <label className={labelCls}>{isArabic ? 'بريد Gmail' : 'Gmail address'}</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Mail className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${premium ? 'text-white/35' : 'text-slate-400'}`} />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@gmail.com"
-                  className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-emerald-700"
+                  className={`${inputCls} pl-10`}
                   disabled={isLoading}
                 />
               </div>
-              <p className="mt-2 text-xs text-slate-500">
+              <p className={`mt-2 text-xs ${premium ? 'text-white/40' : 'text-slate-500'}`}>
                 {companyName} · {country} · {currency}
               </p>
             </div>
@@ -224,7 +232,7 @@ export default function TrialSignup() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600"
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${premium ? 'bg-red-500/15 text-red-200' : 'bg-red-50 text-red-600'}`}
               >
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {localError || (typeof error === 'string' ? error : error?.message || 'An error occurred')}
@@ -237,17 +245,13 @@ export default function TrialSignup() {
               <button
                 type="button"
                 onClick={() => { setLocalError(''); setStep((s) => s - 1) }}
-                className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700"
+                className={btnGhost}
                 disabled={isLoading}
               >
                 {isArabic ? 'رجوع' : 'Back'}
               </button>
             )}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-            >
+            <button type="submit" disabled={isLoading} className={btnPrimary}>
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -260,7 +264,7 @@ export default function TrialSignup() {
                 </>
               ) : (
                 <>
-                  {isArabic ? 'ابدأ التجربة' : 'Start free demo'}
+                  {isArabic ? 'ابدأ التجربة' : 'Launch demo'}
                   <CheckCircle2 className="h-4 w-4" />
                 </>
               )}

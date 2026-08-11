@@ -2,28 +2,15 @@ import Tenant from '../models/Tenant.js';
 import { AppAddon } from '../models/AppAddon.js';
 
 /**
- * List of core/free apps that are pre-provisioned for tenants.
+ * Core apps auto-installed on tenant create.
+ * Intentionally empty: new tenants (including trading) start with no App Store
+ * modules activated — users install what they need from the App Store.
  */
-export const CORE_PROVISIONED_APP_IDS = [
-  'manufacturing_mes',
-  'fleet_machinery',
-  'landed_costs',
-  'iot_devices',
-  'crm_sales_pipeline',
-  'hr_payroll_pro',
-  'delivery_platforms',
-  'payment_terminal',
-  'zatca_phase2_pro',
-  'thermal_printer_driver',
-  'weight_scale_driver',
-  'whatsapp_cloud_auto',
-  'ai_copilot_insights',
-  'gosi_mudad_compliance',
-  'multicourier_shipping'
-];
+export const CORE_PROVISIONED_APP_IDS = [];
 
 /**
  * Generates the default installedApps mapping for a new or existing tenant.
+ * With an empty core list this returns {} so trading signup stays clean.
  */
 export const getDefaultInstalledApps = (businessTypes = []) => {
   const defaultMap = {};
@@ -43,8 +30,8 @@ export const getDefaultInstalledApps = (businessTypes = []) => {
 
 /**
  * Provisions core apps for a single tenant document.
- * Preserves existing configs and explicit enablement choices while guaranteeing
- * all mandatory/core apps are installed.
+ * With CORE_PROVISIONED_APP_IDS empty, ensures installedApps exists as {}
+ * without activating any modules.
  */
 export const provisionTenantApps = async (tenant, options = { overwriteExisting: false, save: true }) => {
   if (!tenant) return null;
@@ -54,6 +41,10 @@ export const provisionTenantApps = async (tenant, options = { overwriteExisting:
   }
   if (!tenant.settings.installedApps || typeof tenant.settings.installedApps !== 'object') {
     tenant.settings.installedApps = {};
+  }
+
+  if (CORE_PROVISIONED_APP_IDS.length === 0) {
+    return tenant;
   }
 
   const currentApps = { ...tenant.settings.installedApps };
@@ -70,7 +61,6 @@ export const provisionTenantApps = async (tenant, options = { overwriteExisting:
       };
       modified = true;
     } else {
-      // Ensure it is flagged as installed if it exists
       if (currentApps[appId].isInstalled === undefined) {
         currentApps[appId].isInstalled = true;
         modified = true;
@@ -84,11 +74,11 @@ export const provisionTenantApps = async (tenant, options = { overwriteExisting:
 
   tenant.settings.installedApps = currentApps;
 
-  if (typeof tenant.markModified === 'function') {
+  if (modified && typeof tenant.markModified === 'function') {
     tenant.markModified('settings.installedApps');
   }
 
-  if (options.save && typeof tenant.save === 'function') {
+  if (modified && options.save && typeof tenant.save === 'function') {
     await tenant.save();
   }
 

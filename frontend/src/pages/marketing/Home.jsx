@@ -44,7 +44,14 @@ export default function MarketingHome() {
 
   const phone = data?.contactPhone || '+966596775485'
 
-  const heroSubtitle = isArabic ? data?.hero?.subtitleAr : data?.hero?.subtitleEn
+  const rawSubtitle = isArabic ? data?.hero?.subtitleAr : data?.hero?.subtitleEn
+  const looksSaudiCentric = /zatca|saudi|vision\s*2030|gosi/i.test(String(rawSubtitle || ''))
+  const heroSubtitle = looksSaudiCentric
+    ? null
+    : rawSubtitle
+  const defaultSubtitle = isArabic
+    ? 'الفوترة، الموارد البشرية، المخزون والتقارير — في منصة واحدة سريعة ومرنة حسب دولتك.'
+    : 'Invoicing, HR, payroll, inventory and reporting in one fast platform — tuned to your country and currency.'
 
   const modules = [
     { icon: FileText, titleEn: 'E-Invoicing & Tax', titleAr: 'الفوترة الإلكترونية والضرائب', descEn: 'B2B/B2C invoices, tax compliance per country, and real-time submission where required.', descAr: 'فواتير B2B/B2C، الامتثال الضريبي حسب الدولة، والإرسال الفوري عند الحاجة.' },
@@ -86,7 +93,7 @@ export default function MarketingHome() {
         <div className="pointer-events-none absolute top-40 right-0 h-[500px] w-[500px] rounded-full bg-emerald-700/[0.08] blur-[110px]" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-24 pt-16 sm:px-6 lg:px-8 lg:pb-32 lg:pt-24">
+        <div className="relative mx-auto max-w-7xl px-4 pb-28 pt-16 sm:px-6 lg:px-8 lg:pb-36 lg:pt-24">
           <div className="grid items-center gap-14 lg:grid-cols-12">
 
             {/* Copy */}
@@ -109,9 +116,7 @@ export default function MarketingHome() {
               </h1>
 
               <p className="mt-6 max-w-md text-lg leading-relaxed text-white/55">
-                {heroSubtitle || (isArabic
-                  ? 'الفوترة، الموارد البشرية، المخزون والتقارير — في منصة واحدة سريعة ومرنة.'
-                  : 'E-invoicing, HR, payroll, inventory and reporting in one fast, modern platform.')}
+                {heroSubtitle || defaultSubtitle}
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -238,6 +243,24 @@ export default function MarketingHome() {
                 </motion.div>
               </div>
             </motion.div>
+          </div>
+
+          {/* Live demo — premium panel under hero copy */}
+          <div id="trial" className="relative mx-auto mt-16 max-w-3xl scroll-mt-24">
+            <div className="mb-6 text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300/80">
+                {isArabic ? 'تجربة مباشرة' : 'Live demo'}
+              </p>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                {isArabic ? 'أنشئ حسابك في أقل من دقيقة' : 'Spin up your workspace in under a minute'}
+              </h2>
+              <p className="mx-auto mt-2 max-w-xl text-sm text-white/45">
+                {isArabic
+                  ? 'اختر الدولة والعملة واسم الشركة — ثم ادخل لوحة التحكم مباشرة.'
+                  : 'Choose country, currency, and company name — then land in your tenant dashboard.'}
+              </p>
+            </div>
+            <TrialSignup variant="premium" />
           </div>
         </div>
 
@@ -393,27 +416,6 @@ export default function MarketingHome() {
               ))}
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* ── TRIAL SIGNUP ── */}
-      <section id="trial" className="bg-gradient-to-b from-slate-50 to-white py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-12 text-center">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#0f3d2e]/20 bg-[#0f3d2e]/[0.05] px-4 py-2 text-sm font-semibold text-[#0f3d2e]">
-              <Sparkles className="h-4 w-4" />
-              {isArabic ? 'تجربة مجانية' : 'Free Trial'}
-            </div>
-            <h2 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-              {isArabic ? 'جرّب النظام بنفسك مجاناً' : 'Try It Yourself — Free'}
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-500">
-              {isArabic
-                ? 'اختر نوع نشاطك وأدخل بريد Gmail لإنشاء حساب تجريبي كامل لمدة 7 أيام.'
-                : 'Select your business type and enter your Gmail to create a full demo account for 7 days.'}
-            </p>
-          </div>
-          <TrialSignup />
         </div>
       </section>
 
