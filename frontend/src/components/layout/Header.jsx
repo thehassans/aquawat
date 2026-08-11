@@ -15,6 +15,7 @@ import SubscriptionBadge from './SubscriptionBadge'
 import { showArabicUi } from '../../lib/saudiTenant'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import useMaqderWebAppInstall from '../../lib/useMaqderWebAppInstall'
+import { tenantHasEmailAddon } from '../../lib/emailAddon'
 
 const TENANT_TYPE_META = {
   trading: { Icon: Store, labelEn: 'Trading', labelAr: 'تجارة' },
@@ -45,11 +46,20 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef(null)
-  const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
+  const hasEmailAddon = tenantHasEmailAddon(tenant)
 
   const notificationsQuery = useQuery({
     queryKey: ['header-email-notifications'],
-    queryFn: () => api.get('/email/messages', { params: { folder: 'all', limit: 8 } }).then((res) => res.data),
+    queryFn: async () => {
+      try {
+        const { data } = await api.get('/email/messages', { params: { folder: 'all', limit: 8 } })
+        return data
+      } catch (err) {
+        // Addon not enabled / not entitled — keep the header quiet.
+        if (err?.response?.status === 403) return { messages: [] }
+        throw err
+      }
+    },
     enabled: hasEmailAddon,
     refetchInterval: hasEmailAddon ? 60000 : false,
     refetchIntervalInBackground: false,

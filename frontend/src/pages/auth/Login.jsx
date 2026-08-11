@@ -113,7 +113,9 @@ export default function Login() {
       const tenantSlug = String(tenant?.slug || '').trim().toLowerCase()
       const sessionToken = result.token || localStorage.getItem('token')
       if (tenantSlug && sessionToken && isApexHost() && !isOnTenantAliasHost()) {
-        window.location.replace(getTenantAliasHandoffUrl(tenantSlug, sessionToken))
+        window.location.replace(getTenantAliasHandoffUrl(tenantSlug, sessionToken, {
+          lang: language === 'ar' ? 'ar' : 'en',
+        }))
         return
       }
 

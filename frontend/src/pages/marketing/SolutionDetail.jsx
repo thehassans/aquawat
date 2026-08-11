@@ -44,7 +44,7 @@ export default function SolutionDetail() {
               <div className={`mt-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${solution.accent} shadow-lg`}>
                 <Icon className="h-8 w-8 text-white" />
               </div>
-              <h1 className="mt-6 text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+              <h1 className="mt-6 font-display text-4xl font-bold leading-[1.1] tracking-[-0.02em] sm:text-5xl lg:text-6xl">
                 {isArabic ? solution.nameAr : solution.nameEn}
               </h1>
               <p className="mt-5 max-w-lg text-lg leading-relaxed text-white/60">
@@ -96,7 +96,7 @@ export default function SolutionDetail() {
                 <ShieldCheck className="w-4 h-4" />
                 {isArabic ? 'جاهز للمرحلة الثانية' : 'Phase 2 Ready'}
               </div>
-              <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mb-6">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-6">
                 {isArabic ? 'متوافق بالكامل مع متطلبات ZATCA' : 'Fully Compliant with ZATCA Requirements'}
               </h2>
               <p className="text-lg text-gray-600 mb-8 leading-relaxed">
@@ -158,7 +158,7 @@ export default function SolutionDetail() {
       <section className="bg-slate-50/70 py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-14 text-center">
-            <h2 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+            <h2 className="text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
               {isArabic ? 'كل ما تحتاجه لإدارة نشاطك' : 'Everything you need to run it'}
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-500">{isArabic ? solution.taglineAr : solution.taglineEn}</p>
@@ -185,13 +185,13 @@ export default function SolutionDetail() {
       <section className="bg-slate-950 py-24 text-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-14 text-center">
-            <h2 className="text-4xl font-black tracking-tight sm:text-5xl">{isArabic ? 'كيف يعمل' : 'How it works'}</h2>
+            <h2 className="text-4xl font-bold tracking-tight sm:text-5xl">{isArabic ? 'كيف يعمل' : 'How it works'}</h2>
           </div>
           <div className="grid gap-6 md:grid-cols-3">
             {solution.workflow.map((step, i) => (
               <motion.div key={i} variants={fade} initial="initial" whileInView="animate" viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.12 }}
                 className="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-7">
-                <div className={`mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${solution.accent} text-lg font-black text-white`}>
+                <div className={`mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${solution.accent} text-lg font-bold text-white`}>
                   {i + 1}
                 </div>
                 <p className="text-lg font-bold text-white">{isArabic ? step.titleAr : step.titleEn}</p>
@@ -206,7 +206,7 @@ export default function SolutionDetail() {
       <section className="py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-12 text-center">
-            <h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{isArabic ? 'حلول أخرى' : 'Other solutions'}</h2>
+            <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">{isArabic ? 'حلول أخرى' : 'Other solutions'}</h2>
           </div>
           <div className="grid gap-6 sm:grid-cols-3">
             {others.map((s) => {
@@ -237,7 +237,7 @@ export default function SolutionDetail() {
             <div className={`pointer-events-none absolute -top-24 left-1/3 h-96 w-96 rounded-full ${solution.glow} blur-[100px]`} />
             <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl">
-                <h2 className="text-3xl font-black leading-tight lg:text-4xl">
+                <h2 className="text-3xl font-bold leading-tight lg:text-4xl">
                   {isArabic ? `جاهز لتجربة ${solution.nameAr}؟` : `Ready to try ${solution.nameEn}?`}
                 </h2>
                 <p className="mt-4 text-lg text-white/55">

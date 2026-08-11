@@ -14,6 +14,7 @@ import { getNavSections } from '../../lib/sidebarConfig'
 import { useTranslation } from '../../lib/translations'
 import App3DIcon from '../ui/App3DIcon'
 import useMaqderWebAppInstall from '../../lib/useMaqderWebAppInstall'
+import { tenantHasEmailAddon } from '../../lib/emailAddon'
 
 // Pre-defined mapping for standard paths to specific gradients and icons to match Odoo-style uniqueness
 const APP_STYLE_MAP = {
@@ -150,14 +151,19 @@ export default function AppLauncher() {
   
   const location = useLocation()
   
-  const hasEmailAddon =
-    tenant?.subscription?.hasEmailAddon === true ||
-    (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation')) ||
-    (tenant?.settings?.installedApps?.email_suite?.isInstalled && tenant?.settings?.installedApps?.email_suite?.isEnabled)
+  const hasEmailAddon = tenantHasEmailAddon(tenant)
 
   const notificationsQuery = useQuery({
     queryKey: ['header-email-notifications'],
-    queryFn: () => api.get('/email/messages', { params: { folder: 'all', limit: 8 } }).then((res) => res.data),
+    queryFn: async () => {
+      try {
+        const { data } = await api.get('/email/messages', { params: { folder: 'all', limit: 8 } })
+        return data
+      } catch (err) {
+        if (err?.response?.status === 403) return { messages: [] }
+        throw err
+      }
+    },
     enabled: hasEmailAddon && appLauncherOpen,
     refetchInterval: hasEmailAddon ? 60000 : false,
     refetchIntervalInBackground: false,

@@ -134,7 +134,7 @@ export default function MarketingHome() {
   }
 
   return (
-    <main dir={dir} className="bg-white text-slate-900 antialiased overflow-x-hidden font-sans">
+    <main dir={dir} className="bg-white text-slate-900 antialiased overflow-x-hidden font-body">
       <style>{`
         @keyframes maqderMarquee {
           from { transform: translateX(0); }
@@ -162,7 +162,7 @@ export default function MarketingHome() {
 
           <motion.h1
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.08 }}
-            className="mx-auto max-w-5xl text-center text-[2.75rem] font-black leading-[1.06] tracking-[-0.035em] text-slate-950 sm:text-6xl lg:text-[5rem]"
+            className="mx-auto max-w-5xl text-center font-display text-[2.75rem] font-bold leading-[1.1] tracking-[-0.02em] text-slate-950 sm:text-6xl lg:text-[4.5rem]"
           >
             {isArabic ? (
               <>{'كل أعمالك على '}<span className="text-emerald-600">منصة واحدة</span></>
@@ -235,14 +235,14 @@ export default function MarketingHome() {
       </section>
 
       {/* ── LIVE REPORTING ── */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#f7faf8] via-white to-[#f3f7f5] py-28" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#f7faf8] via-white to-[#f3f7f5] py-28">
         <div className="pointer-events-none absolute inset-0 opacity-[0.4]" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #05966918 0%, transparent 42%), radial-gradient(circle at 85% 10%, #14b8a618 0%, transparent 40%)' }} />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-14 text-center">
             <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.32em] text-emerald-600">
               {isArabic ? 'تقارير حية' : 'Live reporting'}
             </p>
-            <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl lg:text-[3.4rem]" style={{ fontFamily: "'Syne', system-ui, sans-serif" }}>
+            <h2 className="font-display text-4xl font-bold tracking-[-0.02em] text-slate-950 sm:text-5xl lg:text-[3.25rem]">
               {isArabic ? 'أرباحك، تكاليفك، ونموك — بوضوح.' : 'Revenue, costs, and growth — crystal clear.'}
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-slate-500">
@@ -260,7 +260,7 @@ export default function MarketingHome() {
               <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{isArabic ? 'الأرباح والخسائر' : 'Profit & Loss'}</p>
-                  <p className="mt-1 text-3xl font-black tracking-tight text-slate-950">$1.24M <span className="text-sm font-bold text-emerald-600">+18.4%</span></p>
+                  <p className="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">$1.24M <span className="text-sm font-semibold text-emerald-600">+18.4%</span></p>
                 </div>
                 <div className="flex items-center gap-4 text-xs font-bold">
                   <span className="inline-flex items-center gap-1.5 text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />{isArabic ? 'إيراد' : 'Revenue'}</span>
@@ -296,7 +296,7 @@ export default function MarketingHome() {
                     <k.Icon className="h-5 w-5 text-emerald-600" />
                   </div>
                   <p className="text-xs font-semibold text-slate-400">{isArabic ? k.labelAr : k.labelEn}</p>
-                  <p className="mt-1 text-2xl font-black tracking-tight text-slate-950">{k.value}</p>
+                  <p className="mt-1 font-display text-2xl font-bold tracking-tight text-slate-950">{k.value}</p>
                   <p className={`mt-1 text-xs font-bold ${k.up ? 'text-emerald-600' : 'text-amber-600'}`}>{k.trend}</p>
                 </motion.div>
               ))}
@@ -339,7 +339,7 @@ export default function MarketingHome() {
                 {['ZATCA Phase 2', 'NBR Bangladesh', 'VAT / Tax rules', 'WPS payroll files'].map((t) => (
                   <div key={t} className="flex items-center justify-between rounded-2xl border border-white/80 bg-white/80 px-4 py-3 shadow-sm">
                     <span className="text-sm font-semibold text-slate-700">{t}</span>
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">Live</span>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">Live</span>
                   </div>
                 ))}
               </div>
@@ -359,7 +359,7 @@ export default function MarketingHome() {
               { to: 24, suffix: '/7', labelEn: 'Support', labelAr: 'دعم متواصل' },
             ].map((s) => (
               <div key={s.labelEn} className="rounded-3xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/50 p-6 text-center shadow-sm">
-                <p className="text-5xl font-black tracking-tight text-slate-950"><Counter to={s.to} suffix={s.suffix} /></p>
+                <p className="font-display text-5xl font-bold tracking-tight text-slate-950"><Counter to={s.to} suffix={s.suffix} /></p>
                 <p className="mt-2 text-sm font-semibold text-slate-500">{isArabic ? s.labelAr : s.labelEn}</p>
               </div>
             ))}
@@ -368,10 +368,10 @@ export default function MarketingHome() {
       </section>
 
       {/* ── WHY CHOOSE — ICON MARQUEE ── */}
-      <section className="overflow-hidden bg-slate-50 py-24" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      <section className="overflow-hidden bg-slate-50 py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-12 text-center">
-            <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl" style={{ fontFamily: "'Syne', system-ui, sans-serif" }}>
+            <h2 className="font-display text-4xl font-bold tracking-[-0.02em] text-slate-950 sm:text-5xl">
               {isArabic ? 'لماذا تختار Maqder؟' : 'Why choose Maqder?'}
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-slate-500">
@@ -401,12 +401,12 @@ export default function MarketingHome() {
       </section>
 
       {/* ── TESTIMONIALS MARQUEE ── */}
-      <section className="overflow-hidden bg-gradient-to-b from-white via-[#f8faf9] to-slate-50 py-28" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      <section className="overflow-hidden bg-gradient-to-b from-white via-[#f8faf9] to-slate-50 py-28">
         <div className="mx-auto mb-14 max-w-7xl px-4 text-center sm:px-6 lg:px-8">
           <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.32em] text-emerald-600">
             {isArabic ? 'قصص نجاح' : 'Customer stories'}
           </p>
-          <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl" style={{ fontFamily: "'Syne', system-ui, sans-serif" }}>
+          <h2 className="font-display text-4xl font-bold tracking-[-0.02em] text-slate-950 sm:text-5xl">
             {isArabic ? 'موثوق من أعمال نامية' : 'Trusted by growing businesses'}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-slate-500">
@@ -436,13 +436,13 @@ export default function MarketingHome() {
                 </p>
                 <div className="relative mt-7 flex items-center gap-3 border-t border-slate-100 pt-5">
                   <div
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white shadow-lg"
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold text-white shadow-lg"
                     style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent}99)` }}
                   >
                     {(isArabic ? t.companyAr : t.companyEn).charAt(0)}
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-base font-black text-slate-950">{isArabic ? t.companyAr : t.companyEn}</p>
+                    <p className="truncate font-display text-base font-bold text-slate-950">{isArabic ? t.companyAr : t.companyEn}</p>
                     <p className="text-xs font-semibold text-slate-400">{isArabic ? t.industryAr : t.industryEn}</p>
                   </div>
                 </div>
@@ -473,7 +473,7 @@ export default function MarketingHome() {
                   <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-600">
                     {isArabic ? 'تجربة مجانية' : 'Free trial'}
                   </p>
-                  <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
+                  <h3 className="mt-1 font-display text-2xl font-bold tracking-tight text-slate-950">
                     {isArabic ? 'مساحتك جاهزة في أقل من دقيقة' : 'Your workspace in under a minute'}
                   </h3>
                   <p className="mt-1 text-sm text-slate-500">

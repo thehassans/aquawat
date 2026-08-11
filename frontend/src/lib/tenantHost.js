@@ -46,8 +46,12 @@ export function getTenantAliasUrl(slug, path = '/login') {
   return `${protocol}//${String(slug).toLowerCase()}.${base}${path}`
 }
 
-export function getTenantAliasHandoffUrl(slug, token) {
+export function getTenantAliasHandoffUrl(slug, token, options = {}) {
   if (!slug || !token) return ''
   const base = getTenantAliasUrl(slug, '/auth/handoff')
-  return `${base}#access_token=${encodeURIComponent(token)}`
+  const params = new URLSearchParams()
+  params.set('access_token', token)
+  const lang = String(options.lang || '').toLowerCase()
+  if (lang === 'ar' || lang === 'en') params.set('lang', lang)
+  return `${base}#${params.toString()}`
 }

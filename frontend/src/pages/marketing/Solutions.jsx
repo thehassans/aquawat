@@ -236,7 +236,7 @@ export default function MarketingSolutions() {
 
           <motion.h1
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.65 }}
-            className="mt-5 text-5xl font-black tracking-[-0.03em] sm:text-6xl lg:text-[4.5rem]"
+            className="mt-5 font-display text-5xl font-bold tracking-[-0.02em] sm:text-6xl lg:text-[4.5rem]"
           >
             {isArabic ? (
               <>منصة واحدة.<br /><span className="text-emerald-400">كل شيء تحتاجه.</span></>
@@ -323,7 +323,7 @@ export default function MarketingSolutions() {
                     </div>
                     {mod.badgeEn && (
                       <span
-                        className="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider"
+                        className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
                         style={{ background: mod.bgColor, color: mod.color }}
                       >
                         {isArabic ? mod.badgeAr : mod.badgeEn}
@@ -331,7 +331,7 @@ export default function MarketingSolutions() {
                     )}
                   </div>
 
-                  <h3 className="text-base font-black text-slate-950">
+                  <h3 className="text-base font-bold text-slate-950">
                     {isArabic ? mod.titleAr : mod.titleEn}
                   </h3>
                   <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-500">
@@ -365,7 +365,7 @@ export default function MarketingSolutions() {
               <Building2 className="h-3.5 w-3.5" />
               {isArabic ? 'حلول حسب الصناعة' : 'Industry solutions'}
             </span>
-            <h2 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+            <h2 className="mt-4 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
               {isArabic ? 'مبني لكل صناعة' : 'Built for your industry'}
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
@@ -392,7 +392,7 @@ export default function MarketingSolutions() {
                 <div className="relative mb-5 flex h-13 w-13 items-center justify-center rounded-2xl" style={{ background: v.bgColor }}>
                   <v.icon className="h-6 w-6" style={{ color: v.color }} />
                 </div>
-                <h3 className="relative text-lg font-black text-slate-950">
+                <h3 className="relative text-lg font-bold text-slate-950">
                   {isArabic ? v.titleAr : v.titleEn}
                 </h3>
                 <p className="relative mt-2 text-sm leading-relaxed text-slate-500">
@@ -421,7 +421,7 @@ export default function MarketingSolutions() {
               <motion.div key={i} custom={i} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}
                 className="text-center"
               >
-                <p className="text-5xl font-black tracking-tight text-white">{s.v}</p>
+                <p className="text-5xl font-bold tracking-tight text-white">{s.v}</p>
                 <p className="mt-2 text-sm font-semibold text-white/50">{isArabic ? s.lAr : s.lEn}</p>
               </motion.div>
             ))}
@@ -436,7 +436,7 @@ export default function MarketingSolutions() {
             <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
             <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
-                <h2 className="text-3xl font-black lg:text-4xl">
+                <h2 className="text-3xl font-bold lg:text-4xl">
                   {isArabic ? 'جاهز لتجربة Maqder؟' : 'Ready to explore Maqder?'}
                 </h2>
                 <p className="mt-3 text-lg text-white/65">
@@ -447,7 +447,7 @@ export default function MarketingSolutions() {
                 <Link
                   to="/"
                   onClick={(e) => { e.preventDefault(); window.location.replace('/#trial') }}
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-black text-emerald-700 shadow-lg transition-all hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-bold text-emerald-700 shadow-lg transition-all hover:-translate-y-0.5"
                 >
                   {isArabic ? 'ابدأ مجاناً' : 'Start for free'}
                   <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />

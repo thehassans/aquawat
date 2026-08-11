@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDispatch } from 'react-redux'
 import { Loader2 } from 'lucide-react'
-import { getMe } from '../../store/slices/authSlice'
-import { setAppLauncherOpen, setHideSidebar, setNavigationStyle } from '../../store/slices/uiSlice'
+import { getMe, seedSessionToken, forceLogout } from '../../store/slices/authSlice'
+import { setAppLauncherOpen, setHideSidebar, setLanguage, setNavigationStyle } from '../../store/slices/uiSlice'
 
 /**
  * Cross-subdomain auth handoff.
@@ -17,41 +17,51 @@ export default function AuthHandoff() {
 
   useEffect(() => {
     let cancelled = false
+    let navigated = false
 
     const run = async () => {
       try {
         const hash = String(window.location.hash || '').replace(/^#/, '')
         const params = new URLSearchParams(hash)
         const token = params.get('access_token') || params.get('token')
+        const lang = String(params.get('lang') || '').toLowerCase()
         if (!token) {
           setError('Missing session token. Please sign in again.')
           return
         }
 
-        localStorage.setItem('token', token)
+        // Seed Redux + localStorage BEFORE getMe so ProtectedRoute sees a token.
+        dispatch(seedSessionToken(token))
+        if (lang === 'ar' || lang === 'en') {
+          dispatch(setLanguage(lang))
+        }
+
         // Clear the token from the URL so it is not left in history.
         window.history.replaceState(null, '', window.location.pathname)
 
         const result = await dispatch(getMe()).unwrap()
-        if (cancelled) return
+        if (cancelled || navigated) return
 
         const tenant = result?.tenant
         if (result?.user?.role === 'super_admin') {
+          navigated = true
           navigate('/super-admin', { replace: true })
           return
         }
         if (result?.user?.role === 'reseller') {
+          navigated = true
           navigate('/reseller', { replace: true })
           return
         }
 
         dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
         dispatch(setHideSidebar(true))
+        navigated = true
         navigate('/app/dashboard', { replace: true })
         setTimeout(() => dispatch(setAppLauncherOpen(true)), 50)
       } catch (err) {
         if (!cancelled) {
-          localStorage.removeItem('token')
+          dispatch(forceLogout())
           setError(err?.message || err?.error || 'Session handoff failed. Please sign in again.')
         }
       }

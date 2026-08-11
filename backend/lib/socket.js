@@ -7,7 +7,7 @@ import User from '../models/User.js';
 
 let io;
 
-const socketAllowedOrigins = () => {
+const configuredFrontendOrigins = () => {
   const configured = String(process.env.FRONTEND_URL || 'http://localhost:5173')
     .split(',')
     .map((origin) => origin.trim())
@@ -18,17 +18,41 @@ const socketAllowedOrigins = () => {
   return configured;
 };
 
+/** Same flexible host rules as Express CORS — allow {slug}.maqder.com tenants. */
+const isAllowedSocketOrigin = (origin, allowedOrigins) => {
+  if (!origin) return true;
+  if (!allowedOrigins.length) {
+    return process.env.NODE_ENV !== 'production';
+  }
+  if (allowedOrigins.includes('*')) {
+    return process.env.NODE_ENV !== 'production';
+  }
+  if (allowedOrigins.includes(origin)) return true;
+
+  return allowedOrigins.some((configured) => {
+    try {
+      const configuredHost = new URL(configured).hostname.replace(/^www\./, '');
+      const originHost = new URL(origin).hostname.replace(/^www\./, '');
+      return originHost === configuredHost || originHost.endsWith(`.${configuredHost}`);
+    } catch {
+      return false;
+    }
+  });
+};
+
 export const initSocket = (server) => {
-  const allowedOrigins = socketAllowedOrigins();
+  const allowedOrigins = configuredFrontendOrigins();
   io = new Server(server, {
     cors: {
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (isAllowedSocketOrigin(origin, allowedOrigins)) {
           return callback(null, true);
         }
+        logger.warn(`[Socket CORS] Blocked origin: ${origin}`);
         return callback(new Error('Not allowed by Socket CORS'));
       },
       methods: ['GET', 'POST'],
+      credentials: true,
     },
     // Websocket-only: avoids the multi-request HTTP long-polling handshake,
     // which requires sticky sessions to consistently reach the same cluster

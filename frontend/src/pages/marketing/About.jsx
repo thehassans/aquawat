@@ -73,7 +73,7 @@ export default function MarketingAbout() {
                 {isArabic ? 'منصة ERP عالمية بطابع راقٍ' : 'A premium modern ERP experience'}
               </div>
 
-              <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.05] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+              <h1 className="mt-6 max-w-4xl font-display text-4xl font-bold leading-[1.1] tracking-[-0.02em] text-slate-950 sm:text-5xl lg:text-6xl">
                 {isArabic ? 'نصنع منصة تشغيل أعمال تجمع الأناقة والوضوح والامتثال.' : 'We build a business operating platform that blends elegance, clarity, and compliance.'}
               </h1>
 
@@ -100,7 +100,7 @@ export default function MarketingAbout() {
                     <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700">
                       {isArabic ? 'رؤية المنصة' : 'Platform vision'}
                     </p>
-                    <h2 className="mt-3 text-2xl font-black text-slate-950">
+                    <h2 className="mt-3 text-2xl font-bold text-slate-950">
                       {isArabic ? 'كل فريق. كل عملية. كل قرار.' : 'Every team. Every workflow. Every decision.'}
                     </h2>
                   </div>
@@ -132,7 +132,7 @@ export default function MarketingAbout() {
                 {isArabic ? 'قصتنا ولماذا نبني Maqder' : 'Our story and why Maqder exists'}
               </div>
 
-              <h3 className="mt-5 text-3xl font-black leading-tight text-slate-950 sm:text-4xl">
+              <h3 className="mt-5 text-3xl font-bold leading-tight text-slate-950 sm:text-4xl">
                 {isArabic ? 'لأن الأعمال الحديثة تحتاج إلى ERP أقل تعقيداً وأكثر ذكاءً.' : 'Because modern businesses need an ERP that feels less heavy and more intelligent.'}
               </h3>
             </div>
@@ -165,7 +165,7 @@ export default function MarketingAbout() {
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
                 <pillar.icon className="h-5 w-5" />
               </div>
-              <h4 className="mt-5 text-xl font-black text-slate-950">{pillar.title}</h4>
+              <h4 className="mt-5 text-xl font-bold text-slate-950">{pillar.title}</h4>
               <p className="mt-3 text-sm leading-7 text-slate-600">{pillar.description}</p>
             </div>
           ))}
@@ -180,7 +180,7 @@ export default function MarketingAbout() {
                 <Globe className="h-4 w-4" />
                 {isArabic ? 'مبني لفرق طموحة حول العالم' : 'Built for ambitious growing teams'}
               </div>
-              <h5 className="mt-5 text-3xl font-black leading-tight sm:text-4xl">
+              <h5 className="mt-5 text-3xl font-bold leading-tight sm:text-4xl">
                 {isArabic ? 'منصة واحدة تمنحك أناقة التجربة وقوة التشغيل معاً.' : 'One platform delivering premium experience and operational power together.'}
               </h5>
             </div>

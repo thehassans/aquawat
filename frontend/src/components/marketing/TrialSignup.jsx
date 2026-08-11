@@ -7,7 +7,6 @@ import { getBusinessTypeOptions } from '../../lib/businessTypes'
 import { COUNTRY_OPTIONS, currencyForCountry } from '../../lib/countryCurrency'
 import { CURRENCIES } from '../../lib/currency'
 import { isApexHost, isOnTenantAliasHost, getTenantAliasHandoffUrl } from '../../lib/tenantHost'
-import { setLanguage } from '../../store/slices/uiSlice'
 
 const MAX_LOGO_BYTES = 3 * 1024 * 1024
 
@@ -115,15 +114,11 @@ export default function TrialSignup({ variant = 'light' }) {
     const tenant = result.payload?.tenant
     const token = result.payload?.token
     const tenantSlug = String(tenant?.slug || '').trim().toLowerCase()
-    const cur = String(tenant?.settings?.currency || currency || '').toUpperCase()
-    if (['SAR', 'AED', 'QAR', 'KWD', 'BHD', 'OMR'].includes(cur)) {
-      dispatch(setLanguage('ar'))
-    } else {
-      dispatch(setLanguage('en'))
-    }
+    // Keep the UI language the user already chose (do not force Arabic for GCC).
+    const lang = language === 'ar' ? 'ar' : 'en'
 
     if (tenantSlug && token && isApexHost() && !isOnTenantAliasHost()) {
-      window.location.replace(getTenantAliasHandoffUrl(tenantSlug, token))
+      window.location.replace(getTenantAliasHandoffUrl(tenantSlug, token, { lang }))
       return
     }
 

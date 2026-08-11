@@ -73,6 +73,14 @@ const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}, payme
 
   tenant.settings.installedApps[appId] = appConfig;
 
+  if (appId === 'email_suite') {
+    if (!tenant.subscription) tenant.subscription = {};
+    tenant.subscription.hasEmailAddon = true;
+    const features = Array.isArray(tenant.subscription.features) ? tenant.subscription.features.filter(Boolean) : [];
+    tenant.subscription.features = [...new Set([...features, 'email_automation'])];
+    tenant.markModified('subscription');
+  }
+
   if (appId === 'bangladesh_nbr_einvoicing') {
     if (!tenant.nbr) tenant.nbr = {};
     tenant.nbr.isEnabled = true;
@@ -1871,6 +1879,15 @@ router.post('/apps/:appId/uninstall', protect, async (req, res) => {
     tenant.settings.installedApps = installedApps;
     tenant.markModified('settings');
     tenant.markModified('settings.installedApps');
+
+    if (appId === 'email_suite') {
+      if (!tenant.subscription) tenant.subscription = {};
+      tenant.subscription.hasEmailAddon = false;
+      const features = Array.isArray(tenant.subscription.features) ? tenant.subscription.features : [];
+      tenant.subscription.features = features.filter((feature) => feature !== 'email_automation');
+      tenant.markModified('subscription');
+    }
+
     await tenant.save();
 
     res.json({

@@ -1234,10 +1234,7 @@ export default function Settings() {
                           setDefaultCurrency(next)
                           // Riyal icon only makes sense for SAR — keep display in sync.
                           if (String(next).toUpperCase() !== 'SAR') setInvoiceCurrencyDisplay('text')
-                          // Keep UI language aligned with the market currency.
-                          const code = String(next).toUpperCase()
-                          if (['SAR', 'AED', 'QAR', 'KWD', 'BHD', 'OMR'].includes(code)) dispatch(setLanguage('ar'))
-                          else dispatch(setLanguage('en'))
+                          // Do not auto-switch UI language with currency — user controls language separately.
                         }}
                         className="select mt-1 w-full md:w-1/2"
                       >

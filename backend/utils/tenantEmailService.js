@@ -51,7 +51,9 @@ const getGlobalSettings = async () => {
 const tenantHasEmailAddon = (tenant) => {
   if (tenant?.subscription?.hasEmailAddon === true) return true;
   const features = Array.isArray(tenant?.subscription?.features) ? tenant.subscription.features : [];
-  return features.includes('email_automation');
+  if (features.includes('email_automation')) return true;
+  const emailApp = tenant?.settings?.installedApps?.email_suite;
+  return emailApp?.isInstalled === true && emailApp?.isEnabled !== false;
 };
 
 const resolveGlobalEmailConfig = (settings) => {

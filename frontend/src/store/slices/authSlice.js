@@ -146,6 +146,19 @@ const authSlice = createSlice({
         try { localStorage.setItem('auth_tenant', JSON.stringify(state.tenant)) } catch {}
       }
     },
+    // Seed token into Redux + localStorage (cross-subdomain handoff).
+    // Without this, getMe can succeed via the axios interceptor while
+    // state.token stays null → AuthLayout ↔ ProtectedRoute navigation loop.
+    seedSessionToken: (state, action) => {
+      const next = String(action.payload || '').trim()
+      if (!next) return
+      state.token = next
+      state.isLoading = true
+      state.error = null
+      try {
+        localStorage.setItem('token', next)
+      } catch {}
+    },
     // Synchronous logout — used by the auth-expired event handler so that
     // Redux state is cleared BEFORE React Router navigates to /login.
     // The async logout() thunk is too slow: isAuthenticated stays true
@@ -224,6 +237,14 @@ const authSlice = createSlice({
         state.isLoading = false
         state.isAuthenticated = true
         state.user = action.payload.user
+        // Keep Redux token in sync after handoff (token may only exist in localStorage).
+        if (!state.token) {
+          try {
+            state.token = localStorage.getItem('token')
+          } catch {
+            state.token = null
+          }
+        }
         if (action.payload.tenant) {
           state.tenant = action.payload.tenant
         } else if (action.payload.user?.role !== 'super_admin') {
@@ -251,5 +272,5 @@ const authSlice = createSlice({
   },
 })
 
-export const { clearError, updateUser, updateTenant, setTenantInactive, forceLogout } = authSlice.actions
+export const { clearError, updateUser, updateTenant, setTenantInactive, forceLogout, seedSessionToken } = authSlice.actions
 export default authSlice.reducer

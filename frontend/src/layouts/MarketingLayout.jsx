@@ -57,7 +57,7 @@ export default function MarketingLayout() {
   ]
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 antialiased" dir={isArabic ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-white text-slate-900 antialiased font-body" dir={isArabic ? 'rtl' : 'ltr'}>
       <header
         className={`sticky top-0 z-50 transition-all duration-300 ${
           scrolled

@@ -106,7 +106,7 @@ export default function MarketingContact() {
 
           <motion.h1
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.65 }}
-            className="mt-5 text-5xl font-black tracking-[-0.03em] sm:text-6xl lg:text-[4.5rem]"
+            className="mt-5 font-display text-5xl font-bold tracking-[-0.02em] sm:text-6xl lg:text-[4.5rem]"
           >
             {isArabic ? (
               <><span className="text-emerald-400">تواصل</span>{' معنا'}</>
@@ -183,7 +183,7 @@ export default function MarketingContact() {
                       <Send className="h-4 w-4 text-emerald-600" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-slate-950">
+                      <h2 className="text-lg font-bold text-slate-950">
                         {isArabic ? 'أرسل لنا رسالة' : 'Send us a message'}
                       </h2>
                       <p className="text-xs text-slate-400">
@@ -226,7 +226,7 @@ export default function MarketingContact() {
 
                   <button
                     type="submit"
-                    className={`w-full rounded-2xl py-4 text-sm font-black transition-all duration-300 hover:-translate-y-0.5 ${
+                    className={`w-full rounded-2xl py-4 text-sm font-bold transition-all duration-300 hover:-translate-y-0.5 ${
                       sent
                         ? 'bg-emerald-600 text-white shadow-[0_4px_16px_-4px_rgba(5,150,105,0.5)]'
                         : 'bg-emerald-600 text-white shadow-[0_4px_16px_-4px_rgba(5,150,105,0.5)] hover:bg-emerald-700 hover:shadow-[0_6px_24px_-4px_rgba(5,150,105,0.55)]'
@@ -289,7 +289,7 @@ export default function MarketingContact() {
                   <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
                     <Zap className="h-5 w-5 text-white" />
                   </div>
-                  <p className="text-sm font-black uppercase tracking-wider text-white/70">{isArabic ? 'لماذا Maqder' : 'Why Maqder?'}</p>
+                  <p className="text-sm font-bold uppercase tracking-wider text-white/70">{isArabic ? 'لماذا Maqder' : 'Why Maqder?'}</p>
                   <ul className="mt-4 space-y-3">
                     {WHY.map((item, i) => (
                       <li key={i} className="flex items-center gap-2.5 text-sm text-white/80">
@@ -312,7 +312,7 @@ export default function MarketingContact() {
             <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
             <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
-                <h2 className="text-3xl font-black lg:text-4xl">
+                <h2 className="text-3xl font-bold lg:text-4xl">
                   {isArabic ? 'جاهز للبدء؟' : 'Ready to get started?'}
                 </h2>
                 <p className="mt-3 text-lg text-white/65">
@@ -322,7 +322,7 @@ export default function MarketingContact() {
               <div className="flex shrink-0 gap-3">
                 <a
                   href="/#trial"
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-black text-emerald-700 shadow-lg transition-all hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-bold text-emerald-700 shadow-lg transition-all hover:-translate-y-0.5"
                 >
                   {isArabic ? 'ابدأ مجاناً' : 'Start for free'}
                   <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />

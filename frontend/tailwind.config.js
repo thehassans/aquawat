@@ -74,7 +74,9 @@ export default {
         ring: 'var(--ring)',
       },
       fontFamily: {
-        sans: ['Inter', 'Tajawal', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', 'Inter', 'Tajawal', 'sans-serif'],
+        display: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+        body: ['"DM Sans"', 'Inter', 'Tajawal', 'sans-serif'],
         arabic: ['Tajawal', 'sans-serif'],
         urdu: ['"Noto Nastaliq Urdu"', 'Tajawal', 'sans-serif'],
       },

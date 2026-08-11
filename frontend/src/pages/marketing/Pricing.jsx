@@ -172,7 +172,7 @@ export default function MarketingPricing() {
 
           <motion.h1
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.6 }}
-            className="mt-5 text-5xl font-black tracking-[-0.03em] text-slate-950 sm:text-6xl lg:text-7xl"
+            className="mt-5 font-display text-5xl font-bold tracking-[-0.02em] text-slate-950 sm:text-6xl lg:text-7xl"
           >
             {isArabic ? (
               <>خطط تنمو<br /><span className="text-emerald-600">معك</span></>
@@ -206,7 +206,7 @@ export default function MarketingPricing() {
               className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold transition-all ${yearly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
             >
               {isArabic ? 'سنوياً' : 'Yearly'}
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700">
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                 {isArabic ? 'وفّر 17%' : 'Save 17%'}
               </span>
             </button>
@@ -243,7 +243,7 @@ export default function MarketingPricing() {
                 >
                   {plan.popular && (
                     <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-black text-white shadow-lg shadow-emerald-600/30">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white shadow-lg shadow-emerald-600/30">
                         <Star className="h-3 w-3 fill-white" />
                         {isArabic ? 'الأكثر شيوعاً' : 'Most Popular'}
                       </span>
@@ -256,7 +256,7 @@ export default function MarketingPricing() {
                       <Icon className={`h-5 w-5 ${plan.popular ? 'text-white' : 'text-slate-600'}`} />
                     </div>
                     <div>
-                      <h3 className="text-lg font-black text-slate-950">{name}</h3>
+                      <h3 className="text-lg font-bold text-slate-950">{name}</h3>
                       <p className="text-xs text-slate-500 leading-tight mt-0.5">{tagline}</p>
                     </div>
                   </div>
@@ -265,13 +265,13 @@ export default function MarketingPricing() {
                   <div className="mb-6 border-b border-slate-100 pb-6">
                     {isFree ? (
                       <div>
-                        <p className="text-4xl font-black text-slate-950">{isArabic ? 'مخصص' : 'Custom'}</p>
+                        <p className="text-4xl font-bold text-slate-950">{isArabic ? 'مخصص' : 'Custom'}</p>
                         <p className="mt-1 text-sm text-slate-500">{isArabic ? 'تواصل معنا للأسعار' : 'Contact us for pricing'}</p>
                       </div>
                     ) : (
                       <div>
                         <div className="flex items-baseline gap-1">
-                          <span className="text-4xl font-black tracking-tight text-slate-950">
+                          <span className="text-4xl font-bold tracking-tight text-slate-950">
                             <Money value={displayPrice} currency={currency} language={language} minimumFractionDigits={2} maximumFractionDigits={2} />
                           </span>
                           <span className="text-sm font-medium text-slate-500">/ {isArabic ? 'شهر' : 'mo'}</span>
@@ -333,7 +333,7 @@ export default function MarketingPricing() {
       <section className="bg-slate-950 py-28 text-white">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <div className="mb-14 text-center">
-            <h2 className="text-4xl font-black tracking-tight sm:text-5xl">
+            <h2 className="text-4xl font-bold tracking-tight sm:text-5xl">
               {isArabic ? 'ما الذي يشمله كل خطة؟' : "What's included in every plan?"}
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-white/50">
@@ -389,7 +389,7 @@ export default function MarketingPricing() {
               <HelpCircle className="h-3.5 w-3.5" />
               {isArabic ? 'الأسئلة الشائعة' : 'FAQ'}
             </span>
-            <h2 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+            <h2 className="mt-4 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
               {isArabic ? 'أسئلة شائعة' : 'Common questions'}
             </h2>
           </div>
@@ -408,7 +408,7 @@ export default function MarketingPricing() {
             <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
             <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
-                <h2 className="text-3xl font-black lg:text-4xl">
+                <h2 className="text-3xl font-bold lg:text-4xl">
                   {isArabic ? 'ابدأ تجربتك المجانية اليوم' : 'Start your free trial today'}
                 </h2>
                 <p className="mt-3 text-lg text-white/65">
@@ -419,7 +419,7 @@ export default function MarketingPricing() {
                 <Link
                   to="/"
                   onClick={(e) => { e.preventDefault(); window.location.replace('/#trial') }}
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-black text-emerald-700 shadow-lg transition-all hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-bold text-emerald-700 shadow-lg transition-all hover:-translate-y-0.5"
                 >
                   {isArabic ? 'ابدأ مجاناً' : 'Start for free'}
                   <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />

@@ -40,7 +40,10 @@ export const initSocket = (token) => {
   });
 
   socket.on('connect_error', (err) => {
-    console.error('Socket connection error:', err.message);
+    // Avoid flooding the console on transient handshake failures (e.g. CORS race).
+    if (import.meta.env.DEV) {
+      console.warn('Socket connection error:', err.message)
+    }
   });
 
   return socket;
