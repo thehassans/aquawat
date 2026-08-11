@@ -1,0 +1,166 @@
+import { isSaudiTenant, isBangladeshTenant, isPakistanTenant, getTenantCurrency } from './saudiTenant'
+
+/** Market profile for App Store personalization. */
+export function getAppStoreMarket(tenant) {
+  if (isSaudiTenant(tenant)) return 'saudi'
+  if (isBangladeshTenant(tenant)) return 'bangladesh'
+  if (isPakistanTenant(tenant)) return 'pakistan'
+  return 'global'
+}
+
+/**
+ * Preferred / recommended app order by tenant market.
+ * ZATCA & Saudi gov suite only for SAR — never pushed for PKR/BDT/global.
+ */
+export function getPreferredAppIds(tenant) {
+  const market = getAppStoreMarket(tenant)
+
+  if (market === 'saudi') {
+    return [
+      'zatca_phase2_pro',
+      'gosi_mudad_compliance',
+      'elm_identity_pro',
+      'qiwa_hr_integration',
+      'premium_invoice_templates',
+      'whatsapp_cloud_auto',
+      'email_suite',
+      'thermal_printer_driver',
+      'crm_sales_pipeline',
+      'hr_payroll_pro',
+    ]
+  }
+
+  if (market === 'bangladesh') {
+    return [
+      'bangladesh_nbr_einvoicing',
+      'premium_invoice_templates',
+      'whatsapp_cloud_auto',
+      'email_suite',
+      'thermal_printer_driver',
+      'bakala_supermarket',
+      'restaurant_cafe',
+      'crm_sales_pipeline',
+      'hr_payroll_pro',
+      'ecommerce_store',
+    ]
+  }
+
+  if (market === 'pakistan') {
+    return [
+      'premium_invoice_templates',
+      'whatsapp_cloud_auto',
+      'email_suite',
+      'thermal_printer_driver',
+      'bakala_supermarket',
+      'restaurant_cafe',
+      'ecommerce_store',
+      'crm_sales_pipeline',
+      'hr_payroll_pro',
+      'payment_terminal',
+    ]
+  }
+
+  return [
+    'premium_invoice_templates',
+    'whatsapp_cloud_auto',
+    'email_suite',
+    'thermal_printer_driver',
+    'crm_sales_pipeline',
+    'ecommerce_store',
+    'hr_payroll_pro',
+  ]
+}
+
+export function getAppStoreMarketCopy(tenant, language = 'en') {
+  const market = getAppStoreMarket(tenant)
+  const currency = getTenantCurrency(tenant)
+  const isAr = language === 'ar'
+
+  if (market === 'saudi') {
+    return {
+      eyebrow: isAr ? 'موصى به لسوقك' : 'Recommended for your market',
+      title: isAr ? 'امتثال زاتكا والسعودية أولاً' : 'ZATCA & Saudi compliance first',
+      subtitle: isAr
+        ? 'التطبيقات الأهم لمنشأتك في المملكة — الفوترة الإلكترونية والتكاملات الحكومية.'
+        : 'The highest-priority apps for KSA businesses — e-invoicing and government suites.',
+      badge: 'SAR · KSA',
+    }
+  }
+
+  if (market === 'bangladesh') {
+    return {
+      eyebrow: isAr ? 'موصى به لسوقك' : 'Recommended for your market',
+      title: isAr ? 'NBR و Mushak أولاً' : 'NBR & Mushak first',
+      subtitle: isAr
+        ? 'زاتكا غير مطلوب هنا — نبرز امتثال بنغلاديش والتطبيقات الأكثر فائدة.'
+        : 'ZATCA is not required here — Bangladesh tax and your most useful apps come first.',
+      badge: 'BDT · Bangladesh',
+    }
+  }
+
+  if (market === 'pakistan') {
+    return {
+      eyebrow: isAr ? 'موصى به لسوقك' : 'Recommended for your market',
+      title: isAr ? 'الأهم لمنشأتك في باكستان' : 'Built for Pakistan businesses',
+      subtitle: isAr
+        ? 'زاتكا غير إلزامي — نبدأ بالقوالب والواتساب ونقاط البيع والفوترة.'
+        : 'ZATCA is not compulsory — templates, WhatsApp, POS, and invoicing lead the list.',
+      badge: 'PKR · Pakistan',
+    }
+  }
+
+  return {
+    eyebrow: isAr ? 'موصى به لك' : 'Recommended for you',
+    title: isAr ? 'ابدأ بالأساسيات' : 'Start with essentials',
+    subtitle: isAr
+      ? `عملتك ${currency} — تطبيقات جاهزة للفوترة والتواصل والمبيعات.`
+      : `Currency ${currency} — invoicing, messaging, and sales apps first.`,
+    badge: currency,
+  }
+}
+
+/** Lower score = higher in preferred / featured ranking. */
+export function scoreAppForMarket(app, tenant) {
+  if (!app) return 9999
+  const preferred = getPreferredAppIds(tenant)
+  const idx = preferred.indexOf(app.appId)
+  let score = idx >= 0 ? idx : 800 + String(app.nameEn || app.appId).length
+
+  const market = getAppStoreMarket(tenant)
+  const isSaudiApp =
+    app.category === 'saudi_compliance' ||
+    app.appType === 'saudi_compliance' ||
+    String(app.appId || '').includes('zatca') ||
+    String(app.appId || '').includes('gosi') ||
+    String(app.appId || '').includes('qiwa') ||
+    String(app.appId || '').includes('elm') ||
+    String(app.appId || '').includes('balady') ||
+    String(app.appId || '').includes('saber') ||
+    String(app.appId || '').includes('etimad')
+
+  if (market !== 'saudi' && isSaudiApp) score += 5000
+  if (market === 'bangladesh' && (app.appId === 'bangladesh_nbr_einvoicing' || app.category === 'bangladesh_compliance')) {
+    score = Math.min(score, 0)
+  }
+  if (app.isInstalled) score -= 0.25
+  if (app.pricingTier === 'free' || app.includedInCurrentPlan) score -= 0.1
+
+  return score
+}
+
+export function sortAppsForMarket(apps, tenant, mode = 'featured') {
+  const list = Array.isArray(apps) ? [...apps] : []
+  if (mode === 'rating') {
+    return list.sort((a, b) => (b.rating || 0) - (a.rating || 0))
+  }
+  if (mode === 'name') {
+    return list.sort((a, b) => String(a.nameEn || '').localeCompare(String(b.nameEn || '')))
+  }
+  return list.sort((a, b) => scoreAppForMarket(a, tenant) - scoreAppForMarket(b, tenant))
+}
+
+export function pickRecommendedApps(apps, tenant, limit = 6) {
+  return sortAppsForMarket(apps, tenant, 'featured')
+    .filter((app) => scoreAppForMarket(app, tenant) < 800)
+    .slice(0, limit)
+}

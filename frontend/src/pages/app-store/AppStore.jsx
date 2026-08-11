@@ -23,6 +23,11 @@ import { updateTenant } from '../../store/slices/authSlice';
 import { App3DIcon } from '../../components/ui/App3DIcon';
 import { invoiceTemplateOptions } from '../../lib/invoiceTemplates';
 import InvoiceLivePreview from '../../components/invoices/InvoiceLivePreview';
+import {
+  getAppStoreMarketCopy,
+  pickRecommendedApps,
+  sortAppsForMarket,
+} from '../../lib/appStoreMarket';
 
 const PREMIUM_INVOICE_TEMPLATES_APP_ID = 'premium_invoice_templates';
 
@@ -35,26 +40,26 @@ const PRICING_LABELS = {
   paid: {
     en: 'Pro Add-on',
     ar: 'إضافي Pro',
-    color: 'text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/20'
+    color: 'text-amber-800 dark:text-amber-300 bg-amber-500/10 border-amber-500/20'
   },
   enterprise: {
     en: 'Enterprise',
     ar: 'مؤسسي',
-    color: 'text-purple-700 dark:text-purple-300 bg-purple-500/10 border-purple-500/20'
+    color: 'text-slate-700 dark:text-slate-300 bg-slate-500/10 border-slate-500/20'
   },
 };
 
 const CATEGORIES = [
   { id: 'all', en: 'All', ar: 'الكل' },
-  { id: 'industry_verticals', en: 'Sales / Verticals', ar: 'المبيعات / القطاعات' },
-  { id: 'saudi_compliance', en: 'Accounting / Tax', ar: 'المحاسبة / الضريبة', currencies: ['SAR'] },
-  { id: 'bangladesh_compliance', en: 'Tax BD', ar: 'ضريبة BD', currencies: ['BDT'] },
+  { id: 'industry_verticals', en: 'Verticals', ar: 'القطاعات' },
+  { id: 'saudi_compliance', en: 'Saudi Tax', ar: 'ضريبة السعودية', currencies: ['SAR'] },
+  { id: 'bangladesh_compliance', en: 'BD Tax', ar: 'ضريبة BD', currencies: ['BDT'] },
   { id: 'manufacturing', en: 'Manufacturing', ar: 'التصنيع' },
   { id: 'pos_retail', en: 'Point of Sale', ar: 'نقاط البيع' },
   { id: 'hr_manpower', en: 'Human Resources', ar: 'الموارد البشرية' },
-  { id: 'hardware_iot', en: 'Productivity', ar: 'الإنتاجية' },
-  { id: 'finance_accounting', en: 'Accounting', ar: 'المحاسبة' },
-  { id: 'automation_comm', en: 'Marketing / Automation', ar: 'التسويق / الأتمتة' },
+  { id: 'hardware_iot', en: 'Hardware', ar: 'الأجهزة' },
+  { id: 'finance_accounting', en: 'Finance', ar: 'المالية' },
+  { id: 'automation_comm', en: 'Marketing', ar: 'التسويق' },
 ];
 
 function appMatchesCategory(app, categoryId) {
@@ -358,13 +363,13 @@ export default function AppStore() {
           newStage = isAr ? `تحميل الحزم الرقمية (${prev.size})...` : `Downloading binary package (${prev.size})...`;
         } else if (prev.progress < 75) {
           newProgress += 16;
-          newStage = isAr ? 'التحقق من التوقيع الرقمي وترخيص ZATCA...' : 'Verifying cryptographic digital signatures...';
+          newStage = isAr ? 'التحقق من الحزم والترخيص...' : 'Verifying packages and license...';
         } else if (prev.progress < 95) {
           newProgress += 12;
           newStage = isAr ? 'تهيئة صلاحيات المنشأة وقواعد البيانات...' : 'Provisioning database schemas & permissions...';
         } else {
           newProgress = 100;
-          newStage = isAr ? 'اكتمل التثبيت بنجاح!' : 'Integration Ready!';
+          newStage = isAr ? 'اكتمل التثبيت بنجاح!' : 'Ready to use';
         }
 
         return {
@@ -378,7 +383,7 @@ export default function AppStore() {
     return () => clearInterval(interval);
   }, [installingState?.appId, installingState?.progress, isAr]);
 
-  // Filtering & Sorting
+  // Filtering & Sorting — market preference first (ZATCA not for PK/BD)
   const filtered = useMemo(() => {
     let result = apps.filter((app) => {
       const q = search.trim().toLowerCase();
@@ -400,13 +405,28 @@ export default function AppStore() {
     });
 
     if (sortBy === 'rating') {
-      result = [...result].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      result = sortAppsForMarket(result, tenant, 'rating');
     } else if (sortBy === 'name') {
       result = [...result].sort((a, b) => (isAr ? a.nameAr.localeCompare(b.nameAr) : a.nameEn.localeCompare(b.nameEn)));
+    } else {
+      result = sortAppsForMarket(result, tenant, 'featured');
     }
 
     return result;
-  }, [apps, search, activeCategory, showInstalledOnly, sortBy, isAr]);
+  }, [apps, search, activeCategory, showInstalledOnly, sortBy, isAr, tenant]);
+
+  const marketCopy = useMemo(() => getAppStoreMarketCopy(tenant, language), [tenant, language]);
+
+  const recommendedApps = useMemo(() => {
+    if (search.trim() || showInstalledOnly || activeCategory !== 'all') return [];
+    return pickRecommendedApps(apps, tenant, 6);
+  }, [apps, tenant, search, showInstalledOnly, activeCategory]);
+
+  const catalogApps = useMemo(() => {
+    if (!recommendedApps.length) return filtered;
+    const preferredIds = new Set(recommendedApps.map((a) => a.appId));
+    return filtered.filter((a) => !preferredIds.has(a.appId));
+  }, [filtered, recommendedApps]);
 
   const categoryCounts = useMemo(() => {
     const counts = {};
@@ -426,250 +446,288 @@ export default function AppStore() {
     }
   }, [visibleCategories, activeCategory]);
 
-  return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-dark-950 font-sans selection:bg-primary-500/20">
-      {/* ─── Categories Sidebar ─── */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col border-e border-gray-200 dark:border-white/10 bg-white dark:bg-dark-900">
-        <div className="px-4 py-5 border-b border-gray-100 dark:border-white/5">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-            {isAr ? 'التصنيفات' : 'Categories'}
-          </p>
-        </div>
-        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-          {visibleCategories.map((cat) => {
-            const isActive = activeCategory === cat.id;
-            const count = categoryCounts[cat.id] ?? 0;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setActiveCategory(cat.id)}
-                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isActive
-                    ? 'bg-primary-50 dark:bg-primary-500/15 text-primary-700 dark:text-primary-300 font-semibold'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5'
-                }`}
-              >
-                <span className="truncate text-start">{isAr ? cat.ar : cat.en}</span>
-                <span className={`text-xs tabular-nums shrink-0 ${isActive ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'}`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
+  const renderAppCard = (app, { featured = false } = {}) => {
+    const isInstalled = app.isInstalled;
+    const isCurrentlyInstalling = installingState?.appId === app.appId;
+    const priceHint = formatAppPrice(app);
 
-      {/* ─── Main ─── */}
-      <main className="flex-1 min-w-0 p-4 sm:p-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">
-              {isAr ? 'التطبيقات' : 'Apps'}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden text-xs font-medium">
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('monthly')}
-                  className={`px-2.5 py-1.5 ${billingCycle === 'monthly' ? 'bg-primary-600 text-white' : 'bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-300'}`}
-                >
-                  {isAr ? 'شهري' : 'Monthly'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('yearly')}
-                  className={`px-2.5 py-1.5 ${billingCycle === 'yearly' ? 'bg-primary-600 text-white' : 'bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-300'}`}
-                >
-                  {isAr ? 'سنوي' : 'Yearly'}
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowInstalledOnly(!showInstalledOnly)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                  showInstalledOnly
-                    ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
-                    : 'bg-white dark:bg-dark-800 border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5'
-                }`}
-              >
-                <Check className="w-3.5 h-3.5" />
-                {isAr ? 'المثبتة' : 'Installed'}
-                <span className="text-gray-400 dark:text-gray-500 tabular-nums">{installedCount}</span>
-              </button>
-            </div>
+    return (
+      <motion.div
+        key={app.appId}
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`group flex flex-col gap-4 rounded-2xl border bg-white/90 p-4 backdrop-blur-sm transition-all dark:bg-dark-800/90 ${
+          featured
+            ? 'border-emerald-200/80 shadow-[0_18px_40px_-28px_rgba(5,150,105,0.45)] dark:border-emerald-500/25'
+            : 'border-slate-200/80 hover:border-slate-300 dark:border-white/10 dark:hover:border-white/20'
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-1.5 dark:border-white/10 dark:bg-dark-700">
+            <App3DIcon
+              appId={app.appId}
+              icon={app.icon}
+              path={app.defaultRoute}
+              label={app.nameEn}
+              className="h-full w-full"
+            />
           </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={isAr ? 'بحث…' : 'Search…'}
-                className="w-full ps-9 pe-9 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-dark-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:hover:text-white"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="truncate text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                {isAr ? app.nameAr : app.nameEn}
+              </h3>
+              {featured && (
+                <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                  {isAr ? 'موصى' : 'For you'}
+                </span>
               )}
             </div>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-dark-800 text-xs font-medium text-gray-700 dark:text-gray-200 outline-none focus:ring-2 focus:ring-primary-500/20 self-start sm:self-auto"
-            >
-              <option value="featured">{isAr ? 'المميز' : 'Featured'}</option>
-              <option value="rating">{isAr ? 'التقييم' : 'Rating'}</option>
-              <option value="name">{isAr ? 'الاسم' : 'Name'}</option>
-            </select>
-          </div>
-
-          {/* Mobile category chips */}
-          <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {visibleCategories.map((cat) => {
-              const isActive = activeCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border ${
-                    isActive
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10'
-                  }`}
-                >
-                  {isAr ? cat.ar : cat.en}
-                  <span className="ms-1.5 opacity-70">{categoryCounts[cat.id] ?? 0}</span>
-                </button>
-              );
-            })}
+            <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+              {isAr ? app.taglineAr : app.taglineEn}
+            </p>
           </div>
         </div>
 
-        {/* Apps Grid */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-40 rounded-xl bg-white dark:bg-dark-800 border border-gray-200 dark:border-white/5 animate-pulse" />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 bg-white dark:bg-dark-800 rounded-xl border border-gray-200 dark:border-white/5">
-            <p className="text-sm font-medium text-gray-900 dark:text-white">
-              {isAr ? 'لم يتم العثور على نتائج' : 'No apps found'}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {isAr ? 'جرّب كلمات بحث أخرى أو غيّر التصنيف.' : 'Try another search or category.'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((app) => {
-              const isInstalled = app.isInstalled;
-              const isCurrentlyInstalling = installingState?.appId === app.appId;
-              const priceHint = formatAppPrice(app);
-
-              return (
-                <div
-                  key={app.appId}
-                  className="bg-white dark:bg-dark-800 rounded-xl border border-gray-200 dark:border-white/10 p-4 flex flex-col gap-3 hover:border-gray-300 dark:hover:border-white/20 transition-colors"
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
+          {isInstalled ? (
+            <>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                <Check className="h-3 w-3" />
+                {isAr ? 'مثبت' : 'Installed'}
+              </span>
+              {app.defaultRoute && (
+                <button
+                  type="button"
+                  onClick={() => navigate(app.defaultRoute)}
+                  className="inline-flex items-center gap-0.5 text-[12px] font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-gray-50 dark:bg-dark-700 border border-gray-100 dark:border-white/10 p-1.5 shrink-0 flex items-center justify-center">
-                      <App3DIcon
-                        appId={app.appId}
-                        icon={app.icon}
-                        path={app.defaultRoute}
-                        label={app.nameEn}
-                        className="w-full h-full"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                        {isAr ? app.nameAr : app.nameEn}
-                      </h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5 leading-relaxed">
-                        {isAr ? app.taglineAr : app.taglineEn}
-                      </p>
-                    </div>
-                  </div>
+                  {isAr ? 'فتح' : 'Open'}
+                  <ArrowRight className="h-3 w-3 rtl:rotate-180" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setUninstallConfirmApp(app)}
+                disabled={uninstallMutation.isPending}
+                className="inline-flex items-center gap-0.5 text-[12px] font-medium text-red-600 hover:underline dark:text-red-400"
+              >
+                <Trash2 className="h-3 w-3" />
+                {isAr ? 'إلغاء' : 'Remove'}
+              </button>
+            </>
+          ) : (
+            <>
+              {app.includedInCurrentPlan ? (
+                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                  {isAr ? 'مشمول في باقتك' : 'Included in plan'}
+                </span>
+              ) : (
+                priceHint && appNeedsPayment(app) && (
+                  <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{priceHint}</span>
+                )
+              )}
+              <button
+                type="button"
+                onClick={() => handleStartInstall(app)}
+                disabled={isCurrentlyInstalling || installMutation.isPending}
+                className="inline-flex items-center rounded-xl bg-slate-900 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-emerald-300"
+              >
+                {isCurrentlyInstalling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (isAr ? 'تفعيل' : 'Activate')}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setSelectedAppId(app.appId)}
+            className="ms-auto text-[12px] text-slate-400 transition hover:text-emerald-700 dark:hover:text-emerald-300"
+          >
+            {isAr ? 'التفاصيل' : 'Details'}
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
 
-                  <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
-                    {isInstalled ? (
-                      <>
-                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                          {isAr ? 'مثبت' : 'Installed'}
-                        </span>
-                        {app.defaultRoute && (
-                          <button
-                            type="button"
-                            onClick={() => navigate(app.defaultRoute)}
-                            className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-0.5"
-                          >
-                            {isAr ? 'فتح' : 'Open'}
-                            <ArrowRight className="w-3 h-3 rtl:rotate-180" />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setUninstallConfirmApp(app)}
-                          disabled={uninstallMutation.isPending}
-                          className="text-xs font-medium text-red-600 dark:text-red-400 hover:underline inline-flex items-center gap-0.5"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          {isAr ? 'إلغاء التثبيت' : 'Uninstall'}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        {app.includedInCurrentPlan ? (
-                          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-                            {isAr ? 'مشمول في باقتك' : 'Included in your plan'}
-                          </span>
-                        ) : (
-                          priceHint && appNeedsPayment(app) && (
-                            <span className="text-[11px] text-gray-500 dark:text-gray-400 tabular-nums">
-                              {priceHint}
-                            </span>
-                          )
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleStartInstall(app)}
-                          disabled={isCurrentlyInstalling || installMutation.isPending}
-                          className="inline-flex items-center px-3 py-1.5 rounded-md bg-primary-600 hover:bg-primary-500 text-white text-xs font-semibold uppercase tracking-wide transition-colors disabled:opacity-50"
-                        >
-                          {isCurrentlyInstalling ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            isAr ? 'تفعيل' : 'Activate'
-                          )}
-                        </button>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAppId(app.appId)}
-                      className="ms-auto text-xs text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-                    >
-                      {isAr ? 'معلومات الوحدة' : 'Module info'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+  return (
+    <div
+      className="relative min-h-screen overflow-hidden"
+      style={{
+        fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+        background: 'linear-gradient(165deg, #f7faf8 0%, #eef4f1 45%, #f8fafc 100%)',
+      }}
+    >
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[-12%] h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-emerald-300/15 blur-[110px]" />
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #0f172a 1px, transparent 0)', backgroundSize: '28px 28px' }} />
+      </div>
+
+      <div className="relative mx-auto flex max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:px-8">
+        <aside className="hidden w-52 shrink-0 lg:block">
+          <div className="sticky top-6">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
+              {isAr ? 'التصنيفات' : 'Categories'}
+            </p>
+            <nav className="space-y-1">
+              {visibleCategories.map((cat) => {
+                const isActive = activeCategory === cat.id;
+                const count = categoryCounts[cat.id] ?? 0;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-[13px] transition ${
+                      isActive
+                        ? 'bg-slate-900 font-semibold text-white dark:bg-white dark:text-slate-900'
+                        : 'text-slate-600 hover:bg-white/80 dark:text-slate-300 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <span className="truncate text-start">{isAr ? cat.ar : cat.en}</span>
+                    <span className={`tabular-nums text-[11px] ${isActive ? 'opacity-70' : 'text-slate-400'}`}>{count}</span>
+                  </button>
+                );
+              })}
+            </nav>
           </div>
-        )}
-      </main>
+        </aside>
+
+        <main className="min-w-0 flex-1">
+          <div className="mb-8 flex flex-col gap-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700/80 dark:text-emerald-400/80">
+                  {isAr ? 'متجر التطبيقات' : 'App Store'}
+                </p>
+                <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  {isAr ? 'تطبيقاتك' : 'Your apps'}
+                </h1>
+                <p className="mt-1.5 max-w-xl text-sm text-slate-500 dark:text-slate-400">
+                  {marketCopy.subtitle}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-emerald-200/80 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+                  {marketCopy.badge}
+                </span>
+                <div className="inline-flex overflow-hidden rounded-xl border border-slate-200/90 bg-white/80 text-xs font-semibold dark:border-white/10 dark:bg-dark-800">
+                  <button type="button" onClick={() => setBillingCycle('monthly')} className={`px-3 py-1.5 ${billingCycle === 'monthly' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
+                    {isAr ? 'شهري' : 'Monthly'}
+                  </button>
+                  <button type="button" onClick={() => setBillingCycle('yearly')} className={`px-3 py-1.5 ${billingCycle === 'yearly' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
+                    {isAr ? 'سنوي' : 'Yearly'}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowInstalledOnly(!showInstalledOnly)}
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                    showInstalledOnly
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300'
+                      : 'border-slate-200/90 bg-white/80 text-slate-600 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300'
+                  }`}
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  {isAr ? 'المثبتة' : 'Installed'}
+                  <span className="tabular-nums text-slate-400">{installedCount}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative max-w-md flex-1">
+                <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={isAr ? 'ابحث عن تطبيق…' : 'Search apps…'}
+                  className="w-full rounded-2xl border border-slate-200/90 bg-white/80 py-2.5 ps-10 pe-9 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-dark-800 dark:text-white"
+                />
+                {search && (
+                  <button type="button" onClick={() => setSearch('')} className="absolute end-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="rounded-2xl border border-slate-200/90 bg-white/80 px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:ring-4 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200"
+              >
+                <option value="featured">{isAr ? 'الموصى به لسوقك' : 'Preferred for you'}</option>
+                <option value="rating">{isAr ? 'التقييم' : 'Rating'}</option>
+                <option value="name">{isAr ? 'الاسم' : 'Name'}</option>
+              </select>
+            </div>
+
+            <div className="flex gap-1.5 overflow-x-auto pb-1 lg:hidden">
+              {visibleCategories.map((cat) => {
+                const isActive = activeCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap ${
+                      isActive
+                        ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                        : 'border-slate-200 bg-white/80 text-slate-600 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300'
+                    }`}
+                  >
+                    {isAr ? cat.ar : cat.en}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-36 animate-pulse rounded-2xl border border-slate-200/70 bg-white/70 dark:border-white/5 dark:bg-dark-800" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200/80 bg-white/80 py-16 text-center dark:border-white/10 dark:bg-dark-800">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">{isAr ? 'لم يتم العثور على نتائج' : 'No apps found'}</p>
+              <p className="mt-1 text-xs text-slate-500">{isAr ? 'جرّب كلمات بحث أخرى أو غيّر التصنيف.' : 'Try another search or category.'}</p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {recommendedApps.length > 0 && (
+                <section>
+                  <div className="mb-4 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700/80 dark:text-emerald-400/80">
+                        {marketCopy.eyebrow}
+                      </p>
+                      <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 dark:text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                        {marketCopy.title}
+                      </h2>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {recommendedApps.map((app) => renderAppCard(app, { featured: true }))}
+                  </div>
+                </section>
+              )}
+
+              <section>
+                {recommendedApps.length > 0 && (
+                  <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-400">
+                    {isAr ? 'كل التطبيقات' : 'All apps'}
+                  </h2>
+                )}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {(recommendedApps.length ? catalogApps : filtered).map((app) => renderAppCard(app))}
+                </div>
+              </section>
+            </div>
+          )}
+        </main>
+      </div>
 
       {/* ─── Animated Installation Modal ─── */}
       <AnimatePresence>
@@ -686,7 +744,7 @@ export default function AppStore() {
               exit={{ scale: 0.9, opacity: 0 }}
               className="relative w-full max-w-sm bg-white dark:bg-dark-800 border border-gray-100 dark:border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center justify-center shadow-2xl"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-purple-500/10 rounded-[2.5rem] pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-[2.5rem] pointer-events-none" />
 
               <div className="relative w-32 h-32 flex items-center justify-center mb-6">
                 <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
