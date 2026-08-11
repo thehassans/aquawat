@@ -155,6 +155,8 @@ export default function AppStore() {
 
   const appNeedsPayment = useCallback((app) => {
     if (!app || app.isInstalled) return false;
+    if (app.includedInCurrentPlan) return false;
+    if (app.requiresPayment === false) return false;
     if (app.requiresPayment) return true;
     const tier = String(app.pricingTier || 'free').toLowerCase();
     if (tier === 'free') return false;
@@ -617,13 +619,28 @@ export default function AppStore() {
                             <ArrowRight className="w-3 h-3 rtl:rotate-180" />
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => setUninstallConfirmApp(app)}
+                          disabled={uninstallMutation.isPending}
+                          className="text-xs font-medium text-red-600 dark:text-red-400 hover:underline inline-flex items-center gap-0.5"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          {isAr ? 'إلغاء التثبيت' : 'Uninstall'}
+                        </button>
                       </>
                     ) : (
                       <>
-                        {priceHint && appNeedsPayment(app) && (
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400 tabular-nums">
-                            {priceHint}
+                        {app.includedInCurrentPlan ? (
+                          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                            {isAr ? 'مشمول في باقتك' : 'Included in your plan'}
                           </span>
+                        ) : (
+                          priceHint && appNeedsPayment(app) && (
+                            <span className="text-[11px] text-gray-500 dark:text-gray-400 tabular-nums">
+                              {priceHint}
+                            </span>
+                          )
                         )}
                         <button
                           type="button"

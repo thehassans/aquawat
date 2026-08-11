@@ -8,18 +8,26 @@ const fallbackPricingPlans = [
     id: 'starter',
     nameEn: 'Starter',
     nameAr: 'البداية',
-    priceMonthly: 299,
-    priceYearly: 2990,
+    priceMonthly: 99.99,
+    priceYearly: 999.99,
+    priceMonthlySar: 99.99,
+    priceYearlySar: 999.99,
+    priceMonthlyUsd: 29.99,
+    priceYearlyUsd: 299.99,
     popular: false,
-    featuresEn: ['E-Invoicing & Tax', 'Up to 500 invoices/month', 'Inventory & Warehouses', 'Basic Reports', 'Up to 5 users', 'Email Support'],
-    featuresAr: ['الفوترة الإلكترونية والضرائب', 'حتى 500 فاتورة/شهر', 'المخزون والمستودعات', 'تقارير أساسية', 'حتى 5 مستخدمين', 'دعم بالبريد'],
+    featuresEn: ['E-Invoicing & Tax', 'Up to 100 invoices/month', 'Inventory & Warehouses', 'Basic Reports', 'Up to 5 users', 'Email Support'],
+    featuresAr: ['الفوترة الإلكترونية والضرائب', 'حتى 100 فاتورة/شهر', 'المخزون والمستودعات', 'تقارير أساسية', 'حتى 5 مستخدمين', 'دعم بالبريد'],
   },
   {
     id: 'professional',
     nameEn: 'Professional',
     nameAr: 'الاحترافية',
-    priceMonthly: 699,
-    priceYearly: 6990,
+    priceMonthly: 199.99,
+    priceYearly: 1999.99,
+    priceMonthlySar: 199.99,
+    priceYearlySar: 1999.99,
+    priceMonthlyUsd: 59.99,
+    priceYearlyUsd: 599.99,
     popular: true,
     featuresEn: ['Everything in Starter', 'Unlimited Invoices', 'HR & Payroll', 'Expenses & Finance', 'Projects & Tasks', 'Advanced Reports', 'Up to 25 users', 'Priority Support'],
     featuresAr: ['كل ما في البداية', 'فواتير غير محدودة', 'الموارد البشرية والرواتب', 'المصروفات والمالية', 'المشاريع والمهام', 'تقارير متقدمة', 'حتى 25 مستخدم', 'دعم ذو أولوية'],
@@ -61,8 +69,16 @@ export default function MarketingPricing() {
           {plans.map((plan) => {
             const name = isArabic ? (plan.nameAr || plan.nameEn || plan.name) : (plan.nameEn || plan.name || plan.nameAr)
             const features = isArabic ? (plan.featuresAr || plan.featuresEn || plan.features || []) : (plan.featuresEn || plan.features || plan.featuresAr || [])
-            const monthly = Number(plan.priceMonthly || 0)
-            const yearly = Number(plan.priceYearly || 0)
+            const monthly = Number(
+              String(currency).toUpperCase() === 'USD'
+                ? (plan.priceMonthlyUsd ?? plan.priceMonthly || 0)
+                : (plan.priceMonthlySar ?? plan.priceMonthly || 0)
+            )
+            const yearly = Number(
+              String(currency).toUpperCase() === 'USD'
+                ? (plan.priceYearlyUsd ?? plan.priceYearly || 0)
+                : (plan.priceYearlySar ?? plan.priceYearly || 0)
+            )
 
             return (
               <div
@@ -80,7 +96,7 @@ export default function MarketingPricing() {
                 <div className="mt-4">
                   <div className="text-4xl font-extrabold text-slate-950">
                     {monthly > 0
-                      ? <Money value={monthly} currency={currency} language={language} minimumFractionDigits={0} maximumFractionDigits={0} className="text-4xl font-extrabold text-slate-950" />
+                      ? <Money value={monthly} currency={currency} language={language} minimumFractionDigits={2} maximumFractionDigits={2} className="text-4xl font-extrabold text-slate-950" />
                       : (isArabic ? 'مخصص' : 'Custom')}
                   </div>
                   <div className="text-sm text-slate-500">{monthly > 0 ? (isArabic ? 'شهرياً' : 'per month') : (isArabic ? 'تواصل معنا' : 'Contact us')}</div>

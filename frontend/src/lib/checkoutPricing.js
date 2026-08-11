@@ -1,49 +1,73 @@
 /**
- * Platform SaaS checkout is priced and charged in USD.
- * Catalog amounts from website CMS may be in another currency (historically SAR);
- * convert to USD with pegged / mid-market reference rates (units of currency per 1 USD).
- * Stripe Adaptive Pricing then presents the customer's local currency at pay time.
+ * Platform SaaS checkout list prices are set independently per currency
+ * in Super Admin (e.g. 29.99 USD and 99.99 SAR) — never derive one from the other via FX.
  */
 
 export const CHECKOUT_CURRENCY = 'USD'
 
-/** How many units of `code` equal 1 USD (approx.). SAR is the official SAMA peg. */
-const UNITS_PER_USD = {
-  USD: 1,
-  SAR: 3.75,
-  AED: 3.6725,
-  QAR: 3.64,
-  BHD: 0.376,
-  KWD: 0.307,
-  OMR: 0.3845,
-  EUR: 0.92,
-  GBP: 0.79,
-  PKR: 278,
-  BDT: 110,
-  INR: 83,
-  EGP: 49,
-  TRY: 32,
-  JOD: 0.71,
+/** ZATCA Phase 2 addon — clean dual list prices */
+export const ZATCA_ADDON = {
+  USD: { monthly: 14.99, yearly: 149.99 },
+  SAR: { monthly: 49.99, yearly: 499.99 },
 }
 
-export function convertToUsd(amount, fromCurrency = 'USD') {
-  const n = Number(amount)
-  if (!Number.isFinite(n) || n === 0) return 0
-  const code = String(fromCurrency || 'USD').trim().toUpperCase()
-  const units = UNITS_PER_USD[code]
-  if (!units || units <= 0) return Math.round(n * 100) / 100
-  if (code === 'USD') return Math.round(n * 100) / 100
-  return Math.round((n / units) * 100) / 100
+export function resolvePlanPrice(plan, billingCycle = 'monthly', currency = 'USD') {
+  const cycle = billingCycle === 'yearly' ? 'yearly' : 'monthly'
+  const code = String(currency || 'USD').toUpperCase()
+  if (code === 'USD') {
+    const v = cycle === 'yearly'
+      ? Number(plan?.priceYearlyUsd ?? plan?.priceYearly)
+      : Number(plan?.priceMonthlyUsd ?? plan?.priceMonthly)
+    return Number.isFinite(v) ? Math.round(v * 100) / 100 : 0
+  }
+  const v = cycle === 'yearly'
+    ? Number(plan?.priceYearlySar ?? plan?.priceYearly)
+    : Number(plan?.priceMonthlySar ?? plan?.priceMonthly)
+  return Number.isFinite(v) ? Math.round(v * 100) / 100 : 0
 }
 
-/** ZATCA Phase 2 addon list prices (SAR) → converted to USD for checkout. */
-export const ZATCA_ADDON_SAR = { monthly: 50, yearly: 400 }
-
-export function zatcaAddonUsd(billingCycle = 'monthly') {
-  const sar = billingCycle === 'yearly' ? ZATCA_ADDON_SAR.yearly : ZATCA_ADDON_SAR.monthly
-  return convertToUsd(sar, 'SAR')
+export function zatcaAddonAmount(billingCycle = 'monthly', currency = 'USD') {
+  const cycle = billingCycle === 'yearly' ? 'yearly' : 'monthly'
+  const code = String(currency || 'USD').toUpperCase()
+  const table = ZATCA_ADDON[code] || ZATCA_ADDON.USD
+  return table[cycle]
 }
 
 export function isZatcaFeatureText(text = '') {
   return /zatca|زكاة|فاتورة المرحلة|gosi\/wps/i.test(String(text))
+}
+
+/** Normalize CMS / fallback plan into dual-currency list prices. */
+export function normalizeCheckoutPlan(plan, fallback = {}) {
+  const merged = { ...fallback, ...plan }
+  const id = merged.id || fallback.id || 'starter'
+  const monthlyUsd = Number(merged.priceMonthlyUsd ?? fallback.priceMonthlyUsd)
+  const yearlyUsd = Number(merged.priceYearlyUsd ?? fallback.priceYearlyUsd)
+  const monthlySar = Number(merged.priceMonthlySar ?? merged.priceMonthly ?? fallback.priceMonthlySar ?? fallback.priceMonthly)
+  const yearlySar = Number(merged.priceYearlySar ?? merged.priceYearly ?? fallback.priceYearlySar ?? fallback.priceYearly)
+
+  // Defaults when Super Admin has not set dual prices yet
+  const defaults = {
+    starter: { monthlyUsd: 29.99, yearlyUsd: 299.99, monthlySar: 99.99, yearlySar: 999.99 },
+    professional: { monthlyUsd: 59.99, yearlyUsd: 599.99, monthlySar: 199.99, yearlySar: 1999.99 },
+    enterprise: { monthlyUsd: 0, yearlyUsd: 0, monthlySar: 0, yearlySar: 0 },
+  }[id] || { monthlyUsd: 29.99, yearlyUsd: 299.99, monthlySar: 99.99, yearlySar: 999.99 }
+
+  const hasUsd = Number.isFinite(monthlyUsd) && (merged.priceMonthlyUsd != null || fallback.priceMonthlyUsd != null)
+  const hasSar = Number.isFinite(monthlySar)
+
+  return {
+    ...merged,
+    priceMonthlyUsd: hasUsd ? monthlyUsd : defaults.monthlyUsd,
+    priceYearlyUsd: Number.isFinite(yearlyUsd) && (merged.priceYearlyUsd != null || fallback.priceYearlyUsd != null)
+      ? yearlyUsd
+      : defaults.yearlyUsd,
+    priceMonthlySar: hasSar ? monthlySar : defaults.monthlySar,
+    priceYearlySar: Number.isFinite(yearlySar) ? yearlySar : defaults.yearlySar,
+    // Checkout display uses USD list price
+    priceMonthly: hasUsd ? monthlyUsd : defaults.monthlyUsd,
+    priceYearly: Number.isFinite(yearlyUsd) && (merged.priceYearlyUsd != null || fallback.priceYearlyUsd != null)
+      ? yearlyUsd
+      : defaults.yearlyUsd,
+  }
 }

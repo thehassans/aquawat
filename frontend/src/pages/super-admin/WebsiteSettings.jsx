@@ -12,8 +12,12 @@ const defaultPlan = {
   id: '',
   nameEn: '',
   nameAr: '',
-  priceMonthly: 0,
-  priceYearly: 0,
+  priceMonthly: 99.99,
+  priceYearly: 999.99,
+  priceMonthlySar: 99.99,
+  priceYearlySar: 999.99,
+  priceMonthlyUsd: 29.99,
+  priceYearlyUsd: 299.99,
   popular: false,
   featuresEn: [],
   featuresAr: []
@@ -113,6 +117,11 @@ export default function WebsiteSettings() {
   const updatePlan = (index, field, value) => {
     const current = getContextPlans()
     setContextPlans(current.map((p, i) => i === index ? { ...p, [field]: value } : p))
+  }
+
+  const updatePlanFields = (index, fields) => {
+    const current = getContextPlans()
+    setContextPlans(current.map((p, i) => i === index ? { ...p, ...fields } : p))
   }
 
   const addPlan = () => {
@@ -354,8 +363,13 @@ export default function WebsiteSettings() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
-                <label className="label">{isArabic ? 'العملة' : 'Currency'}</label>
+                <label className="label">{isArabic ? 'عملة العرض التسويقي' : 'Marketing display currency'}</label>
                 <input value={currency} onChange={(e) => setCurrency(e.target.value)} className="input" placeholder="SAR" />
+                <p className="mt-1 text-[11px] text-gray-500">
+                  {isArabic
+                    ? 'أسعار USD و SAR تُضبط بشكل مستقل أدناه — بدون تحويل تلقائي.'
+                    : 'USD and SAR list prices below are set independently — no auto FX conversion.'}
+                </p>
               </div>
             </div>
 
@@ -385,7 +399,7 @@ export default function WebsiteSettings() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-gray-500">{isArabic ? 'الاسم (EN)' : 'Name (EN)'}</label>
                       <input value={plan.nameEn || ''} onChange={(e) => updatePlan(index, 'nameEn', e.target.value)} className="input text-sm" placeholder="Starter" />
@@ -395,12 +409,64 @@ export default function WebsiteSettings() {
                       <input value={plan.nameAr || ''} onChange={(e) => updatePlan(index, 'nameAr', e.target.value)} className="input text-sm" placeholder="البداية" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500">{isArabic ? 'السعر الشهري' : 'Monthly Price'}</label>
-                      <input type="number" value={plan.priceMonthly || 0} onChange={(e) => updatePlan(index, 'priceMonthly', Number(e.target.value))} className="input text-sm" />
+                      <label className="text-xs text-gray-500">{isArabic ? 'المعرّف' : 'Plan ID'}</label>
+                      <input value={plan.id || ''} onChange={(e) => updatePlan(index, 'id', e.target.value)} className="input text-sm" placeholder="starter" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                    <div>
+                      <label className="text-xs text-gray-500">{isArabic ? 'شهري USD' : 'Monthly USD'}</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={plan.priceMonthlyUsd ?? ''}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          updatePlan(index, 'priceMonthlyUsd', v)
+                        }}
+                        className="input text-sm"
+                        placeholder="29.99"
+                      />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500">{isArabic ? 'السعر السنوي' : 'Yearly Price'}</label>
-                      <input type="number" value={plan.priceYearly || 0} onChange={(e) => updatePlan(index, 'priceYearly', Number(e.target.value))} className="input text-sm" />
+                      <label className="text-xs text-gray-500">{isArabic ? 'سنوي USD' : 'Yearly USD'}</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={plan.priceYearlyUsd ?? ''}
+                        onChange={(e) => updatePlan(index, 'priceYearlyUsd', Number(e.target.value))}
+                        className="input text-sm"
+                        placeholder="299.99"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">{isArabic ? 'شهري SAR' : 'Monthly SAR'}</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={plan.priceMonthlySar ?? plan.priceMonthly ?? ''}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          updatePlanFields(index, { priceMonthlySar: v, priceMonthly: v })
+                        }}
+                        className="input text-sm"
+                        placeholder="99.99"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">{isArabic ? 'سنوي SAR' : 'Yearly SAR'}</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={plan.priceYearlySar ?? plan.priceYearly ?? ''}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          updatePlanFields(index, { priceYearlySar: v, priceYearly: v })
+                        }}
+                        className="input text-sm"
+                        placeholder="999.99"
+                      />
                     </div>
                   </div>
 
@@ -411,7 +477,7 @@ export default function WebsiteSettings() {
                         value={(plan.featuresEn || []).join('\n')}
                         onChange={(e) => updatePlan(index, 'featuresEn', e.target.value.split('\n').filter(Boolean))}
                         className="input text-sm min-h-[100px]"
-                        placeholder="ZATCA E-Invoicing&#10;Up to 500 invoices/month&#10;5 users"
+                        placeholder="ZATCA E-Invoicing&#10;Up to 100 invoices/month&#10;5 users"
                       />
                     </div>
                     <div>
@@ -420,7 +486,7 @@ export default function WebsiteSettings() {
                         value={(plan.featuresAr || []).join('\n')}
                         onChange={(e) => updatePlan(index, 'featuresAr', e.target.value.split('\n').filter(Boolean))}
                         className="input text-sm min-h-[100px]"
-                        placeholder="الفوترة الإلكترونية&#10;حتى 500 فاتورة/شهر&#10;5 مستخدمين"
+                        placeholder="الفوترة الإلكترونية&#10;حتى 100 فاتورة/شهر&#10;5 مستخدمين"
                       />
                     </div>
                   </div>

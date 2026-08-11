@@ -31,6 +31,12 @@ const PRICING_TIERS = [
   { value: 'enterprise', labelEn: 'Enterprise', labelAr: 'مؤسسات', color: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 dark:border-purple-800' }
 ]
 
+const SAAS_PLANS = [
+  { id: 'starter', labelEn: 'Starter', labelAr: 'البداية' },
+  { id: 'professional', labelEn: 'Professional', labelAr: 'الاحترافية' },
+  { id: 'enterprise', labelEn: 'Enterprise', labelAr: 'المؤسسات' },
+]
+
 export default function AppCatalogManagement() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
@@ -115,6 +121,7 @@ export default function AppCatalogManagement() {
       pricingTier: app.pricingTier || 'free',
       monthlyPrice: app.monthlyPrice || 0,
       yearlyPrice: app.yearlyPrice || 0,
+      includedInPlans: Array.isArray(app.includedInPlans) ? [...app.includedInPlans] : [],
       badge: app.badge || '',
       isActive: app.isActive !== false
     })
@@ -290,6 +297,14 @@ export default function AppCatalogManagement() {
                         <span className="font-semibold text-gray-900 dark:text-white">{app.yearlyPrice || 0} SAR / yr</span>
                       </div>
                     )}
+                    {Array.isArray(app.includedInPlans) && app.includedInPlans.length > 0 && (
+                      <div className="flex items-start justify-between text-xs gap-2 pt-1 border-t border-gray-100 dark:border-dark-600">
+                        <span className="text-gray-500 dark:text-gray-400 shrink-0">{isAr ? 'مجاني في' : 'Free on'}</span>
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-right">
+                          {app.includedInPlans.join(', ')}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -413,6 +428,43 @@ export default function AppCatalogManagement() {
                     </div>
                   </div>
                 )}
+
+                {/* Free on selected SaaS plans (e.g. paid on Starter, free on Professional) */}
+                <div>
+                  <label className="label mb-2 block text-xs font-semibold">
+                    {isAr ? 'مجاني ضمن باقات الاشتراك' : 'Included free on SaaS plans'}
+                  </label>
+                  <p className="text-[11px] text-gray-500 mb-2">
+                    {isAr
+                      ? 'مثال: مدفوع في البداية، مجاني في الاحترافية والمؤسسات.'
+                      : 'Example: paid on Starter, free on Professional & Enterprise.'}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {SAAS_PLANS.map((plan) => {
+                      const selected = (formState.includedInPlans || []).includes(plan.id)
+                      return (
+                        <button
+                          key={plan.id}
+                          type="button"
+                          onClick={() => setFormState((s) => {
+                            const current = Array.isArray(s.includedInPlans) ? s.includedInPlans : []
+                            const next = selected
+                              ? current.filter((p) => p !== plan.id)
+                              : [...current, plan.id]
+                            return { ...s, includedInPlans: next }
+                          })}
+                          className={`py-2 px-2 rounded-xl text-[11px] font-semibold border transition-all text-center ${
+                            selected
+                              ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                              : 'bg-white dark:bg-dark-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-dark-600'
+                          }`}
+                        >
+                          {isAr ? plan.labelAr : plan.labelEn}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
 
                 {/* Badge */}
                 <div>

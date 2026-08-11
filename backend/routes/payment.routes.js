@@ -118,6 +118,7 @@ router.post('/create-payment', protect, async (req, res) => {
   try {
     const {
       amount: rawAmount,
+      amountSar: rawAmountSar,
       currency: rawCurrency = CHECKOUT_CURRENCY,
       plan = 'professional',
       billingCycle = 'monthly',
@@ -135,12 +136,14 @@ router.post('/create-payment', protect, async (req, res) => {
       return res.status(403).json({ error: 'Tenant account is inactive' })
     }
 
-    // Platform checkout settles in USD; Stripe Adaptive Pricing converts for the cardholder.
-    // Moyasar / Tabby / Tamara expect SAR — convert from USD using the official peg.
+    // Dual list prices: USD for Stripe, explicit SAR for local gateways (no FX from USD).
     const amountUsd = toUsdMajor(rawAmount, rawCurrency)
     const useSarGateway = gatewayNeedsSar(paymentMethod)
+    const listedSar = Number(rawAmountSar)
     const currency = useSarGateway ? 'SAR' : CHECKOUT_CURRENCY
-    const amount = useSarGateway ? usdToSarMajor(amountUsd) : amountUsd
+    const amount = useSarGateway
+      ? (Number.isFinite(listedSar) && listedSar > 0 ? Math.round(listedSar * 100) / 100 : usdToSarMajor(amountUsd))
+      : amountUsd
     const finalAmount = Math.round(Number(amount) * 100)
 
     if (!finalAmount || finalAmount < 100) {

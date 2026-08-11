@@ -16,7 +16,22 @@ const getAppPrice = (appDef, billingCycle = 'monthly') => {
   return Number.isFinite(price) ? price : 0;
 };
 
-const isPaidApp = (appDef, billingCycle = 'monthly') => {
+const normalizePlanId = (plan) => String(plan || 'trial').trim().toLowerCase();
+
+/** Apps marked includedInPlans install free for those SaaS tiers (and enterprise inherits professional). */
+const isAppIncludedInTenantPlan = (appDef, tenantPlan) => {
+  const plan = normalizePlanId(tenantPlan);
+  const included = Array.isArray(appDef?.includedInPlans)
+    ? appDef.includedInPlans.map(normalizePlanId).filter(Boolean)
+    : [];
+  if (!included.length) return false;
+  if (included.includes(plan)) return true;
+  if (plan === 'enterprise' && included.includes('professional')) return true;
+  return false;
+};
+
+const isPaidApp = (appDef, billingCycle = 'monthly', tenantPlan = null) => {
+  if (tenantPlan != null && isAppIncludedInTenantPlan(appDef, tenantPlan)) return false;
   const tier = String(appDef?.pricingTier || 'free').toLowerCase();
   if (tier === 'free') return false;
   return getAppPrice(appDef, billingCycle) > 0;
@@ -1592,6 +1607,7 @@ router.get('/apps', protect, async (req, res) => {
     const defaultCatalogMap = new Map(DEFAULT_APP_CATALOG.map(a => [a.appId, a]));
     const tenantInstalled = tenant.settings?.installedApps || {};
     const tenantCurrency = String(tenant.settings?.currency || 'SAR').trim().toUpperCase();
+    const tenantPlan = tenant.subscription?.plan || 'trial';
 
     const isAppVisibleForCurrency = (app) => {
       const required = String(app.requiredCurrency || defaultCatalogMap.get(app.appId)?.requiredCurrency || '').trim().toUpperCase();
@@ -1615,6 +1631,18 @@ router.get('/apps', protect, async (req, res) => {
       const isInstalled = isExplicitlyInstalled || isGrandfatheredPremiumTemplates;
       const isEnabled = tenantInstalled[app.appId]?.isEnabled !== false;
       const config = tenantInstalled[app.appId]?.config || {};
+      const includedInPlans = Array.isArray(app.includedInPlans)
+        ? app.includedInPlans
+        : (defApp?.includedInPlans || []);
+      const appForPrice = {
+        ...app,
+        monthlyPrice: app.monthlyPrice ?? defApp?.monthlyPrice,
+        yearlyPrice: app.yearlyPrice ?? defApp?.yearlyPrice,
+        pricingTier: app.pricingTier || defApp?.pricingTier,
+        includedInPlans,
+      };
+      const includedInCurrentPlan = isAppIncludedInTenantPlan(appForPrice, tenantPlan);
+      const requiresPayment = isPaidApp(appForPrice, 'monthly', tenantPlan);
 
       return {
         ...app,
@@ -1622,11 +1650,13 @@ router.get('/apps', protect, async (req, res) => {
         monthlyPrice: Number(app.monthlyPrice ?? defApp?.monthlyPrice ?? 0) || 0,
         yearlyPrice: Number(app.yearlyPrice ?? defApp?.yearlyPrice ?? 0) || 0,
         pricingTier: app.pricingTier || defApp?.pricingTier || 'free',
+        includedInPlans,
+        includedInCurrentPlan,
         isInstalled,
         isEnabled,
         installedAt: tenantInstalled[app.appId]?.installedAt || (isInstalled ? tenant.createdAt : null),
         config,
-        requiresPayment: isPaidApp({ ...app, monthlyPrice: app.monthlyPrice ?? defApp?.monthlyPrice, yearlyPrice: app.yearlyPrice ?? defApp?.yearlyPrice, pricingTier: app.pricingTier || defApp?.pricingTier }),
+        requiresPayment,
         billing: tenantInstalled[app.appId]?.billing || null,
       };
     });
@@ -1674,8 +1704,9 @@ router.post('/apps/:appId/install', protect, async (req, res) => {
       return res.status(400).json({ error: 'Bangladesh NBR apps require BDT as the tenant default currency.' });
     }
 
-    // Paid apps must go through Stripe unless Super Admin forced skip (not exposed to clients).
-    if (isPaidApp(appDef, billingCycle) && skipPayment !== true) {
+    // Paid apps must go through Stripe unless included free in the tenant's SaaS plan.
+    const tenantPlan = tenant.subscription?.plan || 'trial';
+    if (isPaidApp(appDef, billingCycle, tenantPlan) && skipPayment !== true) {
       return res.status(402).json({
         error: 'Payment required',
         requiresPayment: true,
@@ -1720,7 +1751,8 @@ router.post('/apps/:appId/checkout', protect, async (req, res) => {
     }
 
     const amount = getAppPrice(appDef, billingCycle);
-    if (!isPaidApp(appDef, billingCycle) || amount <= 0) {
+    const tenantPlan = tenant.subscription?.plan || 'trial';
+    if (!isPaidApp(appDef, billingCycle, tenantPlan) || amount <= 0) {
       return res.status(400).json({ error: 'This app does not require payment. Use install instead.' });
     }
 

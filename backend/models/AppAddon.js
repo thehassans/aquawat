@@ -54,6 +54,8 @@ const appAddonSchema = new mongoose.Schema({
   },
   monthlyPrice: { type: Number, default: 0 },
   yearlyPrice: { type: Number, default: 0 },
+  /** SaaS plans where this app installs free (e.g. ['professional','enterprise']). Paid for other plans when pricingTier is paid. */
+  includedInPlans: { type: [String], default: [] },
   downloadSize: { type: String, default: '3.2 MB' },
   badge: { type: String, default: 'Popular' }, // 'Popular', 'Verified', 'New', 'Pro', 'Enterprise'
   featuresEn: [{ type: String }],

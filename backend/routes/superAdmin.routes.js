@@ -3419,7 +3419,7 @@ router.put('/app-catalog/:appId', protect, authorize('super_admin'), async (req,
     const updates = req.body;
     
     // Allow updating pricing, details, features, and active status
-    const allowedFields = ['nameEn', 'nameAr', 'taglineEn', 'taglineAr', 'descriptionEn', 'descriptionAr', 'pricingTier', 'monthlyPrice', 'yearlyPrice', 'isActive', 'badge', 'featuresEn', 'featuresAr'];
+    const allowedFields = ['nameEn', 'nameAr', 'taglineEn', 'taglineAr', 'descriptionEn', 'descriptionAr', 'pricingTier', 'monthlyPrice', 'yearlyPrice', 'includedInPlans', 'isActive', 'badge', 'featuresEn', 'featuresAr'];
     const sanitized = {};
     for (const key of allowedFields) {
       if (updates[key] !== undefined) sanitized[key] = updates[key];

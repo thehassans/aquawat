@@ -26,9 +26,10 @@ import { getPrimaryBusinessType } from '../lib/businessTypes'
 import { isSaudiTenant } from '../lib/saudiTenant'
 import {
   CHECKOUT_CURRENCY,
-  convertToUsd,
   isZatcaFeatureText,
-  zatcaAddonUsd,
+  normalizeCheckoutPlan,
+  resolvePlanPrice,
+  zatcaAddonAmount,
 } from '../lib/checkoutPricing'
 import { setLanguage } from '../store/slices/uiSlice'
 import DailyAyat from '../components/ui/DailyAyat'
@@ -38,18 +39,26 @@ const fallbackPricingPlans = [
     id: 'starter',
     nameEn: 'Starter',
     nameAr: 'البداية',
-    priceMonthly: 299,
-    priceYearly: 2990,
+    priceMonthlyUsd: 29.99,
+    priceYearlyUsd: 299.99,
+    priceMonthlySar: 99.99,
+    priceYearlySar: 999.99,
+    priceMonthly: 29.99,
+    priceYearly: 299.99,
     popular: false,
-    featuresEn: ['ZATCA E-Invoicing', 'Up to 500 invoices/month', 'Inventory & Warehouses', 'Basic Reports', 'Up to 5 users', 'Email Support'],
-    featuresAr: ['الفوترة الإلكترونية', 'حتى 500 فاتورة/شهر', 'المخزون والمستودعات', 'تقارير أساسية', 'حتى 5 مستخدمين', 'دعم بالبريد'],
+    featuresEn: ['ZATCA E-Invoicing', 'Up to 100 invoices/month', 'Inventory & Warehouses', 'Basic Reports', 'Up to 5 users', 'Email Support'],
+    featuresAr: ['الفوترة الإلكترونية', 'حتى 100 فاتورة/شهر', 'المخزون والمستودعات', 'تقارير أساسية', 'حتى 5 مستخدمين', 'دعم بالبريد'],
   },
   {
     id: 'professional',
     nameEn: 'Professional',
     nameAr: 'الاحترافية',
-    priceMonthly: 699,
-    priceYearly: 6990,
+    priceMonthlyUsd: 59.99,
+    priceYearlyUsd: 599.99,
+    priceMonthlySar: 199.99,
+    priceYearlySar: 1999.99,
+    priceMonthly: 59.99,
+    priceYearly: 599.99,
     popular: true,
     featuresEn: ['Everything in Starter', 'Unlimited Invoices', 'HR & Payroll (GOSI/WPS)', 'Expenses & Finance', 'Projects & Tasks', 'Advanced Reports', 'Up to 25 users', 'Priority Support'],
     featuresAr: ['كل ما في البداية', 'فواتير غير محدودة', 'الموارد البشرية والرواتب', 'المصروفات والمالية', 'المشاريع والمهام', 'تقارير متقدمة', 'حتى 25 مستخدم', 'دعم ذو أولوية'],
@@ -58,6 +67,10 @@ const fallbackPricingPlans = [
     id: 'enterprise',
     nameEn: 'Enterprise',
     nameAr: 'المؤسسات',
+    priceMonthlyUsd: 0,
+    priceYearlyUsd: 0,
+    priceMonthlySar: 0,
+    priceYearlySar: 0,
     priceMonthly: 0,
     priceYearly: 0,
     popular: false,
@@ -153,43 +166,38 @@ export default function DemoCheckout() {
     if (firstAvailable) setPaymentMethod(firstAvailable.id)
   }, [websiteSettings, paymentMethod])
 
-  const catalogCurrency = String(websiteSettings?.pricing?.currency || 'SAR').toUpperCase()
-
   const plans = useMemo(() => {
     const filterFeatures = (list = []) =>
       (saudiTenant ? list : list.filter((f) => !isZatcaFeatureText(f)))
+        .map((f) => String(f).replace(/500 invoices/gi, '100 invoices').replace(/500 فاتورة/g, '100 فاتورة'))
 
     const configured = websiteSettings?.pricing?.plans
     if (Array.isArray(configured) && configured.length > 0) {
       return configured.map((p) => {
         const fallback = fallbackPricingPlans.find((f) => f.id === p.id)
-        const featuresEn = p.featuresEn?.length ? p.featuresEn : fallback?.featuresEn
-        const featuresAr = p.featuresAr?.length ? p.featuresAr : fallback?.featuresAr
+        const normalized = normalizeCheckoutPlan(p, fallback)
         return {
-          ...fallback,
-          ...p,
-          // Catalog → USD for display & Stripe Adaptive Pricing presentment base
-          priceMonthly: convertToUsd(p.priceMonthly ?? fallback?.priceMonthly ?? 0, catalogCurrency),
-          priceYearly: convertToUsd(p.priceYearly ?? fallback?.priceYearly ?? 0, catalogCurrency),
-          featuresEn: filterFeatures(featuresEn),
-          featuresAr: filterFeatures(featuresAr),
+          ...normalized,
+          featuresEn: filterFeatures(normalized.featuresEn?.length ? normalized.featuresEn : fallback?.featuresEn),
+          featuresAr: filterFeatures(normalized.featuresAr?.length ? normalized.featuresAr : fallback?.featuresAr),
         }
       })
     }
     return fallbackPricingPlans.map((p) => ({
-      ...p,
-      priceMonthly: convertToUsd(p.priceMonthly, 'SAR'),
-      priceYearly: convertToUsd(p.priceYearly, 'SAR'),
+      ...normalizeCheckoutPlan(p),
       featuresEn: filterFeatures(p.featuresEn),
       featuresAr: filterFeatures(p.featuresAr),
     }))
-  }, [websiteSettings, catalogCurrency, saudiTenant])
+  }, [websiteSettings, saudiTenant])
 
   const selectedPlanObj = plans.find((p) => p.id === selectedPlan) || plans[1]
-  const amount = selectedBilling === 'yearly' ? selectedPlanObj.priceYearly : selectedPlanObj.priceMonthly
+  const amount = resolvePlanPrice(selectedPlanObj, selectedBilling, 'USD')
+  const amountSar = resolvePlanPrice(selectedPlanObj, selectedBilling, 'SAR')
   const currency = CHECKOUT_CURRENCY
-  const zatcaAddon = saudiTenant && zatcaPhase2Enabled ? zatcaAddonUsd(selectedBilling) : 0
+  const zatcaAddon = saudiTenant && zatcaPhase2Enabled ? zatcaAddonAmount(selectedBilling, 'USD') : 0
+  const zatcaAddonSar = saudiTenant && zatcaPhase2Enabled ? zatcaAddonAmount(selectedBilling, 'SAR') : 0
   const totalAmount = Math.round((Number(amount) + Number(zatcaAddon)) * 100) / 100
+  const totalAmountSar = Math.round((Number(amountSar) + Number(zatcaAddonSar)) * 100) / 100
 
   const handleUpgrade = async () => {
     if (selectedPlan === 'enterprise') {
@@ -203,6 +211,7 @@ export default function DemoCheckout() {
     try {
       const { data } = await api.post('/payments/create-payment', {
         amount: totalAmount,
+        amountSar: totalAmountSar,
         currency: CHECKOUT_CURRENCY,
         plan: selectedPlan,
         billingCycle: selectedBilling,
@@ -504,8 +513,8 @@ export default function DemoCheckout() {
                 </div>
                 <p className="mt-2 text-center text-[11px] text-gray-400 dark:text-gray-500">
                   {isArabic
-                    ? 'الفوترة بالدولار — قد يعرض Stripe السعر بعملتك المحلية تلقائياً'
-                    : 'Priced in USD — Stripe may auto-convert to your local currency at checkout'}
+                    ? 'أسعار قائمة بالدولار — قد يعرض Stripe عملتك المحلية تلقائياً'
+                    : 'Listed in USD — Stripe may auto-convert to your local currency at checkout'}
                 </p>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex items-center justify-between text-gray-600 dark:text-gray-300">
