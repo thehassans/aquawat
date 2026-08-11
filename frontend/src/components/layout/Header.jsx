@@ -1,5 +1,5 @@
 import { useSelector, useDispatch } from 'react-redux'
-import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown, LayoutGrid, PanelLeft, LayoutList, User, Settings as SettingsIcon, Building2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory, Download } from 'lucide-react'
+import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown, LayoutGrid, PanelLeft, LayoutList, User, Settings as SettingsIcon, Building2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory } from 'lucide-react'
 import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
 import { Transition, Popover, Menu as HeadlessMenu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -14,6 +14,7 @@ import GlobalSearch from './GlobalSearch'
 import SubscriptionBadge from './SubscriptionBadge'
 import { showArabicUi } from '../../lib/saudiTenant'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
+import useMaqderWebAppInstall from '../../lib/useMaqderWebAppInstall'
 
 const TENANT_TYPE_META = {
   trading: { Icon: Store, labelEn: 'Trading', labelAr: 'تجارة' },
@@ -38,6 +39,7 @@ export default function Header() {
   const { tenant, user } = useSelector((state) => state.auth)
   const { theme, language, navigationStyle } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
+  const { install: installMaqderWebApp } = useMaqderWebAppInstall(language)
   const arabicUi = showArabicUi(tenant)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const [searchQuery, setSearchQuery] = useState('')
@@ -415,15 +417,18 @@ export default function Header() {
                   <HeadlessMenu.Item>
                     {({ active }) => (
                       <button
-                        onClick={() => navigate('/app/dashboard/app-store')}
+                        type="button"
+                        onClick={() => installMaqderWebApp()}
                         className={`${
                           active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300' : 'text-gray-700 dark:text-gray-300'
                         } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
                       >
-                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
-                          <Download className="h-4 w-4" />
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-emerald-200/90 shadow-sm dark:bg-white/95 dark:ring-emerald-500/30">
+                          <img src="/MaqderFavicon.png" alt="Maqder" className="h-6 w-6 object-contain" />
                         </span>
-                        <span>{language === 'ar' ? 'تثبيت التطبيقات' : 'Install Application'}</span>
+                        <span className="text-start leading-snug">
+                          {language === 'ar' ? 'تثبيت تطبيق مقدر على الويب' : 'Install web based application of Maqder'}
+                        </span>
                       </button>
                     )}
                   </HeadlessMenu.Item>

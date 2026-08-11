@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory, Download } from 'lucide-react'
+import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory } from 'lucide-react'
 import { Fragment } from 'react'
 import { Transition, Popover, Menu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -13,6 +13,7 @@ import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getNavSections } from '../../lib/sidebarConfig'
 import { useTranslation } from '../../lib/translations'
 import App3DIcon from '../ui/App3DIcon'
+import useMaqderWebAppInstall from '../../lib/useMaqderWebAppInstall'
 
 // Pre-defined mapping for standard paths to specific gradients and icons to match Odoo-style uniqueness
 const APP_STYLE_MAP = {
@@ -143,6 +144,7 @@ export default function AppLauncher() {
   const { appLauncherOpen, language, hiddenMenuItems, theme, navigationStyle } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const { install: installMaqderWebApp } = useMaqderWebAppInstall(language)
   const [searchQuery, setSearchQuery] = useState('')
   const [navigatingTo, setNavigatingTo] = useState(null)
   
@@ -635,20 +637,20 @@ export default function AppLauncher() {
                             <button
                               type="button"
                               onClick={() => {
-                                dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
-                                dispatch(setHideSidebar(true))
                                 dispatch(setMobileMenuOpen(false))
                                 dispatch(setAppLauncherOpen(false))
-                                navigate('/app/dashboard/app-store')
+                                installMaqderWebApp()
                               }}
                               className={`${
                                 active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'
                               } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
                             >
-                              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
-                                <Download className="h-4 w-4" />
+                              <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-emerald-200/90 shadow-sm dark:bg-white/95 dark:ring-emerald-500/30">
+                                <img src="/MaqderFavicon.png" alt="Maqder" className="h-6 w-6 object-contain" />
                               </span>
-                              <span>{language === 'ar' ? 'تثبيت التطبيقات' : 'Install Application'}</span>
+                              <span className="text-start leading-snug">
+                                {language === 'ar' ? 'تثبيت تطبيق مقدر على الويب' : 'Install web based application of Maqder'}
+                              </span>
                             </button>
                           )}
                         </Menu.Item>

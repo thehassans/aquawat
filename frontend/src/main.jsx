@@ -8,6 +8,11 @@ import App from './App'
 import { store } from './store'
 import './index.css'
 import { ErrorBoundary } from './lib/errorBoundary'
+import { initMaqderPwaInstall } from './lib/pwaInstall'
+
+if (typeof window !== 'undefined') {
+  initMaqderPwaInstall()
+}
 
 // ─── Self-Healing Deploy & Chunk Load Auto-Recovery ────────────────────────────
 // When a new build is deployed on the server, old hashed JS chunks are deleted.
@@ -23,7 +28,11 @@ export const purgeStaleCachesAndReload = async () => {
     }
     if ('serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations()
-      await Promise.all(registrations.map((r) => r.unregister()))
+      await Promise.all(registrations.map((r) => {
+        const url = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || ''
+        if (url.includes('maqder-install-sw')) return Promise.resolve()
+        return r.unregister()
+      }))
     }
   } catch (err) {
     console.warn('[CachePurge] Warning:', err)

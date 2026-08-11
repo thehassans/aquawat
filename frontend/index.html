@@ -24,7 +24,11 @@
         try {
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(function(registrations) {
-              registrations.forEach(function(r) { r.unregister(); });
+              registrations.forEach(function(r) {
+                var url = (r.active && r.active.scriptURL) || (r.installing && r.installing.scriptURL) || (r.waiting && r.waiting.scriptURL) || '';
+                if (url.indexOf('maqder-install-sw') !== -1) return;
+                r.unregister();
+              });
             });
           }
           if ('caches' in window) {
