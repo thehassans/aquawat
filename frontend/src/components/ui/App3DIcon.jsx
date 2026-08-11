@@ -2327,26 +2327,21 @@ export function App3DIcon({
     return (
       <svg className={className} viewBox="0 0 64 64" fill="none">
         <defs>
-          <linearGradient id={`wa_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#25D366" />
-            <stop offset="100%" stopColor="#128C7E" />
+          <linearGradient id={`wa_bg_${uid}`} x1="10" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#34D399" />
+            <stop offset="100%" stopColor="#059669" />
           </linearGradient>
           <filter id={`wa_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#25D366" floodOpacity="0.45" />
+            <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#10B981" floodOpacity="0.35" />
           </filter>
         </defs>
-
-        <rect x="7" y="7" width="50" height="50" rx="14" fill={`url(#wa_bg_${uid})`} filter={`url(#wa_flt_${uid})`} stroke="#86EFAC" strokeWidth="1.2" strokeOpacity="0.5" />
-        
-        {/* WhatsApp Phone Silhouette */}
-        <path
-          d="M32 14C22.6 14 15 21.6 15 31C15 34.3 15.9 37.3 17.6 39.9L15.4 48L23.7 45.8C26.2 47.2 29 48 32 48C41.4 48 49 40.4 49 31C49 21.6 41.4 14 32 14Z"
-          fill="#FFFFFF"
-        />
-        <path
-          d="M40.7 35.5C40.2 35.3 37.7 34.1 37.3 33.9C36.8 33.7 36.5 33.6 36.1 34.2C35.7 34.7 34.8 35.9 34.5 36.2C34.2 36.5 33.9 36.6 33.4 36.3C32.9 36.1 31.3 35.5 29.5 33.9C28 32.6 27 31 26.7 30.5C26.4 30 26.7 29.7 26.9 29.5C27.1 29.3 27.4 28.9 27.7 28.6C27.9 28.3 28.1 28 28.2 27.7C28.4 27.3 28.3 27 28.2 26.7C28 26.4 27.1 24.1 26.7 23.1C26.3 22.1 25.9 22.3 25.6 22.3C25.3 22.3 24.9 22.3 24.5 22.3C24.2 22.3 23.7 22.4 23.2 22.9C22.8 23.4 21.5 24.6 21.5 27.1C21.5 29.6 23.4 32 23.6 32.3C23.9 32.6 27.2 37.7 32.2 39.8C33.4 40.3 34.3 40.7 35.1 40.9C36.3 41.3 37.5 41.2 38.3 41.1C39.3 40.9 41.3 39.9 41.7 38.6C42.1 37.4 42.1 36.3 42 36.1C41.8 35.8 41.5 35.7 40.7 35.5Z"
-          fill="#128C7E"
-        />
+        <rect x="7" y="7" width="50" height="50" rx="14" fill={`url(#wa_bg_${uid})`} filter={`url(#wa_flt_${uid})`} />
+        <circle cx="30" cy="33" r="18" fill="#25D366" />
+        <circle cx="40" cy="24" r="13" fill="#128C7E" opacity="0.88" />
+        <path d="M20 46.5 21.2 40.8A12.2 12.2 0 1 1 37.5 44.8l-5.6 1.35z" fill="#FFFFFF" />
+        <path d="M26.2 33.5h8.2M26.2 37.6h5.6" stroke="#128C7E" strokeWidth="2.4" strokeLinecap="round" />
+        <circle cx="46" cy="18" r="6.5" fill="#F97316" />
+        <path d="M43.6 18h4.8M46 15.6v4.8" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     )
   }

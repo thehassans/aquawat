@@ -343,331 +343,357 @@ export default function AppLauncher() {
     <AnimatePresence>
       {appLauncherOpen && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: -20 }}
+          initial={{ opacity: 0, scale: 0.98, y: -12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ duration: 0.25, ease: "easeInOut" }}
-          className="fixed inset-0 z-[100] flex flex-col bg-gray-50/95 dark:bg-[#1a1824]/95 backdrop-blur-xl overflow-hidden"
+          exit={{ opacity: 0, scale: 0.98, y: 16 }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          className="fixed inset-0 z-[100] flex flex-col overflow-hidden bg-[#f4f6f9] dark:bg-[#0c0f14]"
         >
+          {/* Ambient atmosphere */}
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            <div className="absolute -top-32 left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-emerald-400/20 blur-[100px] dark:bg-emerald-500/10" />
+            <div className="absolute bottom-0 right-0 h-[320px] w-[420px] rounded-full bg-teal-300/15 blur-[90px] dark:bg-teal-500/10" />
+            <div className="absolute inset-0 opacity-[0.035] dark:opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(#0f172a 1px,transparent 1px),linear-gradient(90deg,#0f172a 1px,transparent 1px)', backgroundSize: '48px 48px' }} />
+          </div>
+
           {/* Header Bar */}
-          <div className="flex items-center justify-between p-4 sm:p-6 h-20 shrink-0 border-b border-gray-200/30 dark:border-white/5 shadow-sm dark:shadow-none">
-            <div className="flex items-center gap-2 sm:gap-4 flex-1">
-              <button 
-                onClick={() => dispatch(setAppLauncherOpen(false))}
-                className="p-2 sm:p-2.5 rounded-xl hover:bg-gray-200/50 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                title={language === 'ar' ? 'إغلاق' : 'Close'}
-              >
-                <X className="w-6 h-6 sm:w-7 sm:h-7" />
-              </button>
-              
-              <div className="relative flex-1 max-w-md hidden sm:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder={language === 'ar' ? 'بحث عن التطبيقات...' : 'Search apps...'}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white dark:bg-white/10 border border-gray-200 dark:border-transparent focus:bg-white dark:focus:bg-white/20 focus:border-primary-500 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/50 rounded-2xl py-2.5 pl-10 pr-4 outline-none transition-all shadow-sm dark:shadow-none"
-                  dir={language === 'ar' ? 'rtl' : 'ltr'}
-                />
+          <header className="relative z-10 shrink-0 border-b border-slate-200/70 bg-white/75 backdrop-blur-2xl dark:border-white/[0.06] dark:bg-[#12161d]/80">
+            <div className="mx-auto flex h-[4.5rem] max-w-[90rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+              <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => dispatch(setAppLauncherOpen(false))}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200/80 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                  title={language === 'ar' ? 'إغلاق' : 'Close'}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+
+                <div className="relative hidden min-w-0 flex-1 max-w-xl sm:block">
+                  <Search className={`pointer-events-none absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400 ${language === 'ar' ? 'right-4' : 'left-4'}`} />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder={language === 'ar' ? 'بحث عن التطبيقات...' : 'Search apps...'}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={`w-full rounded-2xl border border-slate-200/90 bg-slate-50/80 py-2.5 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/40 dark:focus:border-emerald-400/50 dark:focus:bg-white/[0.1] ${language === 'ar' ? 'pl-4 pr-11' : 'pl-11 pr-4'}`}
+                    dir={language === 'ar' ? 'rtl' : 'ltr'}
+                  />
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = navigationStyle === 'sidebar' ? 'launcher' : 'sidebar'
+                    dispatch(setNavigationStyle({ tenantId: tenant?._id, style: next }))
+                    if (next === 'launcher') {
+                      dispatch(setHideSidebar(true))
+                      dispatch(setMobileMenuOpen(false))
+                    } else {
+                      dispatch(setHideSidebar(false))
+                      dispatch(setAppLauncherOpen(false))
+                    }
+                  }}
+                  className="hidden items-center gap-2 rounded-2xl border border-emerald-200/80 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 md:inline-flex"
+                  title={language === 'ar' ? 'تغيير شكل القائمة' : 'Toggle Navigation Style'}
+                >
+                  {navigationStyle === 'sidebar' ? (
+                    <>
+                      <LayoutGrid className="h-4 w-4" />
+                      <span>{language === 'ar' ? 'قائمة الأيقونات' : 'App menu'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <PanelLeft className="h-4 w-4" />
+                      <span>{language === 'ar' ? 'الشريط الجانبي' : 'Show sidebar'}</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-center gap-0.5 rounded-2xl border border-slate-200/80 bg-white/90 p-1 shadow-sm dark:border-white/10 dark:bg-white/[0.06]">
+                  <button
+                    type="button"
+                    onClick={() => dispatch(setLanguage(language === 'en' ? 'ar' : 'en'))}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                    title={language === 'ar' ? 'English' : 'العربية'}
+                  >
+                    <Globe className="h-[18px] w-[18px]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => dispatch(setTheme({ tenantId: tenant?._id, theme: theme === 'dark' ? 'light' : 'dark' }))}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                    title={theme === 'dark' ? (language === 'ar' ? 'الوضع الفاتح' : 'Light Mode') : (language === 'ar' ? 'الوضع الداكن' : 'Dark Mode')}
+                  >
+                    {theme === 'dark' ? <Sun className="h-[18px] w-[18px] text-amber-400" /> : <Moon className="h-[18px] w-[18px]" />}
+                  </button>
+
+                  <Popover className="relative hidden sm:block">
+                    <Popover.Button className="relative flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white">
+                      <Bell className="h-[18px] w-[18px]" />
+                      {unreadCount > 0 && (
+                        <span className="absolute top-1 end-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white ring-2 ring-white dark:ring-[#12161d]">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </Popover.Button>
+
+                    <Transition
+                      as={Fragment}
+                      enter="transition ease-out duration-100"
+                      enterFrom="transform opacity-0 scale-95"
+                      enterTo="transform opacity-100 scale-100"
+                      leave="transition ease-in duration-75"
+                      leaveFrom="transform opacity-100 scale-100"
+                      leaveTo="transform opacity-0 scale-95"
+                    >
+                      <Popover.Panel className="absolute end-0 z-50 mt-2 w-80 origin-top-right overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-[#161b24] dark:ring-white/10">
+                        <div className="flex items-center justify-between border-b border-slate-100 p-3 dark:border-white/10">
+                          <h3 className="font-semibold text-slate-900 dark:text-white">
+                            {language === 'ar' ? 'الإشعارات' : 'Notifications'}
+                          </h3>
+                          {unreadCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={markAllAsRead}
+                              className="text-xs font-bold text-emerald-600 hover:text-emerald-700"
+                            >
+                              {language === 'ar' ? 'تحديد الكل كمقروء' : 'Mark all read'}
+                            </button>
+                          )}
+                        </div>
+                        <div className="max-h-80 overflow-y-auto">
+                          {notifications.length === 0 ? (
+                            <div className="p-6 text-center text-slate-500 dark:text-slate-400">
+                              <Bell className="mx-auto mb-2 h-8 w-8 opacity-50" />
+                              <p className="text-sm">{language === 'ar' ? 'لا توجد إشعارات' : 'No notifications'}</p>
+                            </div>
+                          ) : (
+                            notifications.map((notification) => {
+                              const Icon = getNotificationIcon(notification.type)
+                              return (
+                                <button
+                                  key={notification.id}
+                                  type="button"
+                                  onClick={() => markAsRead(notification.id)}
+                                  className={`flex w-full items-start gap-3 p-3 text-start transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.04] ${
+                                    !notification.read ? 'bg-emerald-50/60 dark:bg-emerald-500/10' : ''
+                                  }`}
+                                >
+                                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                    <Icon className="h-4 w-4" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className={`text-sm ${!notification.read ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
+                                      {notification.title}
+                                    </p>
+                                    {notification.subtitle ? (
+                                      <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{notification.subtitle}</p>
+                                    ) : null}
+                                    <p className="mt-0.5 text-xs text-slate-400">{notification.time}</p>
+                                  </div>
+                                  {!notification.read && (
+                                    <span className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500" />
+                                  )}
+                                </button>
+                              )
+                            })
+                          )}
+                        </div>
+                      </Popover.Panel>
+                    </Transition>
+                  </Popover>
+                </div>
+
+                <Menu as="div" className="relative ms-1">
+                  <Menu.Button className="flex items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-white py-1.5 pe-2 ps-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md focus:outline-none dark:border-white/10 dark:bg-white/[0.06] dark:hover:border-emerald-500/30 sm:ps-3">
+                    <div className="hidden text-end sm:block">
+                      <p className="flex items-center justify-end gap-1 text-[13px] font-bold leading-tight text-slate-900 dark:text-white">
+                        {language === 'ar' ? 'مرحباً،' : 'Welcome,'}
+                        <span className="max-w-[140px] truncate text-emerald-700 dark:text-emerald-300">
+                          {language === 'ar'
+                            ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'المنشأة')
+                            : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Business')}
+                        </span>
+                      </p>
+                      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{user?.name}</p>
+                    </div>
+                    {tenant?.branding?.logo ? (
+                      <img
+                        src={tenant.branding.logo}
+                        alt="Tenant Logo"
+                        className="h-9 w-9 rounded-xl object-contain bg-white p-0.5 ring-1 ring-slate-200/80 dark:ring-white/15"
+                      />
+                    ) : (
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white shadow-sm ring-2 ring-white dark:ring-[#12161d]">
+                        {user?.name?.charAt(0)?.toUpperCase()}
+                      </div>
+                    )}
+                  </Menu.Button>
+
+                  <Transition
+                    as={Fragment}
+                    enter="transition ease-out duration-100"
+                    enterFrom="transform opacity-0 scale-95"
+                    enterTo="transform opacity-100 scale-100"
+                    leave="transition ease-in duration-75"
+                    leaveFrom="transform opacity-100 scale-100"
+                    leaveTo="transform opacity-0 scale-95"
+                  >
+                    <Menu.Items className="absolute end-0 z-50 mt-2 w-64 origin-top-right rounded-2xl border border-slate-100 bg-white p-1.5 shadow-2xl ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-[#161b24] dark:ring-white/10">
+                      <div className="mb-1 border-b border-slate-100 px-3 py-2.5 dark:border-white/10">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          {language === 'ar' ? 'الحساب والمنشأة' : 'Account & Company'}
+                        </p>
+                        <p className="mt-0.5 truncate text-sm font-bold text-slate-900 dark:text-white">
+                          {language === 'ar'
+                            ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'المنشأة')
+                            : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Business')}
+                        </p>
+                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{user?.email}</p>
+                      </div>
+
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+                              dispatch(setHideSidebar(true))
+                              dispatch(setMobileMenuOpen(false))
+                              dispatch(setAppLauncherOpen(false))
+                              navigate('/app/dashboard/profile')
+                            }}
+                            className={`${
+                              active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'
+                            } flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:text-sm`}
+                          >
+                            <Building2 className="h-4 w-4 text-emerald-500" />
+                            <span>{language === 'ar' ? 'الملف التعريفي والمنشأة' : 'My Profile & Company'}</span>
+                          </button>
+                        )}
+                      </Menu.Item>
+
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+                              dispatch(setHideSidebar(true))
+                              dispatch(setMobileMenuOpen(false))
+                              dispatch(setAppLauncherOpen(false))
+                              navigate('/app/dashboard/settings')
+                            }}
+                            className={`${
+                              active ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-700 dark:text-slate-300'
+                            } flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:text-sm`}
+                          >
+                            <SettingsIcon className="h-4 w-4 text-slate-500" />
+                            <span>{language === 'ar' ? 'إعدادات النظام' : 'System Settings'}</span>
+                          </button>
+                        )}
+                      </Menu.Item>
+
+                      <div className="my-1 border-t border-slate-100 dark:border-white/10" />
+
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              dispatch(setAppLauncherOpen(false))
+                              dispatch(logout())
+                              navigate('/login')
+                            }}
+                            className={`${
+                              active ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400' : 'text-red-600 dark:text-red-400'
+                            } flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:text-sm`}
+                          >
+                            <LogOut className="h-4 w-4" />
+                            <span>{language === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</span>
+                          </button>
+                        )}
+                      </Menu.Item>
+                    </Menu.Items>
+                  </Transition>
+                </Menu>
               </div>
             </div>
+          </header>
 
-            <div className="flex items-center gap-1 sm:gap-2">
-              {/* Navigation Style Toggle */}
-              <button
-                onClick={() => {
-                  const next = navigationStyle === 'sidebar' ? 'launcher' : 'sidebar'
-                  dispatch(setNavigationStyle({ tenantId: tenant?._id, style: next }))
-                  if (next === 'launcher') {
-                    dispatch(setHideSidebar(true))
-                    dispatch(setMobileMenuOpen(false))
-                  } else {
-                    dispatch(setHideSidebar(false))
-                    dispatch(setAppLauncherOpen(false))
-                  }
-                }}
-                className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-white/10 border border-gray-200/80 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/20 text-xs font-bold text-gray-700 dark:text-gray-200 shadow-xs transition-colors"
-                title={language === 'ar' ? 'تغيير شكل القائمة' : 'Toggle Navigation Style'}
-              >
-                {navigationStyle === 'sidebar' ? (
-                  <>
-                    <LayoutGrid className="w-4 h-4 text-primary-500" />
-                    <span>{language === 'ar' ? 'إخفاء الشريط الجانبي (قائمة الأيقونات)' : 'Hide Sidebar (App Menu)'}</span>
-                  </>
-                ) : (
-                  <>
-                    <PanelLeft className="w-4 h-4 text-emerald-500" />
-                    <span>{language === 'ar' ? 'إظهار الشريط الجانبي' : 'Show Sidebar Navigation'}</span>
-                  </>
-                )}
-              </button>
-
-              {/* Language Toggle */}
-              <button
-                onClick={() => dispatch(setLanguage(language === 'en' ? 'ar' : 'en'))}
-                className="p-2 sm:p-2.5 rounded-xl hover:bg-gray-200/50 dark:hover:bg-white/10 transition-colors group relative"
-              >
-                <Globe className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" />
-              </button>
-
-              {/* Theme Toggle */}
-              <button
-                onClick={() => dispatch(setTheme({ tenantId: tenant?._id, theme: theme === 'dark' ? 'light' : 'dark' }))}
-                className="p-2 sm:p-2.5 rounded-xl hover:bg-gray-200/50 dark:hover:bg-white/10 transition-colors group"
-                title={theme === 'dark' ? (language === 'ar' ? 'الوضع الفاتح' : 'Light Mode') : (language === 'ar' ? 'الوضع الداكن' : 'Dark Mode')}
-              >
-                {theme === 'dark' ? (
-                  <Sun className="w-5 h-5 text-amber-500 group-hover:text-amber-400" />
-                ) : (
-                  <Moon className="w-5 h-5 text-gray-600 dark:text-gray-900 group-hover:text-gray-900" />
-                )}
-              </button>
-
-              {/* Notifications */}
-              <Popover className="relative hidden sm:block">
-                <Popover.Button className="relative p-2 sm:p-2.5 rounded-xl hover:bg-gray-200/50 dark:hover:bg-white/10 transition-colors focus:outline-none group">
-                  <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-1 end-1 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white font-medium flex items-center justify-center border-2 border-white dark:border-[#1a1824]">
-                      {unreadCount}
-                    </span>
-                  )}
-                </Popover.Button>
-
-                <Transition
-                  as={Fragment}
-                  enter="transition ease-out duration-100"
-                  enterFrom="transform opacity-0 scale-95"
-                  enterTo="transform opacity-100 scale-100"
-                  leave="transition ease-in duration-75"
-                  leaveFrom="transform opacity-100 scale-100"
-                  leaveTo="transform opacity-0 scale-95"
-                >
-                  <Popover.Panel className="absolute end-0 mt-2 w-80 origin-top-right bg-white dark:bg-dark-800 rounded-xl shadow-xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none overflow-hidden z-50">
-                    <div className="p-3 border-b border-gray-100 dark:border-dark-700 flex items-center justify-between">
-                      <h3 className="font-semibold text-gray-900 dark:text-white">
-                        {language === 'ar' ? 'الإشعارات' : 'Notifications'}
-                      </h3>
-                      {unreadCount > 0 && (
-                        <button
-                          onClick={markAllAsRead}
-                          className="text-xs text-primary-600 hover:text-primary-700 font-medium"
-                        >
-                          {language === 'ar' ? 'تحديد الكل كمقروء' : 'Mark all read'}
-                        </button>
-                      )}
-                    </div>
-                    <div className="max-h-80 overflow-y-auto">
-                      {notifications.length === 0 ? (
-                        <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-                          <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">{language === 'ar' ? 'لا توجد إشعارات' : 'No notifications'}</p>
-                        </div>
-                      ) : (
-                        notifications.map((notification) => {
-                          const Icon = getNotificationIcon(notification.type)
-                          return (
-                            <button
-                              key={notification.id}
-                              onClick={() => markAsRead(notification.id)}
-                              className={`w-full p-3 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-dark-700 transition-colors text-start ${
-                                !notification.read ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
-                              }`}
-                            >
-                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400`}>
-                                <Icon className="w-4 h-4" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-sm ${!notification.read ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>
-                                  {notification.title}
-                                </p>
-                                {notification.subtitle ? (
-                                  <p className="truncate text-xs text-gray-500 dark:text-gray-400 mt-0.5">{notification.subtitle}</p>
-                                ) : null}
-                                <p className="text-xs text-gray-400 mt-0.5">{notification.time}</p>
-                              </div>
-                              {!notification.read && (
-                                <span className="w-2 h-2 bg-primary-500 rounded-full flex-shrink-0 mt-2" />
-                              )}
-                            </button>
-                          )
-                        })
-                      )}
-                    </div>
-                  </Popover.Panel>
-                </Transition>
-              </Popover>
-
-              {/* User Profile */}
-              <Menu as="div" className="relative ms-2">
-                <Menu.Button className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl hover:bg-gray-200/50 dark:hover:bg-white/10 transition-colors focus:outline-none group">
-                  <div className="hidden sm:block text-end">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight flex items-center gap-1 justify-end">
-                      {language === 'ar' ? 'مرحباً،' : 'Welcome,'} <span className="max-w-[150px] truncate">{language === 'ar' ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'المنشأة') : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Business')}</span>
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">{user?.name}</p>
-                  </div>
-                  {tenant?.branding?.logo ? (
-                    <img 
-                      src={tenant.branding.logo} 
-                      alt="Tenant Logo" 
-                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain bg-white/10 p-1 shadow-sm ring-2 ring-transparent group-hover:ring-gray-300 dark:group-hover:ring-white/20 transition-all"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center font-bold text-sm sm:text-base shadow-sm ring-2 ring-white dark:ring-dark-800">
-                      {user?.name?.charAt(0)?.toUpperCase()}
-                    </div>
-                  )}
-                </Menu.Button>
-                
-                <Transition
-                  as={Fragment}
-                  enter="transition ease-out duration-100"
-                  enterFrom="transform opacity-0 scale-95"
-                  enterTo="transform opacity-100 scale-100"
-                  leave="transition ease-in duration-75"
-                  leaveFrom="transform opacity-100 scale-100"
-                  leaveTo="transform opacity-0 scale-95"
-                >
-                  <Menu.Items className="absolute end-0 mt-2 w-64 origin-top-right bg-white dark:bg-dark-800 rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none p-1.5 z-50 border border-gray-100 dark:border-dark-700">
-                    <div className="px-3 py-2.5 border-b border-gray-100 dark:border-dark-700/80 mb-1">
-                      <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                        {language === 'ar' ? 'الحساب والمنشأة' : 'Account & Company'}
-                      </p>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white truncate mt-0.5">
-                        {language === 'ar' ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'المنشأة') : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Business')}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {user?.email}
-                      </p>
-                    </div>
-
-                    {/* My Profile */}
-                    <Menu.Item>
-                      {({ active }) => (
-                        <button
-                          onClick={() => {
-                            dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
-                            dispatch(setHideSidebar(true))
-                            dispatch(setMobileMenuOpen(false))
-                            dispatch(setAppLauncherOpen(false))
-                            navigate('/app/dashboard/profile')
-                          }}
-                          className={`${
-                            active ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
-                          } flex w-full items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors`}
-                        >
-                          <Building2 className="w-4 h-4 text-primary-500" />
-                          <span>{language === 'ar' ? 'الملف التعريفي والمنشأة' : 'My Profile & Company'}</span>
-                        </button>
-                      )}
-                    </Menu.Item>
-
-                    {/* Settings */}
-                    <Menu.Item>
-                      {({ active }) => (
-                        <button
-                          onClick={() => {
-                            dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
-                            dispatch(setHideSidebar(true))
-                            dispatch(setMobileMenuOpen(false))
-                            dispatch(setAppLauncherOpen(false))
-                            navigate('/app/dashboard/settings')
-                          }}
-                          className={`${
-                            active ? 'bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'
-                          } flex w-full items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors`}
-                        >
-                          <SettingsIcon className="w-4 h-4 text-gray-500" />
-                          <span>{language === 'ar' ? 'إعدادات النظام' : 'System Settings'}</span>
-                        </button>
-                      )}
-                    </Menu.Item>
-
-                    <div className="my-1 border-t border-gray-100 dark:border-dark-700" />
-
-                    {/* Sign out */}
-                    <Menu.Item>
-                      {({ active }) => (
-                        <button
-                          onClick={() => {
-                            dispatch(setAppLauncherOpen(false))
-                            dispatch(logout())
-                            navigate('/login')
-                          }}
-                          className={`${
-                            active ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'text-red-600 dark:text-red-400'
-                          } flex w-full items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors`}
-                        >
-                          <LogOut className="w-4 h-4" />
-                          <span>{language === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</span>
-                        </button>
-                      )}
-                    </Menu.Item>
-                  </Menu.Items>
-                </Transition>
-              </Menu>
-            </div>
-          </div>
-          
-          {/* Mobile Search - Only visible on small screens */}
-          <div className="sm:hidden px-4 pt-4 shrink-0">
+          {/* Mobile Search */}
+          <div className="relative z-10 shrink-0 px-4 pt-4 sm:hidden">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
+              <Search className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder={language === 'ar' ? 'بحث عن التطبيقات...' : 'Search apps...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white dark:bg-white/10 border border-gray-200 dark:border-transparent focus:bg-white dark:focus:bg-white/20 focus:border-primary-500 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/50 rounded-2xl py-2.5 pl-10 pr-4 outline-none transition-all shadow-sm dark:shadow-none"
+                className="w-full rounded-2xl border border-slate-200/90 bg-white/90 py-2.5 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/40"
                 dir={language === 'ar' ? 'rtl' : 'ltr'}
               />
             </div>
           </div>
 
           {/* Apps Grid */}
-          <div className="flex-1 overflow-y-auto px-4 pb-12 sm:px-12 pt-8">
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-x-4 gap-y-10 sm:gap-y-12 max-w-7xl mx-auto">
+          <div className="relative z-10 flex-1 overflow-y-auto px-4 pb-14 pt-8 sm:px-10 lg:px-12">
+            <div className="mx-auto mb-8 max-w-7xl">
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-600/80 dark:text-emerald-400/80">
+                {language === 'ar' ? 'مساحة العمل' : 'Workspace'}
+              </p>
+              <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+                {language === 'ar' ? 'تطبيقاتك' : 'Your apps'}
+              </h2>
+              <p className="mt-1.5 max-w-xl text-sm text-slate-500 dark:text-slate-400">
+                {language === 'ar'
+                  ? 'اختر تطبيقاً للبدء — كل شيء في مكان واحد.'
+                  : 'Pick an app to get started — everything in one place.'}
+              </p>
+            </div>
+
+            <div className="mx-auto grid max-w-7xl grid-cols-3 gap-x-3 gap-y-9 sm:grid-cols-4 sm:gap-x-5 sm:gap-y-11 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
               {filteredApps.map((app, index) => {
                 const targetPath = app.path || (app.children && app.children[0]?.path)
-                
+
                 return (
                   <motion.button
                     key={index}
-                    initial={{ opacity: 0, y: 20 }}
+                    type="button"
+                    initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.02, duration: 0.3 }}
+                    transition={{ delay: Math.min(index * 0.015, 0.35), duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                     onClick={() => handleAppClick(targetPath)}
-                    className="flex flex-col items-center group w-full outline-none"
+                    className="group flex w-full flex-col items-center outline-none"
                   >
-                    {/* Ultra-professional 3D Glowing Icon Container */}
-                    <div className="relative w-[78px] h-[78px] sm:w-[88px] sm:h-[88px] rounded-[22px] sm:rounded-[26px] bg-gradient-to-b from-[#1E202E] to-[#12131A] dark:from-[#181A26] dark:to-[#0D0E15] shadow-[0_8px_30px_rgba(0,0,0,0.5),0_0_15px_rgba(255,255,255,0.03)] border border-white/10 dark:border-white/10 flex items-center justify-center transform transition-all duration-300 ease-out group-hover:scale-110 group-hover:-translate-y-2 group-hover:shadow-[0_20px_48px_rgba(0,0,0,0.6),0_0_25px_rgba(99,102,241,0.25)] group-hover:border-white/20 group-active:scale-95 group-active:translate-y-0">
-                      {/* Subtle top inner reflection */}
-                      <div className="absolute inset-0 rounded-[22px] sm:rounded-[26px] bg-gradient-to-b from-white/[0.08] via-transparent to-transparent pointer-events-none" />
+                    <div className="relative flex h-[76px] w-[76px] items-center justify-center rounded-[22%] bg-gradient-to-b from-white to-[#f3f5f8] shadow-[0_1px_2px_rgba(15,23,42,0.05),0_14px_36px_-16px_rgba(15,23,42,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] ring-1 ring-black/[0.04] transition-all duration-300 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.06] group-hover:shadow-[0_18px_40px_-18px_rgba(5,150,105,0.35),0_8px_20px_-10px_rgba(15,23,42,0.2)] group-hover:ring-emerald-400/30 group-active:translate-y-0 group-active:scale-95 dark:from-[#1a2030] dark:to-[#121722] dark:shadow-[0_12px_32px_-14px_rgba(0,0,0,0.65)] dark:ring-white/[0.08] dark:group-hover:ring-emerald-400/25 sm:h-[88px] sm:w-[88px]">
+                      <div className="pointer-events-none absolute inset-[1px] rounded-[21%] bg-gradient-to-b from-white/90 via-white/15 to-transparent dark:from-white/[0.08] dark:via-transparent" />
                       <App3DIcon
                         path={targetPath || ''}
                         label={app.label || ''}
-                        className="w-11 h-11 sm:w-12 sm:h-12 relative z-10 transition-transform duration-300 group-hover:scale-105"
+                        className="relative z-10 h-12 w-12 drop-shadow-[0_2px_6px_rgba(15,23,42,0.12)] transition-transform duration-300 group-hover:scale-105 sm:h-[3.35rem] sm:w-[3.35rem]"
                       />
                       {navigatingTo === targetPath && (
-                        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 rounded-[22px] sm:rounded-[26px] backdrop-blur-sm">
-                          <Loader2 className="w-6 h-6 text-white animate-spin" />
+                        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[22%] bg-white/70 backdrop-blur-sm dark:bg-black/45">
+                          <Loader2 className="h-6 w-6 animate-spin text-emerald-600 dark:text-emerald-300" />
                         </div>
                       )}
                     </div>
-                    <span className="mt-3.5 text-[12px] sm:text-[13px] font-semibold text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white text-center tracking-wide line-clamp-2 max-w-[90px] transition-colors leading-snug">
+                    <span className="mt-3 max-w-[96px] text-center text-[11.5px] font-semibold leading-snug tracking-wide text-slate-600 transition-colors line-clamp-2 group-hover:text-slate-950 dark:text-slate-300 dark:group-hover:text-white sm:text-[12.5px]">
                       {app.label}
                     </span>
                   </motion.button>
                 )
               })}
-              
+
               {filteredApps.length === 0 && (
-                <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-400 dark:text-white/50">
-                  <Search className="w-16 h-16 mb-4 opacity-50" />
-                  <p className="text-lg">{language === 'ar' ? 'لا توجد تطبيقات مطابقة' : 'No apps found'}</p>
+                <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-400 dark:text-white/50">
+                  <Search className="mb-4 h-14 w-14 opacity-50" />
+                  <p className="text-lg font-semibold">{language === 'ar' ? 'لا توجد تطبيقات مطابقة' : 'No apps found'}</p>
                 </div>
               )}
             </div>
