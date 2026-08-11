@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux'
 import { Loader2 } from 'lucide-react'
 import { getMe, seedSessionToken, forceLogout } from '../../store/slices/authSlice'
 import { setAppLauncherOpen, setHideSidebar, setLanguage, setNavigationStyle } from '../../store/slices/uiSlice'
+import { getAliasSlugFromHost } from '../../lib/tenantHost'
 
 /**
  * Cross-subdomain auth handoff.
@@ -43,6 +44,16 @@ export default function AuthHandoff() {
         if (cancelled || navigated) return
 
         const tenant = result?.tenant
+        const aliasSlug = getAliasSlugFromHost()
+        if (
+          aliasSlug &&
+          tenant?.slug &&
+          String(tenant.slug).toLowerCase() !== String(aliasSlug).toLowerCase()
+        ) {
+          dispatch(forceLogout())
+          setError('This login belongs to a different workspace. Please sign in again.')
+          return
+        }
         if (result?.user?.role === 'super_admin') {
           navigated = true
           navigate('/super-admin', { replace: true })

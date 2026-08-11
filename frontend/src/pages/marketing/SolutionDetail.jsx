@@ -20,7 +20,7 @@ const fade = { initial: { opacity: 0, y: 18 }, animate: { opacity: 1, y: 0 } }
 export default function SolutionDetail() {
   const { slug } = useParams()
   const { language } = useSelector((state) => state.ui)
-  const isArabic = language === 'ar'
+  const isArabic = false
   const solution = getSolution(slug)
 
   if (!solution) return <Navigate to="/solutions" replace />

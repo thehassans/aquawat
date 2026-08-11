@@ -100,14 +100,19 @@ export default function Profile() {
   const [copiedField, setCopiedField] = useState(null)
   const [logoPreview, setLogoPreview] = useState(null)
 
-  // Fetch fresh tenant data
+  // Fetch fresh tenant data — never seed from slim auth.tenant (missing business).
   const { data: tenantData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['current-tenant-profile'],
     queryFn: async () => {
       const res = await api.get('/tenants/current')
-      return res.data
+      const payload = res.data
+      if (payload?._id) {
+        dispatch(updateTenant(payload))
+      }
+      return payload
     },
-    initialData: authTenant,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const tenant = tenantData || authTenant || {}
@@ -356,161 +361,152 @@ export default function Profile() {
   ]
 
   return (
-    <div className="min-h-screen pb-16 space-y-6 animate-fade-in">
-      {/* Top Banner & Company Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-dark-800 text-gray-900 dark:text-white shadow-sm border border-gray-200/80 dark:border-dark-700">
-        {/* Top Accent Line */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-primary-500 via-indigo-500 to-sky-500" />
+    <div className="min-h-screen pb-16 space-y-8 animate-fade-in">
+      {/* Ultra-premium company identity header */}
+      <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/70 bg-[#0b1220] text-white shadow-[0_40px_80px_-48px_rgba(15,23,42,0.65)] dark:border-white/10">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-24 start-1/4 h-64 w-64 rounded-full bg-emerald-400/20 blur-3xl" />
+          <div className="absolute -bottom-28 end-0 h-72 w-72 rounded-full bg-sky-500/15 blur-3xl" />
+          <div
+            className="absolute inset-0 opacity-[0.08]"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.55) 1px, transparent 0)',
+              backgroundSize: '22px 22px',
+            }}
+          />
+        </div>
 
-        <div className="relative p-6 sm:p-8 lg:p-10">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-            {/* Company Info Left/Right */}
-            <div className="flex items-center gap-5 sm:gap-6">
+        <div className="relative px-6 py-8 sm:px-10 sm:py-10">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex items-start gap-5 sm:gap-6">
               <div className="relative group">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gray-50 dark:bg-dark-700/60 p-2.5 border border-gray-200/80 dark:border-dark-600 shadow-xs flex items-center justify-center overflow-hidden transition-all group-hover:border-primary-500">
+                <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[1.35rem] border border-white/15 bg-white/95 p-2.5 shadow-[0_20px_40px_-24px_rgba(0,0,0,0.55)] sm:h-28 sm:w-28">
                   {branding.logo ? (
-                    <img src={branding.logo} alt="Company Logo" className="w-full h-full object-contain" />
+                    <img src={branding.logo} alt="Company Logo" className="h-full w-full object-contain" />
                   ) : (
-                    <Building2 className="w-10 h-10 text-gray-400 dark:text-gray-500" />
+                    <Building2 className="h-10 w-10 text-slate-400" />
                   )}
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsEditModalOpen(true)}
-                  className="absolute -bottom-2 -end-2 p-1.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white shadow-md transition-transform hover:scale-110"
+                  className="absolute -bottom-2 -end-2 rounded-xl bg-emerald-500 p-2 text-white shadow-lg transition hover:bg-emerald-400 hover:scale-105"
                   title={language === 'ar' ? 'تغيير الشعار' : 'Change Logo'}
                 >
-                  <Edit3 className="w-3.5 h-3.5" />
+                  <Edit3 className="h-3.5 w-3.5" />
                 </button>
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
-                    {language === 'ar' ? (business.legalNameAr || business.legalNameEn || 'المنشأة') : (business.legalNameEn || business.legalNameAr || 'Business Profile')}
+              <div className="min-w-0 space-y-3 pt-1">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-300/90">
+                    {language === 'ar' ? 'ملف المنشأة' : 'Company profile'}
+                  </p>
+                  <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-4xl">
+                    {language === 'ar'
+                      ? (business.legalNameAr || business.legalNameEn || tenant?.name || 'المنشأة')
+                      : (business.legalNameEn || business.legalNameAr || tenant?.name || 'Business Profile')}
                   </h1>
-                  {business.tradeName && business.tradeName !== business.legalNameEn && (
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 dark:bg-dark-700 text-gray-700 dark:text-gray-200 border border-gray-200/80 dark:border-dark-600">
-                      {business.tradeName}
-                    </span>
+                  {(business.tradeName || business.legalNameAr) && (
+                    <p className="mt-1.5 text-sm font-medium text-white/55">
+                      {business.tradeName && business.tradeName !== business.legalNameEn
+                        ? business.tradeName
+                        : (language !== 'ar' ? business.legalNameAr : business.legalNameEn)}
+                    </p>
                   )}
                 </div>
 
-                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium flex items-center gap-2 flex-wrap">
-                  <span>{business.legalNameAr && language !== 'ar' ? business.legalNameAr : ''}</span>
-                  {business.contactEmail && (
-                    <span className="inline-flex items-center gap-1">
-                      <Mail className="w-3.5 h-3.5 text-gray-400" />
-                      {business.contactEmail}
-                    </span>
-                  )}
-                  {business.contactPhone && (
-                    <span className="inline-flex items-center gap-1 ms-1">
-                      <Phone className="w-3.5 h-3.5 text-gray-400" />
-                      {business.contactPhone}
-                    </span>
-                  )}
-                </p>
-
-                {/* Badges Bar */}
-                <div className="flex flex-wrap items-center gap-2 pt-1.5">
-                  {/* Status Badge */}
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold ring-1 ${
                     isSubActive
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50'
-                      : 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50'
+                      ? 'bg-emerald-400/15 text-emerald-200 ring-emerald-300/30'
+                      : 'bg-rose-400/15 text-rose-200 ring-rose-300/30'
                   }`}>
-                    <span className={`w-2 h-2 rounded-full ${isSubActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                    {subscription.plan ? `${subscription.plan.toUpperCase()} • ` : ''}
-                    {subscription.status === 'active' ? (language === 'ar' ? 'نشط ومفعل' : 'Active') : (language === 'ar' ? 'معلق / تجريبي' : 'Trial / Suspended')}
+                    <span className={`h-1.5 w-1.5 rounded-full ${isSubActive ? 'bg-emerald-300' : 'bg-rose-300'}`} />
+                    {(subscription.plan || 'trial').toUpperCase()}
+                    {' · '}
+                    {subscription.status === 'active'
+                      ? (language === 'ar' ? 'نشط' : 'Active')
+                      : (language === 'ar' ? 'تجريبي' : 'Trial')}
                   </span>
 
-                  {/* VAT Badge */}
-                  {business.vatNumber && (
-                    <span 
-                      onClick={() => handleCopy(business.vatNumber, 'vatTop')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/50 cursor-pointer hover:bg-teal-100/70 transition-colors"
-                      title={language === 'ar' ? 'انقر للنسخ' : 'Click to copy'}
-                    >
-                      <Receipt className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-                      <span>{language === 'ar' ? 'الرقم الضريبي:' : 'VAT:'} {business.vatNumber}</span>
-                      {copiedField === 'vatTop' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-teal-500/70" />}
-                    </span>
-                  )}
-
-                  {/* CR Badge */}
-                  {(business.crNumber || commercialReg.crNumber) && (
-                    <span 
-                      onClick={() => handleCopy(business.crNumber || commercialReg.crNumber, 'crTop')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50 cursor-pointer hover:bg-amber-100/70 transition-colors"
-                      title={language === 'ar' ? 'انقر للنسخ' : 'Click to copy'}
-                    >
-                      <Briefcase className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                      <span>{language === 'ar' ? 'السجل التجاري:' : 'CR:'} {business.crNumber || commercialReg.crNumber}</span>
-                      {copiedField === 'crTop' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-amber-500/70" />}
-                    </span>
-                  )}
-
-                  {/* National Short Address */}
-                  {nationalAddress.shortAddress && (
-                    <span 
-                      onClick={() => handleCopy(nationalAddress.shortAddress, 'shortTop')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50 cursor-pointer hover:bg-sky-100/70 transition-colors"
-                    >
-                      <MapPin className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                      <span>{language === 'ar' ? 'العنوان المختصر:' : 'Short Address:'} {nationalAddress.shortAddress}</span>
-                      {copiedField === 'shortTop' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-sky-500/70" />}
-                    </span>
+                  {(business.vatNumber || business.crNumber || commercialReg.crNumber) && (
+                    <>
+                      {business.vatNumber && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(business.vatNumber, 'vatTop')}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1 text-[11px] font-medium text-white/80 ring-1 ring-white/10 transition hover:bg-white/10"
+                        >
+                          <Receipt className="h-3.5 w-3.5 text-teal-300" />
+                          VAT {business.vatNumber}
+                          {copiedField === 'vatTop' ? <Check className="h-3 w-3 text-emerald-300" /> : <Copy className="h-3 w-3 opacity-50" />}
+                        </button>
+                      )}
+                      {(business.crNumber || commercialReg.crNumber) && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(business.crNumber || commercialReg.crNumber, 'crTop')}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1 text-[11px] font-medium text-white/80 ring-1 ring-white/10 transition hover:bg-white/10"
+                        >
+                          <Briefcase className="h-3.5 w-3.5 text-amber-300" />
+                          CR {business.crNumber || commercialReg.crNumber}
+                          {copiedField === 'crTop' ? <Check className="h-3 w-3 text-emerald-300" /> : <Copy className="h-3 w-3 opacity-50" />}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Actions Bar */}
-            <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+            <div className="flex flex-wrap items-center gap-2.5">
               <button
+                type="button"
                 onClick={() => setIsEditModalOpen(true)}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-semibold text-xs sm:text-sm shadow-xs transition-all active:scale-95"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-emerald-50"
               >
-                <Edit3 className="w-4 h-4" />
-                {language === 'ar' ? 'تعديل بيانات المنشأة' : 'Edit Company Profile'}
+                <Edit3 className="h-4 w-4" />
+                {language === 'ar' ? 'تعديل المنشأة' : 'Edit profile'}
               </button>
-
               <button
+                type="button"
                 onClick={() => setIsPasswordModalOpen(true)}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-dark-700 dark:hover:bg-dark-600 text-gray-700 dark:text-gray-200 font-medium text-xs sm:text-sm transition-all"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/90 backdrop-blur transition hover:bg-white/10"
               >
-                <KeyRound className="w-4 h-4 text-amber-500" />
-                {language === 'ar' ? 'تغيير كلمة المرور' : 'Change Password'}
+                <KeyRound className="h-4 w-4 text-amber-300" />
+                {language === 'ar' ? 'كلمة المرور' : 'Password'}
               </button>
-
               <button
+                type="button"
                 onClick={() => refetch()}
                 disabled={isRefetching}
-                className="p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-dark-700 dark:hover:bg-dark-600 text-gray-600 dark:text-gray-300 border border-gray-200/60 dark:border-dark-600 transition-all"
+                className="rounded-2xl border border-white/15 bg-white/5 p-2.5 text-white/80 transition hover:bg-white/10"
                 title={language === 'ar' ? 'تحديث البيانات' : 'Refresh Data'}
               >
-                <RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Navigation Tabs Header */}
-        <div className="flex items-center gap-1.5 px-4 sm:px-8 py-2 border-t border-gray-100 dark:border-dark-700 bg-gray-50/60 dark:bg-dark-900/40 overflow-x-auto no-scrollbar">
+        <div className="relative flex items-center gap-1 overflow-x-auto border-t border-white/10 bg-black/20 px-3 py-2 sm:px-6 no-scrollbar">
           {tabs.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2.5 text-xs font-semibold transition sm:text-sm ${
                   isActive
-                    ? `${tab.activeStyle} shadow-xs border font-bold`
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-dark-800'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-white/60 hover:bg-white/5 hover:text-white'
                 }`}
               >
-                <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? tab.color : 'text-gray-400 dark:text-gray-500'}`} />
+                <Icon className={`h-4 w-4 flex-shrink-0 ${isActive ? 'text-emerald-600' : 'text-white/40'}`} />
                 <span>{tab.label}</span>
               </button>
             )

@@ -12,7 +12,7 @@ import Money from '../ui/Money'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
-import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
+import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
 import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms } from '../../lib/invoicePaymentTerms'
 import InvoiceLivePreview from './InvoiceLivePreview'
@@ -126,6 +126,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const showArabicFields = isGccArabicMarket(tenant)
   const [invoiceType, setInvoiceType] = useState('B2C')
   const [isSmartModalOpen, setIsSmartModalOpen] = useState(false)
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
@@ -734,10 +735,25 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         }}
       />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'صيغة الفاتورة' : 'Invoice Format'}</h3>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)]">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)] dark:border-dark-600 dark:bg-dark-800">
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0f766e]">
+                  {isEdit ? (language === 'ar' ? 'تعديل' : 'Edit') : (language === 'ar' ? 'جديد' : 'New')}
+                </p>
+                <h2 className="mt-1 text-xl font-bold tracking-[-0.02em] text-slate-950 dark:text-white">
+                  {language === 'ar' ? 'إنشاء فاتورة' : 'Create invoice'}
+                </h2>
+              </div>
+              {showArabicFields && (
+                <span className="rounded-lg bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-dark-700 dark:text-slate-300 dark:ring-dark-600">
+                  EN · AR
+                </span>
+              )}
+            </div>
+            <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'صيغة الفاتورة' : 'Format'}</h3>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {[
                 {
@@ -962,12 +978,19 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           )}
 
-          <div className="card p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'بيانات العميل' : 'Customer Details'}</h3>
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)] dark:border-dark-600 dark:bg-dark-800">
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0f766e]">
+                  {language === 'ar' ? 'العميل' : 'Customer'}
+                </p>
+                <h3 className="mt-1 text-lg font-bold tracking-[-0.02em] text-slate-950 dark:text-white">
+                  {language === 'ar' ? 'بيانات العميل' : 'Who is this for?'}
+                </h3>
+              </div>
             </div>
             <div className="mb-4">
-              <label className="label">{language === 'ar' ? 'اختر عميل موجود' : 'Select Existing Customer'}</label>
+              <label className="label">{language === 'ar' ? 'اختر عميل موجود' : 'Select existing customer'}</label>
               <select onChange={(e) => onSelectCustomer(e.target.value)} className="select">
                 <option value="">{language === 'ar' ? 'اختياري: اختر عميل' : 'Optional: Select customer'}</option>
                 {(customers || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.name) : item.name}</option>)}
@@ -1024,6 +1047,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <label className="label">{language === 'ar' ? 'الاسم / الشركة' : 'Name / Company'}</label>
                   <input {...register('buyer.name', { required: invoiceType === 'B2B' })} className="input" />
                 </div>
+                {showArabicFields && (
+                  <div>
+                    <label className="label">الاسم بالعربية</label>
+                    <input {...register('buyer.nameAr')} className="input" dir="rtl" />
+                  </div>
+                )}
                 <div>
                   <label className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
                   <input {...register('buyer.vatNumber', { required: invoiceType === 'B2B' })} className="input" />
@@ -1040,14 +1069,32 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <label className="label">{language === 'ar' ? 'المدينة' : 'City'}</label>
                   <input {...register('buyer.address.city')} className="input" />
                 </div>
+                {showArabicFields && (
+                  <div>
+                    <label className="label">المدينة بالعربية</label>
+                    <input {...register('buyer.address.cityAr')} className="input" dir="rtl" />
+                  </div>
+                )}
                 <div>
                   <label className="label">{language === 'ar' ? 'الحي' : 'District'}</label>
                   <input {...register('buyer.address.district')} className="input" />
                 </div>
+                {showArabicFields && (
+                  <div>
+                    <label className="label">الحي بالعربية</label>
+                    <input {...register('buyer.address.districtAr')} className="input" dir="rtl" />
+                  </div>
+                )}
                 <div>
                   <label className="label">{language === 'ar' ? 'الشارع' : 'Street'}</label>
                   <input {...register('buyer.address.street')} className="input" />
                 </div>
+                {showArabicFields && (
+                  <div>
+                    <label className="label">الشارع بالعربية</label>
+                    <input {...register('buyer.address.streetAr')} className="input" dir="rtl" />
+                  </div>
+                )}
                 <div>
                   <label className="label">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
                   <input {...register('buyer.address.postalCode')} className="input" />
@@ -1068,16 +1115,30 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             )}
           </div>
 
-          <div className="card p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'بنود الفاتورة' : 'Line Items'}</h3>
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)] dark:border-dark-600 dark:bg-dark-800">
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0f766e]">
+                  {language === 'ar' ? 'البنود' : 'Lines'}
+                </p>
+                <h3 className="mt-1 text-lg font-bold tracking-[-0.02em] text-slate-950 dark:text-white">
+                  {language === 'ar' ? 'بنود الفاتورة' : 'What are you billing?'}
+                </h3>
+              </div>
               <button type="button" onClick={() => append({ ...emptyLine })} className="btn btn-secondary"><Plus className="w-4 h-4" />{t('add')}</button>
             </div>
             <div className="space-y-4">
               {fields.map((field, index) => (
-                <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
+                <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 dark:border-dark-600 dark:bg-dark-700/60">
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''} initialName={initialInvoice?.lineItems?.[index]?.productName || ''} />
-                  <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                  {showArabicFields ? (
+                    <div className="mb-3">
+                      <label className="label">اسم البند بالعربية</label>
+                      <input {...register(`lineItems.${index}.productNameAr`)} className="input" dir="rtl" />
+                    </div>
+                  ) : (
+                    <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                  )}
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">

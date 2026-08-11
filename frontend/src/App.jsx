@@ -304,7 +304,7 @@ const PublicServices = lazy(() => import('./pages/public/PublicServices'))
 
 import PageLoader from './components/ui/PageLoader'
 import LoadingScreen from './components/ui/LoadingScreen'
-import { isOnTenantAliasHost } from './lib/tenantHost'
+import { isOnTenantAliasHost, getAliasSlugFromHost } from './lib/tenantHost'
 
 // Auth pages are eager — tenant `{slug}.maqder.com` is a cold origin with no shared
 // chunk cache from apex. Lazy Login + pale PageLoader looked like a white screen
@@ -447,6 +447,19 @@ function App() {
       dispatch(setLanguage('en'))
     }
   }, [dispatch, tenant, language])
+
+  // Tenant alias host must match the authenticated tenant slug.
+  // Prevents showing another tenant's branding (e.g. Foody Silver logo)
+  // when a leftover session is opened on a different {slug}.maqder.com.
+  useEffect(() => {
+    if (!tenant?.slug || !token) return
+    const aliasSlug = getAliasSlugFromHost()
+    if (!aliasSlug) return
+    if (String(tenant.slug).toLowerCase() !== String(aliasSlug).toLowerCase()) {
+      dispatch(forceLogout())
+      navigate('/login', { replace: true })
+    }
+  }, [dispatch, navigate, tenant?.slug, token])
 
   useEffect(() => {
     if (tenant?._id) {

@@ -31,7 +31,7 @@ const labelCls = 'mb-2 block text-xs font-bold uppercase tracking-wider text-sla
 export default function MarketingContact() {
   const { language } = useSelector((s) => s.ui)
   const { data } = usePublicWebsiteSettings()
-  const isArabic = language === 'ar'
+  const isArabic = false
   const dir = isArabic ? 'rtl' : 'ltr'
 
   const [sent, setSent] = useState(false)

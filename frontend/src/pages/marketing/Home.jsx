@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useSelector } from 'react-redux'
 import { AnimatePresence, motion, useInView } from 'framer-motion'
 import { useRef } from 'react'
 import TrialSignup from '../../components/marketing/TrialSignup'
@@ -104,9 +103,9 @@ const REVENUE_BARS = [42, 55, 48, 68, 72, 64, 88, 80, 95, 90, 78, 100]
 const EXPENSE_BARS = [30, 34, 32, 40, 38, 36, 44, 42, 48, 45, 41, 50]
 
 export default function MarketingHome() {
-  const { language } = useSelector((s) => s.ui)
-  const isArabic = language === 'ar'
-  const dir = isArabic ? 'rtl' : 'ltr'
+  // Marketing site is English-only (no Arabic UI).
+  const isArabic = false
+  const dir = 'ltr'
   const [trialOpen, setTrialOpen] = useState(false)
 
   useEffect(() => {

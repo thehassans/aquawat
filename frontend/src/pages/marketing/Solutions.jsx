@@ -197,8 +197,8 @@ const VERTICALS = [
 
 export default function MarketingSolutions() {
   const { language } = useSelector((s) => s.ui)
-  const isArabic = language === 'ar'
-  const dir = isArabic ? 'rtl' : 'ltr'
+  const isArabic = false
+  const dir = 'ltr'
 
   const [activeCategory, setActiveCategory] = useState('all')
   const [query, setQuery] = useState('')

@@ -167,7 +167,7 @@ const invoiceSchema = new mongoose.Schema({
   pdfTemplateId: { type: Number, min: 1, max: 8 },
   invoiceTypeCode: {
     type: String,
-    enum: ['0100000', '0200000', '0100100', '0200100'],
+    enum: ['0100000', '0200000', '0100100', '0200100', '0100200', '0200200'],
     required: true
   },
   transactionType: { type: String, enum: ['B2B', 'B2C'], required: true },

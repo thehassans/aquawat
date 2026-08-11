@@ -3,7 +3,7 @@ import { FileText, CheckCircle, AlertTriangle, Scale, CreditCard, Shield, Users,
 
 export default function MarketingTerms() {
   const { language } = useSelector((state) => state.ui)
-  const isArabic = language === 'ar'
+  const isArabic = false
 
   const sections = isArabic ? [
     {

@@ -359,8 +359,10 @@ router.get('/me', protect, async (req, res) => {
       ? (user.tenantId || req.headers['x-tenant-id'] || null)
       : (user.tenantId || null);
 
-    let tenant = req.tenant ? serializeAuthTenant(req.tenant) : null;
-    if (!tenant && requestedTenantId) {
+    let tenant = null;
+    if (requestedTenantId) {
+      // Always load the full auth projection. Reusing protect's slim cached
+      // tenant dropped business (CR/VAT) and caused empty company profiles.
       const foundTenant = await withQueryTimeout(Tenant.findById(requestedTenantId).select(authTenantSelect).lean());
       if (foundTenant) {
         tenant = serializeAuthTenant(foundTenant);

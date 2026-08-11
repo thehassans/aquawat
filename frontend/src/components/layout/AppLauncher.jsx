@@ -544,17 +544,23 @@ export default function AppLauncher() {
                       </p>
                       <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{user?.name}</p>
                     </div>
-                    {tenant?.branding?.logo ? (
-                      <img
-                        src={tenant.branding.logo}
-                        alt="Tenant Logo"
-                        className="h-9 w-9 rounded-xl object-contain bg-white p-0.5 ring-1 ring-slate-200/80 dark:ring-white/15"
-                      />
-                    ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white shadow-sm ring-2 ring-white dark:ring-[#12161d]">
-                        {user?.name?.charAt(0)?.toUpperCase()}
-                      </div>
-                    )}
+                    {(() => {
+                      const logoSrc = String(tenant?.branding?.logo || '').trim()
+                      if (!logoSrc) {
+                        return (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white shadow-sm ring-2 ring-white dark:ring-[#12161d]">
+                            {user?.name?.charAt(0)?.toUpperCase()}
+                          </div>
+                        )
+                      }
+                      return (
+                        <img
+                          src={logoSrc}
+                          alt={tenant?.name || 'Tenant'}
+                          className="h-9 w-9 rounded-xl object-contain bg-white p-0.5 ring-1 ring-slate-200/80 dark:ring-white/15"
+                        />
+                      )
+                    })()}
                   </Menu.Button>
 
                   <Transition
@@ -572,7 +578,10 @@ export default function AppLauncher() {
                           {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
                             <img
                               src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
-                              alt="Tenant"
+                              alt={tenant?.name || 'Company'}
+                              className="h-8 w-8 rounded-lg object-contain bg-white"
+                            />
+                          ) : null}                              alt="Tenant"
                               className="h-14 w-14 rounded-2xl object-contain bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 dark:ring-white/15"
                             />
                           ) : (

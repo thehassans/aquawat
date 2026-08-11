@@ -148,8 +148,10 @@ export const getInvoiceBranding = (tenant, language = 'en', businessContext = 't
     businessContext: context,
     templateId: getInvoiceTemplateId(tenant, context),
     companyName: pickLocalizedText(business?.legalNameEn, business?.legalNameAr, language),
-    // Prioritize global invoice logo, then tenant logo, then context profile logo
-    logoSrc: invoiceBranding?.logo || tenant?.branding?.logo || contextProfile.logo || '/maqdernewlogo.webp',
+    // Only use this tenant's branding.logo. Do not fall back to
+    // invoiceBranding/context logos — those can retain a previous tenant's
+    // image after clones/demo handoffs and cause cross-tenant logo leaks.
+    logoSrc: String(tenant?.branding?.logo || '').trim() || '/maqdernewlogo.webp',
     stampImage: invoiceBranding?.stampImage || tenant?.branding?.stampImage || contextProfile.stampImage || invoiceBranding?.presetStamp || tenant?.settings?.invoiceBranding?.presetStamp || null,
     signatureImage: invoiceBranding?.signatureImage || tenant?.branding?.signatureImage || contextProfile.signatureImage || invoiceBranding?.presetSignature || tenant?.settings?.invoiceBranding?.presetSignature || null,
     letterheadImage: invoiceBranding?.letterheadImage || tenant?.branding?.letterheadImage || contextProfile.letterheadImage || null,

@@ -3,7 +3,7 @@ import { Shield, Lock, Database, Eye, Share2, UserCheck, Mail, FileText, Globe, 
 
 export default function MarketingPrivacy() {
   const { language } = useSelector((state) => state.ui)
-  const isArabic = language === 'ar'
+  const isArabic = false
 
   const sections = isArabic ? [
     {

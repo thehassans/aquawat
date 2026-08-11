@@ -1,8 +1,8 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState, Suspense } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useDispatch, useSelector } from 'react-redux'
-import { Globe, Menu, Phone, X } from 'lucide-react'
+import { useDispatch } from 'react-redux'
+import { Menu, Phone, X } from 'lucide-react'
 import { setLanguage } from '../store/slices/uiSlice'
 import { usePublicWebsiteSettings } from '../lib/website'
 import PageLoader from '../components/ui/PageLoader'
@@ -19,15 +19,19 @@ export default function MarketingLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const dispatch = useDispatch()
-  const { language } = useSelector((s) => s.ui)
   const { data } = usePublicWebsiteSettings()
 
   const [mobileOpen, setMobileOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
 
-  const isArabic = language === 'ar'
+  // Marketing site is English-only.
+  const isArabic = false
   const phone = data?.contactPhone || '+966596775485'
   const waNumber = phone.replace(/\D/g, '')
+
+  useEffect(() => {
+    dispatch(setLanguage('en'))
+  }, [dispatch])
 
   useEffect(() => {
     setMobileOpen(false)
@@ -57,7 +61,7 @@ export default function MarketingLayout() {
   ]
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 antialiased font-body" dir={isArabic ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-white text-slate-900 antialiased font-body" dir="ltr" lang="en">
       <header
         className={`sticky top-0 z-50 transition-all duration-300 ${
           scrolled
@@ -104,13 +108,6 @@ export default function MarketingLayout() {
             >
               <Phone className="h-4 w-4" />
             </a>
-            <button
-              onClick={() => dispatch(setLanguage(isArabic ? 'en' : 'ar'))}
-              aria-label="Toggle language"
-              className="hidden h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 sm:inline-flex"
-            >
-              <Globe className="h-4 w-4" />
-            </button>
 
             <span className="hidden h-5 w-px bg-slate-200 lg:block" />
 
@@ -119,14 +116,14 @@ export default function MarketingLayout() {
               onClick={openTrial}
               className="hidden rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 transition-all hover:-translate-y-0.5 hover:bg-emerald-100 sm:inline-flex"
             >
-              {isArabic ? 'تجربة مجانية' : 'Try free'}
+              Try free
             </button>
 
             <Link
               to="/login"
               className="hidden items-center rounded-full bg-emerald-600 px-5 py-2 text-sm font-bold text-white shadow-[0_4px_12px_-4px_rgba(5,150,105,0.5)] transition-all hover:-translate-y-0.5 hover:bg-emerald-700 sm:inline-flex"
             >
-              {isArabic ? 'تسجيل الدخول' : 'Login'}
+              Login
             </Link>
 
             <button

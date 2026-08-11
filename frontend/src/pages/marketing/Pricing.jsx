@@ -142,7 +142,7 @@ function FAQItem({ q, a, isArabic }) {
 export default function MarketingPricing() {
   const { language } = useSelector((s) => s.ui)
   const { data } = usePublicWebsiteSettings()
-  const isArabic = language === 'ar'
+  const isArabic = false
   const dir = isArabic ? 'rtl' : 'ltr'
 
   const [yearly, setYearly] = useState(false)

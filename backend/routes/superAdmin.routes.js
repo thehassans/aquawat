@@ -1139,6 +1139,21 @@ router.put('/tenants/:id', async (req, res) => {
         }
       : undefined;
 
+    // Keep invoice branding logo in lockstep with tenant branding so
+    // invoice templates never retain a stale/cross-tenant logo.
+    let mergedSettings = nextSettings;
+    if (nextBranding && Object.prototype.hasOwnProperty.call(req.body.branding || {}, 'logo')) {
+      const baseSettings = mergedSettings
+        || (existingTenant.settings?.toObject?.() || existingTenant.settings || {});
+      mergedSettings = {
+        ...baseSettings,
+        invoiceBranding: {
+          ...(baseSettings.invoiceBranding || {}),
+          logo: nextBranding.logo || '',
+        },
+      };
+    }
+
     const tenant = await Tenant.findByIdAndUpdate(
       req.params.id,
       {
@@ -1146,7 +1161,7 @@ router.put('/tenants/:id', async (req, res) => {
         name: incomingName || existingTenant.name,
         business: incomingBusiness,
         ...(nextBranding ? { branding: nextBranding } : {}),
-        ...(nextSettings ? { settings: nextSettings } : {}),
+        ...(mergedSettings ? { settings: mergedSettings } : {}),
         ...(nextSubscription ? { subscription: nextSubscription } : {}),
         ...(nextZatca ? { zatca: nextZatca } : {}),
         businessType: primaryBusinessType,

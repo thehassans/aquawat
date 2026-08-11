@@ -3,7 +3,7 @@ import { BarChart3, Building2, CheckCircle2, Globe, ShieldCheck, Sparkles, Users
 
 export default function MarketingAbout() {
   const { language } = useSelector((state) => state.ui)
-  const isArabic = language === 'ar'
+  const isArabic = false
 
   const platformPillars = [
     {

@@ -129,6 +129,19 @@ export default function InvoiceView() {
     }
   })
 
+  const debitNoteMutation = useMutation({
+    mutationFn: () => api.post(`/invoices/${id}/debit-note`),
+    onSuccess: (res) => {
+      toast.success(language === 'ar' ? 'تم إصدار إشعار مدين بنجاح' : 'Debit note issued successfully')
+      queryClient.invalidateQueries(['invoices'])
+      queryClient.invalidateQueries(['invoice', id])
+      navigate(`/app/dashboard/invoices/${res.data._id}/edit`)
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to issue debit note')
+    }
+  })
+
   const sendEmailMutation = useMutation({
     mutationFn: async () => {
       if (!invoice) {
@@ -215,20 +228,36 @@ export default function InvoiceView() {
           )}
           {!isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && 
            invoice?.invoiceSubtype !== 'proforma' && 
+           invoice?.invoiceType === '388' &&
            !['cancelled', 'credited'].includes(invoice?.status) && (
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm(language === 'ar' ? 'هل أنت متأكد من إصدار إشعار دائن لهذه الفاتورة؟ هذا الإجراء لا يمكن التراجع عنه وسيتم إنشاء فاتورة جديدة.' : 'Are you sure you want to issue a credit note for this invoice? This action cannot be undone and a new draft invoice will be created.')) {
-                  creditNoteMutation.mutate()
-                }
-              }}
-              disabled={creditNoteMutation.isPending}
-              className="btn btn-secondary border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
-            >
-              {creditNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
-              {language === 'ar' ? 'إصدار إشعار دائن (تعديل)' : 'Issue Credit Note (Edit)'}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(language === 'ar' ? 'إصدار إشعار دائن؟ سيتم عكس بنود الفاتورة وإنشاء مسودة جديدة.' : 'Issue a credit note? Line items will be reversed into a new draft.')) {
+                    creditNoteMutation.mutate()
+                  }
+                }}
+                disabled={creditNoteMutation.isPending || debitNoteMutation.isPending}
+                className="btn btn-secondary border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+              >
+                {creditNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
+                {language === 'ar' ? 'إشعار دائن' : 'Credit note'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(language === 'ar' ? 'إصدار إشعار مدين؟ سيتم إنشاء مسودة مرتبطة لرسوم إضافية.' : 'Issue a debit note? A linked draft will be created for additional charges.')) {
+                    debitNoteMutation.mutate()
+                  }
+                }}
+                disabled={creditNoteMutation.isPending || debitNoteMutation.isPending}
+                className="btn btn-secondary border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+              >
+                {debitNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                {language === 'ar' ? 'إشعار مدين' : 'Debit note'}
+              </button>
+            </>
           )}
           {invoice?.invoiceSubtype === 'proforma' && invoice?.status !== 'cancelled' && invoice?.status !== 'sent' && (
             <button

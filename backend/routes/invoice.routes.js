@@ -1944,28 +1944,77 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
     if (!originalInvoice) {
       return res.status(404).json({ error: 'Original invoice not found' });
     }
-    
-    const tenant = await Tenant.findById(req.user.tenantId);
-    
+    if (originalInvoice.invoiceType !== '388') {
+      return res.status(400).json({ error: 'Credit notes can only be issued from a standard tax invoice' });
+    }
+    if (['cancelled', 'credited'].includes(originalInvoice.status)) {
+      return res.status(400).json({ error: 'This invoice cannot receive a credit note' });
+    }
+    if (originalInvoice.invoiceSubtype === 'proforma') {
+      return res.status(400).json({ error: 'Cannot issue a credit note from a proforma invoice' });
+    }
+
+    const existingCn = await Invoice.findOne({
+      tenantId: originalInvoice.tenantId,
+      originalInvoiceId: originalInvoice._id,
+      invoiceType: '381',
+    }).select('_id invoiceNumber');
+    if (existingCn) {
+      return res.status(400).json({
+        error: `A credit note already exists (${existingCn.invoiceNumber})`,
+        creditNoteId: existingCn._id,
+      });
+    }
+
     const creditNoteNumber = `CN-${originalInvoice.invoiceNumber}`;
-    
-    const creditNoteData = {
-      ...originalInvoice.toObject(),
-      _id: undefined,
+    const source = originalInvoice.toObject();
+    delete source._id;
+    delete source.__v;
+    delete source.createdAt;
+    delete source.updatedAt;
+    delete source.zatca;
+    delete source.proformaSourceId;
+
+    // ZATCA credit notes reverse the original document (negative quantities).
+    const reversedLines = (Array.isArray(source.lineItems) ? source.lineItems : []).map((line) => {
+      const qty = Number(line.quantity || 0);
+      const unitPrice = Number(line.unitPrice || 0);
+      const taxRate = Number(line.taxRate || 0);
+      const quantity = -Math.abs(qty || 0);
+      const lineExtensionAmount = Number((quantity * unitPrice).toFixed(2));
+      const taxAmount = Number((lineExtensionAmount * (taxRate / 100)).toFixed(2));
+      return {
+        ...line,
+        _id: undefined,
+        quantity,
+        lineExtensionAmount,
+        taxAmount,
+        allowanceAmount: line.allowanceAmount ? -Math.abs(Number(line.allowanceAmount)) : 0,
+      };
+    });
+
+    const subtotal = Number(reversedLines.reduce((sum, line) => sum + Number(line.lineExtensionAmount || 0), 0).toFixed(2));
+    const taxAmount = Number(reversedLines.reduce((sum, line) => sum + Number(line.taxAmount || 0), 0).toFixed(2));
+    const grandTotal = Number((subtotal + taxAmount).toFixed(2));
+
+    const creditNote = await Invoice.create({
+      ...source,
       invoiceNumber: creditNoteNumber,
       invoiceType: '381',
       invoiceTypeCode: originalInvoice.transactionType === 'B2C' ? '0200100' : '0100100',
       originalInvoiceId: originalInvoice._id,
+      lineItems: reversedLines,
+      subtotal,
+      taxAmount,
+      grandTotal,
+      paidAmount: 0,
       status: 'draft',
       zatca: {},
       createdBy: req.user._id,
       ...getUserDisplayNames(req.user),
-      createdAt: undefined,
-      updatedAt: undefined
-    };
-    
-    const creditNote = await Invoice.create(creditNoteData);
-    
+      issueDate: new Date(),
+    });
+
     originalInvoice.status = 'credited';
     await originalInvoice.save();
 
@@ -1974,6 +2023,64 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
     }
     
     res.status(201).json(creditNote);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/invoices/:id/debit-note
+router.post('/:id/debit-note', checkPermission('invoicing', 'create'), async (req, res) => {
+  try {
+    const originalInvoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+
+    if (!originalInvoice) {
+      return res.status(404).json({ error: 'Original invoice not found' });
+    }
+    if (originalInvoice.invoiceType !== '388') {
+      return res.status(400).json({ error: 'Debit notes can only be issued from a standard tax invoice' });
+    }
+    if (['cancelled', 'credited'].includes(originalInvoice.status)) {
+      return res.status(400).json({ error: 'This invoice cannot receive a debit note' });
+    }
+    if (originalInvoice.invoiceSubtype === 'proforma') {
+      return res.status(400).json({ error: 'Cannot issue a debit note from a proforma invoice' });
+    }
+
+    const debitNoteNumber = `DN-${originalInvoice.invoiceNumber}-${Date.now().toString(36).slice(-4)}`;
+    const source = originalInvoice.toObject();
+    delete source._id;
+    delete source.__v;
+    delete source.createdAt;
+    delete source.updatedAt;
+    delete source.zatca;
+    delete source.proformaSourceId;
+
+    // Debit notes start as a linked draft copy — amounts stay editable for extra charges.
+    const lineItems = (Array.isArray(source.lineItems) ? source.lineItems : []).map((line) => ({
+      ...line,
+      _id: undefined,
+    }));
+
+    const debitNote = await Invoice.create({
+      ...source,
+      invoiceNumber: debitNoteNumber,
+      invoiceType: '383',
+      invoiceTypeCode: originalInvoice.transactionType === 'B2C' ? '0200200' : '0100200',
+      originalInvoiceId: originalInvoice._id,
+      lineItems,
+      paidAmount: 0,
+      status: 'draft',
+      zatca: {},
+      createdBy: req.user._id,
+      ...getUserDisplayNames(req.user),
+      issueDate: new Date(),
+      notes: [
+        String(source.notes || '').trim(),
+        `Debit note linked to ${originalInvoice.invoiceNumber}`,
+      ].filter(Boolean).join('\n'),
+    });
+
+    res.status(201).json(debitNote);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
