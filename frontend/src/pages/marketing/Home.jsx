@@ -5,7 +5,9 @@ import { AnimatePresence, motion, useInView } from 'framer-motion'
 import { useRef } from 'react'
 import TrialSignup from '../../components/marketing/TrialSignup'
 import PremiumAppIcon, { PREMIUM_APP_CATALOG } from '../../components/marketing/PremiumAppIcon'
-import { ArrowRight, Star, TrendingUp, X } from 'lucide-react'
+import { ArrowRight, Star, TrendingUp, X, Wallet, FileText, ShieldCheck, Building2, Store, Users, Utensils, Truck, Briefcase } from 'lucide-react'
+
+const TENANT_STORY_ICONS = [Building2, Store, Users, Utensils, Truck, Briefcase]
 
 function Counter({ to, suffix = '', duration = 1800 }) {
   const [val, setVal] = useState(0)
@@ -233,17 +235,17 @@ export default function MarketingHome() {
       </section>
 
       {/* ── LIVE REPORTING ── */}
-      <section className="relative overflow-hidden bg-slate-950 py-28 text-white">
-        <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 25% 40%, #05966933 0%, transparent 55%), radial-gradient(circle at 80% 20%, #10b98122 0%, transparent 45%)' }} />
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#f7faf8] via-white to-[#f3f7f5] py-28" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+        <div className="pointer-events-none absolute inset-0 opacity-[0.4]" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #05966918 0%, transparent 42%), radial-gradient(circle at 85% 10%, #14b8a618 0%, transparent 40%)' }} />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-14 text-center">
-            <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-emerald-400">
+            <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.32em] text-emerald-600">
               {isArabic ? 'تقارير حية' : 'Live reporting'}
             </p>
-            <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+            <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl lg:text-[3.4rem]" style={{ fontFamily: "'Syne', system-ui, sans-serif" }}>
               {isArabic ? 'أرباحك، تكاليفك، ونموك — بوضوح.' : 'Revenue, costs, and growth — crystal clear.'}
             </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-lg text-white/50">
+            <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-slate-500">
               {isArabic
                 ? 'لوحات مالية حقيقية: الإيرادات مقابل المصروفات، هامش الربح، والتدفق النقدي — تتحدث لحظة بلحظة.'
                 : 'Real finance views: revenue vs expenses, margin, and cash flow — updating as your business moves.'}
@@ -251,76 +253,73 @@ export default function MarketingHome() {
           </div>
 
           <div className="grid gap-5 lg:grid-cols-12">
-            {/* P&L chart card */}
             <motion.div
               initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-              className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-6 lg:col-span-8 backdrop-blur-sm"
+              className="rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.25)] lg:col-span-8"
             >
               <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-white/40">{isArabic ? 'الأرباح والخسائر' : 'Profit & Loss'}</p>
-                  <p className="mt-1 text-2xl font-black">$1.24M <span className="text-sm font-semibold text-emerald-400">+18.4%</span></p>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{isArabic ? 'الأرباح والخسائر' : 'Profit & Loss'}</p>
+                  <p className="mt-1 text-3xl font-black tracking-tight text-slate-950">$1.24M <span className="text-sm font-bold text-emerald-600">+18.4%</span></p>
                 </div>
-                <div className="flex items-center gap-4 text-xs font-semibold">
-                  <span className="inline-flex items-center gap-1.5 text-emerald-300"><span className="h-2 w-2 rounded-full bg-emerald-400" />{isArabic ? 'إيراد' : 'Revenue'}</span>
-                  <span className="inline-flex items-center gap-1.5 text-emerald-300"><span className="h-2 w-2 rounded-full bg-emerald-400" />{isArabic ? 'مصروف' : 'Expense'}</span>
+                <div className="flex items-center gap-4 text-xs font-bold">
+                  <span className="inline-flex items-center gap-1.5 text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />{isArabic ? 'إيراد' : 'Revenue'}</span>
+                  <span className="inline-flex items-center gap-1.5 text-teal-700"><span className="h-2 w-2 rounded-full bg-teal-400" />{isArabic ? 'مصروف' : 'Expense'}</span>
                 </div>
               </div>
               <div className="flex h-48 items-end gap-2 sm:gap-3">
                 {REVENUE_BARS.map((h, i) => (
                   <div key={i} className="flex flex-1 flex-col items-center justify-end gap-1">
                     <div className="flex w-full items-end gap-0.5" style={{ height: '100%' }}>
-                      <div className="flex-1 rounded-t-md bg-gradient-to-t from-emerald-700 to-emerald-400" style={{ height: `${h}%` }} />
-                      <div className="flex-1 rounded-t-md bg-gradient-to-t from-emerald-700 to-emerald-400 opacity-80" style={{ height: `${EXPENSE_BARS[i]}%` }} />
+                      <div className="flex-1 rounded-t-md bg-gradient-to-t from-emerald-600 to-emerald-400" style={{ height: `${h}%` }} />
+                      <div className="flex-1 rounded-t-md bg-gradient-to-t from-teal-500 to-teal-300 opacity-90" style={{ height: `${EXPENSE_BARS[i]}%` }} />
                     </div>
-                    <span className="text-[10px] text-white/30">{['J','F','M','A','M','J','J','A','S','O','N','D'][i]}</span>
+                    <span className="text-[10px] font-semibold text-slate-400">{['J','F','M','A','M','J','J','A','S','O','N','D'][i]}</span>
                   </div>
                 ))}
               </div>
             </motion.div>
 
-            {/* KPI stack */}
             <div className="grid gap-4 sm:grid-cols-3 lg:col-span-4 lg:grid-cols-1">
               {[
-                { labelEn: 'Gross margin', labelAr: 'هامش الربح', value: '42.8%', trend: '+2.1%', up: true },
-                { labelEn: 'Cash on hand', labelAr: 'النقد المتاح', value: '$318K', trend: '+9%', up: true },
-                { labelEn: 'Open invoices', labelAr: 'فواتير مفتوحة', value: '86', trend: '−12%', up: true },
+                { labelEn: 'Gross margin', labelAr: 'هامش الربح', value: '42.8%', trend: '+2.1%', up: true, Icon: TrendingUp },
+                { labelEn: 'Cash on hand', labelAr: 'النقد المتاح', value: '$318K', trend: '+9%', up: true, Icon: Wallet },
+                { labelEn: 'Open invoices', labelAr: 'فواتير مفتوحة', value: '86', trend: '−12%', up: true, Icon: FileText },
               ].map((k, i) => (
                 <motion.div
                   key={k.labelEn}
                   initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
                   transition={{ delay: i * 0.08 }}
-                  className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5"
+                  className="rounded-[1.5rem] border border-slate-200/80 bg-white p-5 shadow-sm"
                 >
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/20">
-                    <TrendingUp className="h-4 w-4 text-emerald-300" />
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 ring-1 ring-emerald-100">
+                    <k.Icon className="h-5 w-5 text-emerald-600" />
                   </div>
-                  <p className="text-xs text-white/40">{isArabic ? k.labelAr : k.labelEn}</p>
-                  <p className="mt-1 text-2xl font-black">{k.value}</p>
-                  <p className={`mt-1 text-xs font-bold ${k.up ? 'text-emerald-400' : 'text-amber-400'}`}>{k.trend}</p>
+                  <p className="text-xs font-semibold text-slate-400">{isArabic ? k.labelAr : k.labelEn}</p>
+                  <p className="mt-1 text-2xl font-black tracking-tight text-slate-950">{k.value}</p>
+                  <p className={`mt-1 text-xs font-bold ${k.up ? 'text-emerald-600' : 'text-amber-600'}`}>{k.trend}</p>
                 </motion.div>
               ))}
             </div>
 
-            {/* Breakdown row */}
             <motion.div
               initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-              className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-6 lg:col-span-7"
+              className="rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm lg:col-span-7"
             >
-              <p className="mb-5 text-xs font-bold uppercase tracking-widest text-white/40">{isArabic ? 'توزيع الإيرادات' : 'Revenue mix'}</p>
+              <p className="mb-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">{isArabic ? 'توزيع الإيرادات' : 'Revenue mix'}</p>
               <div className="space-y-4">
                 {[
-                  { nameEn: 'Retail / POS', nameAr: 'التجزئة / نقطة البيع', pct: 38, color: '#10b981' },
+                  { nameEn: 'Retail / POS', nameAr: 'التجزئة / نقطة البيع', pct: 38, color: '#059669' },
                   { nameEn: 'Services', nameAr: 'الخدمات', pct: 27, color: '#14b8a6' },
                   { nameEn: 'eCommerce', nameAr: 'التجارة الإلكترونية', pct: 21, color: '#f59e0b' },
-                  { nameEn: 'Other', nameAr: 'أخرى', pct: 14, color: '#3b82f6' },
+                  { nameEn: 'Other', nameAr: 'أخرى', pct: 14, color: '#0ea5e9' },
                 ].map((row) => (
                   <div key={row.nameEn}>
                     <div className="mb-1.5 flex justify-between text-sm">
-                      <span className="font-semibold text-white/80">{isArabic ? row.nameAr : row.nameEn}</span>
-                      <span className="font-bold text-white">{row.pct}%</span>
+                      <span className="font-semibold text-slate-700">{isArabic ? row.nameAr : row.nameEn}</span>
+                      <span className="font-bold text-slate-950">{row.pct}%</span>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                    <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
                       <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: row.color }} />
                     </div>
                   </div>
@@ -330,14 +329,17 @@ export default function MarketingHome() {
 
             <motion.div
               initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-              className="rounded-[1.75rem] border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/5 p-6 lg:col-span-5"
+              className="rounded-[1.75rem] border border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-teal-50/40 p-6 shadow-sm lg:col-span-5"
             >
-              <p className="mb-4 text-xs font-bold uppercase tracking-widest text-emerald-300/80">{isArabic ? 'جاهزية الامتثال' : 'Compliance readiness'}</p>
+              <p className="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-emerald-700">
+                <ShieldCheck className="h-4 w-4" />
+                {isArabic ? 'جاهزية الامتثال' : 'Compliance readiness'}
+              </p>
               <div className="space-y-3">
                 {['ZATCA Phase 2', 'NBR Bangladesh', 'VAT / Tax rules', 'WPS payroll files'].map((t) => (
-                  <div key={t} className="flex items-center justify-between rounded-xl bg-white/[0.05] px-4 py-3">
-                    <span className="text-sm font-semibold text-white/80">{t}</span>
-                    <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-300">Live</span>
+                  <div key={t} className="flex items-center justify-between rounded-2xl border border-white/80 bg-white/80 px-4 py-3 shadow-sm">
+                    <span className="text-sm font-semibold text-slate-700">{t}</span>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">Live</span>
                   </div>
                 ))}
               </div>
@@ -366,13 +368,13 @@ export default function MarketingHome() {
       </section>
 
       {/* ── WHY CHOOSE — ICON MARQUEE ── */}
-      <section className="overflow-hidden bg-slate-50 py-24">
+      <section className="overflow-hidden bg-slate-50 py-24" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-12 text-center">
-            <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">
+            <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl" style={{ fontFamily: "'Syne', system-ui, sans-serif" }}>
               {isArabic ? 'لماذا تختار Maqder؟' : 'Why choose Maqder?'}
             </h2>
-            <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
+            <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-slate-500">
               {isArabic
                 ? 'كل ما تحتاجه لإدارة عملك — وحدات متكاملة تعمل معاً بسلاسة.'
                 : 'Everything you need to run your business — integrated modules that work as one.'}
@@ -399,46 +401,54 @@ export default function MarketingHome() {
       </section>
 
       {/* ── TESTIMONIALS MARQUEE ── */}
-      <section className="overflow-hidden bg-slate-950 py-28 text-white">
+      <section className="overflow-hidden bg-gradient-to-b from-white via-[#f8faf9] to-slate-50 py-28" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
         <div className="mx-auto mb-14 max-w-7xl px-4 text-center sm:px-6 lg:px-8">
-          <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-emerald-400">
+          <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.32em] text-emerald-600">
             {isArabic ? 'قصص نجاح' : 'Customer stories'}
           </p>
-          <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
+          <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl" style={{ fontFamily: "'Syne', system-ui, sans-serif" }}>
             {isArabic ? 'موثوق من أعمال نامية' : 'Trusted by growing businesses'}
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-white/45">
+          <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-slate-500">
             {isArabic ? 'شركات حقيقية تعتمد على Maqder يومياً لإدارة عملياتها.' : 'Real companies running their operations on Maqder every day.'}
           </p>
         </div>
 
         <Marquee duration={70} className="[mask-image:linear-gradient(90deg,transparent,black_6%,black_94%,transparent)]">
-          {TESTIMONIALS.map((t) => (
-            <div
-              key={t.companyEn}
-              className="relative w-[380px] shrink-0 overflow-hidden rounded-[1.75rem] border border-white/[0.09] bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-8 backdrop-blur-sm"
-            >
-              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl opacity-40" style={{ background: t.accent }} />
-              <div className="relative mb-5 flex items-center gap-0.5">
-                {[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400" />)}
-              </div>
-              <p className="relative min-h-[96px] text-[15px] leading-relaxed text-white/75">
-                "{isArabic ? t.contentAr : t.content}"
-              </p>
-              <div className="relative mt-7 flex items-center gap-3 border-t border-white/10 pt-5">
-                <div
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white shadow-lg"
-                  style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent}99)` }}
-                >
-                  {(isArabic ? t.companyAr : t.companyEn).charAt(0)}
+          {TESTIMONIALS.map((t, idx) => {
+            const Icon = TENANT_STORY_ICONS[idx % TENANT_STORY_ICONS.length]
+            return (
+              <div
+                key={t.companyEn}
+                className="relative w-[380px] shrink-0 overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white p-8 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)]"
+              >
+                <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-20 blur-3xl" style={{ background: t.accent }} />
+                <div className="relative mb-5 flex items-center justify-between">
+                  <div className="flex items-center gap-0.5">
+                    {[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400" />)}
+                  </div>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                    <Icon className="h-5 w-5" />
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="truncate text-base font-black text-white">{isArabic ? t.companyAr : t.companyEn}</p>
-                  <p className="text-xs font-semibold text-white/40">{isArabic ? t.industryAr : t.industryEn}</p>
+                <p className="relative min-h-[96px] text-[15px] leading-relaxed text-slate-600">
+                  "{isArabic ? t.contentAr : t.content}"
+                </p>
+                <div className="relative mt-7 flex items-center gap-3 border-t border-slate-100 pt-5">
+                  <div
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white shadow-lg"
+                    style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent}99)` }}
+                  >
+                    {(isArabic ? t.companyAr : t.companyEn).charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-black text-slate-950">{isArabic ? t.companyAr : t.companyEn}</p>
+                    <p className="text-xs font-semibold text-slate-400">{isArabic ? t.industryAr : t.industryEn}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </Marquee>
       </section>
 

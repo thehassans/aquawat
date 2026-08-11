@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Plus, Save, Trash2, Upload, X } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Upload, X, Store, HardHat, Plane, UtensilsCrossed, CalendarDays, UserRound, Sparkles, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -33,6 +33,13 @@ const emptyLine = {
 }
 
 const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant']
+
+const CONTEXT_META = {
+  trading: { Icon: Store, descEn: 'Products & inventory quotes', descAr: 'عروض للمنتجات والمخزون', accent: 'from-emerald-500 to-teal-600' },
+  construction: { Icon: HardHat, descEn: 'Project & service quotes', descAr: 'عروض المشاريع والخدمات', accent: 'from-amber-500 to-orange-600' },
+  travel_agency: { Icon: Plane, descEn: 'Travel & ticket quotes', descAr: 'عروض السفر والتذاكر', accent: 'from-sky-500 to-blue-600' },
+  restaurant: { Icon: UtensilsCrossed, descEn: 'F&B and catering quotes', descAr: 'عروض المطاعم والضيافة', accent: 'from-rose-500 to-red-600' },
+}
 
 const formatDateForInput = (value) => {
   if (!value) return ''
@@ -355,17 +362,31 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     },
   }
 
+  const sectionShell = 'rounded-[1.5rem] border border-slate-200/80 bg-white p-5 sm:p-6 shadow-[0_10px_30px_-22px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-dark-800'
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate(isEdit ? `/app/dashboard/quotations/${quotationId}` : '/app/dashboard/quotations')} className="btn btn-ghost btn-icon">
-          <ArrowLeft className="w-5 h-5" />
+    <div className="relative space-y-6">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-8 h-48 bg-[radial-gradient(ellipse_at_top,_rgba(16,185,129,0.08),_transparent_70%)] dark:bg-[radial-gradient(ellipse_at_top,_rgba(16,185,129,0.12),_transparent_70%)]"
+      />
+
+      <div className="relative flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => navigate(isEdit ? `/app/dashboard/quotations/${quotationId}` : '/app/dashboard/quotations')}
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200/80 bg-white text-slate-600 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300 dark:hover:border-emerald-500/40 dark:hover:text-emerald-300"
+        >
+          <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+            {language === 'ar' ? 'عروض الأسعار' : 'Quotations'}
+          </p>
+          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
             {isEdit ? (language === 'ar' ? 'تعديل عرض السعر' : 'Edit Quotation') : (language === 'ar' ? 'عرض سعر جديد' : 'New Quotation')}
           </h1>
-          <p className="mt-1 text-gray-500 dark:text-gray-400">
+          <p className="mt-1.5 max-w-xl text-sm text-slate-500 dark:text-slate-400">
             {language === 'ar'
               ? 'أنشئ عرض سعر مبسط بسرعة مع نموذج واحد ثابت للبنود والتسعير.'
               : 'Create a streamlined quotation quickly with one fixed template for pricing and line items.'}
@@ -373,13 +394,23 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+      <div className="relative grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'سياق عرض السعر' : 'Quotation Context'}</h3>
+          <div className={sectionShell}>
+            <div className="mb-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                {language === 'ar' ? 'الخطوة الأولى' : 'Step one'}
+              </p>
+              <h3 className="mt-1 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                <Sparkles className="h-4 w-4 text-emerald-500" />
+                {language === 'ar' ? 'سياق عرض السعر' : 'Quotation Context'}
+              </h3>
+            </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {tenantBusinessTypes.filter((type) => selectableContexts.includes(type)).map((type) => {
                 const active = businessContext === type
+                const meta = CONTEXT_META[type]
+                const Icon = meta?.Icon || Store
                 const labels = {
                   trading: language === 'ar' ? 'تجارة' : 'Trading',
                   construction: language === 'ar' ? 'مقاولات' : 'Construction',
@@ -391,9 +422,21 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                     key={type}
                     type="button"
                     onClick={() => setValue('businessContext', type)}
-                    className={`rounded-2xl border p-4 text-start ${active ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}
+                    className={`group flex items-start gap-3 rounded-2xl border p-4 text-start transition ${
+                      active
+                        ? 'border-emerald-500 bg-emerald-50/80 ring-2 ring-emerald-500/20 dark:border-emerald-400 dark:bg-emerald-500/10 dark:ring-emerald-400/20'
+                        : 'border-slate-200/80 bg-slate-50/50 hover:border-slate-300 dark:border-white/10 dark:bg-dark-900/40 dark:hover:border-white/20'
+                    }`}
                   >
-                    <p className="font-semibold text-gray-900 dark:text-white">{labels[type]}</p>
+                    <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${meta?.accent || 'from-emerald-500 to-teal-600'} text-white shadow-sm`}>
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-semibold text-slate-900 dark:text-white">{labels[type]}</span>
+                      <span className="mt-0.5 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                        {language === 'ar' ? meta?.descAr : meta?.descEn}
+                      </span>
+                    </span>
                   </button>
                 )
               })}
@@ -401,8 +444,16 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             <input type="hidden" {...register('businessContext')} />
           </div>
 
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'التواريخ ونوع العميل' : 'Dates & Customer Type'}</h3>
+          <div className={sectionShell}>
+            <div className="mb-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                {language === 'ar' ? 'التوقيت والنوع' : 'Timing & type'}
+              </p>
+              <h3 className="mt-1 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                <CalendarDays className="h-4 w-4 text-emerald-500" />
+                {language === 'ar' ? 'التواريخ ونوع العميل' : 'Dates & Customer Type'}
+              </h3>
+            </div>
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
@@ -424,8 +475,15 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </div>
           </div>
 
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'موضوع عرض السعر' : 'Quotation Subject'}</h3>
+          <div className={sectionShell}>
+            <div className="mb-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                {language === 'ar' ? 'العنوان' : 'Headline'}
+              </p>
+              <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'موضوع عرض السعر' : 'Quotation Subject'}
+              </h3>
+            </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="label">{language === 'ar' ? 'الموضوع' : 'Subject'}</label>
@@ -438,9 +496,15 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </div>
           </div>
 
-          <div className="card p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'بيانات العميل' : 'Customer Details'}</h3>
+          <div className={sectionShell}>
+            <div className="mb-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                {language === 'ar' ? 'الطرف المقابل' : 'Counterparty'}
+              </p>
+              <h3 className="mt-1 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                <UserRound className="h-4 w-4 text-emerald-500" />
+                {language === 'ar' ? 'بيانات العميل' : 'Customer Details'}
+              </h3>
             </div>
             <div className="mb-4">
               <label className="label">{language === 'ar' ? 'اختر عميل موجود' : 'Select Existing Customer'}</label>
@@ -500,11 +564,22 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </div>
           </div>
 
-          <div className="card p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'بنود عرض السعر' : 'Quotation Items'}</h3>
-              <button type="button" className="btn btn-secondary" onClick={() => append(emptyLine)}>
-                <Plus className="w-4 h-4" />
+          <div className={sectionShell}>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  {language === 'ar' ? 'التسعير' : 'Pricing'}
+                </p>
+                <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'بنود عرض السعر' : 'Quotation Items'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-dark-900 dark:text-slate-200 dark:hover:border-emerald-500/40 dark:hover:text-emerald-300"
+                onClick={() => append(emptyLine)}
+              >
+                <Plus className="h-4 w-4" />
                 {language === 'ar' ? 'إضافة بند' : 'Add Item'}
               </button>
             </div>
@@ -513,7 +588,10 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
               {fields.map((field, index) => {
                 const summaryLine = totals.lines[index] || { lineTotalWithTax: 0 }
                 return (
-                  <div key={field.id} className="rounded-2xl border border-gray-200 dark:border-dark-600 p-4 space-y-4">
+                  <div
+                    key={field.id}
+                    className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/40 p-4 transition hover:border-emerald-300/80 hover:bg-emerald-50/30 dark:border-white/10 dark:bg-dark-900/50 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/5"
+                  >
                     <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
                       {isTradingContext ? (
@@ -599,9 +677,9 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {language === 'ar' ? 'إجمالي السطر' : 'Line Total'}: <span className="font-semibold text-gray-900 dark:text-white">{Number(summaryLine.lineTotalWithTax || 0).toFixed(2)}</span>
+                    <div className="flex items-center justify-between border-t border-slate-200/70 pt-3 dark:border-white/10">
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {language === 'ar' ? 'إجمالي السطر' : 'Line Total'}: <span className="font-semibold text-slate-900 dark:text-white">{Number(summaryLine.lineTotalWithTax || 0).toFixed(2)}</span>
                       </p>
                       <button type="button" className="btn btn-ghost text-red-600" onClick={() => remove(index)} disabled={fields.length === 1}>
                         <Trash2 className="w-4 h-4" />
@@ -614,24 +692,24 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </div>
           </div>
 
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
+          <div className={sectionShell}>
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                     {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
                   </h3>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
-                    showAuthorizedPerson 
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' 
-                      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold transition-colors ${
+                    showAuthorizedPerson
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      : 'bg-slate-100 text-slate-500 dark:bg-dark-900 dark:text-slate-400'
                   }`}>
                     {showAuthorizedPerson ? (language === 'ar' ? 'مفعّل' : 'Active') : (language === 'ar' ? 'معطّل' : 'Disabled')}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {language === 'ar' 
-                    ? 'إضافة المفوض بالتوقيع والختم الرسمي على مستند عرض السعر' 
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {language === 'ar'
+                    ? 'إضافة المفوض بالتوقيع والختم الرسمي على مستند عرض السعر'
                     : 'Include signatory name, designation, signature and official stamp on quotation.'}
                 </p>
               </div>
@@ -641,7 +719,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 aria-checked={showAuthorizedPerson}
                 onClick={() => handleToggleAuthorizedPerson(!showAuthorizedPerson)}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  showAuthorizedPerson ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
+                  showAuthorizedPerson ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-700'
                 }`}
               >
                 <span
@@ -659,7 +737,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="overflow-hidden pt-5 border-t border-gray-100 dark:border-gray-800 mt-4"
+                  className="mt-4 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10"
                 >
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
@@ -698,16 +776,16 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                         </label>
                         {values?.authorizedPersonSignature ? (
                           <div className="relative">
-                            <img src={values.authorizedPersonSignature} alt="Signature" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
-                            <button type="button" onClick={() => setValue('authorizedPersonSignature', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
+                            <img src={values.authorizedPersonSignature} alt="Signature" className="h-16 max-w-[200px] rounded-lg border border-slate-200 bg-white object-contain p-1 dark:border-white/10" />
+                            <button type="button" onClick={() => setValue('authorizedPersonSignature', '')} className="absolute -top-2 -end-2 rounded-full bg-red-100 p-1 text-red-600">
                               <X className="w-3 h-3" />
                             </button>
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
+                          <span className="text-sm text-slate-400">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
+                      <p className="mt-2 text-xs text-slate-400">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
                     </div>
                     <div className="md:col-span-2">
                       <label className="label">{language === 'ar' ? 'الختم' : 'Stamp'}</label>
@@ -729,16 +807,16 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                         </label>
                         {values?.stampImage ? (
                           <div className="relative">
-                            <img src={values.stampImage} alt="Stamp" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
-                            <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
+                            <img src={values.stampImage} alt="Stamp" className="h-16 max-w-[200px] rounded-lg border border-slate-200 bg-white object-contain p-1 dark:border-white/10" />
+                            <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 rounded-full bg-red-100 p-1 text-red-600">
                               <X className="w-3 h-3" />
                             </button>
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
+                          <span className="text-sm text-slate-400">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن يكون الختم بخلفية شفافة.' : 'Stamp image should have a transparent background.'}</p>
+                      <p className="mt-2 text-xs text-slate-400">{language === 'ar' ? 'يجب أن يكون الختم بخلفية شفافة.' : 'Stamp image should have a transparent background.'}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -746,8 +824,15 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </AnimatePresence>
           </div>
 
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'الملاحظات والملخص' : 'Notes & Summary'}</h3>
+          <div className={sectionShell}>
+            <div className="mb-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                {language === 'ar' ? 'الملخص' : 'Summary'}
+              </p>
+              <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'الملاحظات والملخص' : 'Notes & Summary'}
+              </h3>
+            </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="label">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
@@ -758,20 +843,20 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                   <label className="label">{language === 'ar' ? 'خصم المستند' : 'Document Discount'}</label>
                   <input type="number" min="0" step="0.01" {...register('invoiceDiscount')} className="input" />
                 </div>
-                <div className="rounded-2xl border border-gray-200 dark:border-dark-600 p-4 space-y-3">
+                <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-dark-900/50">
                   <div className="flex items-center justify-between text-sm">
-                    <span>{language === 'ar' ? 'الإجمالي الفرعي' : 'Subtotal'}</span>
-                    <span className="font-semibold">{totals.subtotal.toFixed(2)}</span>
+                    <span className="text-slate-500 dark:text-slate-400">{language === 'ar' ? 'الإجمالي الفرعي' : 'Subtotal'}</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{totals.subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span>{language === 'ar' ? 'إجمالي الخصم' : 'Total Discount'}</span>
-                    <span className="font-semibold">{totals.totalDiscount.toFixed(2)}</span>
+                    <span className="text-slate-500 dark:text-slate-400">{language === 'ar' ? 'إجمالي الخصم' : 'Total Discount'}</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{totals.totalDiscount.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span>{language === 'ar' ? 'الضريبة' : 'Tax'}</span>
-                    <span className="font-semibold">{totals.totalTax.toFixed(2)}</span>
+                    <span className="text-slate-500 dark:text-slate-400">{language === 'ar' ? 'الضريبة' : 'Tax'}</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{totals.totalTax.toFixed(2)}</span>
                   </div>
-                  <div className="flex items-center justify-between border-t border-gray-200 dark:border-dark-600 pt-3 text-base font-bold">
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-bold text-slate-900 dark:border-white/10 dark:text-white">
                     <span>{language === 'ar' ? 'الإجمالي النهائي' : 'Grand Total'}</span>
                     <span>{totals.grandTotal.toFixed(2)}</span>
                   </div>
@@ -780,17 +865,28 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </div>
           </div>
 
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}</h3>
+          <div className={sectionShell}>
+            <div className="mb-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                {language === 'ar' ? 'الشروط' : 'Legal'}
+              </p>
+              <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}
+              </h3>
+            </div>
             <textarea {...register('termsAndConditions')} rows="6" className="input min-h-[160px]" placeholder={language === 'ar' ? 'أدخل الشروط والأحكام...' : 'Enter terms and conditions...'} />
           </div>
 
           <div className="flex justify-end">
-            <button type="submit" className="btn btn-primary" disabled={saveMutation.isPending}>
+            <button
+              type="submit"
+              disabled={saveMutation.isPending}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_12px_28px_-12px_rgba(5,150,105,0.65)] transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            >
               {saveMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
               ) : (
-                <Save className="w-4 h-4" />
+                <Save className="h-4 w-4" />
               )}
               {isEdit ? (language === 'ar' ? 'تحديث عرض السعر' : 'Update Quotation') : (language === 'ar' ? 'حفظ عرض السعر' : 'Save Quotation')}
             </button>
@@ -798,9 +894,20 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
         </form>
 
         <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-          <div className="card p-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'تتحدث المعاينة فوراً مع تغيير القالب والبيانات.' : 'Preview updates instantly as you change the template and form data.'}</p>
+          <div className={`${sectionShell} !p-4`}>
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <Eye className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}
+                </h3>
+                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                  {language === 'ar' ? 'تتحدث المعاينة فوراً مع تغيير القالب والبيانات.' : 'Preview updates instantly as you change the template and form data.'}
+                </p>
+              </div>
+            </div>
           </div>
           <InvoiceLivePreview invoice={previewQuotation} tenant={tenant} language={language} templateId={selectedTemplateId} bilingual={resolveInvoiceBilingual(tenant, true)} secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined} documentType="quotation" />
         </div>

@@ -1,5 +1,5 @@
 import { useSelector, useDispatch } from 'react-redux'
-import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown, LayoutGrid, PanelLeft, LayoutList, User, Settings as SettingsIcon, Building2 } from 'lucide-react'
+import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown, LayoutGrid, PanelLeft, LayoutList, User, Settings as SettingsIcon, Building2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory } from 'lucide-react'
 import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
 import { Transition, Popover, Menu as HeadlessMenu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -13,6 +13,22 @@ import TrialLimitModal from './TrialLimitModal'
 import GlobalSearch from './GlobalSearch'
 import SubscriptionBadge from './SubscriptionBadge'
 import { showArabicUi } from '../../lib/saudiTenant'
+import { getTenantBusinessTypes } from '../../lib/businessTypes'
+
+const TENANT_TYPE_META = {
+  trading: { Icon: Store, labelEn: 'Trading', labelAr: 'تجارة' },
+  construction: { Icon: HardHat, labelEn: 'Construction', labelAr: 'مقاولات' },
+  travel_agency: { Icon: Plane, labelEn: 'Travel', labelAr: 'سفر' },
+  restaurant: { Icon: UtensilsCrossed, labelEn: 'Restaurant', labelAr: 'مطعم' },
+  car_rental: { Icon: Car, labelEn: 'Car Rental', labelAr: 'تأجير' },
+  laundry: { Icon: Shirt, labelEn: 'Laundry', labelAr: 'مغسلة' },
+  saloon: { Icon: Scissors, labelEn: 'Saloon', labelAr: 'صالون' },
+  khayyat: { Icon: Scissors, labelEn: 'Tailor', labelAr: 'خياط' },
+  boutique: { Icon: ShoppingBag, labelEn: 'Boutique', labelAr: 'بوتيك' },
+  bakala: { Icon: Store, labelEn: 'Retail', labelAr: 'بقالة' },
+  manufacturing: { Icon: Factory, labelEn: 'Manufacturing', labelAr: 'تصنيع' },
+  ecommerce: { Icon: ShoppingBag, labelEn: 'eCommerce', labelAr: 'متجر' },
+}
 
 export default function Header() {
   const dispatch = useDispatch()
@@ -23,6 +39,7 @@ export default function Header() {
   const { theme, language, navigationStyle } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
   const arabicUi = showArabicUi(tenant)
+  const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef(null)
@@ -336,66 +353,99 @@ export default function Header() {
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <HeadlessMenu.Items className="absolute end-0 mt-2 w-64 origin-top-right bg-white dark:bg-dark-800 rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none p-1.5 z-50 border border-gray-100 dark:border-dark-700">
-                {/* Header User Card */}
-                <div className="px-3 py-2.5 border-b border-gray-100 dark:border-dark-700/80 mb-1">
-                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                    {language === 'ar' ? 'الحساب والمنشأة' : 'Account & Company'}
-                  </p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white truncate mt-0.5">
-                    {language === 'ar' ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'المنشأة') : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Business')}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {user?.email}
-                  </p>
+              <HeadlessMenu.Items className="absolute end-0 z-50 mt-2 w-[300px] origin-top-right overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white shadow-[0_28px_60px_-28px_rgba(15,23,42,0.45)] ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-dark-800 dark:ring-white/10">
+                <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-br from-emerald-50 via-white to-teal-50/40 px-4 pb-4 pt-4 dark:border-dark-700 dark:from-emerald-500/10 dark:via-dark-800 dark:to-teal-500/5">
+                  <div className="flex items-center gap-3">
+                    {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
+                      <img
+                        src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
+                        alt="Tenant"
+                        className="h-14 w-14 rounded-2xl object-contain bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 dark:ring-white/15"
+                      />
+                    ) : (
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-lg font-black text-white shadow-md">
+                        {(language === 'ar'
+                          ? (tenant?.business?.legalNameAr || tenant?.name || 'م')
+                          : (tenant?.business?.legalNameEn || tenant?.name || 'B')).charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700/80 dark:text-emerald-300/80">
+                        {language === 'ar' ? 'الحساب والمنشأة' : 'Account & Company'}
+                      </p>
+                      <p className="mt-0.5 truncate text-[15px] font-extrabold tracking-tight text-slate-950 dark:text-white">
+                        {language === 'ar' ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'المنشأة') : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Business')}
+                      </p>
+                      <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">{user?.email}</p>
+                    </div>
+                  </div>
+                  {tenantBusinessTypes?.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {tenantBusinessTypes.slice(0, 6).map((type) => {
+                        const meta = TENANT_TYPE_META[type] || { Icon: Building2, labelEn: type, labelAr: type }
+                        const TypeIcon = meta.Icon
+                        return (
+                          <span key={type} className="inline-flex items-center gap-1 rounded-full border border-emerald-200/80 bg-white/90 px-2 py-1 text-[10px] font-bold text-emerald-700 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+                            <TypeIcon className="h-3 w-3" />
+                            {language === 'ar' ? meta.labelAr : meta.labelEn}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
 
-                {/* My Profile */}
-                <HeadlessMenu.Item>
-                  {({ active }) => (
-                    <button
-                      onClick={() => navigate('/app/dashboard/profile')}
-                      className={`${
-                        active ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
-                      } flex w-full items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors`}
-                    >
-                      <Building2 className="w-4 h-4 text-primary-500" />
-                      <span>{language === 'ar' ? 'الملف التعريفي والمنشأة' : 'My Profile & Company'}</span>
-                    </button>
-                  )}
-                </HeadlessMenu.Item>
+                <div className="p-1.5">
+                  <HeadlessMenu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={() => navigate('/app/dashboard/profile')}
+                        className={`${
+                          active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300' : 'text-gray-700 dark:text-gray-300'
+                        } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
+                          <Building2 className="h-4 w-4" />
+                        </span>
+                        <span>{language === 'ar' ? 'الملف التعريفي والمنشأة' : 'My Profile & Company'}</span>
+                      </button>
+                    )}
+                  </HeadlessMenu.Item>
 
-                {/* Settings */}
-                <HeadlessMenu.Item>
-                  {({ active }) => (
-                    <button
-                      onClick={() => navigate('/app/dashboard/settings')}
-                      className={`${
-                        active ? 'bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'
-                      } flex w-full items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors`}
-                    >
-                      <SettingsIcon className="w-4 h-4 text-gray-500" />
-                      <span>{language === 'ar' ? 'إعدادات النظام' : 'System Settings'}</span>
-                    </button>
-                  )}
-                </HeadlessMenu.Item>
+                  <HeadlessMenu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={() => navigate('/app/dashboard/settings')}
+                        className={`${
+                          active ? 'bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'
+                        } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-dark-700">
+                          <SettingsIcon className="h-4 w-4" />
+                        </span>
+                        <span>{language === 'ar' ? 'إعدادات النظام' : 'System Settings'}</span>
+                      </button>
+                    )}
+                  </HeadlessMenu.Item>
 
-                <div className="my-1 border-t border-gray-100 dark:border-dark-700" />
+                  <div className="my-1 border-t border-gray-100 dark:border-dark-700" />
 
-                {/* Sign Out */}
-                <HeadlessMenu.Item>
-                  {({ active }) => (
-                    <button
-                      onClick={() => dispatch(logout())}
-                      className={`${
-                        active ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'text-red-600 dark:text-red-400'
-                      } flex w-full items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors`}
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>{language === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</span>
-                    </button>
-                  )}
-                </HeadlessMenu.Item>
+                  <HeadlessMenu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={() => dispatch(logout())}
+                        className={`${
+                          active ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'text-red-600 dark:text-red-400'
+                        } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-50 text-red-500 dark:bg-red-900/20">
+                          <LogOut className="h-4 w-4" />
+                        </span>
+                        <span>{language === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</span>
+                      </button>
+                    )}
+                  </HeadlessMenu.Item>
+                </div>
               </HeadlessMenu.Items>
             </Transition>
           </HeadlessMenu>

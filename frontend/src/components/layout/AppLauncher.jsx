@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Menu as MenuIcon, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, LayoutList, Loader2 } from 'lucide-react'
+import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory } from 'lucide-react'
 import { Fragment } from 'react'
 import { Transition, Popover, Menu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -119,6 +119,21 @@ const getAppStyle = (path = '', title = '') => {
   ]
   const hash = title.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
   return fallbackGradients[hash % fallbackGradients.length]
+}
+
+const TENANT_TYPE_META = {
+  trading: { Icon: Store, labelEn: 'Trading', labelAr: 'تجارة' },
+  construction: { Icon: HardHat, labelEn: 'Construction', labelAr: 'مقاولات' },
+  travel_agency: { Icon: Plane, labelEn: 'Travel', labelAr: 'سفر' },
+  restaurant: { Icon: UtensilsCrossed, labelEn: 'Restaurant', labelAr: 'مطعم' },
+  car_rental: { Icon: Car, labelEn: 'Car Rental', labelAr: 'تأجير' },
+  laundry: { Icon: Shirt, labelEn: 'Laundry', labelAr: 'مغسلة' },
+  saloon: { Icon: Scissors, labelEn: 'Saloon', labelAr: 'صالون' },
+  khayyat: { Icon: Scissors, labelEn: 'Tailor', labelAr: 'خياط' },
+  boutique: { Icon: ShoppingBag, labelEn: 'Boutique', labelAr: 'بوتيك' },
+  bakala: { Icon: Store, labelEn: 'Retail', labelAr: 'بقالة' },
+  manufacturing: { Icon: Factory, labelEn: 'Manufacturing', labelAr: 'تصنيع' },
+  ecommerce: { Icon: ShoppingBag, labelEn: 'eCommerce', labelAr: 'متجر' },
 }
 
 export default function AppLauncher() {
@@ -543,81 +558,124 @@ export default function AppLauncher() {
                     leaveFrom="transform opacity-100 scale-100"
                     leaveTo="transform opacity-0 scale-95"
                   >
-                    <Menu.Items className="absolute end-0 z-50 mt-2 w-64 origin-top-right rounded-2xl border border-slate-100 bg-white p-1.5 shadow-2xl ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-[#161b24] dark:ring-white/10">
-                      <div className="mb-1 border-b border-slate-100 px-3 py-2.5 dark:border-white/10">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          {language === 'ar' ? 'الحساب والمنشأة' : 'Account & Company'}
-                        </p>
-                        <p className="mt-0.5 truncate text-sm font-bold text-slate-900 dark:text-white">
-                          {language === 'ar'
-                            ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'المنشأة')
-                            : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Business')}
-                        </p>
-                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{user?.email}</p>
+                    <Menu.Items className="absolute end-0 z-50 mt-2 w-[300px] origin-top-right overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white shadow-[0_28px_60px_-28px_rgba(15,23,42,0.45)] ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-[#161b24] dark:ring-white/10">
+                      <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-br from-emerald-50 via-white to-teal-50/40 px-4 pb-4 pt-4 dark:border-white/10 dark:from-emerald-500/10 dark:via-[#161b24] dark:to-teal-500/5">
+                        <div className="flex items-center gap-3">
+                          {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
+                            <img
+                              src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
+                              alt="Tenant"
+                              className="h-14 w-14 rounded-2xl object-contain bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 dark:ring-white/15"
+                            />
+                          ) : (
+                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-lg font-black text-white shadow-md">
+                              {(language === 'ar'
+                                ? (tenant?.business?.legalNameAr || tenant?.name || 'م')
+                                : (tenant?.business?.legalNameEn || tenant?.name || 'B')).charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700/80 dark:text-emerald-300/80">
+                              {language === 'ar' ? 'الحساب والمنشأة' : 'Account & Company'}
+                            </p>
+                            <p className="mt-0.5 truncate text-[15px] font-extrabold tracking-tight text-slate-950 dark:text-white">
+                              {language === 'ar'
+                                ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'المنشأة')
+                                : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Business')}
+                            </p>
+                            <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">{user?.email}</p>
+                          </div>
+                        </div>
+
+                        {businessTypes?.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {businessTypes.slice(0, 6).map((type) => {
+                              const meta = TENANT_TYPE_META[type] || { Icon: Building2, labelEn: type, labelAr: type }
+                              const TypeIcon = meta.Icon
+                              return (
+                                <span
+                                  key={type}
+                                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200/80 bg-white/90 px-2 py-1 text-[10px] font-bold text-emerald-700 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                >
+                                  <TypeIcon className="h-3 w-3" />
+                                  {language === 'ar' ? meta.labelAr : meta.labelEn}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
 
-                      <Menu.Item>
-                        {({ active }) => (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
-                              dispatch(setHideSidebar(true))
-                              dispatch(setMobileMenuOpen(false))
-                              dispatch(setAppLauncherOpen(false))
-                              navigate('/app/dashboard/profile')
-                            }}
-                            className={`${
-                              active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'
-                            } flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:text-sm`}
-                          >
-                            <Building2 className="h-4 w-4 text-emerald-500" />
-                            <span>{language === 'ar' ? 'الملف التعريفي والمنشأة' : 'My Profile & Company'}</span>
-                          </button>
-                        )}
-                      </Menu.Item>
+                      <div className="p-1.5">
+                        <Menu.Item>
+                          {({ active }) => (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+                                dispatch(setHideSidebar(true))
+                                dispatch(setMobileMenuOpen(false))
+                                dispatch(setAppLauncherOpen(false))
+                                navigate('/app/dashboard/profile')
+                              }}
+                              className={`${
+                                active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'
+                              } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
+                            >
+                              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+                                <Building2 className="h-4 w-4" />
+                              </span>
+                              <span>{language === 'ar' ? 'الملف التعريفي والمنشأة' : 'My Profile & Company'}</span>
+                            </button>
+                          )}
+                        </Menu.Item>
 
-                      <Menu.Item>
-                        {({ active }) => (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
-                              dispatch(setHideSidebar(true))
-                              dispatch(setMobileMenuOpen(false))
-                              dispatch(setAppLauncherOpen(false))
-                              navigate('/app/dashboard/settings')
-                            }}
-                            className={`${
-                              active ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-700 dark:text-slate-300'
-                            } flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:text-sm`}
-                          >
-                            <SettingsIcon className="h-4 w-4 text-slate-500" />
-                            <span>{language === 'ar' ? 'إعدادات النظام' : 'System Settings'}</span>
-                          </button>
-                        )}
-                      </Menu.Item>
+                        <Menu.Item>
+                          {({ active }) => (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+                                dispatch(setHideSidebar(true))
+                                dispatch(setMobileMenuOpen(false))
+                                dispatch(setAppLauncherOpen(false))
+                                navigate('/app/dashboard/settings')
+                              }}
+                              className={`${
+                                active ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-700 dark:text-slate-300'
+                              } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
+                            >
+                              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-white/10">
+                                <SettingsIcon className="h-4 w-4" />
+                              </span>
+                              <span>{language === 'ar' ? 'إعدادات النظام' : 'System Settings'}</span>
+                            </button>
+                          )}
+                        </Menu.Item>
 
-                      <div className="my-1 border-t border-slate-100 dark:border-white/10" />
+                        <div className="my-1 border-t border-slate-100 dark:border-white/10" />
 
-                      <Menu.Item>
-                        {({ active }) => (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              dispatch(setAppLauncherOpen(false))
-                              dispatch(logout())
-                              navigate('/login')
-                            }}
-                            className={`${
-                              active ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400' : 'text-red-600 dark:text-red-400'
-                            } flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:text-sm`}
-                          >
-                            <LogOut className="h-4 w-4" />
-                            <span>{language === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</span>
-                          </button>
-                        )}
-                      </Menu.Item>
+                        <Menu.Item>
+                          {({ active }) => (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dispatch(setAppLauncherOpen(false))
+                                dispatch(logout())
+                                navigate('/login')
+                              }}
+                              className={`${
+                                active ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400' : 'text-red-600 dark:text-red-400'
+                              } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
+                            >
+                              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-50 text-red-500 dark:bg-red-500/10">
+                                <LogOut className="h-4 w-4" />
+                              </span>
+                              <span>{language === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</span>
+                            </button>
+                          )}
+                        </Menu.Item>
+                      </div>
                     </Menu.Items>
                   </Transition>
                 </Menu>
