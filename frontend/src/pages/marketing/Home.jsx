@@ -1,41 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { motion, useInView } from 'framer-motion'
-import { usePublicWebsiteSettings } from '../../lib/website'
+import { AnimatePresence, motion, useInView } from 'framer-motion'
+import { useRef } from 'react'
 import TrialSignup from '../../components/marketing/TrialSignup'
-import {
-  ArrowRight,
-  BarChart3,
-  Bell,
-  BookOpen,
-  Box,
-  Briefcase,
-  Calculator,
-  CheckCircle2,
-  ChevronRight,
-  ClipboardList,
-  CreditCard,
-  FileText,
-  Headphones,
-  Layers,
-  LineChart,
-  MessageCircle,
-  Package,
-  PieChart,
-  Receipt,
-  Settings2,
-  ShieldCheck,
-  ShoppingCart,
-  Sparkles,
-  Star,
-  Truck,
-  Users,
-  Warehouse,
-  Zap,
-} from 'lucide-react'
+import PremiumAppIcon, { PREMIUM_APP_CATALOG } from '../../components/marketing/PremiumAppIcon'
+import { ArrowRight, Star, TrendingUp, X } from 'lucide-react'
 
-/* ─── animated counter ──────────────────────────────────────────────── */
 function Counter({ to, suffix = '', duration = 1800 }) {
   const [val, setVal] = useState(0)
   const ref = useRef(null)
@@ -54,161 +25,112 @@ function Counter({ to, suffix = '', duration = 1800 }) {
   return <span ref={ref}>{val.toLocaleString()}{suffix}</span>
 }
 
-/* ─── stagger helpers ───────────────────────────────────────────────── */
-const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  show: (i = 0) => ({ opacity: 1, y: 0, transition: { duration: 0.55, delay: i * 0.07, ease: [0.25, 0.46, 0.45, 0.94] } }),
+function Marquee({ children, duration = 40, reverse = false, className = '' }) {
+  return (
+    <div className={`relative overflow-hidden ${className}`}>
+      <div
+        className="flex w-max gap-4"
+        style={{
+          animation: `${reverse ? 'maqderMarqueeReverse' : 'maqderMarquee'} ${duration}s linear infinite`,
+        }}
+      >
+        {children}
+        {children}
+      </div>
+    </div>
+  )
 }
-
-/* ─── app modules grid data ─────────────────────────────────────────── */
-const APPS = [
-  { icon: FileText,     color: '#7c3aed', labelEn: 'Invoicing',     labelAr: 'الفوترة' },
-  { icon: Users,        color: '#0891b2', labelEn: 'HR',             labelAr: 'الموارد البشرية' },
-  { icon: Calculator,   color: '#059669', labelEn: 'Payroll',        labelAr: 'الرواتب' },
-  { icon: Package,      color: '#dc2626', labelEn: 'Inventory',      labelAr: 'المخزون' },
-  { icon: Warehouse,    color: '#d97706', labelEn: 'Warehouses',     labelAr: 'المستودعات' },
-  { icon: Truck,        color: '#2563eb', labelEn: 'Purchases',      labelAr: 'المشتريات' },
-  { icon: Receipt,      color: '#7c3aed', labelEn: 'Expenses',       labelAr: 'المصروفات' },
-  { icon: ClipboardList,color: '#0891b2', labelEn: 'Projects',       labelAr: 'المشاريع' },
-  { icon: BarChart3,    color: '#059669', labelEn: 'Reports',        labelAr: 'التقارير' },
-  { icon: MessageCircle,color: '#dc2626', labelEn: 'WhatsApp',       labelAr: 'واتساب' },
-  { icon: ShoppingCart, color: '#d97706', labelEn: 'eCommerce',      labelAr: 'التجارة الإلكترونية' },
-  { icon: ShieldCheck,  color: '#2563eb', labelEn: 'Compliance',     labelAr: 'الامتثال' },
-  { icon: CreditCard,   color: '#7c3aed', labelEn: 'Payments',       labelAr: 'المدفوعات' },
-  { icon: LineChart,    color: '#0891b2', labelEn: 'Analytics',      labelAr: 'التحليلات' },
-  { icon: BookOpen,     color: '#059669', labelEn: 'Accounting',     labelAr: 'المحاسبة' },
-  { icon: Headphones,   color: '#dc2626', labelEn: 'Support',        labelAr: 'الدعم' },
-  { icon: Settings2,    color: '#d97706', labelEn: 'Settings',       labelAr: 'الإعدادات' },
-  { icon: Layers,       color: '#2563eb', labelEn: 'Integrations',   labelAr: 'التكاملات' },
-]
-
-/* ─── feature highlights ────────────────────────────────────────────── */
-const FEATURES = [
-  {
-    icon: ShieldCheck,
-    accent: '#059669',
-    titleEn: 'Automatic Compliance',
-    titleAr: 'امتثال تلقائي',
-    descEn: 'Country-specific tax rules, e-invoicing standards, and government portals handled seamlessly.',
-    descAr: 'قواعد الضرائب حسب الدولة والفوترة الإلكترونية والبوابات الحكومية تُعالَج بسلاسة.',
-  },
-  {
-    icon: Zap,
-    accent: '#7c3aed',
-    titleEn: 'Instant Deployment',
-    titleAr: 'نشر فوري',
-    descEn: 'Your cloud workspace is ready in under a minute. No installation, no complexity.',
-    descAr: 'مساحة عملك السحابية جاهزة في أقل من دقيقة. بدون تثبيت أو تعقيد.',
-  },
-  {
-    icon: LineChart,
-    accent: '#0891b2',
-    titleEn: 'Real-time Insights',
-    titleAr: 'رؤى فورية',
-    descEn: 'Revenue, cash flow, inventory, and HR dashboards update live as your business moves.',
-    descAr: 'لوحات الإيرادات والتدفق النقدي والمخزون تتحدث لحظة بلحظة.',
-  },
-  {
-    icon: Users,
-    accent: '#d97706',
-    titleEn: 'Built for Teams',
-    titleAr: 'مبني للفرق',
-    descEn: 'Role-based access, multi-user collaboration, and audit trails out of the box.',
-    descAr: 'صلاحيات حسب الدور وتعاون متعدد المستخدمين وسجلات مراجعة جاهزة.',
-  },
-]
-
-const STATS = [
-  { to: 500, suffix: '+', labelEn: 'Companies', labelAr: 'شركة' },
-  { to: 50000, suffix: '+', labelEn: 'Daily invoices', labelAr: 'فاتورة يومياً' },
-  { to: 99, suffix: '.9%', labelEn: 'Uptime', labelAr: 'وقت التشغيل' },
-  { to: 24, suffix: '/7', labelEn: 'Support', labelAr: 'دعم متواصل' },
-]
 
 const TESTIMONIALS = [
   { name: 'Ahmed Al-Rashid', nameAr: 'أحمد الراشد', role: 'CFO, Tech Solutions', roleAr: 'المدير المالي', content: 'Month-end close is faster and cleaner. Finance, inventory, and reporting finally live in one place.', contentAr: 'إقفال الشهر أسرع وأنظف. المالية والمخزون والتقارير في مكان واحد.' },
   { name: 'Sara Mohammed', nameAr: 'سارة محمد', role: 'HR Director', roleAr: 'مديرة الموارد البشرية', content: 'Payroll and leave that used to take hours now run in minutes. The team finally focuses on people.', contentAr: 'الرواتب والإجازات أصبحت تعمل في دقائق. الفريق يركز على الناس الآن.' },
   { name: 'Khalid Hassan', nameAr: 'خالد حسن', role: 'Operations Manager', roleAr: 'مدير العمليات', content: 'Multi-warehouse tracking with real-time alerts changed how we operate at scale.', contentAr: 'تتبع المستودعات المتعددة غيّر طريقة عملنا.' },
+  { name: 'Layla Khan', nameAr: 'ليلى خان', role: 'Retail Owner', roleAr: 'مالكة تجزئة', content: 'POS, inventory, and e-invoicing in one login. Our cashiers love how fast it is.', contentAr: 'نقطة البيع والمخزون والفوترة في تسجيل دخول واحد. الكاشير يحب السرعة.' },
+  { name: 'Omar Farooq', nameAr: 'عمر فاروق', role: 'Finance Lead', roleAr: 'قائد المالية', content: 'Live P&L and cash-flow views replaced three spreadsheets we used every week.', contentAr: 'لوحة الأرباح والتدفق النقدي استبدلت ثلاثة جداول كنا نستخدمها أسبوعياً.' },
+  { name: 'Nadia Saleh', nameAr: 'نادية صالح', role: 'HR Manager', roleAr: 'مديرة موارد بشرية', content: 'WPS and leave approvals finally feel automatic. Zero end-of-month panic.', contentAr: 'WPS وموافقات الإجازات أصبحت تلقائية. لا ذعر في نهاية الشهر.' },
 ]
 
-/* ═══════════════════════════════════════════════════════════════════════
-   PAGE COMPONENT
-═══════════════════════════════════════════════════════════════════════ */
+const REVENUE_BARS = [42, 55, 48, 68, 72, 64, 88, 80, 95, 90, 78, 100]
+const EXPENSE_BARS = [30, 34, 32, 40, 38, 36, 44, 42, 48, 45, 41, 50]
+
 export default function MarketingHome() {
   const { language } = useSelector((s) => s.ui)
-  const { data } = usePublicWebsiteSettings()
   const isArabic = language === 'ar'
   const dir = isArabic ? 'rtl' : 'ltr'
-  const phone = data?.contactPhone || '+966596775485'
+  const [trialOpen, setTrialOpen] = useState(false)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('trial') === '1') {
+      setTrialOpen(true)
+      window.history.replaceState({}, '', '/')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!trialOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') setTrialOpen(false) }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [trialOpen])
+
+  const openTrial = (e) => {
+    e?.preventDefault?.()
+    setTrialOpen(true)
+  }
 
   return (
     <main dir={dir} className="bg-white text-slate-900 antialiased overflow-x-hidden font-sans">
+      <style>{`
+        @keyframes maqderMarquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        @keyframes maqderMarqueeReverse {
+          from { transform: translateX(-50%); }
+          to { transform: translateX(0); }
+        }
+      `}</style>
 
-      {/* ══════════════════════════════════════════════════════
-          HERO
-      ══════════════════════════════════════════════════════ */}
+      {/* ── HERO ── */}
       <section className="relative overflow-hidden bg-white">
-        {/* Very subtle warm grid */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.035]"
-          style={{
-            backgroundImage: 'linear-gradient(#000 1px,transparent 1px),linear-gradient(90deg,#000 1px,transparent 1px)',
-            backgroundSize: '48px 48px',
-          }}
-        />
-
-        {/* Accent glows */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.035]" style={{ backgroundImage: 'linear-gradient(#000 1px,transparent 1px),linear-gradient(90deg,#000 1px,transparent 1px)', backgroundSize: '48px 48px' }} />
         <div className="pointer-events-none absolute -top-40 -right-40 h-[600px] w-[600px] rounded-full bg-violet-500/10 blur-[120px]" />
         <div className="pointer-events-none absolute top-60 -left-20 h-[400px] w-[400px] rounded-full bg-emerald-400/10 blur-[90px]" />
 
-        <div className="relative mx-auto max-w-7xl px-4 pt-20 pb-8 sm:px-6 lg:px-8 lg:pt-28 lg:pb-12">
-
-          {/* ── BADGE ── */}
-          <motion.div
-            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-            className="mb-6 flex justify-center"
-          >
+        <div className="relative mx-auto max-w-7xl px-4 pt-20 pb-6 sm:px-6 lg:px-8 lg:pt-28">
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex justify-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-violet-200/70 bg-violet-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-700">
               <span className="flex h-1.5 w-1.5 rounded-full bg-violet-500" />
               {isArabic ? 'نظام ERP سحابي متكامل' : 'All-in-one cloud ERP platform'}
             </span>
           </motion.div>
 
-          {/* ── HEADLINE ── */}
           <motion.h1
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.08 }}
             className="mx-auto max-w-5xl text-center text-[2.75rem] font-black leading-[1.06] tracking-[-0.035em] text-slate-950 sm:text-6xl lg:text-[5rem]"
           >
             {isArabic ? (
-              <>
-                {'كل أعمالك على '}
-                <span className="relative whitespace-nowrap">
-                  <svg aria-hidden className="absolute -bottom-2 left-0 w-full" viewBox="0 0 300 12" preserveAspectRatio="none" fill="none">
-                    <path d="M2 9 Q75 3 150 9 Q225 15 298 9" stroke="#7c3aed" strokeWidth="3.5" strokeLinecap="round"/>
-                  </svg>
-                  <span className="relative">منصة واحدة</span>
-                </span>
-              </>
+              <>{'كل أعمالك على '}<span className="text-violet-600">منصة واحدة</span></>
             ) : (
-              <>
-                {'The ERP that '}
-                <span className="relative whitespace-nowrap">
-                  <svg aria-hidden className="absolute -bottom-2 left-0 w-full" viewBox="0 0 300 12" preserveAspectRatio="none" fill="none">
-                    <path d="M2 9 Q75 3 150 9 Q225 15 298 9" stroke="#7c3aed" strokeWidth="3.5" strokeLinecap="round"/>
-                  </svg>
-                  <span className="relative">grows with you</span>
-                </span>
-                {' — not against you.'}
-              </>
+              <>The ERP that <span className="text-violet-600">grows with you</span> — not against you.</>
             )}
           </motion.h1>
 
-          {/* ── Price hint ── */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.25, duration: 0.5 }}
-            className="mt-5 flex justify-center"
+          <motion.p
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}
+            className="mx-auto mt-5 max-w-2xl text-center text-lg leading-relaxed text-slate-500 sm:text-xl"
           >
+            {isArabic
+              ? 'فوترة ذكية، موارد بشرية، مخزون، وتقارير حية — منصة واحدة مُهيَّأة لعملتك ودولتك.'
+              : 'Invoicing, HR, payroll, inventory & live reporting — one unified platform tuned to your country and currency.'}
+          </motion.p>
+
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.25 }} className="mt-5 flex justify-center">
             <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-5 py-2 shadow-sm backdrop-blur-sm">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-sm font-bold text-slate-700">
@@ -217,42 +139,21 @@ export default function MarketingHome() {
             </div>
           </motion.div>
 
-          {/* ── Sub-headline ── */}
-          <motion.p
-            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, duration: 0.5 }}
-            className="mx-auto mt-5 max-w-2xl text-center text-lg leading-relaxed text-slate-500 sm:text-xl"
-          >
-            {isArabic
-              ? 'فوترة ذكية، موارد بشرية، مخزون، وتقارير — منصة واحدة مُهيَّأة لعملتك ودولتك.'
-              : 'Invoicing, HR, payroll, inventory & analytics — one unified platform tuned to your country and currency.'}
-          </motion.p>
-
-          {/* ── CTAs ── */}
-          <motion.div
-            initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.55 }}
-            className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
-          >
-            <a
-              href="#trial"
-              onClick={(e) => { e.preventDefault(); document.getElementById('trial')?.scrollIntoView({ behavior: 'smooth' }) }}
-              className="group inline-flex items-center gap-2.5 rounded-full bg-violet-600 px-8 py-4 text-base font-bold text-white shadow-[0_8px_32px_-8px_rgba(124,58,237,0.55)] transition-all hover:-translate-y-0.5 hover:bg-violet-700 hover:shadow-[0_12px_40px_-8px_rgba(124,58,237,0.65)]"
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={openTrial}
+              className="group inline-flex items-center gap-2.5 rounded-full bg-violet-600 px-8 py-4 text-base font-bold text-white shadow-[0_8px_32px_-8px_rgba(124,58,237,0.55)] transition-all hover:-translate-y-0.5 hover:bg-violet-700"
             >
-              {isArabic ? 'ابدأ الآن — مجاناً' : 'Start now — It\'s free'}
-              <ArrowRight className={`h-5 w-5 transition-transform group-hover:translate-x-0.5 ${isArabic ? 'rotate-180 group-hover:-translate-x-0.5 group-hover:translate-x-0' : ''}`} />
-            </a>
-            <Link
-              to="/pricing"
-              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-8 py-4 text-base font-bold text-slate-700 shadow-sm transition-all hover:border-slate-400 hover:bg-slate-50"
-            >
-              {isArabic ? 'تعرف على المزيد' : 'Meet an advisor'}
+              {isArabic ? 'ابدأ الآن — مجاناً' : "Start now — It's free"}
+              <ArrowRight className={`h-5 w-5 transition-transform group-hover:translate-x-0.5 ${isArabic ? 'rotate-180' : ''}`} />
+            </button>
+            <Link to="/pricing" className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-8 py-4 text-base font-bold text-slate-700 shadow-sm transition-all hover:border-slate-400 hover:bg-slate-50">
+              {isArabic ? 'الأسعار' : 'View pricing'}
             </Link>
           </motion.div>
 
-          {/* ── Rating ── */}
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-            className="mt-6 flex items-center justify-center gap-3 text-sm text-slate-500"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }} className="mt-6 flex items-center justify-center gap-3 text-sm text-slate-500">
             <div className="flex items-center gap-0.5">
               {[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400" />)}
             </div>
@@ -260,197 +161,135 @@ export default function MarketingHome() {
           </motion.div>
         </div>
 
-        {/* ── APP GRID ── */}
-        <div className="relative mx-auto max-w-6xl px-4 pb-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 32 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45, duration: 0.7 }}
-            className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-9"
-          >
-            {APPS.map((app, i) => (
-              <motion.div
-                key={i}
-                custom={i}
-                variants={fadeUp}
-                initial="hidden"
-                animate="show"
-                whileHover={{ y: -4, scale: 1.06 }}
-                transition={{ type: 'spring', stiffness: 300 }}
-                className="flex flex-col items-center gap-2 cursor-default select-none"
-              >
-                <div
-                  className="flex h-14 w-14 items-center justify-center rounded-2xl shadow-[0_4px_18px_-4px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.04]"
-                  style={{ background: `${app.color}18` }}
-                >
-                  <app.icon className="h-7 w-7" style={{ color: app.color }} />
-                </div>
-                <span className="text-center text-[11px] font-semibold leading-tight text-slate-600">
-                  {isArabic ? app.labelAr : app.labelEn}
-                </span>
-              </motion.div>
+        {/* Premium app icon grid */}
+        <div className="relative mx-auto max-w-6xl px-4 pb-8 sm:px-6 lg:px-8">
+          <motion.div initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7">
+            {PREMIUM_APP_CATALOG.slice(0, 14).map((app) => (
+              <PremiumAppIcon
+                key={app.id}
+                name={app.id}
+                size={64}
+                showLabel
+                label={isArabic ? app.labelAr : app.labelEn}
+                className="transition-transform hover:-translate-y-1"
+              />
             ))}
           </motion.div>
-
-          {/* "View all apps" */}
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
-            className="mt-6 flex items-center justify-between border-t border-slate-100 pt-5"
-          >
-            <p className="text-sm text-slate-500 italic">
-              {isArabic ? 'تخيّل عملك بدون Maqder' : 'Imagine without Maqder'}
-            </p>
-            <a
-              href="#modules"
-              onClick={(e) => { e.preventDefault(); document.getElementById('modules')?.scrollIntoView({ behavior: 'smooth' }) }}
-              className="inline-flex items-center gap-1.5 text-sm font-bold text-violet-600 hover:text-violet-700"
-            >
-              {isArabic ? 'عرض كل التطبيقات' : 'View all Apps'}
+          <div className="mt-8 flex justify-center">
+            <Link to="/solutions" className="inline-flex items-center gap-1.5 text-sm font-bold text-violet-600 hover:text-violet-700">
+              {isArabic ? 'عرض كل التطبيقات' : 'View all apps'}
               <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />
-            </a>
-          </motion.div>
+            </Link>
+          </div>
         </div>
-
-        {/* gradient fade into next section */}
-        <div className="pointer-events-none h-20 bg-gradient-to-b from-white to-slate-50" />
       </section>
 
-      {/* ══════════════════════════════════════════════════════
-          OPTIMIZED FOR PRODUCTIVITY — DARK IMMERSIVE
-      ══════════════════════════════════════════════════════ */}
+      {/* ── LIVE REPORTING ── */}
       <section className="relative overflow-hidden bg-slate-950 py-28 text-white">
-        <div className="pointer-events-none absolute inset-0 opacity-20"
-          style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #7c3aed22 0%, transparent 60%), radial-gradient(circle at 75% 20%, #05966920 0%, transparent 50%)' }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.06]"
-          style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.4) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.4) 1px,transparent 1px)', backgroundSize: '64px 64px' }}
-        />
+        <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 25% 40%, #7c3aed33 0%, transparent 55%), radial-gradient(circle at 80% 20%, #10b98122 0%, transparent 45%)' }} />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-16 text-center">
+          <div className="mb-14 text-center">
             <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-violet-400">
-              {isArabic ? 'مُحسَّن للإنتاجية' : 'Optimized for productivity'}
+              {isArabic ? 'تقارير حية' : 'Live reporting'}
             </p>
             <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
-              {isArabic ? 'واجهة احترافية، نتائج حقيقية' : 'Professional interface,\nreal results.'}
+              {isArabic ? 'أرباحك، تكاليفك، ونموك — بوضوح.' : 'Revenue, costs, and growth — crystal clear.'}
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-white/50">
               {isArabic
-                ? 'من أول فاتورة إلى تقرير الأرباح السنوي — النظام يعمل أثناء نموك.'
-                : 'From your first invoice to your annual P&L — the system works while your business grows.'}
+                ? 'لوحات مالية حقيقية: الإيرادات مقابل المصروفات، هامش الربح، والتدفق النقدي — تتحدث لحظة بلحظة.'
+                : 'Real finance views: revenue vs expenses, margin, and cash flow — updating as your business moves.'}
             </p>
           </div>
 
-          {/* Dashboard mockup cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* big card — KPI */}
+          <div className="grid gap-5 lg:grid-cols-12">
+            {/* P&L chart card */}
             <motion.div
-              variants={fadeUp} custom={0} initial="hidden" whileInView="show" viewport={{ once: true }}
-              className="col-span-1 rounded-3xl border border-white/[0.07] bg-white/[0.03] p-6 md:col-span-2 lg:col-span-2"
+              initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+              className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-6 lg:col-span-8 backdrop-blur-sm"
             >
-              <p className="mb-5 text-xs font-bold uppercase tracking-widest text-white/40">{isArabic ? 'لوحة التحكم' : 'Live Dashboard'}</p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[
-                  { label: isArabic ? 'الإيراد اليوم' : 'Revenue today', value: '$284K', trend: '+18%', up: true },
-                  { label: isArabic ? 'الفواتير' : 'Invoices', value: '1,240', trend: '+24%', up: true },
-                  { label: isArabic ? 'الموظفون' : 'Employees', value: '142', trend: '+3', up: true },
-                  { label: isArabic ? 'نفاد المخزون' : 'Low stock', value: '12', trend: '⚠ check', up: false },
-                ].map((m, i) => (
-                  <div key={i} className="rounded-2xl border border-white/[0.06] bg-white/[0.04] p-4">
-                    <p className="text-[11px] text-white/35">{m.label}</p>
-                    <p className="mt-2 text-2xl font-black text-white">{m.value}</p>
-                    <p className={`mt-1 text-xs font-bold ${m.up ? 'text-emerald-400' : 'text-amber-400'}`}>{m.trend}</p>
-                  </div>
-                ))}
-              </div>
-              {/* mini bar chart */}
-              <div className="mt-5 flex items-end gap-1.5 h-16">
-                {[40, 65, 52, 80, 70, 90, 75, 88, 60, 95, 72, 100].map((h, i) => (
-                  <div key={i} className="flex-1 rounded-t-sm bg-violet-500/30 transition-all hover:bg-violet-500/60" style={{ height: `${h}%` }} />
-                ))}
-              </div>
-            </motion.div>
-
-            {/* compliance card */}
-            <motion.div
-              variants={fadeUp} custom={1} initial="hidden" whileInView="show" viewport={{ once: true }}
-              className="rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/5 p-6"
-            >
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/20">
-                <ShieldCheck className="h-5 w-5 text-emerald-400" />
-              </div>
-              <h3 className="text-lg font-bold">{isArabic ? 'الامتثال الضريبي' : 'Tax Compliance'}</h3>
-              <p className="mt-2 text-sm text-white/45">
-                {isArabic ? 'متوافق مع المتطلبات الحكومية في كل دولة — بدون إعداد يدوي.' : 'Government-ready for every supported country — zero manual setup.'}
-              </p>
-              <div className="mt-5 space-y-2">
-                {['ZATCA Phase 2', 'NBR Bangladesh', 'VAT Compliance'].map((t) => (
-                  <div key={t} className="flex items-center gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                    <span className="text-sm font-medium text-white/70">{t}</span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* AI chat card */}
-            <motion.div
-              variants={fadeUp} custom={2} initial="hidden" whileInView="show" viewport={{ once: true }}
-              className="rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-purple-500/5 p-6"
-            >
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/20">
-                <Sparkles className="h-5 w-5 text-violet-400" />
-              </div>
-              <h3 className="text-lg font-bold">{isArabic ? 'ذكاء اصطناعي مدمج' : 'Built-in AI'}</h3>
-              <div className="mt-4 space-y-2.5">
-                <div className="rounded-xl bg-white/[0.06] px-3.5 py-2.5 text-sm text-white/70">
-                  {isArabic ? 'ما هو أكثر منتج مبيعاً هذا الشهر؟' : "What's my best-selling product this month?"}
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-white/40">{isArabic ? 'الأرباح والخسائر' : 'Profit & Loss'}</p>
+                  <p className="mt-1 text-2xl font-black">$1.24M <span className="text-sm font-semibold text-emerald-400">+18.4%</span></p>
                 </div>
-                <div className="rounded-xl bg-violet-500/15 px-3.5 py-2.5 text-sm text-violet-200">
-                  {isArabic ? 'المنتج: "ملف الألومنيوم A4" — 410 وحدة مُباعة، إجمالي $2,829.' : '"Aluminium File A4" — 410 units sold, total $2,829.'}
+                <div className="flex items-center gap-4 text-xs font-semibold">
+                  <span className="inline-flex items-center gap-1.5 text-violet-300"><span className="h-2 w-2 rounded-full bg-violet-400" />{isArabic ? 'إيراد' : 'Revenue'}</span>
+                  <span className="inline-flex items-center gap-1.5 text-emerald-300"><span className="h-2 w-2 rounded-full bg-emerald-400" />{isArabic ? 'مصروف' : 'Expense'}</span>
                 </div>
               </div>
-            </motion.div>
-
-            {/* HR card */}
-            <motion.div
-              variants={fadeUp} custom={3} initial="hidden" whileInView="show" viewport={{ once: true }}
-              className="rounded-3xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-indigo-500/5 p-6"
-            >
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/20">
-                <Users className="h-5 w-5 text-blue-400" />
-              </div>
-              <h3 className="text-lg font-bold">{isArabic ? 'الموارد البشرية' : 'HR & Payroll'}</h3>
-              <p className="mt-2 text-sm text-white/45">
-                {isArabic ? 'الرواتب وملفات WPS والإجازات والوثائق في مكان واحد.' : 'Payroll, WPS files, leave, and documents all in one place.'}
-              </p>
-              <div className="mt-5 flex -space-x-2">
-                {['A','S','K','R','M','H'].map((c,i) => (
-                  <div key={i} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-950 bg-gradient-to-br from-blue-500 to-indigo-600 text-[11px] font-bold text-white">
-                    {c}
+              <div className="flex h-48 items-end gap-2 sm:gap-3">
+                {REVENUE_BARS.map((h, i) => (
+                  <div key={i} className="flex flex-1 flex-col items-center justify-end gap-1">
+                    <div className="flex w-full items-end gap-0.5" style={{ height: '100%' }}>
+                      <div className="flex-1 rounded-t-md bg-gradient-to-t from-violet-700 to-violet-400" style={{ height: `${h}%` }} />
+                      <div className="flex-1 rounded-t-md bg-gradient-to-t from-emerald-700 to-emerald-400 opacity-80" style={{ height: `${EXPENSE_BARS[i]}%` }} />
+                    </div>
+                    <span className="text-[10px] text-white/30">{['J','F','M','A','M','J','J','A','S','O','N','D'][i]}</span>
                   </div>
                 ))}
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-950 bg-white/10 text-[10px] font-bold text-white/60">+136</div>
               </div>
             </motion.div>
 
-            {/* notifications / activity */}
+            {/* KPI stack */}
+            <div className="grid gap-4 sm:grid-cols-3 lg:col-span-4 lg:grid-cols-1">
+              {[
+                { labelEn: 'Gross margin', labelAr: 'هامش الربح', value: '42.8%', trend: '+2.1%', up: true },
+                { labelEn: 'Cash on hand', labelAr: 'النقد المتاح', value: '$318K', trend: '+9%', up: true },
+                { labelEn: 'Open invoices', labelAr: 'فواتير مفتوحة', value: '86', trend: '−12%', up: true },
+              ].map((k, i) => (
+                <motion.div
+                  key={k.labelEn}
+                  initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+                  transition={{ delay: i * 0.08 }}
+                  className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5"
+                >
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/20">
+                    <TrendingUp className="h-4 w-4 text-violet-300" />
+                  </div>
+                  <p className="text-xs text-white/40">{isArabic ? k.labelAr : k.labelEn}</p>
+                  <p className="mt-1 text-2xl font-black">{k.value}</p>
+                  <p className={`mt-1 text-xs font-bold ${k.up ? 'text-emerald-400' : 'text-amber-400'}`}>{k.trend}</p>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Breakdown row */}
             <motion.div
-              variants={fadeUp} custom={4} initial="hidden" whileInView="show" viewport={{ once: true }}
-              className="rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-orange-500/5 p-6"
+              initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+              className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-6 lg:col-span-7"
             >
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/20">
-                <Bell className="h-5 w-5 text-amber-400" />
-              </div>
-              <h3 className="text-lg font-bold">{isArabic ? 'تنبيهات ذكية' : 'Smart Alerts'}</h3>
-              <div className="mt-4 space-y-2">
+              <p className="mb-5 text-xs font-bold uppercase tracking-widest text-white/40">{isArabic ? 'توزيع الإيرادات' : 'Revenue mix'}</p>
+              <div className="space-y-4">
                 {[
-                  { t: isArabic ? 'مخزون منخفض: قاطع A4' : 'Low stock: Cutter A4', c: 'text-amber-300' },
-                  { t: isArabic ? 'فاتورة جديدة: عميل XYZ' : 'New invoice: Client XYZ', c: 'text-emerald-300' },
-                  { t: isArabic ? 'موافقة إجازة معلقة' : 'Leave approval pending', c: 'text-blue-300' },
-                ].map((n, i) => (
-                  <div key={i} className="flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2 text-sm">
-                    <div className={`h-2 w-2 shrink-0 rounded-full ${n.c === 'text-amber-300' ? 'bg-amber-400' : n.c === 'text-emerald-300' ? 'bg-emerald-400' : 'bg-blue-400'}`} />
-                    <span className={`font-medium ${n.c}`}>{n.t}</span>
+                  { nameEn: 'Retail / POS', nameAr: 'التجزئة / نقطة البيع', pct: 38, color: '#8b5cf6' },
+                  { nameEn: 'Services', nameAr: 'الخدمات', pct: 27, color: '#14b8a6' },
+                  { nameEn: 'eCommerce', nameAr: 'التجارة الإلكترونية', pct: 21, color: '#f59e0b' },
+                  { nameEn: 'Other', nameAr: 'أخرى', pct: 14, color: '#3b82f6' },
+                ].map((row) => (
+                  <div key={row.nameEn}>
+                    <div className="mb-1.5 flex justify-between text-sm">
+                      <span className="font-semibold text-white/80">{isArabic ? row.nameAr : row.nameEn}</span>
+                      <span className="font-bold text-white">{row.pct}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                      <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: row.color }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+              className="rounded-[1.75rem] border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/5 p-6 lg:col-span-5"
+            >
+              <p className="mb-4 text-xs font-bold uppercase tracking-widest text-emerald-300/80">{isArabic ? 'جاهزية الامتثال' : 'Compliance readiness'}</p>
+              <div className="space-y-3">
+                {['ZATCA Phase 2', 'NBR Bangladesh', 'VAT / Tax rules', 'WPS payroll files'].map((t) => (
+                  <div key={t} className="flex items-center justify-between rounded-xl bg-white/[0.05] px-4 py-3">
+                    <span className="text-sm font-semibold text-white/80">{t}</span>
+                    <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-300">Live</span>
                   </div>
                 ))}
               </div>
@@ -459,213 +298,118 @@ export default function MarketingHome() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════════
-          STATS
-      ══════════════════════════════════════════════════════ */}
+      {/* ── STATS ── */}
       <section className="bg-white py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {STATS.map((s, i) => (
-              <motion.div
-                key={i} custom={i} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}
-                className="group rounded-3xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/50 p-6 text-center shadow-sm hover:-translate-y-1 hover:border-violet-300 hover:shadow-xl hover:shadow-violet-100/50 transition-all duration-300"
-              >
-                <p className="text-5xl font-black tracking-tight text-slate-950">
-                  <Counter to={s.to} suffix={s.suffix} />
-                </p>
+            {[
+              { to: 500, suffix: '+', labelEn: 'Companies', labelAr: 'شركة' },
+              { to: 50000, suffix: '+', labelEn: 'Daily invoices', labelAr: 'فاتورة يومياً' },
+              { to: 99, suffix: '.9%', labelEn: 'Uptime', labelAr: 'وقت التشغيل' },
+              { to: 24, suffix: '/7', labelEn: 'Support', labelAr: 'دعم متواصل' },
+            ].map((s) => (
+              <div key={s.labelEn} className="rounded-3xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/50 p-6 text-center shadow-sm">
+                <p className="text-5xl font-black tracking-tight text-slate-950"><Counter to={s.to} suffix={s.suffix} /></p>
                 <p className="mt-2 text-sm font-semibold text-slate-500">{isArabic ? s.labelAr : s.labelEn}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════════
-          MODULES GRID (id=modules)
-      ══════════════════════════════════════════════════════ */}
-      <section id="modules" className="scroll-mt-20 bg-slate-50/80 py-28">
+      {/* ── WHY CHOOSE — ICON MARQUEE ── */}
+      <section className="overflow-hidden bg-slate-50 py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-16 text-center">
-            <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-700">
-              <Layers className="h-3.5 w-3.5" />
-              {isArabic ? 'وحدات ERP متكاملة' : 'Integrated ERP modules'}
-            </span>
-            <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">
-              {isArabic ? 'كل أدوات عملك في مكان واحد' : 'Every tool your business needs'}
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
-              {isArabic
-                ? 'من الفوترة إلى الرواتب والمخزون — بنية واحدة مصممة للأعمال الحديثة.'
-                : 'From invoicing to payroll and inventory — one seamless architecture.'}
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {APPS.map((app, idx) => (
-              <motion.div
-                key={idx}
-                custom={idx % 4}
-                variants={fadeUp}
-                initial="hidden"
-                whileInView="show"
-                viewport={{ once: true, margin: '-40px' }}
-                className="group relative flex items-start gap-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-violet-300/60 hover:shadow-xl hover:shadow-violet-100/60"
-              >
-                <div
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ring-black/[0.04] transition-all duration-300 group-hover:scale-110"
-                  style={{ background: `${app.color}18` }}
-                >
-                  <app.icon className="h-5 w-5" style={{ color: app.color }} />
-                </div>
-                <div>
-                  <p className="font-bold text-slate-900">{isArabic ? app.labelAr : app.labelEn}</p>
-                  <div className={`mt-1.5 flex items-center gap-1 text-xs font-semibold text-violet-600 opacity-0 transition-all duration-200 group-hover:opacity-100 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>
-                    {isArabic ? 'استكشف' : 'Explore'}
-                    <ChevronRight className={`h-3 w-3 ${isArabic ? 'rotate-180' : ''}`} />
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════
-          FEATURE HIGHLIGHTS
-      ══════════════════════════════════════════════════════ */}
-      <section className="bg-white py-28">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-16 text-center">
+          <div className="mb-12 text-center">
             <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">
               {isArabic ? 'لماذا تختار Maqder؟' : 'Why choose Maqder?'}
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
-              {isArabic ? 'مبني من الأساس للشركات الحديثة.' : 'Built from the ground up for modern businesses.'}
-            </p>
-          </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={i} custom={i} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}
-                className="group rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl"
-                style={{ '--accent': f.accent }}
-              >
-                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: `${f.accent}18` }}>
-                  <f.icon className="h-6 w-6" style={{ color: f.accent }} />
-                </div>
-                <h3 className="text-lg font-bold text-slate-900">{isArabic ? f.titleAr : f.titleEn}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-500">{isArabic ? f.descAr : f.descEn}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════
-          TESTIMONIALS
-      ══════════════════════════════════════════════════════ */}
-      <section className="bg-slate-950 py-28 text-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-14 text-center">
-            <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-              {isArabic ? 'ماذا يقول عملاؤنا' : 'Trusted by growing businesses'}
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-lg text-white/45">
-              {isArabic ? 'آراء حقيقية من شركات تعمل مع Maqder يومياً.' : 'Real feedback from companies that run on Maqder every day.'}
-            </p>
-          </div>
-          <div className="grid gap-5 md:grid-cols-3">
-            {TESTIMONIALS.map((t, i) => (
-              <motion.div
-                key={i} custom={i} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}
-                className="flex flex-col rounded-3xl border border-white/[0.07] bg-white/[0.03] p-7 backdrop-blur-sm"
-              >
-                <div className="mb-5 flex gap-0.5">
-                  {[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400" />)}
-                </div>
-                <p className="flex-1 text-base leading-relaxed text-white/65">
-                  "{isArabic ? t.contentAr : t.content}"
-                </p>
-                <div className="mt-7 flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-bold text-white">
-                    {(isArabic ? t.nameAr : t.name).charAt(0)}
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">{isArabic ? t.nameAr : t.name}</p>
-                    <p className="text-xs text-white/40">{isArabic ? t.roleAr : t.role}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════
-          LIVE TRIAL SIGNUP
-      ══════════════════════════════════════════════════════ */}
-      <section id="trial" className="scroll-mt-20 overflow-hidden bg-gradient-to-b from-slate-50 to-white py-28">
-        {/* decorative blobs */}
-        <div className="pointer-events-none absolute left-1/4 -translate-x-1/2 h-[500px] w-[500px] rounded-full bg-violet-400/8 blur-[120px]" />
-        <div className="pointer-events-none absolute right-1/4 translate-x-1/2 h-[400px] w-[400px] rounded-full bg-indigo-400/6 blur-[100px]" />
-        <div className="relative mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 text-center">
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-600">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-violet-500 animate-pulse" />
-              {isArabic ? 'تجربة مجانية مباشرة' : 'Live free trial'}
-            </span>
-            <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">
-              {isArabic ? 'جرّب Maqder في أقل من دقيقة' : 'Spin up Maqder in under a minute'}
-            </h2>
-            <p className="mx-auto mt-4 max-w-lg text-lg text-slate-500">
               {isArabic
-                ? 'اختر الدولة واسم الشركة والعملة — ثم ادخل لوحة التحكم مباشرةً.'
-                : 'Choose country, company name, and currency — then land in your live dashboard.'}
+                ? 'كل ما تحتاجه لإدارة عملك — وحدات متكاملة تعمل معاً بسلاسة.'
+                : 'Everything you need to run your business — integrated modules that work as one.'}
             </p>
           </div>
-          <TrialSignup variant="light" />
         </div>
+
+        <Marquee duration={38} className="mb-5 [mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
+          {PREMIUM_APP_CATALOG.map((app) => (
+            <div key={`a-${app.id}`} className="flex w-[108px] shrink-0 flex-col items-center gap-2">
+              <PremiumAppIcon name={app.id} size={72} />
+              <span className="text-center text-[11px] font-semibold text-slate-600">{isArabic ? app.labelAr : app.labelEn}</span>
+            </div>
+          ))}
+        </Marquee>
+        <Marquee duration={44} reverse className="[mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
+          {[...PREMIUM_APP_CATALOG].reverse().map((app) => (
+            <div key={`b-${app.id}`} className="flex w-[108px] shrink-0 flex-col items-center gap-2">
+              <PremiumAppIcon name={app.id} size={64} />
+              <span className="text-center text-[11px] font-semibold text-slate-600">{isArabic ? app.labelAr : app.labelEn}</span>
+            </div>
+          ))}
+        </Marquee>
       </section>
 
-      {/* ══════════════════════════════════════════════════════
-          CTA BANNER
-      ══════════════════════════════════════════════════════ */}
-      <section className="pb-24 pt-0">
+      {/* ── TESTIMONIALS MARQUEE ── */}
+      <section className="overflow-hidden bg-slate-950 py-28 text-white">
+        <div className="mx-auto mb-12 max-w-7xl px-4 text-center sm:px-6 lg:px-8">
+          <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
+            {isArabic ? 'ماذا يقول عملاؤنا' : 'Trusted by growing businesses'}
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-lg text-white/45">
+            {isArabic ? 'آراء حقيقية من شركات تعمل مع Maqder يومياً.' : 'Real feedback from companies that run on Maqder every day.'}
+          </p>
+        </div>
+
+        <Marquee duration={48} className="[mask-image:linear-gradient(90deg,transparent,black_6%,black_94%,transparent)]">
+          {TESTIMONIALS.map((t) => (
+            <div
+              key={t.name}
+              className="w-[340px] shrink-0 rounded-3xl border border-white/[0.08] bg-white/[0.04] p-7 backdrop-blur-sm"
+            >
+              <div className="mb-4 flex gap-0.5">
+                {[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400" />)}
+              </div>
+              <p className="min-h-[88px] text-sm leading-relaxed text-white/70">
+                "{isArabic ? t.contentAr : t.content}"
+              </p>
+              <div className="mt-6 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-bold">
+                  {(isArabic ? t.nameAr : t.name).charAt(0)}
+                </div>
+                <div>
+                  <p className="text-sm font-bold">{isArabic ? t.nameAr : t.name}</p>
+                  <p className="text-xs text-white/40">{isArabic ? t.roleAr : t.role}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </Marquee>
+      </section>
+
+      {/* ── CTA ── */}
+      <section className="bg-white py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-800 p-10 text-white shadow-[0_40px_100px_-30px_rgba(124,58,237,0.4)] lg:p-16">
             <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-16 -left-16 h-60 w-60 rounded-full bg-white/10 blur-2xl" />
             <div className="relative flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl">
                 <p className="text-xs font-bold uppercase tracking-[0.32em] text-white/60">
                   {isArabic ? 'جاهز للانطلاق' : 'Ready to launch'}
                 </p>
                 <h2 className="mt-3 text-4xl font-extrabold leading-tight lg:text-5xl">
-                  {isArabic ? (
-                    'ابدأ رحلتك مع Maqder اليوم'
-                  ) : (
-                    <>Start your ERP<br /><span className="text-white/80">journey today.</span></>
-                  )}
+                  {isArabic ? 'ابدأ رحلتك مع Maqder اليوم' : <>Start your ERP<br /><span className="text-white/80">journey today.</span></>}
                 </h2>
                 <p className="mt-4 text-lg text-white/60">
-                  {isArabic
-                    ? 'سجّل الدخول أو جرّب النظام مباشرةً.'
-                    : 'Log in or start a free trial and see modern business management.'}
+                  {isArabic ? 'أنشئ مساحتك في أقل من دقيقة — بدون بطاقة ائتمان.' : 'Spin up your workspace in under a minute — no credit card.'}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
-                <a
-                  href="#trial"
-                  onClick={(e) => { e.preventDefault(); document.getElementById('trial')?.scrollIntoView({ behavior: 'smooth' }) }}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-8 py-4 text-base font-bold text-violet-700 shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl"
-                >
-                  {isArabic ? 'ابدأ الآن مجاناً' : 'Start for free'}
+                <button type="button" onClick={openTrial} className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-8 py-4 text-base font-bold text-violet-700 shadow-lg transition-all hover:-translate-y-0.5">
+                  {isArabic ? 'تجربة مجانية' : 'Try free'}
                   <ArrowRight className={`h-5 w-5 ${isArabic ? 'rotate-180' : ''}`} />
-                </a>
-                <Link
-                  to="/pricing"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-8 py-4 text-base font-bold text-white backdrop-blur-sm transition-all hover:bg-white/20"
-                >
+                </button>
+                <Link to="/pricing" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-8 py-4 text-base font-bold text-white backdrop-blur-sm transition-all hover:bg-white/20">
                   {isArabic ? 'الأسعار' : 'View pricing'}
                 </Link>
               </div>
@@ -674,6 +418,57 @@ export default function MarketingHome() {
         </div>
       </section>
 
+      {/* ── TRIAL POPOUT ── */}
+      <AnimatePresence>
+        {trialOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 p-4 backdrop-blur-md sm:items-center"
+            onClick={() => setTrialOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              className="relative w-full max-w-xl overflow-hidden rounded-[1.75rem] border border-white/20 bg-white shadow-[0_40px_120px_-20px_rgba(0,0,0,0.55)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-gradient-to-br from-violet-50 to-white px-6 py-5">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-violet-600">
+                    {isArabic ? 'تجربة مجانية' : 'Free trial'}
+                  </p>
+                  <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
+                    {isArabic ? 'مساحتك جاهزة في أقل من دقيقة' : 'Your workspace in under a minute'}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {isArabic ? 'اختر الدولة والشركة والعملة — ثم ادخل لوحة التحكم.' : 'Pick country, company, and currency — then land in your dashboard.'}
+                  </p>
+                </div>
+                <button type="button" onClick={() => setTrialOpen(false)} className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Close">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="max-h-[min(70vh,640px)] overflow-y-auto p-5">
+                <TrialSignup variant="light" />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* expose open for header "Try free" via custom event */}
+      <TrialOpenBridge onOpen={() => setTrialOpen(true)} />
     </main>
   )
+}
+
+function TrialOpenBridge({ onOpen }) {
+  useEffect(() => {
+    const handler = () => onOpen()
+    window.addEventListener('maqder-open-trial', handler)
+    return () => window.removeEventListener('maqder-open-trial', handler)
+  }, [onOpen])
+  return null
 }
