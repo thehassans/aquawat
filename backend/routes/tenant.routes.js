@@ -6,8 +6,6 @@ import { hasPremiumTemplateAccess, ESSENTIAL_TEMPLATE_ID, MAX_TEMPLATE_ID } from
 import zlib from 'zlib';
 import multer from 'multer';
 import sharp from 'sharp';
-import path from 'path';
-import fs from 'fs';
 import Customer from '../models/Customer.js';
 import Employee from '../models/Employee.js';
 import Expense from '../models/Expense.js';
@@ -27,6 +25,7 @@ import { getPrimaryBusinessType, normalizeBusinessTypes } from '../utils/busines
 import { serializeAuthTenant } from '../utils/authSerialize.js';
 import { TRIAL_LIMITS } from '../middleware/trialLimits.js';
 import { imageFileFilter } from '../utils/uploadMime.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 import netBuiltin from 'net';
 
 const router = express.Router();
@@ -352,23 +351,21 @@ router.post('/upload-qr-hero', authorize('admin'), upload.single('image'), async
     }
 
     const tenantIdStr = req.user.tenantId.toString();
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'restaurant', tenantIdStr);
-    
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     const filename = `qrhero-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-    const filepath = path.join(uploadsDir, filename);
+    const key = `restaurant/${tenantIdStr}/${filename}`;
 
-    // Convert to webp
-    await sharp(req.file.buffer)
-      .resize({ width: 1200, withoutEnlargement: true }) // Hero images are larger
+    const buffer = await sharp(req.file.buffer)
+      .resize({ width: 1200, withoutEnlargement: true })
       .webp({ quality: 80 })
-      .toFile(filepath);
+      .toBuffer();
 
-    const imageUrl = `/uploads/restaurant/${tenantIdStr}/${filename}`;
-    
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
+
     res.json({ imageUrl });
   } catch (error) {
     console.error('Image processing error:', error);
@@ -384,23 +381,21 @@ router.post('/upload-qr-menu-image', authorize('admin'), upload.single('image'),
     }
 
     const tenantIdStr = req.user.tenantId.toString();
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'restaurant', tenantIdStr);
-    
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     const filename = `qrmenu-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-    const filepath = path.join(uploadsDir, filename);
+    const key = `restaurant/${tenantIdStr}/${filename}`;
 
-    // Preserve high quality and resolution for menu texts
-    await sharp(req.file.buffer)
+    const buffer = await sharp(req.file.buffer)
       .resize({ width: 2400, withoutEnlargement: true })
       .webp({ quality: 95 })
-      .toFile(filepath);
+      .toBuffer();
 
-    const imageUrl = `/uploads/restaurant/${tenantIdStr}/${filename}`;
-    
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
+
     res.json({ imageUrl });
   } catch (error) {
     console.error('Image processing error:', error);

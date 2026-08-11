@@ -1,13 +1,13 @@
 import express from 'express';
 import LaundryService from '../models/LaundryService.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
-import multer from 'multer';
 import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
+import { imageUpload } from '../utils/uploadMime.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = imageUpload;
 
 router.use(protect);
 router.use(tenantFilter);

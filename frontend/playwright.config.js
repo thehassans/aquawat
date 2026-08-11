@@ -22,9 +22,16 @@ export default defineConfig({
     },
   },
   projects: [
+    // Optional: writes e2e/.auth/user.json when E2E credentials work.
+    // Authenticated specs log in themselves and skip if login fails.
+    {
+      name: 'setup',
+      testMatch: /auth\.setup\.js/,
+    },
     {
       name: 'chromium-desktop',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+      testIgnore: /auth\.setup\.js/,
     },
     {
       name: 'chromium-mobile',
@@ -33,6 +40,7 @@ export default defineConfig({
         browserName: 'chromium',
         defaultBrowserType: 'chromium',
       },
+      testIgnore: /auth\.setup\.js/,
     },
   ],
   metadata: { apiUrl: API_URL },

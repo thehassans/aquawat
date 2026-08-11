@@ -1,14 +1,14 @@
 import express from 'express';
-import multer from 'multer';
 import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
 import ExpenseClaim from '../models/ExpenseClaim.js';
 import Employee from '../models/Employee.js';
 import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { imageUpload } from '../utils/uploadMime.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = imageUpload;
 
 router.use(protect);
 router.use(tenantFilter);

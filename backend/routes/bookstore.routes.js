@@ -16,6 +16,7 @@ import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { imageUpload } from '../utils/uploadMime.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -396,7 +397,7 @@ router.post('/shift/close', protect, async (req, res) => {
 
 // --- COVER IMAGE UPLOAD ---
 
-router.post('/upload-cover', protect, upload.single('image'), async (req, res) => {
+router.post('/upload-cover', protect, imageUpload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
 

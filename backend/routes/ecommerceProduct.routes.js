@@ -1,14 +1,14 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import multer from 'multer';
 import sharp from 'sharp';
 import { protect } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import EcommerceProduct from '../models/EcommerceProduct.js';
+import { imageUpload } from '../utils/uploadMime.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = imageUpload;
 
 const getTargetTenantId = async (user) => {
   if (user.tenantId) return user.tenantId;

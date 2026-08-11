@@ -8,6 +8,7 @@ import api from '../lib/api'
 import Money from '../components/ui/Money'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
+import ResponsiveDataList from '../components/ui/ResponsiveDataList'
 
 const mergeMonthSeries = (revenue = [], expenses = [], language = 'en') => {
   const monthKey = (row) => `${row?._id?.year}-${String(row?._id?.month).padStart(2, '0')}`
@@ -360,38 +361,64 @@ export default function Finance() {
           {language === 'ar' ? 'تفاصيل الأشهر' : 'Monthly Breakdown'}
         </h3>
 
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>{language === 'ar' ? 'الشهر' : 'Month'}</th>
-                <th>{language === 'ar' ? 'الإيرادات' : 'Revenue'}</th>
-                <th>{language === 'ar' ? 'المصروفات' : 'Expenses'}</th>
-                <th>{language === 'ar' ? 'الربح' : 'Profit'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {chartData.length === 0 ? (
+        <ResponsiveDataList
+          items={[...chartData].reverse()}
+          empty={
+            <p className="text-center text-gray-500 py-8 text-sm">{t('noData')}</p>
+          }
+          renderCard={(row) => (
+            <div key={row.key} className="rounded-xl border border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 p-4 space-y-2">
+              <p className="font-semibold text-gray-900 dark:text-white">{row.label}</p>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">{language === 'ar' ? 'الإيرادات' : 'Revenue'}</span>
+                <Money value={row.revenue} minimumFractionDigits={0} maximumFractionDigits={0} />
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">{language === 'ar' ? 'المصروفات' : 'Expenses'}</span>
+                <Money value={row.expenses} minimumFractionDigits={0} maximumFractionDigits={0} />
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">{language === 'ar' ? 'الربح' : 'Profit'}</span>
+                <span className={row.profit >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
+                  <Money value={row.profit} minimumFractionDigits={0} maximumFractionDigits={0} />
+                </span>
+              </div>
+            </div>
+          )}
+        >
+          <div className="table-container">
+            <table className="table">
+              <thead>
                 <tr>
-                  <td colSpan={4} className="text-center text-gray-500 py-8">
-                    {t('noData')}
-                  </td>
+                  <th>{language === 'ar' ? 'الشهر' : 'Month'}</th>
+                  <th>{language === 'ar' ? 'الإيرادات' : 'Revenue'}</th>
+                  <th>{language === 'ar' ? 'المصروفات' : 'Expenses'}</th>
+                  <th>{language === 'ar' ? 'الربح' : 'Profit'}</th>
                 </tr>
-              ) : (
-                [...chartData].reverse().map((row) => (
-                  <tr key={row.key}>
-                    <td className="font-medium">{row.label}</td>
-                    <td><Money value={row.revenue} minimumFractionDigits={0} maximumFractionDigits={0} /></td>
-                    <td><Money value={row.expenses} minimumFractionDigits={0} maximumFractionDigits={0} /></td>
-                    <td className={row.profit >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
-                      <Money value={row.profit} minimumFractionDigits={0} maximumFractionDigits={0} />
+              </thead>
+              <tbody>
+                {chartData.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center text-gray-500 py-8">
+                      {t('noData')}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  [...chartData].reverse().map((row) => (
+                    <tr key={row.key}>
+                      <td className="font-medium">{row.label}</td>
+                      <td><Money value={row.revenue} minimumFractionDigits={0} maximumFractionDigits={0} /></td>
+                      <td><Money value={row.expenses} minimumFractionDigits={0} maximumFractionDigits={0} /></td>
+                      <td className={row.profit >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
+                        <Money value={row.profit} minimumFractionDigits={0} maximumFractionDigits={0} />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </ResponsiveDataList>
       </motion.div>
     </div>
   )

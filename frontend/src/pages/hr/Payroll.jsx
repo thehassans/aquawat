@@ -9,6 +9,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
+import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 
 export default function Payroll() {
   const { language } = useSelector((state) => state.ui)
@@ -200,74 +201,107 @@ export default function Payroll() {
             <p className="text-sm mt-1">{language === 'ar' ? 'اضغط "إنشاء الرواتب" لإنشاء سجلات جديدة' : 'Click "Generate Payroll" to create records'}</p>
           </div>
         ) : (
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t('employeeId')}</th>
-                  <th>{language === 'ar' ? 'الاسم' : 'Name'}</th>
-                  <th>{t('basicSalary')}</th>
-                  <th>{language === 'ar' ? 'البدلات' : 'Allowances'}</th>
-                  <th>{language === 'ar' ? 'التأمينات' : 'GOSI'}</th>
-                  <th>{language === 'ar' ? 'صافي الراتب' : 'Net Pay'}</th>
-                  <th>{t('status')}</th>
-                  <th>{language === 'ar' ? 'الإجراءات' : 'Actions'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data?.payrolls?.map((p) => (
-                  <tr key={p._id}>
-                    <td className="font-medium">{p.employeeId?.employeeId}</td>
-                    <td>{p.employeeId?.firstNameEn} {p.employeeId?.lastNameEn}</td>
-                    <td><Money value={p.earnings?.find(e => e.type === 'basic')?.amount} /></td>
-                    <td>
-                      <div className="space-y-1">
-                        <div><Money value={p.totalEarnings - (p.earnings?.find(e => e.type === 'basic')?.amount || 0)} /></div>
-                        <div className="text-xs text-gray-500">
-                          {language === 'ar' ? 'سكن / نقل / طعام / أخرى' : 'Housing / Transport / Food / Other'}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="text-red-600">-<Money value={p.gosi?.employeeShare} /></td>
-                    <td className="font-semibold text-primary-600"><Money value={p.netPay} /></td>
-                    <td>
-                      <span className={`badge ${p.status === 'paid' ? 'badge-success' : p.status === 'approved' ? 'badge-info' : 'badge-warning'}`}>
-                        {p.status === 'paid' && <CheckCircle className="w-3 h-3 me-1" />}
-                        {p.status === 'draft' && <Clock className="w-3 h-3 me-1" />}
-                        {p.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        {p.status === 'draft' ? (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-icon"
-                            title={language === 'ar' ? 'اعتماد' : 'Approve'}
-                            onClick={() => approveMutation.mutate(p._id)}
-                            disabled={approveMutation.isPending}
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                        ) : null}
-                        {p.status === 'approved' ? (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-icon"
-                            title={language === 'ar' ? 'تسجيل الدفع' : 'Mark Paid'}
-                            onClick={() => payMutation.mutate({ payrollId: p._id })}
-                            disabled={payMutation.isPending}
-                          >
-                            <Wallet className="w-4 h-4" />
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
+          <ResponsiveDataList
+            items={data?.payrolls || []}
+            renderCard={(p) => (
+              <div key={p._id} className="rounded-xl border border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-gray-900 dark:text-white">{p.employeeId?.firstNameEn} {p.employeeId?.lastNameEn}</p>
+                    <p className="text-xs text-gray-500">{p.employeeId?.employeeId}</p>
+                  </div>
+                  <span className={`badge ${p.status === 'paid' ? 'badge-success' : p.status === 'approved' ? 'badge-info' : 'badge-warning'}`}>
+                    {p.status}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{language === 'ar' ? 'صافي الراتب' : 'Net Pay'}</span>
+                  <span className="font-semibold text-primary-600"><Money value={p.netPay} /></span>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  {p.status === 'draft' ? (
+                    <button type="button" className="btn btn-secondary flex-1 min-h-11" onClick={() => approveMutation.mutate(p._id)} disabled={approveMutation.isPending}>
+                      {language === 'ar' ? 'اعتماد' : 'Approve'}
+                    </button>
+                  ) : null}
+                  {p.status === 'approved' ? (
+                    <button type="button" className="btn btn-secondary flex-1 min-h-11" onClick={() => payMutation.mutate({ payrollId: p._id })} disabled={payMutation.isPending}>
+                      {language === 'ar' ? 'تسجيل الدفع' : 'Mark Paid'}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          >
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t('employeeId')}</th>
+                    <th>{language === 'ar' ? 'الاسم' : 'Name'}</th>
+                    <th>{t('basicSalary')}</th>
+                    <th>{language === 'ar' ? 'البدلات' : 'Allowances'}</th>
+                    <th>{language === 'ar' ? 'التأمينات' : 'GOSI'}</th>
+                    <th>{language === 'ar' ? 'صافي الراتب' : 'Net Pay'}</th>
+                    <th>{t('status')}</th>
+                    <th>{language === 'ar' ? 'الإجراءات' : 'Actions'}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data?.payrolls?.map((p) => (
+                    <tr key={p._id}>
+                      <td className="font-medium">{p.employeeId?.employeeId}</td>
+                      <td>{p.employeeId?.firstNameEn} {p.employeeId?.lastNameEn}</td>
+                      <td><Money value={p.earnings?.find(e => e.type === 'basic')?.amount} /></td>
+                      <td>
+                        <div className="space-y-1">
+                          <div><Money value={p.totalEarnings - (p.earnings?.find(e => e.type === 'basic')?.amount || 0)} /></div>
+                          <div className="text-xs text-gray-500">
+                            {language === 'ar' ? 'سكن / نقل / طعام / أخرى' : 'Housing / Transport / Food / Other'}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-red-600">-<Money value={p.gosi?.employeeShare} /></td>
+                      <td className="font-semibold text-primary-600"><Money value={p.netPay} /></td>
+                      <td>
+                        <span className={`badge ${p.status === 'paid' ? 'badge-success' : p.status === 'approved' ? 'badge-info' : 'badge-warning'}`}>
+                          {p.status === 'paid' && <CheckCircle className="w-3 h-3 me-1" />}
+                          {p.status === 'draft' && <Clock className="w-3 h-3 me-1" />}
+                          {p.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          {p.status === 'draft' ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-icon"
+                              title={language === 'ar' ? 'اعتماد' : 'Approve'}
+                              onClick={() => approveMutation.mutate(p._id)}
+                              disabled={approveMutation.isPending}
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                          ) : null}
+                          {p.status === 'approved' ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-icon"
+                              title={language === 'ar' ? 'تسجيل الدفع' : 'Mark Paid'}
+                              onClick={() => payMutation.mutate({ payrollId: p._id })}
+                              disabled={payMutation.isPending}
+                            >
+                              <Wallet className="w-4 h-4" />
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ResponsiveDataList>
         )}
       </motion.div>
     </div>

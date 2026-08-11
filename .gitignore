@@ -26,6 +26,9 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
+# Playwright auth state
+frontend/e2e/.auth/
+
 # WhatsApp session data
 .wwebjs_auth/
 backend/.wwebjs_auth/

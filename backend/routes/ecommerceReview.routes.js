@@ -1,25 +1,16 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import path from 'path';
-import fs from 'fs';
-import multer from 'multer';
 import sharp from 'sharp';
 import { protect } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import EcommerceProduct from '../models/EcommerceProduct.js';
 import EcommerceReview from '../models/EcommerceReview.js';
 import { resolveTenantByHost } from '../middleware/resolveTenantByHost.js';
+import { createImageUpload } from '../utils/uploadMime.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
-const REVIEW_IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (REVIEW_IMAGE_MIME.has(file.mimetype)) return cb(null, true);
-    return cb(new Error('Only JPEG, PNG, WebP, or GIF images are allowed'));
-  },
-});
+const upload = createImageUpload({ fileSize: 5 * 1024 * 1024 });
 
 const getTargetTenantId = async (user) => {
   if (user.tenantId) return user.tenantId;
@@ -57,18 +48,20 @@ router.post('/product/:productId/upload-image', resolveTenantByHost, upload.sing
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
     const tenantId = req.storeTenant._id;
     const tenantIdStr = tenantId.toString();
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'ecommerce', tenantIdStr, 'reviews');
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
     const filename = `review-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-    const filepath = path.join(uploadsDir, filename);
+    const key = `ecommerce/${tenantIdStr}/reviews/${filename}`;
 
-    await sharp(req.file.buffer)
+    const buffer = await sharp(req.file.buffer)
       .resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 80 })
-      .toFile(filepath);
+      .toBuffer();
 
-    const imageUrl = `/uploads/ecommerce/${tenantIdStr}/reviews/${filename}`;
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
     res.json({ imageUrl });
   } catch (error) {
     res.status(500).json({ error: 'Failed to upload image' });

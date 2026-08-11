@@ -8,6 +8,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import ExportMenu from '../../components/ui/ExportMenu'
 import EmployeeContactCards from '../../components/ui/EmployeeContactCards'
+import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 
 export default function Employees() {
   const { language } = useSelector((state) => state.ui)
@@ -206,63 +207,103 @@ export default function Employees() {
             <div className="inline-block w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t('employeeId')}</th>
-                  <th>{language === 'ar' ? 'الاسم' : 'Name'}</th>
-                  <th>{t('department')}</th>
-                  <th>{t('nationality')}</th>
-                  <th>{t('joinDate')}</th>
-                  <th>{t('status')}</th>
-                  <th>{t('actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data?.employees?.map((emp) => (
-                  <tr key={emp._id}>
-                    <td className="font-medium">{emp.employeeId}</td>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                          {emp.firstNameEn?.[0]}{emp.lastNameEn?.[0]}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {language === 'ar' ? `${emp.firstNameAr || emp.firstNameEn} ${emp.lastNameAr || emp.lastNameEn}` : `${emp.firstNameEn} ${emp.lastNameEn}`}
-                          </p>
-                          <p className="text-xs text-gray-500">{emp.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{emp.department || '-'}</td>
-                    <td>{emp.nationality}</td>
-                    <td>{new Date(emp.joinDate).toLocaleDateString()}</td>
-                    <td>
-                      <span className={`badge ${
-                        emp.status === 'active' ? 'badge-success' :
-                        emp.status === 'on_leave' ? 'badge-warning' :
-                        'badge-danger'
-                      }`}>
-                        {emp.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <Link to={`/employees/${emp._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
-                          <Eye className="w-4 h-4 text-gray-600" />
-                        </Link>
-                        <Link to={`/employees/${emp._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
-                          <Edit className="w-4 h-4 text-gray-600" />
-                        </Link>
-                      </div>
-                    </td>
+          <ResponsiveDataList
+            items={data?.employees || []}
+            empty={<p className="p-6 text-center text-sm text-gray-500">{language === 'ar' ? 'لا يوجد موظفون' : 'No employees'}</p>}
+            renderCard={(emp) => (
+              <div key={emp._id} className="rounded-xl border border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 shrink-0 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                      {emp.firstNameEn?.[0]}{emp.lastNameEn?.[0]}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900 dark:text-white truncate">
+                        {language === 'ar' ? `${emp.firstNameAr || emp.firstNameEn} ${emp.lastNameAr || emp.lastNameEn}` : `${emp.firstNameEn} ${emp.lastNameEn}`}
+                      </p>
+                      <p className="text-xs text-gray-500">{emp.employeeId} · {emp.department || '-'}</p>
+                    </div>
+                  </div>
+                  <span className={`badge shrink-0 ${
+                    emp.status === 'active' ? 'badge-success' :
+                    emp.status === 'on_leave' ? 'badge-warning' :
+                    'badge-danger'
+                  }`}>
+                    {emp.status}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                  <span>{emp.nationality || '-'}</span>
+                  <div className="flex gap-1">
+                    <Link to={`/employees/${emp._id}`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                      <Eye className="w-4 h-4 text-gray-600" />
+                    </Link>
+                    <Link to={`/employees/${emp._id}`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                      <Edit className="w-4 h-4 text-gray-600" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          >
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t('employeeId')}</th>
+                    <th>{language === 'ar' ? 'الاسم' : 'Name'}</th>
+                    <th>{t('department')}</th>
+                    <th>{t('nationality')}</th>
+                    <th>{t('joinDate')}</th>
+                    <th>{t('status')}</th>
+                    <th>{t('actions')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data?.employees?.map((emp) => (
+                    <tr key={emp._id}>
+                      <td className="font-medium">{emp.employeeId}</td>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                            {emp.firstNameEn?.[0]}{emp.lastNameEn?.[0]}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {language === 'ar' ? `${emp.firstNameAr || emp.firstNameEn} ${emp.lastNameAr || emp.lastNameEn}` : `${emp.firstNameEn} ${emp.lastNameEn}`}
+                            </p>
+                            <p className="text-xs text-gray-500">{emp.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{emp.department || '-'}</td>
+                      <td>{emp.nationality}</td>
+                      <td>{new Date(emp.joinDate).toLocaleDateString()}</td>
+                      <td>
+                        <span className={`badge ${
+                          emp.status === 'active' ? 'badge-success' :
+                          emp.status === 'on_leave' ? 'badge-warning' :
+                          'badge-danger'
+                        }`}>
+                          {emp.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <Link to={`/employees/${emp._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                            <Eye className="w-4 h-4 text-gray-600" />
+                          </Link>
+                          <Link to={`/employees/${emp._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                            <Edit className="w-4 h-4 text-gray-600" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ResponsiveDataList>
         )}
       </motion.div>
     </div>

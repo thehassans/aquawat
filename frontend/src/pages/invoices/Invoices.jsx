@@ -29,6 +29,7 @@ import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
 import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
+import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import toast from 'react-hot-toast'
 import { downloadInvoicePdf, buildInvoicePdfBlob } from '../../lib/invoicePdf'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
@@ -672,6 +673,40 @@ export default function Invoices() {
           </div>
         ) : (
           <>
+            <ResponsiveDataList
+              items={data?.invoices || []}
+              empty={<p className="p-6 text-center text-sm text-gray-500">{language === 'ar' ? 'لا توجد فواتير' : 'No invoices'}</p>}
+              renderCard={(invoice) => {
+                const party = invoice.flow === 'purchase'
+                  ? (language === 'ar' ? (invoice.seller?.nameAr || invoice.seller?.name || '-') : (invoice.seller?.name || invoice.seller?.nameAr || '-'))
+                  : (language === 'ar' ? (invoice.buyer?.nameAr || invoice.buyer?.name || '-') : (invoice.buyer?.name || invoice.buyer?.nameAr || '-'))
+                return (
+                  <div key={invoice._id} className="rounded-xl border border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <button type="button" onClick={() => navigate(`/app/dashboard/invoices/${invoice._id}`)} className="text-start min-w-0">
+                        <p className="font-semibold text-primary-700 dark:text-primary-400 truncate">{invoice.invoiceNumber}</p>
+                        <p className="text-sm text-gray-900 dark:text-white truncate">{party}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</p>
+                      </button>
+                      <div className="shrink-0">{getStatusBadge(invoice)}</div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-gray-900 dark:text-white"><Money value={invoice.grandTotal} /></span>
+                      <div className="flex items-center gap-1">
+                        <Link to={`/app/dashboard/invoices/${invoice._id}`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                          <Eye className="w-4 h-4 text-gray-600" />
+                        </Link>
+                        {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
+                          <Link to={`/app/dashboard/invoices/${invoice._id}/edit`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                            <Edit className="w-4 h-4 text-gray-600" />
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }}
+            >
             <div className="table-container">
               <table className="table">
                 <thead>
@@ -849,6 +884,7 @@ export default function Invoices() {
                 </tbody>
               </table>
             </div>
+            </ResponsiveDataList>
 
             {/* Pagination */}
             {data?.pagination && data.pagination.pages > 1 && (() => {

@@ -1,3 +1,5 @@
+import multer from 'multer';
+
 /** Allowed image MIME types for multer uploads (logo, QR hero, menu images, etc.). */
 export const ALLOWED_IMAGE_MIMES = new Set([
   'image/jpeg',
@@ -15,4 +17,29 @@ export const imageFileFilter = (_req, file, cb) => {
     return cb(null, true);
   }
   return cb(new Error('Only JPEG, PNG, WebP, or GIF images are allowed'), false);
+};
+
+const DEFAULT_IMAGE_LIMIT = 10 * 1024 * 1024;
+
+/**
+ * Ready-made multer instance for image uploads (memory + MIME allowlist).
+ * @param {{ fileSize?: number }} [opts]
+ */
+export function createImageUpload(opts = {}) {
+  return multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: opts.fileSize ?? DEFAULT_IMAGE_LIMIT },
+    fileFilter: imageFileFilter,
+  });
+}
+
+/** Default image upload middleware (10MB). */
+export const imageUpload = createImageUpload();
+
+export default {
+  ALLOWED_IMAGE_MIMES,
+  isAllowedImageMime,
+  imageFileFilter,
+  createImageUpload,
+  imageUpload,
 };
