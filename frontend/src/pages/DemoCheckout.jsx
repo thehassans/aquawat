@@ -92,16 +92,6 @@ export default function DemoCheckout() {
   const isDemo = tenant?.isDemo === true
   const isUpgraded = tenant?.demoUpgraded === true
   const hasNotice = hasTerminationNotice(tenant)
-  const plan = tenant?.subscription?.plan
-  const subStatus = tenant?.subscription?.status
-  const canCheckout = Boolean(tenant)
-    && (
-      (isDemo && !isUpgraded)
-      || plan === 'trial'
-      || subStatus === 'expired'
-      || hasNotice
-      || true // allow renew / change plan for all tenants
-    )
 
   useEffect(() => {
     setMounted(true)
