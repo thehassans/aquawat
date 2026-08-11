@@ -42,12 +42,60 @@ function Marquee({ children, duration = 40, reverse = false, className = '' }) {
 }
 
 const TESTIMONIALS = [
-  { name: 'Ahmed Al-Rashid', nameAr: 'أحمد الراشد', role: 'CFO, Tech Solutions', roleAr: 'المدير المالي', content: 'Month-end close is faster and cleaner. Finance, inventory, and reporting finally live in one place.', contentAr: 'إقفال الشهر أسرع وأنظف. المالية والمخزون والتقارير في مكان واحد.' },
-  { name: 'Sara Mohammed', nameAr: 'سارة محمد', role: 'HR Director', roleAr: 'مديرة الموارد البشرية', content: 'Payroll and leave that used to take hours now run in minutes. The team finally focuses on people.', contentAr: 'الرواتب والإجازات أصبحت تعمل في دقائق. الفريق يركز على الناس الآن.' },
-  { name: 'Khalid Hassan', nameAr: 'خالد حسن', role: 'Operations Manager', roleAr: 'مدير العمليات', content: 'Multi-warehouse tracking with real-time alerts changed how we operate at scale.', contentAr: 'تتبع المستودعات المتعددة غيّر طريقة عملنا.' },
-  { name: 'Layla Khan', nameAr: 'ليلى خان', role: 'Retail Owner', roleAr: 'مالكة تجزئة', content: 'POS, inventory, and e-invoicing in one login. Our cashiers love how fast it is.', contentAr: 'نقطة البيع والمخزون والفوترة في تسجيل دخول واحد. الكاشير يحب السرعة.' },
-  { name: 'Omar Farooq', nameAr: 'عمر فاروق', role: 'Finance Lead', roleAr: 'قائد المالية', content: 'Live P&L and cash-flow views replaced three spreadsheets we used every week.', contentAr: 'لوحة الأرباح والتدفق النقدي استبدلت ثلاثة جداول كنا نستخدمها أسبوعياً.' },
-  { name: 'Nadia Saleh', nameAr: 'نادية صالح', role: 'HR Manager', roleAr: 'مديرة موارد بشرية', content: 'WPS and leave approvals finally feel automatic. Zero end-of-month panic.', contentAr: 'WPS وموافقات الإجازات أصبحت تلقائية. لا ذعر في نهاية الشهر.' },
+  {
+    companyEn: 'Al Noor Trading Co.',
+    companyAr: 'شركة النور للتجارة',
+    industryEn: 'Wholesale & Distribution',
+    industryAr: 'الجملة والتوزيع',
+    content: 'Month-end close is faster and cleaner. Finance, inventory, and reporting finally live in one place.',
+    contentAr: 'إقفال الشهر أسرع وأنظف. المالية والمخزون والتقارير في مكان واحد.',
+    accent: '#8b5cf6',
+  },
+  {
+    companyEn: 'Riyadh Retail Group',
+    companyAr: 'مجموعة الرياض للتجزئة',
+    industryEn: 'Multi-branch Retail',
+    industryAr: 'تجزئة متعددة الفروع',
+    content: 'POS, inventory, and e-invoicing in one login. Checkout speed improved across every branch.',
+    contentAr: 'نقطة البيع والمخزون والفوترة في تسجيل دخول واحد. سرعة الدفع تحسنت في كل فرع.',
+    accent: '#14b8a6',
+  },
+  {
+    companyEn: 'Gulf Manpower Services',
+    companyAr: 'خدمات الخليج للقوى العاملة',
+    industryEn: 'HR & Workforce',
+    industryAr: 'الموارد البشرية والعمالة',
+    content: 'Payroll, WPS, and leave approvals finally feel automatic. Zero end-of-month panic.',
+    contentAr: 'الرواتب وWPS وموافقات الإجازات أصبحت تلقائية. لا ذعر في نهاية الشهر.',
+    accent: '#f59e0b',
+  },
+  {
+    companyEn: 'Desert Bloom F&B',
+    companyAr: 'ديزرت بلوم للمأكولات',
+    industryEn: 'Restaurant Chain',
+    industryAr: 'سلسلة مطاعم',
+    content: 'Kitchen, inventory, and tax-ready receipts run together — our managers finally see the full picture.',
+    contentAr: 'المطبخ والمخزون والإيصالات الضريبية تعمل معاً — المديرون يرون الصورة كاملة.',
+    accent: '#ef4444',
+  },
+  {
+    companyEn: 'Horizon Logistics',
+    companyAr: 'هورايزون للخدمات اللوجستية',
+    industryEn: 'Warehousing & Shipping',
+    industryAr: 'المستودعات والشحن',
+    content: 'Multi-warehouse tracking with live alerts changed how we operate at scale.',
+    contentAr: 'تتبع المستودعات المتعددة مع التنبيهات الحية غيّر طريقة عملنا.',
+    accent: '#3b82f6',
+  },
+  {
+    companyEn: 'BrightPath Consulting',
+    companyAr: 'برايت باث للاستشارات',
+    industryEn: 'Professional Services',
+    industryAr: 'الخدمات المهنية',
+    content: 'Live P&L and cash-flow views replaced three spreadsheets we used every week.',
+    contentAr: 'لوحة الأرباح والتدفق النقدي استبدلت ثلاثة جداول كنا نستخدمها أسبوعياً.',
+    accent: '#a855f7',
+  },
 ]
 
 const REVENUE_BARS = [42, 55, 48, 68, 72, 64, 88, 80, 95, 90, 78, 100]
@@ -332,7 +380,7 @@ export default function MarketingHome() {
           </div>
         </div>
 
-        <Marquee duration={38} className="mb-5 [mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
+        <Marquee duration={90} className="mb-5 [mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
           {PREMIUM_APP_CATALOG.map((app) => (
             <div key={`a-${app.id}`} className="flex w-[108px] shrink-0 flex-col items-center gap-2">
               <PremiumAppIcon name={app.id} size={72} />
@@ -340,7 +388,7 @@ export default function MarketingHome() {
             </div>
           ))}
         </Marquee>
-        <Marquee duration={44} reverse className="[mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
+        <Marquee duration={110} reverse className="[mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
           {[...PREMIUM_APP_CATALOG].reverse().map((app) => (
             <div key={`b-${app.id}`} className="flex w-[108px] shrink-0 flex-col items-center gap-2">
               <PremiumAppIcon name={app.id} size={64} />
@@ -352,34 +400,41 @@ export default function MarketingHome() {
 
       {/* ── TESTIMONIALS MARQUEE ── */}
       <section className="overflow-hidden bg-slate-950 py-28 text-white">
-        <div className="mx-auto mb-12 max-w-7xl px-4 text-center sm:px-6 lg:px-8">
+        <div className="mx-auto mb-14 max-w-7xl px-4 text-center sm:px-6 lg:px-8">
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-violet-400">
+            {isArabic ? 'قصص نجاح' : 'Customer stories'}
+          </p>
           <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-            {isArabic ? 'ماذا يقول عملاؤنا' : 'Trusted by growing businesses'}
+            {isArabic ? 'موثوق من أعمال نامية' : 'Trusted by growing businesses'}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-white/45">
-            {isArabic ? 'آراء حقيقية من شركات تعمل مع Maqder يومياً.' : 'Real feedback from companies that run on Maqder every day.'}
+            {isArabic ? 'شركات حقيقية تعتمد على Maqder يومياً لإدارة عملياتها.' : 'Real companies running their operations on Maqder every day.'}
           </p>
         </div>
 
-        <Marquee duration={48} className="[mask-image:linear-gradient(90deg,transparent,black_6%,black_94%,transparent)]">
+        <Marquee duration={70} className="[mask-image:linear-gradient(90deg,transparent,black_6%,black_94%,transparent)]">
           {TESTIMONIALS.map((t) => (
             <div
-              key={t.name}
-              className="w-[340px] shrink-0 rounded-3xl border border-white/[0.08] bg-white/[0.04] p-7 backdrop-blur-sm"
+              key={t.companyEn}
+              className="relative w-[380px] shrink-0 overflow-hidden rounded-[1.75rem] border border-white/[0.09] bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-8 backdrop-blur-sm"
             >
-              <div className="mb-4 flex gap-0.5">
+              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl opacity-40" style={{ background: t.accent }} />
+              <div className="relative mb-5 flex items-center gap-0.5">
                 {[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400" />)}
               </div>
-              <p className="min-h-[88px] text-sm leading-relaxed text-white/70">
+              <p className="relative min-h-[96px] text-[15px] leading-relaxed text-white/75">
                 "{isArabic ? t.contentAr : t.content}"
               </p>
-              <div className="mt-6 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-bold">
-                  {(isArabic ? t.nameAr : t.name).charAt(0)}
+              <div className="relative mt-7 flex items-center gap-3 border-t border-white/10 pt-5">
+                <div
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white shadow-lg"
+                  style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent}99)` }}
+                >
+                  {(isArabic ? t.companyAr : t.companyEn).charAt(0)}
                 </div>
-                <div>
-                  <p className="text-sm font-bold">{isArabic ? t.nameAr : t.name}</p>
-                  <p className="text-xs text-white/40">{isArabic ? t.roleAr : t.role}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-base font-black text-white">{isArabic ? t.companyAr : t.companyEn}</p>
+                  <p className="text-xs font-semibold text-white/40">{isArabic ? t.industryAr : t.industryEn}</p>
                 </div>
               </div>
             </div>
