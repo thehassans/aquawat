@@ -1,24 +1,32 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Link, useNavigate } from 'react-router-dom'
-import { useDispatch, useSelector } from 'react-redux'
+import { useState, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
+import { useSelector } from 'react-redux'
+import { motion, useInView } from 'framer-motion'
+import { usePublicWebsiteSettings } from '../../lib/website'
+import TrialSignup from '../../components/marketing/TrialSignup'
 import {
   ArrowRight,
   BarChart3,
-  Building2,
+  Bell,
+  BookOpen,
+  Box,
+  Briefcase,
   Calculator,
   CheckCircle2,
+  ChevronRight,
   ClipboardList,
+  CreditCard,
   FileText,
-  Globe,
-  Landmark,
+  Headphones,
+  Layers,
+  LineChart,
   MessageCircle,
   Package,
-  Phone,
   PieChart,
-  PlayCircle,
   Receipt,
+  Settings2,
   ShieldCheck,
+  ShoppingCart,
   Sparkles,
   Star,
   Truck,
@@ -26,425 +34,551 @@ import {
   Warehouse,
   Zap,
 } from 'lucide-react'
-import { usePublicWebsiteSettings } from '../../lib/website'
-import TrialSignup from '../../components/marketing/TrialSignup'
 
-const fade = {
-  initial: { opacity: 0, y: 18 },
-  animate: { opacity: 1, y: 0 },
+/* ─── animated counter ──────────────────────────────────────────────── */
+function Counter({ to, suffix = '', duration = 1800 }) {
+  const [val, setVal] = useState(0)
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true })
+  useEffect(() => {
+    if (!inView) return
+    let start = 0
+    const step = to / (duration / 16)
+    const id = setInterval(() => {
+      start += step
+      if (start >= to) { setVal(to); clearInterval(id) }
+      else setVal(Math.floor(start))
+    }, 16)
+    return () => clearInterval(id)
+  }, [inView, to, duration])
+  return <span ref={ref}>{val.toLocaleString()}{suffix}</span>
 }
 
+/* ─── stagger helpers ───────────────────────────────────────────────── */
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  show: (i = 0) => ({ opacity: 1, y: 0, transition: { duration: 0.55, delay: i * 0.07, ease: [0.25, 0.46, 0.45, 0.94] } }),
+}
+
+/* ─── app modules grid data ─────────────────────────────────────────── */
+const APPS = [
+  { icon: FileText,     color: '#7c3aed', labelEn: 'Invoicing',     labelAr: 'الفوترة' },
+  { icon: Users,        color: '#0891b2', labelEn: 'HR',             labelAr: 'الموارد البشرية' },
+  { icon: Calculator,   color: '#059669', labelEn: 'Payroll',        labelAr: 'الرواتب' },
+  { icon: Package,      color: '#dc2626', labelEn: 'Inventory',      labelAr: 'المخزون' },
+  { icon: Warehouse,    color: '#d97706', labelEn: 'Warehouses',     labelAr: 'المستودعات' },
+  { icon: Truck,        color: '#2563eb', labelEn: 'Purchases',      labelAr: 'المشتريات' },
+  { icon: Receipt,      color: '#7c3aed', labelEn: 'Expenses',       labelAr: 'المصروفات' },
+  { icon: ClipboardList,color: '#0891b2', labelEn: 'Projects',       labelAr: 'المشاريع' },
+  { icon: BarChart3,    color: '#059669', labelEn: 'Reports',        labelAr: 'التقارير' },
+  { icon: MessageCircle,color: '#dc2626', labelEn: 'WhatsApp',       labelAr: 'واتساب' },
+  { icon: ShoppingCart, color: '#d97706', labelEn: 'eCommerce',      labelAr: 'التجارة الإلكترونية' },
+  { icon: ShieldCheck,  color: '#2563eb', labelEn: 'Compliance',     labelAr: 'الامتثال' },
+  { icon: CreditCard,   color: '#7c3aed', labelEn: 'Payments',       labelAr: 'المدفوعات' },
+  { icon: LineChart,    color: '#0891b2', labelEn: 'Analytics',      labelAr: 'التحليلات' },
+  { icon: BookOpen,     color: '#059669', labelEn: 'Accounting',     labelAr: 'المحاسبة' },
+  { icon: Headphones,   color: '#dc2626', labelEn: 'Support',        labelAr: 'الدعم' },
+  { icon: Settings2,    color: '#d97706', labelEn: 'Settings',       labelAr: 'الإعدادات' },
+  { icon: Layers,       color: '#2563eb', labelEn: 'Integrations',   labelAr: 'التكاملات' },
+]
+
+/* ─── feature highlights ────────────────────────────────────────────── */
+const FEATURES = [
+  {
+    icon: ShieldCheck,
+    accent: '#059669',
+    titleEn: 'Automatic Compliance',
+    titleAr: 'امتثال تلقائي',
+    descEn: 'Country-specific tax rules, e-invoicing standards, and government portals handled seamlessly.',
+    descAr: 'قواعد الضرائب حسب الدولة والفوترة الإلكترونية والبوابات الحكومية تُعالَج بسلاسة.',
+  },
+  {
+    icon: Zap,
+    accent: '#7c3aed',
+    titleEn: 'Instant Deployment',
+    titleAr: 'نشر فوري',
+    descEn: 'Your cloud workspace is ready in under a minute. No installation, no complexity.',
+    descAr: 'مساحة عملك السحابية جاهزة في أقل من دقيقة. بدون تثبيت أو تعقيد.',
+  },
+  {
+    icon: LineChart,
+    accent: '#0891b2',
+    titleEn: 'Real-time Insights',
+    titleAr: 'رؤى فورية',
+    descEn: 'Revenue, cash flow, inventory, and HR dashboards update live as your business moves.',
+    descAr: 'لوحات الإيرادات والتدفق النقدي والمخزون تتحدث لحظة بلحظة.',
+  },
+  {
+    icon: Users,
+    accent: '#d97706',
+    titleEn: 'Built for Teams',
+    titleAr: 'مبني للفرق',
+    descEn: 'Role-based access, multi-user collaboration, and audit trails out of the box.',
+    descAr: 'صلاحيات حسب الدور وتعاون متعدد المستخدمين وسجلات مراجعة جاهزة.',
+  },
+]
+
+const STATS = [
+  { to: 500, suffix: '+', labelEn: 'Companies', labelAr: 'شركة' },
+  { to: 50000, suffix: '+', labelEn: 'Daily invoices', labelAr: 'فاتورة يومياً' },
+  { to: 99, suffix: '.9%', labelEn: 'Uptime', labelAr: 'وقت التشغيل' },
+  { to: 24, suffix: '/7', labelEn: 'Support', labelAr: 'دعم متواصل' },
+]
+
+const TESTIMONIALS = [
+  { name: 'Ahmed Al-Rashid', nameAr: 'أحمد الراشد', role: 'CFO, Tech Solutions', roleAr: 'المدير المالي', content: 'Month-end close is faster and cleaner. Finance, inventory, and reporting finally live in one place.', contentAr: 'إقفال الشهر أسرع وأنظف. المالية والمخزون والتقارير في مكان واحد.' },
+  { name: 'Sara Mohammed', nameAr: 'سارة محمد', role: 'HR Director', roleAr: 'مديرة الموارد البشرية', content: 'Payroll and leave that used to take hours now run in minutes. The team finally focuses on people.', contentAr: 'الرواتب والإجازات أصبحت تعمل في دقائق. الفريق يركز على الناس الآن.' },
+  { name: 'Khalid Hassan', nameAr: 'خالد حسن', role: 'Operations Manager', roleAr: 'مدير العمليات', content: 'Multi-warehouse tracking with real-time alerts changed how we operate at scale.', contentAr: 'تتبع المستودعات المتعددة غيّر طريقة عملنا.' },
+]
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PAGE COMPONENT
+═══════════════════════════════════════════════════════════════════════ */
 export default function MarketingHome() {
-  const dispatch = useDispatch()
-  const navigate = useNavigate()
-  const { language } = useSelector((state) => state.ui)
+  const { language } = useSelector((s) => s.ui)
   const { data } = usePublicWebsiteSettings()
-
   const isArabic = language === 'ar'
-
+  const dir = isArabic ? 'rtl' : 'ltr'
   const phone = data?.contactPhone || '+966596775485'
 
-  const rawSubtitle = isArabic ? data?.hero?.subtitleAr : data?.hero?.subtitleEn
-  const looksSaudiCentric = /zatca|saudi|vision\s*2030|gosi/i.test(String(rawSubtitle || ''))
-  const heroSubtitle = looksSaudiCentric
-    ? null
-    : rawSubtitle
-  const defaultSubtitle = isArabic
-    ? 'الفوترة، الموارد البشرية، المخزون والتقارير — في منصة واحدة سريعة ومرنة حسب دولتك.'
-    : 'Invoicing, HR, payroll, inventory and reporting in one fast platform — tuned to your country and currency.'
-
-  const modules = [
-    { icon: FileText, titleEn: 'E-Invoicing & Tax', titleAr: 'الفوترة الإلكترونية والضرائب', descEn: 'B2B/B2C invoices, tax compliance per country, and real-time submission where required.', descAr: 'فواتير B2B/B2C، الامتثال الضريبي حسب الدولة، والإرسال الفوري عند الحاجة.' },
-    { icon: Users, titleEn: 'HR Management', titleAr: 'الموارد البشرية', descEn: 'Employees, leave, documents and automated reminders.', descAr: 'الموظفون، الإجازات، المستندات والتنبيهات التلقائية.' },
-    { icon: Calculator, titleEn: 'Payroll & WPS', titleAr: 'الرواتب وملفات WPS', descEn: 'Payroll calculations, EOSB tools and WPS generation workflows.', descAr: 'حساب الرواتب، نهاية الخدمة، وتوليد ملفات WPS.' },
-    { icon: Package, titleEn: 'Products & Catalog', titleAr: 'المنتجات', descEn: 'SKU, barcode, pricing, categories and product performance.', descAr: 'SKU والباركود والتسعير والتصنيفات وأداء المنتجات.' },
-    { icon: Warehouse, titleEn: 'Warehouses & Stock', titleAr: 'المستودعات والمخزون', descEn: 'Multi-warehouse quantities, reserved stock and low stock alerts.', descAr: 'مخزون متعدد المستودعات، كميات محجوزة وتنبيهات نفاد.' },
-    { icon: Truck, titleEn: 'Purchases & Shipments', titleAr: 'المشتريات والشحنات', descEn: 'Purchase orders, suppliers, receiving and shipment management.', descAr: 'طلبات شراء، موردين، استلام وإدارة الشحنات.' },
-    { icon: Receipt, titleEn: 'Expenses & Finance', titleAr: 'المصروفات والمالية', descEn: 'Expense tracking, approvals, categories and analytics.', descAr: 'تتبع المصروفات، موافقات، تصنيفات وتحليلات.' },
-    { icon: ClipboardList, titleEn: 'Projects & Tasks', titleAr: 'المشاريع والمهام', descEn: 'Project planning, task workflow and operational visibility.', descAr: 'تخطيط المشاريع، سير عمل المهام ووضوح العمليات.' },
-    { icon: MessageCircle, titleEn: 'WhatsApp & Automation', titleAr: 'واتساب والأتمتة', descEn: 'Customer communications, notifications and follow-ups.', descAr: 'تواصل مع العملاء، إشعارات ومتابعة سلسة.' },
-    { icon: BarChart3, titleEn: 'Reports & Dashboards', titleAr: 'التقارير ولوحات التحكم', descEn: 'Real-time KPIs for revenue, expenses, HR and inventory.', descAr: 'مؤشرات مباشرة للإيرادات والمصروفات والموارد والمخزون.' },
-  ]
-
-  const testimonials = [
-    { name: 'Ahmed Al-Rashid', nameAr: 'أحمد الراشد', role: 'CFO, Tech Solutions', roleAr: 'المدير المالي', content: 'Month-end close is faster and cleaner. Finance, inventory, and reporting finally live in one place — Maqder handles the busywork.', contentAr: 'إقفال الشهر أصبح أسرع وأنظف. المالية والمخزون والتقارير في مكان واحد — Maqder يتولى الأعمال الروتينية.' },
-    { name: 'Sara Mohammed', nameAr: 'سارة محمد', role: 'HR Director, Retail Group', roleAr: 'مديرة الموارد البشرية', content: 'Payroll and leave that used to take hours now run in minutes. Our HR team finally has time for people, not spreadsheets.', contentAr: 'الرواتب والإجازات التي كانت تستغرق ساعات تعمل الآن في دقائق. فريق الموارد البشرية يركز على الناس لا على الجداول.' },
-    { name: 'Khalid Hassan', nameAr: 'خالد حسن', role: 'Operations Manager', roleAr: 'مدير العمليات', content: 'Multi-warehouse inventory with real-time tracking changed how we operate. Finally a system that grows with us.', contentAr: 'تتبع المخزون متعدد المستودعات غيّر طريقة عملنا. أخيراً نظام ينمو معنا.' },
-  ]
-
   return (
-    <main className="bg-white text-slate-900 overflow-hidden">
+    <main dir={dir} className="bg-white text-slate-900 antialiased overflow-x-hidden font-sans">
 
-      {/* ── HERO ── */}
-      <section className="relative bg-[#030c06] text-white overflow-hidden">
-        {/* Grid texture */}
+      {/* ══════════════════════════════════════════════════════
+          HERO
+      ══════════════════════════════════════════════════════ */}
+      <section className="relative overflow-hidden bg-white">
+        {/* Very subtle warm grid */}
         <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-[0.18]"
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.035]"
           style={{
-            backgroundImage:
-              'linear-gradient(to right, rgba(16,185,129,0.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(16,185,129,0.07) 1px, transparent 1px)',
-            backgroundSize: '56px 56px',
-            maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
+            backgroundImage: 'linear-gradient(#000 1px,transparent 1px),linear-gradient(90deg,#000 1px,transparent 1px)',
+            backgroundSize: '48px 48px',
           }}
         />
-        <div className="pointer-events-none absolute -top-32 -left-32 h-[700px] w-[700px] rounded-full bg-emerald-500/[0.09] blur-[130px]" />
-        <div className="pointer-events-none absolute top-40 right-0 h-[500px] w-[500px] rounded-full bg-emerald-700/[0.08] blur-[110px]" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-28 pt-16 sm:px-6 lg:px-8 lg:pb-36 lg:pt-24">
-          <div className="grid items-center gap-14 lg:grid-cols-12">
+        {/* Accent glows */}
+        <div className="pointer-events-none absolute -top-40 -right-40 h-[600px] w-[600px] rounded-full bg-violet-500/10 blur-[120px]" />
+        <div className="pointer-events-none absolute top-60 -left-20 h-[400px] w-[400px] rounded-full bg-emerald-400/10 blur-[90px]" />
 
-            {/* Copy */}
-            <motion.div initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75 }} className="lg:col-span-5">
-              <div className="inline-flex items-center gap-2.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 backdrop-blur-sm">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                </span>
-                {isArabic ? 'منصة ERP متعددة الدول' : 'Built for growing businesses'}
-              </div>
+        <div className="relative mx-auto max-w-7xl px-4 pt-20 pb-8 sm:px-6 lg:px-8 lg:pt-28 lg:pb-12">
 
-              <h1 className="mt-7 text-5xl font-black leading-[1.0] tracking-tight sm:text-6xl lg:text-[3.75rem] xl:text-6xl">
-                <span className="block bg-gradient-to-b from-white to-white/75 bg-clip-text text-transparent">
-                  {isArabic ? 'منصة ERP' : 'The modern ERP'}
-                </span>
-                <span className="block bg-gradient-to-r from-emerald-300 via-emerald-200 to-teal-300 bg-clip-text text-transparent">
-                  {isArabic ? 'للأعمال النامية' : 'businesses trust'}
-                </span>
-              </h1>
+          {/* ── BADGE ── */}
+          <motion.div
+            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+            className="mb-6 flex justify-center"
+          >
+            <span className="inline-flex items-center gap-2 rounded-full border border-violet-200/70 bg-violet-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-700">
+              <span className="flex h-1.5 w-1.5 rounded-full bg-violet-500" />
+              {isArabic ? 'نظام ERP سحابي متكامل' : 'All-in-one cloud ERP platform'}
+            </span>
+          </motion.div>
 
-              <p className="mt-6 max-w-md text-lg leading-relaxed text-white/55">
-                {heroSubtitle || defaultSubtitle}
-              </p>
+          {/* ── HEADLINE ── */}
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.08 }}
+            className="mx-auto max-w-5xl text-center text-[2.6rem] font-extrabold leading-[1.08] tracking-[-0.03em] text-slate-950 sm:text-5xl lg:text-7xl"
+            style={{ fontVariantLigatures: 'common-ligatures' }}
+          >
+            {isArabic ? (
+              <>كل أعمالك على<br /><span className="relative inline-block">
+                <span className="relative z-10 text-violet-600">منصة واحدة.</span>
+                <span className="absolute inset-x-0 bottom-1 h-[0.22em] rounded-full bg-violet-200/60 z-0" />
+              </span><br />بسيطة، فعّالة، بأسعار مناسبة.</>
+            ) : (
+              <>All your business on<br />
+                <span className="relative inline-block">
+                  <span className="relative z-10 text-violet-600">one platform.</span>
+                  <span className="absolute inset-x-0 bottom-1 h-[0.22em] rounded-full bg-violet-200/60 z-0" />
+                </span><br />
+                <em className="font-extrabold not-italic text-slate-700">Simple, efficient, yet affordable!</em>
+              </>
+            )}
+          </motion.h1>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  to="/login"
-                  className="group inline-flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-[#0f3d2e] to-[#1a5d44] px-7 py-4 font-semibold text-white shadow-[0_0_0_1px_rgba(15,61,46,0.15),0_8px_32px_-8px_rgba(15,61,46,0.45)] transition-all hover:-translate-y-0.5 hover:shadow-[0_0_0_1px_rgba(15,61,46,0.3),0_12px_40px_-8px_rgba(15,61,46,0.6)]"
-                >
-                  {isArabic ? 'ابدأ الآن' : 'Get started'}
-                  <ArrowRight className={`h-5 w-5 transition-transform group-hover:translate-x-0.5 ${isArabic ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`} />
-                </Link>
-                <a
-                  href="#trial"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    document.getElementById('trial').scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="inline-flex items-center justify-center gap-2.5 rounded-2xl border border-white/12 bg-white/[0.06] px-7 py-4 font-semibold text-white backdrop-blur-sm transition-all hover:border-white/20 hover:bg-white/10"
-                >
-                  <PlayCircle className="h-5 w-5 text-emerald-300" />
-                  {isArabic ? 'تجربة مجانية' : 'Free trial'}
-                </a>
-                <a
-                  href="https://maqder.com/downloads/MaqderDesktop-Setup-1.0.0.exe"
-                  download="MaqderDesktop-Setup-1.0.0.exe"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-7 py-4 font-semibold text-white backdrop-blur-sm transition-all hover:border-emerald-500/50 hover:bg-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-                >
-                  <svg className="h-5 w-5 text-emerald-300" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.801"/>
-                  </svg>
-                  {isArabic ? 'تنزيل لويندوز' : 'Download App'}
-                </a>
-              </div>
-
-              {/* Rating / social proof */}
-              <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex -space-x-2.5">
-                    {['A', 'S', 'K', 'M'].map((c, i) => (
-                      <div key={i} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#030c06] bg-gradient-to-br from-[#1a5d44] to-[#0f3d2e] text-[11px] font-bold text-white">
-                        {c}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="text-sm">
-                    <div className="flex items-center gap-1">
-                      {[...Array(5)].map((_, j) => <Star key={j} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />)}
-                    </div>
-                    <p className="text-white/45">{isArabic ? '500+ شركة تثق بنا' : 'Trusted by 500+ companies'}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-7 flex flex-wrap gap-2">
-                {[
-                  { icon: Sparkles, label: isArabic ? 'واجهة أنيقة' : 'Clean UI' },
-                  { icon: Globe, label: isArabic ? 'عربي / English' : 'Arabic / English' },
-                  { icon: Landmark, label: isArabic ? 'متعدد العملات' : 'Multi-currency' },
-                ].map((item, i) => (
-                  <div key={i} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white/60">
-                    <item.icon className="h-3.5 w-3.5 text-emerald-400" />
-                    {item.label}
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Dashboard mockup */}
-            <motion.div initial={{ opacity: 0, y: 36 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.15 }} className="lg:col-span-7">
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-0 scale-110 rounded-3xl bg-emerald-500/[0.08] blur-3xl" />
-                <div className="relative overflow-hidden rounded-[2rem] border border-white/[0.08] bg-white/[0.04] p-1 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_100px_-20px_rgba(0,0,0,0.9)] backdrop-blur-sm">
-                  <div className="rounded-[1.75rem] border border-white/[0.05] bg-[#071209] p-5">
-
-                    <div className="mb-5 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-400">{isArabic ? 'لوحة التحكم' : 'Dashboard'}</span>
-                      </div>
-                      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/12 px-3 py-1.5 text-xs font-bold text-emerald-300">{isArabic ? 'مباشر' : 'Live'}</div>
-                    </div>
-
-                    <div className="mb-4 grid grid-cols-2 gap-3">
-                      {[
-                        { label: isArabic ? 'الفواتير اليوم' : 'Invoices today', value: '284', trend: '+18%', up: true },
-                        { label: isArabic ? 'الإيراد الشهري' : 'Monthly revenue', value: '$1.2M', trend: '+24%', up: true },
-                        { label: isArabic ? 'الموظفون النشطون' : 'Active employees', value: '142', trend: '+3', up: true },
-                        { label: isArabic ? 'أصناف المخزون' : 'Stock items', value: '4,280', trend: 'Low: 12', up: false },
-                      ].map((metric, i) => (
-                        <div key={i} className="rounded-2xl border border-white/[0.05] bg-white/[0.03] p-4">
-                          <p className="text-xs text-white/40">{metric.label}</p>
-                          <p className="mt-2 text-xl font-black text-white">{metric.value}</p>
-                          <p className={`mt-1 text-xs font-semibold ${metric.up ? 'text-emerald-400' : 'text-amber-400'}`}>{metric.trend}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.08] px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <ShieldCheck className="h-5 w-5 text-emerald-400" />
-                        <div>
-                          <p className="text-xs font-semibold text-emerald-300">{isArabic ? 'الامتثال الضريبي مفعّل' : 'Tax compliance active'}</p>
-                          <p className="text-[11px] text-white/35">{isArabic ? 'آخر مزامنة: للتو' : 'Last sync: just now'}</p>
-                        </div>
-                      </div>
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15">
-                        <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="absolute -top-5 -right-5 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-xl">
-                  <p className="text-[11px] text-white/50">{isArabic ? 'الامتثال' : 'Compliance'}</p>
-                  <p className="mt-0.5 text-sm font-bold text-white">{isArabic ? '✓ ضرائب حسب الدولة' : '✓ Regional tax ready'}</p>
-                </motion.div>
-
-                <motion.div animate={{ y: [0, 10, 0] }} transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
-                  className="absolute -bottom-5 -left-5 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-xl">
-                  <p className="text-[11px] text-white/50">{isArabic ? 'الدعم' : 'Support'}</p>
-                  <p className="mt-0.5 text-sm font-bold text-white">24 / 7 Available</p>
-                </motion.div>
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Live demo — premium panel under hero copy */}
-          <div id="trial" className="relative mx-auto mt-16 max-w-3xl scroll-mt-24">
-            <div className="mb-6 text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300/80">
-                {isArabic ? 'تجربة مباشرة' : 'Live demo'}
-              </p>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
-                {isArabic ? 'أنشئ حسابك في أقل من دقيقة' : 'Spin up your workspace in under a minute'}
-              </h2>
-              <p className="mx-auto mt-2 max-w-xl text-sm text-white/45">
-                {isArabic
-                  ? 'اختر الدولة والعملة واسم الشركة — ثم ادخل لوحة التحكم مباشرة.'
-                  : 'Choose country, currency, and company name — then land in your tenant dashboard.'}
-              </p>
+          {/* ── Price hint ── */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.25, duration: 0.5 }}
+            className={`mt-5 flex justify-center ${isArabic ? '' : ''}`}
+          >
+            <div className="relative flex items-center gap-2">
+              <svg viewBox="0 0 48 36" className="h-7 w-7 text-slate-500 -mr-1 mt-1" fill="none">
+                <path d="M4 28 C14 10, 34 10, 44 28" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+                <path d="M40 32 L44 28 L46 34" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+              </svg>
+              <span className="font-handwriting text-base font-bold text-slate-600 italic">
+                {isArabic ? 'من 29.99 دولار / شهرياً لجميع التطبيقات' : 'US$ 29.99 / month for ALL apps'}
+              </span>
             </div>
-            <TrialSignup variant="premium" />
-          </div>
+          </motion.div>
+
+          {/* ── CTAs ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.55 }}
+            className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
+          >
+            <a
+              href="#trial"
+              onClick={(e) => { e.preventDefault(); document.getElementById('trial')?.scrollIntoView({ behavior: 'smooth' }) }}
+              className="group inline-flex items-center gap-2.5 rounded-full bg-violet-600 px-8 py-4 text-base font-bold text-white shadow-[0_8px_32px_-8px_rgba(124,58,237,0.55)] transition-all hover:-translate-y-0.5 hover:bg-violet-700 hover:shadow-[0_12px_40px_-8px_rgba(124,58,237,0.65)]"
+            >
+              {isArabic ? 'ابدأ الآن — مجاناً' : 'Start now — It\'s free'}
+              <ArrowRight className={`h-5 w-5 transition-transform group-hover:translate-x-0.5 ${isArabic ? 'rotate-180 group-hover:-translate-x-0.5 group-hover:translate-x-0' : ''}`} />
+            </a>
+            <Link
+              to="/pricing"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-8 py-4 text-base font-bold text-slate-700 shadow-sm transition-all hover:border-slate-400 hover:bg-slate-50"
+            >
+              {isArabic ? 'تعرف على المزيد' : 'Meet an advisor'}
+            </Link>
+          </motion.div>
+
+          {/* ── Rating ── */}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+            className="mt-6 flex items-center justify-center gap-3 text-sm text-slate-500"
+          >
+            <div className="flex items-center gap-0.5">
+              {[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400" />)}
+            </div>
+            <span>{isArabic ? '٤.٩/٥ · أكثر من ٥٠٠ شركة' : '4.9 / 5 · 500+ companies'}</span>
+          </motion.div>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-white to-transparent" />
-      </section>
-
-      {/* ── TRUST STRIP ── */}
-      <section className="border-b border-slate-100 bg-white py-10">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <p className="mb-7 text-center text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
-            {isArabic ? 'لماذا تثق الشركات بـ Maqder' : 'Why businesses trust Maqder'}
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-            {[
-              { icon: ShieldCheck, label: isArabic ? 'أمان مؤسسي' : 'Enterprise security' },
-              { icon: Globe, label: isArabic ? 'متعدد العملات' : 'Multi-currency' },
-              { icon: Building2, label: isArabic ? 'ERP سحابي' : 'Cloud ERP' },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="flex h-20 min-w-[150px] items-center justify-center gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/50 px-6 transition-all duration-300 hover:border-emerald-200 hover:bg-white hover:shadow-md"
-              >
-                <item.icon className="h-5 w-5 text-emerald-600" />
-                <span className="text-sm font-semibold text-slate-700">{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── STATS ── */}
-      <section className="bg-white py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-6">
-            {[
-              { value: '500+', label: isArabic ? 'شركة تثق بنا' : 'Companies trust us' },
-              { value: '50K+', label: isArabic ? 'فاتورة يومياً' : 'Invoices processed daily' },
-              { value: '99.9%', label: isArabic ? 'وقت تشغيل المنصة' : 'Platform uptime' },
-              { value: '24/7', label: isArabic ? 'دعم فني متواصل' : 'Customer support' },
-            ].map((stat, i) => (
+        {/* ── APP GRID ── */}
+        <div className="relative mx-auto max-w-6xl px-4 pb-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 32 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45, duration: 0.7 }}
+            className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-9"
+          >
+            {APPS.map((app, i) => (
               <motion.div
                 key={i}
-                variants={fade}
-                initial="initial"
-                whileInView="animate"
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.08 }}
-                className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/60 p-6 text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-300/60 hover:shadow-xl hover:shadow-emerald-100/50 sm:p-8"
+                custom={i}
+                variants={fadeUp}
+                initial="hidden"
+                animate="show"
+                whileHover={{ y: -4, scale: 1.06 }}
+                transition={{ type: 'spring', stiffness: 300 }}
+                className="flex flex-col items-center gap-2 cursor-default select-none"
               >
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                <p className="bg-gradient-to-b from-slate-900 to-slate-700 bg-clip-text text-4xl font-black tracking-tight text-transparent sm:text-5xl">{stat.value}</p>
-                <p className="mt-2 text-sm font-medium text-slate-500">{stat.label}</p>
+                <div
+                  className="flex h-14 w-14 items-center justify-center rounded-2xl shadow-[0_4px_18px_-4px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.04]"
+                  style={{ background: `${app.color}18` }}
+                >
+                  <app.icon className="h-7 w-7" style={{ color: app.color }} />
+                </div>
+                <span className="text-center text-[11px] font-semibold leading-tight text-slate-600">
+                  {isArabic ? app.labelAr : app.labelEn}
+                </span>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
+
+          {/* "View all apps" */}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+            className="mt-6 flex items-center justify-between border-t border-slate-100 pt-5"
+          >
+            <p className="text-sm text-slate-500 italic">
+              {isArabic ? 'تخيّل عملك بدون Maqder' : 'Imagine without Maqder'}
+            </p>
+            <a
+              href="#modules"
+              onClick={(e) => { e.preventDefault(); document.getElementById('modules')?.scrollIntoView({ behavior: 'smooth' }) }}
+              className="inline-flex items-center gap-1.5 text-sm font-bold text-violet-600 hover:text-violet-700"
+            >
+              {isArabic ? 'عرض كل التطبيقات' : 'View all Apps'}
+              <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />
+            </a>
+          </motion.div>
         </div>
+
+        {/* gradient fade into next section */}
+        <div className="pointer-events-none h-20 bg-gradient-to-b from-white to-slate-50" />
       </section>
 
-      <div className="border-t border-slate-100" />
-
-      {/* ── MODULES GRID ── */}
-      <section className="bg-slate-50/70 py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      {/* ══════════════════════════════════════════════════════
+          OPTIMIZED FOR PRODUCTIVITY — DARK IMMERSIVE
+      ══════════════════════════════════════════════════════ */}
+      <section className="relative overflow-hidden bg-slate-950 py-28 text-white">
+        <div className="pointer-events-none absolute inset-0 opacity-20"
+          style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #7c3aed22 0%, transparent 60%), radial-gradient(circle at 75% 20%, #05966920 0%, transparent 50%)' }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.4) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.4) 1px,transparent 1px)', backgroundSize: '64px 64px' }}
+        />
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-16 text-center">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
-              <Building2 className="h-4 w-4" />
-              {isArabic ? 'وحدات ERP متكاملة' : 'Integrated ERP modules'}
-            </div>
-            <h2 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-              {isArabic ? 'كل أدوات عملك في مكان واحد' : 'Every tool your business needs'}
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-violet-400">
+              {isArabic ? 'مُحسَّن للإنتاجية' : 'Optimized for productivity'}
+            </p>
+            <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+              {isArabic ? 'واجهة احترافية، نتائج حقيقية' : 'Professional interface,\nreal results.'}
             </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-500">
+            <p className="mx-auto mt-5 max-w-2xl text-lg text-white/50">
               {isArabic
-                ? 'من الفوترة إلى الرواتب والمخزون — بنية واحدة مصممة للأعمال الحديثة.'
-                : 'From invoicing to payroll and inventory — one seamless architecture built for modern businesses.'}
+                ? 'من أول فاتورة إلى تقرير الأرباح السنوي — النظام يعمل أثناء نموك.'
+                : 'From your first invoice to your annual P&L — the system works while your business grows.'}
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-5">
-            {modules.map((m, idx) => (
-              <motion.div key={idx} variants={fade} initial="initial" whileInView="animate" viewport={{ once: true }} transition={{ duration: 0.4, delay: (idx % 4) * 0.07 }}
-                className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-emerald-300/60 hover:shadow-xl hover:shadow-emerald-100/60">
-                <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-emerald-400/0 blur-2xl transition-all duration-500 group-hover:bg-emerald-400/20" />
-                <div className="relative mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 ring-1 ring-slate-200/80 transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-emerald-500 group-hover:to-emerald-600 group-hover:text-white group-hover:ring-emerald-500/20 group-hover:shadow-lg group-hover:shadow-emerald-500/25">
-                  <m.icon className="h-5 w-5" />
-                </div>
-                <p className="relative font-bold text-slate-950">{isArabic ? m.titleAr : m.titleEn}</p>
-                <p className="relative mt-2 text-sm leading-relaxed text-slate-500">{isArabic ? m.descAr : m.descEn}</p>
-                <div className={`relative mt-4 flex items-center gap-1 text-sm font-semibold text-emerald-600 opacity-0 transition-all duration-300 group-hover:opacity-100 ${isArabic ? 'group-hover:-translate-x-1' : 'group-hover:translate-x-1'}`}>
-                  {isArabic ? 'اعرف المزيد' : 'Learn more'}
-                  <ArrowRight className={`h-3.5 w-3.5 ${isArabic ? 'rotate-180' : ''}`} />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── DARK FEATURES ── */}
-      <section className="bg-slate-950 py-24 text-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid items-center gap-16 lg:grid-cols-2">
-            <div>
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
-                <Zap className="h-4 w-4" />
-                {isArabic ? 'مبني للنمو' : 'Built for growth'}
-              </div>
-              <h2 className="text-4xl font-black leading-tight sm:text-5xl">
-                {isArabic
-                  ? 'امتثال تلقائي.\nنمو واضح.'
-                  : <>{isArabic ? 'امتثال تلقائي.' : 'Automatic compliance.'}<br /><span className="text-emerald-400">{isArabic ? 'نمو واضح.' : 'Clear growth.'}</span></>}
-              </h2>
-              <p className="mt-5 max-w-lg text-lg leading-relaxed text-white/55">
-                {isArabic
-                  ? 'من أول فاتورة إلى التقارير الضريبية الربع سنوية — النظام يعمل بينما أنت تتطور.'
-                  : 'From your first invoice to quarterly tax returns — the system works while your business grows.'}
-              </p>
-              <div className="mt-9 space-y-4">
+          {/* Dashboard mockup cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* big card — KPI */}
+            <motion.div
+              variants={fadeUp} custom={0} initial="hidden" whileInView="show" viewport={{ once: true }}
+              className="col-span-1 rounded-3xl border border-white/[0.07] bg-white/[0.03] p-6 md:col-span-2 lg:col-span-2"
+            >
+              <p className="mb-5 text-xs font-bold uppercase tracking-widest text-white/40">{isArabic ? 'لوحة التحكم' : 'Live Dashboard'}</p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
-                  isArabic ? 'امتثال ضريبي حسب الدولة في القلب' : 'Country-aware tax compliance at the core',
-                  isArabic ? 'حسابات الرواتب ونهاية الخدمة التلقائية' : 'Automatic payroll & end-of-service calculations',
-                  isArabic ? 'دعم كامل للعربية والإنجليزية' : 'Full bilingual Arabic / English support',
-                  isArabic ? 'قابل للتوسع من شركة ناشئة إلى مؤسسة' : 'Scales from startup to enterprise',
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/25">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                    </div>
-                    <span className="font-medium text-white/80">{item}</span>
+                  { label: isArabic ? 'الإيراد اليوم' : 'Revenue today', value: '$284K', trend: '+18%', up: true },
+                  { label: isArabic ? 'الفواتير' : 'Invoices', value: '1,240', trend: '+24%', up: true },
+                  { label: isArabic ? 'الموظفون' : 'Employees', value: '142', trend: '+3', up: true },
+                  { label: isArabic ? 'نفاد المخزون' : 'Low stock', value: '12', trend: '⚠ check', up: false },
+                ].map((m, i) => (
+                  <div key={i} className="rounded-2xl border border-white/[0.06] bg-white/[0.04] p-4">
+                    <p className="text-[11px] text-white/35">{m.label}</p>
+                    <p className="mt-2 text-2xl font-black text-white">{m.value}</p>
+                    <p className={`mt-1 text-xs font-bold ${m.up ? 'text-emerald-400' : 'text-amber-400'}`}>{m.trend}</p>
                   </div>
                 ))}
               </div>
-            </div>
+              {/* mini bar chart */}
+              <div className="mt-5 flex items-end gap-1.5 h-16">
+                {[40, 65, 52, 80, 70, 90, 75, 88, 60, 95, 72, 100].map((h, i) => (
+                  <div key={i} className="flex-1 rounded-t-sm bg-violet-500/30 transition-all hover:bg-violet-500/60" style={{ height: `${h}%` }} />
+                ))}
+              </div>
+            </motion.div>
 
-            <div className="space-y-4">
-              {[
-                { icon: FileText, title: isArabic ? 'الفوترة الإلكترونية' : 'E-Invoicing', desc: isArabic ? 'توليد QR وتوقيع XML وإرسال فوري حسب متطلبات الدولة' : 'QR generation, XML signing and instant tax authority submission', borderColor: 'border-emerald-500/20', bgColor: 'bg-gradient-to-br from-emerald-500/10 to-teal-500/10' },
-                { icon: Users, title: isArabic ? 'الموارد البشرية' : 'HR & Payroll', desc: isArabic ? 'الموظفون والرواتب وملفات الرواتب والتأمينات' : 'Employees, payroll, salary files and social insurance coverage', borderColor: 'border-blue-500/20', bgColor: 'bg-gradient-to-br from-blue-500/10 to-indigo-500/10' },
-                { icon: Package, title: isArabic ? 'المخزون' : 'Inventory', desc: isArabic ? 'مستودعات متعددة وتنبيهات نفاد المخزون' : 'Multi-warehouse management with low stock alerts', borderColor: 'border-violet-500/20', bgColor: 'bg-gradient-to-br from-violet-500/10 to-purple-500/10' },
-              ].map((item, i) => (
-                <motion.div key={i} variants={fade} initial="initial" whileInView="animate" viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.12 }}
-                  className={`rounded-2xl border ${item.borderColor} ${item.bgColor} p-5`}>
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/[0.05]">
-                      <item.icon className="h-5 w-5 text-white/75" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-white">{item.title}</p>
-                      <p className="mt-1.5 text-sm text-white/45">{item.desc}</p>
-                    </div>
+            {/* compliance card */}
+            <motion.div
+              variants={fadeUp} custom={1} initial="hidden" whileInView="show" viewport={{ once: true }}
+              className="rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/5 p-6"
+            >
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/20">
+                <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              </div>
+              <h3 className="text-lg font-bold">{isArabic ? 'الامتثال الضريبي' : 'Tax Compliance'}</h3>
+              <p className="mt-2 text-sm text-white/45">
+                {isArabic ? 'متوافق مع المتطلبات الحكومية في كل دولة — بدون إعداد يدوي.' : 'Government-ready for every supported country — zero manual setup.'}
+              </p>
+              <div className="mt-5 space-y-2">
+                {['ZATCA Phase 2', 'NBR Bangladesh', 'VAT Compliance'].map((t) => (
+                  <div key={t} className="flex items-center gap-2.5">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                    <span className="text-sm font-medium text-white/70">{t}</span>
                   </div>
-                </motion.div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* AI chat card */}
+            <motion.div
+              variants={fadeUp} custom={2} initial="hidden" whileInView="show" viewport={{ once: true }}
+              className="rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-purple-500/5 p-6"
+            >
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/20">
+                <Sparkles className="h-5 w-5 text-violet-400" />
+              </div>
+              <h3 className="text-lg font-bold">{isArabic ? 'ذكاء اصطناعي مدمج' : 'Built-in AI'}</h3>
+              <div className="mt-4 space-y-2.5">
+                <div className="rounded-xl bg-white/[0.06] px-3.5 py-2.5 text-sm text-white/70">
+                  {isArabic ? 'ما هو أكثر منتج مبيعاً هذا الشهر؟' : "What's my best-selling product this month?"}
+                </div>
+                <div className="rounded-xl bg-violet-500/15 px-3.5 py-2.5 text-sm text-violet-200">
+                  {isArabic ? 'المنتج: "ملف الألومنيوم A4" — 410 وحدة مُباعة، إجمالي $2,829.' : '"Aluminium File A4" — 410 units sold, total $2,829.'}
+                </div>
+              </div>
+            </motion.div>
+
+            {/* HR card */}
+            <motion.div
+              variants={fadeUp} custom={3} initial="hidden" whileInView="show" viewport={{ once: true }}
+              className="rounded-3xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-indigo-500/5 p-6"
+            >
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/20">
+                <Users className="h-5 w-5 text-blue-400" />
+              </div>
+              <h3 className="text-lg font-bold">{isArabic ? 'الموارد البشرية' : 'HR & Payroll'}</h3>
+              <p className="mt-2 text-sm text-white/45">
+                {isArabic ? 'الرواتب وملفات WPS والإجازات والوثائق في مكان واحد.' : 'Payroll, WPS files, leave, and documents all in one place.'}
+              </p>
+              <div className="mt-5 flex -space-x-2">
+                {['A','S','K','R','M','H'].map((c,i) => (
+                  <div key={i} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-950 bg-gradient-to-br from-blue-500 to-indigo-600 text-[11px] font-bold text-white">
+                    {c}
+                  </div>
+                ))}
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-950 bg-white/10 text-[10px] font-bold text-white/60">+136</div>
+              </div>
+            </motion.div>
+
+            {/* notifications / activity */}
+            <motion.div
+              variants={fadeUp} custom={4} initial="hidden" whileInView="show" viewport={{ once: true }}
+              className="rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-orange-500/5 p-6"
+            >
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/20">
+                <Bell className="h-5 w-5 text-amber-400" />
+              </div>
+              <h3 className="text-lg font-bold">{isArabic ? 'تنبيهات ذكية' : 'Smart Alerts'}</h3>
+              <div className="mt-4 space-y-2">
+                {[
+                  { t: isArabic ? 'مخزون منخفض: قاطع A4' : 'Low stock: Cutter A4', c: 'text-amber-300' },
+                  { t: isArabic ? 'فاتورة جديدة: عميل XYZ' : 'New invoice: Client XYZ', c: 'text-emerald-300' },
+                  { t: isArabic ? 'موافقة إجازة معلقة' : 'Leave approval pending', c: 'text-blue-300' },
+                ].map((n, i) => (
+                  <div key={i} className="flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2 text-sm">
+                    <div className={`h-2 w-2 shrink-0 rounded-full ${n.c === 'text-amber-300' ? 'bg-amber-400' : n.c === 'text-emerald-300' ? 'bg-emerald-400' : 'bg-blue-400'}`} />
+                    <span className={`font-medium ${n.c}`}>{n.t}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* ── TESTIMONIALS ── */}
-      <section className="bg-white py-24">
+      {/* ══════════════════════════════════════════════════════
+          STATS
+      ══════════════════════════════════════════════════════ */}
+      <section className="bg-white py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-14 text-center">
-            <h2 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-              {isArabic ? 'ماذا يقول عملاؤنا' : 'Trusted by growing businesses'}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {STATS.map((s, i) => (
+              <motion.div
+                key={i} custom={i} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}
+                className="group rounded-3xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/50 p-6 text-center shadow-sm hover:-translate-y-1 hover:border-violet-300 hover:shadow-xl hover:shadow-violet-100/50 transition-all duration-300"
+              >
+                <p className="text-5xl font-black tracking-tight text-slate-950">
+                  <Counter to={s.to} suffix={s.suffix} />
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-500">{isArabic ? s.labelAr : s.labelEn}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          MODULES GRID (id=modules)
+      ══════════════════════════════════════════════════════ */}
+      <section id="modules" className="scroll-mt-20 bg-slate-50/80 py-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-16 text-center">
+            <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-700">
+              <Layers className="h-3.5 w-3.5" />
+              {isArabic ? 'وحدات ERP متكاملة' : 'Integrated ERP modules'}
+            </span>
+            <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">
+              {isArabic ? 'كل أدوات عملك في مكان واحد' : 'Every tool your business needs'}
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
-              {isArabic ? 'آراء حقيقية من شركات تعمل مع Maqder يومياً.' : 'Real feedback from companies using Maqder every day.'}
+              {isArabic
+                ? 'من الفوترة إلى الرواتب والمخزون — بنية واحدة مصممة للأعمال الحديثة.'
+                : 'From invoicing to payroll and inventory — one seamless architecture.'}
             </p>
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {testimonials.map((t, i) => (
-              <motion.div key={i} variants={fade} initial="initial" whileInView="animate" viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-4 flex gap-1">
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {APPS.map((app, idx) => (
+              <motion.div
+                key={idx}
+                custom={idx % 4}
+                variants={fadeUp}
+                initial="hidden"
+                whileInView="show"
+                viewport={{ once: true, margin: '-40px' }}
+                className="group relative flex items-start gap-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-violet-300/60 hover:shadow-xl hover:shadow-violet-100/60"
+              >
+                <div
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ring-black/[0.04] transition-all duration-300 group-hover:scale-110"
+                  style={{ background: `${app.color}18` }}
+                >
+                  <app.icon className="h-5 w-5" style={{ color: app.color }} />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-900">{isArabic ? app.labelAr : app.labelEn}</p>
+                  <div className={`mt-1.5 flex items-center gap-1 text-xs font-semibold text-violet-600 opacity-0 transition-all duration-200 group-hover:opacity-100 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>
+                    {isArabic ? 'استكشف' : 'Explore'}
+                    <ChevronRight className={`h-3 w-3 ${isArabic ? 'rotate-180' : ''}`} />
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          FEATURE HIGHLIGHTS
+      ══════════════════════════════════════════════════════ */}
+      <section className="bg-white py-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-16 text-center">
+            <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">
+              {isArabic ? 'لماذا تختار Maqder؟' : 'Why choose Maqder?'}
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
+              {isArabic ? 'مبني من الأساس للشركات الحديثة.' : 'Built from the ground up for modern businesses.'}
+            </p>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURES.map((f, i) => (
+              <motion.div
+                key={i} custom={i} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}
+                className="group rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl"
+                style={{ '--accent': f.accent }}
+              >
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: `${f.accent}18` }}>
+                  <f.icon className="h-6 w-6" style={{ color: f.accent }} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">{isArabic ? f.titleAr : f.titleEn}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">{isArabic ? f.descAr : f.descEn}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          TESTIMONIALS
+      ══════════════════════════════════════════════════════ */}
+      <section className="bg-slate-950 py-28 text-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-14 text-center">
+            <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
+              {isArabic ? 'ماذا يقول عملاؤنا' : 'Trusted by growing businesses'}
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-lg text-white/45">
+              {isArabic ? 'آراء حقيقية من شركات تعمل مع Maqder يومياً.' : 'Real feedback from companies that run on Maqder every day.'}
+            </p>
+          </div>
+          <div className="grid gap-5 md:grid-cols-3">
+            {TESTIMONIALS.map((t, i) => (
+              <motion.div
+                key={i} custom={i} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}
+                className="flex flex-col rounded-3xl border border-white/[0.07] bg-white/[0.03] p-7 backdrop-blur-sm"
+              >
+                <div className="mb-5 flex gap-0.5">
                   {[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400" />)}
                 </div>
-                <p className="flex-1 text-slate-700 leading-relaxed">{isArabic ? t.contentAr : t.content}</p>
-                <div className="mt-6 flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-sm font-bold text-white">
+                <p className="flex-1 text-base leading-relaxed text-white/65">
+                  "{isArabic ? t.contentAr : t.content}"
+                </p>
+                <div className="mt-7 flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-bold text-white">
                     {(isArabic ? t.nameAr : t.name).charAt(0)}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-slate-900">{isArabic ? t.nameAr : t.name}</p>
-                    <p className="text-xs text-slate-500">{isArabic ? t.roleAr : t.role}</p>
+                    <p className="text-sm font-bold text-white">{isArabic ? t.nameAr : t.name}</p>
+                    <p className="text-xs text-white/40">{isArabic ? t.roleAr : t.role}</p>
                   </div>
                 </div>
               </motion.div>
@@ -453,47 +587,69 @@ export default function MarketingHome() {
         </div>
       </section>
 
-      {/* ── CTA ── */}
-      <section className="pb-24 pt-4">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-[2rem] bg-[#030c06] p-10 text-white shadow-[0_40px_100px_-30px_rgba(0,0,0,0.7)] lg:p-16">
-            <div className="pointer-events-none absolute -top-24 left-1/3 h-96 w-96 rounded-full bg-emerald-500/10 blur-[100px]" />
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/35 to-transparent" />
+      {/* ══════════════════════════════════════════════════════
+          LIVE TRIAL SIGNUP
+      ══════════════════════════════════════════════════════ */}
+      <section id="trial" className="scroll-mt-20 bg-white py-28">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-10 text-center">
+            <span className="mb-4 inline-block text-xs font-bold uppercase tracking-[0.28em] text-violet-500">
+              {isArabic ? 'تجربة مجانية' : 'Live trial'}
+            </span>
+            <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">
+              {isArabic ? 'جرّب Maqder في أقل من دقيقة' : 'Spin up Maqder in under a minute'}
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
+              {isArabic
+                ? 'اختر الدولة واسم الشركة والعملة — ثم ادخل لوحة التحكم مباشرةً.'
+                : 'Choose country, company name, and currency — then land in your live dashboard.'}
+            </p>
+          </div>
+          <TrialSignup variant="premium" />
+        </div>
+      </section>
 
-            <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+      {/* ══════════════════════════════════════════════════════
+          CTA BANNER
+      ══════════════════════════════════════════════════════ */}
+      <section className="pb-24 pt-0">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-800 p-10 text-white shadow-[0_40px_100px_-30px_rgba(124,58,237,0.4)] lg:p-16">
+            <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-16 -left-16 h-60 w-60 rounded-full bg-white/10 blur-2xl" />
+            <div className="relative flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl">
-                <p className="text-xs font-semibold uppercase tracking-[0.32em] text-emerald-400">
+                <p className="text-xs font-bold uppercase tracking-[0.32em] text-white/60">
                   {isArabic ? 'جاهز للانطلاق' : 'Ready to launch'}
                 </p>
-                <h2 className="mt-3 text-4xl font-black leading-tight lg:text-5xl">
-                  {isArabic ? 'ابدأ رحلتك مع Maqder اليوم' : <>Start your ERP<br /><span className="text-emerald-400">journey today</span></>}
+                <h2 className="mt-3 text-4xl font-extrabold leading-tight lg:text-5xl">
+                  {isArabic ? (
+                    'ابدأ رحلتك مع Maqder اليوم'
+                  ) : (
+                    <>Start your ERP<br /><span className="text-white/80">journey today.</span></>
+                  )}
                 </h2>
-                <p className="mt-4 text-lg text-white/55">
+                <p className="mt-4 text-lg text-white/60">
                   {isArabic
-                    ? 'سجّل الدخول أو جرّب النظام مباشرةً وشاهد كيف تبدو إدارة الأعمال الحديثة.'
-                    : 'Log in or open the live demo and see what modern business management feels like.'}
+                    ? 'سجّل الدخول أو جرّب النظام مباشرةً.'
+                    : 'Log in or start a free trial and see modern business management.'}
                 </p>
               </div>
-
               <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
-                <Link
-                  to="/login"
-                  className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#0f3d2e] to-[#1a5d44] px-8 py-4 font-semibold text-white shadow-[0_0_40px_-8px_rgba(15,61,46,0.35)] transition-all hover:shadow-[0_0_50px_-8px_rgba(15,61,46,0.55)]"
-                >
-                  {isArabic ? 'ابدأ الآن' : 'Get started'}
-                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
-                </Link>
                 <a
                   href="#trial"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    document.getElementById('trial').scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/[0.05] px-8 py-4 font-semibold text-white transition-all hover:bg-white/10"
+                  onClick={(e) => { e.preventDefault(); document.getElementById('trial')?.scrollIntoView({ behavior: 'smooth' }) }}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-8 py-4 text-base font-bold text-violet-700 shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl"
                 >
-                  <PlayCircle className="h-5 w-5 text-emerald-300" />
-                  {isArabic ? 'تجربة مجانية' : 'Free trial'}
+                  {isArabic ? 'ابدأ الآن مجاناً' : 'Start for free'}
+                  <ArrowRight className={`h-5 w-5 ${isArabic ? 'rotate-180' : ''}`} />
                 </a>
+                <Link
+                  to="/pricing"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-8 py-4 text-base font-bold text-white backdrop-blur-sm transition-all hover:bg-white/20"
+                >
+                  {isArabic ? 'الأسعار' : 'View pricing'}
+                </Link>
               </div>
             </div>
           </div>
