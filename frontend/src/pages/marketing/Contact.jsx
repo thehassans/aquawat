@@ -25,7 +25,7 @@ const fadeUp = {
 }
 
 const inputCls =
-  'w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 transition-all focus:border-violet-500 focus:bg-white focus:ring-2 focus:ring-violet-500/10'
+  'w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 transition-all focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10'
 const labelCls = 'mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500'
 
 export default function MarketingContact() {
@@ -89,7 +89,7 @@ export default function MarketingContact() {
       {/* ── HERO ── */}
       <section className="relative overflow-hidden bg-slate-950 pb-0 pt-24 text-white">
         <div className="pointer-events-none absolute inset-0 opacity-20"
-          style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #7c3aed22 0%, transparent 60%), radial-gradient(circle at 75% 20%, #05966920 0%, transparent 50%)' }}
+          style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #05966922 0%, transparent 60%), radial-gradient(circle at 75% 20%, #05966920 0%, transparent 50%)' }}
         />
         <div
           aria-hidden
@@ -98,7 +98,7 @@ export default function MarketingContact() {
         />
         <div className="relative mx-auto max-w-4xl px-4 pb-16 text-center sm:px-6 lg:px-8">
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-300">
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-300">
               <Sparkles className="h-3.5 w-3.5" />
               {isArabic ? 'نحن هنا لمساعدتك' : "We're here to help"}
             </span>
@@ -109,9 +109,9 @@ export default function MarketingContact() {
             className="mt-5 text-5xl font-black tracking-[-0.03em] sm:text-6xl lg:text-[4.5rem]"
           >
             {isArabic ? (
-              <><span className="text-violet-400">تواصل</span>{' معنا'}</>
+              <><span className="text-emerald-400">تواصل</span>{' معنا'}</>
             ) : (
-              <>Let's <span className="text-violet-400">talk</span></>
+              <>Let's <span className="text-emerald-400">talk</span></>
             )}
           </motion.h1>
 
@@ -141,9 +141,9 @@ export default function MarketingContact() {
                 variants={fadeUp}
                 initial="hidden"
                 animate="show"
-                className="group relative flex flex-col gap-4 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-violet-300/60 hover:shadow-xl hover:shadow-violet-100/60"
+                className="group relative flex flex-col gap-4 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-emerald-300/60 hover:shadow-xl hover:shadow-emerald-100/60"
               >
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-violet-400/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                 <div
                   className="flex h-12 w-12 items-center justify-center rounded-2xl transition-transform duration-300 group-hover:scale-110"
                   style={{ background: ch.bgColor }}
@@ -179,8 +179,8 @@ export default function MarketingContact() {
                 {/* Header bar */}
                 <div className="border-b border-slate-100 px-8 py-6">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50">
-                      <Send className="h-4 w-4 text-violet-600" />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
+                      <Send className="h-4 w-4 text-emerald-600" />
                     </div>
                     <div>
                       <h2 className="text-lg font-black text-slate-950">
@@ -229,7 +229,7 @@ export default function MarketingContact() {
                     className={`w-full rounded-2xl py-4 text-sm font-black transition-all duration-300 hover:-translate-y-0.5 ${
                       sent
                         ? 'bg-emerald-600 text-white shadow-[0_4px_16px_-4px_rgba(5,150,105,0.5)]'
-                        : 'bg-violet-600 text-white shadow-[0_4px_16px_-4px_rgba(124,58,237,0.5)] hover:bg-violet-700 hover:shadow-[0_6px_24px_-4px_rgba(124,58,237,0.55)]'
+                        : 'bg-emerald-600 text-white shadow-[0_4px_16px_-4px_rgba(5,150,105,0.5)] hover:bg-emerald-700 hover:shadow-[0_6px_24px_-4px_rgba(5,150,105,0.55)]'
                     } flex items-center justify-center gap-2.5`}
                   >
                     {sent ? (
@@ -264,8 +264,8 @@ export default function MarketingContact() {
 
               {/* Hours */}
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
-                  <Clock className="h-5 w-5 text-violet-600" />
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50">
+                  <Clock className="h-5 w-5 text-emerald-600" />
                 </div>
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{isArabic ? 'ساعات العمل' : 'Business hours'}</p>
                 <div className="mt-3 space-y-2.5">
@@ -283,7 +283,7 @@ export default function MarketingContact() {
               </div>
 
               {/* Why Maqder dark card */}
-              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-indigo-800 p-6 text-white shadow-lg">
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 to-emerald-900 p-6 text-white shadow-lg">
                 <div className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
                 <div className="relative">
                   <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
@@ -308,7 +308,7 @@ export default function MarketingContact() {
       {/* ── BOTTOM CTA ── */}
       <section className="bg-white py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-800 p-10 text-white shadow-[0_40px_100px_-30px_rgba(124,58,237,0.4)] lg:p-16">
+          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 p-10 text-white shadow-[0_40px_100px_-30px_rgba(5,150,105,0.4)] lg:p-16">
             <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
             <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
@@ -322,7 +322,7 @@ export default function MarketingContact() {
               <div className="flex shrink-0 gap-3">
                 <a
                   href="/#trial"
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-black text-violet-700 shadow-lg transition-all hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-black text-emerald-700 shadow-lg transition-all hover:-translate-y-0.5"
                 >
                   {isArabic ? 'ابدأ مجاناً' : 'Start for free'}
                   <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />

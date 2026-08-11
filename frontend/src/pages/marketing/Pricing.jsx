@@ -38,7 +38,7 @@ const fallbackPlans = [
     priceYearlySar: 999.99,
     popular: false,
     icon: Zap,
-    color: '#7c3aed',
+    color: '#059669',
     featuresEn: ['Up to 5 users', '100 invoices / month', 'Inventory & Warehouses', 'Purchase Orders', 'Basic Reports', 'Email Support'],
     featuresAr: ['حتى 5 مستخدمين', '100 فاتورة / شهر', 'المخزون والمستودعات', 'أوامر الشراء', 'تقارير أساسية', 'دعم بالبريد'],
   },
@@ -54,7 +54,7 @@ const fallbackPlans = [
     priceYearlySar: 1999.99,
     popular: true,
     icon: Sparkles,
-    color: '#7c3aed',
+    color: '#059669',
     featuresEn: ['Up to 25 users', 'Unlimited Invoices', 'HR & Payroll', 'Expenses & Finance', 'Projects & Tasks', 'WhatsApp Integration', 'Advanced Reports', 'Priority Support'],
     featuresAr: ['حتى 25 مستخدم', 'فواتير غير محدودة', 'الموارد البشرية والرواتب', 'المصروفات والمالية', 'المشاريع والمهام', 'تكامل واتساب', 'تقارير متقدمة', 'دعم ذو أولوية'],
   },
@@ -119,7 +119,7 @@ function FAQItem({ q, a, isArabic }) {
       >
         <span className="text-base font-semibold text-slate-900">{q}</span>
         {open
-          ? <ChevronUp className="h-5 w-5 shrink-0 text-violet-600" />
+          ? <ChevronUp className="h-5 w-5 shrink-0 text-emerald-600" />
           : <ChevronDown className="h-5 w-5 shrink-0 text-slate-400" />}
       </button>
       <AnimatePresence initial={false}>
@@ -161,11 +161,11 @@ export default function MarketingPricing() {
 
       {/* ── HERO ── */}
       <section className="relative overflow-hidden bg-white pt-20 pb-10">
-        <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[600px] w-[900px] rounded-full bg-violet-500/8 blur-[140px]" />
+        <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[600px] w-[900px] rounded-full bg-emerald-500/8 blur-[140px]" />
         <div className="relative mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-violet-200/70 bg-violet-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-700">
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               {isArabic ? 'خطط مرنة للشركات النامية' : 'Transparent, flexible pricing'}
             </span>
           </motion.div>
@@ -175,9 +175,9 @@ export default function MarketingPricing() {
             className="mt-5 text-5xl font-black tracking-[-0.03em] text-slate-950 sm:text-6xl lg:text-7xl"
           >
             {isArabic ? (
-              <>خطط تنمو<br /><span className="text-violet-600">معك</span></>
+              <>خطط تنمو<br /><span className="text-emerald-600">معك</span></>
             ) : (
-              <>Plans that<br /><span className="text-violet-600">grow with you</span></>
+              <>Plans that<br /><span className="text-emerald-600">grow with you</span></>
             )}
           </motion.h1>
 
@@ -237,13 +237,13 @@ export default function MarketingPricing() {
                   animate="show"
                   className={`relative flex flex-col rounded-3xl border p-8 transition-all duration-300 hover:-translate-y-1 ${
                     plan.popular
-                      ? 'border-violet-300 bg-gradient-to-b from-violet-50/80 to-white shadow-[0_8px_48px_-12px_rgba(124,58,237,0.25)] ring-1 ring-violet-200'
+                      ? 'border-emerald-300 bg-gradient-to-b from-emerald-50/80 to-white shadow-[0_8px_48px_-12px_rgba(5,150,105,0.25)] ring-1 ring-emerald-200'
                       : 'border-slate-200 bg-white shadow-sm hover:shadow-xl hover:shadow-slate-200/60'
                   }`}
                 >
                   {plan.popular && (
                     <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-600 px-4 py-1.5 text-xs font-black text-white shadow-lg shadow-violet-600/30">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-black text-white shadow-lg shadow-emerald-600/30">
                         <Star className="h-3 w-3 fill-white" />
                         {isArabic ? 'الأكثر شيوعاً' : 'Most Popular'}
                       </span>
@@ -252,7 +252,7 @@ export default function MarketingPricing() {
 
                   {/* Icon + name */}
                   <div className="mb-6 flex items-center gap-3">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${plan.popular ? 'bg-violet-600' : 'bg-slate-100'}`}>
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${plan.popular ? 'bg-emerald-600' : 'bg-slate-100'}`}>
                       <Icon className={`h-5 w-5 ${plan.popular ? 'text-white' : 'text-slate-600'}`} />
                     </div>
                     <div>
@@ -291,8 +291,8 @@ export default function MarketingPricing() {
                   <ul className="mb-8 flex-1 space-y-3">
                     {features.map((f, i) => (
                       <li key={i} className="flex items-start gap-3 text-sm text-slate-600">
-                        <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${plan.popular ? 'bg-violet-100' : 'bg-slate-100'}`}>
-                          <Check className={`h-3 w-3 ${plan.popular ? 'text-violet-600' : 'text-slate-500'}`} />
+                        <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${plan.popular ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+                          <Check className={`h-3 w-3 ${plan.popular ? 'text-emerald-600' : 'text-slate-500'}`} />
                         </div>
                         <span className="leading-relaxed">{f}</span>
                       </li>
@@ -305,8 +305,8 @@ export default function MarketingPricing() {
                     onClick={isFree ? undefined : (e) => { e.preventDefault(); document.getElementById('trial')?.scrollIntoView({ behavior: 'smooth' }) }}
                     className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-bold transition-all hover:-translate-y-0.5 ${
                       plan.popular
-                        ? 'bg-violet-600 text-white shadow-[0_4px_16px_-4px_rgba(124,58,237,0.5)] hover:bg-violet-700 hover:shadow-[0_6px_24px_-4px_rgba(124,58,237,0.55)]'
-                        : 'border border-slate-200 bg-white text-slate-900 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700'
+                        ? 'bg-emerald-600 text-white shadow-[0_4px_16px_-4px_rgba(5,150,105,0.5)] hover:bg-emerald-700 hover:shadow-[0_6px_24px_-4px_rgba(5,150,105,0.55)]'
+                        : 'border border-slate-200 bg-white text-slate-900 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700'
                     }`}
                   >
                     {isFree ? (isArabic ? 'تواصل معنا' : 'Contact sales') : (isArabic ? 'ابدأ الآن' : 'Get started')}
@@ -368,7 +368,7 @@ export default function MarketingPricing() {
                     {[row.s, row.p, row.e].map((v, j) => (
                       <td key={j} className="p-5 text-center">
                         {v
-                          ? <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-500/20"><Check className="h-4 w-4 text-violet-400" /></span>
+                          ? <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/20"><Check className="h-4 w-4 text-emerald-400" /></span>
                           : <span className="inline-block h-1 w-4 rounded-full bg-white/15" />
                         }
                       </td>
@@ -404,7 +404,7 @@ export default function MarketingPricing() {
       {/* ── CTA BANNER ── */}
       <section className="pb-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-800 p-10 text-white shadow-[0_40px_100px_-30px_rgba(124,58,237,0.4)] lg:p-16">
+          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 p-10 text-white shadow-[0_40px_100px_-30px_rgba(5,150,105,0.4)] lg:p-16">
             <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
             <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
@@ -419,7 +419,7 @@ export default function MarketingPricing() {
                 <Link
                   to="/"
                   onClick={(e) => { e.preventDefault(); window.location.replace('/#trial') }}
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-black text-violet-700 shadow-lg transition-all hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-black text-emerald-700 shadow-lg transition-all hover:-translate-y-0.5"
                 >
                   {isArabic ? 'ابدأ مجاناً' : 'Start for free'}
                   <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />

@@ -49,7 +49,7 @@ const TESTIMONIALS = [
     industryAr: 'الجملة والتوزيع',
     content: 'Month-end close is faster and cleaner. Finance, inventory, and reporting finally live in one place.',
     contentAr: 'إقفال الشهر أسرع وأنظف. المالية والمخزون والتقارير في مكان واحد.',
-    accent: '#8b5cf6',
+    accent: '#10b981',
   },
   {
     companyEn: 'Riyadh Retail Group',
@@ -94,7 +94,7 @@ const TESTIMONIALS = [
     industryAr: 'الخدمات المهنية',
     content: 'Live P&L and cash-flow views replaced three spreadsheets we used every week.',
     contentAr: 'لوحة الأرباح والتدفق النقدي استبدلت ثلاثة جداول كنا نستخدمها أسبوعياً.',
-    accent: '#a855f7',
+    accent: '#34d399',
   },
 ]
 
@@ -147,13 +147,13 @@ export default function MarketingHome() {
       {/* ── HERO ── */}
       <section className="relative overflow-hidden bg-white">
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.035]" style={{ backgroundImage: 'linear-gradient(#000 1px,transparent 1px),linear-gradient(90deg,#000 1px,transparent 1px)', backgroundSize: '48px 48px' }} />
-        <div className="pointer-events-none absolute -top-40 -right-40 h-[600px] w-[600px] rounded-full bg-violet-500/10 blur-[120px]" />
+        <div className="pointer-events-none absolute -top-40 -right-40 h-[600px] w-[600px] rounded-full bg-emerald-500/10 blur-[120px]" />
         <div className="pointer-events-none absolute top-60 -left-20 h-[400px] w-[400px] rounded-full bg-emerald-400/10 blur-[90px]" />
 
         <div className="relative mx-auto max-w-7xl px-4 pt-20 pb-6 sm:px-6 lg:px-8 lg:pt-28">
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex justify-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-violet-200/70 bg-violet-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-700">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-violet-500" />
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
+              <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
               {isArabic ? 'نظام ERP سحابي متكامل' : 'All-in-one cloud ERP platform'}
             </span>
           </motion.div>
@@ -163,9 +163,9 @@ export default function MarketingHome() {
             className="mx-auto max-w-5xl text-center text-[2.75rem] font-black leading-[1.06] tracking-[-0.035em] text-slate-950 sm:text-6xl lg:text-[5rem]"
           >
             {isArabic ? (
-              <>{'كل أعمالك على '}<span className="text-violet-600">منصة واحدة</span></>
+              <>{'كل أعمالك على '}<span className="text-emerald-600">منصة واحدة</span></>
             ) : (
-              <>The ERP that <span className="text-violet-600">grows with you</span> — not against you.</>
+              <>The ERP that <span className="text-emerald-600">grows with you</span> — not against you.</>
             )}
           </motion.h1>
 
@@ -191,7 +191,7 @@ export default function MarketingHome() {
             <button
               type="button"
               onClick={openTrial}
-              className="group inline-flex items-center gap-2.5 rounded-full bg-violet-600 px-8 py-4 text-base font-bold text-white shadow-[0_8px_32px_-8px_rgba(124,58,237,0.55)] transition-all hover:-translate-y-0.5 hover:bg-violet-700"
+              className="group inline-flex items-center gap-2.5 rounded-full bg-emerald-600 px-8 py-4 text-base font-bold text-white shadow-[0_8px_32px_-8px_rgba(5,150,105,0.55)] transition-all hover:-translate-y-0.5 hover:bg-emerald-700"
             >
               {isArabic ? 'ابدأ الآن — مجاناً' : "Start now — It's free"}
               <ArrowRight className={`h-5 w-5 transition-transform group-hover:translate-x-0.5 ${isArabic ? 'rotate-180' : ''}`} />
@@ -224,7 +224,7 @@ export default function MarketingHome() {
             ))}
           </motion.div>
           <div className="mt-8 flex justify-center">
-            <Link to="/solutions" className="inline-flex items-center gap-1.5 text-sm font-bold text-violet-600 hover:text-violet-700">
+            <Link to="/solutions" className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-600 hover:text-emerald-700">
               {isArabic ? 'عرض كل التطبيقات' : 'View all apps'}
               <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />
             </Link>
@@ -234,10 +234,10 @@ export default function MarketingHome() {
 
       {/* ── LIVE REPORTING ── */}
       <section className="relative overflow-hidden bg-slate-950 py-28 text-white">
-        <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 25% 40%, #7c3aed33 0%, transparent 55%), radial-gradient(circle at 80% 20%, #10b98122 0%, transparent 45%)' }} />
+        <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 25% 40%, #05966933 0%, transparent 55%), radial-gradient(circle at 80% 20%, #10b98122 0%, transparent 45%)' }} />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-14 text-center">
-            <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-violet-400">
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-emerald-400">
               {isArabic ? 'تقارير حية' : 'Live reporting'}
             </p>
             <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
@@ -262,7 +262,7 @@ export default function MarketingHome() {
                   <p className="mt-1 text-2xl font-black">$1.24M <span className="text-sm font-semibold text-emerald-400">+18.4%</span></p>
                 </div>
                 <div className="flex items-center gap-4 text-xs font-semibold">
-                  <span className="inline-flex items-center gap-1.5 text-violet-300"><span className="h-2 w-2 rounded-full bg-violet-400" />{isArabic ? 'إيراد' : 'Revenue'}</span>
+                  <span className="inline-flex items-center gap-1.5 text-emerald-300"><span className="h-2 w-2 rounded-full bg-emerald-400" />{isArabic ? 'إيراد' : 'Revenue'}</span>
                   <span className="inline-flex items-center gap-1.5 text-emerald-300"><span className="h-2 w-2 rounded-full bg-emerald-400" />{isArabic ? 'مصروف' : 'Expense'}</span>
                 </div>
               </div>
@@ -270,7 +270,7 @@ export default function MarketingHome() {
                 {REVENUE_BARS.map((h, i) => (
                   <div key={i} className="flex flex-1 flex-col items-center justify-end gap-1">
                     <div className="flex w-full items-end gap-0.5" style={{ height: '100%' }}>
-                      <div className="flex-1 rounded-t-md bg-gradient-to-t from-violet-700 to-violet-400" style={{ height: `${h}%` }} />
+                      <div className="flex-1 rounded-t-md bg-gradient-to-t from-emerald-700 to-emerald-400" style={{ height: `${h}%` }} />
                       <div className="flex-1 rounded-t-md bg-gradient-to-t from-emerald-700 to-emerald-400 opacity-80" style={{ height: `${EXPENSE_BARS[i]}%` }} />
                     </div>
                     <span className="text-[10px] text-white/30">{['J','F','M','A','M','J','J','A','S','O','N','D'][i]}</span>
@@ -292,8 +292,8 @@ export default function MarketingHome() {
                   transition={{ delay: i * 0.08 }}
                   className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5"
                 >
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/20">
-                    <TrendingUp className="h-4 w-4 text-violet-300" />
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/20">
+                    <TrendingUp className="h-4 w-4 text-emerald-300" />
                   </div>
                   <p className="text-xs text-white/40">{isArabic ? k.labelAr : k.labelEn}</p>
                   <p className="mt-1 text-2xl font-black">{k.value}</p>
@@ -310,7 +310,7 @@ export default function MarketingHome() {
               <p className="mb-5 text-xs font-bold uppercase tracking-widest text-white/40">{isArabic ? 'توزيع الإيرادات' : 'Revenue mix'}</p>
               <div className="space-y-4">
                 {[
-                  { nameEn: 'Retail / POS', nameAr: 'التجزئة / نقطة البيع', pct: 38, color: '#8b5cf6' },
+                  { nameEn: 'Retail / POS', nameAr: 'التجزئة / نقطة البيع', pct: 38, color: '#10b981' },
                   { nameEn: 'Services', nameAr: 'الخدمات', pct: 27, color: '#14b8a6' },
                   { nameEn: 'eCommerce', nameAr: 'التجارة الإلكترونية', pct: 21, color: '#f59e0b' },
                   { nameEn: 'Other', nameAr: 'أخرى', pct: 14, color: '#3b82f6' },
@@ -401,7 +401,7 @@ export default function MarketingHome() {
       {/* ── TESTIMONIALS MARQUEE ── */}
       <section className="overflow-hidden bg-slate-950 py-28 text-white">
         <div className="mx-auto mb-14 max-w-7xl px-4 text-center sm:px-6 lg:px-8">
-          <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-violet-400">
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-emerald-400">
             {isArabic ? 'قصص نجاح' : 'Customer stories'}
           </p>
           <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
@@ -442,37 +442,6 @@ export default function MarketingHome() {
         </Marquee>
       </section>
 
-      {/* ── CTA ── */}
-      <section className="bg-white py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-800 p-10 text-white shadow-[0_40px_100px_-30px_rgba(124,58,237,0.4)] lg:p-16">
-            <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
-            <div className="relative flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-xs font-bold uppercase tracking-[0.32em] text-white/60">
-                  {isArabic ? 'جاهز للانطلاق' : 'Ready to launch'}
-                </p>
-                <h2 className="mt-3 text-4xl font-extrabold leading-tight lg:text-5xl">
-                  {isArabic ? 'ابدأ رحلتك مع Maqder اليوم' : <>Start your ERP<br /><span className="text-white/80">journey today.</span></>}
-                </h2>
-                <p className="mt-4 text-lg text-white/60">
-                  {isArabic ? 'أنشئ مساحتك في أقل من دقيقة — بدون بطاقة ائتمان.' : 'Spin up your workspace in under a minute — no credit card.'}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
-                <button type="button" onClick={openTrial} className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-8 py-4 text-base font-bold text-violet-700 shadow-lg transition-all hover:-translate-y-0.5">
-                  {isArabic ? 'تجربة مجانية' : 'Try free'}
-                  <ArrowRight className={`h-5 w-5 ${isArabic ? 'rotate-180' : ''}`} />
-                </button>
-                <Link to="/pricing" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-8 py-4 text-base font-bold text-white backdrop-blur-sm transition-all hover:bg-white/20">
-                  {isArabic ? 'الأسعار' : 'View pricing'}
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ── TRIAL POPOUT ── */}
       <AnimatePresence>
         {trialOpen && (
@@ -489,9 +458,9 @@ export default function MarketingHome() {
               className="relative w-full max-w-xl overflow-hidden rounded-[1.75rem] border border-white/20 bg-white shadow-[0_40px_120px_-20px_rgba(0,0,0,0.55)]"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-gradient-to-br from-violet-50 to-white px-6 py-5">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-gradient-to-br from-emerald-50 to-white px-6 py-5">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-violet-600">
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-600">
                     {isArabic ? 'تجربة مجانية' : 'Free trial'}
                   </p>
                   <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">

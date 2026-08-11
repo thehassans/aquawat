@@ -58,7 +58,7 @@ const CATEGORIES = [
 const MODULES = [
   // Finance
   {
-    id: 'invoicing', cat: 'finance', icon: FileText, color: '#7c3aed', bgColor: '#7c3aed18',
+    id: 'invoicing', cat: 'finance', icon: FileText, color: '#059669', bgColor: '#05966918',
     titleEn: 'E-Invoicing & Tax', titleAr: 'الفوترة الإلكترونية والضرائب',
     descEn: 'B2B/B2C invoices, QR codes, XML signing and real-time tax authority submission.',
     descAr: 'فواتير B2B/B2C وأكواد QR وتوقيع XML وإرسال فوري لهيئات الضرائب.',
@@ -96,7 +96,7 @@ const MODULES = [
     descAr: 'رواتب آلية وحسابات نهاية الخدمة وتوليد ملفات WPS.',
   },
   {
-    id: 'attendance', cat: 'hr', icon: ClipboardList, color: '#7c3aed', bgColor: '#7c3aed18',
+    id: 'attendance', cat: 'hr', icon: ClipboardList, color: '#059669', bgColor: '#05966918',
     titleEn: 'Attendance & Shifts', titleAr: 'الحضور والمناوبات',
     descEn: 'Shift scheduling, biometric sync and overtime management.',
     descAr: 'جدولة المناوبات ومزامنة البصمة وإدارة العمل الإضافي.',
@@ -128,7 +128,7 @@ const MODULES = [
   },
   // Sales
   {
-    id: 'pos', cat: 'sales', icon: ShoppingCart, color: '#7c3aed', bgColor: '#7c3aed18',
+    id: 'pos', cat: 'sales', icon: ShoppingCart, color: '#059669', bgColor: '#05966918',
     titleEn: 'Point of Sale', titleAr: 'نقاط البيع',
     descEn: 'Touch POS for retail, restaurants and service businesses.',
     descAr: 'نقطة بيع لمس للتجزئة والمطاعم وشركات الخدمات.',
@@ -166,7 +166,7 @@ const MODULES = [
     badgeEn: 'ZATCA + NBR', badgeAr: 'ZATCA + NBR',
   },
   {
-    id: 'integrations', cat: 'tech', icon: Layers, color: '#7c3aed', bgColor: '#7c3aed18',
+    id: 'integrations', cat: 'tech', icon: Layers, color: '#059669', bgColor: '#05966918',
     titleEn: 'Integrations', titleAr: 'التكاملات',
     descEn: 'API, webhooks, Zapier, Stripe, shipping providers and more.',
     descAr: 'API وwebhooks وZapier وStripe وشركات الشحن والمزيد.',
@@ -187,7 +187,7 @@ const MODULES = [
 
 /* ─── Industry verticals ─────────────────────────────────────────────── */
 const VERTICALS = [
-  { icon: Building2,        color: '#7c3aed', bgColor: '#7c3aed18', titleEn: 'Trading & Distribution', titleAr: 'التجارة والتوزيع', descEn: 'Inventory, purchasing and tax compliance for wholesalers & retailers.', descAr: 'المخزون والمشتريات والامتثال الضريبي للجملة والتجزئة.' },
+  { icon: Building2,        color: '#059669', bgColor: '#05966918', titleEn: 'Trading & Distribution', titleAr: 'التجارة والتوزيع', descEn: 'Inventory, purchasing and tax compliance for wholesalers & retailers.', descAr: 'المخزون والمشتريات والامتثال الضريبي للجملة والتجزئة.' },
   { icon: UtensilsCrossed,  color: '#dc2626', bgColor: '#dc262618', titleEn: 'Restaurant & F&B',        titleAr: 'المطاعم والأغذية',    descEn: 'Table management, KDS, delivery integrations and ZATCA receipts.', descAr: 'إدارة الطاولات وشاشة المطبخ والتوصيل وإيصالات ZATCA.' },
   { icon: Scissors,         color: '#0891b2', bgColor: '#0891b218', titleEn: 'Salon & Beauty',          titleAr: 'الصالون والجمال',     descEn: 'Appointments, services, client management and loyalty programs.', descAr: 'المواعيد والخدمات وإدارة العملاء وبرامج الولاء.' },
   { icon: ShoppingCart,     color: '#059669', bgColor: '#05966918', titleEn: 'Retail & POS',            titleAr: 'التجزئة ونقاط البيع', descEn: 'Touch POS, barcode scanning, returns and shift management.', descAr: 'نقطة بيع لمس وقراءة الباركود والمرتجعات وإدارة المناوبات.' },
@@ -219,7 +219,7 @@ export default function MarketingSolutions() {
       {/* ── HERO ── */}
       <section className="relative overflow-hidden bg-slate-950 pb-0 pt-24 text-white">
         <div className="pointer-events-none absolute inset-0 opacity-20"
-          style={{ backgroundImage: 'radial-gradient(circle at 25% 50%, #7c3aed22 0%, transparent 55%), radial-gradient(circle at 75% 20%, #0891b220 0%, transparent 50%)' }}
+          style={{ backgroundImage: 'radial-gradient(circle at 25% 50%, #05966922 0%, transparent 55%), radial-gradient(circle at 75% 20%, #0891b220 0%, transparent 50%)' }}
         />
         <div
           aria-hidden
@@ -228,7 +228,7 @@ export default function MarketingSolutions() {
         />
         <div className="relative mx-auto max-w-5xl px-4 pb-16 text-center sm:px-6 lg:px-8">
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-300">
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-300">
               <Layers className="h-3.5 w-3.5" />
               {isArabic ? 'التطبيقات والوحدات' : 'Apps & Modules'}
             </span>
@@ -239,9 +239,9 @@ export default function MarketingSolutions() {
             className="mt-5 text-5xl font-black tracking-[-0.03em] sm:text-6xl lg:text-[4.5rem]"
           >
             {isArabic ? (
-              <>منصة واحدة.<br /><span className="text-violet-400">كل شيء تحتاجه.</span></>
+              <>منصة واحدة.<br /><span className="text-emerald-400">كل شيء تحتاجه.</span></>
             ) : (
-              <>One platform.<br /><span className="text-violet-400">Everything you need.</span></>
+              <>One platform.<br /><span className="text-emerald-400">Everything you need.</span></>
             )}
           </motion.h1>
 
@@ -265,7 +265,7 @@ export default function MarketingSolutions() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={isArabic ? 'ابحث عن وحدة...' : 'Search modules...'}
-                className="w-full rounded-full border border-white/15 bg-white/10 py-3.5 pl-12 pr-5 text-sm text-white placeholder:text-white/35 outline-none focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/15 backdrop-blur-sm transition-all"
+                className="w-full rounded-full border border-white/15 bg-white/10 py-3.5 pl-12 pr-5 text-sm text-white placeholder:text-white/35 outline-none focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/15 backdrop-blur-sm transition-all"
                 dir="auto"
               />
             </div>
@@ -288,8 +288,8 @@ export default function MarketingSolutions() {
                 onClick={() => setActiveCategory(cat.id)}
                 className={`rounded-full px-5 py-2 text-sm font-bold transition-all ${
                   activeCategory === cat.id
-                    ? 'bg-violet-600 text-white shadow-[0_4px_12px_-4px_rgba(124,58,237,0.4)]'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:text-violet-600'
+                    ? 'bg-emerald-600 text-white shadow-[0_4px_12px_-4px_rgba(5,150,105,0.4)]'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:text-emerald-600'
                 }`}
               >
                 {isArabic ? cat.labelAr : cat.labelEn}
@@ -309,10 +309,10 @@ export default function MarketingSolutions() {
                   initial="hidden"
                   animate="show"
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="group relative flex flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-violet-300/60 hover:shadow-xl hover:shadow-violet-100/60"
+                  className="group relative flex flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-emerald-300/60 hover:shadow-xl hover:shadow-emerald-100/60"
                 >
                   {/* Top glow on hover */}
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-violet-400/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
 
                   <div className="mb-4 flex items-start justify-between">
                     <div
@@ -338,7 +338,7 @@ export default function MarketingSolutions() {
                     {isArabic ? mod.descAr : mod.descEn}
                   </p>
 
-                  <div className={`mt-4 flex items-center gap-1.5 text-xs font-bold text-violet-600 opacity-0 transition-all duration-200 group-hover:opacity-100 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>
+                  <div className={`mt-4 flex items-center gap-1.5 text-xs font-bold text-emerald-600 opacity-0 transition-all duration-200 group-hover:opacity-100 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>
                     {isArabic ? 'تعرف أكثر' : 'Learn more'}
                     <ChevronRight className={`h-3.5 w-3.5 ${isArabic ? 'rotate-180' : ''}`} />
                   </div>
@@ -361,7 +361,7 @@ export default function MarketingSolutions() {
       <section className="bg-slate-50/80 py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-16 text-center">
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-700">
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
               <Building2 className="h-3.5 w-3.5" />
               {isArabic ? 'حلول حسب الصناعة' : 'Industry solutions'}
             </span>
@@ -398,7 +398,7 @@ export default function MarketingSolutions() {
                 <p className="relative mt-2 text-sm leading-relaxed text-slate-500">
                   {isArabic ? v.descAr : v.descEn}
                 </p>
-                <div className={`relative mt-5 flex items-center gap-1.5 text-sm font-bold text-violet-600 opacity-0 transition-all duration-200 group-hover:opacity-100 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>
+                <div className={`relative mt-5 flex items-center gap-1.5 text-sm font-bold text-emerald-600 opacity-0 transition-all duration-200 group-hover:opacity-100 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>
                   {isArabic ? 'استكشف' : 'Explore'}
                   <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />
                 </div>
@@ -432,7 +432,7 @@ export default function MarketingSolutions() {
       {/* ── CTA ── */}
       <section className="bg-white pb-24 pt-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-800 p-10 text-white shadow-[0_40px_100px_-30px_rgba(124,58,237,0.4)] lg:p-16">
+          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 p-10 text-white shadow-[0_40px_100px_-30px_rgba(5,150,105,0.4)] lg:p-16">
             <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
             <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
@@ -447,7 +447,7 @@ export default function MarketingSolutions() {
                 <Link
                   to="/"
                   onClick={(e) => { e.preventDefault(); window.location.replace('/#trial') }}
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-black text-violet-700 shadow-lg transition-all hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-black text-emerald-700 shadow-lg transition-all hover:-translate-y-0.5"
                 >
                   {isArabic ? 'ابدأ مجاناً' : 'Start for free'}
                   <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />

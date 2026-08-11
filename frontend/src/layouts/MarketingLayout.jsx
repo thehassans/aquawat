@@ -65,9 +65,9 @@ export default function MarketingLayout() {
             : 'border-b border-transparent bg-white'
         }`}
       >
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-24 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link to="/" className="shrink-0">
-            <img src="/maqderlogolandingpage.webp" alt="Maqder" className="h-10 w-auto object-contain" />
+            <img src="/maqderlogolandingpage.webp" alt="Maqder" className="h-20 w-auto object-contain" />
           </Link>
 
           <nav className="hidden items-center gap-0.5 md:flex">
@@ -78,7 +78,7 @@ export default function MarketingLayout() {
                   key={item.to}
                   to={item.to}
                   className={`rounded-xl px-3.5 py-2 text-sm font-semibold transition-all ${
-                    active ? 'bg-violet-50 text-violet-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    active ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   {isArabic ? item.labelAr : item.labelEn}
@@ -117,14 +117,14 @@ export default function MarketingLayout() {
             <button
               type="button"
               onClick={openTrial}
-              className="hidden rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-bold text-violet-700 transition-all hover:-translate-y-0.5 hover:bg-violet-100 sm:inline-flex"
+              className="hidden rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 transition-all hover:-translate-y-0.5 hover:bg-emerald-100 sm:inline-flex"
             >
               {isArabic ? 'تجربة مجانية' : 'Try free'}
             </button>
 
             <Link
               to="/login"
-              className="hidden items-center rounded-full bg-violet-600 px-5 py-2 text-sm font-bold text-white shadow-[0_4px_12px_-4px_rgba(124,58,237,0.5)] transition-all hover:-translate-y-0.5 hover:bg-violet-700 sm:inline-flex"
+              className="hidden items-center rounded-full bg-emerald-600 px-5 py-2 text-sm font-bold text-white shadow-[0_4px_12px_-4px_rgba(5,150,105,0.5)] transition-all hover:-translate-y-0.5 hover:bg-emerald-700 sm:inline-flex"
             >
               {isArabic ? 'تسجيل الدخول' : 'Login'}
             </Link>
@@ -153,7 +153,7 @@ export default function MarketingLayout() {
                     to={item.to}
                     onClick={() => setMobileOpen(false)}
                     className={`block rounded-xl px-3 py-2.5 text-sm font-semibold ${
-                      location.pathname === item.to ? 'bg-violet-50 text-violet-700' : 'text-slate-600 hover:bg-slate-50'
+                      location.pathname === item.to ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     {isArabic ? item.labelAr : item.labelEn}
@@ -162,14 +162,14 @@ export default function MarketingLayout() {
                 <button
                   type="button"
                   onClick={openTrial}
-                  className="mt-2 block w-full rounded-full border border-violet-200 bg-violet-50 py-3 text-center text-sm font-bold text-violet-700"
+                  className="mt-2 block w-full rounded-full border border-emerald-200 bg-emerald-50 py-3 text-center text-sm font-bold text-emerald-700"
                 >
                   {isArabic ? 'تجربة مجانية' : 'Try free'}
                 </button>
                 <Link
                   to="/login"
                   onClick={() => setMobileOpen(false)}
-                  className="block w-full rounded-full bg-violet-600 py-3 text-center text-sm font-bold text-white"
+                  className="block w-full rounded-full bg-emerald-600 py-3 text-center text-sm font-bold text-white"
                 >
                   {isArabic ? 'تسجيل الدخول' : 'Login'}
                 </Link>
@@ -187,7 +187,7 @@ export default function MarketingLayout() {
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
           <div className="grid gap-10 md:grid-cols-4">
             <div>
-              <img src="/maqderlogolandingpage.webp" alt="Maqder" className="h-10 w-auto object-contain" />
+              <img src="/maqderlogolandingpage.webp" alt="Maqder" className="h-20 w-auto object-contain" />
               <p className="mt-4 text-sm leading-relaxed text-slate-500">
                 {isArabic
                   ? 'منصة ERP سحابية متكاملة — مالية وموارد بشرية ومخزون في مكان واحد.'
@@ -197,17 +197,17 @@ export default function MarketingLayout() {
             <div>
               <p className="mb-4 text-xs font-black uppercase tracking-widest text-slate-400">{isArabic ? 'المنتج' : 'Product'}</p>
               <div className="space-y-2.5 text-sm">
-                <Link to="/solutions" className="block text-slate-500 hover:text-violet-600">{isArabic ? 'الحلول' : 'Solutions'}</Link>
-                <Link to="/pricing" className="block text-slate-500 hover:text-violet-600">{isArabic ? 'الأسعار' : 'Pricing'}</Link>
+                <Link to="/solutions" className="block text-slate-500 hover:text-emerald-600">{isArabic ? 'الحلول' : 'Solutions'}</Link>
+                <Link to="/pricing" className="block text-slate-500 hover:text-emerald-600">{isArabic ? 'الأسعار' : 'Pricing'}</Link>
               </div>
             </div>
             <div>
               <p className="mb-4 text-xs font-black uppercase tracking-widest text-slate-400">{isArabic ? 'الشركة' : 'Company'}</p>
               <div className="space-y-2.5 text-sm">
-                <Link to="/about" className="block text-slate-500 hover:text-violet-600">{isArabic ? 'من نحن' : 'About'}</Link>
-                <Link to="/contact" className="block text-slate-500 hover:text-violet-600">{isArabic ? 'تواصل معنا' : 'Contact'}</Link>
-                <Link to="/privacy" className="block text-slate-500 hover:text-violet-600">{isArabic ? 'الخصوصية' : 'Privacy'}</Link>
-                <Link to="/terms" className="block text-slate-500 hover:text-violet-600">{isArabic ? 'الشروط' : 'Terms'}</Link>
+                <Link to="/about" className="block text-slate-500 hover:text-emerald-600">{isArabic ? 'من نحن' : 'About'}</Link>
+                <Link to="/contact" className="block text-slate-500 hover:text-emerald-600">{isArabic ? 'تواصل معنا' : 'Contact'}</Link>
+                <Link to="/privacy" className="block text-slate-500 hover:text-emerald-600">{isArabic ? 'الخصوصية' : 'Privacy'}</Link>
+                <Link to="/terms" className="block text-slate-500 hover:text-emerald-600">{isArabic ? 'الشروط' : 'Terms'}</Link>
               </div>
             </div>
             <div>

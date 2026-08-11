@@ -111,22 +111,22 @@ export default function TrialSignup({ variant = 'light' }) {
   const subCls = isDark ? 'text-xs text-white/50' : 'text-xs text-slate-500'
   const labelCls = isDark ? 'mb-2 block text-xs font-semibold text-white/60 uppercase tracking-wider' : 'mb-2 block text-xs font-semibold text-slate-500 uppercase tracking-wider'
   const inputCls = isDark
-    ? 'w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/15 transition-all'
-    : 'w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-violet-500 focus:bg-white focus:ring-2 focus:ring-violet-500/10 transition-all'
+    ? 'w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-emerald-400/60 focus:ring-2 focus:ring-emerald-400/15 transition-all'
+    : 'w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10 transition-all'
   const stepTrack = isDark ? 'bg-white/15' : 'bg-slate-200'
-  const stepActive = isDark ? 'bg-violet-400' : 'bg-violet-600'
+  const stepActive = isDark ? 'bg-emerald-400' : 'bg-emerald-600'
   const btnPrimary = isDark
-    ? 'inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-violet-500 px-5 py-3 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(124,58,237,0.5)] transition-all hover:-translate-y-0.5 hover:bg-violet-600 disabled:opacity-60'
-    : 'inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(124,58,237,0.4)] transition-all hover:-translate-y-0.5 hover:bg-violet-700 disabled:opacity-60'
+    ? 'inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(5,150,105,0.5)] transition-all hover:-translate-y-0.5 hover:bg-emerald-600 disabled:opacity-60'
+    : 'inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(5,150,105,0.4)] transition-all hover:-translate-y-0.5 hover:bg-emerald-700 disabled:opacity-60'
   const btnGhost = isDark
     ? 'rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 transition-all hover:bg-white/5'
     : 'rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50'
   const chipActive = isDark
-    ? 'border-violet-400/60 bg-violet-400/15 text-violet-200'
-    : 'border-violet-500 bg-violet-50 text-violet-900 shadow-sm'
+    ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200'
+    : 'border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm'
   const chipIdle = isDark
     ? 'border-white/10 hover:border-white/25 text-white/70'
-    : 'border-slate-200 bg-white text-slate-700 hover:border-violet-300 hover:text-violet-800'
+    : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:text-emerald-800'
 
   return (
     <div className={premium ? 'mx-auto w-full max-w-2xl' : 'mx-auto max-w-xl'}>
