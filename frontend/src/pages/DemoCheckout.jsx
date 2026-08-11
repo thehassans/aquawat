@@ -25,7 +25,6 @@ import api from '../lib/api'
 import { getPrimaryBusinessType } from '../lib/businessTypes'
 import { setLanguage } from '../store/slices/uiSlice'
 import DailyAyat from '../components/ui/DailyAyat'
-import { hasTerminationNotice } from '../components/ui/TerminationBanner'
 
 const fallbackPricingPlans = [
   {
