@@ -89,10 +89,6 @@ export default function DemoCheckout() {
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [zatcaPhase2Enabled, setZatcaPhase2Enabled] = useState(tenant?.zatca?.phase === 2 || false)
 
-  const isDemo = tenant?.isDemo === true
-  const isUpgraded = tenant?.demoUpgraded === true
-  const hasNotice = hasTerminationNotice(tenant)
-
   useEffect(() => {
     setMounted(true)
     if (!tenant) {
