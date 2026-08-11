@@ -9,6 +9,7 @@ import Warehouse from '../models/Warehouse.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { sendTenantEmail } from '../utils/tenantEmailService.js';
+import { buildPremiumEmailShell, getTenantLoginUrl, getTenantWorkspaceHost, getTenantWorkspaceUrl } from '../utils/premiumEmailShell.js';
 
 const router = express.Router();
 
@@ -48,7 +49,7 @@ function sanitizeDeliveryRecipient(value = {}) {
   };
 }
 
-function buildShipmentEmailHtml({ shipment, language = 'en' }) {
+function buildShipmentEmailHtml({ shipment, language = 'en', tenant }) {
   const recipient = shipment?.deliveryRecipient || {};
   const customerName = normalizeText(recipient?.name)
     || normalizeText(recipient?.nameAr)
@@ -57,34 +58,32 @@ function buildShipmentEmailHtml({ shipment, language = 'en' }) {
   const shipmentNumber = normalizeText(shipment?.shipmentNumber) || 'Shipment';
   const trackingNumber = normalizeText(shipment?.trackingNumber);
   const carrier = normalizeText(shipment?.carrier);
-  const expectedDelivery = shipment?.expectedDelivery ? new Date(shipment.expectedDelivery).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : '';
+  const expectedDelivery = shipment?.expectedDelivery
+    ? new Date(shipment.expectedDelivery).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB')
+    : '';
+  const companyName = normalizeText(tenant?.business?.legalNameEn || tenant?.name) || 'Maqder';
+  const loginUrl = getTenantLoginUrl(tenant);
+  const isAr = language === 'ar';
 
-  return `
-    <div style="font-family: Arial, Helvetica, sans-serif; background:#f8fafc; padding:24px; color:#0f172a;">
-      <div style="max-width:720px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:24px; overflow:hidden; box-shadow:0 20px 60px -36px rgba(15,23,42,0.25);">
-        <div style="height:6px; background:#0f172a;"></div>
-        <div style="padding:32px;">
-          <h1 style="margin:0 0 8px; font-size:28px;">Delivery Note ${shipmentNumber}</h1>
-          <p style="margin:0 0 24px; color:#475569;">Please find the delivery note attached for your shipment.</p>
-          <div style="padding:20px; border:1px solid #e2e8f0; border-radius:18px; background:#f8fafc; margin-bottom:24px;">
-            <p style="margin:0 0 8px;"><strong>Recipient:</strong> ${customerName}</p>
-            <p style="margin:0 0 8px;"><strong>Shipment #:</strong> ${shipmentNumber}</p>
-            ${carrier ? `<p style="margin:0 0 8px;"><strong>Carrier:</strong> ${carrier}</p>` : ''}
-            ${trackingNumber ? `<p style="margin:0 0 8px;"><strong>Tracking #:</strong> ${trackingNumber}</p>` : ''}
-            ${expectedDelivery ? `<p style="margin:0;"><strong>Expected Delivery:</strong> ${expectedDelivery}</p>` : ''}
-          </div>
-          <div dir="rtl" style="padding:20px; border:1px solid #e2e8f0; border-radius:18px; background:#ffffff;">
-            <p style="margin:0 0 8px; font-weight:700;">إذن التسليم ${shipmentNumber}</p>
-            <p style="margin:0 0 8px; color:#475569;">مرفق لكم إذن التسليم الخاص بالشحنة.</p>
-            <p style="margin:0 0 8px;"><strong>المستلم:</strong> ${customerName}</p>
-            ${carrier ? `<p style="margin:0 0 8px;"><strong>شركة الشحن:</strong> ${carrier}</p>` : ''}
-            ${trackingNumber ? `<p style="margin:0 0 8px;"><strong>رقم التتبع:</strong> ${trackingNumber}</p>` : ''}
-            ${expectedDelivery ? `<p style="margin:0;"><strong>التسليم المتوقع:</strong> ${expectedDelivery}</p>` : ''}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+  return buildPremiumEmailShell({
+    brandName: companyName,
+    title: isAr ? `إذن التسليم ${shipmentNumber}` : `Delivery note ${shipmentNumber}`,
+    body: isAr
+      ? `مرحباً ${customerName}،\n\nمرفق لكم إذن التسليم الخاص بالشحنة.`
+      : `Dear ${customerName},\n\nPlease find the delivery note attached for your shipment.`,
+    secondaryLines: [
+      { label: isAr ? 'المستلم' : 'Recipient', value: customerName },
+      { label: isAr ? 'الشحنة' : 'Shipment', value: shipmentNumber },
+      carrier ? { label: isAr ? 'شركة الشحن' : 'Carrier', value: carrier } : null,
+      trackingNumber ? { label: isAr ? 'التتبع' : 'Tracking', value: trackingNumber } : null,
+      expectedDelivery ? { label: isAr ? 'التسليم المتوقع' : 'Expected delivery', value: expectedDelivery } : null,
+      { label: isAr ? 'مساحة العمل' : 'Workspace', value: getTenantWorkspaceHost(tenant), href: loginUrl },
+    ].filter(Boolean),
+    workspaceUrl: getTenantWorkspaceUrl(tenant),
+    workspaceHost: getTenantWorkspaceHost(tenant),
+    cta: { href: loginUrl, label: isAr ? 'فتح مساحة العمل' : 'Open workspace' },
+    dir: isAr ? 'rtl' : 'ltr',
+  });
 }
 
 async function generateShipmentNumber(tenantFilterValue) {
@@ -374,7 +373,11 @@ router.post('/:id/send-email', checkPermission('supply_chain', 'update'), async 
     }
 
     const subject = `${shipment.shipmentNumber} Delivery Note | إذن تسليم ${shipment.shipmentNumber}`;
-    const html = buildShipmentEmailHtml({ shipment, language: req.body?.language === 'ar' ? 'ar' : 'en' });
+    const html = buildShipmentEmailHtml({
+      shipment,
+      tenant,
+      language: req.body?.language === 'ar' ? 'ar' : 'en',
+    });
 
     const delivery = await sendTenantEmail({
       tenant,

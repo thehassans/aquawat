@@ -6,6 +6,14 @@ import SystemSettings from '../models/SystemSettings.js';
 import logger from './logger.js';
 import { buildInvoicePdfAttachment } from './invoicePdfService.js';
 import { ensureEmailDeliveryConfig, sendEmailWithConfig } from './emailProviderService.js';
+import {
+  buildPremiumEmailShell,
+  buildPremiumBilingualEmailShell,
+  getTenantLoginUrl,
+  getTenantWorkspaceHost,
+  getTenantWorkspaceUrl,
+  escapeHtml,
+} from './premiumEmailShell.js';
 
 const normalizeLanguage = (language) => {
   if (language === 'ar') return 'ar';
@@ -30,12 +38,6 @@ const dedupeValues = (...values) => {
 };
 
 const stripHtml = (value) => String(value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
 
 const interpolateTemplate = (template, variables = {}) => String(template || '').replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_, key) => {
   const value = variables?.[key];
@@ -113,103 +115,50 @@ const ensureConfigReady = (config) => {
   ensureEmailDeliveryConfig(config, { context: 'Tenant email delivery' });
 };
 
-export const buildEmailShell = ({ brandName, title, body, htmlBody, secondaryLines = [], dir = 'ltr', department = '' }) => {
-  const secondaryHtml = secondaryLines
-    .filter(Boolean)
-    .map((line) => `<p style="margin:0;color:#475569;font-size:13px;line-height:1.8;">${escapeHtml(line)}</p>`)
-    .join('');
+export const buildEmailShell = (options = {}) => buildPremiumEmailShell(options);
 
-  const deptTag = department ? `<div style="font-size:11px; font-weight: bold; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px; display: inline-block; margin-bottom: 8px;">${escapeHtml(department)}</div>` : '';
+const buildBilingualEmailShell = (options = {}) => buildPremiumBilingualEmailShell(options);
 
-  return `<!DOCTYPE html>
-<html dir="${dir}">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(title)}</title>
-</head>
-<body style="margin:0;padding:24px;background:#f8fafc;font-family:Segoe UI,Arial,sans-serif;color:#0f172a;">
-  <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;overflow:hidden;box-shadow:0 20px 45px -35px rgba(15,23,42,0.35);">
-    <div style="background:linear-gradient(135deg,#1a3d28 0%,#2d5a3f 100%);padding:28px 32px;color:#ffffff;">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-        <div>
-          ${deptTag}
-          <div style="font-size:13px;letter-spacing:0.18em;text-transform:uppercase;opacity:0.78;">${escapeHtml(brandName)}</div>
-          <h1 style="margin:12px 0 0;font-size:24px;line-height:1.35;font-weight:700;">${escapeHtml(title)}</h1>
-        </div>
-        <img src="https://maqder.com/maqdernewlogo.png" alt="Logo" style="height:48px; width:48px; border-radius:12px; object-fit:contain; background:#fff; padding:4px;" onerror="this.style.display='none'" />
-      </div>
-    </div>
-    <div style="padding:32px;">
-      <div style="font-size:15px;line-height:1.95;color:#1e293b;">${htmlBody || escapeHtml(body || '').replace(/\r?\n/g, '<br />')}</div>
-      ${secondaryHtml ? `<div style="margin-top:24px;padding:20px;border-radius:18px;background:#f8fafc;border:1px solid #e2e8f0;display:grid;gap:8px;">${secondaryHtml}</div>` : ''}
-    </div>
-  </div>
-</body>
-</html>`;
+const buildInvoiceVariables = ({ tenant, invoice, customerName, language, brandName }) => {
+  const tenantSlug = String(tenant?.slug || '').trim().toLowerCase();
+  const loginUrl = getTenantLoginUrl(tenant);
+  const workspaceUrl = getTenantWorkspaceUrl(tenant);
+  const workspaceHost = getTenantWorkspaceHost(tenant);
+  return {
+    brandName: String(brandName || 'Maqder ERP').trim(),
+    companyName: language === 'ar'
+      ? String(tenant?.business?.legalNameAr || tenant?.business?.legalNameEn || tenant?.name || brandName || 'Maqder ERP').trim()
+      : String(tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || tenant?.name || brandName || 'Maqder ERP').trim(),
+    customerName: String(customerName || invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Customer').trim(),
+    invoiceNumber: String(invoice?.invoiceNumber || '').trim(),
+    invoiceDate: invoice?.issueDate ? new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '',
+    invoiceTotal: `${Number(invoice?.grandTotal || 0).toFixed(2)} ${String(invoice?.currency || 'SAR').trim() || 'SAR'}`,
+    invoiceStatus: String(invoice?.status || '').trim(),
+    transactionType: String(invoice?.transactionType || '').trim(),
+    tenantSlug,
+    loginUrl,
+    workspaceUrl,
+    workspaceHost,
+  };
 };
-
-const buildBilingualEmailShell = ({ brandName, title, sections = [] }) => {
-  const sectionsHtml = sections
-    .filter((section) => section?.body)
-    .map((section) => {
-      const dir = section.dir === 'rtl' ? 'rtl' : 'ltr';
-      const align = dir === 'rtl' ? 'right' : 'left';
-      const secondaryHtml = (section.secondaryLines || [])
-        .filter(Boolean)
-        .map((line) => `<p style="margin:0;color:#475569;font-size:13px;line-height:1.8;">${escapeHtml(line)}</p>`)
-        .join('');
-      return `<section dir="${dir}" style="padding:24px 0;text-align:${align};${dir === 'rtl' ? 'font-family:Tahoma,Arial,sans-serif;' : ''}">
-        <h2 style="margin:0 0 12px;font-size:20px;line-height:1.5;color:#0f172a;">${escapeHtml(section.title || '')}</h2>
-        <div style="font-size:15px;line-height:1.95;color:#1e293b;">${escapeHtml(section.body || '').replace(/\r?\n/g, '<br />')}</div>
-        ${secondaryHtml ? `<div style="margin-top:20px;padding:18px;border-radius:18px;background:#f8fafc;border:1px solid #e2e8f0;display:grid;gap:8px;">${secondaryHtml}</div>` : ''}
-      </section>`;
-    })
-    .join('<div style="height:1px;background:#e2e8f0;"></div>');
-
-  return `<!DOCTYPE html>
-<html dir="ltr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(title)}</title>
-</head>
-<body style="margin:0;padding:24px;background:#f8fafc;font-family:Segoe UI,Arial,sans-serif;color:#0f172a;">
-  <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;overflow:hidden;box-shadow:0 20px 45px -35px rgba(15,23,42,0.35);">
-    <div style="background:linear-gradient(135deg,#1a3d28 0%,#2d5a3f 100%);padding:28px 32px;color:#ffffff;">
-      <div style="font-size:13px;letter-spacing:0.18em;text-transform:uppercase;opacity:0.78;">${escapeHtml(brandName)}</div>
-      <h1 style="margin:12px 0 0;font-size:24px;line-height:1.35;font-weight:700;">${escapeHtml(title)}</h1>
-    </div>
-    <div style="padding:0 32px;">${sectionsHtml}</div>
-  </div>
-</body>
-</html>`;
-};
-
-const buildInvoiceVariables = ({ tenant, invoice, customerName, language, brandName }) => ({
-  brandName: String(brandName || 'Maqder ERP').trim(),
-  companyName: language === 'ar'
-    ? String(tenant?.business?.legalNameAr || tenant?.business?.legalNameEn || tenant?.name || brandName || 'Maqder ERP').trim()
-    : String(tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || tenant?.name || brandName || 'Maqder ERP').trim(),
-  customerName: String(customerName || invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Customer').trim(),
-  invoiceNumber: String(invoice?.invoiceNumber || '').trim(),
-  invoiceDate: invoice?.issueDate ? new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '',
-  invoiceTotal: `${Number(invoice?.grandTotal || 0).toFixed(2)} ${String(invoice?.currency || 'SAR').trim() || 'SAR'}`,
-  invoiceStatus: String(invoice?.status || '').trim(),
-  transactionType: String(invoice?.transactionType || '').trim(),
-});
 
 const buildInvoiceSecondaryLines = (variables, language) => [
-  `${language === 'ar' ? 'رقم الفاتورة' : 'Invoice #'}: ${variables.invoiceNumber}`,
-  `${language === 'ar' ? 'التاريخ' : 'Date'}: ${variables.invoiceDate}`,
-  `${language === 'ar' ? 'الإجمالي' : 'Total'}: ${variables.invoiceTotal}`,
-].filter(Boolean);
+  { label: language === 'ar' ? 'رقم الفاتورة' : 'Invoice', value: variables.invoiceNumber },
+  { label: language === 'ar' ? 'التاريخ' : 'Date', value: variables.invoiceDate },
+  { label: language === 'ar' ? 'الإجمالي' : 'Total', value: variables.invoiceTotal },
+  variables.workspaceHost
+    ? { label: language === 'ar' ? 'مساحة العمل' : 'Workspace', value: variables.workspaceHost, href: variables.loginUrl }
+    : null,
+].filter((row) => row?.value);
 
 const buildInvoiceMessage = ({ tenant, invoice, customerName, language, globalSettings }) => {
   const tenantEmail = resolveTenantEmailSettings(tenant);
   const templates = resolveGlobalEmailConfig(globalSettings).templates || {};
   const normalizedLanguage = normalizeLanguage(language);
   const brandName = resolveGlobalEmailConfig(globalSettings).brandName;
+  const workspaceUrl = getTenantWorkspaceUrl(tenant);
+  const workspaceHost = getTenantWorkspaceHost(tenant);
+  const loginUrl = getTenantLoginUrl(tenant);
 
   const buildSingle = (targetLanguage) => {
     const variables = buildInvoiceVariables({ tenant, invoice, customerName, language: targetLanguage, brandName });
@@ -218,7 +167,7 @@ const buildInvoiceMessage = ({ tenant, invoice, customerName, language, globalSe
       : String(tenantEmail.subjectEn || '').trim()) || String(templates?.invoice?.[targetLanguage === 'ar' ? 'subjectAr' : 'subjectEn'] || '').trim() || 'Invoice {{invoiceNumber}}';
     const bodyTemplate = (targetLanguage === 'ar'
       ? String(tenantEmail.bodyAr || '').trim()
-      : String(tenantEmail.bodyEn || '').trim()) || String(templates?.invoice?.[targetLanguage === 'ar' ? 'bodyAr' : 'bodyEn'] || '').trim() || 'Please find your invoice.';
+      : String(tenantEmail.bodyEn || '').trim()) || String(templates?.invoice?.[targetLanguage === 'ar' ? 'bodyAr' : 'bodyEn'] || '').trim() || 'Please find your invoice attached.';
     const signature = interpolateTemplate(targetLanguage === 'ar' ? String(tenantEmail.signatureAr || '').trim() : String(tenantEmail.signatureEn || '').trim(), variables);
     const body = [interpolateTemplate(bodyTemplate, variables), signature].filter(Boolean).join('\n\n');
     const subject = interpolateTemplate(subjectTemplate, variables);
@@ -233,6 +182,9 @@ const buildInvoiceMessage = ({ tenant, invoice, customerName, language, globalSe
         body,
         secondaryLines: buildInvoiceSecondaryLines(variables, targetLanguage),
         dir: targetLanguage === 'ar' ? 'rtl' : 'ltr',
+        workspaceUrl,
+        workspaceHost,
+        cta: { href: loginUrl, label: targetLanguage === 'ar' ? 'فتح مساحة العمل' : 'Open workspace' },
       }),
     };
   };
@@ -254,6 +206,9 @@ const buildInvoiceMessage = ({ tenant, invoice, customerName, language, globalSe
     html: buildBilingualEmailShell({
       brandName: tenantEmail.senderName || brandName,
       title: dedupeValues(english.subject, arabic.subject).join(' | ') || english.subject,
+      workspaceUrl,
+      workspaceHost,
+      cta: { href: loginUrl, label: 'Open workspace' },
       sections: [
         { title: english.subject, body: english.body, secondaryLines: buildInvoiceSecondaryLines(english.variables, 'en'), dir: 'ltr' },
         { title: arabic.subject, body: arabic.body, secondaryLines: buildInvoiceSecondaryLines(arabic.variables, 'ar'), dir: 'rtl' },

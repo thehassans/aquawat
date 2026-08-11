@@ -2,19 +2,20 @@ import SystemSettings from '../models/SystemSettings.js';
 import logger from './logger.js';
 import { ensureEmailDeliveryConfig, sendEmailWithConfig } from './emailProviderService.js';
 import { generateTermsPdf } from './termsPdf.js';
+import {
+  buildPremiumEmailShell,
+  buildPremiumBilingualEmailShell,
+  getTenantLoginUrl,
+  getTenantWorkspaceHost,
+  getTenantWorkspaceUrl,
+  escapeHtml,
+} from './premiumEmailShell.js';
 
 const normalizeLanguage = (language) => {
   if (language === 'ar') return 'ar';
   if (language === 'en') return 'en';
   return null;
 };
-
-const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
 
 const dedupeRecipients = (...values) => {
   const seen = new Set();
@@ -81,157 +82,26 @@ const ensureEmailConfigured = (config) => {
   ensureEmailDeliveryConfig(config, { context: 'Email delivery' });
 };
 
-const buildSecondaryLinesHtml = (secondaryLines = []) => secondaryLines
-  .filter(Boolean)
-  .map((line) => `<p style="margin:0;color:#475569;font-size:13px;line-height:1.8;">${escapeHtml(line)}</p>`)
-  .join('');
+const buildEmailShell = (options = {}) => buildPremiumEmailShell(options);
 
-const buildEmailShell = ({ brandName, title, body, htmlBody, secondaryLines = [], dir = 'ltr', cta } = {}) => {
-  const secondaryHtml = buildSecondaryLinesHtml(secondaryLines);
-  const contentHtml = htmlBody || escapeHtml(body || '').replace(/\r?\n/g, '<br />');
-  const ctaHtml = cta?.href
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 8px;">
-        <tr>
-          <td align="center" style="border-radius:999px;background:linear-gradient(135deg,#059669 0%,#047857 100%);box-shadow:0 12px 28px -12px rgba(5,150,105,0.65);">
-            <a href="${escapeHtml(cta.href)}" style="display:inline-block;padding:14px 28px;font-family:'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.02em;color:#ffffff;text-decoration:none;">
-              ${escapeHtml(cta.label || 'Open dashboard')}
-            </a>
-          </td>
-        </tr>
-      </table>`
-    : '';
-
-  return `<!DOCTYPE html>
-<html lang="en" dir="${dir}">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="light" />
-  <meta name="supported-color-schemes" content="light" />
-  <title>${escapeHtml(title)}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    @keyframes maqderFadeUp {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes maqderPulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.35); }
-      50% { box-shadow: 0 0 0 10px rgba(16,185,129,0); }
-    }
-    @keyframes maqderShimmer {
-      0% { background-position: 0% 50%; }
-      100% { background-position: 100% 50%; }
-    }
-    .maqder-card { animation: maqderFadeUp 0.7s ease-out both; }
-    .maqder-badge { animation: maqderPulse 2.4s ease-in-out infinite; }
-    .maqder-hero {
-      background: linear-gradient(120deg, #064e3b 0%, #059669 42%, #0d9488 100%);
-      background-size: 180% 180%;
-      animation: maqderShimmer 8s ease-in-out infinite alternate;
-    }
-    @media only screen and (max-width: 620px) {
-      .maqder-pad { padding: 24px 18px !important; }
-      .maqder-title { font-size: 22px !important; }
-    }
-  </style>
-</head>
-<body style="margin:0;padding:0;background:#eef2f7;font-family:'Plus Jakarta Sans','Segoe UI',Arial,Helvetica,sans-serif;color:#0f172a;-webkit-font-smoothing:antialiased;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(title)} — ${escapeHtml(brandName)}</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7;padding:32px 12px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="maqder-card" style="max-width:640px;background:#ffffff;border-radius:28px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 28px 60px -36px rgba(15,23,42,0.45);">
-          <tr>
-            <td class="maqder-hero maqder-pad" style="padding:36px 40px;color:#ffffff;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td align="left" valign="middle">
-                    <div class="maqder-badge" style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.22);font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;">
-                      ${escapeHtml(brandName)}
-                    </div>
-                    <h1 class="maqder-title" style="margin:16px 0 0;font-size:28px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:#ffffff;">
-                      ${escapeHtml(title)}
-                    </h1>
-                  </td>
-                  <td align="right" valign="middle" width="72">
-                    <img src="https://maqder.com/maqderlogolandingpage.webp" alt="${escapeHtml(brandName)}" width="56" height="56" style="display:block;width:56px;height:56px;border-radius:16px;background:#ffffff;object-fit:contain;padding:6px;box-shadow:0 10px 24px -12px rgba(0,0,0,0.45);" />
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td class="maqder-pad" style="padding:36px 40px;">
-              <div style="font-size:15px;line-height:1.85;color:#1e293b;text-align:left;">${contentHtml}</div>
-              ${secondaryHtml ? `<div style="margin-top:24px;padding:18px 20px;border-radius:18px;background:linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%);border:1px solid #e2e8f0;">${secondaryHtml}</div>` : ''}
-              ${ctaHtml}
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:0 40px 32px;">
-              <div style="height:1px;background:linear-gradient(90deg,transparent,#e2e8f0,transparent);"></div>
-              <p style="margin:18px 0 0;font-size:12px;line-height:1.7;color:#94a3b8;text-align:center;">
-                Sent by ${escapeHtml(brandName)} · <a href="https://maqder.com" style="color:#059669;text-decoration:none;font-weight:600;">maqder.com</a>
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-};
+const buildBilingualEmailShell = (options = {}) => buildPremiumBilingualEmailShell(options);
 
 const buildCredentialRowsHtml = (rows = []) => {
   const items = rows.filter((row) => row?.label && row?.value);
   if (items.length === 0) return '';
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;border-collapse:separate;border-spacing:0;border:1px solid #d1fae5;border-radius:18px;overflow:hidden;background:#ecfdf5;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;border-collapse:collapse;">
     ${items.map((row, index) => `
       <tr>
-        <td style="padding:14px 18px;border-top:${index === 0 ? '0' : '1px solid #d1fae5'};width:38%;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#047857;vertical-align:top;">
-          ${escapeHtml(row.label)}
-        </td>
-        <td style="padding:14px 18px;border-top:${index === 0 ? '0' : '1px solid #d1fae5'};font-size:14px;font-weight:600;color:#0f172a;word-break:break-word;vertical-align:top;">
-          ${row.href ? `<a href="${escapeHtml(row.href)}" style="color:#059669;text-decoration:none;">${escapeHtml(row.value)}</a>` : escapeHtml(row.value)}
+        <td style="padding:${index === 0 ? '0' : '14px'} 0 14px;border-top:${index === 0 ? '0' : '1px solid #eceff3'};vertical-align:top;">
+          <div style="font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#94a3b8;margin:0 0 4px;">${escapeHtml(row.label)}</div>
+          <div style="font-size:15px;font-weight:600;color:#0f172a;line-height:1.5;word-break:break-word;">
+            ${row.href
+              ? `<a href="${escapeHtml(row.href)}" style="color:#0f766e;text-decoration:none;">${escapeHtml(row.value)}</a>`
+              : escapeHtml(row.value)}
+          </div>
         </td>
       </tr>`).join('')}
   </table>`;
-};
-
-const buildBilingualEmailShell = ({ brandName, title, sections = [] }) => {
-  const sectionsHtml = sections
-    .filter((section) => section?.body)
-    .map((section) => {
-      const dir = section.dir === 'rtl' ? 'rtl' : 'ltr';
-      const align = dir === 'rtl' ? 'right' : 'left';
-      const secondaryHtml = buildSecondaryLinesHtml(section.secondaryLines || []);
-      return `<section dir="${dir}" style="padding:24px 0;text-align:${align};${dir === 'rtl' ? 'font-family:Tahoma,Arial,sans-serif;' : ''}">
-        <h2 style="margin:0 0 12px;font-size:20px;line-height:1.5;color:#0f172a;">${escapeHtml(section.title || '')}</h2>
-        <div style="font-size:15px;line-height:1.95;color:#1e293b;">${escapeHtml(section.body).replace(/\r?\n/g, '<br />')}</div>
-        ${secondaryHtml ? `<div style="margin-top:20px;padding:18px;border-radius:18px;background:#f8fafc;border:1px solid #e2e8f0;display:grid;gap:8px;">${secondaryHtml}</div>` : ''}
-      </section>`;
-    })
-    .join('<div style="height:1px;background:#e2e8f0;"></div>');
-
-  return `<!DOCTYPE html>
-<html dir="ltr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(title)}</title>
-</head>
-<body style="margin:0;padding:24px;background:#f8fafc;font-family:Segoe UI,Arial,sans-serif;color:#0f172a;">
-  <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;overflow:hidden;box-shadow:0 20px 45px -35px rgba(15,23,42,0.35);">
-    <div style="background:linear-gradient(135deg,#1a3d28 0%,#2d5a3f 100%);padding:28px 32px;color:#ffffff;">
-      <div style="font-size:13px;letter-spacing:0.18em;text-transform:uppercase;opacity:0.78;">${escapeHtml(brandName)}</div>
-      <h1 style="margin:12px 0 0;font-size:24px;line-height:1.35;font-weight:700;">${escapeHtml(title)}</h1>
-    </div>
-    <div style="padding:0 32px;">${sectionsHtml}</div>
-  </div>
-</body>
-</html>`;
 };
 
 const pickLocalizedValue = (source, language, fieldBase) => {
@@ -281,13 +151,16 @@ const buildTenantWelcomeVariables = ({ tenant, adminUser, brandName, language })
     : String(tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || tenant?.name || brandName || 'Maqder ERP').trim(),
   contactName: resolveLocalizedContactName(adminUser, tenant, language),
   loginEmail: String(adminUser?.email || tenant?.business?.contactEmail || '').trim(),
-  tenantSlug: String(tenant?.slug || '').trim(),
+  tenantSlug: String(tenant?.slug || '').trim().toLowerCase(),
+  loginUrl: getTenantLoginUrl(tenant),
+  workspaceUrl: getTenantWorkspaceUrl(tenant),
+  workspaceHost: getTenantWorkspaceHost(tenant),
 });
 
-const buildTenantWelcomeSecondaryLines = (variables, language) => uniqueValues(
-  variables.loginEmail ? `${language === 'ar' ? 'البريد للدخول' : 'Login email'}: ${variables.loginEmail}` : '',
-  variables.tenantSlug ? `${language === 'ar' ? 'رمز الشركة' : 'Tenant slug'}: ${variables.tenantSlug}` : ''
-);
+const buildTenantWelcomeSecondaryLines = (variables, language) => [
+  variables.loginEmail ? { label: language === 'ar' ? 'البريد للدخول' : 'Login email', value: variables.loginEmail } : null,
+  variables.workspaceHost ? { label: language === 'ar' ? 'مساحة العمل' : 'Workspace', value: variables.workspaceHost, href: variables.loginUrl } : null,
+].filter(Boolean);
 
 const buildLocalizedTenantWelcomeMessage = ({ template, brandName, tenant, adminUser, language }) => {
   const normalizedLanguage = normalizeLanguage(language) || 'en';
@@ -307,7 +180,9 @@ const buildLocalizedTenantWelcomeMessage = ({ template, brandName, tenant, admin
       body,
       secondaryLines: buildTenantWelcomeSecondaryLines(variables, normalizedLanguage),
       dir: normalizedLanguage === 'ar' ? 'rtl' : 'ltr',
-      cta: { href: 'https://maqder.com/login', label: 'Open your dashboard' },
+      workspaceUrl: variables.workspaceUrl,
+      workspaceHost: variables.workspaceHost,
+      cta: { href: variables.loginUrl, label: normalizedLanguage === 'ar' ? 'فتح مساحة العمل' : 'Open your workspace' },
     }),
     language: normalizedLanguage,
   };
@@ -323,6 +198,9 @@ const buildBilingualTenantWelcomeMessage = ({ template, brandName, tenant, admin
     html: buildBilingualEmailShell({
       brandName,
       title: subject,
+      workspaceUrl: getTenantWorkspaceUrl(tenant),
+      workspaceHost: getTenantWorkspaceHost(tenant),
+      cta: { href: getTenantLoginUrl(tenant), label: 'Open your workspace' },
       sections: [
         {
           title: english.subject,
@@ -401,7 +279,7 @@ export const sendTenantOnboardingEmail = async ({ tenant, adminUser, rawPassword
     }
 
     const brandName = config.brandName;
-    const loginUrl = 'https://maqder.com/login';
+    const loginUrl = getTenantLoginUrl(tenant);
     const subject = `Welcome to ${brandName} — your workspace is ready`;
     const firstName = escapeHtml(adminUser?.firstName || 'there');
 
@@ -421,7 +299,9 @@ export const sendTenantOnboardingEmail = async ({ tenant, adminUser, rawPassword
       brandName,
       title: subject,
       htmlBody,
-      cta: { href: loginUrl, label: 'Open your dashboard' },
+      cta: { href: loginUrl, label: 'Open your workspace' },
+      workspaceUrl: getTenantWorkspaceUrl(tenant),
+      workspaceHost: getTenantWorkspaceHost(tenant),
       dir: 'ltr',
     });
 
@@ -570,7 +450,7 @@ export const sendDemoWelcomeEmail = async ({ email, tenant, businessType, trialE
 
     const brandName = config.brandName;
     const salesEmail = String(settings?.email?.salesEmail || config.replyTo || config.fromEmail || '').trim();
-    const loginUrl = 'https://maqder.com/login';
+    const loginUrl = getTenantLoginUrl(tenant);
     const trialEndStr = trialEndDate
       ? new Date(trialEndDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
       : '';
@@ -596,6 +476,8 @@ export const sendDemoWelcomeEmail = async ({ email, tenant, businessType, trialE
       title: 'Your free trial is ready',
       htmlBody,
       cta: { href: loginUrl, label: 'Launch your workspace' },
+      workspaceUrl: getTenantWorkspaceUrl(tenant),
+      workspaceHost: getTenantWorkspaceHost(tenant),
       dir: 'ltr',
     });
 
@@ -632,7 +514,7 @@ export const sendUpgradeWelcomeEmail = async ({ email, tenant, plan, billingCycl
 
     const brandName = config.brandName;
     const salesEmail = String(settings?.email?.salesEmail || config.replyTo || config.fromEmail || '').trim();
-    const loginUrl = 'https://maqder.com/login';
+    const loginUrl = getTenantLoginUrl(tenant);
     const planName = plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'Professional';
     const cycleLabel = billingCycle === 'yearly' ? 'Annual' : 'Monthly';
     const amountStr = amount ? `${amount} ${currency}` : '';
@@ -667,7 +549,9 @@ export const sendUpgradeWelcomeEmail = async ({ email, tenant, plan, billingCycl
       brandName,
       title: 'Your subscription is active',
       htmlBody,
-      cta: { href: loginUrl, label: 'Open your dashboard' },
+      cta: { href: loginUrl, label: 'Open your workspace' },
+      workspaceUrl: getTenantWorkspaceUrl(tenant),
+      workspaceHost: getTenantWorkspaceHost(tenant),
       dir: 'ltr',
     });
 

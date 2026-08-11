@@ -11,6 +11,8 @@ import { getPrimaryBusinessType, getTenantBusinessTypes } from '../utils/busines
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 import { sendTenantEmail } from '../utils/tenantEmailService.js';
 import { clampTemplateId } from '../utils/premiumTemplates.js';
+import { buildPremiumEmailShell, getTenantLoginUrl, getTenantWorkspaceHost, getTenantWorkspaceUrl } from '../utils/premiumEmailShell.js';
+import { tenantHasEmailAddon } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -250,37 +252,30 @@ function resolveRecipient(customer, quotation, fallbackRecipient = '') {
   return String(quotation?.buyer?.contactEmail || '').trim().toLowerCase();
 }
 
-function buildQuotationEmailHtml({ quotation, customerName = '' }) {
+function buildQuotationEmailHtml({ quotation, customerName = '', tenant }) {
   const safeName = normalizeText(customerName) || normalizeText(quotation?.buyer?.name) || 'Customer';
   const quotationNumber = normalizeText(quotation?.quotationNumber) || 'Quotation';
-  const validUntil = quotation?.validUntil ? new Date(quotation.validUntil).toLocaleDateString('en-US') : '';
-  const validUntilAr = quotation?.validUntil ? new Date(quotation.validUntil).toLocaleDateString('ar-SA') : '';
-  const total = toNumber(quotation?.grandTotal, 0).toFixed(2);
+  const validUntil = quotation?.validUntil ? new Date(quotation.validUntil).toLocaleDateString('en-GB') : '';
+  const total = `${toNumber(quotation?.grandTotal, 0).toFixed(2)} ${normalizeText(quotation?.currency) || 'SAR'}`;
+  const companyName = normalizeText(tenant?.business?.legalNameEn || tenant?.name) || 'Maqder';
+  const loginUrl = getTenantLoginUrl(tenant);
 
-  return `
-    <div style="font-family: Arial, Helvetica, sans-serif; background:#f8fafc; padding:24px; color:#0f172a;">
-      <div style="max-width:720px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:24px; overflow:hidden; box-shadow:0 20px 60px -36px rgba(15,23,42,0.25);">
-        <div style="height:6px; background:#0f172a;"></div>
-        <div style="padding:32px;">
-          <h1 style="margin:0 0 8px; font-size:28px;">Quotation ${quotationNumber}</h1>
-          <p style="margin:0 0 24px; color:#475569;">Please find your quotation attached. You can review the offer and reply with any updates or approval.</p>
-          <div style="padding:20px; border:1px solid #e2e8f0; border-radius:18px; background:#f8fafc; margin-bottom:24px;">
-            <p style="margin:0 0 8px;"><strong>Customer:</strong> ${safeName}</p>
-            <p style="margin:0 0 8px;"><strong>Quotation #:</strong> ${quotationNumber}</p>
-            <p style="margin:0 0 8px;"><strong>Total:</strong> ${total} ${normalizeText(quotation?.currency) || 'SAR'}</p>
-            ${validUntil ? `<p style="margin:0;"><strong>Valid Until:</strong> ${validUntil}</p>` : ''}
-          </div>
-          <div dir="rtl" style="padding:20px; border:1px solid #e2e8f0; border-radius:18px; background:#ffffff;">
-            <p style="margin:0 0 8px; font-weight:700;">عرض السعر ${quotationNumber}</p>
-            <p style="margin:0 0 8px; color:#475569;">مرفق لكم عرض السعر. يمكنكم مراجعة العرض والرد بالموافقة أو طلب التعديلات.</p>
-            <p style="margin:0 0 8px;"><strong>العميل:</strong> ${safeName}</p>
-            <p style="margin:0 0 8px;"><strong>الإجمالي:</strong> ${total} ${normalizeText(quotation?.currency) || 'SAR'}</p>
-            ${validUntilAr ? `<p style="margin:0;"><strong>ساري حتى:</strong> ${validUntilAr}</p>` : ''}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+  return buildPremiumEmailShell({
+    brandName: companyName,
+    title: `Quotation ${quotationNumber}`,
+    body: `Dear ${safeName},\n\nPlease find your quotation attached. Review the offer and reply with approval or any requested changes.`,
+    secondaryLines: [
+      { label: 'Customer', value: safeName },
+      { label: 'Quotation', value: quotationNumber },
+      { label: 'Total', value: total },
+      validUntil ? { label: 'Valid until', value: validUntil } : null,
+      { label: 'Workspace', value: getTenantWorkspaceHost(tenant), href: loginUrl },
+    ].filter(Boolean),
+    workspaceUrl: getTenantWorkspaceUrl(tenant),
+    workspaceHost: getTenantWorkspaceHost(tenant),
+    cta: { href: loginUrl, label: 'Open workspace' },
+    dir: 'ltr',
+  });
 }
 
 router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
@@ -625,8 +620,7 @@ router.post('/:id/send-email', checkPermission('invoicing', 'update'), async (re
       return res.status(404).json({ error: 'Tenant not found' });
     }
 
-    const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true
-      || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'));
+    const hasEmailAddon = tenantHasEmailAddon(tenant);
     if (!hasEmailAddon) {
       return res.status(403).json({ error: 'Email automation add-on is not enabled for this tenant' });
     }
@@ -655,6 +649,7 @@ router.post('/:id/send-email', checkPermission('invoicing', 'update'), async (re
     const subject = `${quotation.quotationNumber} Quotation | عرض سعر ${quotation.quotationNumber}`;
     const html = buildQuotationEmailHtml({
       quotation,
+      tenant,
       customerName: customer?.name || customer?.nameAr || quotation?.buyer?.name || quotation?.buyer?.nameAr,
     });
 
