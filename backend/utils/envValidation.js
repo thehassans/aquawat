@@ -1,5 +1,8 @@
 /**
  * Fail-fast production env checks. Call once at process boot before listening.
+ *
+ * Hard errors = process must not start (auth would be broken).
+ * Warnings = log loudly but allow single-node deploys to recover.
  */
 export function validateProductionEnv({ logger = console } = {}) {
   const isProd = process.env.NODE_ENV === 'production';
@@ -8,10 +11,19 @@ export function validateProductionEnv({ logger = console } = {}) {
 
   const jwt = String(process.env.JWT_SECRET || '').trim();
   if (!jwt || jwt.length < 32) {
+    // Missing/short secret breaks auth entirely — hard fail in production.
     errors.push('JWT_SECRET must be set to a strong value (min 32 chars)');
   }
-  if (jwt === 'change-me' || jwt === 'secret' || jwt.toLowerCase().includes('changeme')) {
-    errors.push('JWT_SECRET is a known insecure default');
+  const insecureJwtDefaults = new Set([
+    'change-me',
+    'secret',
+    'changeme',
+    'your-super-secret-jwt-key-change-in-production',
+    'your-super-secret-jwt-key-change-in-production-min-32',
+  ]);
+  if (jwt && insecureJwtDefaults.has(jwt.toLowerCase())) {
+    // Warn (don't crash existing VPS deploys) — rotate ASAP.
+    warnings.push('JWT_SECRET matches a known insecure example value — rotate it immediately');
   }
 
   if (isProd) {
@@ -19,9 +31,19 @@ export function validateProductionEnv({ logger = console } = {}) {
       errors.push('MONGODB_URI must be set in production');
     }
 
-    const superPass = process.env.SUPER_ADMIN_PASSWORD;
-    if (superPass === 'SuperAdmin@123' || superPass === 'admin' || superPass === 'password') {
-      errors.push('SUPER_ADMIN_PASSWORD must not use the insecure default in production');
+    const superPass = String(process.env.SUPER_ADMIN_PASSWORD || '');
+    if (
+      !superPass ||
+      superPass === 'SuperAdmin@123' ||
+      superPass === 'admin' ||
+      superPass === 'password' ||
+      superPass === 'ChangeMeToAStrongPassword!'
+    ) {
+      // Warn only — seed already refuses to create a default admin in production.
+      // Hard-failing here takes down existing deploys whose .env still has the old default.
+      warnings.push(
+        'SUPER_ADMIN_PASSWORD is missing or uses an insecure default — rotate it immediately'
+      );
     }
 
     const hasS3 = Boolean(

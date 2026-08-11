@@ -130,12 +130,13 @@ services:
           memory: 256M
 
     # ── Health check ───────────────────────────────────────────────────────────
+    # Cluster + Chrome image can take >30s on first boot; keep start_period generous.
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health/ready || exit 1"]
       interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      timeout: 8s
+      retries: 8
+      start_period: 90s
 
     logging:
       driver: json-file
