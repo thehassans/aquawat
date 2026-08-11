@@ -17,11 +17,13 @@ export async function getStripeConfig() {
 
 /**
  * Create a Stripe Checkout Session (one-time payment).
- * amountMajor = major currency units (e.g. 99.00 SAR).
+ * amountMajor = major currency units (e.g. 79.00 USD).
+ * Default presentment/integration currency is USD; Adaptive Pricing lets Stripe
+ * auto-convert to the customer's local currency at checkout (official Stripe FX).
  */
 export async function createStripeCheckoutSession({
   amountMajor,
-  currency = 'SAR',
+  currency = 'USD',
   productName,
   productDescription = '',
   customerEmail = '',
@@ -29,6 +31,7 @@ export async function createStripeCheckoutSession({
   cancelUrl,
   metadata = {},
   clientReferenceId = '',
+  adaptivePricing = true,
 }) {
   const config = await getStripeConfig()
   if (!config.enabled || !config.secretKey) {
@@ -44,11 +47,15 @@ export async function createStripeCheckoutSession({
     mode: 'payment',
     success_url: successUrl,
     cancel_url: cancelUrl,
-    'line_items[0][price_data][currency]': String(currency || 'SAR').toLowerCase(),
+    'line_items[0][price_data][currency]': String(currency || 'USD').toLowerCase(),
     'line_items[0][price_data][product_data][name]': String(productName || 'Maqder').slice(0, 120),
     'line_items[0][price_data][unit_amount]': String(unitAmount),
     'line_items[0][quantity]': '1',
   })
+
+  if (adaptivePricing) {
+    body.set('adaptive_pricing[enabled]', 'true')
+  }
 
   if (productDescription) {
     body.set('line_items[0][price_data][product_data][description]', String(productDescription).slice(0, 500))

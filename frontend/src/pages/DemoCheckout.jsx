@@ -23,6 +23,13 @@ import {
 } from 'lucide-react'
 import api from '../lib/api'
 import { getPrimaryBusinessType } from '../lib/businessTypes'
+import { isSaudiTenant } from '../lib/saudiTenant'
+import {
+  CHECKOUT_CURRENCY,
+  convertToUsd,
+  isZatcaFeatureText,
+  zatcaAddonUsd,
+} from '../lib/checkoutPricing'
 import { setLanguage } from '../store/slices/uiSlice'
 import DailyAyat from '../components/ui/DailyAyat'
 
@@ -86,7 +93,10 @@ export default function DemoCheckout() {
   const [mounted, setMounted] = useState(false)
   const [websiteSettings, setWebsiteSettings] = useState(null)
   const [settingsLoading, setSettingsLoading] = useState(true)
-  const [zatcaPhase2Enabled, setZatcaPhase2Enabled] = useState(tenant?.zatca?.phase === 2 || false)
+  const saudiTenant = isSaudiTenant(tenant)
+  const [zatcaPhase2Enabled, setZatcaPhase2Enabled] = useState(
+    () => saudiTenant && (tenant?.zatca?.phase === 2 || false)
+  )
 
   useEffect(() => {
     setMounted(true)
@@ -94,6 +104,10 @@ export default function DemoCheckout() {
       navigate('/login', { replace: true })
     }
   }, [tenant, navigate])
+
+  useEffect(() => {
+    if (!saudiTenant) setZatcaPhase2Enabled(false)
+  }, [saudiTenant])
 
   const primaryBusinessType = getPrimaryBusinessType(tenant)
 
@@ -139,29 +153,43 @@ export default function DemoCheckout() {
     if (firstAvailable) setPaymentMethod(firstAvailable.id)
   }, [websiteSettings, paymentMethod])
 
+  const catalogCurrency = String(websiteSettings?.pricing?.currency || 'SAR').toUpperCase()
+
   const plans = useMemo(() => {
+    const filterFeatures = (list = []) =>
+      (saudiTenant ? list : list.filter((f) => !isZatcaFeatureText(f)))
+
     const configured = websiteSettings?.pricing?.plans
     if (Array.isArray(configured) && configured.length > 0) {
       return configured.map((p) => {
         const fallback = fallbackPricingPlans.find((f) => f.id === p.id)
+        const featuresEn = p.featuresEn?.length ? p.featuresEn : fallback?.featuresEn
+        const featuresAr = p.featuresAr?.length ? p.featuresAr : fallback?.featuresAr
         return {
           ...fallback,
           ...p,
-          priceMonthly: Number(p.priceMonthly ?? fallback?.priceMonthly ?? 0),
-          priceYearly: Number(p.priceYearly ?? fallback?.priceYearly ?? 0),
-          featuresEn: p.featuresEn?.length ? p.featuresEn : fallback?.featuresEn,
-          featuresAr: p.featuresAr?.length ? p.featuresAr : fallback?.featuresAr,
+          // Catalog → USD for display & Stripe Adaptive Pricing presentment base
+          priceMonthly: convertToUsd(p.priceMonthly ?? fallback?.priceMonthly ?? 0, catalogCurrency),
+          priceYearly: convertToUsd(p.priceYearly ?? fallback?.priceYearly ?? 0, catalogCurrency),
+          featuresEn: filterFeatures(featuresEn),
+          featuresAr: filterFeatures(featuresAr),
         }
       })
     }
-    return fallbackPricingPlans
-  }, [websiteSettings])
+    return fallbackPricingPlans.map((p) => ({
+      ...p,
+      priceMonthly: convertToUsd(p.priceMonthly, 'SAR'),
+      priceYearly: convertToUsd(p.priceYearly, 'SAR'),
+      featuresEn: filterFeatures(p.featuresEn),
+      featuresAr: filterFeatures(p.featuresAr),
+    }))
+  }, [websiteSettings, catalogCurrency, saudiTenant])
 
   const selectedPlanObj = plans.find((p) => p.id === selectedPlan) || plans[1]
   const amount = selectedBilling === 'yearly' ? selectedPlanObj.priceYearly : selectedPlanObj.priceMonthly
-  const currency = String(tenant?.settings?.currency || websiteSettings?.pricing?.currency || 'SAR').toUpperCase()
-  const zatcaAddon = (currency === 'SAR' && zatcaPhase2Enabled) ? (selectedBilling === 'yearly' ? 400 : 50) : 0
-  const totalAmount = amount + zatcaAddon
+  const currency = CHECKOUT_CURRENCY
+  const zatcaAddon = saudiTenant && zatcaPhase2Enabled ? zatcaAddonUsd(selectedBilling) : 0
+  const totalAmount = Math.round((Number(amount) + Number(zatcaAddon)) * 100) / 100
 
   const handleUpgrade = async () => {
     if (selectedPlan === 'enterprise') {
@@ -175,10 +203,11 @@ export default function DemoCheckout() {
     try {
       const { data } = await api.post('/payments/create-payment', {
         amount: totalAmount,
-        currency,
+        currency: CHECKOUT_CURRENCY,
         plan: selectedPlan,
         billingCycle: selectedBilling,
         paymentMethod,
+        zatcaPhase2: saudiTenant && zatcaPhase2Enabled,
       })
 
       if (data?.url) {
@@ -229,7 +258,9 @@ export default function DemoCheckout() {
 
             <div className="grid grid-cols-1 gap-4">
               {[
-                { icon: Shield, text: isArabic ? 'متوافق مع فاتورة المرحلة الثانية' : 'ZATCA Phase 2 Compliant' },
+                saudiTenant
+                  ? { icon: Shield, text: isArabic ? 'متوافق مع فاتورة المرحلة الثانية' : 'ZATCA Phase 2 Compliant' }
+                  : { icon: Shield, text: isArabic ? 'فوترة وتقارير احترافية' : 'Professional invoicing & reports' },
                 { icon: Zap, text: isArabic ? 'تفعيل فوري بعد الدفع' : 'Instant activation after payment' },
                 { icon: Star, text: isArabic ? 'دعم كامل للغة العربية' : 'Full Arabic RTL support' },
                 { icon: Sparkles, text: isArabic ? 'جميع الميزات بدون قيود' : 'All features, no limits' },
@@ -416,8 +447,8 @@ export default function DemoCheckout() {
               </div>
             )}
 
-            {/* ZATCA Phase 2 toggle */}
-            {selectedPlan !== 'enterprise' && (
+            {/* ZATCA Phase 2 — Saudi tenants only */}
+            {saudiTenant && selectedPlan !== 'enterprise' && (
               <div className="mb-6 relative overflow-hidden rounded-2xl bg-gradient-to-r from-white via-emerald-50/40 to-white dark:from-dark-800 dark:via-emerald-900/10 dark:to-dark-800 border border-emerald-100/70 dark:border-emerald-900/20 p-4 shadow-[0_8px_30px_-10px_rgba(15,61,46,0.12)] dark:shadow-[0_8px_30px_-10px_rgba(0,0,0,0.3)]">
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/[0.03] via-transparent to-emerald-500/[0.03] pointer-events-none" />
                 <div className="relative flex items-center justify-between">
@@ -471,12 +502,17 @@ export default function DemoCheckout() {
                     </span>
                   </div>
                 </div>
+                <p className="mt-2 text-center text-[11px] text-gray-400 dark:text-gray-500">
+                  {isArabic
+                    ? 'الفوترة بالدولار — قد يعرض Stripe السعر بعملتك المحلية تلقائياً'
+                    : 'Priced in USD — Stripe may auto-convert to your local currency at checkout'}
+                </p>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex items-center justify-between text-gray-600 dark:text-gray-300">
                     <span>{isArabic ? `خطة ${selectedPlanObj.nameAr}` : `${selectedPlanObj.nameEn} plan`}</span>
                     <span className="font-medium">{amount} {currency}</span>
                   </div>
-                  {zatcaPhase2Enabled && (
+                  {saudiTenant && zatcaPhase2Enabled && (
                     <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400">
                       <span className="flex items-center gap-1.5">
                         <Shield className="h-4 w-4" />
@@ -654,22 +690,24 @@ export default function DemoCheckout() {
               </span>
             </div>
 
-            {/* Trusted & Certified compliance logos */}
-            <div className="mt-6 pt-6 border-t border-gray-100 dark:border-dark-600">
-              <p className="text-center text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500 mb-3">
-                {isArabic ? 'معتمد وموثوق من' : 'Trusted & Certified'}
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                {complianceLogos.map((logo) => (
-                  <div
-                    key={logo.alt}
-                    className={`flex h-14 ${logo.cardClassName} items-center justify-center overflow-hidden rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-700 px-3 py-2`}
-                  >
-                    <img src={logo.src} alt={logo.alt} className={`max-h-full max-w-full object-contain ${logo.imageClassName}`} />
-                  </div>
-                ))}
+            {/* Trusted & Certified — Saudi compliance logos only */}
+            {saudiTenant && (
+              <div className="mt-6 pt-6 border-t border-gray-100 dark:border-dark-600">
+                <p className="text-center text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500 mb-3">
+                  {isArabic ? 'معتمد وموثوق من' : 'Trusted & Certified'}
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  {complianceLogos.map((logo) => (
+                    <div
+                      key={logo.alt}
+                      className={`flex h-14 ${logo.cardClassName} items-center justify-center overflow-hidden rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-700 px-3 py-2`}
+                    >
+                      <img src={logo.src} alt={logo.alt} className={`max-h-full max-w-full object-contain ${logo.imageClassName}`} />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </motion.div>
       </div>

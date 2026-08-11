@@ -10,6 +10,12 @@ import {
   retrieveStripeCheckoutSession,
   verifyStripeWebhookSignature,
 } from '../services/platformStripe.js'
+import {
+  CHECKOUT_CURRENCY,
+  gatewayNeedsSar,
+  toUsdMajor,
+  usdToSarMajor,
+} from '../utils/checkoutCurrency.js'
 
 const router = express.Router()
 
@@ -56,13 +62,13 @@ const getTamaraConfig = async () => {
 const TABBY_API_BASE = 'https://api.tabby.ai/api/v1'
 const TAMARA_API_BASE = (env) => env === 'live' ? 'https://api.tamara.co/api/v1' : 'https://api-sandbox.tamara.co/api/v1'
 
-const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amountHalalas, currency, paymentId }) => {
+const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amountHalalas, currency, paymentId, zatcaPhase2 = false }) => {
   if (!tenantId) return
 
   const now = new Date()
   const endDate = new Date(now.getTime() + (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000)
 
-  await Tenant.findByIdAndUpdate(tenantId, {
+  const update = {
     isDemo: false,
     demoUpgraded: true,
     'subscription.plan': plan,
@@ -71,7 +77,13 @@ const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amo
     'subscription.endDate': endDate,
     'subscription.billingCycle': billingCycle,
     'subscription.price': Number(amountHalalas) / 100,
-  })
+  }
+
+  if (zatcaPhase2 === true || zatcaPhase2 === '1' || zatcaPhase2 === 1) {
+    update['zatca.phase'] = 2
+  }
+
+  await Tenant.findByIdAndUpdate(tenantId, update)
 
   if (demoEmail) {
     await DemoUser.findOneAndUpdate(
@@ -104,7 +116,14 @@ const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amo
 // @access  Private (demo users only)
 router.post('/create-payment', protect, async (req, res) => {
   try {
-    const { amount, currency = 'SAR', plan = 'professional', billingCycle = 'monthly', paymentMethod = 'creditcard' } = req.body
+    const {
+      amount: rawAmount,
+      currency: rawCurrency = CHECKOUT_CURRENCY,
+      plan = 'professional',
+      billingCycle = 'monthly',
+      paymentMethod = 'creditcard',
+      zatcaPhase2 = false,
+    } = req.body
 
     const tenant = await Tenant.findById(req.user.tenantId)
     if (!tenant) {
@@ -116,37 +135,50 @@ router.post('/create-payment', protect, async (req, res) => {
       return res.status(403).json({ error: 'Tenant account is inactive' })
     }
 
+    // Platform checkout settles in USD; Stripe Adaptive Pricing converts for the cardholder.
+    // Moyasar / Tabby / Tamara expect SAR — convert from USD using the official peg.
+    const amountUsd = toUsdMajor(rawAmount, rawCurrency)
+    const useSarGateway = gatewayNeedsSar(paymentMethod)
+    const currency = useSarGateway ? 'SAR' : CHECKOUT_CURRENCY
+    const amount = useSarGateway ? usdToSarMajor(amountUsd) : amountUsd
     const finalAmount = Math.round(Number(amount) * 100)
 
     if (!finalAmount || finalAmount < 100) {
-      return res.status(400).json({ error: `Invalid amount: ${amount} (converted to ${finalAmount} halalas)` })
+      return res.status(400).json({
+        error: `Invalid amount: ${rawAmount} (USD ${amountUsd} → ${finalAmount} minor units)`,
+      })
     }
 
     const frontendUrl = (process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`).split(',')[0].trim().replace(/\/$/, '')
     const successUrl = `${frontendUrl}/payment-result?status=paid&tenantId=${tenant._id}&method=${paymentMethod}`
     const backUrl = `${frontendUrl}/demo-checkout`
 
+    const upgradeMeta = {
+      type: 'tenant_upgrade',
+      tenantId: String(tenant._id),
+      demoEmail: tenant.demoEmail || '',
+      plan,
+      billingCycle,
+      amountMajor: String(amountUsd),
+      currency: CHECKOUT_CURRENCY,
+      chargeCurrency: currency,
+      zatcaPhase2: zatcaPhase2 ? '1' : '0',
+    }
+
     // --- Stripe checkout (platform SaaS upgrade) ---
     if (paymentMethod === 'stripe') {
       try {
         const session = await createStripeCheckoutSession({
-          amountMajor: Number(amount),
-          currency,
+          amountMajor: amountUsd,
+          currency: CHECKOUT_CURRENCY,
+          adaptivePricing: true,
           productName: `Maqder ERP — ${plan} (${billingCycle})`,
           productDescription: `Upgrade demo tenant to ${plan} plan`,
           customerEmail: tenant.demoEmail || tenant.business?.contactEmail || '',
           successUrl: `${frontendUrl}/payment-result?status=paid&tenantId=${tenant._id}&method=stripe&session_id={CHECKOUT_SESSION_ID}`,
           cancelUrl: backUrl,
           clientReferenceId: String(tenant._id),
-          metadata: {
-            type: 'tenant_upgrade',
-            tenantId: String(tenant._id),
-            demoEmail: tenant.demoEmail || '',
-            plan,
-            billingCycle,
-            amountMajor: String(amount),
-            currency,
-          },
+          metadata: upgradeMeta,
         })
         return res.json({ id: session.id, status: session.status, url: session.url, provider: 'stripe' })
       } catch (err) {
@@ -160,23 +192,16 @@ router.post('/create-payment', protect, async (req, res) => {
       if (stripeCfg.enabled && stripeCfg.secretKey) {
         try {
           const session = await createStripeCheckoutSession({
-            amountMajor: Number(amount),
-            currency,
+            amountMajor: amountUsd,
+            currency: CHECKOUT_CURRENCY,
+            adaptivePricing: true,
             productName: `Maqder ERP — ${plan} (${billingCycle})`,
             productDescription: `Upgrade demo tenant to ${plan} plan`,
             customerEmail: tenant.demoEmail || tenant.business?.contactEmail || '',
             successUrl: `${frontendUrl}/payment-result?status=paid&tenantId=${tenant._id}&method=stripe&session_id={CHECKOUT_SESSION_ID}`,
             cancelUrl: backUrl,
             clientReferenceId: String(tenant._id),
-            metadata: {
-              type: 'tenant_upgrade',
-              tenantId: String(tenant._id),
-              demoEmail: tenant.demoEmail || '',
-              plan,
-              billingCycle,
-              amountMajor: String(amount),
-              currency,
-            },
+            metadata: upgradeMeta,
           })
           return res.json({ id: session.id, status: session.status, url: session.url, provider: 'stripe' })
         } catch (err) {
@@ -229,6 +254,7 @@ router.post('/create-payment', protect, async (req, res) => {
           plan,
           billingCycle,
           paymentMethod: 'tabby',
+          zatcaPhase2: zatcaPhase2 ? '1' : '0',
         },
       }
 
@@ -303,6 +329,7 @@ router.post('/create-payment', protect, async (req, res) => {
           plan,
           billingCycle,
           paymentMethod: 'tamara',
+          zatcaPhase2: zatcaPhase2 ? '1' : '0',
         },
       }
 
@@ -340,6 +367,7 @@ router.post('/create-payment', protect, async (req, res) => {
         demoEmail: tenant.demoEmail || '',
         plan,
         billingCycle,
+        zatcaPhase2: zatcaPhase2 ? '1' : '0',
       },
     }
 
@@ -388,6 +416,7 @@ router.post('/invoice-webhook', async (req, res) => {
         amountHalalas: invoice.amount,
         currency: invoice.currency,
         paymentId: invoice.id,
+        zatcaPhase2: invoice?.metadata?.zatcaPhase2,
       })
     }
 
@@ -420,6 +449,7 @@ router.post('/tabby-webhook', async (req, res) => {
         amountHalalas: Math.round((payment?.amount || body?.amount || 0) * 100),
         currency: payment?.currency || body?.currency || 'SAR',
         paymentId: payment?.id || body?.id,
+        zatcaPhase2: meta.zatcaPhase2,
       })
     }
 
@@ -658,6 +688,7 @@ router.get('/invoice/:id', protect, async (req, res) => {
         amountHalalas: invoice.amount,
         currency: invoice.currency,
         paymentId: invoice.id,
+        zatcaPhase2: invoice?.metadata?.zatcaPhase2,
       })
     }
 
@@ -711,8 +742,9 @@ const handleStripeCheckoutCompleted = async (session) => {
     plan: meta.plan || 'professional',
     billingCycle: meta.billingCycle || 'monthly',
     amountHalalas: Math.round(Number(meta.amountMajor || (session.amount_total || 0) / 100) * 100),
-    currency: (meta.currency || session.currency || 'SAR').toUpperCase(),
+    currency: (meta.currency || session.currency || CHECKOUT_CURRENCY).toUpperCase(),
     paymentId: session.id,
+    zatcaPhase2: meta.zatcaPhase2,
   })
   return { type: 'tenant_upgrade', tenantId: meta.tenantId }
 }
