@@ -1,4 +1,5 @@
 import express from 'express';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import mongoose from 'mongoose';
 import { protect } from '../middleware/auth.js';
 import { resolveTenantByHost } from '../middleware/resolveTenantByHost.js';
@@ -8,14 +9,7 @@ import EcommerceOrder from '../models/EcommerceOrder.js';
 
 const router = express.Router();
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'ecommerce' });
-    return tenant ? tenant._id : null;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 // ==================== PUBLIC: Validate & apply coupon ====================
 
@@ -68,6 +62,7 @@ router.post('/validate', resolveTenantByHost, async (req, res) => {
       description: coupon.description,
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -76,7 +71,7 @@ router.post('/validate', resolveTenantByHost, async (req, res) => {
 
 router.get('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { page = 1, limit = 20 } = req.query;
@@ -87,13 +82,14 @@ router.get('/', protect, async (req, res) => {
     ]);
     res.json({ coupons, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 router.post('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { code, description, type, value, minSubtotal, maxDiscount, usageLimit, perCustomerLimit, startsAt, endsAt, appliesTo, productIds, categories } = req.body;
@@ -129,7 +125,7 @@ router.post('/', protect, async (req, res) => {
 
 router.put('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const updates = {};
@@ -152,7 +148,7 @@ router.put('/:id', protect, async (req, res) => {
 
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const coupon = await EcommerceCoupon.findOneAndDelete({ _id: req.params.id, tenantId });
@@ -166,7 +162,7 @@ router.delete('/:id', protect, async (req, res) => {
 // --- COUPON ANALYTICS ---
 router.get('/analytics', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const coupons = await EcommerceCoupon.find({ tenantId }).lean();
@@ -200,6 +196,7 @@ router.get('/analytics', protect, async (req, res) => {
 
     res.json({ analytics: result });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });

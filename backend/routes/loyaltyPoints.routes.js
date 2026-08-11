@@ -1,19 +1,17 @@
 import express from 'express';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import { protect } from '../middleware/auth.js';
 import LoyaltyPoints from '../models/LoyaltyPoints.js';
 import EcommerceOrder from '../models/EcommerceOrder.js';
 
 const router = express.Router();
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 // GET /api/ecommerce/loyalty — list all loyalty accounts
 router.get('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const page = parseInt(req.query.page) || 1;
@@ -37,6 +35,7 @@ router.get('/', protect, async (req, res) => {
 
     res.json({ accounts, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -44,7 +43,7 @@ router.get('/', protect, async (req, res) => {
 // GET /api/ecommerce/loyalty/stats — summary stats
 router.get('/stats', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const [totalAccounts, totalPointsInCirculation, totalLifetimePoints, tierCounts] = await Promise.all([
@@ -73,6 +72,7 @@ router.get('/stats', protect, async (req, res) => {
       tiers: tierMap,
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -80,7 +80,7 @@ router.get('/stats', protect, async (req, res) => {
 // GET /api/ecommerce/loyalty/:email — get a customer's loyalty account
 router.get('/:email', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const account = await LoyaltyPoints.findOne({
@@ -91,6 +91,7 @@ router.get('/:email', protect, async (req, res) => {
     if (!account) return res.status(404).json({ error: 'No loyalty account found' });
     res.json(account);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -98,7 +99,7 @@ router.get('/:email', protect, async (req, res) => {
 // POST /api/ecommerce/loyalty/earn — award points to a customer
 router.post('/earn', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const { customerEmail, customerName, customerPhone, points, reason, orderId } = req.body;
@@ -122,7 +123,7 @@ router.post('/earn', protect, async (req, res) => {
 // POST /api/ecommerce/loyalty/redeem — redeem points from a customer
 router.post('/redeem', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const { customerEmail, points, reason, orderId } = req.body;
@@ -145,7 +146,7 @@ router.post('/redeem', protect, async (req, res) => {
 // POST /api/ecommerce/loyalty/award-from-order — auto-award points based on order total
 router.post('/award-from-order', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const { orderId, pointsPerCurrency = 1 } = req.body;
@@ -179,7 +180,7 @@ router.post('/award-from-order', protect, async (req, res) => {
 // PUT /api/ecommerce/loyalty/adjust — manual points adjustment
 router.put('/adjust', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const { customerEmail, points, reason } = req.body;

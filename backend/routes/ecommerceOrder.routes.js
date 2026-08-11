@@ -1,4 +1,5 @@
 import express from 'express';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import { protect } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import EcommerceOrder from '../models/EcommerceOrder.js';
@@ -7,14 +8,7 @@ import { sendOrderStatusEmail } from '../utils/tenantEmailService.js';
 
 const router = express.Router();
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'ecommerce' });
-    return tenant ? tenant._id : null;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 // Valid status transitions
 const VALID_TRANSITIONS = {
@@ -31,7 +25,7 @@ const VALID_TRANSITIONS = {
 // --- LIST ORDERS ---
 router.get('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { search, status, paymentStatus, shippingStatus, sort, page = 1, limit = 20 } = req.query;
@@ -60,6 +54,7 @@ router.get('/', protect, async (req, res) => {
 
     res.json({ orders, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -67,7 +62,7 @@ router.get('/', protect, async (req, res) => {
 // --- ORDER STATS (for dashboard summary) ---
 router.get('/meta/stats', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const now = new Date();
@@ -95,6 +90,7 @@ router.get('/meta/stats', protect, async (req, res) => {
       ordersLast30Days: count30d,
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -102,7 +98,7 @@ router.get('/meta/stats', protect, async (req, res) => {
 // --- ANALYTICS (full dashboard analytics) ---
 router.get('/meta/analytics', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const now = new Date();
@@ -224,6 +220,7 @@ router.get('/meta/analytics', protect, async (req, res) => {
       topCustomers,
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -231,7 +228,7 @@ router.get('/meta/analytics', protect, async (req, res) => {
 // --- SALES REPORT (detailed report with custom date range) ---
 router.get('/meta/sales-report', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const startDate = req.query.startDate ? new Date(req.query.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -355,6 +352,7 @@ router.get('/meta/sales-report', protect, async (req, res) => {
       hourlyDistribution: hourlyDistribution.map(h => ({ hour: h._id, orders: h.orders, revenue: h.revenue })),
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -362,12 +360,13 @@ router.get('/meta/sales-report', protect, async (req, res) => {
 // --- GET SINGLE ORDER ---
 router.get('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const order = await EcommerceOrder.findOne({ _id: req.params.id, tenantId }).lean();
     if (!order) return res.status(404).json({ error: 'Order not found' });
     res.json(order);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -375,7 +374,7 @@ router.get('/:id', protect, async (req, res) => {
 // --- CREATE ORDER (admin manual order or storefront checkout) ---
 router.post('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { customer, lineItems, shipping, payment, notes, source } = req.body;
@@ -503,7 +502,7 @@ router.post('/', protect, async (req, res) => {
 // --- UPDATE ORDER STATUS ---
 router.patch('/:id/status', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { status, note } = req.body;
@@ -555,7 +554,7 @@ router.patch('/:id/status', protect, async (req, res) => {
 // --- UPDATE PAYMENT STATUS ---
 router.patch('/:id/payment', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { status, providerTransactionId } = req.body;
@@ -581,7 +580,7 @@ router.patch('/:id/payment', protect, async (req, res) => {
 // --- UPDATE SHIPPING / FULFILLMENT ---
 router.patch('/:id/shipping', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { status, trackingNumber, courier } = req.body;
@@ -609,7 +608,7 @@ router.patch('/:id/shipping', protect, async (req, res) => {
 // --- CANCEL ORDER (restock items) ---
 router.post('/:id/cancel', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const order = await EcommerceOrder.findOne({ _id: req.params.id, tenantId });
@@ -647,7 +646,7 @@ router.post('/:id/cancel', protect, async (req, res) => {
 // --- PROCESS REFUND ---
 router.post('/:id/refund', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { amount, reason, partial } = req.body;
@@ -688,7 +687,7 @@ router.post('/:id/refund', protect, async (req, res) => {
 // --- UPDATE INTERNAL NOTES ---
 router.patch('/:id/notes', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const order = await EcommerceOrder.findOneAndUpdate(

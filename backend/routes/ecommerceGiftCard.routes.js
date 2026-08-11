@@ -1,23 +1,17 @@
 import express from 'express';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import { protect } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import EcommerceGiftCard from '../models/EcommerceGiftCard.js';
 
 const router = express.Router();
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'ecommerce' });
-    return tenant ? tenant._id : null;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 // --- ADMIN: List gift cards ---
 router.get('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const { status, search, page = 1, limit = 25 } = req.query;
@@ -33,6 +27,7 @@ router.get('/', protect, async (req, res) => {
 
     res.json({ giftCards: cards, total, totalPages: Math.ceil(total / parseInt(limit)) });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -40,7 +35,7 @@ router.get('/', protect, async (req, res) => {
 // --- ADMIN: Create gift card ---
 router.post('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const { amount, recipientName, recipientEmail, note, expiresAt } = req.body;
@@ -70,6 +65,7 @@ router.post('/', protect, async (req, res) => {
 
     res.status(201).json(card);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -77,7 +73,7 @@ router.post('/', protect, async (req, res) => {
 // --- ADMIN: Update gift card (disable/enable) ---
 router.put('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const { status } = req.body;
@@ -88,6 +84,7 @@ router.put('/:id', protect, async (req, res) => {
     await card.save();
     res.json(card);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -95,13 +92,14 @@ router.put('/:id', protect, async (req, res) => {
 // --- ADMIN: Delete gift card ---
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const card = await EcommerceGiftCard.findOneAndDelete({ _id: req.params.id, tenantId });
     if (!card) return res.status(404).json({ error: 'Gift card not found' });
     res.json({ success: true });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -109,7 +107,7 @@ router.delete('/:id', protect, async (req, res) => {
 // --- ADMIN: Stats ---
 router.get('/stats', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
 
     const stats = await EcommerceGiftCard.aggregate([
@@ -131,6 +129,7 @@ router.get('/stats', protect, async (req, res) => {
 
     res.json(result);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });

@@ -1,4 +1,5 @@
 import express from 'express';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
@@ -16,14 +17,7 @@ const upload = multer({
   },
 });
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'ecommerce' });
-    return tenant ? tenant._id : null;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 // Default theme configuration — the starting point for all new stores
 const DEFAULT_THEME = {
@@ -137,7 +131,7 @@ const DEFAULT_THEME = {
 // GET theme config (returns draft + published)
 router.get('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId).select('ecommerce.theme').lean();
     const theme = tenant?.ecommerce?.theme || {};
@@ -152,6 +146,7 @@ router.get('/', protect, async (req, res) => {
       hasUnpublishedChanges: !!theme.publishedAt && (!theme.draftUpdatedAt || new Date(theme.draftUpdatedAt) > new Date(theme.publishedAt)),
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -159,7 +154,7 @@ router.get('/', protect, async (req, res) => {
 // Save draft
 router.put('/draft', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -177,7 +172,7 @@ router.put('/draft', protect, async (req, res) => {
 // Publish draft → published
 router.post('/publish', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -197,7 +192,7 @@ router.post('/publish', protect, async (req, res) => {
 // Reset draft to default
 router.post('/reset', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -406,7 +401,7 @@ router.get('/presets', protect, async (req, res) => {
 // Apply a preset theme as the new draft
 router.post('/presets/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const preset = PRESET_THEMES.find(p => p.id === req.params.id);
     if (!preset) return res.status(404).json({ error: 'Preset not found' });
@@ -477,7 +472,7 @@ function mergeDefaults(userConfig) {
 // Export theme config as a downloadable JSON file
 router.get('/export', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -502,7 +497,7 @@ router.get('/export', protect, async (req, res) => {
 router.post('/import', protect, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     let parsed;

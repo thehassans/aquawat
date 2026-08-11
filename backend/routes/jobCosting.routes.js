@@ -3,12 +3,13 @@ import JobCostingJob from '../models/JobCostingJob.js';
 import JobCostEntry from '../models/JobCostEntry.js';
 import Project from '../models/Project.js';
 import Expense from '../models/Expense.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('trading'));
 
 function toNumber(value, fallback = 0) {
@@ -219,7 +220,7 @@ router.get('/jobs/stats', checkPermission('job_costing', 'read'), async (req, re
             { $unwind: '$job' },
             {
               $match: {
-                ...(tenantId ? { 'job.tenantId': tenantId } : {}),
+                'job.tenantId': tenantId,
                 'job.isActive': true,
                 'job.jobType': jobType
               }

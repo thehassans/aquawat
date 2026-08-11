@@ -1,4 +1,5 @@
 import express from 'express';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import mongoose from 'mongoose';
 import sharp from 'sharp';
 import { protect } from '../middleware/auth.js';
@@ -12,14 +13,7 @@ import { saveUploadBuffer } from '../utils/objectStorage.js';
 const router = express.Router();
 const upload = createImageUpload({ fileSize: 5 * 1024 * 1024 });
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'ecommerce' });
-    return tenant ? tenant._id : null;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 // ==================== PUBLIC (storefront) ====================
 
@@ -38,6 +32,7 @@ router.get('/product/:productId', resolveTenantByHost, async (req, res) => {
 
     res.json({ reviews, avgRating: stats[0]?.avgRating || 0, totalReviews: stats[0]?.count || 0 });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -85,6 +80,7 @@ router.post('/:id/helpful', resolveTenantByHost, async (req, res) => {
     await review.save();
     res.json({ helpfulVotes: review.helpfulVotes, alreadyVoted: false });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -144,7 +140,7 @@ router.post('/product/:productId', resolveTenantByHost, async (req, res) => {
 // Admin: list all reviews with filters
 router.get('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { status, productId, page = 1, limit = 20 } = req.query;
@@ -165,6 +161,7 @@ router.get('/', protect, async (req, res) => {
 
     res.json({ reviews, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -172,7 +169,7 @@ router.get('/', protect, async (req, res) => {
 // Admin: approve a review
 router.put('/:id/approve', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const review = await EcommerceReview.findOneAndUpdate(
@@ -190,7 +187,7 @@ router.put('/:id/approve', protect, async (req, res) => {
 // Admin: reject a review
 router.put('/:id/reject', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const review = await EcommerceReview.findOneAndUpdate(
@@ -208,7 +205,7 @@ router.put('/:id/reject', protect, async (req, res) => {
 // Admin: delete a review
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const review = await EcommerceReview.findOneAndDelete({ _id: req.params.id, tenantId });

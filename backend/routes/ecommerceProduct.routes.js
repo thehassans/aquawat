@@ -1,4 +1,5 @@
 import express from 'express';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import sharp from 'sharp';
 import { protect } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
@@ -9,19 +10,12 @@ import { saveUploadBuffer } from '../utils/objectStorage.js';
 const router = express.Router();
 const upload = imageUpload;
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'ecommerce' });
-    return tenant ? tenant._id : null;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 // --- LIST PRODUCTS ---
 router.get('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { search, status, category, sort, page = 1, limit = 20 } = req.query;
@@ -57,6 +51,7 @@ router.get('/', protect, async (req, res) => {
       totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -64,12 +59,13 @@ router.get('/', protect, async (req, res) => {
 // --- GET SINGLE PRODUCT ---
 router.get('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const product = await EcommerceProduct.findOne({ _id: req.params.id, tenantId }).lean();
     if (!product) return res.status(404).json({ error: 'Product not found' });
     res.json(product);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -77,7 +73,7 @@ router.get('/:id', protect, async (req, res) => {
 // --- CREATE PRODUCT ---
 router.post('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const body = req.body;
@@ -133,7 +129,7 @@ router.post('/', protect, async (req, res) => {
 // --- UPDATE PRODUCT ---
 router.put('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const body = req.body;
@@ -240,12 +236,13 @@ router.put('/:id', protect, async (req, res) => {
 // --- DELETE PRODUCT ---
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const result = await EcommerceProduct.deleteOne({ _id: req.params.id, tenantId });
     if (result.deletedCount === 0) return res.status(404).json({ error: 'Product not found' });
     res.json({ success: true });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -253,7 +250,7 @@ router.delete('/:id', protect, async (req, res) => {
 // --- TOGGLE STATUS (quick activate/archive) ---
 router.patch('/:id/status', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const { status } = req.body;
     if (!['draft', 'active', 'archived'].includes(status)) {
@@ -274,11 +271,12 @@ router.patch('/:id/status', protect, async (req, res) => {
 // --- GET CATEGORIES (distinct) ---
 router.get('/meta/categories', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const categories = await EcommerceProduct.distinct('category', { tenantId, category: { $ne: '' } });
     res.json(categories.sort());
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -286,7 +284,7 @@ router.get('/meta/categories', protect, async (req, res) => {
 // --- LIST UNANSWERED QUESTIONS (admin) ---
 router.get('/questions/pending', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const products = await EcommerceProduct.find({ tenantId, 'questions.answer': '' })
       .select('title questions')
@@ -299,6 +297,7 @@ router.get('/questions/pending', protect, async (req, res) => {
     });
     res.json({ questions: pending });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -306,7 +305,7 @@ router.get('/questions/pending', protect, async (req, res) => {
 // --- ANSWER QUESTION (admin) ---
 router.put('/:productId/questions/:questionId/answer', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const { answer } = req.body;
     if (!answer || !answer.trim()) return res.status(400).json({ error: 'Answer is required' });
@@ -324,6 +323,7 @@ router.put('/:productId/questions/:questionId/answer', protect, async (req, res)
     await product.save();
     res.json({ success: true });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -331,7 +331,7 @@ router.put('/:productId/questions/:questionId/answer', protect, async (req, res)
 // --- DELETE QUESTION (admin) ---
 router.delete('/:productId/questions/:questionId', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const product = await EcommerceProduct.findOne({ _id: req.params.productId, tenantId });
@@ -341,6 +341,7 @@ router.delete('/:productId/questions/:questionId', protect, async (req, res) => 
     await product.save();
     res.json({ success: true });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -349,7 +350,7 @@ router.delete('/:productId/questions/:questionId', protect, async (req, res) => 
 router.post('/upload-image', protect, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenantIdStr = tenantId.toString();
     const filename = `product-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;

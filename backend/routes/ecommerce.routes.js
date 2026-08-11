@@ -1,4 +1,5 @@
 import express from 'express';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import crypto from 'crypto';
 import { protect } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
@@ -10,14 +11,7 @@ import { sendTenantEmail, buildEmailShell } from '../utils/tenantEmailService.js
 
 const router = express.Router();
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'ecommerce' });
-    return tenant ? tenant._id : null;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 const getTenantCloudflareConfig = (tenant) => {
   const cf = tenant?.ecommerce?.cloudflare || {};
@@ -112,12 +106,13 @@ const sanitizeEcommerce = (ecom) => {
 
 router.get('/settings', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId).select('ecommerce slug').lean();
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
     res.json({ slug: tenant.slug, ecommerce: sanitizeEcommerce(tenant.ecommerce || {}) });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -125,7 +120,7 @@ router.get('/settings', protect, async (req, res) => {
 // Update general store settings, commerce defaults, and SEO (no secrets here).
 router.put('/settings', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const allowed = ['storeStatus', 'storeName', 'storeNameAr', 'subdomain', 'currency', 'defaultTaxRate', 'pricesIncludeTax', 'weightUnit', 'seo', 'lowStockAlertEnabled', 'lowStockAlertEmail', 'lowStockThreshold'];
@@ -146,7 +141,7 @@ router.put('/settings', protect, async (req, res) => {
 // --- LOW STOCK CHECK ---
 router.get('/low-stock', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const tenant = await Tenant.findById(tenantId).select('ecommerce.lowStockThreshold').lean();
@@ -164,6 +159,7 @@ router.get('/low-stock', protect, async (req, res) => {
 
     res.json({ products, count: products.length, threshold: defaultThreshold });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -172,7 +168,7 @@ router.get('/low-stock', protect, async (req, res) => {
 
 router.get('/domains', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId).select('ecommerce.domains ecommerce.cloudflare').lean();
     const tenantCf = getTenantCloudflareConfig(tenant);
@@ -183,13 +179,14 @@ router.get('/domains', protect, async (req, res) => {
     res.setHeader('x-cloudflare-oauth-configured', isCloudflareOAuthConfigured() ? 'true' : 'false');
     res.json(tenant?.ecommerce?.domains || []);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 router.post('/domains', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const hostname = String(req.body.hostname || '').trim().toLowerCase();
     if (!hostname || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(hostname)) {
@@ -293,7 +290,7 @@ router.post('/domains', protect, async (req, res) => {
 // Verify a custom domain by checking its CNAME/TXT record (DNS lookup).
 router.post('/domains/:id/verify', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -353,7 +350,7 @@ router.post('/domains/:id/verify', protect, async (req, res) => {
 // Retry Cloudflare for SaaS provisioning for a failed domain
 router.post('/domains/:id/retry-cloudflare', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -399,7 +396,7 @@ router.post('/domains/:id/retry-cloudflare', protect, async (req, res) => {
 
 router.delete('/domains/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -435,7 +432,7 @@ router.delete('/domains/:id', protect, async (req, res) => {
 // Connect tenant Cloudflare account — accepts just an API token, auto-detects zone
 router.put('/domains/cloudflare', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { apiToken, zoneId, fallbackOrigin } = req.body || {};
@@ -481,7 +478,7 @@ router.put('/domains/cloudflare', protect, async (req, res) => {
 // Disconnect tenant Cloudflare account
 router.delete('/domains/cloudflare', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -497,7 +494,7 @@ router.delete('/domains/cloudflare', protect, async (req, res) => {
 // Get Cloudflare OAuth authorization URL
 router.get('/domains/cloudflare/oauth-url', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     if (!isCloudflareOAuthConfigured()) return res.status(400).json({ error: 'Cloudflare OAuth not configured by admin' });
 
@@ -506,6 +503,7 @@ router.get('/domains/cloudflare/oauth-url', protect, async (req, res) => {
     const url = buildCloudflareAuthUrl(state, codeVerifier);
     res.json({ url });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -564,7 +562,7 @@ router.get('/domains/cloudflare/oauth-callback', async (req, res) => {
 // Exchange OAuth code from popup (frontend sends the code directly)
 router.post('/domains/cloudflare/oauth-exchange', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const { code } = req.body || {};
     if (!code) return res.status(400).json({ error: 'Authorization code required' });
@@ -600,7 +598,7 @@ router.post('/domains/cloudflare/oauth-exchange', protect, async (req, res) => {
 // Set a domain as primary
 router.put('/domains/:id/primary', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -619,7 +617,7 @@ router.put('/domains/:id/primary', protect, async (req, res) => {
 // Refresh SSL status for all domains
 router.post('/domains/refresh-ssl', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -645,7 +643,7 @@ router.post('/domains/refresh-ssl', protect, async (req, res) => {
 // --- PAYMENTS --- (secrets only updated when a non-masked value is sent)
 router.put('/payments', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -680,7 +678,7 @@ router.put('/payments', protect, async (req, res) => {
 // --- COURIERS ---
 router.put('/couriers', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -712,7 +710,7 @@ router.put('/couriers', protect, async (req, res) => {
 // --- PIXELS (tracking pixel configuration) ---
 router.put('/pixels', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -763,7 +761,7 @@ router.put('/pixels', protect, async (req, res) => {
 // Get WordPress settings
 router.get('/wordpress', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -786,7 +784,7 @@ router.get('/wordpress', protect, async (req, res) => {
 // Save WordPress settings and credentials
 router.put('/wordpress', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -817,7 +815,7 @@ router.put('/wordpress', protect, async (req, res) => {
 // Test WordPress connection
 router.post('/wordpress/test', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -831,7 +829,7 @@ router.post('/wordpress/test', protect, async (req, res) => {
 // Run WordPress sync
 router.post('/wordpress/sync', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -849,7 +847,7 @@ router.post('/wordpress/sync', protect, async (req, res) => {
   } catch (error) {
     // Mark sync as failed
     try {
-      const tenantId = await getTargetTenantId(req.user);
+      const tenantId = getTargetTenantId(req.user, req);
       const tenant = await Tenant.findById(tenantId);
       if (tenant) {
         tenant.ecommerce.wordpress.lastSyncAt = new Date();
@@ -865,7 +863,7 @@ router.post('/wordpress/sync', protect, async (req, res) => {
 // --- NEWSLETTER CAMPAIGN: Send email to subscribers ---
 router.post('/newsletter/campaign', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
     const { subject, body, recipients } = req.body;
 
@@ -907,6 +905,7 @@ router.post('/newsletter/campaign', protect, async (req, res) => {
 
     res.json({ sent, failed, total: toSend.length, errors: errors.slice(0, 10) });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });

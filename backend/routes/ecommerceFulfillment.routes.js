@@ -1,4 +1,5 @@
 import express from 'express';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import { protect } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import EcommerceOrder from '../models/EcommerceOrder.js';
@@ -7,14 +8,7 @@ import { createShipment, trackShipment, cancelShipment } from '../services/couri
 
 const router = express.Router();
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'ecommerce' });
-    return tenant ? tenant._id : null;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 const getProviderConfig = (tenant, provider, type = 'payments') => {
   const cfg = tenant.ecommerce?.[type]?.[provider];
@@ -27,7 +21,7 @@ const getProviderConfig = (tenant, provider, type = 'payments') => {
 // Create checkout session for an order
 router.post('/checkout/:orderId', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const tenant = await Tenant.findById(tenantId).select('ecommerce.payments');
@@ -102,6 +96,7 @@ router.post('/webhook/:provider', async (req, res) => {
 
     res.json({ received: true });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -109,7 +104,7 @@ router.post('/webhook/:provider', async (req, res) => {
 // Verify payment status (manual check)
 router.get('/verify/:orderId', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const order = await EcommerceOrder.findOne({ _id: req.params.orderId, tenantId });
@@ -132,6 +127,7 @@ router.get('/verify/:orderId', protect, async (req, res) => {
 
     res.json({ status: result.status, raw: result.raw });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -139,7 +135,7 @@ router.get('/verify/:orderId', protect, async (req, res) => {
 // Refund a payment
 router.post('/refund/:orderId', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const order = await EcommerceOrder.findOne({ _id: req.params.orderId, tenantId });
@@ -168,7 +164,7 @@ router.post('/refund/:orderId', protect, async (req, res) => {
 // Create shipment for an order
 router.post('/ship/:orderId', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const tenant = await Tenant.findById(tenantId).select('ecommerce.couriers');
@@ -201,7 +197,7 @@ router.post('/ship/:orderId', protect, async (req, res) => {
 // Track a shipment
 router.get('/track/:orderId', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const order = await EcommerceOrder.findOne({ _id: req.params.orderId, tenantId });
@@ -217,6 +213,7 @@ router.get('/track/:orderId', protect, async (req, res) => {
     const result = await trackShipment(provider, order.shipping.trackingNumber, config);
     res.json(result);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -224,7 +221,7 @@ router.get('/track/:orderId', protect, async (req, res) => {
 // Cancel a shipment
 router.post('/cancel-shipment/:orderId', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const order = await EcommerceOrder.findOne({ _id: req.params.orderId, tenantId });

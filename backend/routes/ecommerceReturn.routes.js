@@ -1,4 +1,5 @@
 import express from 'express';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import mongoose from 'mongoose';
 import { protect } from '../middleware/auth.js';
 import { resolveTenantByHost } from '../middleware/resolveTenantByHost.js';
@@ -8,14 +9,7 @@ import Tenant from '../models/Tenant.js';
 
 const router = express.Router();
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'ecommerce' });
-    return tenant?._id;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 // --- STOREFRONT: Customer submits a return request ---
 router.post('/request', resolveTenantByHost, async (req, res) => {
@@ -61,6 +55,7 @@ router.post('/request', resolveTenantByHost, async (req, res) => {
 
     res.json({ success: true, returnNumber: returnReq.returnNumber, returnId: returnReq._id });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -73,6 +68,7 @@ router.get('/status/:orderId', resolveTenantByHost, async (req, res) => {
     if (!ret) return res.json({ return: null });
     res.json({ return: ret });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -80,7 +76,7 @@ router.get('/status/:orderId', resolveTenantByHost, async (req, res) => {
 // --- ADMIN: List all returns ---
 router.get('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
     const { status, page = 1, limit = 20 } = req.query;
     const filter = { tenantId };
@@ -94,6 +90,7 @@ router.get('/', protect, async (req, res) => {
 
     res.json({ returns, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -101,12 +98,13 @@ router.get('/', protect, async (req, res) => {
 // --- ADMIN: Get single return ---
 router.get('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
     const ret = await EcommerceReturn.findOne({ tenantId, _id: req.params.id }).lean();
     if (!ret) return res.status(404).json({ error: 'Return not found' });
     res.json(ret);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -114,7 +112,7 @@ router.get('/:id', protect, async (req, res) => {
 // --- ADMIN: Update return status (approve, reject, mark received, refund) ---
 router.patch('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
     const { status, adminNotes, refundMethod, returnTrackingNumber, returnCourier } = req.body;
 
@@ -155,6 +153,7 @@ router.patch('/:id', protect, async (req, res) => {
 
     res.json(ret);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -162,7 +161,7 @@ router.patch('/:id', protect, async (req, res) => {
 // --- ADMIN: Return stats ---
 router.get('/stats/summary', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
     const [requested, approved, received, refunded, completed, rejected] = await Promise.all([
       EcommerceReturn.countDocuments({ tenantId, status: 'requested' }),
@@ -181,6 +180,7 @@ router.get('/stats/summary', protect, async (req, res) => {
       totalRefunded: refundTotal[0]?.total || 0,
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
