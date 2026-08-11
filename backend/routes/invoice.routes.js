@@ -1130,6 +1130,37 @@ router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'cre
       await syncCustomerStats(invoice.tenantId, invoice.customerId);
     }
 
+    if (
+      invoice.flow !== 'purchase' &&
+      invoice.invoiceType === '388' &&
+      invoice.invoiceSubtype !== 'proforma' &&
+      !['draft', 'cancelled'].includes(invoice.status)
+    ) {
+      try {
+        const { postSalesInvoiceJournal, postInvoicePaymentJournal } = await import('../services/accountingService.js');
+        await postSalesInvoiceJournal({
+          tenantId: invoice.tenantId,
+          userId: req.user._id,
+          invoice,
+          currency: invoice.currency || tenant?.settings?.currency || 'SAR',
+        });
+        if (Number(invoice.paidAmount || 0) > 0) {
+          await postInvoicePaymentJournal({
+            tenantId: invoice.tenantId,
+            userId: req.user._id,
+            invoice,
+            amount: invoice.paidAmount,
+            paymentMethod: invoice.paymentMethod || 'bank_transfer',
+            paymentDate: invoice.issueDate || new Date(),
+            reference: `initial-${invoice.invoiceNumber}`,
+            currency: invoice.currency || tenant?.settings?.currency || 'SAR',
+          });
+        }
+      } catch (glError) {
+        console.warn('[accounting] invoice journal failed:', glError.message);
+      }
+    }
+
     let emailDelivery = { sent: false, reason: 'disabled' };
     if (invoice.flow === 'sell' && (invoice.status === 'approved' || invoice.zatca?.signedXml)) {
       try {
@@ -2021,6 +2052,9 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
     if (originalInvoice.customerId) {
       await syncCustomerStats(originalInvoice.tenantId, originalInvoice.customerId);
     }
+
+    // Credit note starts as draft — GL posts when amounts are finalized on first non-draft save.
+    // Also keep an issued marker journal once amounts exist (draft allowed for traceability via type=adjustment when posted later from UI).
     
     res.status(201).json(creditNote);
   } catch (error) {

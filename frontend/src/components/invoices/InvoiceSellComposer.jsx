@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Plus, Save, Trash2, ScanLine, UploadCloud, Printer, FileText, Receipt } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, ScanLine, UploadCloud, FileText, Receipt } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -18,7 +18,7 @@ import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms } from '../../lib
 import InvoiceLivePreview from './InvoiceLivePreview'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
-import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
+import ThermalReceipt from '../ui/ThermalReceipt'
 import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
 import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
 import Select from 'react-select'
@@ -735,25 +735,24 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         }}
       />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)]">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)] dark:border-dark-600 dark:bg-dark-800">
-            <div className="mb-4 flex items-end justify-between gap-3">
+      <div className="mx-auto w-full max-w-4xl space-y-8">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+          <div className="space-y-5">
+            <div className="mb-1 flex items-end justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0f766e]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#0f766e]">
                   {isEdit ? (language === 'ar' ? 'تعديل' : 'Edit') : (language === 'ar' ? 'جديد' : 'New')}
                 </p>
-                <h2 className="mt-1 text-xl font-bold tracking-[-0.02em] text-slate-950 dark:text-white">
+                <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
                   {language === 'ar' ? 'إنشاء فاتورة' : 'Create invoice'}
                 </h2>
               </div>
               {showArabicFields && (
-                <span className="rounded-lg bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-dark-700 dark:text-slate-300 dark:ring-dark-600">
+                <span className="rounded-full bg-slate-100/80 px-3 py-1 text-[11px] font-semibold tracking-wide text-slate-500 dark:bg-dark-700 dark:text-slate-300">
                   EN · AR
                 </span>
               )}
             </div>
-            <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'صيغة الفاتورة' : 'Format'}</h3>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {[
                 {
@@ -761,16 +760,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   Icon: FileText,
                   titleEn: 'A4 Invoice',
                   titleAr: 'فاتورة A4',
-                  descEn: 'Full-page PDF for email, print, and ZATCA archives.',
-                  descAr: 'ملف PDF كامل للبريد والطباعة وأرشيف الزكاة.',
+                  descEn: 'Full-page PDF for email, print, and archives.',
+                  descAr: 'ملف PDF كامل للبريد والطباعة والأرشيف.',
                 },
                 {
                   id: 'thermal',
                   Icon: Receipt,
                   titleEn: 'Thermal Invoice',
                   titleAr: 'فاتورة حرارية',
-                  descEn: '80mm receipt-style print for POS and kitchen counters.',
-                  descAr: 'طباعة إيصال 80 مم لنقاط البيع والمطبخ.',
+                  descEn: '80mm receipt-style print for POS counters.',
+                  descAr: 'طباعة إيصال 80 مم لنقاط البيع.',
                 },
               ].map((fmt) => {
                 const active = (values?.printFormat || 'a4') === fmt.id
@@ -780,18 +779,18 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     key={fmt.id}
                     type="button"
                     onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true })}
-                    className={`flex items-start gap-3 rounded-2xl border-2 p-4 text-start transition ${
+                    className={`group flex items-start gap-3 rounded-2xl border px-4 py-4 text-start transition ${
                       active
-                        ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-400 dark:bg-emerald-500/10'
-                        : 'border-gray-200 dark:border-dark-600 hover:border-emerald-300'
+                        ? 'border-slate-900 bg-slate-950 text-white shadow-lg dark:border-white dark:bg-white dark:text-slate-950'
+                        : 'border-slate-200/90 bg-white hover:border-slate-300 dark:border-dark-600 dark:bg-dark-800'
                     }`}
                   >
-                    <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-dark-700 dark:text-slate-300'}`}>
-                      <Icon className="h-5 w-5" />
+                    <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-white/10 text-white dark:bg-slate-900/10 dark:text-slate-900' : 'bg-slate-50 text-slate-600 dark:bg-dark-700 dark:text-slate-300'}`}>
+                      <Icon className="h-4.5 w-4.5" />
                     </span>
                     <span>
-                      <span className="block font-semibold text-gray-900 dark:text-white">{language === 'ar' ? fmt.titleAr : fmt.titleEn}</span>
-                      <span className="mt-1 block text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? fmt.descAr : fmt.descEn}</span>
+                      <span className={`block text-sm font-semibold ${active ? '' : 'text-slate-900 dark:text-white'}`}>{language === 'ar' ? fmt.titleAr : fmt.titleEn}</span>
+                      <span className={`mt-1 block text-xs leading-relaxed ${active ? 'text-white/70 dark:text-slate-600' : 'text-slate-500'}`}>{language === 'ar' ? fmt.descAr : fmt.descEn}</span>
                     </span>
                   </button>
                 )
@@ -799,12 +798,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
             <input type="hidden" {...register('printFormat')} />
             <input type="hidden" {...register('businessContext')} />
-            <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <Printer className="h-3.5 w-3.5" />
-              {language === 'ar'
-                ? 'الصيغة تتحكم في شكل الطباعة والمعاينة — نشاط المنشأة يبقى كما هو.'
-                : 'Format controls print layout and preview — your business flow stays the same.'}
-            </p>
           </div>
 
           {(isRestaurantContext || isTravelContext || isManpowerContext) && (
@@ -865,20 +858,22 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           )}
 
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'نوع الفاتورة' : 'Invoice Type'}</h3>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <button type="button" onClick={() => setInvoiceType('B2C')} className={`rounded-2xl border-2 p-4 text-start ${invoiceType === 'B2C' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}>
-                <p className="font-semibold text-gray-900 dark:text-white">{t('b2cInvoice')}</p>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <div className="space-y-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#0f766e]">
+              {language === 'ar' ? 'النوع' : 'Type'}
+            </p>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <button type="button" onClick={() => setInvoiceType('B2C')} className={`rounded-2xl border px-4 py-4 text-start transition ${invoiceType === 'B2C' ? 'border-slate-900 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950' : 'border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-800'}`}>
+                <p className="text-sm font-semibold">{t('b2cInvoice')}</p>
+                <p className={`mt-1 text-xs ${invoiceType === 'B2C' ? 'text-white/70 dark:text-slate-600' : 'text-slate-500'}`}>
                   {isTravelContext
                     ? (language === 'ar' ? 'فاتورة سفر مبسطة للأفراد' : 'Simplified travel invoice for individual customers')
                     : (language === 'ar' ? 'مبيعات نقدية أو مباشرة' : 'Cash or direct sale invoices')}
                 </p>
               </button>
-              <button type="button" onClick={() => setInvoiceType('B2B')} className={`rounded-2xl border-2 p-4 text-start ${invoiceType === 'B2B' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}>
-                <p className="font-semibold text-gray-900 dark:text-white">{t('b2bInvoice')}</p>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              <button type="button" onClick={() => setInvoiceType('B2B')} className={`rounded-2xl border px-4 py-4 text-start transition ${invoiceType === 'B2B' ? 'border-slate-900 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950' : 'border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-800'}`}>
+                <p className="text-sm font-semibold">{t('b2bInvoice')}</p>
+                <p className={`mt-1 text-xs ${invoiceType === 'B2B' ? 'text-white/70 dark:text-slate-600' : 'text-slate-500'}`}>
                   {isTravelContext
                     ? (language === 'ar' ? 'فاتورة سفر ضريبية للشركات والعملاء المسجلين ضريبياً' : 'Tax travel invoice for companies and VAT-registered customers')
                     : (language === 'ar' ? 'فواتير الشركات والجهات' : 'Invoices for business customers')}
@@ -888,110 +883,40 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             <input type="hidden" {...register('invoiceSubtype')} />
           </div>
 
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'شروط الدفع' : 'Payment Terms'}</h3>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="label">{language === 'ar' ? 'شرط الدفع' : 'Payment Terms'}</label>
-                <select
-                  {...register('paymentTerms')}
-                  className="select"
-                  onChange={(e) => {
-                    const id = e.target.value
-                    setValue('paymentTerms', id, { shouldDirty: true })
-                    const issueRaw = getValues('issueDate')
-                    const issue = issueRaw ? new Date(issueRaw) : new Date()
-                    const due = computeDueDateFromPaymentTerms(issue, id)
-                    if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
-                  }}
-                >
-                  <optgroup label={language === 'ar' ? 'الأكثر استخداماً' : 'Most used'}>
-                    {INVOICE_PAYMENT_TERMS.slice(0, 8).map((term) => (
-                      <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label={language === 'ar' ? 'المزيد...' : 'Search more...'}>
-                    {INVOICE_PAYMENT_TERMS.slice(8).map((term) => (
-                      <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'تاريخ الاستحقاق' : 'Due Date'}</label>
-                <input type="date" {...register('dueDate')} className="input" />
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              {language === 'ar'
-                ? 'يتم احتساب تاريخ الاستحقاق تلقائياً من شرط الدفع — ويمكنك تعديله يدوياً.'
-                : 'Due date is calculated from the payment term — you can still edit it manually.'}
-            </p>
-          </div>
-
           <input type="hidden" {...register('pdfTemplateId')} />
 
-          {isTradingContext && (
-            <div className="card p-6">
-              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                <div className="flex-1">
-                  <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
-                  <select {...register('warehouseId')} className="select">
-                    <option value="">{language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet'}</option>
-                    {(warehouses || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}
-                  </select>
-                </div>
-                <div className="flex gap-2">
-                  <button type="button" className="btn btn-secondary" onClick={() => setValue('warehouseId', '')} disabled={!selectedWarehouseId}>
-                    {language === 'ar' ? 'إلغاء التحديد' : 'Clear'}
-                  </button>
-                  <button type="button" className="btn btn-action-dark" onClick={() => navigate(`/app/dashboard/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/sell')}`)}>
-                    {language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {isTravelContext && (
-            <div className="card p-6">
-              <h3 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
+            <div className="space-y-3 border-t border-slate-200/80 pt-6 dark:border-dark-600">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                 {language === 'ar' ? 'تاريخ ووقت الفاتورة' : 'Invoice Date & Time'}
               </h3>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="label">
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">
                     {language === 'ar' ? 'تاريخ ووقت الإصدار المخصص' : 'Custom Issue Date & Time'}
                   </label>
                   <input
                     type="datetime-local"
                     {...register('issueDate')}
-                    className="input"
+                    className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500 dark:focus:border-white"
                   />
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    {language === 'ar'
-                      ? 'اتركه فارغاً لاستخدام الوقت الحالي. مفيد لإصدار فواتير بتاريخ سابق.'
-                      : 'Leave blank to use the current time. Useful for back-dating invoices.'}
-                  </p>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)] dark:border-dark-600 dark:bg-dark-800">
-            <div className="mb-4 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0f766e]">
-                  {language === 'ar' ? 'العميل' : 'Customer'}
-                </p>
-                <h3 className="mt-1 text-lg font-bold tracking-[-0.02em] text-slate-950 dark:text-white">
-                  {language === 'ar' ? 'بيانات العميل' : 'Who is this for?'}
-                </h3>
-              </div>
+          <div className="space-y-6 border-t border-slate-200/80 pt-8 dark:border-dark-600">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#0f766e]">
+                {language === 'ar' ? 'العميل' : 'Customer'}
+              </p>
+              <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
+                {language === 'ar' ? 'بيانات العميل' : 'Who is this for?'}
+              </h3>
             </div>
-            <div className="mb-4">
-              <label className="label">{language === 'ar' ? 'اختر عميل موجود' : 'Select existing customer'}</label>
-              <select onChange={(e) => onSelectCustomer(e.target.value)} className="select">
+            <div>
+              <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'اختر عميل موجود' : 'Select existing customer'}</label>
+              <select onChange={(e) => onSelectCustomer(e.target.value)} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-sm outline-none focus:border-slate-900 dark:border-dark-500 dark:focus:border-white">
                 <option value="">{language === 'ar' ? 'اختياري: اختر عميل' : 'Optional: Select customer'}</option>
                 {(customers || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.name) : item.name}</option>)}
               </select>
@@ -1001,135 +926,137 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               <>
                 <TravelInvoiceFields language={language} register={register} control={control} watch={watch} setValue={setValue} />
                 {invoiceType === 'B2B' && (
-                  <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="mt-2 grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
                     <div>
-                      <label className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
-                      <input {...register('buyer.vatNumber')} className="input" />
+                      <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
+                      <input {...register('buyer.vatNumber')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</label>
-                      <input {...register('buyer.crNumber')} className="input" />
+                      <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</label>
+                      <input {...register('buyer.crNumber')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'المدينة' : 'City'}</label>
-                      <input {...register('buyer.address.city')} className="input" />
+                      <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'المدينة' : 'City'}</label>
+                      <input {...register('buyer.address.city')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'الحي' : 'District'}</label>
-                      <input {...register('buyer.address.district')} className="input" />
+                      <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الحي' : 'District'}</label>
+                      <input {...register('buyer.address.district')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'الشارع' : 'Street'}</label>
-                      <input {...register('buyer.address.street')} className="input" />
+                      <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الشارع' : 'Street'}</label>
+                      <input {...register('buyer.address.street')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
-                      <input {...register('buyer.address.postalCode')} className="input" />
+                      <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
+                      <input {...register('buyer.address.postalCode')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'الدولة' : 'Country'}</label>
-                      <input {...register('buyer.address.country')} className="input" placeholder="SA" />
+                      <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الدولة' : 'Country'}</label>
+                      <input {...register('buyer.address.country')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500" placeholder="SA" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'رقم المبنى' : 'Building Number'}</label>
-                      <input {...register('buyer.address.buildingNumber')} className="input" />
+                      <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'رقم المبنى' : 'Building Number'}</label>
+                      <input {...register('buyer.address.buildingNumber')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'الرقم الإضافي' : 'Additional Number'}</label>
-                      <input {...register('buyer.address.additionalNumber')} className="input" />
+                      <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الرقم الإضافي' : 'Additional Number'}</label>
+                      <input {...register('buyer.address.additionalNumber')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500" />
                     </div>
                   </div>
                 )}
               </>
             ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2">
                 <div>
-                  <label className="label">{language === 'ar' ? 'الاسم / الشركة' : 'Name / Company'}</label>
-                  <input {...register('buyer.name', { required: invoiceType === 'B2B' })} className="input" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الاسم / الشركة' : 'Name / Company'}</label>
+                  <input {...register('buyer.name', { required: invoiceType === 'B2B' })} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500 dark:focus:border-white" />
                 </div>
                 {showArabicFields && (
                   <div>
-                    <label className="label">الاسم بالعربية</label>
-                    <input {...register('buyer.nameAr')} className="input" dir="rtl" />
+                    <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">الاسم بالعربية</label>
+                    <input {...register('buyer.nameAr')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" dir="rtl" />
                   </div>
                 )}
                 <div>
-                  <label className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
-                  <input {...register('buyer.vatNumber', { required: invoiceType === 'B2B' })} className="input" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
+                  <input {...register('buyer.vatNumber', { required: invoiceType === 'B2B' })} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" />
                 </div>
                 <div>
-                  <label className="label">{language === 'ar' ? 'رقم الهاتف' : 'Phone Number'}</label>
-                  <input {...register('buyer.contactPhone')} className="input" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'رقم الهاتف' : 'Phone Number'}</label>
+                  <input {...register('buyer.contactPhone')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" />
                 </div>
                 <div>
-                  <label className="label">{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
-                  <input type="email" {...register('buyer.contactEmail')} className="input" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
+                  <input type="email" {...register('buyer.contactEmail')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" />
                 </div>
                 <div>
-                  <label className="label">{language === 'ar' ? 'المدينة' : 'City'}</label>
-                  <input {...register('buyer.address.city')} className="input" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'المدينة' : 'City'}</label>
+                  <input {...register('buyer.address.city')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" />
                 </div>
                 {showArabicFields && (
                   <div>
-                    <label className="label">المدينة بالعربية</label>
-                    <input {...register('buyer.address.cityAr')} className="input" dir="rtl" />
+                    <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">المدينة بالعربية</label>
+                    <input {...register('buyer.address.cityAr')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" dir="rtl" />
                   </div>
                 )}
                 <div>
-                  <label className="label">{language === 'ar' ? 'الحي' : 'District'}</label>
-                  <input {...register('buyer.address.district')} className="input" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الحي' : 'District'}</label>
+                  <input {...register('buyer.address.district')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" />
                 </div>
                 {showArabicFields && (
                   <div>
-                    <label className="label">الحي بالعربية</label>
-                    <input {...register('buyer.address.districtAr')} className="input" dir="rtl" />
+                    <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">الحي بالعربية</label>
+                    <input {...register('buyer.address.districtAr')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" dir="rtl" />
                   </div>
                 )}
                 <div>
-                  <label className="label">{language === 'ar' ? 'الشارع' : 'Street'}</label>
-                  <input {...register('buyer.address.street')} className="input" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الشارع' : 'Street'}</label>
+                  <input {...register('buyer.address.street')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" />
                 </div>
                 {showArabicFields && (
                   <div>
-                    <label className="label">الشارع بالعربية</label>
-                    <input {...register('buyer.address.streetAr')} className="input" dir="rtl" />
+                    <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">الشارع بالعربية</label>
+                    <input {...register('buyer.address.streetAr')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" dir="rtl" />
                   </div>
                 )}
                 <div>
-                  <label className="label">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
-                  <input {...register('buyer.address.postalCode')} className="input" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
+                  <input {...register('buyer.address.postalCode')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" />
                 </div>
                 <div>
-                  <label className="label">{language === 'ar' ? 'الدولة' : 'Country'}</label>
-                  <input {...register('buyer.address.country')} className="input" placeholder="SA" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الدولة' : 'Country'}</label>
+                  <input {...register('buyer.address.country')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" placeholder="SA" />
                 </div>
                 <div>
-                  <label className="label">{language === 'ar' ? 'رقم المبنى' : 'Building Number'}</label>
-                  <input {...register('buyer.address.buildingNumber')} className="input" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'رقم المبنى' : 'Building Number'}</label>
+                  <input {...register('buyer.address.buildingNumber')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" />
                 </div>
                 <div>
-                  <label className="label">{language === 'ar' ? 'الرقم الإضافي' : 'Additional Number'}</label>
-                  <input {...register('buyer.address.additionalNumber')} className="input" />
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الرقم الإضافي' : 'Additional Number'}</label>
+                  <input {...register('buyer.address.additionalNumber')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-[15px] outline-none focus:border-slate-900 dark:border-dark-500" />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)] dark:border-dark-600 dark:bg-dark-800">
-            <div className="mb-4 flex items-end justify-between gap-3">
+          <div className="space-y-5 border-t border-slate-200/80 pt-8 dark:border-dark-600">
+            <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0f766e]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#0f766e]">
                   {language === 'ar' ? 'البنود' : 'Lines'}
                 </p>
-                <h3 className="mt-1 text-lg font-bold tracking-[-0.02em] text-slate-950 dark:text-white">
+                <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
                   {language === 'ar' ? 'بنود الفاتورة' : 'What are you billing?'}
                 </h3>
               </div>
-              <button type="button" onClick={() => append({ ...emptyLine })} className="btn btn-secondary"><Plus className="w-4 h-4" />{t('add')}</button>
+              <button type="button" onClick={() => append({ ...emptyLine })} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900 dark:border-dark-500 dark:bg-dark-800 dark:text-slate-200">
+                <Plus className="w-3.5 h-3.5" />{t('add')}
+              </button>
             </div>
             <div className="space-y-4">
               {fields.map((field, index) => (
-                <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 dark:border-dark-600 dark:bg-dark-700/60">
+                <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-100/90 bg-slate-50/40 p-5 dark:border-dark-600 dark:bg-dark-800/40">
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''} initialName={initialInvoice?.lineItems?.[index]?.productName || ''} />
                   {showArabicFields ? (
                     <div className="mb-3">
@@ -1293,22 +1220,22 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           </div>
 
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
+          <div className="space-y-4 border-t border-slate-200/80 pt-8 dark:border-dark-600">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <h3 className="text-lg font-semibold tracking-[-0.02em] text-slate-950 dark:text-white">
                     {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
                   </h3>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                  <span className={`text-[10px] font-semibold uppercase tracking-[0.14em] px-2 py-0.5 rounded-full ${
                     showAuthorizedPerson 
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' 
-                      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' 
+                      : 'bg-slate-100 text-slate-500 dark:bg-dark-700 dark:text-slate-400'
                   }`}>
                     {showAuthorizedPerson ? (language === 'ar' ? 'مفعّل' : 'Active') : (language === 'ar' ? 'معطّل' : 'Disabled')}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="mt-1 text-xs text-slate-500">
                   {language === 'ar' 
                     ? 'إضافة المفوض بالتوقيع والختم الرسمي على مستند الفاتورة' 
                     : 'Include signatory name, designation, signature and official stamp on document.'}
@@ -1319,12 +1246,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 role="switch"
                 aria-checked={showAuthorizedPerson}
                 onClick={() => handleToggleAuthorizedPerson(!showAuthorizedPerson)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  showAuthorizedPerson ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
+                className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  showAuthorizedPerson ? 'bg-slate-900 dark:bg-white' : 'bg-slate-200 dark:bg-dark-600'
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out dark:bg-slate-900 ${
                     showAuthorizedPerson ? (language === 'ar' ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
                   }`}
                 />
@@ -1425,69 +1352,176 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </AnimatePresence>
           </div>
 
-          <div className="card p-6">
+          <div className="space-y-8 border-t border-slate-200/80 pt-8 dark:border-dark-600">
             <div>
-              <label className="label">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
-              <textarea {...register('notes')} className="input" rows={3} />
+              <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
+              <textarea {...register('notes')} className="mt-2 w-full resize-none border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm outline-none focus:border-slate-900 dark:border-dark-500" rows={3} />
             </div>
-            <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-              <div className="space-y-3 md:w-80">
-                <div>
-                  <label className="label">{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>
-                  <select {...register('paymentMethod')} className="select">
-                    <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
-                    <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
-                    <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank Transfer'}</option>
-                    <option value="credit">{language === 'ar' ? 'آجل / ذمم' : 'Credit / Split'}</option>
-                  </select>
-                </div>
-                {watch('paymentMethod') === 'credit' && (
+
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#0f766e]">
+                  {language === 'ar' ? 'شروط الدفع' : 'Payment Terms'}
+                </p>
+                <div className="mt-4 space-y-5">
                   <div>
-                    <label className="label text-primary-600 font-semibold">{language === 'ar' ? 'المبلغ المدفوع (مقدم)' : 'Paid Amount (Advance)'}</label>
-                    <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className="input border-primary-300" placeholder="0.00" />
+                    <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'شرط الدفع' : 'Payment Terms'}</label>
+                    <select
+                      {...register('paymentTerms')}
+                      className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-sm outline-none focus:border-slate-900 dark:border-dark-500"
+                      onChange={(e) => {
+                        const id = e.target.value
+                        setValue('paymentTerms', id, { shouldDirty: true })
+                        const issueRaw = getValues('issueDate')
+                        const issue = issueRaw ? new Date(issueRaw) : new Date()
+                        const due = computeDueDateFromPaymentTerms(issue, id)
+                        if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+                      }}
+                    >
+                      <optgroup label={language === 'ar' ? 'الأكثر استخداماً' : 'Most used'}>
+                        {INVOICE_PAYMENT_TERMS.slice(0, 8).map((term) => (
+                          <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label={language === 'ar' ? 'المزيد...' : 'Search more...'}>
+                        {INVOICE_PAYMENT_TERMS.slice(8).map((term) => (
+                          <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
+                        ))}
+                      </optgroup>
+                    </select>
                   </div>
-                )}
-                <div>
-                  <label className="label">{language === 'ar' ? 'خصم الفاتورة' : 'Invoice Discount'}</label>
-                  <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className="input" />
+                  <div>
+                    <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'تاريخ الاستحقاق' : 'Due Date'}</label>
+                    <input type="date" {...register('dueDate')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-sm outline-none focus:border-slate-900 dark:border-dark-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>
+                    <select {...register('paymentMethod')} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-sm outline-none focus:border-slate-900 dark:border-dark-500">
+                      <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
+                      <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
+                      <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank Transfer'}</option>
+                      <option value="credit">{language === 'ar' ? 'آجل / ذمم' : 'Credit / Split'}</option>
+                    </select>
+                  </div>
+                  {watch('paymentMethod') === 'credit' && (
+                    <div>
+                      <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'المبلغ المدفوع (مقدم)' : 'Paid Amount (Advance)'}</label>
+                      <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-sm outline-none focus:border-slate-900 dark:border-dark-500" placeholder="0.00" />
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'خصم الفاتورة' : 'Invoice Discount'}</label>
+                    <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className="mt-2 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-sm outline-none focus:border-slate-900 dark:border-dark-500" />
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('subtotal')}</span><span><Money value={totals.subtotal} /></span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('discount')}</span><span><Money value={totals.totalDiscount} /></span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{language === 'ar' ? 'المبلغ الخاضع للضريبة' : 'Taxable Amount'}</span><span><Money value={totals.taxableAmount} /></span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
-                <div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-bold dark:border-dark-600"><span>{t('total')}</span><span className="text-primary-600"><Money value={totals.grandTotal} /></span></div>
               </div>
-              <div className="mb-4">
-                <ZatcaPreValidationPanel invoiceData={previewInvoice} language={language} />
+
+              <div className="rounded-2xl bg-slate-950 px-5 py-5 text-white dark:bg-white dark:text-slate-950">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50 dark:text-slate-400">
+                  {language === 'ar' ? 'الملخص' : 'Summary'}
+                </p>
+                <div className="mt-4 space-y-2.5 text-sm">
+                  <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{t('subtotal')}</span><span><Money value={totals.subtotal} /></span></div>
+                  <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{t('discount')}</span><span><Money value={totals.totalDiscount} /></span></div>
+                  <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{language === 'ar' ? 'المبلغ الخاضع للضريبة' : 'Taxable Amount'}</span><span><Money value={totals.taxableAmount} /></span></div>
+                  <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
+                  <div className="flex justify-between border-t border-white/15 pt-3 text-lg font-semibold dark:border-slate-200"><span>{t('total')}</span><span><Money value={totals.grandTotal} /></span></div>
+                </div>
               </div>
-              <div className="flex gap-3">
-                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="btn btn-secondary">{t('cancel')}</button>
-                <button type="submit" disabled={saveMutation.isPending} className="btn btn-action-dark">{saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <><Save className="w-4 h-4" />{isEdit ? (language === 'ar' ? 'حفظ التعديلات' : 'Save Changes') : t('save')}</>}</button>
+            </div>
+
+            {isTradingContext && (
+              <div className="space-y-3 border-t border-slate-200/80 pt-6 dark:border-dark-600">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#0f766e]">
+                  {language === 'ar' ? 'المستودع' : 'Warehouse'}
+                </p>
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div className="flex-1">
+                    <select {...register('warehouseId')} className="w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2.5 text-sm outline-none focus:border-slate-900 dark:border-dark-500">
+                      <option value="">{language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet'}</option>
+                      {(warehouses || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-dark-500" onClick={() => setValue('warehouseId', '')} disabled={!selectedWarehouseId}>
+                      {language === 'ar' ? 'إلغاء التحديد' : 'Clear'}
+                    </button>
+                    <button type="button" className="rounded-full bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white dark:bg-white dark:text-slate-900" onClick={() => navigate(`/app/dashboard/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/sell')}`)}>
+                      {language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}
+                    </button>
+                  </div>
+                </div>
               </div>
+            )}
+
+            {/* Live preview — bottom mid */}
+            <div className="space-y-4 border-t border-slate-200/80 pt-8 dark:border-dark-600">
+              <div className="text-center">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#0f766e]">
+                  {language === 'ar' ? 'المعاينة' : 'Preview'}
+                </p>
+                <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
+                  {language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}
+                </h3>
+                <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+                  {values?.printFormat === 'thermal'
+                    ? (language === 'ar' ? 'معاينة بصيغة الإيصال الحراري (80 مم).' : 'Thermal 80mm receipt layout.')
+                    : (language === 'ar' ? 'معاينة فاتورة A4 — تتحدث مع تغيير البيانات.' : 'A4 invoice preview — updates as you edit.')}
+                </p>
+              </div>
+              <div className={`mx-auto w-full ${values?.printFormat === 'thermal' ? 'max-w-[340px]' : 'max-w-3xl'}`}>
+                {values?.printFormat === 'thermal' ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-dark-600">
+                    <ThermalReceipt
+                      order={{
+                        ...previewInvoice,
+                        receiptNumber: previewInvoice.invoiceNumber,
+                        customerName: previewInvoice.buyer?.name || previewInvoice.buyer?.nameAr || (language === 'ar' ? 'عميل نقدي' : 'Cash Customer'),
+                        customerPhone: previewInvoice.buyer?.contactPhone || previewInvoice.buyer?.phone,
+                        grandTotal: previewInvoice.grandTotal,
+                        totalVat: previewInvoice.totalTax,
+                        subtotal: previewInvoice.subtotal,
+                        paymentMethod: previewInvoice.paymentMethod || 'cash',
+                        createdAt: previewInvoice.issueDate,
+                        zatcaQrCode: previewInvoice.zatca?.qrCodeData || generateZatcaQrValue({
+                          sellerName: tenant?.business?.legalNameEn || tenant?.name,
+                          vatNumber: tenant?.business?.vatNumber,
+                          timestamp: previewInvoice.issueDate,
+                          totalWithVat: previewInvoice.grandTotal,
+                          vatTotal: previewInvoice.totalTax,
+                        }),
+                        items: (previewInvoice.lineItems || []).map((item) => ({
+                          nameEn: item.productName || item.name,
+                          nameAr: item.productNameAr || item.nameAr,
+                          quantity: item.quantity,
+                          unitPrice: item.unitPrice,
+                          total: item.lineTotalWithTax || item.lineTotal || (Number(item.quantity || 0) * Number(item.unitPrice || 0)),
+                        })),
+                      }}
+                      type={previewInvoice?.businessContext || tenantBusinessTypes[0] || 'trading'}
+                    />
+                  </div>
+                ) : (
+                  <InvoiceLivePreview
+                    invoice={previewInvoice}
+                    tenant={tenant}
+                    language={language}
+                    templateId={selectedTemplateId}
+                    bilingual={resolveInvoiceBilingual(tenant, previewInvoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction'].includes(previewInvoice?.businessContext))}
+                    secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:text-slate-300">{t('cancel')}</button>
+              <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-slate-900">
+                {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Save className="w-4 h-4" />{isEdit ? (language === 'ar' ? 'حفظ التعديلات' : 'Save Changes') : t('save')}</>}
+              </button>
             </div>
           </div>
         </form>
-
-        <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-          <div className="card p-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {values?.printFormat === 'thermal'
-                ? (language === 'ar' ? 'معاينة بصيغة الإيصال الحراري (80 مم) — الطباعة النهائية تتبع هذه الصيغة.' : 'Thermal 80mm receipt layout — final print follows this format.')
-                : (language === 'ar' ? 'معاينة فاتورة A4 — تتحدث فوراً مع تغيير القالب والبيانات.' : 'A4 invoice preview — updates as you change template and form data.')}
-            </p>
-          </div>
-          <div className={values?.printFormat === 'thermal' ? 'mx-auto w-full max-w-[340px]' : ''}>
-            <InvoiceLivePreview
-              invoice={previewInvoice}
-              tenant={tenant}
-              language={language}
-              templateId={selectedTemplateId}
-              bilingual={resolveInvoiceBilingual(tenant, previewInvoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction'].includes(previewInvoice?.businessContext))}
-              secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
-            />
-          </div>
-        </div>
       </div>
     </div>
   )

@@ -61,6 +61,7 @@ import {
   ShoppingBag,
   Flame,
   Star,
+  Trash2,
   Hash,
   ChevronRight
 } from 'lucide-react'
@@ -224,9 +225,16 @@ export default function Profile() {
     reader.readAsDataURL(file)
   }
 
+  const handleRemoveLogo = () => {
+    setLogoPreview('')
+    setValue('branding.logo', '', { shouldDirty: true })
+  }
+
   const updateProfileMutation = useMutation({
     mutationFn: async (formData) => {
       const crVal = formData.business?.crNumber || ''
+      // Empty string = intentional remove. Never restore the previous logo.
+      const nextLogo = logoPreview == null ? String(formData.branding?.logo || '') : String(logoPreview || '')
       const payload = {
         ...formData,
         business: {
@@ -240,8 +248,17 @@ export default function Profile() {
         branding: {
           ...(tenant.branding || {}),
           ...formData.branding,
-          logo: logoPreview || formData.branding?.logo || tenant.branding?.logo || '',
-        }
+          logo: nextLogo,
+        },
+        settings: {
+          ...(tenant.settings || {}),
+          ...(formData.settings || {}),
+          invoiceBranding: {
+            ...(tenant.settings?.invoiceBranding || {}),
+            ...(formData.settings?.invoiceBranding || {}),
+            logo: nextLogo,
+          },
+        },
       }
       const res = await api.put('/tenants/current', payload)
       return res.data
@@ -1573,11 +1590,23 @@ export default function Profile() {
                       )}
                     </div>
                     <div>
-                      <label className="btn btn-secondary text-xs cursor-pointer inline-flex items-center gap-2">
-                        <Upload className="w-4 h-4" />
-                        {language === 'ar' ? 'رفع شعار جديد' : 'Upload New Logo'}
-                        <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
-                      </label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="btn btn-secondary text-xs cursor-pointer inline-flex items-center gap-2">
+                          <Upload className="w-4 h-4" />
+                          {language === 'ar' ? 'رفع شعار جديد' : 'Upload New Logo'}
+                          <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                        </label>
+                        {logoPreview ? (
+                          <button
+                            type="button"
+                            onClick={handleRemoveLogo}
+                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            {language === 'ar' ? 'إزالة الشعار' : 'Remove Logo'}
+                          </button>
+                        ) : null}
+                      </div>
                       <p className="text-xs text-gray-400 mt-1">PNG, JPG or WEBP (Max 3MB)</p>
                     </div>
                   </div>

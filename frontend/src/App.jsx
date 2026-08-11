@@ -84,6 +84,7 @@ const Reports = lazy(() => import('./pages/Reports'))
 const VatReturns = lazy(() => import('./pages/VatReturns'))
 const Vouchers = lazy(() => import('./pages/finance/Vouchers'))
 const Finance = lazy(() => import('./pages/Finance'))
+const Accounting = lazy(() => import('./pages/accounting/Accounting'))
 const Backup = lazy(() => import('./pages/Backup'))
 const Suppliers = lazy(() => import('./pages/Suppliers'))
 const SupplierForm = lazy(() => import('./pages/SupplierForm'))
@@ -811,6 +812,7 @@ function App() {
         <Route path="iot/devices/new" element={<BusinessTypeRoute allowedTypes={['trading']}><IoTDeviceForm /></BusinessTypeRoute>} />
         <Route path="iot/devices/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><IoTDeviceForm /></BusinessTypeRoute>} />
         <Route path="finance" element={<Finance />} />
+        <Route path="accounting" element={<Accounting />} />
         <Route path="vouchers" element={<Vouchers />} />
         <Route path="khata" element={<Khata />} />
         <Route path="users" element={<Users />} />

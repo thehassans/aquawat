@@ -406,6 +406,18 @@ router.put('/:id/pay', checkPermission('finance', 'approve'), async (req, res) =
       return res.status(404).json({ error: 'Expense not found or not approved' });
     }
 
+    try {
+      const { postExpensePaidJournal } = await import('../services/accountingService.js');
+      await postExpensePaidJournal({
+        tenantId: expense.tenantId,
+        userId: req.user._id,
+        expense,
+        currency: expense.currency || req.tenant?.settings?.currency || 'SAR',
+      });
+    } catch (glError) {
+      console.warn('[accounting] expense journal failed:', glError.message);
+    }
+
     res.json(expense);
   } catch (error) {
     res.status(500).json({ error: error.message });

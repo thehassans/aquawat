@@ -310,6 +310,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       title: language === 'ar' ? 'المالية' : 'Finance',
       items: [
         { path: '/app/dashboard/finance', icon: Landmark, label: language === 'ar' ? 'المالية' : 'Finance', perm: { module: 'finance', action: 'read' } },
+        { path: '/app/dashboard/accounting', icon: Calculator, label: language === 'ar' ? 'المحاسبة' : 'Accounting', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/vouchers', icon: Receipt, label: language === 'ar' ? 'السندات' : 'Vouchers', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/expenses', icon: Receipt, label: language === 'ar' ? 'المصروفات' : 'Expenses', perm: { module: 'finance', action: 'read' } },
         ...(isSarCurrencyTenant ? [{ path: '/app/dashboard/vat-returns', icon: Calculator, label: language === 'ar' ? 'إقرارات القيمة المضافة (زاتكا)' : 'VAT Returns (ZATCA)', perm: { module: 'finance', action: 'read' } }] : []),

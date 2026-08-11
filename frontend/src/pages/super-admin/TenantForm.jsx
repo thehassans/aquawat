@@ -309,6 +309,17 @@ export default function TenantForm() {
                 <div className="flex-1">
                   <input type="hidden" {...register('branding.logo')} />
                   <input type="file" accept="image/*" onChange={handleLogoChange} className="input" />
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {logoValue ? (
+                      <button
+                        type="button"
+                        onClick={() => setValue('branding.logo', '', { shouldDirty: true })}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                      >
+                        {language === 'ar' ? 'إزالة الشعار' : 'Remove Logo'}
+                      </button>
+                    ) : null}
+                  </div>
                   <p className="text-xs text-gray-500 mt-1">
                     {language === 'ar' ? 'PNG/JPG بحد أقصى 1MB' : 'PNG/JPG max 1MB'}
                   </p>

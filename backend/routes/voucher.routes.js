@@ -49,6 +49,19 @@ router.post('/', checkTrialLimits('vouchers'), checkPermission('finance', 'creat
     });
 
     await voucher.save();
+
+    try {
+      const { postVoucherJournal } = await import('../services/accountingService.js');
+      await postVoucherJournal({
+        tenantId: voucher.tenantId,
+        userId: req.user._id,
+        voucher,
+        currency: voucher.currency || 'SAR',
+      });
+    } catch (glError) {
+      console.warn('[accounting] voucher journal failed:', glError.message);
+    }
+
     res.status(201).json(voucher);
   } catch (error) {
     res.status(400).json({ error: error.message });
