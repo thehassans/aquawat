@@ -115,6 +115,11 @@ export const getMe = createAsyncThunk(
 )
 
 export const logout = createAsyncThunk('auth/logout', async () => {
+  try {
+    await api.post('/auth/logout')
+  } catch {
+    // Cookie clear is best-effort — always clear local session
+  }
   localStorage.removeItem('token')
   clearAuthSnapshot()
   return null
@@ -156,6 +161,10 @@ const authSlice = createSlice({
         localStorage.removeItem('token')
         localStorage.removeItem('auth_user')
         localStorage.removeItem('auth_tenant')
+      } catch {}
+      // Best-effort clear httpOnly cookie (fire-and-forget; reducer must stay sync)
+      try {
+        api.post('/auth/logout').catch(() => {})
       } catch {}
     },
   },

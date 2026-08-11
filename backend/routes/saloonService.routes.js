@@ -3,8 +3,7 @@ import { protect, tenantFilter, checkPermission, requireBusinessType } from '../
 import SaloonService from '../models/SaloonService.js';
 import multer from 'multer';
 import sharp from 'sharp';
-import path from 'path';
-import fs from 'fs';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -19,20 +18,20 @@ router.post('/upload-image', checkPermission('saloon', 'write'), upload.single('
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
 
     const tenantIdStr = req.user.tenantId.toString();
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'saloon', tenantIdStr);
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     const filename = `saloon-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-    const filepath = path.join(uploadsDir, filename);
+    const key = `saloon/${tenantIdStr}/${filename}`;
 
-    await sharp(req.file.buffer)
+    const buffer = await sharp(req.file.buffer)
       .resize({ width: 800, withoutEnlargement: true })
       .webp({ quality: 80 })
-      .toFile(filepath);
+      .toBuffer();
 
-    const imageUrl = `/uploads/saloon/${tenantIdStr}/${filename}`;
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
     res.json({ imageUrl });
   } catch (error) {
     console.error('Saloon image upload error:', error);

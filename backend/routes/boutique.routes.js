@@ -1,7 +1,5 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import path from 'path';
-import fs from 'fs';
 import multer from 'multer';
 import sharp from 'sharp';
 import BoutiqueProduct from '../models/BoutiqueProduct.js';
@@ -20,6 +18,7 @@ import { sendPaymentConfirmation } from '../services/boutiqueWhatsAppService.js'
 import { generateZatcaQr } from '../lib/zatcaQr.js';
 import QRCode from 'qrcode';
 import { protect, checkPermission } from '../middleware/auth.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -120,20 +119,20 @@ router.post('/upload-image', checkPermission('boutique', 'write'), upload.single
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
 
     const tenantIdStr = req.user.tenantId.toString();
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'boutique', tenantIdStr);
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     const filename = `dress-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-    const filepath = path.join(uploadsDir, filename);
+    const key = `boutique/${tenantIdStr}/${filename}`;
 
-    await sharp(req.file.buffer)
+    const buffer = await sharp(req.file.buffer)
       .resize({ width: 800, withoutEnlargement: true })
       .webp({ quality: 80 })
-      .toFile(filepath);
+      .toBuffer();
 
-    const imageUrl = `/uploads/boutique/${tenantIdStr}/${filename}`;
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
     res.json({ imageUrl });
   } catch (error) {
     console.error('Boutique image upload error:', error);

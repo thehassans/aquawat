@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import rateLimit, { MemoryStore } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import dotenv from 'dotenv';
@@ -675,6 +676,7 @@ app.use(express.json({
   },
 }));
 app.use(express.urlencoded({ extended: true, limit: jsonBodyLimit }));
+app.use(cookieParser());
 
 // Strip Mongo operator keys ($…) from body/query/params (express-mongo-sanitize not installed)
 app.use(mongoSanitize);

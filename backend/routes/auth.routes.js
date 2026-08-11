@@ -43,6 +43,37 @@ const generateToken = (id, tenantId = null) => {
   });
 };
 
+const AUTH_COOKIE = 'maqder_token';
+
+/** Convert JWT_EXPIRE-style strings (e.g. 7d, 24h, 30m) to milliseconds for cookie maxAge. */
+const jwtExpireToMs = (expire = '7d') => {
+  const match = String(expire).trim().match(/^(\d+)\s*([smhd])$/i);
+  if (!match) return 7 * 24 * 60 * 60 * 1000;
+  const n = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  const mult = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+  return n * (mult[unit] || mult.d);
+};
+
+const setAuthCookie = (res, token) => {
+  res.cookie(AUTH_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: jwtExpireToMs(process.env.JWT_EXPIRE || '7d'),
+  });
+};
+
+const clearAuthCookie = (res) => {
+  res.clearCookie(AUTH_COOKIE, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+  });
+};
+
 const authTenantSelect = 'name slug businessType businessTypes business settings branding subscription isActive terminationNotice zatca nbr';
 
 const demoLoginAllowed = () => {
@@ -97,7 +128,8 @@ router.post('/register', async (req, res) => {
     });
     
     const token = generateToken(user._id, user.tenantId);
-    
+    setAuthCookie(res, token);
+
     res.status(201).json({
       token,
       user: {
@@ -287,7 +319,8 @@ router.post('/login', async (req, res) => {
 
     const token = generateToken(user._id, user.tenantId || tenant?._id);
     const responseTenant = serializeAuthTenant(tenant);
-    
+    setAuthCookie(res, token);
+
     res.json({
       token,
       user: {
@@ -513,6 +546,7 @@ router.post('/verify-otp', async (req, res) => {
 
     const token = generateToken(user._id, user.tenantId || tenant?._id);
     const responseTenant = serializeAuthTenant(tenant);
+    setAuthCookie(res, token);
 
     res.json({
       token,
@@ -583,6 +617,12 @@ router.post('/reset-password-phone', async (req, res) => {
   } catch (error) {
     sendRouteError(res, error);
   }
+});
+
+// @route   POST /api/auth/logout
+router.post('/logout', (req, res) => {
+  clearAuthCookie(res);
+  res.json({ message: 'Logged out' });
 });
 
 export default router;

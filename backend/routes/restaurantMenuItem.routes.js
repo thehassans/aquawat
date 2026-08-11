@@ -6,6 +6,7 @@ import fs from 'fs';
 import RestaurantMenuItem from '../models/RestaurantMenuItem.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -118,24 +119,21 @@ router.post('/upload-image', checkPermission('restaurant', 'create'), upload.sin
     }
 
     const tenantIdStr = req.user.tenantId.toString();
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'restaurant', tenantIdStr);
-    
-    // Ensure directory exists
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     const filename = `menu-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-    const filepath = path.join(uploadsDir, filename);
+    const key = `restaurant/${tenantIdStr}/${filename}`;
 
-    // Convert to webp
-    await sharp(req.file.buffer)
-      .resize({ width: 800, withoutEnlargement: true }) // reasonable size for menu
+    const buffer = await sharp(req.file.buffer)
+      .resize({ width: 800, withoutEnlargement: true })
       .webp({ quality: 80 })
-      .toFile(filepath);
+      .toBuffer();
 
-    const imageUrl = `/uploads/restaurant/${tenantIdStr}/${filename}`;
-    
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
+
     res.json({ imageUrl });
   } catch (error) {
     console.error('Image processing error:', error);

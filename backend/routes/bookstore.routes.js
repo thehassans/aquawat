@@ -13,13 +13,8 @@ import { clampLimit } from '../utils/pagination.js';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import sharp from 'sharp';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { imageUpload } from '../utils/uploadMime.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -402,20 +397,20 @@ router.post('/upload-cover', protect, imageUpload.single('image'), async (req, r
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
 
     const tenantIdStr = req.user.tenantId.toString();
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'bookstore', tenantIdStr);
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     const filename = `cover-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-    const filepath = path.join(uploadsDir, filename);
+    const key = `bookstore/${tenantIdStr}/${filename}`;
 
-    await sharp(req.file.buffer)
+    const buffer = await sharp(req.file.buffer)
       .resize({ width: 600, height: 900, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 80 })
-      .toFile(filepath);
+      .toBuffer();
 
-    const imageUrl = `/uploads/bookstore/${tenantIdStr}/${filename}`;
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
     res.json({ imageUrl });
   } catch (error) {
     console.error('BookStore cover upload error:', error);

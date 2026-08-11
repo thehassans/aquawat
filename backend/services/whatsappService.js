@@ -93,6 +93,17 @@ class WhatsAppService {
 
   async initClient(tenantId, force = false) {
     tenantId = String(tenantId);
+
+    // When API is configured to use an external WA worker, refuse Chromium here.
+    if (process.env.WHATSAPP_WORKER_EXTERNAL === '1' && process.env.WHATSAPP_WORKER !== '1') {
+      const errMsg =
+        'WhatsApp Chromium init is disabled on the API (WHATSAPP_WORKER_EXTERNAL=1). ' +
+        'Run the dedicated worker: node workers/whatsappWorker.js (or npm run worker:whatsapp) with WHATSAPP_WORKER=1.';
+      console.error('[WhatsApp]', errMsg);
+      this.status.set(tenantId, { state: 'DISCONNECTED', error: errMsg });
+      return this.getStatus(tenantId);
+    }
+
     const existing = this.clients.get(tenantId);
     const existingState = this.status.get(tenantId)?.state;
 

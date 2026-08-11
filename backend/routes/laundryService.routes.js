@@ -2,9 +2,8 @@ import express from 'express';
 import LaundryService from '../models/LaundryService.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
 import sharp from 'sharp';
-import path from 'path';
-import fs from 'fs';
 import { imageUpload } from '../utils/uploadMime.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
 const upload = imageUpload;
@@ -19,20 +18,20 @@ router.post('/upload-image', checkPermission('laundry', 'write'), upload.single(
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
 
     const tenantIdStr = req.user.tenantId.toString();
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'laundry', tenantIdStr);
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     const filename = `laundry-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-    const filepath = path.join(uploadsDir, filename);
+    const key = `laundry/${tenantIdStr}/${filename}`;
 
-    await sharp(req.file.buffer)
+    const buffer = await sharp(req.file.buffer)
       .resize({ width: 800, withoutEnlargement: true })
       .webp({ quality: 80 })
-      .toFile(filepath);
+      .toBuffer();
 
-    const imageUrl = `/uploads/laundry/${tenantIdStr}/${filename}`;
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
     res.json({ imageUrl });
   } catch (error) {
     console.error('Laundry image upload error:', error);

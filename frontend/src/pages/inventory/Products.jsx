@@ -9,6 +9,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
+import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 
 import { getUomLabel } from '../../lib/uomOptions'
 
@@ -242,84 +243,138 @@ export default function Products() {
         {isLoading ? (
           <div className="p-8 text-center"><div className="inline-block w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : (
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{t('productName')}</th>
-                  <th>{t('sku')}</th>
-                  <th>{t('category')}</th>
-                  <th>{language === 'ar' ? 'الوحدة (UOM)' : 'UOM'}</th>
-                  <th>{t('costPrice')}</th>
-                  <th>{t('sellingPrice')}</th>
-                  <th>{t('quantity')}</th>
-                  <th>{t('status')}</th>
-                  <th>{t('actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data?.products?.map((product) => (
-                  <tr key={product._id}>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-100 dark:bg-dark-700 rounded-lg flex items-center justify-center">
-                          {product.images?.[0] ? (
-                            <img src={product.images[0].url} alt="" className="w-full h-full object-cover rounded-lg" />
-                          ) : (
-                            <Package className="w-5 h-5 text-gray-400" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-gray-900 dark:text-white">{language === 'ar' ? product.nameAr || product.nameEn : product.nameEn}</p>
-                            {product.allowNegativeStock && (
-                              <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 rounded border border-purple-200 dark:border-purple-800">
-                                {language === 'ar' ? 'سماح بالسالب' : 'Negative OK'}
-                              </span>
+          <ResponsiveDataList
+            items={data?.products || []}
+            empty={<p className="p-6 text-center text-sm text-gray-500">{language === 'ar' ? 'لا توجد منتجات' : 'No products'}</p>}
+            className="p-4 md:p-0"
+            renderCard={(product) => (
+              <div key={product._id} className="rounded-xl border border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 shrink-0 bg-gray-100 dark:bg-dark-700 rounded-lg flex items-center justify-center">
+                      {product.images?.[0] ? (
+                        <img src={product.images[0].url} alt="" className="w-full h-full object-cover rounded-lg" />
+                      ) : (
+                        <Package className="w-5 h-5 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900 dark:text-white truncate">
+                        {language === 'ar' ? product.nameAr || product.nameEn : product.nameEn}
+                      </p>
+                      <p className="text-xs text-gray-500 font-mono">{product.sku}</p>
+                    </div>
+                  </div>
+                  <span className={`badge shrink-0 ${product.status === 'active' ? 'badge-success' : product.status === 'out_of_stock' ? 'badge-danger' : 'badge-neutral'}`}>
+                    {product.status}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center gap-3">
+                    <span className={product.totalStock <= 10 ? 'text-red-600 font-semibold' : ''}>
+                      {product.totalStock} {product.unitOfMeasure || 'EA'}
+                    </span>
+                    <span className="font-semibold text-gray-900 dark:text-white"><Money value={product.sellingPrice} /></span>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => openStockModal(product)}
+                      className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg text-emerald-600"
+                      title={language === 'ar' ? 'إضافة مخزون' : 'Add Stock'}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                    <Link to={`/products/${product._id}`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                      <Eye className="w-4 h-4 text-gray-600" />
+                    </Link>
+                    <Link to={`/products/${product._id}`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                      <Edit className="w-4 h-4 text-gray-600" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          >
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t('productName')}</th>
+                    <th>{t('sku')}</th>
+                    <th>{t('category')}</th>
+                    <th>{language === 'ar' ? 'الوحدة (UOM)' : 'UOM'}</th>
+                    <th>{t('costPrice')}</th>
+                    <th>{t('sellingPrice')}</th>
+                    <th>{t('quantity')}</th>
+                    <th>{t('status')}</th>
+                    <th>{t('actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data?.products?.map((product) => (
+                    <tr key={product._id}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gray-100 dark:bg-dark-700 rounded-lg flex items-center justify-center">
+                            {product.images?.[0] ? (
+                              <img src={product.images[0].url} alt="" className="w-full h-full object-cover rounded-lg" />
+                            ) : (
+                              <Package className="w-5 h-5 text-gray-400" />
                             )}
                           </div>
-                          {product.barcode && <p className="text-xs text-gray-500 flex items-center gap-1"><QrCode className="w-3 h-3" />{product.barcode}</p>}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-gray-900 dark:text-white">{language === 'ar' ? product.nameAr || product.nameEn : product.nameEn}</p>
+                              {product.allowNegativeStock && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 rounded border border-purple-200 dark:border-purple-800">
+                                  {language === 'ar' ? 'سماح بالسالب' : 'Negative OK'}
+                                </span>
+                              )}
+                            </div>
+                            {product.barcode && <p className="text-xs text-gray-500 flex items-center gap-1"><QrCode className="w-3 h-3" />{product.barcode}</p>}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="font-mono text-sm">{product.sku}</td>
-                    <td>{product.category || '-'}</td>
-                    <td>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 dark:bg-dark-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-dark-600 shadow-2xs">
-                        {getUomLabel(product.unitOfMeasure, language) || product.unitOfMeasure || 'EA'}
-                      </span>
-                    </td>
-                    <td><Money value={product.costPrice} /></td>
-                    <td className="font-semibold"><Money value={product.sellingPrice} /></td>
-                    <td>
-                      <div className="flex items-baseline gap-1">
-                        <span className={`font-semibold ${product.totalStock <= 10 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
-                          {product.totalStock}
+                      </td>
+                      <td className="font-mono text-sm">{product.sku}</td>
+                      <td>{product.category || '-'}</td>
+                      <td>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 dark:bg-dark-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-dark-600 shadow-2xs">
+                          {getUomLabel(product.unitOfMeasure, language) || product.unitOfMeasure || 'EA'}
                         </span>
-                        <span className="text-xs text-gray-400">
-                          {product.unitOfMeasure || 'EA'}
+                      </td>
+                      <td><Money value={product.costPrice} /></td>
+                      <td className="font-semibold"><Money value={product.sellingPrice} /></td>
+                      <td>
+                        <div className="flex items-baseline gap-1">
+                          <span className={`font-semibold ${product.totalStock <= 10 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                            {product.totalStock}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {product.unitOfMeasure || 'EA'}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`badge ${product.status === 'active' ? 'badge-success' : product.status === 'out_of_stock' ? 'badge-danger' : 'badge-neutral'}`}>
+                          {product.status}
                         </span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`badge ${product.status === 'active' ? 'badge-success' : product.status === 'out_of_stock' ? 'badge-danger' : 'badge-neutral'}`}>
-                        {product.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => openStockModal(product)} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg text-emerald-600" title={language === 'ar' ? 'إضافة مخزون' : 'Add Stock'}>
-                          <Plus className="w-4 h-4" />
-                        </button>
-                        <Link to={`/products/${product._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"><Eye className="w-4 h-4 text-gray-600" /></Link>
-                        <Link to={`/products/${product._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"><Edit className="w-4 h-4 text-gray-600" /></Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => openStockModal(product)} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg text-emerald-600" title={language === 'ar' ? 'إضافة مخزون' : 'Add Stock'}>
+                            <Plus className="w-4 h-4" />
+                          </button>
+                          <Link to={`/products/${product._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"><Eye className="w-4 h-4 text-gray-600" /></Link>
+                          <Link to={`/products/${product._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"><Edit className="w-4 h-4 text-gray-600" /></Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ResponsiveDataList>
         )}
       </motion.div>
 

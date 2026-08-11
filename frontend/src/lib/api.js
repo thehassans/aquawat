@@ -48,6 +48,7 @@ const getApiErrorMessage = (error) => {
 const api = axios.create({
   baseURL: apiBaseUrl,
   timeout: 15000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },

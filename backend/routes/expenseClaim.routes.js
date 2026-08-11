@@ -1,11 +1,10 @@
 import express from 'express';
 import sharp from 'sharp';
-import path from 'path';
-import fs from 'fs';
 import ExpenseClaim from '../models/ExpenseClaim.js';
 import Employee from '../models/Employee.js';
 import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
 import { imageUpload } from '../utils/uploadMime.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
 const upload = imageUpload;
@@ -337,20 +336,20 @@ router.post('/upload-receipt', checkPermission('hr', 'create'), upload.single('i
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
 
     const tenantIdStr = req.user.tenantId.toString();
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'expense-receipts', tenantIdStr);
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     const filename = `receipt-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-    const filepath = path.join(uploadsDir, filename);
+    const key = `expense-receipts/${tenantIdStr}/${filename}`;
 
-    await sharp(req.file.buffer)
+    const buffer = await sharp(req.file.buffer)
       .resize({ width: 1000, withoutEnlargement: true })
       .webp({ quality: 80 })
-      .toFile(filepath);
+      .toBuffer();
 
-    const imageUrl = `/uploads/expense-receipts/${tenantIdStr}/${filename}`;
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
     res.json({ imageUrl });
   } catch (error) {
     console.error('Receipt upload error:', error);

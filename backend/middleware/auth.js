@@ -49,6 +49,8 @@ export const protect = async (req, res, next) => {
 
     if (req.headers.authorization?.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies?.maqder_token) {
+      token = req.cookies.maqder_token;
     }
 
     if (!token) {

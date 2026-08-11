@@ -23,6 +23,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
+import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 
 export default function CustomerList() {
@@ -304,196 +305,259 @@ export default function CustomerList() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-dark-700">
-                  <tr>
-                    <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      {language === 'ar' ? 'العميل' : 'Customer'}
-                    </th>
-                    <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      {language === 'ar' ? 'النوع' : 'Type'}
-                    </th>
-                    <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      {language === 'ar' ? 'الاتصال' : 'Contact'}
-                    </th>
-                    <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      {language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}
-                    </th>
-                    {hasKhayyat ? (
-                      <>
-                        <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          {language === 'ar' ? 'الثياب' : 'Thawbs'}
-                        </th>
-                        <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          {language === 'ar' ? 'المدفوع' : 'Paid'}
-                        </th>
-                        <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          {language === 'ar' ? 'المتبقي' : 'Pending'}
-                        </th>
-                      </>
-                    ) : (
+            <ResponsiveDataList
+              items={data?.customers || []}
+              className="p-4 md:p-0"
+              renderCard={(customer) => (
+                <div key={customer._id} className="rounded-xl border border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center ${
+                        customer.type === 'business'
+                          ? 'bg-blue-100 dark:bg-blue-900/30'
+                          : 'bg-green-100 dark:bg-green-900/30'
+                      }`}>
+                        {customer.type === 'business'
+                          ? <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                          : <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        }
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 dark:text-white truncate">
+                          {language === 'ar' && customer.nameAr ? customer.nameAr : customer.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {customer.customerCode ? `#${customer.customerCode}` : ''}
+                          {customer.phone ? `${customer.customerCode ? ' · ' : ''}${customer.phone}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`badge shrink-0 ${customer.type === 'business' ? 'badge-primary' : 'badge-success'}`}>
+                      {customer.type === 'business'
+                        ? (language === 'ar' ? 'شركة' : 'Business')
+                        : (language === 'ar' ? 'فرد' : 'Individual')
+                      }
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2 text-xs text-gray-500">
+                    <span className="truncate">
+                      {hasKhayyat
+                        ? `${language === 'ar' ? 'متبقي' : 'Pending'}: `
+                        : `${language === 'ar' ? 'فواتير' : 'Invoices'}: ${customer.totalInvoices || 0}`}
+                      {hasKhayyat && (
+                        <Money value={customer.khayyatPendingAmount || 0} minimumFractionDigits={0} maximumFractionDigits={0} />
+                      )}
+                    </span>
+                    <div className="flex gap-1 shrink-0">
+                      <Link to={`/customers/${customer._id}`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                        <Eye className="w-4 h-4 text-gray-600" />
+                      </Link>
+                      <Link to={`/customers/${customer._id}/edit`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                        <Edit className="w-4 h-4 text-gray-600" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(customer._id, customer.name)}
+                        className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-dark-700">
+                    <tr>
                       <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        {language === 'ar' ? 'الفواتير' : 'Invoices'}
+                        {language === 'ar' ? 'العميل' : 'Customer'}
                       </th>
-                    )}
-                    <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      {language === 'ar' ? 'الإجراءات' : 'Actions'}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-dark-700">
-                  {data?.customers?.map((customer) => (
-                    <tr key={customer._id} className="hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                            customer.type === 'business' 
-                              ? 'bg-blue-100 dark:bg-blue-900/30' 
-                              : 'bg-green-100 dark:bg-green-900/30'
-                          }`}>
-                            {customer.type === 'business' 
-                              ? <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                              : <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
-                            }
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {language === 'ar' && customer.nameAr ? customer.nameAr : customer.name}
-                              </p>
-                              {customer.customerCode && (
-                                <span className="text-xs font-mono bg-gray-100 dark:bg-dark-600 px-2 py-0.5 rounded text-gray-500 dark:text-gray-400">
-                                  #{customer.customerCode}
-                                </span>
-                              )}
-                            </div>
-                            {customer.address?.city && (
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {customer.address.city}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`badge ${customer.type === 'business' ? 'badge-primary' : 'badge-success'}`}>
-                          {customer.type === 'business' 
-                            ? (language === 'ar' ? 'شركة' : 'Business') 
-                            : (language === 'ar' ? 'فرد' : 'Individual')
-                          }
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="space-y-1">
-                          {customer.email && (
-                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                              <Mail className="w-4 h-4" />
-                              {customer.email}
-                            </div>
-                          )}
-                          {customer.phone && (
-                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                              <Phone className="w-4 h-4" />
-                              {customer.phone}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {customer.vatNumber || customer.taxNumber || '-'}
-                        </span>
-                      </td>
+                      <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        {language === 'ar' ? 'النوع' : 'Type'}
+                      </th>
+                      <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        {language === 'ar' ? 'الاتصال' : 'Contact'}
+                      </th>
+                      <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        {language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}
+                      </th>
                       {hasKhayyat ? (
                         <>
-                          <td className="px-6 py-4">
-                            <span className="font-medium text-gray-900 dark:text-white">
-                              {customer.totalThawb || 0}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-green-600 dark:text-green-400 font-medium">
-                              <Money value={customer.khayyatPaidAmount || 0} minimumFractionDigits={0} maximumFractionDigits={0} />
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-red-600 dark:text-red-400 font-medium">
-                              <Money value={customer.khayyatPendingAmount || 0} minimumFractionDigits={0} maximumFractionDigits={0} />
-                            </span>
-                          </td>
+                          <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {language === 'ar' ? 'الثياب' : 'Thawbs'}
+                          </th>
+                          <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {language === 'ar' ? 'المدفوع' : 'Paid'}
+                          </th>
+                          <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {language === 'ar' ? 'المتبقي' : 'Pending'}
+                          </th>
                         </>
                       ) : (
+                        <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          {language === 'ar' ? 'الفواتير' : 'Invoices'}
+                        </th>
+                      )}
+                      <th className="px-6 py-4 text-start text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        {language === 'ar' ? 'الإجراءات' : 'Actions'}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-dark-700">
+                    {data?.customers?.map((customer) => (
+                      <tr key={customer._id} className="hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors">
                         <td className="px-6 py-4">
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {customer.totalInvoices || 0}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              <Money value={customer.totalRevenue || 0} minimumFractionDigits={0} maximumFractionDigits={0} />
-                            </p>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                              customer.type === 'business' 
+                                ? 'bg-blue-100 dark:bg-blue-900/30' 
+                                : 'bg-green-100 dark:bg-green-900/30'
+                            }`}>
+                              {customer.type === 'business' 
+                                ? <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                : <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
+                              }
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {language === 'ar' && customer.nameAr ? customer.nameAr : customer.name}
+                                </p>
+                                {customer.customerCode && (
+                                  <span className="text-xs font-mono bg-gray-100 dark:bg-dark-600 px-2 py-0.5 rounded text-gray-500 dark:text-gray-400">
+                                    #{customer.customerCode}
+                                  </span>
+                                )}
+                              </div>
+                              {customer.address?.city && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {customer.address.city}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </td>
-                      )}
-                      <td className="px-6 py-4">
-                        <Menu as="div" className="relative">
-                          <Menu.Button className="p-2 hover:bg-gray-100 dark:hover:bg-dark-600 rounded-lg transition-colors">
-                            <MoreVertical className="w-4 h-4 text-gray-500" />
-                          </Menu.Button>
-                          <Transition
-                            as={Fragment}
-                            enter="transition ease-out duration-100"
-                            enterFrom="transform opacity-0 scale-95"
-                            enterTo="transform opacity-100 scale-100"
-                            leave="transition ease-in duration-75"
-                            leaveFrom="transform opacity-100 scale-100"
-                            leaveTo="transform opacity-0 scale-95"
-                          >
-                            <Menu.Items className="absolute end-0 mt-2 w-48 bg-white dark:bg-dark-800 rounded-xl shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none z-10">
-                              <div className="p-1">
-                                <Menu.Item>
-                                  {({ active }) => (
-                                    <Link
-                                      to={`/customers/${customer._id}`}
-                                      className={`${active ? 'bg-gray-100 dark:bg-dark-700' : ''} flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 rounded-lg`}
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                      {language === 'ar' ? 'عرض' : 'View'}
-                                    </Link>
-                                  )}
-                                </Menu.Item>
-                                <Menu.Item>
-                                  {({ active }) => (
-                                    <Link
-                                      to={`/customers/${customer._id}/edit`}
-                                      className={`${active ? 'bg-gray-100 dark:bg-dark-700' : ''} flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 rounded-lg`}
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                      {language === 'ar' ? 'تعديل' : 'Edit'}
-                                    </Link>
-                                  )}
-                                </Menu.Item>
-                                <Menu.Item>
-                                  {({ active }) => (
-                                    <button
-                                      onClick={() => handleDelete(customer._id, customer.name)}
-                                      className={`${active ? 'bg-red-50 dark:bg-red-900/20' : ''} flex items-center gap-3 px-3 py-2 text-sm text-red-600 dark:text-red-400 rounded-lg w-full`}
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                      {language === 'ar' ? 'حذف' : 'Delete'}
-                                    </button>
-                                  )}
-                                </Menu.Item>
+                        <td className="px-6 py-4">
+                          <span className={`badge ${customer.type === 'business' ? 'badge-primary' : 'badge-success'}`}>
+                            {customer.type === 'business' 
+                              ? (language === 'ar' ? 'شركة' : 'Business') 
+                              : (language === 'ar' ? 'فرد' : 'Individual')
+                            }
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            {customer.email && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                <Mail className="w-4 h-4" />
+                                {customer.email}
                               </div>
-                            </Menu.Items>
-                          </Transition>
-                        </Menu>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                            )}
+                            {customer.phone && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                <Phone className="w-4 h-4" />
+                                {customer.phone}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {customer.vatNumber || customer.taxNumber || '-'}
+                          </span>
+                        </td>
+                        {hasKhayyat ? (
+                          <>
+                            <td className="px-6 py-4">
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {customer.totalThawb || 0}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-green-600 dark:text-green-400 font-medium">
+                                <Money value={customer.khayyatPaidAmount || 0} minimumFractionDigits={0} maximumFractionDigits={0} />
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-red-600 dark:text-red-400 font-medium">
+                                <Money value={customer.khayyatPendingAmount || 0} minimumFractionDigits={0} maximumFractionDigits={0} />
+                              </span>
+                            </td>
+                          </>
+                        ) : (
+                          <td className="px-6 py-4">
+                            <div>
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                {customer.totalInvoices || 0}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <Money value={customer.totalRevenue || 0} minimumFractionDigits={0} maximumFractionDigits={0} />
+                              </p>
+                            </div>
+                          </td>
+                        )}
+                        <td className="px-6 py-4">
+                          <Menu as="div" className="relative">
+                            <Menu.Button className="p-2 hover:bg-gray-100 dark:hover:bg-dark-600 rounded-lg transition-colors">
+                              <MoreVertical className="w-4 h-4 text-gray-500" />
+                            </Menu.Button>
+                            <Transition
+                              as={Fragment}
+                              enter="transition ease-out duration-100"
+                              enterFrom="transform opacity-0 scale-95"
+                              enterTo="transform opacity-100 scale-100"
+                              leave="transition ease-in duration-75"
+                              leaveFrom="transform opacity-100 scale-100"
+                              leaveTo="transform opacity-0 scale-95"
+                            >
+                              <Menu.Items className="absolute end-0 mt-2 w-48 bg-white dark:bg-dark-800 rounded-xl shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none z-10">
+                                <div className="p-1">
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <Link
+                                        to={`/customers/${customer._id}`}
+                                        className={`${active ? 'bg-gray-100 dark:bg-dark-700' : ''} flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 rounded-lg`}
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                        {language === 'ar' ? 'عرض' : 'View'}
+                                      </Link>
+                                    )}
+                                  </Menu.Item>
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <Link
+                                        to={`/customers/${customer._id}/edit`}
+                                        className={`${active ? 'bg-gray-100 dark:bg-dark-700' : ''} flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 rounded-lg`}
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                        {language === 'ar' ? 'تعديل' : 'Edit'}
+                                      </Link>
+                                    )}
+                                  </Menu.Item>
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <button
+                                        onClick={() => handleDelete(customer._id, customer.name)}
+                                        className={`${active ? 'bg-red-50 dark:bg-red-900/20' : ''} flex items-center gap-3 px-3 py-2 text-sm text-red-600 dark:text-red-400 rounded-lg w-full`}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                        {language === 'ar' ? 'حذف' : 'Delete'}
+                                      </button>
+                                    )}
+                                  </Menu.Item>
+                                </div>
+                              </Menu.Items>
+                            </Transition>
+                          </Menu>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </ResponsiveDataList>
 
             {/* Pagination */}
             {data?.pagination?.pages > 1 && (
