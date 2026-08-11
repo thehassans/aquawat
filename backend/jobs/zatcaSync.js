@@ -53,10 +53,12 @@ export async function syncZatcaInvoices() {
         continue;
       }
       
+      const { decryptZatcaConfig } = await import('../utils/zatcaKeyVault.js');
+      const zatcaConfig = decryptZatcaConfig(tenant.zatca);
       const zatcaService = new ZatcaService({
-        privateKey: tenant.zatca.privateKey,
-        csid: tenant.zatca.productionCsid,
-        previousInvoiceHash: tenant.zatca.lastInvoiceHash
+        privateKey: zatcaConfig.privateKey,
+        csid: zatcaConfig.productionCsid,
+        previousInvoiceHash: zatcaConfig.lastInvoiceHash
       });
       
       for (const invoice of invoices) {

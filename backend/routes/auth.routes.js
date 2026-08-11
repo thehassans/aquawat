@@ -38,8 +38,11 @@ const sendRouteError = (res, error) => {
 const generateToken = (id, tenantId = null) => {
   const payload = { id: String(id) };
   if (tenantId) payload.tenantId = String(tenantId);
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is not configured');
+  }
   return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d'
+    expiresIn: process.env.JWT_EXPIRE || '24h'
   });
 };
 
@@ -61,7 +64,7 @@ const setAuthCookie = (res, token) => {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: jwtExpireToMs(process.env.JWT_EXPIRE || '7d'),
+    maxAge: jwtExpireToMs(process.env.JWT_EXPIRE || '24h'),
   });
 };
 
@@ -625,6 +628,79 @@ router.post('/reset-password-phone', async (req, res) => {
 router.post('/logout', (req, res) => {
   clearAuthCookie(res);
   res.json({ message: 'Logged out' });
+});
+
+/**
+ * Issue a one-time cross-subdomain handoff code (2 min TTL).
+ * Prefer this over putting JWTs in URL hashes.
+ */
+router.post('/handoff/issue', async (req, res) => {
+  try {
+    const token = String(req.body?.token || '').trim();
+    if (!token) return res.status(400).json({ error: 'token is required' });
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ error: 'Server misconfigured' });
+    }
+    jwt.verify(token, process.env.JWT_SECRET);
+    const { issueHandoffCode } = await import('../utils/handoffCodes.js');
+    const code = await issueHandoffCode(token);
+    res.json({ code, expiresIn: 120 });
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    sendRouteError(res, error);
+  }
+});
+
+/**
+ * Exchange a one-time handoff code for a session (cookie + token body for desktop).
+ */
+router.post('/handoff/exchange', async (req, res) => {
+  try {
+    const code = String(req.body?.code || '').trim();
+    if (!code) return res.status(400).json({ error: 'code is required' });
+
+    const { consumeHandoffCode } = await import('../utils/handoffCodes.js');
+    const token = await consumeHandoffCode(code);
+    if (!token) return res.status(401).json({ error: 'Invalid or expired handoff code' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await withQueryTimeout(User.findById(decoded.id).select('-password'));
+    if (!user || !user.isActive) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    let tenant = null;
+    if (user.tenantId) {
+      tenant = await withQueryTimeout(Tenant.findById(user.tenantId).select(authTenantSelect));
+    }
+
+    setAuthCookie(res, token);
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        firstNameAr: user.firstNameAr,
+        lastNameAr: user.lastNameAr,
+        role: user.role,
+        tenantId: user.tenantId,
+        branchId: user.branchId,
+        permissions: user.permissions,
+        preferences: user.preferences,
+        avatar: user.avatar,
+      },
+      tenant: serializeAuthTenant(tenant),
+    });
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Invalid or expired handoff session' });
+    }
+    sendRouteError(res, error);
+  }
 });
 
 export default router;

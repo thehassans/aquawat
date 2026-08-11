@@ -6,7 +6,8 @@ import { demoSignup } from '../../store/slices/authSlice'
 import { getBusinessTypeOptions } from '../../lib/businessTypes'
 import { COUNTRY_OPTIONS, currencyForCountry } from '../../lib/countryCurrency'
 import { CURRENCIES } from '../../lib/currency'
-import { isApexHost, isOnTenantAliasHost, getTenantAliasHandoffUrl } from '../../lib/tenantHost'
+import { isApexHost, isOnTenantAliasHost, getTenantAliasHandoffUrl, issueHandoffCode } from '../../lib/tenantHost'
+import api from '../../lib/api'
 
 const MAX_LOGO_BYTES = 3 * 1024 * 1024
 
@@ -118,7 +119,12 @@ export default function TrialSignup({ variant = 'light' }) {
     const lang = language === 'ar' ? 'ar' : 'en'
 
     if (tenantSlug && token && isApexHost() && !isOnTenantAliasHost()) {
-      window.location.replace(getTenantAliasHandoffUrl(tenantSlug, token, { lang }))
+      try {
+        const code = await issueHandoffCode(api, token)
+        window.location.replace(getTenantAliasHandoffUrl(tenantSlug, code, { lang }))
+      } catch {
+        window.location.replace(getTenantAliasHandoffUrl(tenantSlug, token, { lang }))
+      }
       return
     }
 

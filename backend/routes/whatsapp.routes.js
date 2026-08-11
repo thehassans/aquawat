@@ -1,7 +1,8 @@
 import express from 'express';
 import axios from 'axios';
 import crypto from 'crypto';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../middleware/auth.js';
+import multer from 'multer';
 import { 
   WhatsAppConfig, 
   WhatsAppContact, 
@@ -11,9 +12,15 @@ import {
   Broadcast
 } from '../models/WhatsApp.js';
 import whatsappService from '../services/whatsappService.js';
-import multer from 'multer';
 import { verifyMetaHubSignature } from '../utils/webhookAuth.js';
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(String(file?.mimetype || '').toLowerCase());
+    cb(ok ? null : new Error('Only PDF or image uploads are allowed'), ok);
+  },
+});
 
 const router = express.Router();
 
@@ -219,6 +226,7 @@ async function processStatusUpdate(tenantId, status) {
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // ============== UNOFFICIAL API ROUTES ==============
 
@@ -691,8 +699,11 @@ router.get('/messages/:contactId', async (req, res) => {
       .limit(parseInt(limit))
       .populate('sentBy', 'firstName lastName');
 
-    // Mark contact as read
-    await WhatsAppContact.findByIdAndUpdate(req.params.contactId, { unreadCount: 0 });
+    // Mark contact as read — always scope by tenant to prevent IDOR
+    await WhatsAppContact.findOneAndUpdate(
+      { _id: req.params.contactId, ...req.tenantFilter },
+      { unreadCount: 0 }
+    );
 
     res.json(messages.reverse());
   } catch (error) {

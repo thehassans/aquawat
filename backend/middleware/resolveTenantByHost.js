@@ -13,6 +13,22 @@ export const clearTenantHostCache = (host) => {
 };
 
 /**
+ * Resolve Host for tenant routing.
+ * Prefer req.hostname (Express, after trust proxy) over raw headers.
+ * Never prefer client-supplied X-Forwarded-Host unless TRUST_FORWARDED_HOST=true
+ * AND Express trust proxy is configured (edge strips spoofed headers).
+ */
+const resolveRequestHost = (req) => {
+  if (process.env.TRUST_FORWARDED_HOST === 'true') {
+    // Express already applies trust-proxy hop rules to req.hostname
+    return String(req.hostname || '').trim().toLowerCase();
+  }
+  // Ignore X-Forwarded-Host from clients — use the connection Host only
+  const rawHost = req.headers.host || '';
+  return rawHost.split(':')[0].trim().toLowerCase();
+};
+
+/**
  * Resolves the storefront tenant for a PUBLIC (no-JWT) request by matching the
  * incoming Host header against either:
  *   1. A verified custom domain on Tenant.ecommerce.domains[]
@@ -22,8 +38,7 @@ export const clearTenantHostCache = (host) => {
  */
 export const resolveTenantByHost = async (req, res, next) => {
   try {
-    const rawHost = req.headers['x-forwarded-host'] || req.headers.host || '';
-    const host = rawHost.split(':')[0].trim().toLowerCase();
+    const host = resolveRequestHost(req);
     if (!host) return res.status(400).json({ error: 'Missing host header' });
 
     const cached = tenantCache.get(host);

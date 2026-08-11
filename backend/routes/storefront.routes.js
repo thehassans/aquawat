@@ -586,7 +586,11 @@ router.post('/checkout/:orderId', async (req, res) => {
     const config = ecommerce.payments?.[provider];
     if (!config?.enabled) return res.status(400).json({ error: `${provider} is not enabled` });
 
-    const host = req.headers['x-forwarded-host'] || req.headers.host || '';
+    // Prefer Express hostname (respects trust proxy); never prefer raw X-Forwarded-Host from clients
+    const host = String(req.hostname || req.headers.host || '')
+      .split(':')[0]
+      .trim()
+      .toLowerCase();
     const origin = `https://${host}`;
     const result = await createCheckoutSession(provider, {
       amount: order.grandTotal,

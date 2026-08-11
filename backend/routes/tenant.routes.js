@@ -26,6 +26,7 @@ import { serializeAuthTenant } from '../utils/authSerialize.js';
 import { TRIAL_LIMITS } from '../middleware/trialLimits.js';
 import { imageFileFilter } from '../utils/uploadMime.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
+import { encryptPrivateKey } from '../utils/zatcaKeyVault.js';
 import netBuiltin from 'net';
 
 const router = express.Router();
@@ -407,14 +408,14 @@ router.post('/upload-qr-menu-image', authorize('admin'), upload.single('image'),
 router.post('/zatca/generate-keys', authorize('admin'), async (req, res) => {
   try {
     const { privateKey, publicKey } = ZatcaService.generateKeyPair();
-    
+
     await Tenant.findByIdAndUpdate(req.user.tenantId, {
-      'zatca.privateKey': privateKey
+      'zatca.privateKey': encryptPrivateKey(privateKey),
     });
-    
+
     res.json({
       message: 'Keys generated successfully',
-      publicKey
+      publicKey,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

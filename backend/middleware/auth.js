@@ -60,6 +60,10 @@ export const protect = async (req, res, next) => {
       return res.status(401).json({ error: 'Not authorized, no token' });
     }
 
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ error: 'Server misconfigured: JWT_SECRET missing' });
+    }
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = String(decoded.id);
 
@@ -228,15 +232,28 @@ export const tenantFilter = (req, res, next) => {
     if (req.headers['x-tenant-id']) {
       req.tenantFilter = { tenantId: req.headers['x-tenant-id'] };
       req.user = Object.assign(Object.create(Object.getPrototypeOf(req.user)), req.user, { tenantId: req.headers['x-tenant-id'] });
+    } else if (req.user.tenantId) {
+      req.tenantFilter = { tenantId: req.user.tenantId };
     } else {
+      // Empty filter is intentional only for platform-wide super-admin listings.
+      // Tenant-data routes must call resolveTenantId() / requireTenantFilter.
       req.tenantFilter = {};
     }
   } else {
+    if (!req.user.tenantId) {
+      return res.status(403).json({ error: 'Tenant context required' });
+    }
     req.tenantFilter = { tenantId: req.user.tenantId };
   }
   next();
 };
 
+/** Reject requests that would query tenant collections without a tenant scope. */
+export const requireTenantFilter = (req, res, next) => {
+  if (req.tenantFilter?.tenantId) return next();
+  return res.status(400).json({ error: 'x-tenant-id header required for this operation' });
+};
+
 export const authenticate = protect;
 
-export default { protect, authenticate, authorize, checkPermission, userHasPermission, tenantFilter, requireBusinessType, checkEmailAddon, tenantHasEmailAddon, invalidateAuthCache };
+export default { protect, authenticate, authorize, checkPermission, userHasPermission, tenantFilter, requireTenantFilter, requireBusinessType, checkEmailAddon, tenantHasEmailAddon, invalidateAuthCache };

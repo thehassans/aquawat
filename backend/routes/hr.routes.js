@@ -11,7 +11,14 @@ import path from 'path';
 import fs from 'fs';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'].includes(String(file?.mimetype || '').toLowerCase());
+    cb(ok ? null : new Error('Only image or PDF uploads are allowed'), ok);
+  },
+});
 router.use(protect);
 router.use(tenantFilter);
 

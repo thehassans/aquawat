@@ -60,6 +60,12 @@ export async function saveUploadBuffer({ buffer, key, contentType, publicUrlPath
   const normalizedKey = String(key || '').replace(/^\/+/, '');
   if (!normalizedKey) throw new Error('saveUploadBuffer: key is required');
 
+  const requireObjectStorage = process.env.REQUIRE_OBJECT_STORAGE === 'true';
+  const allowLocal =
+    process.env.NODE_ENV !== 'production' ||
+    process.env.ALLOW_LOCAL_UPLOADS === 'true' ||
+    !requireObjectStorage;
+
   if (isObjectStorageEnabled()) {
     try {
       return await saveS3({
@@ -70,6 +76,9 @@ export async function saveUploadBuffer({ buffer, key, contentType, publicUrlPath
       });
     } catch (err) {
       if (err?.code === 'ERR_MODULE_NOT_FOUND' || /Cannot find package '@aws-sdk\/client-s3'/.test(String(err?.message || err))) {
+        if (!allowLocal) {
+          throw new Error('Object storage SDK missing and local uploads are disabled in production');
+        }
         if (!loggedSdkFallback) {
           loggedSdkFallback = true;
           console.warn('[objectStorage] @aws-sdk/client-s3 missing; falling back to local uploads');
@@ -78,6 +87,15 @@ export async function saveUploadBuffer({ buffer, key, contentType, publicUrlPath
       }
       throw err;
     }
+  }
+
+  if (!allowLocal) {
+    throw new Error('Object storage (S3/R2) is required in production. Configure S3_* or set ALLOW_LOCAL_UPLOADS=true');
+  }
+
+  if (process.env.NODE_ENV === 'production' && !loggedSdkFallback) {
+    loggedSdkFallback = true;
+    console.warn('[objectStorage] Using local disk uploads — not multi-replica safe. Configure S3_* for SaaS scale.');
   }
 
   return saveLocal({ buffer, key: normalizedKey, publicUrlPath });

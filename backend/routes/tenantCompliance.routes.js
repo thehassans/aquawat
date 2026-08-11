@@ -216,7 +216,8 @@ router.post('/', async (req, res) => {
         tenant.zatca.environment = zatca.environment;
       }
       if (zatca.privateKey && !zatca.privateKey.startsWith('****')) {
-        tenant.zatca.privateKey = zatca.privateKey;
+        const { encryptPrivateKey } = await import('../utils/zatcaKeyVault.js');
+        tenant.zatca.privateKey = encryptPrivateKey(zatca.privateKey);
       }
       if (zatca.complianceCsid) {
         tenant.zatca.complianceCsid = zatca.complianceCsid;

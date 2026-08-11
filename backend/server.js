@@ -164,8 +164,11 @@ import User from './models/User.js';
 import Tenant from './models/Tenant.js';
 import Supplier from './models/Supplier.js';
 import { seedAlliedPowerTenant } from './scripts/seedAlliedPowerTenant.js';
+import { validateProductionEnv } from './utils/envValidation.js';
+import { requestIdMiddleware } from './utils/requestId.js';
 
 dotenv.config();
+validateProductionEnv({ logger });
 
 mongoose.set('bufferCommands', false);
 
@@ -181,8 +184,8 @@ mongoose.plugin((schema) => {
 });
 
 const app = express();
-const parsedApiRateLimitMax = Number(process.env.API_RATE_LIMIT_MAX || 10000);
-const apiRateLimitMax = Number.isFinite(parsedApiRateLimitMax) && parsedApiRateLimitMax > 0 ? parsedApiRateLimitMax : 10000;
+const parsedApiRateLimitMax = Number(process.env.API_RATE_LIMIT_MAX || 2000);
+const apiRateLimitMax = Number.isFinite(parsedApiRateLimitMax) && parsedApiRateLimitMax > 0 ? parsedApiRateLimitMax : 2000;
 const parsedTrustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 1);
 const trustProxyHops = Number.isFinite(parsedTrustProxyHops) && parsedTrustProxyHops >= 0 ? parsedTrustProxyHops : 1;
 const parsedMongoServerSelectionTimeoutMs = Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 5000);
@@ -216,19 +219,31 @@ const FORCE_CRON_WORKER = CRON_WORKER_ENV === '1' || process.env.NODE_ENV === 'd
 const seedSuperAdmin = async () => {
   try {
     const existingAdmin = await User.findOne({ role: 'super_admin' });
-    if (!existingAdmin) {
-      await User.create({
-        email: process.env.SUPER_ADMIN_EMAIL || 'admin@maqder.com',
-        password: process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@123',
-        firstName: 'Super',
-        lastName: 'Admin',
-        firstNameAr: 'المشرف',
-        lastNameAr: 'العام',
-        role: 'super_admin',
-        isActive: true,
-        preferences: { language: 'en', theme: 'light' }
-      });
-      logger.info('Super Admin created: ' + (process.env.SUPER_ADMIN_EMAIL || 'admin@maqder.com'));
+    if (existingAdmin) return;
+
+    const email = process.env.SUPER_ADMIN_EMAIL || 'admin@maqder.com';
+    const password = process.env.SUPER_ADMIN_PASSWORD;
+    const insecureDefault = !password || password === 'SuperAdmin@123';
+
+    if (process.env.NODE_ENV === 'production' && insecureDefault) {
+      logger.error('Refusing to seed super_admin in production without a strong SUPER_ADMIN_PASSWORD');
+      return;
+    }
+
+    await User.create({
+      email,
+      password: password || 'SuperAdmin@123',
+      firstName: 'Super',
+      lastName: 'Admin',
+      firstNameAr: 'المشرف',
+      lastNameAr: 'العام',
+      role: 'super_admin',
+      isActive: true,
+      preferences: { language: 'en', theme: 'light' },
+    });
+    logger.info('Super Admin created: ' + email);
+    if (insecureDefault) {
+      logger.warn('Super admin seeded with development default password — change immediately');
     }
   } catch (err) {
     logger.error('Auto-seed super admin error:', err.message);
@@ -419,6 +434,7 @@ const ensureDatabaseReady = async (req, res, next) => {
 };
 
 // ─── Performance/observability middleware (applied before everything) ────────
+app.use(requestIdMiddleware);
 app.use(responseTime());
 
 // Security middleware
@@ -608,7 +624,7 @@ const authLimiter = rateLimit({
 // 2. Public storefront endpoints — lenient (5 000 req / 15 min)
 const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 5000),
+  max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 1200),
   standardHeaders: true,
   legacyHeaders: false,
   store: makeRateLimitStore('public'),

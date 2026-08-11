@@ -1,20 +1,8 @@
 /**
  * cluster.js — Multi-process entry point for production.
  *
- * Forks one worker per CPU core (max 2 on this VPS) so the app uses both
- * cores. Each worker runs the full server.js. The primary process only
- * manages worker lifecycle — it never handles HTTP requests itself.
- *
- * Key improvement: each worker receives a unique WORKER_ID env var.
- * Only worker #1 runs cron jobs (Iqama, ZATCA, IMAP, reports, etc.)
- * to prevent duplicate background job execution across workers.
- *
- * Usage:
- *   node cluster.js          (production)
- *   node server.js           (dev / single-process debug)
- *
- * Workers share the same port via the OS-level SO_REUSEPORT mechanism that
- * Node cluster uses. No load-balancer config change needed.
+ * Forks workers and preserves WORKER_ID on respawn so cron ownership
+ * (worker #1) can recover when Redis election is unavailable.
  */
 
 import cluster from 'cluster';
@@ -23,51 +11,55 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(__filename);
 
-// Cap at CLUSTER_WORKERS env-var, or physical core count (max 2 on this VPS)
-const MAX_WORKERS  = Number(process.env.CLUSTER_WORKERS || os.cpus().length);
-const NUM_WORKERS  = Math.max(1, Math.min(MAX_WORKERS, os.cpus().length));
+const MAX_WORKERS = Number(process.env.CLUSTER_WORKERS || os.cpus().length);
+const NUM_WORKERS = Math.max(1, Math.min(MAX_WORKERS, os.cpus().length));
 
 if (cluster.isPrimary) {
   console.log(`[cluster] Primary ${process.pid} — forking ${NUM_WORKERS} worker(s)`);
 
-  // Fork workers, assigning each a unique WORKER_ID starting from 1.
-  // Worker #1 is the designated cron worker and runs all background jobs.
-  for (let i = 1; i <= NUM_WORKERS; i++) {
-    cluster.fork({ WORKER_ID: String(i) });
+  /** pid -> WORKER_ID */
+  const workerIdByPid = new Map();
+  /** freed WORKER_IDs ready for reuse (prefer reusing #1 for cron) */
+  const freeIds = [];
+  let nextWorkerId = 1;
+
+  const allocateWorkerId = () => {
+    if (freeIds.length) {
+      freeIds.sort((a, b) => Number(a) - Number(b));
+      return freeIds.shift();
+    }
+    return String(nextWorkerId++);
+  };
+
+  for (let i = 0; i < NUM_WORKERS; i++) {
+    const wid = allocateWorkerId();
+    const worker = cluster.fork({ WORKER_ID: wid });
+    workerIdByPid.set(worker.process.pid, wid);
   }
 
-  // Track WORKER_ID per PID so we can reassign it on respawn
-  const workerIdMap = new Map();
-  let nextWorkerId = NUM_WORKERS + 1;
-
-  cluster.on('fork', (worker) => {
-    const wid = worker.process.env?.WORKER_ID || String(nextWorkerId++);
-    workerIdMap.set(worker.process.pid, wid);
-  });
-
-  // Respawn dead workers automatically
   cluster.on('exit', (worker, code, signal) => {
     const reason = signal || code;
     const deadPid = worker.process.pid;
-    console.warn(`[cluster] Worker ${deadPid} died (${reason}) — respawning`);
+    const deadId = workerIdByPid.get(deadPid) || null;
+    workerIdByPid.delete(deadPid);
+    if (deadId) freeIds.push(String(deadId));
 
-    // Brief delay before respawning to prevent tight restart loops
+    console.warn(`[cluster] Worker ${deadPid} (id=${deadId || '?'}) died (${reason}) — respawning`);
+
     setTimeout(() => {
-      // Assign a new unique WORKER_ID (>= 2 so cron doesn't duplicate)
-      const newId = String(nextWorkerId++);
-      workerIdMap.delete(deadPid);
-      cluster.fork({ WORKER_ID: newId });
+      const newId = allocateWorkerId();
+      const replacement = cluster.fork({ WORKER_ID: newId });
+      workerIdByPid.set(replacement.process.pid, newId);
+      console.log(`[cluster] Respawned worker ${replacement.process.pid} as id=${newId}${newId === '1' ? ' ← CRON WORKER' : ''}`);
     }, 1_000);
   });
 
   cluster.on('online', (worker) => {
-    const wid = workerIdMap.get(worker.process.pid) || '?';
+    const wid = workerIdByPid.get(worker.process.pid) || worker.process.env?.WORKER_ID || '?';
     console.log(`[cluster] Worker ${worker.process.pid} (id=${wid}) online${wid === '1' ? ' ← CRON WORKER' : ''}`);
   });
-
 } else {
-  // Worker process: import and run the actual Express server
   await import('./server.js');
 }

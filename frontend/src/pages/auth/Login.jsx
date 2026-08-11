@@ -8,7 +8,8 @@ import { login, clearError } from '../../store/slices/authSlice'
 import { setLanguage, setAppLauncherOpen, setHideSidebar, setNavigationStyle } from '../../store/slices/uiSlice'
 import { useTranslation } from '../../lib/translations'
 import { usePublicWebsiteSettings, usePublicTenantBranding } from '../../lib/website'
-import { getAliasSlugFromHost, isApexHost, isOnTenantAliasHost, getTenantAliasHandoffUrl } from '../../lib/tenantHost'
+import { getAliasSlugFromHost, isApexHost, isOnTenantAliasHost, getTenantAliasHandoffUrl, issueHandoffCode } from '../../lib/tenantHost'
+import api from '../../lib/api'
 import { isGccArabicMarket } from '../../lib/invoiceLanguage'
 import DailyAyat from '../../components/ui/DailyAyat'
 import TenantLoginScreen from './TenantLoginScreen'
@@ -109,13 +110,21 @@ export default function Login() {
       }
 
       // Apex login → send the user to their dedicated {slug}.maqder.com workspace
-      // (token handoff required because localStorage is origin-scoped).
+      // via one-time handoff code (cookie is origin-scoped across subdomains).
       const tenantSlug = String(tenant?.slug || '').trim().toLowerCase()
       const sessionToken = result.token || localStorage.getItem('token')
       if (tenantSlug && sessionToken && isApexHost() && !isOnTenantAliasHost()) {
-        window.location.replace(getTenantAliasHandoffUrl(tenantSlug, sessionToken, {
-          lang: language === 'ar' ? 'ar' : 'en',
-        }))
+        try {
+          const code = await issueHandoffCode(api, sessionToken)
+          window.location.replace(getTenantAliasHandoffUrl(tenantSlug, code, {
+            lang: language === 'ar' ? 'ar' : 'en',
+          }))
+        } catch {
+          // Legacy fallback if handoff issue fails
+          window.location.replace(getTenantAliasHandoffUrl(tenantSlug, sessionToken, {
+            lang: language === 'ar' ? 'ar' : 'en',
+          }))
+        }
         return
       }
 

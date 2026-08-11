@@ -74,18 +74,51 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+const API_CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
+const API_CACHE_MAX_ENTRIES = 200
+
+/** Only these mutation prefixes may be queued while offline (POS / sales ops). */
+const OFFLINE_MUTATION_ALLOWLIST = [
+  '/invoices',
+  '/customers',
+  '/quotations',
+  '/delivery-notes',
+  '/purchase-orders',
+  '/expenses',
+  '/bakala',
+  '/bookstore',
+  '/pos',
+]
+
+const isOfflineMutationAllowed = (url = '') => {
+  const path = String(url).split('?')[0]
+  if (path.includes('/auth/') || path.includes('/zatca') || path.includes('/accounting') || path.includes('/webhooks')) {
+    return false
+  }
+  return OFFLINE_MUTATION_ALLOWLIST.some((prefix) => path.includes(prefix))
+}
+
 // Asynchronous non-blocking background cache write (0ms latency penalty on requests)
 const backgroundCacheResponse = (config, data) => {
   if (!config || config.method !== 'get' || config.url?.includes('/auth/')) return
   setTimeout(async () => {
     try {
       const db = await initDb()
+      if (!db) return
       const cacheKey = config.url + (config.params ? JSON.stringify(config.params) : '')
       await db.put('api_cache', {
         url: cacheKey,
         data,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        expiresAt: Date.now() + API_CACHE_TTL_MS,
       })
+      // Bound cache size — drop oldest entries when over cap
+      const all = await db.getAll('api_cache')
+      if (Array.isArray(all) && all.length > API_CACHE_MAX_ENTRIES) {
+        const sorted = [...all].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+        const excess = sorted.slice(0, all.length - API_CACHE_MAX_ENTRIES)
+        await Promise.all(excess.map((row) => db.delete('api_cache', row.url).catch(() => {})))
+      }
     } catch (err) {
       // Silently catch background caching errors
     }
@@ -119,8 +152,14 @@ api.interceptors.response.use(
           if (!db) return Promise.reject(error);
           const cacheKey = config.url + (config.params ? JSON.stringify(config.params) : '');
           const cached = await db.get('api_cache', cacheKey);
-          
-          let responseData = cached ? cached.data : null;
+          const isFresh = cached && (!cached.expiresAt || cached.expiresAt > Date.now())
+            && (Date.now() - (cached.timestamp || 0) < API_CACHE_TTL_MS);
+
+          if (cached && !isFresh) {
+            try { await db.delete('api_cache', cacheKey) } catch { /* ignore */ }
+          }
+
+          let responseData = isFresh ? cached.data : null;
           
           // --- OFFLINE MERGE FOR LISTS ---
           const pendingItems = await db.getAll('sync_queue');
@@ -180,12 +219,13 @@ api.interceptors.response.use(
       const isAuthRequest = requestUrl.includes('/auth/login') ||
                             requestUrl.includes('/auth/me') ||
                             requestUrl.includes('/public/demo-login') ||
-                            requestUrl.includes('/auth/register');
+                            requestUrl.includes('/auth/register') ||
+                            requestUrl.includes('/auth/handoff');
       const isScrapeRequest = requestUrl.includes('/leads/scrape');
 
       const skipOffline = config.headers && config.headers['X-Skip-Offline-Queue'];
 
-      if (isMutation && !isAuthRequest && !isScrapeRequest && !skipOffline) {
+      if (isMutation && !isAuthRequest && !isScrapeRequest && !skipOffline && isOfflineMutationAllowed(requestUrl)) {
         try {
           const payload = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
           const syncId = await enqueueSyncItem(`${config.method.toUpperCase()}:${config.url}`, {

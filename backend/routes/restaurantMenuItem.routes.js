@@ -9,7 +9,14 @@ import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(String(file?.mimetype || '').toLowerCase());
+    cb(ok ? null : new Error('Only image uploads are allowed'), ok);
+  },
+});
 
 router.use(protect);
 router.use(tenantFilter);

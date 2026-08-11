@@ -4,8 +4,8 @@ import BakalaProduct from '../models/BakalaProduct.js';
 import BakalaCategory from '../models/BakalaCategory.js';
 import BakalaBrand from '../models/BakalaBrand.js';
 import BakalaUnit from '../models/BakalaUnit.js';
-import Tenant from '../models/Tenant.js';
 import { clampLimit } from '../utils/pagination.js';
+import { resolveTenantId, withTenant, handleTenantScopeError } from '../utils/tenantScope.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -21,12 +21,7 @@ const router = express.Router();
 // Temporary route to trigger CSV import
 router.get('/trigger-import', protect, async (req, res) => {
   try {
-    let targetTenantId = req.user.tenantId;
-    if (!targetTenantId && req.user.role === 'super_admin') {
-      const tenant = await Tenant.findOne({ businessTypes: 'bakala' });
-      if (!tenant) return res.status(400).json({ error: 'No Bakala tenant found to import products into.' });
-      targetTenantId = tenant._id;
-    }
+    const targetTenantId = resolveTenantId(req.user, req);
 
     const csvFilePath = path.join(__dirname, '../scripts/bakala_products.csv');
     if (!fs.existsSync(csvFilePath)) {
@@ -76,28 +71,23 @@ router.get('/trigger-import', protect, async (req, res) => {
         res.json({ success: true, message: `Successfully imported/updated ${count} products!` });
       });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'bakala' });
-    return tenant ? tenant._id : null;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 router.get('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    const filter = tenantId ? { tenantId } : {};
+    const tenantId = getTargetTenantId(req.user, req);
+    const filter = withTenant(tenantId);
     // Inventory/POS UIs load the catalog in one request; keep a hard cap without truncating typical stores.
-    const limit = clampLimit(req.query.limit, { def: 1000, max: 5000 });
+    const limit = clampLimit(req.query.limit, { def: 200, max: 500 });
     const products = await BakalaProduct.find(filter).sort('-createdAt').limit(limit);
     res.json(products);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -105,7 +95,7 @@ router.get('/', protect, async (req, res) => {
 // GET Expiry Report (for Balady/Municipality compliance)
 router.get('/expiry-report', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     
     // Find products that have an expiryDate
@@ -123,7 +113,7 @@ router.get('/expiry-report', protect, async (req, res) => {
 // GET Inventory Alerts (low-stock, out-of-stock, expiry) for the Bakala alerts dashboard
 router.get('/inventory-alerts', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const expiryWindowDays = Math.max(1, parseInt(req.query.expiryWindowDays, 10) || 30);
@@ -195,7 +185,7 @@ router.get('/inventory-alerts', protect, async (req, res) => {
 // GET product by barcode (for scan-to-find during product entry / stock-in)
 router.get('/barcode/:code', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const code = String(req.params.code || '').trim();
     if (!code) return res.status(400).json({ error: 'Barcode required' });
@@ -212,7 +202,7 @@ router.get('/barcode/:code', protect, async (req, res) => {
 
 router.post('/', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found for this user.' });
 
     const body = { ...req.body };
@@ -241,12 +231,12 @@ router.post('/', protect, async (req, res) => {
 // POST add stock (stock-in) — increments stock quantity and optionally updates cost/expiry/batch
 router.post('/:id/add-stock', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const { quantity, costPrice, expiryDate, batchNumber } = req.body;
     const qty = Number(quantity);
     if (!qty || qty <= 0) return res.status(400).json({ error: 'Quantity must be greater than zero.' });
 
-    const product = await BakalaProduct.findOne({ _id: req.params.id, ...(tenantId ? { tenantId } : {}) });
+    const product = await BakalaProduct.findOne({ _id: req.params.id, ...withTenant(tenantId) });
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
     product.stockQuantity = (Number(product.stockQuantity) || 0) + qty;
@@ -268,9 +258,9 @@ router.post('/:id/add-stock', protect, async (req, res) => {
 
 router.put('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const product = await BakalaProduct.findOneAndUpdate(
-      { _id: req.params.id, ...(tenantId ? { tenantId } : {}) },
+      { _id: req.params.id, ...withTenant(tenantId) },
       req.body,
       { new: true, runValidators: true }
     );
@@ -283,8 +273,8 @@ router.put('/:id', protect, async (req, res) => {
 
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    const product = await BakalaProduct.findOneAndDelete({ _id: req.params.id, ...(tenantId ? { tenantId } : {}) });
+    const tenantId = getTargetTenantId(req.user, req);
+    const product = await BakalaProduct.findOneAndDelete({ _id: req.params.id, ...withTenant(tenantId) });
     if (!product) return res.status(404).json({ error: 'Product not found' });
     res.json({ success: true });
   } catch (error) {
@@ -295,7 +285,7 @@ router.delete('/:id', protect, async (req, res) => {
 // POST sync-pending — bulk sync offline-created products
 router.post('/sync-pending', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found for this user.' });
 
     const { products } = req.body;
@@ -350,8 +340,8 @@ router.post('/sync-pending', protect, async (req, res) => {
 // --- CATEGORIES ---
 router.get('/categories', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    const filter = tenantId ? { tenantId } : {};
+    const tenantId = getTargetTenantId(req.user, req);
+    const filter = withTenant(tenantId);
     const categories = await BakalaCategory.find(filter).sort('name');
     res.json(categories);
   } catch (error) {
@@ -361,7 +351,7 @@ router.get('/categories', protect, async (req, res) => {
 
 router.post('/categories', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found for this user.' });
     const category = new BakalaCategory({ ...req.body, tenantId });
     await category.save();
@@ -373,9 +363,9 @@ router.post('/categories', protect, async (req, res) => {
 
 router.put('/categories/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const category = await BakalaCategory.findOneAndUpdate(
-      { _id: req.params.id, ...(tenantId ? { tenantId } : {}) },
+      { _id: req.params.id, ...withTenant(tenantId) },
       req.body,
       { new: true, runValidators: true }
     );
@@ -388,8 +378,8 @@ router.put('/categories/:id', protect, async (req, res) => {
 
 router.delete('/categories/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    await BakalaCategory.findOneAndDelete({ _id: req.params.id, ...(tenantId ? { tenantId } : {}) });
+    const tenantId = getTargetTenantId(req.user, req);
+    await BakalaCategory.findOneAndDelete({ _id: req.params.id, ...withTenant(tenantId) });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -399,8 +389,8 @@ router.delete('/categories/:id', protect, async (req, res) => {
 // --- BRANDS ---
 router.get('/brands', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    const filter = tenantId ? { tenantId } : {};
+    const tenantId = getTargetTenantId(req.user, req);
+    const filter = withTenant(tenantId);
     const brands = await BakalaBrand.find(filter).sort('name');
     res.json(brands);
   } catch (error) {
@@ -410,7 +400,7 @@ router.get('/brands', protect, async (req, res) => {
 
 router.post('/brands', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found for this user.' });
     const brand = new BakalaBrand({ ...req.body, tenantId });
     await brand.save();
@@ -422,9 +412,9 @@ router.post('/brands', protect, async (req, res) => {
 
 router.put('/brands/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const brand = await BakalaBrand.findOneAndUpdate(
-      { _id: req.params.id, ...(tenantId ? { tenantId } : {}) },
+      { _id: req.params.id, ...withTenant(tenantId) },
       req.body,
       { new: true, runValidators: true }
     );
@@ -437,8 +427,8 @@ router.put('/brands/:id', protect, async (req, res) => {
 
 router.delete('/brands/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    await BakalaBrand.findOneAndDelete({ _id: req.params.id, ...(tenantId ? { tenantId } : {}) });
+    const tenantId = getTargetTenantId(req.user, req);
+    await BakalaBrand.findOneAndDelete({ _id: req.params.id, ...withTenant(tenantId) });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -448,8 +438,8 @@ router.delete('/brands/:id', protect, async (req, res) => {
 // --- UNITS ---
 router.get('/units', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    const filter = tenantId ? { tenantId } : {};
+    const tenantId = getTargetTenantId(req.user, req);
+    const filter = withTenant(tenantId);
     const units = await BakalaUnit.find(filter).sort('name');
     res.json(units);
   } catch (error) {
@@ -459,7 +449,7 @@ router.get('/units', protect, async (req, res) => {
 
 router.post('/units', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found for this user.' });
     const unit = new BakalaUnit({ ...req.body, tenantId });
     await unit.save();
@@ -471,9 +461,9 @@ router.post('/units', protect, async (req, res) => {
 
 router.put('/units/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const unit = await BakalaUnit.findOneAndUpdate(
-      { _id: req.params.id, ...(tenantId ? { tenantId } : {}) },
+      { _id: req.params.id, ...withTenant(tenantId) },
       req.body,
       { new: true, runValidators: true }
     );
@@ -486,8 +476,8 @@ router.put('/units/:id', protect, async (req, res) => {
 
 router.delete('/units/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    await BakalaUnit.findOneAndDelete({ _id: req.params.id, ...(tenantId ? { tenantId } : {}) });
+    const tenantId = getTargetTenantId(req.user, req);
+    await BakalaUnit.findOneAndDelete({ _id: req.params.id, ...withTenant(tenantId) });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });

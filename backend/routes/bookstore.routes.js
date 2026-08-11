@@ -10,6 +10,7 @@ import PosSession from '../models/PosSession.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 import { clampLimit } from '../utils/pagination.js';
+import { resolveTenantId, withTenant, handleTenantScopeError } from '../utils/tenantScope.js';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -19,48 +20,43 @@ import { saveUploadBuffer } from '../utils/objectStorage.js';
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-const getTargetTenantId = async (user) => {
-  if (user.tenantId) return user.tenantId;
-  if (user.role === 'super_admin') {
-    const tenant = await Tenant.findOne({ businessTypes: 'bookstore' });
-    return tenant ? tenant._id : null;
-  }
-  return null;
-};
+const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 
 // --- PRODUCTS ---
 
 router.get('/products', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    const filter = tenantId ? { tenantId, isActive: true } : {};
+    const tenantId = getTargetTenantId(req.user, req);
+    const filter = withTenant(tenantId, { isActive: true });
     // Inventory/POS UIs load the catalog in one request; keep a hard cap without truncating typical stores.
-    const limit = clampLimit(req.query.limit, { def: 1000, max: 5000 });
+    const limit = clampLimit(req.query.limit, { def: 200, max: 500 });
     const products = await BookStoreProduct.find(filter)
       .select('name nameAr isbn primaryBarcode author publisher genre language retailPrice discountPrice taxRate unit stockQuantity category coverImage seriesName seriesNumber seriesTotal productType uniformSize uniformColor uniformGender uniformGradeLevel uniformSchoolName courseName courseLevel courseSubject courseDurationWeeks courseStartDate courseEndDate courseInstructor courseSchedule courseCapacity courseEnrolledCount courseLocation courseIsComplete courseBooks bundleItems bundleOriginalPrice bundleDiscountPercent')
       .limit(limit)
       .lean();
     res.json({ success: true, products });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
 router.get('/products/all', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    const filter = tenantId ? { tenantId } : {};
-    const limit = clampLimit(req.query.limit, { def: 1000, max: 5000 });
+    const tenantId = getTargetTenantId(req.user, req);
+    const filter = withTenant(tenantId);
+    const limit = clampLimit(req.query.limit, { def: 200, max: 500 });
     const products = await BookStoreProduct.find(filter).sort('-createdAt').limit(limit);
     res.json(products);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 router.get('/products/barcode/:code', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const code = String(req.params.code || '').trim();
     if (!code) return res.status(400).json({ error: 'Barcode/ISBN required' });
@@ -77,7 +73,7 @@ router.get('/products/barcode/:code', protect, async (req, res) => {
 
 router.post('/products', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found for this user.' });
 
     const body = { ...req.body };
@@ -103,12 +99,12 @@ router.post('/products', protect, async (req, res) => {
 
 router.post('/products/:id/add-stock', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const { quantity, costPrice } = req.body;
     const qty = Number(quantity);
     if (!qty || qty <= 0) return res.status(400).json({ error: 'Quantity must be greater than zero.' });
 
-    const product = await BookStoreProduct.findOne({ _id: req.params.id, ...(tenantId ? { tenantId } : {}) });
+    const product = await BookStoreProduct.findOne({ _id: req.params.id, ...withTenant(tenantId) });
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
     product.stockQuantity = (Number(product.stockQuantity) || 0) + qty;
@@ -124,9 +120,9 @@ router.post('/products/:id/add-stock', protect, async (req, res) => {
 
 router.put('/products/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const product = await BookStoreProduct.findOneAndUpdate(
-      { _id: req.params.id, ...(tenantId ? { tenantId } : {}) },
+      { _id: req.params.id, ...withTenant(tenantId) },
       req.body,
       { new: true, runValidators: true }
     );
@@ -139,8 +135,8 @@ router.put('/products/:id', protect, async (req, res) => {
 
 router.delete('/products/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
-    const product = await BookStoreProduct.findOneAndDelete({ _id: req.params.id, ...(tenantId ? { tenantId } : {}) });
+    const tenantId = getTargetTenantId(req.user, req);
+    const product = await BookStoreProduct.findOneAndDelete({ _id: req.params.id, ...withTenant(tenantId) });
     if (!product) return res.status(404).json({ error: 'Product not found' });
     res.json({ success: true });
   } catch (error) {
@@ -150,7 +146,7 @@ router.delete('/products/:id', protect, async (req, res) => {
 
 router.get('/products/inventory-alerts', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const products = await BookStoreProduct.find({ tenantId, isActive: { $ne: false } })
@@ -422,7 +418,7 @@ router.post('/upload-cover', protect, imageUpload.single('image'), async (req, r
 
 router.post('/import-csv', protect, upload.single('file'), async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -500,7 +496,7 @@ router.post('/import-csv', protect, upload.single('file'), async (req, res) => {
 
 router.get('/series/:seriesName/next-volume', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const seriesName = decodeURIComponent(req.params.seriesName);
@@ -523,7 +519,7 @@ router.get('/series/:seriesName/next-volume', protect, async (req, res) => {
 
 router.get('/series', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const series = await BookStoreProduct.aggregate([
@@ -542,7 +538,7 @@ router.get('/series', protect, async (req, res) => {
 
 router.get('/reports/bestsellers', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { startDate, endDate } = req.query;
@@ -609,7 +605,7 @@ router.get('/reports/bestsellers', protect, async (req, res) => {
 
 router.get('/supply-lists', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const lists = await SchoolSupplyList.find({ tenantId, isActive: true }).sort('schoolName grade').lean();
     res.json(lists);
@@ -620,7 +616,7 @@ router.get('/supply-lists', protect, async (req, res) => {
 
 router.post('/supply-lists', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const items = req.body.items || [];
@@ -642,7 +638,7 @@ router.post('/supply-lists', protect, async (req, res) => {
 
 router.put('/supply-lists/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const items = req.body.items || [];
     const totalEstimatedPrice = items.reduce((sum, item) => sum + (item.estimatedPrice || 0) * (item.quantity || 1), 0);
 
@@ -660,7 +656,7 @@ router.put('/supply-lists/:id', protect, async (req, res) => {
 
 router.delete('/supply-lists/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const list = await SchoolSupplyList.findOneAndUpdate(
       { _id: req.params.id, tenantId },
       { isActive: false },
@@ -677,7 +673,7 @@ router.delete('/supply-lists/:id', protect, async (req, res) => {
 
 router.get('/courses', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const courses = await BookStoreProduct.find({ tenantId, productType: 'course', isActive: true })
       .populate('courseBooks', 'name nameAr isbn primaryBarcode author retailPrice discountPrice coverImage stockQuantity productType')
@@ -691,7 +687,7 @@ router.get('/courses', protect, async (req, res) => {
 
 router.get('/courses/:id/books', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const course = await BookStoreProduct.findOne({ _id: req.params.id, tenantId, productType: 'course' })
       .populate('courseBooks', 'name nameAr isbn primaryBarcode author retailPrice discountPrice coverImage stockQuantity productType taxRate')
@@ -705,7 +701,7 @@ router.get('/courses/:id/books', protect, async (req, res) => {
 
 router.get('/books/list', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const books = await BookStoreProduct.find({ tenantId, isActive: true, $or: [{ productType: 'book' }, { productType: { $exists: false } }, { productType: null }] })
       .select('name nameAr isbn primaryBarcode author retailPrice discountPrice coverImage stockQuantity')
@@ -719,7 +715,7 @@ router.get('/books/list', protect, async (req, res) => {
 
 router.post('/courses/:id/enroll', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const course = await BookStoreProduct.findOne({ _id: req.params.id, tenantId, productType: 'course' });
     if (!course) return res.status(404).json({ error: 'Course not found' });
     if (course.courseEnrolledCount >= course.courseCapacity && course.courseCapacity > 0) {
@@ -735,7 +731,7 @@ router.post('/courses/:id/enroll', protect, async (req, res) => {
 
 router.post('/courses/:id/complete', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const course = await BookStoreProduct.findOne({ _id: req.params.id, tenantId, productType: 'course' });
     if (!course) return res.status(404).json({ error: 'Course not found' });
     course.courseIsComplete = true;
@@ -750,7 +746,7 @@ router.post('/courses/:id/complete', protect, async (req, res) => {
 
 router.get('/uniforms', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const uniforms = await BookStoreProduct.find({ tenantId, productType: 'uniform', isActive: true })
       .sort('-createdAt')
@@ -765,7 +761,7 @@ router.get('/uniforms', protect, async (req, res) => {
 
 router.post('/buyback', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { isbn, title, author, publisher, condition, buyBackPrice, resalePrice, customerName, customerPhone, coverImage } = req.body;
@@ -841,7 +837,7 @@ router.post('/buyback', protect, async (req, res) => {
 
 router.get('/used-books', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const books = await BookStoreProduct.find({ tenantId, isUsedBook: true, isActive: true })
       .sort('-createdAt')
@@ -856,7 +852,7 @@ router.get('/used-books', protect, async (req, res) => {
 
 router.get('/rentals', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { status } = req.query;
@@ -872,7 +868,7 @@ router.get('/rentals', protect, async (req, res) => {
 
 router.post('/rentals', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const { productId, customerName, customerPhone, customerNameAr, rentalFee, depositAmount, rentalDays, notes } = req.body;
@@ -917,7 +913,7 @@ router.post('/rentals', protect, async (req, res) => {
 
 router.post('/rentals/:id/return', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const rental = await BookRental.findOne({ _id: req.params.id, tenantId });
     if (!rental) return res.status(404).json({ error: 'Rental not found' });
     if (rental.status === 'returned') return res.status(400).json({ error: 'Book already returned' });
@@ -944,7 +940,7 @@ router.post('/rentals/:id/return', protect, async (req, res) => {
 
 router.post('/rentals/:id/mark-lost', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     const rental = await BookRental.findOne({ _id: req.params.id, tenantId });
     if (!rental) return res.status(404).json({ error: 'Rental not found' });
     if (rental.status === 'returned') return res.status(400).json({ error: 'Book already returned' });
@@ -962,7 +958,7 @@ router.post('/rentals/:id/mark-lost', protect, async (req, res) => {
 
 router.get('/rentals/overdue', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const now = new Date();
@@ -988,7 +984,7 @@ router.get('/rentals/overdue', protect, async (req, res) => {
 
 router.get('/bundles', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const bundles = await BookStoreProduct.find({ tenantId, productType: 'bundle', isActive: true })
       .populate('bundleItems.productId', 'name nameAr isbn primaryBarcode retailPrice coverImage stockQuantity productType')
@@ -1002,7 +998,7 @@ router.get('/bundles', protect, async (req, res) => {
 
 router.get('/bundles/:id/items', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const bundle = await BookStoreProduct.findOne({ _id: req.params.id, tenantId, productType: 'bundle' })
       .populate('bundleItems.productId', 'name nameAr isbn primaryBarcode retailPrice discountPrice coverImage stockQuantity productType taxRate')
@@ -1018,7 +1014,7 @@ router.get('/bundles/:id/items', protect, async (req, res) => {
 
 router.get('/courses/:id/enrollments', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const enrollments = await CourseEnrollment.find({ tenantId, courseId: req.params.id })
       .sort('-enrollmentDate')
@@ -1031,7 +1027,7 @@ router.get('/courses/:id/enrollments', protect, async (req, res) => {
 
 router.post('/courses/:id/enroll', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const course = await BookStoreProduct.findOne({ _id: req.params.id, tenantId, productType: 'course' });
     if (!course) return res.status(404).json({ error: 'Course not found' });
@@ -1070,7 +1066,7 @@ router.post('/courses/:id/enroll', protect, async (req, res) => {
 
 router.put('/enrollments/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const enrollment = await CourseEnrollment.findOneAndUpdate(
       { _id: req.params.id, tenantId },
@@ -1086,7 +1082,7 @@ router.put('/enrollments/:id', protect, async (req, res) => {
 
 router.delete('/enrollments/:id', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const enrollment = await CourseEnrollment.findOneAndDelete({ _id: req.params.id, tenantId });
     if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
@@ -1106,7 +1102,7 @@ router.delete('/enrollments/:id', protect, async (req, res) => {
 
 router.get('/reports/profit-margins', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const products = await BookStoreProduct.find({ tenantId, isActive: true })
       .select('name productType costPrice retailPrice discountPrice category stockQuantity')
@@ -1144,7 +1140,7 @@ router.get('/reports/profit-margins', protect, async (req, res) => {
 
 router.get('/reports/slow-moving', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const { days = 90 } = req.query;
     const cutoff = new Date();
@@ -1192,7 +1188,7 @@ router.get('/reports/slow-moving', protect, async (req, res) => {
 
 router.get('/reports/sales-by-category', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const { startDate, endDate } = req.query;
     const matchStage = {
@@ -1258,7 +1254,7 @@ router.get('/reports/sales-by-category', protect, async (req, res) => {
 
 router.get('/reports/dashboard', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
     const { range = '30d' } = req.query;
 
@@ -1338,7 +1334,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
 
 router.get('/reports/vat', protect, async (req, res) => {
   try {
-    const tenantId = await getTargetTenantId(req.user);
+    const tenantId = getTargetTenantId(req.user, req);
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const tenant = await Tenant.findById(tenantId).select('business.vatNumber business.legalNameEn business.legalNameAr');

@@ -46,12 +46,31 @@ export function getTenantAliasUrl(slug, path = '/login') {
   return `${protocol}//${String(slug).toLowerCase()}.${base}${path}`
 }
 
-export function getTenantAliasHandoffUrl(slug, token, options = {}) {
-  if (!slug || !token) return ''
+/**
+ * Build handoff URL using a one-time code (preferred) or legacy token hash.
+ * Prefer `code` from POST /auth/handoff/issue — never put long-lived JWTs in the URL.
+ */
+export function getTenantAliasHandoffUrl(slug, codeOrToken, options = {}) {
+  if (!slug || !codeOrToken) return ''
   const base = getTenantAliasUrl(slug, '/auth/handoff')
   const params = new URLSearchParams()
-  params.set('access_token', token)
+  const value = String(codeOrToken)
+  // JWT-looking values still supported for one release as legacy fallback
+  const looksLikeJwt = value.split('.').length === 3 && value.length > 40
+  if (looksLikeJwt) {
+    params.set('access_token', value)
+  } else {
+    params.set('code', value)
+  }
   const lang = String(options.lang || '').toLowerCase()
   if (lang === 'ar' || lang === 'en') params.set('lang', lang)
+  // Use query string for codes (not hash) so the exchange can clear them cleanly
+  if (!looksLikeJwt) return `${base}?${params.toString()}`
   return `${base}#${params.toString()}`
+}
+
+/** Issue a one-time handoff code for a JWT via the API. */
+export async function issueHandoffCode(api, token) {
+  const { data } = await api.post('/auth/handoff/issue', { token })
+  return data?.code
 }

@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDispatch } from 'react-redux'
 import { Loader2 } from 'lucide-react'
+import api from '../../lib/api'
 import { getMe, seedSessionToken, forceLogout } from '../../store/slices/authSlice'
 import { setAppLauncherOpen, setHideSidebar, setLanguage, setNavigationStyle } from '../../store/slices/uiSlice'
 import { getAliasSlugFromHost } from '../../lib/tenantHost'
 
 /**
  * Cross-subdomain auth handoff.
- * Apex login (maqder.com) redirects here on {slug}.maqder.com with
- * `#access_token=…` so localStorage can be seeded on the tenant origin.
+ * Prefers one-time `?code=` exchange; legacy `#access_token=` still accepted once.
  */
 export default function AuthHandoff() {
   const dispatch = useDispatch()
@@ -20,25 +20,45 @@ export default function AuthHandoff() {
     let cancelled = false
     let navigated = false
 
+    const clearUrl = () => {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+
     const run = async () => {
       try {
+        const search = new URLSearchParams(window.location.search || '')
         const hash = String(window.location.hash || '').replace(/^#/, '')
-        const params = new URLSearchParams(hash)
-        const token = params.get('access_token') || params.get('token')
-        const lang = String(params.get('lang') || '').toLowerCase()
-        if (!token) {
-          setError('Missing session token. Please sign in again.')
-          return
-        }
+        const hashParams = new URLSearchParams(hash)
+        const code = search.get('code') || hashParams.get('code')
+        const legacyToken = hashParams.get('access_token') || hashParams.get('token') || search.get('access_token')
+        const lang = String(search.get('lang') || hashParams.get('lang') || '').toLowerCase()
 
-        // Seed Redux + localStorage BEFORE getMe so ProtectedRoute sees a token.
-        dispatch(seedSessionToken(token))
         if (lang === 'ar' || lang === 'en') {
           dispatch(setLanguage(lang))
         }
 
-        // Clear the token from the URL so it is not left in history.
-        window.history.replaceState(null, '', window.location.pathname)
+        let token = null
+        if (code) {
+          const { data } = await api.post('/auth/handoff/exchange', { code })
+          token = data?.token
+          if (data?.user) {
+            // Cookie is set by server; still seed token for Bearer/desktop fallback
+            dispatch(seedSessionToken(token))
+          }
+        } else if (legacyToken) {
+          token = legacyToken
+          dispatch(seedSessionToken(token))
+        } else {
+          setError('Missing session. Please sign in again.')
+          return
+        }
+
+        clearUrl()
+
+        if (!token) {
+          setError('Session handoff failed. Please sign in again.')
+          return
+        }
 
         const result = await dispatch(getMe()).unwrap()
         if (cancelled || navigated) return
@@ -73,7 +93,7 @@ export default function AuthHandoff() {
       } catch (err) {
         if (!cancelled) {
           dispatch(forceLogout())
-          setError(err?.message || err?.error || 'Session handoff failed. Please sign in again.')
+          setError(err?.response?.data?.error || err?.message || err?.error || 'Session handoff failed. Please sign in again.')
         }
       }
     }
