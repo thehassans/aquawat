@@ -47,8 +47,8 @@ export default function MarketingHome() {
   const heroSubtitle = isArabic ? data?.hero?.subtitleAr : data?.hero?.subtitleEn
 
   const modules = [
-    { icon: FileText, titleEn: 'ZATCA E-Invoicing', titleAr: 'الفوترة الإلكترونية', descEn: 'B2B/B2C invoices, XML signing, QR and real-time ZATCA submission.', descAr: 'فواتير B2B/B2C، توقيع XML، QR، الإرسال وتتبع الحالة.' },
-    { icon: Users, titleEn: 'HR Management', titleAr: 'الموارد البشرية', descEn: 'Employees, leave, documents and automated Iqama reminders.', descAr: 'الموظفون، الإجازات، المستندات والتنبيهات التلقائية.' },
+    { icon: FileText, titleEn: 'E-Invoicing & Tax', titleAr: 'الفوترة الإلكترونية والضرائب', descEn: 'B2B/B2C invoices, tax compliance per country, and real-time submission where required.', descAr: 'فواتير B2B/B2C، الامتثال الضريبي حسب الدولة، والإرسال الفوري عند الحاجة.' },
+    { icon: Users, titleEn: 'HR Management', titleAr: 'الموارد البشرية', descEn: 'Employees, leave, documents and automated reminders.', descAr: 'الموظفون، الإجازات، المستندات والتنبيهات التلقائية.' },
     { icon: Calculator, titleEn: 'Payroll & WPS', titleAr: 'الرواتب وملفات WPS', descEn: 'Payroll calculations, EOSB tools and WPS generation workflows.', descAr: 'حساب الرواتب، نهاية الخدمة، وتوليد ملفات WPS.' },
     { icon: Package, titleEn: 'Products & Catalog', titleAr: 'المنتجات', descEn: 'SKU, barcode, pricing, categories and product performance.', descAr: 'SKU والباركود والتسعير والتصنيفات وأداء المنتجات.' },
     { icon: Warehouse, titleEn: 'Warehouses & Stock', titleAr: 'المستودعات والمخزون', descEn: 'Multi-warehouse quantities, reserved stock and low stock alerts.', descAr: 'مخزون متعدد المستودعات، كميات محجوزة وتنبيهات نفاد.' },
@@ -60,8 +60,8 @@ export default function MarketingHome() {
   ]
 
   const testimonials = [
-    { name: 'Ahmed Al-Rashid', nameAr: 'أحمد الراشد', role: 'CFO, Tech Solutions', roleAr: 'المدير المالي', content: 'ZATCA compliance is now fully automatic. Our team spends zero time on submission — Maqder handles everything.', contentAr: 'امتثال ZATCA أصبح تلقائياً تماماً. فريقنا لا يقضي أي وقت في الإرسال — Maqder يتعامل مع كل شيء.' },
-    { name: 'Sara Mohammed', nameAr: 'سارة محمد', role: 'HR Director, Retail Group', roleAr: 'مديرة الموارد البشرية', content: 'GOSI calculations that used to take hours now run in seconds. Payroll processing is completely seamless.', contentAr: 'حسابات التأمينات التي كانت تستغرق ساعات تعمل الآن في ثوانٍ. معالجة الرواتب سلسة تماماً.' },
+    { name: 'Ahmed Al-Rashid', nameAr: 'أحمد الراشد', role: 'CFO, Tech Solutions', roleAr: 'المدير المالي', content: 'Month-end close is faster and cleaner. Finance, inventory, and reporting finally live in one place — Maqder handles the busywork.', contentAr: 'إقفال الشهر أصبح أسرع وأنظف. المالية والمخزون والتقارير في مكان واحد — Maqder يتولى الأعمال الروتينية.' },
+    { name: 'Sara Mohammed', nameAr: 'سارة محمد', role: 'HR Director, Retail Group', roleAr: 'مديرة الموارد البشرية', content: 'Payroll and leave that used to take hours now run in minutes. Our HR team finally has time for people, not spreadsheets.', contentAr: 'الرواتب والإجازات التي كانت تستغرق ساعات تعمل الآن في دقائق. فريق الموارد البشرية يركز على الناس لا على الجداول.' },
     { name: 'Khalid Hassan', nameAr: 'خالد حسن', role: 'Operations Manager', roleAr: 'مدير العمليات', content: 'Multi-warehouse inventory with real-time tracking changed how we operate. Finally a system that grows with us.', contentAr: 'تتبع المخزون متعدد المستودعات غيّر طريقة عملنا. أخيراً نظام ينمو معنا.' },
   ]
 
@@ -96,22 +96,22 @@ export default function MarketingHome() {
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
                 </span>
-                {isArabic ? 'جاهز لـ ZATCA المرحلة الثانية' : 'ZATCA Phase 2 Certified'}
+                {isArabic ? 'منصة ERP متعددة الدول' : 'Built for growing businesses'}
               </div>
 
               <h1 className="mt-7 text-5xl font-black leading-[1.0] tracking-tight sm:text-6xl lg:text-[3.75rem] xl:text-6xl">
                 <span className="block bg-gradient-to-b from-white to-white/75 bg-clip-text text-transparent">
-                  {isArabic ? 'منصة ERP' : 'The Saudi ERP'}
+                  {isArabic ? 'منصة ERP' : 'The modern ERP'}
                 </span>
                 <span className="block bg-gradient-to-r from-emerald-300 via-emerald-200 to-teal-300 bg-clip-text text-transparent">
-                  {isArabic ? 'للأعمال السعودية' : 'businesses trust'}
+                  {isArabic ? 'للأعمال النامية' : 'businesses trust'}
                 </span>
               </h1>
 
               <p className="mt-6 max-w-md text-lg leading-relaxed text-white/55">
                 {heroSubtitle || (isArabic
-                  ? 'الفوترة، الموارد البشرية، المخزون والتقارير — في منصة واحدة سريعة ومتوافقة.'
-                  : 'E-invoicing, HR, payroll, inventory and reporting in one fast, ZATCA-compliant platform.')}
+                  ? 'الفوترة، الموارد البشرية، المخزون والتقارير — في منصة واحدة سريعة ومرنة.'
+                  : 'E-invoicing, HR, payroll, inventory and reporting in one fast, modern platform.')}
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -170,7 +170,7 @@ export default function MarketingHome() {
                 {[
                   { icon: Sparkles, label: isArabic ? 'واجهة أنيقة' : 'Clean UI' },
                   { icon: Globe, label: isArabic ? 'عربي / English' : 'Arabic / English' },
-                  { icon: Landmark, label: isArabic ? 'مصمم للسعودية' : 'Made for Saudi' },
+                  { icon: Landmark, label: isArabic ? 'متعدد العملات' : 'Multi-currency' },
                 ].map((item, i) => (
                   <div key={i} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white/60">
                     <item.icon className="h-3.5 w-3.5 text-emerald-400" />
@@ -198,7 +198,7 @@ export default function MarketingHome() {
                     <div className="mb-4 grid grid-cols-2 gap-3">
                       {[
                         { label: isArabic ? 'الفواتير اليوم' : 'Invoices today', value: '284', trend: '+18%', up: true },
-                        { label: isArabic ? 'الإيراد الشهري' : 'Monthly revenue', value: 'SAR 1.2M', trend: '+24%', up: true },
+                        { label: isArabic ? 'الإيراد الشهري' : 'Monthly revenue', value: '$1.2M', trend: '+24%', up: true },
                         { label: isArabic ? 'الموظفون النشطون' : 'Active employees', value: '142', trend: '+3', up: true },
                         { label: isArabic ? 'أصناف المخزون' : 'Stock items', value: '4,280', trend: 'Low: 12', up: false },
                       ].map((metric, i) => (
@@ -214,7 +214,7 @@ export default function MarketingHome() {
                       <div className="flex items-center gap-3">
                         <ShieldCheck className="h-5 w-5 text-emerald-400" />
                         <div>
-                          <p className="text-xs font-semibold text-emerald-300">{isArabic ? 'ZATCA متصل ومفعّل' : 'ZATCA Connected & Active'}</p>
+                          <p className="text-xs font-semibold text-emerald-300">{isArabic ? 'الامتثال الضريبي مفعّل' : 'Tax compliance active'}</p>
                           <p className="text-[11px] text-white/35">{isArabic ? 'آخر مزامنة: للتو' : 'Last sync: just now'}</p>
                         </div>
                       </div>
@@ -228,7 +228,7 @@ export default function MarketingHome() {
                 <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
                   className="absolute -top-5 -right-5 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-xl">
                   <p className="text-[11px] text-white/50">{isArabic ? 'الامتثال' : 'Compliance'}</p>
-                  <p className="mt-0.5 text-sm font-bold text-white">✓ ZATCA Phase 2</p>
+                  <p className="mt-0.5 text-sm font-bold text-white">{isArabic ? '✓ ضرائب حسب الدولة' : '✓ Regional tax ready'}</p>
                 </motion.div>
 
                 <motion.div animate={{ y: [0, 10, 0] }} transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
@@ -244,23 +244,24 @@ export default function MarketingHome() {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-white to-transparent" />
       </section>
 
-      {/* ── CERTIFICATIONS STRIP ── */}
+      {/* ── TRUST STRIP ── */}
       <section className="border-b border-slate-100 bg-white py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <p className="mb-7 text-center text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
-            {isArabic ? 'معتمد ومتوافق مع' : 'Certified & compliant with'}
+            {isArabic ? 'لماذا تثق الشركات بـ Maqder' : 'Why businesses trust Maqder'}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
             {[
-              { src: '/ZATCA_Logo.svg', alt: 'ZATCA', cls: 'h-12' },
-              { src: '/saudi-vision-2030-logo.webp', alt: 'Saudi Vision 2030', cls: 'h-12' },
-              { src: '/saudi_tech_mob_en.svg', alt: 'Saudi Tech MOB', cls: 'h-10' },
-            ].map((logo) => (
+              { icon: ShieldCheck, label: isArabic ? 'أمان مؤسسي' : 'Enterprise security' },
+              { icon: Globe, label: isArabic ? 'متعدد العملات' : 'Multi-currency' },
+              { icon: Building2, label: isArabic ? 'ERP سحابي' : 'Cloud ERP' },
+            ].map((item) => (
               <div
-                key={logo.alt}
-                className="flex h-20 min-w-[150px] items-center justify-center rounded-2xl border border-slate-200/70 bg-slate-50/50 px-6 grayscale transition-all duration-300 hover:grayscale-0 hover:border-emerald-200 hover:bg-white hover:shadow-md"
+                key={item.label}
+                className="flex h-20 min-w-[150px] items-center justify-center gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/50 px-6 transition-all duration-300 hover:border-emerald-200 hover:bg-white hover:shadow-md"
               >
-                <img src={logo.src} alt={logo.alt} className={`${logo.cls} w-auto object-contain`} />
+                <item.icon className="h-5 w-5 text-emerald-600" />
+                <span className="text-sm font-semibold text-slate-700">{item.label}</span>
               </div>
             ))}
           </div>
@@ -310,8 +311,8 @@ export default function MarketingHome() {
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-500">
               {isArabic
-                ? 'من الفوترة إلى الرواتب والمخزون — بنية واحدة مصممة للأعمال السعودية الحديثة.'
-                : 'From invoicing to payroll and inventory — one seamless architecture built for modern Saudi businesses.'}
+                ? 'من الفوترة إلى الرواتب والمخزون — بنية واحدة مصممة للأعمال الحديثة.'
+                : 'From invoicing to payroll and inventory — one seamless architecture built for modern businesses.'}
             </p>
           </div>
 
@@ -342,7 +343,7 @@ export default function MarketingHome() {
             <div>
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
                 <Zap className="h-4 w-4" />
-                {isArabic ? 'مصمم للسعودية' : 'Built for Saudi Arabia'}
+                {isArabic ? 'مبني للنمو' : 'Built for growth'}
               </div>
               <h2 className="text-4xl font-black leading-tight sm:text-5xl">
                 {isArabic
@@ -351,13 +352,13 @@ export default function MarketingHome() {
               </h2>
               <p className="mt-5 max-w-lg text-lg leading-relaxed text-white/55">
                 {isArabic
-                  ? 'من فاتورة ZATCA الأولى إلى التقارير الضريبية الربع سنوية — النظام يعمل بينما أنت تتطور.'
-                  : 'From your first ZATCA invoice to quarterly VAT returns — the system works while your business grows.'}
+                  ? 'من أول فاتورة إلى التقارير الضريبية الربع سنوية — النظام يعمل بينما أنت تتطور.'
+                  : 'From your first invoice to quarterly tax returns — the system works while your business grows.'}
               </p>
               <div className="mt-9 space-y-4">
                 {[
-                  isArabic ? 'امتثال ZATCA المرحلة الثانية في القلب' : 'ZATCA Phase 2 compliance at the core',
-                  isArabic ? 'حسابات GOSI وEOSB التلقائية' : 'Automatic GOSI & EOSB calculations',
+                  isArabic ? 'امتثال ضريبي حسب الدولة في القلب' : 'Country-aware tax compliance at the core',
+                  isArabic ? 'حسابات الرواتب ونهاية الخدمة التلقائية' : 'Automatic payroll & end-of-service calculations',
                   isArabic ? 'دعم كامل للعربية والإنجليزية' : 'Full bilingual Arabic / English support',
                   isArabic ? 'قابل للتوسع من شركة ناشئة إلى مؤسسة' : 'Scales from startup to enterprise',
                 ].map((item, i) => (
@@ -373,8 +374,8 @@ export default function MarketingHome() {
 
             <div className="space-y-4">
               {[
-                { icon: FileText, title: isArabic ? 'الفوترة الإلكترونية' : 'E-Invoicing', desc: isArabic ? 'توليد QR وتوقيع XML وإرسال فوري لـ ZATCA' : 'QR generation, XML signing and instant ZATCA submission', borderColor: 'border-emerald-500/20', bgColor: 'bg-gradient-to-br from-emerald-500/10 to-teal-500/10' },
-                { icon: Users, title: isArabic ? 'الموارد البشرية' : 'HR & Payroll', desc: isArabic ? 'الموظفون والرواتب وملفات WPS والتأمينات' : 'Employees, payroll, WPS files and GOSI coverage', borderColor: 'border-blue-500/20', bgColor: 'bg-gradient-to-br from-blue-500/10 to-indigo-500/10' },
+                { icon: FileText, title: isArabic ? 'الفوترة الإلكترونية' : 'E-Invoicing', desc: isArabic ? 'توليد QR وتوقيع XML وإرسال فوري حسب متطلبات الدولة' : 'QR generation, XML signing and instant tax authority submission', borderColor: 'border-emerald-500/20', bgColor: 'bg-gradient-to-br from-emerald-500/10 to-teal-500/10' },
+                { icon: Users, title: isArabic ? 'الموارد البشرية' : 'HR & Payroll', desc: isArabic ? 'الموظفون والرواتب وملفات الرواتب والتأمينات' : 'Employees, payroll, salary files and social insurance coverage', borderColor: 'border-blue-500/20', bgColor: 'bg-gradient-to-br from-blue-500/10 to-indigo-500/10' },
                 { icon: Package, title: isArabic ? 'المخزون' : 'Inventory', desc: isArabic ? 'مستودعات متعددة وتنبيهات نفاد المخزون' : 'Multi-warehouse management with low stock alerts', borderColor: 'border-violet-500/20', bgColor: 'bg-gradient-to-br from-violet-500/10 to-purple-500/10' },
               ].map((item, i) => (
                 <motion.div key={i} variants={fade} initial="initial" whileInView="animate" viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.12 }}
@@ -421,7 +422,7 @@ export default function MarketingHome() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-14 text-center">
             <h2 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-              {isArabic ? 'ماذا يقول عملاؤنا' : 'Trusted by Saudi businesses'}
+              {isArabic ? 'ماذا يقول عملاؤنا' : 'Trusted by growing businesses'}
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
               {isArabic ? 'آراء حقيقية من شركات تعمل مع Maqder يومياً.' : 'Real feedback from companies using Maqder every day.'}
@@ -463,12 +464,12 @@ export default function MarketingHome() {
                   {isArabic ? 'جاهز للانطلاق' : 'Ready to launch'}
                 </p>
                 <h2 className="mt-3 text-4xl font-black leading-tight lg:text-5xl">
-                  {isArabic ? 'ابدأ رحلتك مع Maqder اليوم' : <>Start your Saudi ERP<br /><span className="text-emerald-400">journey today</span></>}
+                  {isArabic ? 'ابدأ رحلتك مع Maqder اليوم' : <>Start your ERP<br /><span className="text-emerald-400">journey today</span></>}
                 </h2>
                 <p className="mt-4 text-lg text-white/55">
                   {isArabic
-                    ? 'سجّل الدخول أو جرّب النظام مباشرةً وشاهد كيف تبدو إدارة الأعمال الحديثة في السعودية.'
-                    : 'Log in or open the live demo and see what modern Saudi business management feels like.'}
+                    ? 'سجّل الدخول أو جرّب النظام مباشرةً وشاهد كيف تبدو إدارة الأعمال الحديثة.'
+                    : 'Log in or open the live demo and see what modern business management feels like.'}
                 </p>
               </div>
 

@@ -82,9 +82,9 @@ export const demoLogin = createAsyncThunk('auth/demoLogin', async (_, { rejectWi
   }
 })
 
-export const demoSignup = createAsyncThunk('auth/demoSignup', async ({ email, businessType }, { rejectWithValue }) => {
+export const demoSignup = createAsyncThunk('auth/demoSignup', async ({ email, businessType, country, currency, companyName }, { rejectWithValue }) => {
   try {
-    const { data } = await api.post('/public/demo-signup', { email, businessType })
+    const { data } = await api.post('/public/demo-signup', { email, businessType, country, currency, companyName })
     localStorage.setItem('token', data.token)
     persistAuthSnapshot(data)
     return data

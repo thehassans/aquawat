@@ -8,10 +8,10 @@ export default function MarketingAbout() {
   const platformPillars = [
     {
       icon: ShieldCheck,
-      title: isArabic ? 'امتثال سعودي أصيل' : 'Native Saudi compliance',
+      title: isArabic ? 'امتثال حسب الدولة' : 'Country-aware compliance',
       description: isArabic
-        ? 'تم تصميم المنصة لتخدم الأعمال السعودية من اليوم الأول مع جاهزية ZATCA، الفوترة الإلكترونية، ملفات WPS، والتشغيل ثنائي اللغة.'
-        : 'The platform is built for Saudi operations from day one, including ZATCA readiness, e-invoicing workflows, WPS support, and bilingual execution.',
+        ? 'تم تصميم المنصة لتخدم الأعمال من اليوم الأول مع جاهزية الفوترة الإلكترونية، الامتثال الضريبي حسب الدولة، والتشغيل ثنائي اللغة.'
+        : 'The platform is built for multi-country operations from day one, including e-invoicing workflows, regional tax readiness, and bilingual execution.',
     },
     {
       icon: Sparkles,
@@ -70,7 +70,7 @@ export default function MarketingAbout() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-800 shadow-sm shadow-emerald-100/80">
                 <Sparkles className="h-4 w-4" />
-                {isArabic ? 'منصة ERP سعودية بطابع راقٍ' : 'A premium Saudi ERP experience'}
+                {isArabic ? 'منصة ERP عالمية بطابع راقٍ' : 'A premium modern ERP experience'}
               </div>
 
               <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.05] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
@@ -79,8 +79,8 @@ export default function MarketingAbout() {
 
               <p className="mt-6 max-w-3xl text-lg leading-relaxed text-slate-600">
                 {isArabic
-                  ? 'Maqder ERP ليست مجرد مجموعة شاشات ERP تقليدية. إنها طبقة تشغيل متكاملة صُممت خصيصاً للشركات السعودية لتوحيد الفوترة الإلكترونية، الموارد البشرية، الرواتب، المخزون، المشتريات، المشاريع، والتقارير داخل تجربة استخدام راقية وسريعة.'
-                  : 'Maqder ERP is not just another collection of traditional ERP screens. It is a complete operating layer built specifically for Saudi businesses to unify e-invoicing, HR, payroll, inventory, purchasing, projects, and reporting inside a refined and fast user experience.'}
+                  ? 'Maqder ERP ليست مجرد مجموعة شاشات ERP تقليدية. إنها طبقة تشغيل متكاملة صُممت للشركات النامية لتوحيد الفوترة الإلكترونية، الموارد البشرية، الرواتب، المخزون، المشتريات، المشاريع، والتقارير داخل تجربة استخدام راقية وسريعة.'
+                  : 'Maqder ERP is not just another collection of traditional ERP screens. It is a complete operating layer built for growing businesses to unify e-invoicing, HR, payroll, inventory, purchasing, projects, and reporting inside a refined and fast user experience.'}
               </p>
 
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -145,8 +145,8 @@ export default function MarketingAbout() {
               </p>
               <p>
                 {isArabic
-                  ? 'لهذا صممنا المنصة لتكون طبقة تشغيل موحدة: الفوترة الإلكترونية تتصل بالمخزون، والرواتب تتكامل مع الموارد البشرية، والمشتريات ترتبط بالتقارير، وكل ذلك ضمن تجربة ثنائية اللغة مصقولة، واضحة، ومناسبة للبيئة السعودية.'
-                  : 'That is why we designed the platform as one operating layer: e-invoicing connects to inventory, payroll integrates with HR, purchasing flows into reporting, and all of it lives inside a polished, bilingual experience designed for the Saudi environment.'}
+                  ? 'لهذا صممنا المنصة لتكون طبقة تشغيل موحدة: الفوترة الإلكترونية تتصل بالمخزون، والرواتب تتكامل مع الموارد البشرية، والمشتريات ترتبط بالتقارير، وكل ذلك ضمن تجربة ثنائية اللغة مصقولة وواضحة.'
+                  : 'That is why we designed the platform as one operating layer: e-invoicing connects to inventory, payroll integrates with HR, purchasing flows into reporting, and all of it lives inside a polished, bilingual experience designed for modern teams.'}
               </p>
               <p>
                 {isArabic
@@ -178,7 +178,7 @@ export default function MarketingAbout() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-emerald-300">
                 <Globe className="h-4 w-4" />
-                {isArabic ? 'مبني لفرق سعودية وطموحة' : 'Built for ambitious Saudi teams'}
+                {isArabic ? 'مبني لفرق طموحة حول العالم' : 'Built for ambitious growing teams'}
               </div>
               <h5 className="mt-5 text-3xl font-black leading-tight sm:text-4xl">
                 {isArabic ? 'منصة واحدة تمنحك أناقة التجربة وقوة التشغيل معاً.' : 'One platform delivering premium experience and operational power together.'}
@@ -200,7 +200,7 @@ export default function MarketingAbout() {
                 {
                   icon: ShieldCheck,
                   title: isArabic ? 'للامتثال' : 'For compliance',
-                  text: isArabic ? 'إعدادات وتجهيزات مناسبة للسوق السعودي.' : 'Workflows aligned with Saudi regulatory expectations.',
+                  text: isArabic ? 'إعدادات وتجهيزات مناسبة لمتطلبات كل سوق.' : 'Workflows aligned with regional regulatory expectations.',
                 },
                 {
                   icon: Sparkles,

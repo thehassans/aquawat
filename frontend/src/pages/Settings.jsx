@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector, useDispatch } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
-import { Building2, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid } from 'lucide-react'
+import { Building2, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
@@ -12,9 +12,10 @@ import { updateTenant, getMe } from '../store/slices/authSlice'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getInvoiceBrandingProfile, getInvoiceTemplateId, getInvoiceTypography, INVOICE_FONT_OPTIONS } from '../lib/invoiceBranding'
 import { CURRENCIES, CURRENCY_CODE } from '../lib/currency'
-import { INVOICE_LANGUAGE_OPTIONS } from '../lib/invoiceLanguage'
+import { INVOICE_LANGUAGE_OPTIONS, isGccArabicMarket } from '../lib/invoiceLanguage'
 import { getTenantAliasUrl } from '../lib/tenantHost'
-import { showArabicFields, isBangladeshTenant } from '../lib/saudiTenant'
+import { showArabicFields, isBangladeshTenant, isSaudiTenant } from '../lib/saudiTenant'
+import { COUNTRY_OPTIONS } from '../lib/countryCurrency'
 import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 import { getNavSections } from '../lib/sidebarConfig'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
@@ -48,6 +49,25 @@ const updateInvoiceBrandingProfileState = (profiles, contextKey, patch) => ({
     ...patch,
   },
 })
+
+function SettingsAccordion({ id, title, icon: Icon, open, onToggle, children }) {
+  return (
+    <div className="border border-gray-200 dark:border-dark-600 rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => onToggle(id)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left bg-gray-50/80 dark:bg-dark-800/60 hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+          {Icon ? <Icon className="w-4 h-4 text-gray-500" /> : null}
+          {title}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open ? <div className="p-4 border-t border-gray-200 dark:border-dark-600">{children}</div> : null}
+    </div>
+  )
+}
 
 function MenuVisibilitySettings() {
   const dispatch = useDispatch()
@@ -216,6 +236,7 @@ export default function Settings() {
   const { user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [activeTab, setActiveTab] = useState('company')
+  const [companySections, setCompanySections] = useState({ basics: true })
   const [downloadingBackup, setDownloadingBackup] = useState(false)
   const [primaryColor, setPrimaryColor] = useState('#14B8A6')
   const [secondaryColor, setSecondaryColor] = useState('#D946EF')
@@ -374,7 +395,7 @@ export default function Settings() {
         postalCode: tenant.business?.address?.postalCode || '',
         buildingNumber: tenant.business?.address?.buildingNumber || '',
         additionalNumber: tenant.business?.address?.additionalNumber || '',
-        country: tenant.business?.address?.country || 'SA'
+        country: tenant.business?.address?.country || ''
       },
       contactEmail: tenant.business?.contactEmail || '',
       contactPhone: tenant.business?.contactPhone || '',
@@ -534,29 +555,28 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 max-w-5xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('settings')}</h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          {language === 'ar' ? 'إدارة إعدادات الشركة والنظام' : 'Manage company and system settings'}
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight">{t('settings')}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+          {language === 'ar' ? 'إعدادات الشركة والنظام' : 'Company & system'}
         </p>
       </div>
 
-      <div className="space-y-6">
-        {/* Horizontal Tabs */}
-        <div className="card p-1 flex gap-1 overflow-x-auto">
+      <div className="space-y-5">
+        <div className="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-dark-600 pb-px">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-5 py-3 rounded-xl whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors ${
                 activeTab === tab.id
-                  ? 'bg-primary-500 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-700'
+                  ? 'border-primary-600 text-primary-700 dark:text-primary-300 font-medium'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
-              <tab.icon className="w-4 h-4" />
-              <span className="font-medium">{tab.label}</span>
+              <tab.icon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
@@ -564,24 +584,30 @@ export default function Settings() {
         {/* Content */}
         <div>
           {activeTab === 'company' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6">
-              <h3 className="text-lg font-semibold mb-6">{t('companySettings')}</h3>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
               <form onSubmit={handleSubmit((data) => updateMutation.mutate({
                 business: data,
                 branding: {
                   ...(tenant?.branding || {}),
                   logo: logoDataUrl || tenant?.branding?.logo || null,
                 },
-              }))} className="space-y-4">
-                <fieldset disabled={user?.role !== 'super_admin' && user?.role !== 'superadmin' && user?.role !== 'admin'} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              }))} className="space-y-3">
+                <fieldset disabled={user?.role !== 'super_admin' && user?.role !== 'superadmin' && user?.role !== 'admin'} className="space-y-3">
+                <SettingsAccordion
+                  id="basics"
+                  title={language === 'ar' ? 'بيانات الشركة' : 'Company basics'}
+                  icon={Building2}
+                  open={!!companySections.basics}
+                  onToggle={(id) => setCompanySections((s) => ({ ...s, [id]: !s[id] }))}
+                >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="label">{language === 'ar' ? 'الاسم القانوني (EN)' : 'Legal Name (EN)'}</label>
+                    <label className="label">{language === 'ar' ? 'الاسم القانوني' : 'Legal Name'}</label>
                     <input {...register('legalNameEn')} className="input" />
                   </div>
                   {showArabicFields(tenant) && (
                     <div>
-                      <label className="label">{language === 'ar' ? 'الاسم القانوني (AR)' : 'Legal Name (AR)'}</label>
+                      <label className="label">{language === 'ar' ? 'الاسم القانوني (عربي)' : 'Legal Name (Arabic)'}</label>
                       <input {...register('legalNameAr')} className="input" dir="rtl" />
                     </div>
                   )}
@@ -589,19 +615,28 @@ export default function Settings() {
                     <label className="label">
                       {isBangladeshTenant(tenant) || String(defaultCurrency).toUpperCase() === 'BDT'
                         ? (language === 'ar' ? 'رقم تسجيل ضريبة القيمة المضافة' : 'VAT Registration Number')
-                        : (language === 'ar' ? 'الرقم الضريبي' : 'VAT Number')}
+                        : (language === 'ar' ? 'الرقم الضريبي / الضريبة' : 'Tax / VAT Number')}
                     </label>
                     <input {...register('vatNumber')} className="input" />
                   </div>
                   {(isBangladeshTenant(tenant) || String(defaultCurrency).toUpperCase() === 'BDT') && (
                     <div>
-                      <label className="label">{language === 'ar' ? 'رقم BIN (بنغلاديش)' : 'BIN (Bangladesh)'}</label>
+                      <label className="label">BIN (Bangladesh)</label>
                       <input {...register('binNumber')} className="input" placeholder="123456789-0123" />
                     </div>
                   )}
                   <div>
-                    <label className="label">{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</label>
+                    <label className="label">{language === 'ar' ? 'رقم السجل' : 'Registration / CR Number'}</label>
                     <input {...register('crNumber')} className="input" />
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'الدولة' : 'Country'}</label>
+                    <select {...register('address.country')} className="select">
+                      <option value="">{language === 'ar' ? 'اختر الدولة' : 'Select country'}</option>
+                      {COUNTRY_OPTIONS.filter((c) => c.code !== 'OTHER').map((c) => (
+                        <option key={c.code} value={c.code}>{language === 'ar' ? c.nameAr : c.nameEn}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="label">{language === 'ar' ? 'المدينة' : 'City'}</label>
@@ -609,7 +644,7 @@ export default function Settings() {
                   </div>
                   {showArabicFields(tenant) && (
                     <div>
-                      <label className="label">{language === 'ar' ? 'المدينة (AR)' : 'City (AR)'}</label>
+                      <label className="label">{language === 'ar' ? 'المدينة (عربي)' : 'City (Arabic)'}</label>
                       <input {...register('address.cityAr')} className="input" dir="rtl" />
                     </div>
                   )}
@@ -619,7 +654,7 @@ export default function Settings() {
                   </div>
                   {showArabicFields(tenant) && (
                     <div>
-                      <label className="label">{language === 'ar' ? 'الحي (AR)' : 'District (AR)'}</label>
+                      <label className="label">{language === 'ar' ? 'الحي (عربي)' : 'District (Arabic)'}</label>
                       <input {...register('address.districtAr')} className="input" dir="rtl" />
                     </div>
                   )}
@@ -629,7 +664,7 @@ export default function Settings() {
                   </div>
                   {showArabicFields(tenant) && (
                     <div>
-                      <label className="label">{language === 'ar' ? 'الشارع (AR)' : 'Street (AR)'}</label>
+                      <label className="label">{language === 'ar' ? 'الشارع (عربي)' : 'Street (Arabic)'}</label>
                       <input {...register('address.streetAr')} className="input" dir="rtl" />
                     </div>
                   )}
@@ -646,10 +681,6 @@ export default function Settings() {
                     <input {...register('address.additionalNumber')} className="input" />
                   </div>
                   <div>
-                    <label className="label">{language === 'ar' ? 'الدولة' : 'Country'}</label>
-                    <input {...register('address.country')} className="input" placeholder="SA" />
-                  </div>
-                  <div>
                     <label className="label">{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
                     <input type="email" {...register('contactEmail')} className="input" />
                   </div>
@@ -658,12 +689,16 @@ export default function Settings() {
                     <input {...register('contactPhone')} className="input" />
                   </div>
                 </div>
+                </SettingsAccordion>
 
-                <div className="mt-8 border-t border-gray-200 dark:border-dark-600 pt-6">
-                  <h4 className="text-md font-semibold mb-4 text-gray-900 dark:text-white">
-                    {language === 'ar' ? 'تفاصيل الحساب البنكي' : 'Bank Account Details'}
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <SettingsAccordion
+                  id="bank"
+                  title={language === 'ar' ? 'الحساب البنكي' : 'Bank account'}
+                  icon={CreditCard}
+                  open={!!companySections.bank}
+                  onToggle={(id) => setCompanySections((s) => ({ ...s, [id]: !s[id] }))}
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="label">{language === 'ar' ? 'اسم البنك' : 'Bank Name'}</label>
                       <input {...register('bankDetails.bankName')} className="input" />
@@ -677,19 +712,21 @@ export default function Settings() {
                       <input {...register('bankDetails.accountNumber')} className="input" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'الآيبان' : 'IBAN'}</label>
+                      <label className="label">IBAN</label>
                       <input {...register('bankDetails.iban')} className="input" />
                     </div>
                   </div>
-                </div>
+                </SettingsAccordion>
 
-                {/* National Address */}
-                <div className="pt-6 border-t border-gray-200 dark:border-dark-600">
-                  <h4 className="text-md font-semibold mb-4 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-blue-500" />
-                    {language === 'ar' ? 'العنوان الوطني' : 'National Address'}
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {isSaudiTenant(tenant) && (
+                <SettingsAccordion
+                  id="national"
+                  title={language === 'ar' ? 'العنوان الوطني' : 'National Address (Saudi)'}
+                  icon={MapPin}
+                  open={!!companySections.national}
+                  onToggle={(id) => setCompanySections((s) => ({ ...s, [id]: !s[id] }))}
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="label">{language === 'ar' ? 'رقم الإثبات' : 'Proof Number'}</label>
                       <input {...register('nationalAddress.proofNumber')} className="input" />
@@ -731,17 +768,19 @@ export default function Settings() {
                       <input {...register('nationalAddress.qrCodeUrl')} className="input" />
                     </div>
                   </div>
-                </div>
+                </SettingsAccordion>
+                )}
 
-                {/* Commercial Registration */}
-                <div className="pt-6 border-t border-gray-200 dark:border-dark-600">
-                  <h4 className="text-md font-semibold mb-4 flex items-center gap-2">
-                    <Briefcase className="w-4 h-4 text-amber-500" />
-                    {language === 'ar' ? 'السجل التجاري' : 'Commercial Registration'}
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <SettingsAccordion
+                  id="cr"
+                  title={language === 'ar' ? 'السجل التجاري' : 'Commercial registration'}
+                  icon={Briefcase}
+                  open={!!companySections.cr}
+                  onToggle={(id) => setCompanySections((s) => ({ ...s, [id]: !s[id] }))}
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="label">{language === 'ar' ? 'الرقم الوطني الموحد' : 'CR Number'}</label>
+                      <label className="label">{language === 'ar' ? 'رقم السجل' : 'CR Number'}</label>
                       <input {...register('commercialRegistration.crNumber')} className="input" />
                     </div>
                     <div>
@@ -749,35 +788,40 @@ export default function Settings() {
                       <input type="date" {...register('commercialRegistration.issueDate')} className="input" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'نوع الكيان (EN)' : 'Company Type (EN)'}</label>
+                      <label className="label">{language === 'ar' ? 'نوع الكيان' : 'Company Type'}</label>
                       <input {...register('commercialRegistration.companyType')} className="input" />
                     </div>
+                    {showArabicFields(tenant) && (
+                      <div>
+                        <label className="label">{language === 'ar' ? 'نوع الكيان (عربي)' : 'Company Type (Arabic)'}</label>
+                        <input {...register('commercialRegistration.companyTypeAr')} className="input" dir="rtl" />
+                      </div>
+                    )}
                     <div>
-                      <label className="label">{language === 'ar' ? 'نوع الكيان (AR)' : 'Company Type (AR)'}</label>
-                      <input {...register('commercialRegistration.companyTypeAr')} className="input" dir="rtl" />
-                    </div>
-                    <div>
-                      <label className="label">{language === 'ar' ? 'حالة السجل (EN)' : 'Company Status (EN)'}</label>
+                      <label className="label">{language === 'ar' ? 'حالة السجل' : 'Company Status'}</label>
                       <input {...register('commercialRegistration.companyStatus')} className="input" />
                     </div>
-                    <div>
-                      <label className="label">{language === 'ar' ? 'حالة السجل (AR)' : 'Company Status (AR)'}</label>
-                      <input {...register('commercialRegistration.companyStatusAr')} className="input" dir="rtl" />
-                    </div>
+                    {showArabicFields(tenant) && (
+                      <div>
+                        <label className="label">{language === 'ar' ? 'حالة السجل (عربي)' : 'Company Status (Arabic)'}</label>
+                        <input {...register('commercialRegistration.companyStatusAr')} className="input" dir="rtl" />
+                      </div>
+                    )}
                     <div className="md:col-span-2">
                       <label className="label">{language === 'ar' ? 'رابط QR للتحقق' : 'QR Verification URL'}</label>
                       <input {...register('commercialRegistration.qrCodeUrl')} className="input" />
                     </div>
                   </div>
-                </div>
+                </SettingsAccordion>
 
-                {/* VAT Registration Certificate */}
-                <div className="pt-6 border-t border-gray-200 dark:border-dark-600">
-                  <h4 className="text-md font-semibold mb-4 flex items-center gap-2">
-                    <Receipt className="w-4 h-4 text-teal-500" />
-                    {language === 'ar' ? 'شهادة تسجيل ضريبة القيمة المضافة' : 'VAT Registration Certificate'}
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <SettingsAccordion
+                  id="vatCert"
+                  title={language === 'ar' ? 'شهادة الضريبة' : 'Tax / VAT certificate'}
+                  icon={Receipt}
+                  open={!!companySections.vatCert}
+                  onToggle={(id) => setCompanySections((s) => ({ ...s, [id]: !s[id] }))}
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="label">{language === 'ar' ? 'رقم الشهادة' : 'Certificate No'}</label>
                       <input {...register('vatCertificate.certificateNo')} className="input" />
@@ -791,27 +835,29 @@ export default function Settings() {
                       <input type="date" {...register('vatCertificate.effectiveDate')} className="input" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'تاريخ أول إقرار ضريبي' : 'First Filing Due Date'}</label>
+                      <label className="label">{language === 'ar' ? 'تاريخ أول إقرار' : 'First Filing Due Date'}</label>
                       <input type="date" {...register('vatCertificate.firstFilingDueDate')} className="input" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'الفترة الضريبية (EN)' : 'Tax Period (EN)'}</label>
+                      <label className="label">{language === 'ar' ? 'الفترة الضريبية' : 'Tax Period'}</label>
                       <input {...register('vatCertificate.taxPeriod')} className="input" />
                     </div>
-                    <div>
-                      <label className="label">{language === 'ar' ? 'الفترة الضريبية (AR)' : 'Tax Period (AR)'}</label>
-                      <input {...register('vatCertificate.taxPeriodAr')} className="input" dir="rtl" />
-                    </div>
+                    {showArabicFields(tenant) && (
+                      <div>
+                        <label className="label">{language === 'ar' ? 'الفترة الضريبية (عربي)' : 'Tax Period (Arabic)'}</label>
+                        <input {...register('vatCertificate.taxPeriodAr')} className="input" dir="rtl" />
+                      </div>
+                    )}
                     <div className="md:col-span-2">
                       <label className="label">{language === 'ar' ? 'رابط QR للتحقق' : 'QR Verification URL'}</label>
                       <input {...register('vatCertificate.qrCodeUrl')} className="input" />
                     </div>
                   </div>
-                </div>
+                </SettingsAccordion>
 
                 </fieldset>
                 {(user?.role === 'super_admin' || user?.role === 'superadmin' || user?.role === 'admin') && (
-                  <div className="flex justify-end pt-4">
+                  <div className="flex justify-end pt-1">
                     <button type="submit" disabled={updateMutation.isPending} className="btn btn-primary">
                       {updateMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Save className="w-4 h-4" />{t('save')}</>}
                     </button>
@@ -819,21 +865,17 @@ export default function Settings() {
                 )}
               </form>
 
-              {/* Brand Identity */}
-              <div className="mt-8 pt-8 border-t border-gray-100 dark:border-dark-700 space-y-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow">
-                    <Image className="w-4 h-4 text-white" />
-                  </span>
-                  <div>
-                    <h4 className="text-md font-bold text-gray-900 dark:text-white">
-                      {language === 'ar' ? 'هوية العلامة التجارية' : 'Brand Identity'}
-                    </h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {language === 'ar' ? 'الشعار والختم والتوقيع — يمكن تعديلها بحرية' : 'Logo, stamp & signature — editable by all users'}
-                    </p>
-                  </div>
-                </div>
+              <SettingsAccordion
+                id="brand"
+                title={language === 'ar' ? 'هوية العلامة' : 'Brand identity'}
+                icon={Image}
+                open={!!companySections.brand}
+                onToggle={(id) => setCompanySections((s) => ({ ...s, [id]: !s[id] }))}
+              >
+              <div className="space-y-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {language === 'ar' ? 'الشعار والختم والتوقيع' : 'Logo, stamp & signature'}
+                </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* Logo */}
@@ -966,21 +1008,22 @@ export default function Settings() {
                   </button>
                 </div>
               </div>
+              </SettingsAccordion>
             </motion.div>
           )}
 
           {activeTab === 'company' && tenant?.slug && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6 mt-6">
-              <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
-                <Globe className="w-5 h-5 text-primary-500" />
-                {language === 'ar' ? 'رابط الدخول الخاص بمنشأتك' : 'Your Dedicated Login Link'}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border border-gray-200 dark:border-dark-600 rounded-xl p-4 mt-3">
+              <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                <Globe className="w-4 h-4 text-primary-500" />
+                {language === 'ar' ? 'رابط الدخول' : 'Tenant login link'}
               </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                 {language === 'ar'
-                  ? 'حصلت منشأتك تلقائياً على نطاق فرعي خاص بها لتسجيل الدخول مباشرة، بجانب رابط تسجيل الدخول العام maqder.com/login.'
-                  : 'Your tenant was automatically given a dedicated subdomain for direct login, alongside the general maqder.com/login page.'}
+                  ? 'نطاق فرعي خاص بمنشأتك لتسجيل الدخول المباشر.'
+                  : 'Your dedicated subdomain for direct login.'}
               </p>
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input readOnly value={getTenantAliasUrl(tenant.slug)} className="input flex-1 font-mono text-sm" />
                 <button
                   type="button"
@@ -988,9 +1031,9 @@ export default function Settings() {
                     navigator.clipboard?.writeText(getTenantAliasUrl(tenant.slug))
                     toast.success(language === 'ar' ? 'تم نسخ الرابط' : 'Link copied')
                   }}
-                  className="btn btn-secondary whitespace-nowrap"
+                  className="btn btn-secondary whitespace-nowrap text-sm"
                 >
-                  {language === 'ar' ? 'نسخ الرابط' : 'Copy Link'}
+                  {language === 'ar' ? 'نسخ' : 'Copy'}
                 </button>
               </div>
             </motion.div>
@@ -1186,7 +1229,7 @@ export default function Settings() {
                           if (String(next).toUpperCase() !== 'SAR') setInvoiceCurrencyDisplay('text')
                           // Keep UI language aligned with the market currency.
                           const code = String(next).toUpperCase()
-                          if (code === 'SAR') dispatch(setLanguage('ar'))
+                          if (['SAR', 'AED', 'QAR', 'KWD', 'BHD', 'OMR'].includes(code)) dispatch(setLanguage('ar'))
                           else dispatch(setLanguage('en'))
                         }}
                         className="select mt-1 w-full md:w-1/2"
@@ -1246,7 +1289,11 @@ export default function Settings() {
                     <div className="mt-3">
                       <label className="text-xs text-gray-500 dark:text-gray-400">{language === 'ar' ? 'لغة الفواتير' : 'Invoice Language'}</label>
                       <select value={invoiceLanguage} onChange={(e) => setInvoiceLanguage(e.target.value)} className="select mt-1 w-full md:w-1/2">
-                        {INVOICE_LANGUAGE_OPTIONS.map((opt) => (
+                        {INVOICE_LANGUAGE_OPTIONS.filter((opt) => {
+                          if (opt.value !== 'en_ar') return true
+                          const cur = String(defaultCurrency || '').toUpperCase()
+                          return ['SAR', 'AED', 'QAR', 'KWD', 'BHD', 'OMR'].includes(cur) || isGccArabicMarket(tenant)
+                        }).map((opt) => (
                           <option key={opt.value} value={opt.value}>
                             {language === 'ar' ? opt.labelAr : opt.labelEn}
                           </option>

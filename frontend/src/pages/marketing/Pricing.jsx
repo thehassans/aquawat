@@ -11,8 +11,8 @@ const fallbackPricingPlans = [
     priceMonthly: 299,
     priceYearly: 2990,
     popular: false,
-    featuresEn: ['ZATCA E-Invoicing', 'Up to 500 invoices/month', 'Inventory & Warehouses', 'Basic Reports', 'Up to 5 users', 'Email Support'],
-    featuresAr: ['الفوترة الإلكترونية', 'حتى 500 فاتورة/شهر', 'المخزون والمستودعات', 'تقارير أساسية', 'حتى 5 مستخدمين', 'دعم بالبريد'],
+    featuresEn: ['E-Invoicing & Tax', 'Up to 500 invoices/month', 'Inventory & Warehouses', 'Basic Reports', 'Up to 5 users', 'Email Support'],
+    featuresAr: ['الفوترة الإلكترونية والضرائب', 'حتى 500 فاتورة/شهر', 'المخزون والمستودعات', 'تقارير أساسية', 'حتى 5 مستخدمين', 'دعم بالبريد'],
   },
   {
     id: 'professional',
@@ -21,7 +21,7 @@ const fallbackPricingPlans = [
     priceMonthly: 699,
     priceYearly: 6990,
     popular: true,
-    featuresEn: ['Everything in Starter', 'Unlimited Invoices', 'HR & Payroll (GOSI/WPS)', 'Expenses & Finance', 'Projects & Tasks', 'Advanced Reports', 'Up to 25 users', 'Priority Support'],
+    featuresEn: ['Everything in Starter', 'Unlimited Invoices', 'HR & Payroll', 'Expenses & Finance', 'Projects & Tasks', 'Advanced Reports', 'Up to 25 users', 'Priority Support'],
     featuresAr: ['كل ما في البداية', 'فواتير غير محدودة', 'الموارد البشرية والرواتب', 'المصروفات والمالية', 'المشاريع والمهام', 'تقارير متقدمة', 'حتى 25 مستخدم', 'دعم ذو أولوية'],
   },
   {
@@ -49,7 +49,7 @@ export default function MarketingPricing() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800">
-            {isArabic ? 'خطط مرنة للشركات السعودية' : 'Flexible plans for Saudi businesses'}
+            {isArabic ? 'خطط مرنة للشركات النامية' : 'Flexible plans for growing businesses'}
           </div>
           <h1 className="mt-5 text-3xl sm:text-4xl font-extrabold text-slate-950">{isArabic ? 'خطط الأسعار' : 'Pricing Plans'}</h1>
           <p className="mt-3 max-w-2xl mx-auto text-slate-600">

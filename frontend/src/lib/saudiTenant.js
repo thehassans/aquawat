@@ -1,4 +1,6 @@
-// Regional tenant helpers driven by Settings → Default Currency.
+// Regional tenant helpers driven by Settings → Default Currency / country.
+
+import { isGccArabicMarket } from './invoiceLanguage'
 
 export function getTenantCurrency(tenant) {
   return String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -8,9 +10,9 @@ export function isSaudiTenant(tenant) {
   return getTenantCurrency(tenant) === 'SAR'
 }
 
-/** Arabic bilingual form fields (nameAr, legalNameAr, etc.) — SAR tenants only. */
+/** Arabic bilingual form fields — GCC markets only (SAR/AED/QAR/KWD/BHD/OMR). */
 export function showArabicFields(tenant) {
-  return isSaudiTenant(tenant)
+  return isGccArabicMarket(tenant)
 }
 
 export function isBangladeshTenant(tenant) {

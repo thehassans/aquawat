@@ -275,7 +275,7 @@ export default function MarketingContact() {
                   {[
                     isArabic ? '\u0625\u0639\u062F\u0627\u062F \u0633\u0631\u064A\u0639 \u062E\u0644\u0627\u0644 24 \u0633\u0627\u0639\u0629' : 'Fast onboarding within 24 hours',
                     isArabic ? '\u062A\u062F\u0631\u064A\u0628 \u0645\u062C\u0627\u0646\u064A \u0644\u0644\u0641\u0631\u064A\u0642' : 'Free team training included',
-                    isArabic ? '\u0627\u0645\u062A\u062B\u0627\u0644 \u0643\u0627\u0645\u0644 ZATCA' : 'Full ZATCA compliance',
+                    isArabic ? 'امتثال ضريبي حسب الدولة' : 'Country-aware tax compliance',
                     isArabic ? '\u062F\u0639\u0645 \u0628\u0627\u0644\u0639\u0631\u0628\u064A\u0629 \u0648\u0627\u0644\u0625\u0646\u062C\u0644\u064A\u0632\u064A\u0629' : 'Arabic & English support',
                   ].map((item, i) => (
                     <li key={i} className="flex items-start gap-3 text-sm text-slate-300">

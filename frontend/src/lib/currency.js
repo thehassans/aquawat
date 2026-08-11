@@ -4,9 +4,9 @@ export const DEFAULT_CURRENCY = CURRENCY_CODE
 
 export const isSarCurrency = (currency = CURRENCY_CODE) => String(currency || CURRENCY_CODE).trim().toUpperCase() === CURRENCY_CODE
 
-// Comprehensive ISO 4217 currency list surfaced in tenant Settings and the
-// Super Admin panel. GCC/MENA currencies are listed first since this is a
-// Saudi-first ERP, followed by the other major world currencies.
+// Comprehensive ISO 4217 currency list for tenant Settings and Super Admin.
+// GCC currencies are listed first for regional convenience; defaults follow
+// the country chosen at demo signup / tenant settings.
 export const CURRENCIES = [
   { code: 'SAR', nameEn: 'Saudi Riyal', nameAr: 'ريال سعودي', symbol: '﷼' },
   { code: 'AED', nameEn: 'UAE Dirham', nameAr: 'درهم إماراتي', symbol: 'د.إ' },

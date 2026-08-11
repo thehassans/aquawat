@@ -302,7 +302,7 @@ router.post('/demo-signup', async (req, res) => {
       return res.status(503).json({ error: 'Service temporarily unavailable. Please try again in a moment.' })
     }
 
-    const { email, businessType } = req.body
+    const { email, businessType, country, currency, companyName } = req.body
 
     const normalizedEmail = String(email || '').trim().toLowerCase()
     if (!normalizedEmail) {
@@ -318,6 +318,17 @@ router.post('/demo-signup', async (req, res) => {
       return res.status(400).json({ error: 'Valid business type is required' })
     }
     const primaryBusinessType = normalizedBusinessTypes[0]
+
+    const COUNTRY_CURRENCY = {
+      SA: 'SAR', AE: 'AED', QA: 'QAR', KW: 'KWD', BH: 'BHD', OM: 'OMR',
+      BD: 'BDT', PK: 'PKR', IN: 'INR', EG: 'EGP', JO: 'JOD',
+      US: 'USD', GB: 'GBP', TR: 'TRY', MY: 'MYR', SG: 'SGD', OTHER: 'USD',
+    }
+    const GCC = new Set(['SA', 'AE', 'QA', 'KW', 'BH', 'OM'])
+    const countryCode = String(country || 'OTHER').trim().toUpperCase()
+    const resolvedCurrency = String(currency || COUNTRY_CURRENCY[countryCode] || 'USD').trim().toUpperCase()
+    const company = String(companyName || '').trim() || `Demo - ${normalizedEmail}`
+    const isGcc = GCC.has(countryCode) || ['SAR', 'AED', 'QAR', 'KWD', 'BHD', 'OMR'].includes(resolvedCurrency)
 
     const existingDemo = await DemoUser.findOne({ email: normalizedEmail })
     if (existingDemo) {
@@ -335,16 +346,26 @@ router.post('/demo-signup', async (req, res) => {
     const password = `Demo${Date.now().toString(36).slice(-6)}@`
 
     const tenant = await Tenant.create({
-      name: `Demo - ${normalizedEmail}`,
+      name: company,
       slug: slugBase,
       businessType: primaryBusinessType,
       businessTypes: normalizedBusinessTypes,
       business: {
-        legalNameAr: `عرض تجريبي - ${normalizedEmail}`,
-        legalNameEn: `Demo - ${normalizedEmail}`,
+        legalNameEn: company,
+        ...(isGcc ? { legalNameAr: company } : {}),
         vatNumber: `DEMO-${Date.now()}`,
         crNumber: `CR-${Date.now()}`,
         contactEmail: normalizedEmail,
+        address: {
+          country: countryCode === 'OTHER' ? '' : countryCode,
+        },
+      },
+      settings: {
+        currency: resolvedCurrency,
+        invoiceLanguage: 'auto',
+        invoiceBranding: {
+          showVision2030: resolvedCurrency === 'SAR',
+        },
       },
       subscription: {
         plan: 'trial',
@@ -370,8 +391,7 @@ router.post('/demo-signup', async (req, res) => {
       password,
       firstName: 'Demo',
       lastName: 'User',
-      firstNameAr: 'تجريبي',
-      lastNameAr: 'مستخدم',
+      ...(isGcc ? { firstNameAr: 'تجريبي', lastNameAr: 'مستخدم' } : {}),
       tenantId: tenant._id,
       role: 'admin',
       isActive: true,
@@ -382,6 +402,7 @@ router.post('/demo-signup', async (req, res) => {
       tenantId: tenant._id,
       businessType: primaryBusinessType,
       businessTypes: normalizedBusinessTypes,
+      currency: resolvedCurrency,
       trialStartDate,
       trialEndDate,
       isActive: true,
@@ -393,7 +414,7 @@ router.post('/demo-signup', async (req, res) => {
       businessType: primaryBusinessType,
       trialEndDate,
       password,
-      preferredLanguage: 'en',
+      preferredLanguage: isGcc ? 'ar' : 'en',
     })
 
     const token = generateToken(user._id)

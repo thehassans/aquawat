@@ -73,7 +73,7 @@ const PRICING_LABELS = {
 const CATEGORIES = [
   { id: 'all', icon: LayoutGrid, en: 'All Ecosystem', ar: 'كل المنظومة' },
   { id: 'industry_verticals', icon: Store, en: 'Industry Verticals', ar: 'قطاعات الأعمال' },
-  { id: 'saudi_compliance', icon: CheckCircle2, en: 'Saudi Gov & ZATCA', ar: 'الامتثال وزاتكا', currencies: ['SAR'] },
+  { id: 'saudi_compliance', icon: CheckCircle2, en: 'Compliance & Tax', ar: 'الامتثال والضرائب', currencies: ['SAR'] },
   { id: 'bangladesh_compliance', icon: CheckCircle2, en: 'Bangladesh NBR & Tax', ar: 'بنغلاديش NBR والضرائب', currencies: ['BDT'] },
   { id: 'manufacturing', icon: Factory, en: 'Manufacturing & MES', ar: 'التصنيع والإنتاج' },
   { id: 'pos_retail', icon: Zap, en: 'Retail & POS', ar: 'نقاط البيع والمطاعم' },
@@ -452,17 +452,13 @@ export default function AppStore() {
       <section className="pt-8 pb-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-600 dark:text-primary-400 text-xs font-bold uppercase tracking-wider mb-3">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{isAr ? 'منظومة التطبيقات المتكاملة' : 'Enterprise App Ecosystem'}</span>
-            </div>
-            <h1 className="text-3xl sm:text-5xl font-black text-gray-900 dark:text-white tracking-tight leading-tight">
-              {isAr ? 'متجر التطبيقات والوحدات' : 'App Store & Extensions'}
+            <h1 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white tracking-tight leading-tight">
+              {isAr ? 'متجر التطبيقات' : 'App Store'}
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm sm:text-base max-w-2xl font-medium leading-relaxed">
               {isAr
-                ? 'قم بتوسيع إمكانيات منشأتك بضغطة زر واحدة. ثبّت وحدات التصنيع، المقاولات، الامتثال الحكومي السعودي، وأجهزة نقاط البيع.'
-                : 'Instantly empower your enterprise. One-click deploy specialized modules for MES, Contracting, Saudi Gov Compliance, and Smart IoT.'}
+                ? 'ثبّت الوحدات المناسبة لعملك. التوفر يعتمد على دولتك وعملتك.'
+                : 'Install modules for your business. Availability depends on your country and currency.'}
             </p>
             <div className="mt-4 inline-flex rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden text-xs font-bold">
               <button
@@ -640,10 +636,10 @@ export default function AppStore() {
             </div>
             <div>
               <h4 className="text-sm font-black text-gray-900 dark:text-white">
-                {isAr ? 'اعتماد زاتكا 100%' : 'ZATCA Phase 2'}
+                {isAr ? 'وحدات الامتثال' : 'Compliance modules'}
               </h4>
               <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                {isAr ? 'فواتير رقمية مشفرة' : 'Saudi compliant'}
+                {isAr ? 'تطبيقات ضريبية إقليمية' : 'Regional tax apps'}
               </p>
             </div>
           </div>
