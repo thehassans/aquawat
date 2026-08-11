@@ -178,21 +178,28 @@ export default function MarketingHome() {
           {/* ── HEADLINE ── */}
           <motion.h1
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.08 }}
-            className="mx-auto max-w-5xl text-center text-[2.6rem] font-extrabold leading-[1.08] tracking-[-0.03em] text-slate-950 sm:text-5xl lg:text-7xl"
-            style={{ fontVariantLigatures: 'common-ligatures' }}
+            className="mx-auto max-w-5xl text-center text-[2.75rem] font-black leading-[1.06] tracking-[-0.035em] text-slate-950 sm:text-6xl lg:text-[5rem]"
           >
             {isArabic ? (
-              <>كل أعمالك على<br /><span className="relative inline-block">
-                <span className="relative z-10 text-violet-600">منصة واحدة.</span>
-                <span className="absolute inset-x-0 bottom-1 h-[0.22em] rounded-full bg-violet-200/60 z-0" />
-              </span><br />بسيطة، فعّالة، بأسعار مناسبة.</>
+              <>
+                {'كل أعمالك على '}
+                <span className="relative whitespace-nowrap">
+                  <svg aria-hidden className="absolute -bottom-2 left-0 w-full" viewBox="0 0 300 12" preserveAspectRatio="none" fill="none">
+                    <path d="M2 9 Q75 3 150 9 Q225 15 298 9" stroke="#7c3aed" strokeWidth="3.5" strokeLinecap="round"/>
+                  </svg>
+                  <span className="relative">منصة واحدة</span>
+                </span>
+              </>
             ) : (
-              <>All your business on<br />
-                <span className="relative inline-block">
-                  <span className="relative z-10 text-violet-600">one platform.</span>
-                  <span className="absolute inset-x-0 bottom-1 h-[0.22em] rounded-full bg-violet-200/60 z-0" />
-                </span><br />
-                <em className="font-extrabold not-italic text-slate-700">Simple, efficient, yet affordable!</em>
+              <>
+                {'The ERP that '}
+                <span className="relative whitespace-nowrap">
+                  <svg aria-hidden className="absolute -bottom-2 left-0 w-full" viewBox="0 0 300 12" preserveAspectRatio="none" fill="none">
+                    <path d="M2 9 Q75 3 150 9 Q225 15 298 9" stroke="#7c3aed" strokeWidth="3.5" strokeLinecap="round"/>
+                  </svg>
+                  <span className="relative">grows with you</span>
+                </span>
+                {' — not against you.'}
               </>
             )}
           </motion.h1>
@@ -200,18 +207,25 @@ export default function MarketingHome() {
           {/* ── Price hint ── */}
           <motion.div
             initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.25, duration: 0.5 }}
-            className={`mt-5 flex justify-center ${isArabic ? '' : ''}`}
+            className="mt-5 flex justify-center"
           >
-            <div className="relative flex items-center gap-2">
-              <svg viewBox="0 0 48 36" className="h-7 w-7 text-slate-500 -mr-1 mt-1" fill="none">
-                <path d="M4 28 C14 10, 34 10, 44 28" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-                <path d="M40 32 L44 28 L46 34" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-              </svg>
-              <span className="font-handwriting text-base font-bold text-slate-600 italic">
-                {isArabic ? 'من 29.99 دولار / شهرياً لجميع التطبيقات' : 'US$ 29.99 / month for ALL apps'}
+            <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-5 py-2 shadow-sm backdrop-blur-sm">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-sm font-bold text-slate-700">
+                {isArabic ? 'من 29.99 دولار / شهرياً — جميع التطبيقات' : 'From US$ 29.99 / month — all apps included'}
               </span>
             </div>
           </motion.div>
+
+          {/* ── Sub-headline ── */}
+          <motion.p
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, duration: 0.5 }}
+            className="mx-auto mt-5 max-w-2xl text-center text-lg leading-relaxed text-slate-500 sm:text-xl"
+          >
+            {isArabic
+              ? 'فوترة ذكية، موارد بشرية، مخزون، وتقارير — منصة واحدة مُهيَّأة لعملتك ودولتك.'
+              : 'Invoicing, HR, payroll, inventory & analytics — one unified platform tuned to your country and currency.'}
+          </motion.p>
 
           {/* ── CTAs ── */}
           <motion.div
@@ -590,22 +604,26 @@ export default function MarketingHome() {
       {/* ══════════════════════════════════════════════════════
           LIVE TRIAL SIGNUP
       ══════════════════════════════════════════════════════ */}
-      <section id="trial" className="scroll-mt-20 bg-white py-28">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+      <section id="trial" className="scroll-mt-20 overflow-hidden bg-gradient-to-b from-slate-50 to-white py-28">
+        {/* decorative blobs */}
+        <div className="pointer-events-none absolute left-1/4 -translate-x-1/2 h-[500px] w-[500px] rounded-full bg-violet-400/8 blur-[120px]" />
+        <div className="pointer-events-none absolute right-1/4 translate-x-1/2 h-[400px] w-[400px] rounded-full bg-indigo-400/6 blur-[100px]" />
+        <div className="relative mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
           <div className="mb-10 text-center">
-            <span className="mb-4 inline-block text-xs font-bold uppercase tracking-[0.28em] text-violet-500">
-              {isArabic ? 'تجربة مجانية' : 'Live trial'}
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-600">
+              <span className="flex h-1.5 w-1.5 rounded-full bg-violet-500 animate-pulse" />
+              {isArabic ? 'تجربة مجانية مباشرة' : 'Live free trial'}
             </span>
-            <h2 className="text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">
+            <h2 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">
               {isArabic ? 'جرّب Maqder في أقل من دقيقة' : 'Spin up Maqder in under a minute'}
             </h2>
-            <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
+            <p className="mx-auto mt-4 max-w-lg text-lg text-slate-500">
               {isArabic
                 ? 'اختر الدولة واسم الشركة والعملة — ثم ادخل لوحة التحكم مباشرةً.'
                 : 'Choose country, company name, and currency — then land in your live dashboard.'}
             </p>
           </div>
-          <TrialSignup variant="premium" />
+          <TrialSignup variant="light" />
         </div>
       </section>
 

@@ -98,30 +98,35 @@ export default function TrialSignup({ variant = 'light' }) {
     window.location.assign('/app/dashboard')
   }
 
-  const shell = premium
+  // ── theme tokens ─────────────────────────────────────────────────────────
+  // "premium" = dark glass (used inside dark hero sections)
+  // "light"   = crisp white card (used on white/light sections) — DEFAULT
+  const isDark = premium
+
+  const shell = isDark
     ? 'overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_30px_80px_-20px_rgba(0,0,0,0.7)] backdrop-blur-xl'
-    : 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm'
-  const headerCls = premium ? 'border-b border-white/10 px-5 py-4' : 'border-b border-slate-100 px-5 py-4'
-  const titleCls = premium ? 'text-base font-semibold text-white' : 'text-base font-semibold text-slate-900'
-  const subCls = premium ? 'text-xs text-white/50' : 'text-xs text-slate-500'
-  const labelCls = premium ? 'mb-1.5 block text-xs font-medium text-white/60' : 'mb-1.5 block text-xs font-medium text-slate-600'
-  const inputCls = premium
-    ? 'w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/30 focus:border-emerald-400/50'
-    : 'w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-700'
-  const stepTrack = premium ? 'bg-white/15' : 'bg-slate-200'
-  const stepActive = premium ? 'bg-emerald-400' : 'bg-emerald-700'
-  const btnPrimary = premium
-    ? 'inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-[#04140c] disabled:opacity-60'
-    : 'inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60'
-  const btnGhost = premium
-    ? 'rounded-xl border border-white/15 px-4 py-2.5 text-sm font-medium text-white/80'
-    : 'rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700'
-  const chipActive = premium
-    ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200'
-    : 'border-emerald-700 bg-emerald-50 text-emerald-900'
-  const chipIdle = premium
-    ? 'border-white/10 hover:border-white/25 text-white/80'
-    : 'border-slate-200 hover:border-slate-300'
+    : 'overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-[0_8px_48px_-12px_rgba(0,0,0,0.12),0_2px_8px_-2px_rgba(0,0,0,0.06)]'
+  const headerCls = isDark ? 'border-b border-white/10 px-6 py-5' : 'border-b border-slate-100 px-6 py-5'
+  const titleCls = isDark ? 'text-base font-bold text-white' : 'text-base font-bold text-slate-900'
+  const subCls = isDark ? 'text-xs text-white/50' : 'text-xs text-slate-500'
+  const labelCls = isDark ? 'mb-2 block text-xs font-semibold text-white/60 uppercase tracking-wider' : 'mb-2 block text-xs font-semibold text-slate-500 uppercase tracking-wider'
+  const inputCls = isDark
+    ? 'w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/15 transition-all'
+    : 'w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-violet-500 focus:bg-white focus:ring-2 focus:ring-violet-500/10 transition-all'
+  const stepTrack = isDark ? 'bg-white/15' : 'bg-slate-200'
+  const stepActive = isDark ? 'bg-violet-400' : 'bg-violet-600'
+  const btnPrimary = isDark
+    ? 'inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-violet-500 px-5 py-3 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(124,58,237,0.5)] transition-all hover:-translate-y-0.5 hover:bg-violet-600 disabled:opacity-60'
+    : 'inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold text-white shadow-[0_4px_16px_-4px_rgba(124,58,237,0.4)] transition-all hover:-translate-y-0.5 hover:bg-violet-700 disabled:opacity-60'
+  const btnGhost = isDark
+    ? 'rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 transition-all hover:bg-white/5'
+    : 'rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50'
+  const chipActive = isDark
+    ? 'border-violet-400/60 bg-violet-400/15 text-violet-200'
+    : 'border-violet-500 bg-violet-50 text-violet-900 shadow-sm'
+  const chipIdle = isDark
+    ? 'border-white/10 hover:border-white/25 text-white/70'
+    : 'border-slate-200 bg-white text-slate-700 hover:border-violet-300 hover:text-violet-800'
 
   return (
     <div className={premium ? 'mx-auto w-full max-w-2xl' : 'mx-auto max-w-xl'}>
@@ -151,7 +156,7 @@ export default function TrialSignup({ variant = 'light' }) {
           </div>
         </div>
 
-        <form onSubmit={step < 3 ? handleNext : handleSubmit} className="space-y-4 p-5">
+        <form onSubmit={step < 3 ? handleNext : handleSubmit} className="space-y-5 p-6">
           {step === 1 && (
             <>
               <div>
