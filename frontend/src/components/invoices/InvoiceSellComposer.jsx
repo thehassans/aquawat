@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, ScanLine, UploadCloud, Printer, FileText, Receipt } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -14,13 +14,13 @@ import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
+import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms } from '../../lib/invoicePaymentTerms'
 import InvoiceLivePreview from './InvoiceLivePreview'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
 import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
 import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
 import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
-import { ScanLine, UploadCloud } from 'lucide-react'
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
@@ -110,7 +110,14 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   authorizedPersonDesignationAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonDesignationAr || '') : '',
   authorizedPersonSignature: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonSignature || '') : '',
   stampImage: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.stampImage || '') : '',
-  paymentTerms: invoice?.paymentTerms || '',
+  paymentTerms: invoice?.paymentTerms || 'immediate',
+  printFormat: invoice?.printFormat || (['restaurant', 'bakala', 'saloon', 'laundry', 'khayyat'].includes(invoice?.businessContext || defaultBusinessContext) ? 'thermal' : 'a4'),
+  dueDate: (() => {
+    if (invoice?.dueDate) return toDatetimeLocalInput(invoice.dueDate).slice(0, 10)
+    const issue = invoice?.issueDate ? new Date(invoice.issueDate) : new Date()
+    const due = computeDueDateFromPaymentTerms(issue, invoice?.paymentTerms || 'immediate')
+    return due ? due.toISOString().slice(0, 10) : ''
+  })(),
 })
 
 export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = null }) {
@@ -532,6 +539,18 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         }
         return isEdit ? (initialInvoice?.issueDate || new Date()) : new Date()
       })(),
+      dueDate: (() => {
+        const raw = typeof data?.dueDate === 'string' ? data.dueDate.trim() : ''
+        if (raw) {
+          const parsed = new Date(raw)
+          if (!Number.isNaN(parsed.getTime())) return parsed
+        }
+        const issueRaw = typeof data?.issueDate === 'string' ? data.issueDate.trim() : ''
+        const issue = issueRaw ? new Date(issueRaw) : new Date()
+        return computeDueDateFromPaymentTerms(issue, data?.paymentTerms || 'immediate') || undefined
+      })(),
+      printFormat: data?.printFormat === 'thermal' ? 'thermal' : 'a4',
+      paymentTerms: data?.paymentTerms || 'immediate',
       lineItems: (data.lineItems || []).map((line, index) => {
         const summaryLine = totals.lines[index] || {}
         const agencyPrice = Math.max(0, toNumber(line.agencyPrice, 0))
@@ -599,6 +618,17 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       }
       return initialInvoice?.issueDate || new Date()
     })(),
+    dueDate: (() => {
+      const raw = typeof values?.dueDate === 'string' ? values.dueDate.trim() : ''
+      if (raw) {
+        const parsed = new Date(raw)
+        if (!Number.isNaN(parsed.getTime())) return parsed
+      }
+      const issueRaw = typeof values?.issueDate === 'string' ? values.issueDate.trim() : ''
+      const issue = issueRaw ? new Date(issueRaw) : new Date()
+      return computeDueDateFromPaymentTerms(issue, values?.paymentTerms || 'immediate') || undefined
+    })(),
+    printFormat: values?.printFormat === 'thermal' ? 'thermal' : 'a4',
     createdByName: initialInvoice?.createdByName || [user?.firstName, user?.lastName].filter(Boolean).join(' '),
     createdByNameAr: initialInvoice?.createdByNameAr || [user?.firstNameAr, user?.lastNameAr].filter(Boolean).join(' '),
     createdBy: initialInvoice?.createdBy || user,
@@ -641,10 +671,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         </button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isEdit ? (language === 'ar' ? 'تعديل فاتورة البيع' : 'Edit Sell Invoice') : (language === 'ar' ? 'فاتورة بيع جديدة' : 'New Sell Invoice')}</h1>
-          <p className="mt-1 text-gray-500 dark:text-gray-400">{isEdit ? (language === 'ar' ? 'حدّث بيانات الفاتورة وشاهد المعاينة المباشرة قبل الحفظ' : 'Update the invoice details and review the live preview before saving') : (language === 'ar' ? 'اختر النشاط، القالب، وشاهد المعاينة المباشرة قبل الحفظ' : 'Choose the business flow, template, and see a live preview before saving')}</p>
+          <p className="mt-1 text-gray-500 dark:text-gray-400">{isEdit ? (language === 'ar' ? 'حدّث بيانات الفاتورة وشاهد المعاينة المباشرة قبل الحفظ' : 'Update the invoice details and review the live preview before saving') : (language === 'ar' ? 'اختر صيغة الفاتورة وشروط الدفع وشاهد المعاينة قبل الحفظ' : 'Choose invoice format, payment terms, and see a live preview before saving')}</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={() => setIsSmartModalOpen(true)} className="btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/30 border-0">
+          <button type="button" onClick={() => setIsSmartModalOpen(true)} className="btn bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/30 border-0">
             <ScanLine className="w-4 h-4" />
             {language === 'ar' ? 'مسح ذكي (OCR)' : 'Smart OCR'}
           </button>
@@ -707,30 +737,58 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'سياق الفاتورة' : 'Invoice Context'}</h3>
+            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'صيغة الفاتورة' : 'Invoice Format'}</h3>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {tenantBusinessTypes.filter((type) => selectableContexts.includes(type)).map((type) => {
-                const active = businessContext === type
-                const labels = {
-                  trading: language === 'ar' ? 'تجارة' : 'Trading',
-                  construction: language === 'ar' ? 'مقاولات' : 'Construction',
-                  travel_agency: language === 'ar' ? 'سفر' : 'Travel Agency',
-                  restaurant: language === 'ar' ? 'مطعم' : 'Restaurant',
-                  manpower: language === 'ar' ? 'عمالة' : 'Manpower',
-                }
+              {[
+                {
+                  id: 'a4',
+                  Icon: FileText,
+                  titleEn: 'A4 Invoice',
+                  titleAr: 'فاتورة A4',
+                  descEn: 'Full-page PDF for email, print, and ZATCA archives.',
+                  descAr: 'ملف PDF كامل للبريد والطباعة وأرشيف الزكاة.',
+                },
+                {
+                  id: 'thermal',
+                  Icon: Receipt,
+                  titleEn: 'Thermal Invoice',
+                  titleAr: 'فاتورة حرارية',
+                  descEn: '80mm receipt-style print for POS and kitchen counters.',
+                  descAr: 'طباعة إيصال 80 مم لنقاط البيع والمطبخ.',
+                },
+              ].map((fmt) => {
+                const active = (values?.printFormat || 'a4') === fmt.id
+                const Icon = fmt.Icon
                 return (
                   <button
-                    key={type}
+                    key={fmt.id}
                     type="button"
-                    onClick={() => setValue('businessContext', type)}
-                    className={`rounded-2xl border p-4 text-start ${active ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}
+                    onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true })}
+                    className={`flex items-start gap-3 rounded-2xl border-2 p-4 text-start transition ${
+                      active
+                        ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-400 dark:bg-emerald-500/10'
+                        : 'border-gray-200 dark:border-dark-600 hover:border-emerald-300'
+                    }`}
                   >
-                    <p className="font-semibold text-gray-900 dark:text-white">{labels[type]}</p>
+                    <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-dark-700 dark:text-slate-300'}`}>
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span>
+                      <span className="block font-semibold text-gray-900 dark:text-white">{language === 'ar' ? fmt.titleAr : fmt.titleEn}</span>
+                      <span className="mt-1 block text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? fmt.descAr : fmt.descEn}</span>
+                    </span>
                   </button>
                 )
               })}
             </div>
+            <input type="hidden" {...register('printFormat')} />
             <input type="hidden" {...register('businessContext')} />
+            <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <Printer className="h-3.5 w-3.5" />
+              {language === 'ar'
+                ? 'الصيغة تتحكم في شكل الطباعة والمعاينة — نشاط المنشأة يبقى كما هو.'
+                : 'Format controls print layout and preview — your business flow stays the same.'}
+            </p>
           </div>
 
           {(isRestaurantContext || isTravelContext || isManpowerContext) && (
@@ -812,6 +870,47 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </button>
             </div>
             <input type="hidden" {...register('invoiceSubtype')} />
+          </div>
+
+          <div className="card p-6">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'شروط الدفع' : 'Payment Terms'}</h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="label">{language === 'ar' ? 'شرط الدفع' : 'Payment Terms'}</label>
+                <select
+                  {...register('paymentTerms')}
+                  className="select"
+                  onChange={(e) => {
+                    const id = e.target.value
+                    setValue('paymentTerms', id, { shouldDirty: true })
+                    const issueRaw = getValues('issueDate')
+                    const issue = issueRaw ? new Date(issueRaw) : new Date()
+                    const due = computeDueDateFromPaymentTerms(issue, id)
+                    if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+                  }}
+                >
+                  <optgroup label={language === 'ar' ? 'الأكثر استخداماً' : 'Most used'}>
+                    {INVOICE_PAYMENT_TERMS.slice(0, 8).map((term) => (
+                      <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={language === 'ar' ? 'المزيد...' : 'Search more...'}>
+                    {INVOICE_PAYMENT_TERMS.slice(8).map((term) => (
+                      <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'تاريخ الاستحقاق' : 'Due Date'}</label>
+                <input type="date" {...register('dueDate')} className="input" />
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              {language === 'ar'
+                ? 'يتم احتساب تاريخ الاستحقاق تلقائياً من شرط الدفع — ويمكنك تعديله يدوياً.'
+                : 'Due date is calculated from the payment term — you can still edit it manually.'}
+            </p>
           </div>
 
           <input type="hidden" {...register('pdfTemplateId')} />
@@ -1311,16 +1410,22 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
           <div className="card p-4">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'تتحدث المعاينة فوراً مع تغيير القالب والبيانات.' : 'Preview updates instantly as you change the template and form data.'}</p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {values?.printFormat === 'thermal'
+                ? (language === 'ar' ? 'معاينة بصيغة الإيصال الحراري (80 مم) — الطباعة النهائية تتبع هذه الصيغة.' : 'Thermal 80mm receipt layout — final print follows this format.')
+                : (language === 'ar' ? 'معاينة فاتورة A4 — تتحدث فوراً مع تغيير القالب والبيانات.' : 'A4 invoice preview — updates as you change template and form data.')}
+            </p>
           </div>
-          <InvoiceLivePreview
-            invoice={previewInvoice}
-            tenant={tenant}
-            language={language}
-            templateId={selectedTemplateId}
-            bilingual={resolveInvoiceBilingual(tenant, previewInvoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction'].includes(previewInvoice?.businessContext))}
-            secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
-          />
+          <div className={values?.printFormat === 'thermal' ? 'mx-auto w-full max-w-[340px]' : ''}>
+            <InvoiceLivePreview
+              invoice={previewInvoice}
+              tenant={tenant}
+              language={language}
+              templateId={selectedTemplateId}
+              bilingual={resolveInvoiceBilingual(tenant, previewInvoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction'].includes(previewInvoice?.businessContext))}
+              secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
+            />
+          </div>
         </div>
       </div>
     </div>

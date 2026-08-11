@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory } from 'lucide-react'
+import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory, Download } from 'lucide-react'
 import { Fragment } from 'react'
 import { Transition, Popover, Menu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -372,7 +372,7 @@ export default function AppLauncher() {
           </div>
 
           {/* Header Bar */}
-          <header className="relative z-10 shrink-0 border-b border-slate-200/70 bg-white/75 backdrop-blur-2xl dark:border-white/[0.06] dark:bg-[#12161d]/80">
+          <header className="relative z-[120] isolate shrink-0 border-b border-slate-200/70 bg-white/75 backdrop-blur-2xl dark:border-white/[0.06] dark:bg-[#12161d]/80">
             <div className="mx-auto flex h-[4.5rem] max-w-[90rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
               <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                 <button
@@ -465,7 +465,7 @@ export default function AppLauncher() {
                       leaveFrom="transform opacity-100 scale-100"
                       leaveTo="transform opacity-0 scale-95"
                     >
-                      <Popover.Panel className="absolute end-0 z-50 mt-2 w-80 origin-top-right overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-[#161b24] dark:ring-white/10">
+                      <Popover.Panel className="absolute end-0 z-[200] mt-2 w-80 origin-top-right overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-[#161b24] dark:ring-white/10">
                         <div className="flex items-center justify-between border-b border-slate-100 p-3 dark:border-white/10">
                           <h3 className="font-semibold text-slate-900 dark:text-white">
                             {language === 'ar' ? 'الإشعارات' : 'Notifications'}
@@ -558,7 +558,7 @@ export default function AppLauncher() {
                     leaveFrom="transform opacity-100 scale-100"
                     leaveTo="transform opacity-0 scale-95"
                   >
-                    <Menu.Items className="absolute end-0 z-50 mt-2 w-[300px] origin-top-right overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white shadow-[0_28px_60px_-28px_rgba(15,23,42,0.45)] ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-[#161b24] dark:ring-white/10">
+                    <Menu.Items className="absolute end-0 z-[200] mt-2 w-[300px] origin-top-right overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white shadow-[0_28px_60px_-28px_rgba(15,23,42,0.45)] ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-[#161b24] dark:ring-white/10">
                       <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-br from-emerald-50 via-white to-teal-50/40 px-4 pb-4 pt-4 dark:border-white/10 dark:from-emerald-500/10 dark:via-[#161b24] dark:to-teal-500/5">
                         <div className="flex items-center gap-3">
                           {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
@@ -639,6 +639,29 @@ export default function AppLauncher() {
                                 dispatch(setHideSidebar(true))
                                 dispatch(setMobileMenuOpen(false))
                                 dispatch(setAppLauncherOpen(false))
+                                navigate('/app/dashboard/app-store')
+                              }}
+                              className={`${
+                                active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'
+                              } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
+                            >
+                              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+                                <Download className="h-4 w-4" />
+                              </span>
+                              <span>{language === 'ar' ? 'تثبيت التطبيقات' : 'Install Application'}</span>
+                            </button>
+                          )}
+                        </Menu.Item>
+
+                        <Menu.Item>
+                          {({ active }) => (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+                                dispatch(setHideSidebar(true))
+                                dispatch(setMobileMenuOpen(false))
+                                dispatch(setAppLauncherOpen(false))
                                 navigate('/app/dashboard/settings')
                               }}
                               className={`${
@@ -684,7 +707,7 @@ export default function AppLauncher() {
           </header>
 
           {/* Mobile Search */}
-          <div className="relative z-10 shrink-0 px-4 pt-4 sm:hidden">
+          <div className="relative z-30 shrink-0 px-4 pt-4 sm:hidden">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
@@ -699,7 +722,7 @@ export default function AppLauncher() {
           </div>
 
           {/* Apps Grid */}
-          <div className="relative z-10 flex-1 overflow-y-auto px-4 pb-14 pt-8 sm:px-10 lg:px-12">
+          <div className="relative z-0 isolate flex-1 overflow-y-auto px-4 pb-14 pt-8 sm:px-10 lg:px-12">
             <div className="mx-auto mb-8 max-w-7xl">
               <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-600/80 dark:text-emerald-400/80">
                 {language === 'ar' ? 'مساحة العمل' : 'Workspace'}
@@ -733,7 +756,7 @@ export default function AppLauncher() {
                       <App3DIcon
                         path={targetPath || ''}
                         label={app.label || ''}
-                        className="relative z-10 h-12 w-12 drop-shadow-[0_2px_6px_rgba(15,23,42,0.12)] transition-transform duration-300 group-hover:scale-105 sm:h-[3.35rem] sm:w-[3.35rem]"
+                        className="relative h-12 w-12 drop-shadow-[0_2px_6px_rgba(15,23,42,0.12)] transition-transform duration-300 group-hover:scale-105 sm:h-[3.35rem] sm:w-[3.35rem]"
                       />
                       {navigatingTo === targetPath && (
                         <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[22%] bg-white/70 backdrop-blur-sm dark:bg-black/45">

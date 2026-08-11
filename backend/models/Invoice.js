@@ -179,6 +179,7 @@ const invoiceSchema = new mongoose.Schema({
   supplyDate: { type: Date },
   supplyDateHijri: { type: String },
   dueDate: { type: Date },
+  printFormat: { type: String, enum: ['a4', 'thermal'], default: 'a4' },
   
   // Parties
   seller: partySchema,

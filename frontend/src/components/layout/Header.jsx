@@ -1,5 +1,5 @@
 import { useSelector, useDispatch } from 'react-redux'
-import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown, LayoutGrid, PanelLeft, LayoutList, User, Settings as SettingsIcon, Building2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory } from 'lucide-react'
+import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown, LayoutGrid, PanelLeft, LayoutList, User, Settings as SettingsIcon, Building2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory, Download } from 'lucide-react'
 import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
 import { Transition, Popover, Menu as HeadlessMenu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -353,7 +353,7 @@ export default function Header() {
               leaveFrom="transform opacity-100 scale-100"
               leaveTo="transform opacity-0 scale-95"
             >
-              <HeadlessMenu.Items className="absolute end-0 z-50 mt-2 w-[300px] origin-top-right overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white shadow-[0_28px_60px_-28px_rgba(15,23,42,0.45)] ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-dark-800 dark:ring-white/10">
+              <HeadlessMenu.Items className="absolute end-0 z-[200] mt-2 w-[300px] origin-top-right overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white shadow-[0_28px_60px_-28px_rgba(15,23,42,0.45)] ring-1 ring-black/5 focus:outline-none dark:border-white/10 dark:bg-dark-800 dark:ring-white/10">
                 <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-br from-emerald-50 via-white to-teal-50/40 px-4 pb-4 pt-4 dark:border-dark-700 dark:from-emerald-500/10 dark:via-dark-800 dark:to-teal-500/5">
                   <div className="flex items-center gap-3">
                     {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
@@ -408,6 +408,22 @@ export default function Header() {
                           <Building2 className="h-4 w-4" />
                         </span>
                         <span>{language === 'ar' ? 'الملف التعريفي والمنشأة' : 'My Profile & Company'}</span>
+                      </button>
+                    )}
+                  </HeadlessMenu.Item>
+
+                  <HeadlessMenu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={() => navigate('/app/dashboard/app-store')}
+                        className={`${
+                          active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300' : 'text-gray-700 dark:text-gray-300'
+                        } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
+                          <Download className="h-4 w-4" />
+                        </span>
+                        <span>{language === 'ar' ? 'تثبيت التطبيقات' : 'Install Application'}</span>
                       </button>
                     )}
                   </HeadlessMenu.Item>
