@@ -5,7 +5,13 @@ const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
 const getEncryptionKey = () => {
-  const rawKey = process.env.ZATCA_KEY_ENCRYPTION_KEY || process.env.JWT_SECRET || 'maqder-dev-key-change-in-production';
+  const rawKey = process.env.ZATCA_KEY_ENCRYPTION_KEY || process.env.JWT_SECRET;
+  if (!rawKey) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('ZATCA_KEY_ENCRYPTION_KEY or JWT_SECRET must be set in production');
+    }
+    return crypto.createHash('sha256').update('maqder-dev-key-change-in-production').digest();
+  }
   return crypto.createHash('sha256').update(rawKey).digest();
 };
 

@@ -16,6 +16,12 @@ import {
   toUsdMajor,
   usdToSarMajor,
 } from '../utils/checkoutCurrency.js'
+import {
+  getRawBody,
+  verifyMoyasarWebhook,
+  verifyTabbyWebhook,
+  verifyTamaraWebhook,
+} from '../utils/webhookAuth.js'
 
 const router = express.Router()
 
@@ -405,9 +411,20 @@ router.post('/create-payment', protect, async (req, res) => {
 
 // @route   POST /api/payments/invoice-webhook
 // @desc    Moyasar invoice webhook — invoked with the invoice object when paid
-// @access  Public
+// @access  Public (signature required when payments enabled)
 router.post('/invoice-webhook', async (req, res) => {
   try {
+    const config = await getMoyasarConfig()
+    if (!config.enabled) {
+      return res.status(503).json({ error: 'Payments disabled' })
+    }
+    if (!config.webhookSecret) {
+      return res.status(503).json({ error: 'Moyasar webhook secret not configured' })
+    }
+    if (!verifyMoyasarWebhook(req, config.webhookSecret)) {
+      return res.status(401).json({ error: 'Invalid Moyasar signature' })
+    }
+
     const invoice = req.body
 
     if (invoice?.status === 'paid') {
@@ -432,9 +449,20 @@ router.post('/invoice-webhook', async (req, res) => {
 
 // @route   POST /api/payments/tabby-webhook
 // @desc    Tabby webhook handler for payment status updates
-// @access  Public
+// @access  Public (Authorization / signature required)
 router.post('/tabby-webhook', async (req, res) => {
   try {
+    const config = await getTabbyConfig()
+    if (!config.enabled) {
+      return res.status(503).json({ error: 'Tabby payments disabled' })
+    }
+    if (!config.secretKey) {
+      return res.status(503).json({ error: 'Tabby secret not configured' })
+    }
+    if (!verifyTabbyWebhook(req, config.secretKey)) {
+      return res.status(401).json({ error: 'Invalid Tabby signature' })
+    }
+
     const body = req.body
 
     // Tabby sends events with type and data
@@ -465,9 +493,20 @@ router.post('/tabby-webhook', async (req, res) => {
 
 // @route   POST /api/payments/tamara-webhook
 // @desc    Tamara webhook handler for payment status updates
-// @access  Public
+// @access  Public (notification token required)
 router.post('/tamara-webhook', async (req, res) => {
   try {
+    const config = await getTamaraConfig()
+    if (!config.enabled) {
+      return res.status(503).json({ error: 'Tamara payments disabled' })
+    }
+    if (!config.notificationToken) {
+      return res.status(503).json({ error: 'Tamara notification token not configured' })
+    }
+    if (!verifyTamaraWebhook(req, config.notificationToken)) {
+      return res.status(401).json({ error: 'Invalid Tamara signature' })
+    }
+
     const body = req.body
 
     const eventType = body?.event_type || body?.type
@@ -589,12 +628,18 @@ router.get('/callback', async (req, res) => {
 
 // @route   POST /api/payments/webhook
 // @desc    Moyasar webhook handler
-// @access  Public (verified by webhook secret)
+// @access  Public (verified by webhook secret — fail closed)
 router.post('/webhook', async (req, res) => {
   try {
     const config = await getMoyasarConfig()
     if (!config.enabled) {
-      return res.status(200).json({ received: true, reason: 'payments_disabled' })
+      return res.status(503).json({ error: 'Payments disabled' })
+    }
+    if (!config.webhookSecret) {
+      return res.status(503).json({ error: 'Moyasar webhook secret not configured' })
+    }
+    if (!verifyMoyasarWebhook(req, config.webhookSecret)) {
+      return res.status(401).json({ error: 'Invalid Moyasar signature' })
     }
 
     const body = req.body
@@ -604,52 +649,16 @@ router.post('/webhook', async (req, res) => {
       const paymentStatus = payment?.status
 
       if (paymentStatus === 'paid') {
-        const tenantId = payment?.metadata?.tenantId
-        const demoEmail = payment?.metadata?.demoEmail
-        const plan = payment?.metadata?.plan || 'professional'
-        const billingCycle = payment?.metadata?.billingCycle || 'monthly'
-
-        if (tenantId) {
-          const now = new Date()
-          const endDate = new Date(now.getTime() + (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000)
-
-          await Tenant.findByIdAndUpdate(tenantId, {
-            isDemo: false,
-            demoUpgraded: true,
-            'subscription.plan': plan,
-            'subscription.status': 'active',
-            'subscription.startDate': now,
-            'subscription.endDate': endDate,
-            'subscription.billingCycle': billingCycle,
-            'subscription.price': Number(payment.amount) / 100,
-          })
-
-          if (demoEmail) {
-            await DemoUser.findOneAndUpdate(
-              { email: demoEmail },
-              {
-                isUpgraded: true,
-                upgradedAt: now,
-                paymentId: payment.id,
-                amount: Number(payment.amount) / 100,
-                currency: payment.currency,
-                plan,
-                billingCycle,
-              }
-            )
-          }
-
-          // Send upgrade welcome email
-          const upgradedTenant = await Tenant.findById(tenantId).lean()
-          sendUpgradeWelcomeEmail({
-            email: demoEmail || upgradedTenant?.demoEmail || '',
-            tenant: upgradedTenant,
-            plan,
-            billingCycle,
-            amount: Number(payment.amount) / 100,
-            currency: payment.currency,
-          }).catch(() => {})
-        }
+        await applyTenantUpgrade({
+          tenantId: payment?.metadata?.tenantId,
+          demoEmail: payment?.metadata?.demoEmail,
+          plan: payment?.metadata?.plan || 'professional',
+          billingCycle: payment?.metadata?.billingCycle || 'monthly',
+          amountHalalas: payment.amount,
+          currency: payment.currency,
+          paymentId: payment.id,
+          zatcaPhase2: payment?.metadata?.zatcaPhase2,
+        })
       }
     }
 
@@ -707,6 +716,12 @@ router.get('/invoice/:id', protect, async (req, res) => {
 // @access  Private
 router.get('/tenant-status/:tenantId', protect, async (req, res) => {
   try {
+    const isOwnTenant = String(req.user.tenantId) === String(req.params.tenantId)
+    const isSuperAdmin = req.user.role === 'super_admin'
+    if (!isOwnTenant && !isSuperAdmin) {
+      return res.status(403).json({ error: 'Not authorized to view this tenant status' })
+    }
+
     const tenant = await Tenant.findById(req.params.tenantId).select('isDemo demoUpgraded subscription').lean()
     if (!tenant) {
       return res.status(404).json({ error: 'Tenant not found' })
@@ -771,17 +786,22 @@ router.get('/stripe-session/:id', protect, async (req, res) => {
 export async function stripeWebhookHandler(req, res) {
   try {
     const config = await getStripeConfig()
-    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}))
+    if (!config.enabled) {
+      return res.status(503).json({ error: 'Stripe payments disabled' })
+    }
+    if (!config.webhookSecret) {
+      return res.status(503).json({ error: 'Stripe webhook secret not configured' })
+    }
 
-    if (config.webhookSecret) {
-      const ok = verifyStripeWebhookSignature({
-        headers: req.headers,
-        rawBody,
-        webhookSecret: config.webhookSecret,
-      })
-      if (!ok) {
-        return res.status(400).json({ error: 'Invalid Stripe signature' })
-      }
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : (typeof req.body === 'string' ? req.body : getRawBody(req))
+
+    const ok = verifyStripeWebhookSignature({
+      headers: req.headers,
+      rawBody,
+      webhookSecret: config.webhookSecret,
+    })
+    if (!ok) {
+      return res.status(400).json({ error: 'Invalid Stripe signature' })
     }
 
     const event = typeof req.body === 'object' && !Buffer.isBuffer(req.body)

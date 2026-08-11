@@ -1,11 +1,14 @@
 import express from 'express';
-import { checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import Voucher from '../models/Voucher.js';
 import Customer from '../models/Customer.js';
 import Supplier from '../models/Supplier.js';
 
 const router = express.Router();
+
+router.use(protect);
+router.use(tenantFilter);
 
 // Get all vouchers
 router.get('/', checkPermission('finance', 'read'), async (req, res) => {
@@ -21,7 +24,9 @@ router.get('/', checkPermission('finance', 'read'), async (req, res) => {
       if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    const vouchers = await Voucher.find(query).sort({ date: -1, createdAt: -1 });
+    const vouchers = await Voucher.find(query)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(Math.min(parseInt(req.query.limit) || 100, 200));
     res.json(vouchers);
   } catch (error) {
     res.status(500).json({ error: error.message });

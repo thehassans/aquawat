@@ -534,14 +534,37 @@ router.post('/tenant/:id/order', async (req, res) => {
       return res.status(400).json({ error: 'Customer name and phone number are required.' })
     }
 
-    // Calculate line items subtotal & tax
+    const menuIds = [...new Set(
+      lineItems
+        .map((item) => item.menuItemId)
+        .filter(Boolean)
+        .map((id) => String(id))
+    )]
+
+    if (menuIds.length !== lineItems.length) {
+      return res.status(400).json({ error: 'Every line item must reference a valid menuItemId.' })
+    }
+
+    const menuDocs = await RestaurantMenuItem.find({
+      _id: { $in: menuIds },
+      tenantId: tenant._id,
+      isActive: true,
+    }).select('nameEn nameAr sellingPrice taxRate').lean()
+
+    const menuById = new Map(menuDocs.map((doc) => [String(doc._id), doc]))
+    if (menuById.size !== menuIds.length) {
+      return res.status(400).json({ error: 'One or more menu items are invalid or unavailable.' })
+    }
+
+    // Re-price from menu DB — never trust client unitPrice/taxRate
     let subtotal = 0
     let totalTax = 0
 
     const processedLineItems = lineItems.map((item) => {
-      const qty = Math.max(1, parseInt(item.quantity) || 1)
-      const price = Math.max(0, parseFloat(item.unitPrice) || 0)
-      const taxRate = parseFloat(item.taxRate) || 15
+      const menu = menuById.get(String(item.menuItemId))
+      const qty = Math.max(1, parseInt(item.quantity, 10) || 1)
+      const price = Math.max(0, Number(menu.sellingPrice) || 0)
+      const taxRate = Number.isFinite(Number(menu.taxRate)) ? Number(menu.taxRate) : 15
       const itemSubtotal = Math.round(qty * price * 100) / 100
       const itemTax = Math.round((itemSubtotal * (taxRate / 100)) * 100) / 100
       const itemTotal = Math.round((itemSubtotal + itemTax) * 100) / 100
@@ -550,9 +573,9 @@ router.post('/tenant/:id/order', async (req, res) => {
       totalTax += itemTax
 
       return {
-        menuItemId: item.menuItemId || null,
-        name: item.nameEn || item.name || 'Item',
-        nameAr: item.nameAr || item.name || 'عنصر',
+        menuItemId: menu._id,
+        name: menu.nameEn || item.nameEn || item.name || 'Item',
+        nameAr: menu.nameAr || item.nameAr || item.name || 'عنصر',
         quantity: qty,
         unitPrice: price,
         taxRate,
@@ -639,7 +662,8 @@ router.get('/track/khayyat/:id', async (req, res) => {
   try {
     const order = await withQueryTimeout(
       KhayyatStitching.findById(req.params.id)
-        .populate('tenantId', 'name business branding')
+        .select('orderNumber receiptNumber status customerName customerPhone dueDate completedDate deliveredDate description quantity price paidAmount tenantId')
+        .populate('tenantId', 'name business.phone branding.logo')
         .lean()
     )
 
@@ -647,7 +671,34 @@ router.get('/track/khayyat/:id', async (req, res) => {
       return res.status(404).json({ error: 'Order not found' })
     }
 
-    res.json(order)
+    const rawName = String(order.customerName || '').trim()
+    const customerName = rawName ? rawName.split(/\s+/)[0] : ''
+    const phone = String(order.customerPhone || '').trim()
+    const customerPhone = phone.length > 4
+      ? `${'*'.repeat(Math.max(0, phone.length - 4))}${phone.slice(-4)}`
+      : phone ? '****' : ''
+
+    res.json({
+      orderNumber: order.orderNumber || order.receiptNumber || null,
+      receiptNumber: order.receiptNumber || null,
+      status: order.status,
+      customerName,
+      customerPhone,
+      dueDate: order.dueDate || null,
+      completedDate: order.completedDate || null,
+      deliveredDate: order.deliveredDate || null,
+      description: order.description || '',
+      quantity: order.quantity || 1,
+      price: order.price || 0,
+      paidAmount: order.paidAmount || 0,
+      tenantId: order.tenantId
+        ? {
+            name: order.tenantId.name || '',
+            branding: order.tenantId.branding ? { logo: order.tenantId.branding.logo || null } : undefined,
+            business: order.tenantId.business ? { phone: order.tenantId.business.phone || '' } : undefined,
+          }
+        : null,
+    })
   } catch (error) {
     sendRouteError(res, error)
   }

@@ -40,7 +40,7 @@ import { cacheAside } from '../lib/redis.js';
 // cached for a short window per-tenant (cache-aside via Redis, gracefully
 // falling back to a live computation when Redis is unavailable) to absorb
 // repeated navigation/refresh hits without serving meaningfully stale data.
-const DASHBOARD_CACHE_TTL_SECONDS = 20;
+const DASHBOARD_CACHE_TTL_SECONDS = 60;
 
 const router = express.Router();
 
@@ -87,6 +87,8 @@ async function buildDashboardPayload(req) {
     topProductsSince.setMonth(topProductsSince.getMonth() - 6);
 
     const tenantInstalled = req.tenant?.settings?.installedApps || {};
+    const hasBiz = (...types) => types.some((type) => businessTypes.includes(type));
+    const skipAgg = Promise.resolve([]);
 
     const [
       invoiceStats,
@@ -296,7 +298,7 @@ async function buildDashboardPayload(req) {
       ]),
 
       // 10. Travel Agency
-      safeAggregate(TravelBooking, [
+      hasBiz('travel_agency') ? safeAggregate(TravelBooking, [
         { $match: { ...req.tenantFilter, isActive: true } },
         {
           $facet: {
@@ -327,10 +329,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 11. Restaurant
-      safeAggregate(RestaurantOrder, [
+      hasBiz('restaurant') ? safeAggregate(RestaurantOrder, [
         { $match: { ...req.tenantFilter, isActive: true } },
         {
           $facet: {
@@ -358,10 +360,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 12. Car Rental
-      safeAggregate(RentalContract, [
+      hasBiz('car_rental') ? safeAggregate(RentalContract, [
         { $match: { ...req.tenantFilter } },
         {
           $facet: {
@@ -383,10 +385,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 13. Laundry
-      safeAggregate(LaundryOrder, [
+      hasBiz('laundry') ? safeAggregate(LaundryOrder, [
         { $match: { ...req.tenantFilter } },
         {
           $facet: {
@@ -409,10 +411,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 14. Saloon & Barber
-      safeAggregate(SaloonOrder, [
+      hasBiz('saloon') ? safeAggregate(SaloonOrder, [
         { $match: { ...req.tenantFilter } },
         {
           $facet: {
@@ -433,10 +435,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 15. Tailor & Khayyat
-      safeAggregate(KhayyatStitching, [
+      hasBiz('khayyat') ? safeAggregate(KhayyatStitching, [
         { $match: { ...req.tenantFilter } },
         {
           $facet: {
@@ -458,10 +460,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 16. Manpower & Labor Supply
-      safeAggregate(ManpowerWorker, [
+      hasBiz('manpower') ? safeAggregate(ManpowerWorker, [
         { $match: { ...req.tenantFilter, isActive: true } },
         {
           $facet: {
@@ -477,10 +479,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 17. Bakala & Supermarket
-      safeAggregate(BakalaProduct, [
+      hasBiz('bakala') ? safeAggregate(BakalaProduct, [
         { $match: { ...req.tenantFilter, isActive: true } },
         {
           $facet: {
@@ -496,10 +498,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 18. Manufacturing & MES
-      safeAggregate(ManufacturingWorkOrder, [
+      hasBiz('manufacturing') ? safeAggregate(ManufacturingWorkOrder, [
         { $match: { ...req.tenantFilter } },
         {
           $facet: {
@@ -520,10 +522,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 19. Boutique & Dress Rental
-      safeAggregate(BoutiqueRental, [
+      hasBiz('boutique') ? safeAggregate(BoutiqueRental, [
         { $match: { ...req.tenantFilter } },
         {
           $facet: {
@@ -539,10 +541,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 20. Car Workshop & Garage
-      safeAggregate(WorkshopJobCard, [
+      hasBiz('car_workshop') ? safeAggregate(WorkshopJobCard, [
         { $match: { ...req.tenantFilter } },
         {
           $facet: {
@@ -564,10 +566,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 21. Bookstore & Stationery
-      safeAggregate(BookStoreProduct, [
+      hasBiz('bookstore') ? safeAggregate(BookStoreProduct, [
         { $match: { ...req.tenantFilter, isActive: true } },
         {
           $facet: {
@@ -582,10 +584,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 22. E-Commerce Store
-      safeAggregate(EcommerceOrder, [
+      hasBiz('ecommerce') ? safeAggregate(EcommerceOrder, [
         { $match: { ...req.tenantFilter } },
         {
           $facet: {
@@ -609,10 +611,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 23. Furniture Showroom
-      safeAggregate(FurnitureOrder, [
+      hasBiz('furniture_shop') ? safeAggregate(FurnitureOrder, [
         { $match: { ...req.tenantFilter } },
         {
           $facet: {
@@ -629,10 +631,10 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ]),
+      ]) : skipAgg,
 
       // 24. Construction & Contracting Projects
-      safeAggregate(Project, [
+      hasBiz('construction') ? safeAggregate(Project, [
         { $match: { ...req.tenantFilter } },
         {
           $facet: {
@@ -655,7 +657,7 @@ async function buildDashboardPayload(req) {
             ]
           }
         }
-      ])
+      ]) : skipAgg
     ]);
 
     // Build Active Installed Apps Catalog List

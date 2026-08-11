@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
-import { Users, Plus, CreditCard, Clock, FileText, ChevronRight, RefreshCw, X, Receipt, Trash2 } from 'lucide-react';
+import { Users, Plus, CreditCard, Clock, FileText, ChevronRight, RefreshCw, X, Receipt, Trash2, ArrowLeft } from 'lucide-react';
 
 export default function Khata() {
   const [accounts, setAccounts] = useState([]);
@@ -141,7 +141,7 @@ export default function Khata() {
     <div className="flex h-[calc(100vh-8rem)] bg-[#FAFAFA] rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 overflow-hidden">
       
       {/* LEFT PANEL: Accounts List */}
-      <div className="w-[320px] lg:w-[380px] border-r border-gray-100/80 flex flex-col bg-white z-10 shadow-[4px_0_24px_rgb(0,0,0,0.02)]">
+      <div className={`${selectedAccount ? 'hidden md:flex' : 'flex'} w-full md:w-[320px] lg:w-[380px] border-r border-gray-100/80 flex-col bg-white z-10 shadow-[4px_0_24px_rgb(0,0,0,0.02)]`}>
         <div className="px-6 py-8 border-b border-gray-100/50 flex justify-between items-center bg-white">
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-gray-900 mb-1">Daftar</h2>
@@ -204,29 +204,37 @@ export default function Khata() {
       </div>
 
       {/* RIGHT PANEL: Account Details & Ledger */}
-      <div className="flex-1 flex flex-col bg-[#FAFAFA] relative">
+      <div className={`${selectedAccount ? 'flex' : 'hidden md:flex'} flex-1 flex-col bg-[#FAFAFA] relative`}>
         {selectedAccount ? (
           <>
             {/* Header */}
-            <div className="px-10 py-8 border-b border-gray-100/80 bg-white/50 backdrop-blur-xl sticky top-0 z-10 flex justify-between items-center">
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-xl font-bold text-gray-700 shadow-inner">
+            <div className="px-4 sm:px-10 py-6 sm:py-8 border-b border-gray-100/80 bg-white/50 backdrop-blur-xl sticky top-0 z-10 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <div className="flex items-center gap-3 sm:gap-5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAccount(null)}
+                  className="md:hidden p-2 -ml-1 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors"
+                  aria-label="Back to accounts"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-xl font-bold text-gray-700 shadow-inner">
                   {selectedAccount.customerId?.name?.charAt(0)?.toUpperCase()}
                 </div>
                 <div>
-                  <h2 className="text-3xl font-bold tracking-tight text-gray-900 mb-1">{selectedAccount.customerId?.name}</h2>
+                  <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-1">{selectedAccount.customerId?.name}</h2>
                   <p className="text-sm font-medium text-gray-400 tracking-wide">{selectedAccount.customerId?.phone || 'No phone number'}</p>
                 </div>
               </div>
               
-              <div className="flex items-center gap-8">
+              <div className="flex items-center gap-4 sm:gap-8 flex-wrap">
                 <div className="text-right">
                   <p className="text-xs uppercase tracking-widest font-bold text-gray-400 mb-1">Outstanding Balance</p>
-                  <p className={`text-4xl font-black tracking-tighter ${selectedAccount.balance > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                  <p className={`text-2xl sm:text-4xl font-black tracking-tighter ${selectedAccount.balance > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                     SAR {Math.abs(selectedAccount.balance).toFixed(2)}
                   </p>
                 </div>
-                <div className="w-px h-12 bg-gray-200"></div>
+                <div className="hidden sm:block w-px h-12 bg-gray-200"></div>
                 <button 
                   onClick={() => setShowDeleteModal(true)}
                   className="group relative w-12 h-12 bg-red-50 text-red-500 rounded-full font-bold hover:bg-red-100 hover:text-red-600 transition-all flex items-center justify-center shadow-sm"
@@ -246,7 +254,7 @@ export default function Khata() {
             </div>
 
             {/* Ledger */}
-            <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-10 custom-scrollbar">
               <div className="max-w-4xl mx-auto">
                 <div className="flex items-center gap-3 mb-8">
                   <div className="h-px bg-gray-200 flex-1"></div>

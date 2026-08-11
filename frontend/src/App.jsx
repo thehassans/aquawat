@@ -11,17 +11,19 @@ import { initSocket, disconnectSocket } from './lib/socket'
 
 import MainLayout from './layouts/MainLayout'
 import AuthLayout from './layouts/AuthLayout'
-import Dashboard from './pages/Dashboard'
-import Invoices from './pages/invoices/Invoices'
-import InvoiceCreate from './pages/invoices/InvoiceCreate'
-import InvoiceCreateSellPage from './pages/invoices/InvoiceCreateSellPage'
-import InvoiceCreatePurchasePage from './pages/invoices/InvoiceCreatePurchasePage'
-import InvoiceEditPage from './pages/invoices/InvoiceEditPage'
-import InvoiceView from './pages/invoices/InvoiceView'
-import Quotations from './pages/quotations/Quotations'
-import QuotationCreatePage from './pages/quotations/QuotationCreatePage'
-import QuotationEditPage from './pages/quotations/QuotationEditPage'
-import QuotationView from './pages/quotations/QuotationView'
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+
+// Lazy-load invoice/quotation modules (previously eager — large PDF/composer chunks)
+const Invoices = lazy(() => import('./pages/invoices/Invoices'))
+const InvoiceCreate = lazy(() => import('./pages/invoices/InvoiceCreate'))
+const InvoiceCreateSell = lazy(() => import('./pages/invoices/InvoiceCreateSellPage'))
+const InvoiceCreatePurchase = lazy(() => import('./pages/invoices/InvoiceCreatePurchasePage'))
+const InvoiceEditPage = lazy(() => import('./pages/invoices/InvoiceEditPage'))
+const InvoiceView = lazy(() => import('./pages/invoices/InvoiceView'))
+const Quotations = lazy(() => import('./pages/quotations/Quotations'))
+const QuotationCreatePage = lazy(() => import('./pages/quotations/QuotationCreatePage'))
+const QuotationEditPage = lazy(() => import('./pages/quotations/QuotationEditPage'))
+const QuotationView = lazy(() => import('./pages/quotations/QuotationView'))
 
 // Lazy-load other layouts for code-splitting
 const SuperAdminLayout = lazy(() => import('./layouts/SuperAdminLayout'))
@@ -60,8 +62,6 @@ const KhayyatQuickInvoice = lazy(() => import('./pages/khayyat/QuickInvoice'))
 const KhayyatCompleteOrder = lazy(() => import('./pages/khayyat/CompleteOrder'))
 const KhayyatMeasurements = lazy(() => import('./pages/khayyat/KhayyatMeasurements'))
 const KhayyatCustomizations = lazy(() => import('./pages/khayyat/KhayyatCustomizations'))
-const InvoiceCreateSell = InvoiceCreateSellPage
-const InvoiceCreatePurchase = InvoiceCreatePurchasePage
 const Employees = lazy(() => import('./pages/hr/Employees'))
 const EmployeeForm = lazy(() => import('./pages/hr/EmployeeForm'))
 const Payroll = lazy(() => import('./pages/hr/Payroll'))

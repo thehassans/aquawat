@@ -189,6 +189,108 @@ const serializeEmailSettings = (email) => ({
   brevoApiKeyMasked: maskSecret(email?.brevoApiKey)
 });
 
+/** Mask secrets on the full SystemSettings dump (GET /system-settings). */
+const serializeSystemSettings = (settings) => {
+  const raw = settings?.toObject?.() || settings || {};
+  const ai = (block) => ({
+    ...(block || {}),
+    apiKey: '',
+    hasApiKey: !!block?.apiKey,
+    apiKeyMasked: maskApiKey(block?.apiKey),
+  });
+  const payment = raw.payment || {};
+  const moyasar = payment.moyasar || {};
+  const stcPay = payment.stcPay || {};
+  const tabby = payment.tabby || {};
+  const tamara = payment.tamara || {};
+  const stripe = payment.stripe || {};
+  const sms = raw.sms || {};
+  const analytics = raw.analytics || {};
+  const tenantMonitoring = raw.tenantMonitoring || {};
+  const website = raw.website || {};
+  const demo = website.demo || {};
+
+  return {
+    ...raw,
+    gemini: ai(raw.gemini),
+    openai: ai(raw.openai),
+    grok: ai(raw.grok),
+    groq: ai(raw.groq),
+    glmOcr: ai(raw.glmOcr),
+    identity: serializeIdentitySettings(raw.identity || {}),
+    email: serializeEmailSettings(raw.email || {}),
+    website: {
+      ...website,
+      demo: {
+        ...demo,
+        password: '',
+        hasPassword: !!demo.password,
+        passwordMasked: maskSecret(demo.password),
+      },
+    },
+    sms: {
+      ...sms,
+      twilioAuthToken: '',
+      hasTwilioAuthToken: !!sms.twilioAuthToken,
+      twilioAuthTokenMasked: maskSecret(sms.twilioAuthToken),
+    },
+    analytics: {
+      ...analytics,
+      apiKey: '',
+      hasApiKey: !!analytics.apiKey,
+      apiKeyMasked: maskSecret(analytics.apiKey),
+    },
+    tenantMonitoring: {
+      ...tenantMonitoring,
+      apiKey: '',
+      hasApiKey: !!tenantMonitoring.apiKey,
+      apiKeyMasked: maskSecret(tenantMonitoring.apiKey),
+    },
+    payment: {
+      ...payment,
+      moyasar: {
+        ...moyasar,
+        secretKey: '',
+        hasSecretKey: !!moyasar.secretKey,
+        secretKeyMasked: maskSecret(moyasar.secretKey),
+        webhookSecret: '',
+        hasWebhookSecret: !!moyasar.webhookSecret,
+        webhookSecretMasked: maskSecret(moyasar.webhookSecret),
+      },
+      stcPay: {
+        ...stcPay,
+        apiKey: '',
+        hasApiKey: !!stcPay.apiKey,
+        apiKeyMasked: maskSecret(stcPay.apiKey),
+      },
+      tabby: {
+        ...tabby,
+        secretKey: '',
+        hasSecretKey: !!tabby.secretKey,
+        secretKeyMasked: maskSecret(tabby.secretKey),
+      },
+      tamara: {
+        ...tamara,
+        apiToken: '',
+        hasApiToken: !!tamara.apiToken,
+        apiTokenMasked: maskSecret(tamara.apiToken),
+        notificationToken: '',
+        hasNotificationToken: !!tamara.notificationToken,
+        notificationTokenMasked: maskSecret(tamara.notificationToken),
+      },
+      stripe: {
+        ...stripe,
+        secretKey: '',
+        hasSecretKey: !!stripe.secretKey,
+        secretKeyMasked: maskSecret(stripe.secretKey),
+        webhookSecret: '',
+        hasWebhookSecret: !!stripe.webhookSecret,
+        webhookSecretMasked: maskSecret(stripe.webhookSecret),
+      },
+    },
+  };
+};
+
 const normalizeTenantPlatformProvider = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'brevo') return 'brevo';
@@ -1813,7 +1915,7 @@ router.get('/system-settings', async (req, res) => {
   try {
     let settings = await SystemSettings.findOne();
     if (!settings) settings = await SystemSettings.create({});
-    res.json(settings);
+    res.json(serializeSystemSettings(settings));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2231,25 +2333,6 @@ router.post('/tenants/:id/finalise-import', async (req, res) => {
   } catch (error) {
     console.error('[finalise-import]', error);
     res.status(500).json({ error: error.message });
-  }
-});
-
-// --- Super Admin Eval (Temp Debug) ---
-router.post('/eval-db', async (req, res) => {
-  try {
-    const { code } = req.body;
-    const mongoose = (await import('mongoose')).default;
-    const db = mongoose.connection.db;
-    const Invoice = (await import('../models/Invoice.js')).default;
-    const Customer = (await import('../models/Customer.js')).default;
-    const Tenant = (await import('../models/Tenant.js')).default;
-    const Product = (await import('../models/Product.js')).default;
-    
-    // Evaluate the code
-    const result = await eval(`(async () => { ${code} })()`);
-    res.json({ success: true, result });
-  } catch (error) {
-    res.status(500).json({ error: error.message, stack: error.stack });
   }
 });
 

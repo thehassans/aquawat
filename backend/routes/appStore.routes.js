@@ -5,6 +5,7 @@ import { AppAddon } from '../models/AppAddon.js';
 import { normalizeBusinessTypes } from '../utils/businessTypes.js';
 import { PREMIUM_TEMPLATE_APP_ID as PREMIUM_INVOICE_TEMPLATES_APP_ID, hasPremiumTemplateAccess, ESSENTIAL_TEMPLATE_ID } from '../utils/premiumTemplates.js';
 import { createStripeCheckoutSession, getStripeConfig, retrieveStripeCheckoutSession } from '../services/platformStripe.js';
+import { serializeAuthTenant } from '../utils/authSerialize.js';
 
 const router = express.Router();
 
@@ -128,26 +129,6 @@ export async function fulfillAppStorePurchase({
 
   return { alreadyInstalled: false, tenant };
 }
-
-// Helper to serialize tenant for Redux auth state
-const serializeAuthTenant = (tenant) => {
-  if (!tenant) return null;
-  const source = typeof tenant.toObject === 'function' ? tenant.toObject() : tenant;
-  return {
-    _id: source._id,
-    name: source.name,
-    slug: source.slug,
-    businessType: source.businessType,
-    businessTypes: source.businessTypes,
-    business: source.business,
-    settings: source.settings,
-    branding: source.branding,
-    subscription: source.subscription,
-    terminationNotice: source.terminationNotice,
-    zatca: source.zatca,
-    nbr: source.nbr,
-  };
-};
 
 const getTenantForUser = async (req) => {
   let tenantId = req.user?.tenantId || req.tenant?._id;

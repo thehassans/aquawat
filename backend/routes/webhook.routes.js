@@ -6,6 +6,9 @@ const router = express.Router();
 router.post('/email-inbound', async (req, res) => {
   try {
     const configuredSecret = String(process.env.EMAIL_INBOUND_WEBHOOK_SECRET || '').trim();
+    if (!configuredSecret && process.env.NODE_ENV === 'production') {
+      return res.status(503).json({ error: 'Webhook secret not configured' });
+    }
     if (configuredSecret) {
       const providedSecret = String(req.headers['x-email-webhook-secret'] || req.query.secret || req.body?.secret || '').trim();
       if (providedSecret !== configuredSecret) {

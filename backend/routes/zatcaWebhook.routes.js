@@ -68,11 +68,15 @@ router.post('/', express.raw({ type: '*/*', limit: '1mb' }), async (req, res) =>
     const signature = req.headers['x-zatca-signature'] || req.headers['x-signature'];
     const webhookSecret = process.env.ZATCA_WEBHOOK_SECRET;
 
-    if (webhookSecret) {
-      if (!verifyWebhookSignature(rawBody, signature, webhookSecret)) {
-        logger.warn('[ZATCA Webhook] Invalid signature');
-        return res.status(401).json({ error: 'Invalid signature' });
+    // Fail closed in production — unsigned callbacks must never mutate invoice status
+    if (!webhookSecret) {
+      if (process.env.NODE_ENV === 'production') {
+        logger.warn('[ZATCA Webhook] ZATCA_WEBHOOK_SECRET missing — rejecting');
+        return res.status(503).json({ error: 'Webhook secret not configured' });
       }
+    } else if (!verifyWebhookSignature(rawBody, signature, webhookSecret)) {
+      logger.warn('[ZATCA Webhook] Invalid signature');
+      return res.status(401).json({ error: 'Invalid signature' });
     }
 
     let body;

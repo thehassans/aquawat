@@ -6,6 +6,7 @@ import { Crown, Inbox, Mail, MailOpen, Paperclip, PenSquare, RefreshCw, Reply, S
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { usePublicWebsiteSettings } from '../../lib/website'
+import { sanitizeHtml } from '../../lib/sanitizeHtml'
 
 const parseAddressList = (value) => String(value || '')
   .split(/[;,\n]+/)
@@ -557,7 +558,7 @@ export default function PremiumEmailWorkspace() {
               </div>
               <div className="flex-1 overflow-y-auto p-6">
                 <div className="rounded-[28px] border border-gray-200 bg-white p-6 text-sm leading-7 text-gray-700 shadow-sm dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
-                  {selectedMessage.bodyHtml ? <div dangerouslySetInnerHTML={{ __html: selectedMessage.bodyHtml }} /> : <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700 dark:text-gray-200">{selectedMessage.bodyText || ''}</pre>}
+                  {selectedMessage.bodyHtml ? <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedMessage.bodyHtml) }} /> : <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700 dark:text-gray-200">{selectedMessage.bodyText || ''}</pre>}
                 </div>
 
                 {selectedMessage.attachments?.length ? (

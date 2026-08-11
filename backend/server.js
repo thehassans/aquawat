@@ -155,7 +155,8 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 import requestTimeout from './middleware/requestTimeout.js';
 import responseTime from './middleware/responseTime.js';
 import { etag } from './middleware/httpCache.js';
-import { getRedisClient, isRedisReady } from './lib/redis.js';
+import { mongoSanitize } from './middleware/mongoSanitize.js';
+import { getRedisClient, isRedisReady, cacheSet, cacheSetNx } from './lib/redis.js';
 import logger from './utils/logger.js';
 import User from './models/User.js';
 import Tenant from './models/Tenant.js';
@@ -203,12 +204,12 @@ let reconnectTimer = null;
 let jobsStarted = false;
 let databaseConnectionPromise = null;
 
-// Cron worker identity — in cluster mode, only worker #1 runs crons.
-// WORKER_ID is set by cluster.js when forking. In single-process mode (node server.js) it is undefined.
+// Cron leadership — CRON_WORKER=0 never runs jobs (PM2 API workers).
+// CRON_WORKER=1 or development always run. Otherwise Redis NX election.
 const WORKER_ID = Number(process.env.WORKER_ID || 1);
-const IS_CRON_WORKER = process.env.CRON_WORKER === '1' ||
-  process.env.NODE_ENV === 'development' ||
-  WORKER_ID === 1;
+const CRON_WORKER_ENV = process.env.CRON_WORKER;
+const DISABLE_CRON = CRON_WORKER_ENV === '0';
+const FORCE_CRON_WORKER = CRON_WORKER_ENV === '1' || process.env.NODE_ENV === 'development';
 
 const seedSuperAdmin = async () => {
   try {
@@ -232,19 +233,44 @@ const seedSuperAdmin = async () => {
   }
 };
 
-const startJobs = () => {
+const startJobs = async () => {
   if (jobsStarted) {
     return;
   }
 
-  // Only the designated cron worker (worker #1) runs background jobs.
-  // This prevents duplicate emails, double ZATCA submissions, etc. in cluster mode.
-  if (!IS_CRON_WORKER) {
-    logger.info(`[server] Worker ${WORKER_ID} — skipping cron jobs (not cron worker)`);
+  if (DISABLE_CRON) {
+    logger.info(`[server] Worker ${WORKER_ID} — skipping cron jobs (CRON_WORKER=0)`);
+    return;
+  }
+
+  let shouldRun = FORCE_CRON_WORKER;
+  if (!shouldRun) {
+    const acquired = await cacheSetNx('cron:leader', { workerId: WORKER_ID, at: Date.now() }, 90);
+    if (acquired) {
+      shouldRun = true;
+      setInterval(() => {
+        cacheSet('cron:leader', { workerId: WORKER_ID, at: Date.now() }, 90).catch(() => {});
+      }, 30_000).unref();
+    } else if (!isRedisReady() && WORKER_ID === 1) {
+      // Redis unavailable — fall back to classic worker #1 ownership
+      shouldRun = true;
+    } else {
+      logger.info(`[server] Worker ${WORKER_ID} — skipping cron jobs (another leader holds lock)`);
+      setInterval(async () => {
+        if (jobsStarted) return;
+        const got = await cacheSetNx('cron:leader', { workerId: WORKER_ID, at: Date.now() }, 90);
+        if (got) startJobs();
+      }, 60_000).unref();
+      return;
+    }
+  }
+
+  if (!shouldRun) {
     return;
   }
 
   jobsStarted = true;
+  logger.info(`[server] Worker ${WORKER_ID} — starting cron jobs`);
 
   cron.schedule('0 8 * * *', () => {
     logger.info('Running Iqama expiry check...');
@@ -446,11 +472,22 @@ app.use(cors({
     // Allow requests with no origin (mobile apps, curl, server-to-server)
     if (!origin) return callback(null, true);
 
-    // If no origins configured, allow all
-    if (configuredOrigins.length === 0) return callback(null, true);
+    // Production: never allow empty allowlist or wildcard with credentials
+    if (configuredOrigins.length === 0) {
+      if (process.env.NODE_ENV === 'production') {
+        console.warn('[CORS] Blocked origin: no FRONTEND_URL configured');
+        return callback(new Error('Not allowed by CORS'));
+      }
+      return callback(null, true);
+    }
 
-    // Wildcard: allow everything
-    if (configuredOrigins.includes('*')) return callback(null, true);
+    if (configuredOrigins.includes('*')) {
+      if (process.env.NODE_ENV === 'production') {
+        console.warn('[CORS] Wildcard FRONTEND_URL rejected in production');
+        return callback(new Error('Not allowed by CORS'));
+      }
+      return callback(null, true);
+    }
 
     // Exact match first
     if (configuredOrigins.includes(origin)) return callback(null, true);
@@ -555,10 +592,10 @@ class HybridRateLimitStore {
 
 const makeRateLimitStore = (prefix) => new HybridRateLimitStore(prefix);
 
-// 1. Auth endpoints — 120 req / 15 min
+// 1. Auth endpoints — 40 req / 15 min (override via AUTH_RATE_LIMIT_MAX)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.AUTH_RATE_LIMIT_MAX || 120),
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX || 40),
   standardHeaders: true,
   legacyHeaders: false,
   store: makeRateLimitStore('auth'),
@@ -577,18 +614,13 @@ const publicLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
 });
 
-// Key by authenticated tenantId so all devices in the same store (POS, KDS, tablets)
-// share a single per-TENANT quota rather than getting throttled behind a single NAT IP.
+// Key by authenticated tenantId when protect already ran (req.user set).
+// Never base64-decode JWT without verify — that trusts a forged payload for quota keys.
+// Unauthenticated traffic is keyed by client IP only.
 const getTenantOrIpKey = (req) => {
-  try {
-    const auth = req.headers?.authorization || ''
-    if (auth.startsWith('Bearer ')) {
-      const payload = JSON.parse(Buffer.from(auth.split('.')[1], 'base64').toString())
-      if (payload?.tenantId) return `tenant:${payload.tenantId}`
-      if (payload?.id) return `user:${payload.id}`
-    }
-  } catch (_) { /* fall through to IP */ }
-  return getClientIp(req)
+  if (req.user?.tenantId) return `tenant:${req.user.tenantId}`;
+  if (req.user?._id || req.user?.id) return `user:${req.user._id || req.user.id}`;
+  return getClientIp(req);
 };
 
 // 3. General API — configurable (default 10 000 req / 15 min)
@@ -635,8 +667,18 @@ app.use('/api/', requestTimeout(Number.isFinite(apiTimeoutMs) && apiTimeoutMs > 
 // Body parsing — Stripe webhook needs the raw body for signature verification
 app.post('/api/payments/stripe-webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+const jsonBodyLimit = process.env.JSON_BODY_LIMIT || '2mb';
+app.use(express.json({
+  limit: jsonBodyLimit,
+  verify: (req, _res, buf) => {
+    req.rawBody = Buffer.from(buf);
+  },
+}));
+app.use(express.urlencoded({ extended: true, limit: jsonBodyLimit }));
+
+// Strip Mongo operator keys ($…) from body/query/params (express-mongo-sanitize not installed)
+app.use(mongoSanitize);
+
 app.locals.waitForDatabaseReady = waitForDatabaseReady;
 
 // Health check
@@ -656,12 +698,20 @@ app.get('/api/health/live', (req, res) => {
 });
 
 app.get('/api/health/ready', (req, res) => {
-  if (!isDatabaseReady()) {
+  const redisRequired = process.env.REDIS_ENABLED !== 'false';
+  const redisReady = isRedisReady();
+  const dbReady = isDatabaseReady();
+
+  if (!dbReady || (redisRequired && !redisReady)) {
     return res.status(503).json({
       status: 'NOT_READY',
       database: {
         readyState: databaseReadyState(),
-        connected: false,
+        connected: dbReady,
+      },
+      redis: {
+        enabled: redisRequired,
+        ready: redisReady,
       },
       timestamp: new Date().toISOString()
     });
@@ -672,6 +722,10 @@ app.get('/api/health/ready', (req, res) => {
     database: {
       readyState: databaseReadyState(),
       connected: true,
+    },
+    redis: {
+      enabled: redisRequired,
+      ready: redisReady,
     },
     timestamp: new Date().toISOString()
   });

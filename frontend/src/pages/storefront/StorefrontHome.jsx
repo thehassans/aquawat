@@ -11,6 +11,7 @@ import { useCart } from '../../store/storefrontCart';
 import { useWishlist } from '../../store/storefrontWishlist';
 import { useI18n } from '../../store/storefrontI18n';
 import { useToast, Skeleton, SkeletonGrid } from '../../components/storefront/StorefrontUi';
+import { sanitizeHtml } from '../../lib/sanitizeHtml';
 
 export default function StorefrontHome() {
   const [storeInfo, setStoreInfo] = useState(null);
@@ -133,7 +134,7 @@ export default function StorefrontHome() {
         return (
           <div key={section.id} style={{ maxWidth: '800px', margin: '0 auto 32px', padding: '16px' }}>
             {s.title && <h3 style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '12px', color: c('text', '#111') }}>{s.title}</h3>}
-            <div style={{ color: c('textMuted', '#6b7280'), fontSize: '15px', lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: s.content || '' }} />
+            <div style={{ color: c('textMuted', '#6b7280'), fontSize: '15px', lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(s.content || '') }} />
           </div>
         );
       case 'image-banner':
@@ -174,7 +175,7 @@ export default function StorefrontHome() {
       case 'spacer':
         return <div key={section.id} style={{ height: `${s.height || 40}px` }} />;
       case 'custom-html':
-        return <div key={section.id} style={{ marginBottom: '32px' }} dangerouslySetInnerHTML={{ __html: s.html || '' }} />;
+        return <div key={section.id} style={{ marginBottom: '32px' }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(s.html || '') }} />;
       default:
         return null;
     }

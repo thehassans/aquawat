@@ -1,15 +1,18 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import Customer from '../models/Customer.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, authorize } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 
 const router = express.Router();
 
+router.use(protect);
+router.use(tenantFilter);
+
 // @route   GET /api/customers/apply-csv-vat
 // @desc    Apply VAT numbers extracted directly from Customer.csv
-// Publicly accessible for one-time fix
-router.get('/apply-csv-vat', async (req, res) => {
+// @access  Super admin only
+router.get('/apply-csv-vat', authorize('super_admin'), async (req, res) => {
   try {
     const csvData = [
       { name: "شركة مصنع معدات النقط الديناميكية", companyName: "DYNAMIC OIL TOOL COMPANY", vat: "310076186500003" },
@@ -155,8 +158,8 @@ router.get('/apply-csv-vat', async (req, res) => {
 
 // @route   GET /api/customers/recover-vat
 // @desc    Recover VAT numbers dropped during migration and deduplicate customers
-// Publicly accessible for one-time fix
-router.get('/recover-vat', async (req, res) => {
+// @access  Super admin only
+router.get('/recover-vat', authorize('super_admin'), async (req, res) => {
   // Return immediately so Cloudflare doesn't timeout
   res.json({
     message: 'Cleanup & VAT Recovery has started in the background! Please wait 60 seconds and then refresh your Customers panel.',
@@ -265,9 +268,6 @@ router.get('/recover-vat', async (req, res) => {
     console.error('VAT Recovery Error:', error);
   }
 });
-
-router.use(protect);
-router.use(tenantFilter);
 
 // @route   GET /api/customers
 // @desc    Get all customers

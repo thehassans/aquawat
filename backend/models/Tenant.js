@@ -698,6 +698,8 @@ tenantSchema.pre('validate', function(next) {
 tenantSchema.index({ isActive: 1 });
 tenantSchema.index({ businessType: 1 });
 tenantSchema.index({ businessTypes: 1 });
+tenantSchema.index({ 'ecommerce.subdomain': 1 });
+tenantSchema.index({ 'ecommerce.domains.hostname': 1, 'ecommerce.domains.status': 1 });
 
 const Tenant = mongoose.model('Tenant', tenantSchema);
 export default Tenant;

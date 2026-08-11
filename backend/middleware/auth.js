@@ -103,8 +103,22 @@ export const protect = async (req, res, next) => {
           tenant = redisTenant;
           tenantCache.set(tenantId, { tenant, timestamp: Date.now() });
         } else {
-          // Fetch from MongoDB
-          tenant = await Tenant.findById(user.tenantId).lean();
+          // Fetch from MongoDB — only fields needed by protect / checkEmailAddon /
+          // requireBusinessType / dashboard installedApps. Avoid caching ecommerce
+          // newsletter lists, payment secrets, CSID private material, etc.
+          const TENANT_AUTH_SELECT = [
+            'isActive',
+            'subscription',
+            'businessType',
+            'businessTypes',
+            'settings.installedApps',
+            'branding',
+            'name',
+            'slug',
+            'zatca.isOnboarded',
+            'zatca.phase',
+          ].join(' ');
+          tenant = await Tenant.findById(user.tenantId).select(TENANT_AUTH_SELECT).lean();
           if (tenant) {
             tenantCache.set(tenantId, { tenant, timestamp: Date.now() });
             await cacheSet(`tenant:${tenantId}`, tenant, TENANT_REDIS_TTL_S);
@@ -173,13 +187,25 @@ export const requireBusinessType = (...allowedTypes) => {
   };
 };
 
+/** Works for both Mongoose docs and lean() plain objects. */
+export const userHasPermission = (user, module, action) => {
+  if (!user) return false;
+  if (user.role === 'super_admin' || user.role === 'admin') return true;
+  if (typeof user.hasPermission === 'function') {
+    return user.hasPermission(module, action);
+  }
+  const permissions = Array.isArray(user.permissions) ? user.permissions : [];
+  const perm = permissions.find((p) => p.module === module);
+  return Boolean(perm && Array.isArray(perm.actions) && perm.actions.includes(action));
+};
+
 export const checkPermission = (module, action) => {
   return (req, res, next) => {
     if (req.user.role === 'super_admin' || req.user.role === 'admin') {
       return next();
     }
     
-    if (!req.user.hasPermission(module, action)) {
+    if (!userHasPermission(req.user, module, action)) {
       return res.status(403).json({ 
         error: `Not authorized to ${action} in ${module} module` 
       });
@@ -204,4 +230,4 @@ export const tenantFilter = (req, res, next) => {
 
 export const authenticate = protect;
 
-export default { protect, authenticate, authorize, checkPermission, tenantFilter, requireBusinessType, checkEmailAddon, tenantHasEmailAddon, invalidateAuthCache };
+export default { protect, authenticate, authorize, checkPermission, userHasPermission, tenantFilter, requireBusinessType, checkEmailAddon, tenantHasEmailAddon, invalidateAuthCache };

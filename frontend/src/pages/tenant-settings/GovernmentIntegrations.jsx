@@ -704,7 +704,13 @@ export default function GovernmentIntegrations() {
                   <textarea
                     readOnly
                     rows={4}
-                    value={config?.zatca?.complianceCsid || t('No certificate loaded. Enter OTP above and save to onboard.', 'لم يتم تحميل شهادة. أدخل رمز التحقق OTP لحفظ وبدء عملية الدمج.')}
+                    value={
+                      config?.zatca?.hasComplianceCsid
+                        ? '-----BEGIN CERTIFICATE-----\n****************\n-----END CERTIFICATE-----'
+                        : (config?.zatca?.complianceCsid
+                          ? '-----BEGIN CERTIFICATE-----\n****************\n-----END CERTIFICATE-----'
+                          : t('No certificate loaded. Enter OTP above and save to onboard.', 'لم يتم تحميل شهادة. أدخل رمز التحقق OTP لحفظ وبدء عملية الدمج.'))
+                    }
                     className="input font-mono text-xs bg-gray-50 dark:bg-dark-750 text-gray-500 cursor-not-allowed mt-1"
                   />
                 </div>

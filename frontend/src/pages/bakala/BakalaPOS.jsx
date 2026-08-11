@@ -1060,12 +1060,12 @@ export default function BakalaPOS() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-[#F8F9FA] text-gray-900 overflow-hidden font-sans">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-4rem)] bg-[#F8F9FA] text-gray-900 overflow-hidden font-sans">
       
       {tenant?.settings?.bakala?.requireShift !== false && !activeSession && <PosSessions onSessionVerified={setActiveSession} />}
 
       {/* LEFT PANEL: Cart View (60%) */}
-      <div className="w-[60%] flex flex-col border-r border-gray-100 bg-white shadow-[2px_0_10px_rgba(0,0,0,0.02)] z-10 relative">
+      <div className="order-2 lg:order-1 w-full lg:w-[60%] flex flex-col border-r border-gray-100 bg-white shadow-[2px_0_10px_rgba(0,0,0,0.02)] z-10 relative min-h-[40vh] lg:min-h-0">
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-50 flex justify-between items-center bg-white">
           <div className="flex items-center gap-3">
@@ -1153,7 +1153,7 @@ export default function BakalaPOS() {
       </div>
 
       {/* RIGHT PANEL: Actions & Fast Menu (40%) */}
-      <div className="w-[40%] flex flex-col bg-[#F8F9FA]">
+      <div className="order-1 lg:order-2 w-full lg:w-[40%] flex flex-col bg-[#F8F9FA] flex-1 min-h-[45vh] lg:min-h-0 overflow-hidden">
         
         {/* Search Bar & Device Connection Status */}
         <div className="px-6 pt-6 pb-2">

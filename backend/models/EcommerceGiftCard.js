@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const EcommerceGiftCardSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
@@ -21,13 +22,12 @@ const EcommerceGiftCardSchema = new mongoose.Schema({
 
 EcommerceGiftCardSchema.statics.generateCode = function() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = 'GC-';
-  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  code += '-';
-  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  code += '-';
-  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
+  const pick = (n) => {
+    let out = '';
+    for (let i = 0; i < n; i++) out += chars[crypto.randomInt(chars.length)];
+    return out;
+  };
+  return `GC-${pick(4)}-${pick(4)}-${pick(4)}`;
 };
 
 export default mongoose.model('EcommerceGiftCard', EcommerceGiftCardSchema);

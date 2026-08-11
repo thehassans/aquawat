@@ -277,9 +277,9 @@ export default function FurniturePOS() {
       </div>
 
       {/* ─── Main Content ─── */}
-      <div className="flex-1 overflow-hidden flex relative">
+      <div className="flex-1 overflow-hidden flex flex-col lg:flex-row relative">
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto p-8 scrollbar-hide">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 scrollbar-hide min-h-0">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -351,7 +351,7 @@ export default function FurniturePOS() {
 
         {/* ─── Ultra Premium Cart Sidebar ─── */}
         <motion.div 
-          className="w-[540px] bg-white/80 backdrop-blur-2xl border-l border-slate-100 flex flex-col shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.05)] z-20"
+          className="w-full lg:w-[540px] bg-white/80 backdrop-blur-2xl border-t lg:border-t-0 lg:border-l border-slate-100 flex flex-col shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.05)] z-20 max-h-[50vh] lg:max-h-none flex-shrink-0"
           initial={false}
         >
           <div className="p-6 border-b border-slate-100/50">

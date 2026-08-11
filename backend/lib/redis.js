@@ -96,6 +96,17 @@ export async function cacheSet(key, value, ttlSeconds = 60) {
   }
 }
 
+/** SET key NX EX ttl — returns true if this caller acquired the lock. */
+export async function cacheSetNx(key, value, ttlSeconds = 60) {
+  if (!isRedisReady()) return false;
+  try {
+    const result = await redisClient.set(key, JSON.stringify(value), 'EX', ttlSeconds, 'NX');
+    return result === 'OK';
+  } catch {
+    return false;
+  }
+}
+
 export async function cacheDel(key) {
   if (!isRedisReady()) return;
   try {

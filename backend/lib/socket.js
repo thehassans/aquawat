@@ -3,14 +3,32 @@ import jwt from 'jsonwebtoken';
 import Redis from 'ioredis';
 import { createAdapter } from '@socket.io/redis-adapter';
 import logger from '../utils/logger.js';
+import User from '../models/User.js';
 
 let io;
 
+const socketAllowedOrigins = () => {
+  const configured = String(process.env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (process.env.NODE_ENV !== 'production') {
+    return [...new Set([...configured, 'http://localhost:5173', 'http://127.0.0.1:5173'])];
+  }
+  return configured;
+};
+
 export const initSocket = (server) => {
+  const allowedOrigins = socketAllowedOrigins();
   io = new Server(server, {
     cors: {
-      origin: '*', // Adjust this for production
-      methods: ['GET', 'POST']
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error('Not allowed by Socket CORS'));
+      },
+      methods: ['GET', 'POST'],
     },
     // Websocket-only: avoids the multi-request HTTP long-polling handshake,
     // which requires sticky sessions to consistently reach the same cluster
@@ -48,19 +66,27 @@ export const initSocket = (server) => {
   }
 
   // Authentication Middleware
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
     if (!token) {
       return next(new Error('Authentication error: No token provided'));
     }
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.user = decoded; // { id: userId, tenantId, ... }
+      socket.user = { id: decoded.id, tenantId: decoded.tenantId ? String(decoded.tenantId) : null };
+
+      // Backfill tenantId for older tokens that only carry { id }
+      if (!socket.user.tenantId && socket.user.id) {
+        const user = await User.findById(socket.user.id).select('tenantId').lean();
+        if (user?.tenantId) {
+          socket.user.tenantId = String(user.tenantId);
+        }
+      }
       
       // Auto-join the tenant's global room
-      if (decoded.tenantId) {
-        socket.join(`tenant_${decoded.tenantId}`);
-        logger.info(`Socket connected: User ${decoded.id} joined room tenant_${decoded.tenantId}`);
+      if (socket.user.tenantId) {
+        socket.join(`tenant_${socket.user.tenantId}`);
+        logger.info(`Socket connected: User ${socket.user.id} joined room tenant_${socket.user.tenantId}`);
       }
       
       next();

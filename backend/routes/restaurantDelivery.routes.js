@@ -225,12 +225,13 @@ webhookRouter.post('/webhook/:platform/:tenantId', async (req, res) => {
 
     if (!config) return res.status(404).json({ error: 'Platform not configured' });
 
-    // Verify webhook secret if configured
-    if (config.credentials?.webhookSecret) {
-      const providedSecret = req.headers['x-webhook-secret'] || req.headers['x-jahez-secret'] || req.query.secret;
-      if (providedSecret !== config.credentials.webhookSecret) {
-        return res.status(401).json({ error: 'Invalid webhook secret' });
-      }
+    const webhookSecret = config.credentials?.webhookSecret;
+    if (!webhookSecret) {
+      return res.status(503).json({ error: 'Webhook secret not configured' });
+    }
+    const providedSecret = req.headers['x-webhook-secret'] || req.headers['x-jahez-secret'] || req.query.secret;
+    if (providedSecret !== webhookSecret) {
+      return res.status(401).json({ error: 'Invalid webhook secret' });
     }
 
     // Parse order from webhook payload (platform-specific format)

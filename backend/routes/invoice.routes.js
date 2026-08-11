@@ -463,28 +463,40 @@ async function postInventoryForInvoice(invoice, tenantFilterValue) {
     return invoice;
   }
 
-  for (const line of invoice.lineItems || []) {
+  const lines = (invoice.lineItems || []).filter((line) => {
     const productId = line.productId;
-    if (!productId) continue;
-
     const qty = toNumber(line.quantity, 0);
-    if (qty <= 0) continue;
+    return Boolean(productId) && qty > 0;
+  });
 
-    const product = await Product.findOne({ _id: productId, ...tenantFilterValue });
+  const productIds = [...new Set(lines.map((line) => String(line.productId)))];
+  const products = productIds.length
+    ? await Product.find({ _id: { $in: productIds }, ...tenantFilterValue })
+    : [];
+  const productById = new Map(products.map((p) => [String(p._id), p]));
+
+  let tenantAllowNegative = null;
+
+  for (const line of lines) {
+    const product = productById.get(String(line.productId));
     if (!product) {
       throw new Error('Product not found');
     }
 
+    const qty = toNumber(line.quantity, 0);
     const sign = invoice.flow === 'sell' ? -1 : 1;
     if (sign < 0) {
       const stock = product.stocks.find((s) => s.warehouseId?.toString() === warehouseId.toString());
       const available = toNumber(stock?.quantity, 0) - toNumber(stock?.reservedQuantity, 0);
-      
+
       let allowNegative = Boolean(product.allowNegativeStock);
       if (!allowNegative && invoice.tenantId) {
-        const Tenant = mongoose.model('Tenant');
-        const tenantDoc = await Tenant.findById(invoice.tenantId).select('settings.inventory').lean();
-        if (tenantDoc?.settings?.inventory?.allowNegativeStock) {
+        if (tenantAllowNegative === null) {
+          const Tenant = mongoose.model('Tenant');
+          const tenantDoc = await Tenant.findById(invoice.tenantId).select('settings.inventory').lean();
+          tenantAllowNegative = Boolean(tenantDoc?.settings?.inventory?.allowNegativeStock);
+        }
+        if (tenantAllowNegative) {
           allowNegative = true;
         }
       }
@@ -503,9 +515,9 @@ async function postInventoryForInvoice(invoice, tenantFilterValue) {
         notes: `Invoice ${invoice.invoiceNumber}`
       });
     }
-
-    await product.save();
   }
+
+  await Promise.all(products.map((product) => product.save()));
 
   invoice.inventory = {
     ...(invoice.inventory || {}),
@@ -522,20 +534,28 @@ async function reverseInventoryForDeletedInvoice(invoice, tenantFilterValue) {
   const warehouseId = invoice.warehouseId || invoice?.inventory?.warehouseId;
   if (!warehouseId || !invoice?.inventory?.postedAt) return;
 
-  for (const line of invoice.lineItems || []) {
+  const lines = (invoice.lineItems || []).filter((line) => {
     const productId = line.productId;
-    if (!productId) continue;
-
     const qty = toNumber(line.quantity, 0);
-    if (qty <= 0) continue;
+    return Boolean(productId) && qty > 0;
+  });
 
-    const product = await Product.findOne({ _id: productId, ...tenantFilterValue });
+  const productIds = [...new Set(lines.map((line) => String(line.productId)))];
+  const products = productIds.length
+    ? await Product.find({ _id: { $in: productIds }, ...tenantFilterValue })
+    : [];
+  const productById = new Map(products.map((p) => [String(p._id), p]));
+
+  for (const line of lines) {
+    const product = productById.get(String(line.productId));
     if (!product) continue;
 
+    const qty = toNumber(line.quantity, 0);
     const reverseSign = invoice.flow === 'sell' ? 1 : -1;
     product.updateStock(warehouseId, reverseSign * qty);
-    await product.save();
   }
+
+  await Promise.all(products.map((product) => product.save()));
 }
 
 async function syncCustomerStats(tenantId, customerId) {

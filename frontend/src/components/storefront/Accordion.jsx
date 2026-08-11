@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { sanitizeHtml } from '../../lib/sanitizeHtml';
 
 export default function Accordion({ items, colors, isRTL }) {
   const [openIdx, setOpenIdx] = useState(0);
@@ -48,7 +49,7 @@ export default function Accordion({ items, colors, isRTL }) {
               opacity: isOpen ? 1 : 0,
             }}>
               <div style={{ padding: '0 0 20px', fontSize: '14px', color: c('textMuted', '#6b7280'), lineHeight: 1.8 }}>
-                {item.raw ? <div dangerouslySetInnerHTML={{ __html: item.content }} /> : <div>{item.content}</div>}
+                {item.raw ? <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.content) }} /> : <div>{item.content}</div>}
               </div>
             </div>
           </div>

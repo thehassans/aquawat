@@ -6,6 +6,7 @@ import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { decryptZatcaConfig } from '../utils/zatcaKeyVault.js';
 import logger from '../utils/logger.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
+import { redisGetJson, redisSetJson } from '../utils/redisJson.js';
 
 const MAX_RETRIES = 5;
 const BASE_RETRY_DELAY_MS = 30_000;
@@ -14,48 +15,62 @@ const CIRCUIT_BREAKER_THRESHOLD = 5;
 const CIRCUIT_BREAKER_RESET_MS = 10 * 60 * 1000;
 
 const circuitBreakerState = new Map();
+const breakerKey = (tenantId) => `zatca:breaker:${tenantId}`;
 
-const getCircuitState = (tenantId) => {
+const getCircuitState = async (tenantId) => {
   const key = String(tenantId);
+  const fromRedis = await redisGetJson(breakerKey(key));
+  if (fromRedis) {
+    circuitBreakerState.set(key, fromRedis);
+    return fromRedis;
+  }
   if (!circuitBreakerState.has(key)) {
     circuitBreakerState.set(key, { failures: 0, tripped: false, trippedAt: null });
   }
   return circuitBreakerState.get(key);
 };
 
-const tripCircuit = (tenantId) => {
-  const state = getCircuitState(tenantId);
+const persistCircuit = async (tenantId, state) => {
+  const key = String(tenantId);
+  circuitBreakerState.set(key, state);
+  await redisSetJson(breakerKey(key), state, Math.ceil(CIRCUIT_BREAKER_RESET_MS / 1000) + 60);
+};
+
+const tripCircuit = async (tenantId) => {
+  const state = await getCircuitState(tenantId);
   state.tripped = true;
   state.trippedAt = Date.now();
+  await persistCircuit(tenantId, state);
   logger.warn(`[ZATCA Queue] Circuit breaker tripped for tenant ${tenantId}`);
 };
 
-const resetCircuit = (tenantId) => {
-  const key = String(tenantId);
-  circuitBreakerState.set(key, { failures: 0, tripped: false, trippedAt: null });
+const resetCircuit = async (tenantId) => {
+  const next = { failures: 0, tripped: false, trippedAt: null };
+  await persistCircuit(tenantId, next);
 };
 
-const isCircuitOpen = (tenantId) => {
-  const state = getCircuitState(tenantId);
+const isCircuitOpen = async (tenantId) => {
+  const state = await getCircuitState(tenantId);
   if (!state.tripped) return false;
   if (Date.now() - state.trippedAt > CIRCUIT_BREAKER_RESET_MS) {
-    state.tripped = false;
-    state.failures = 0;
+    await resetCircuit(tenantId);
     logger.info(`[ZATCA Queue] Circuit breaker reset for tenant ${tenantId}`);
     return false;
   }
   return true;
 };
 
-const recordSuccess = (tenantId) => {
-  resetCircuit(tenantId);
+const recordSuccess = async (tenantId) => {
+  await resetCircuit(tenantId);
 };
 
-const recordFailure = (tenantId) => {
-  const state = getCircuitState(tenantId);
+const recordFailure = async (tenantId) => {
+  const state = await getCircuitState(tenantId);
   state.failures++;
   if (state.failures >= CIRCUIT_BREAKER_THRESHOLD) {
-    tripCircuit(tenantId);
+    await tripCircuit(tenantId);
+  } else {
+    await persistCircuit(tenantId, state);
   }
 };
 
@@ -148,7 +163,7 @@ export async function processQueue(batchSize = 25) {
     for (const item of pendingItems) {
       const tenantIdStr = item.tenantId.toString();
 
-      if (isCircuitOpen(tenantIdStr)) {
+      if (await isCircuitOpen(tenantIdStr)) {
         results.skipped++;
         continue;
       }
@@ -230,7 +245,7 @@ export async function processQueue(batchSize = 25) {
           invoice.zatca.submittedAt = new Date();
           await invoice.save();
 
-          recordSuccess(tenantIdStr);
+          await recordSuccess(tenantIdStr);
           results.success++;
           results.processed++;
 
@@ -252,17 +267,18 @@ export async function processQueue(batchSize = 25) {
           error: error.message,
         });
 
-        recordFailure(tenantIdStr);
+        await recordFailure(tenantIdStr);
 
         const newRetryCount = item.retryCount + 1;
-        const shouldRetry = newRetryCount < MAX_RETRIES && !isCircuitOpen(tenantIdStr);
+        const circuitOpen = await isCircuitOpen(tenantIdStr);
+        const shouldRetry = newRetryCount < MAX_RETRIES && !circuitOpen;
 
         await ZatcaQueue.findByIdAndUpdate(item._id, {
           status: shouldRetry ? 'queued' : 'failed',
           retryCount: newRetryCount,
           lastError: error.message,
           nextRetryAt: shouldRetry ? computeBackoff(newRetryCount) : null,
-          circuitBreakerTripped: isCircuitOpen(tenantIdStr),
+          circuitBreakerTripped: circuitOpen,
         });
 
         await logAudit(

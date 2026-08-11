@@ -11,7 +11,15 @@ import EcommerceReview from '../models/EcommerceReview.js';
 import { resolveTenantByHost } from '../middleware/resolveTenantByHost.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const REVIEW_IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (REVIEW_IMAGE_MIME.has(file.mimetype)) return cb(null, true);
+    return cb(new Error('Only JPEG, PNG, WebP, or GIF images are allowed'));
+  },
+});
 
 const getTargetTenantId = async (user) => {
   if (user.tenantId) return user.tenantId;

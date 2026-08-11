@@ -9,6 +9,7 @@ import Tenant from '../models/Tenant.js';
 import PosSession from '../models/PosSession.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
+import { clampLimit } from '../utils/pagination.js';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -37,8 +38,11 @@ router.get('/products', protect, async (req, res) => {
   try {
     const tenantId = await getTargetTenantId(req.user);
     const filter = tenantId ? { tenantId, isActive: true } : {};
+    // Inventory/POS UIs load the catalog in one request; keep a hard cap without truncating typical stores.
+    const limit = clampLimit(req.query.limit, { def: 1000, max: 5000 });
     const products = await BookStoreProduct.find(filter)
       .select('name nameAr isbn primaryBarcode author publisher genre language retailPrice discountPrice taxRate unit stockQuantity category coverImage seriesName seriesNumber seriesTotal productType uniformSize uniformColor uniformGender uniformGradeLevel uniformSchoolName courseName courseLevel courseSubject courseDurationWeeks courseStartDate courseEndDate courseInstructor courseSchedule courseCapacity courseEnrolledCount courseLocation courseIsComplete courseBooks bundleItems bundleOriginalPrice bundleDiscountPercent')
+      .limit(limit)
       .lean();
     res.json({ success: true, products });
   } catch (error) {
@@ -50,7 +54,8 @@ router.get('/products/all', protect, async (req, res) => {
   try {
     const tenantId = await getTargetTenantId(req.user);
     const filter = tenantId ? { tenantId } : {};
-    const products = await BookStoreProduct.find(filter).sort('-createdAt');
+    const limit = clampLimit(req.query.limit, { def: 1000, max: 5000 });
+    const products = await BookStoreProduct.find(filter).sort('-createdAt').limit(limit);
     res.json(products);
   } catch (error) {
     res.status(500).json({ error: error.message });

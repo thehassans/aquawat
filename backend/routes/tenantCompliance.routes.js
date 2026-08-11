@@ -95,7 +95,8 @@ router.get('/', async (req, res) => {
       zatca: {
         phase: zatca.phase || 1,
         environment: zatca.environment || 'sandbox',
-        complianceCsid: zatca.complianceCsid || '',
+        hasComplianceCsid: !!zatca.complianceCsid,
+        hasProductionCsid: !!zatca.productionCsid,
         hasPrivateKey: !!zatca.privateKey,
         isOnboarded: zatca.isOnboarded || false,
         deviceSerialNumber: zatca.deviceSerialNumber || '',

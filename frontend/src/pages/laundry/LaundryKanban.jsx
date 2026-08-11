@@ -482,7 +482,7 @@ export default function LaundryKanban() {
       {/* Reprint Receipt Modal */}
       {selectedOrderForReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 print:bg-white print:static print:inset-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-[400px] max-h-[90vh] overflow-y-auto print:shadow-none print:p-0 print:w-auto print:max-h-none print:overflow-visible">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[400px] mx-4 max-h-[90vh] overflow-y-auto print:shadow-none print:p-0 print:w-auto print:max-h-none print:overflow-visible">
             <div className="flex justify-between items-center mb-4 print:hidden">
               <h3 className="text-base font-extrabold text-gray-900">{isRtl ? 'إيصال الطلب' : 'Order Receipt'}</h3>
               <button 

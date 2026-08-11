@@ -12,6 +12,7 @@ import {
 } from '../models/WhatsApp.js';
 import whatsappService from '../services/whatsappService.js';
 import multer from 'multer';
+import { verifyMetaHubSignature } from '../utils/webhookAuth.js';
 const upload = multer({ storage: multer.memoryStorage() });
 
 const router = express.Router();
@@ -67,6 +68,15 @@ router.get('/webhook', async (req, res) => {
 // Webhook for incoming messages (POST)
 router.post('/webhook', async (req, res) => {
   try {
+    const appSecret = process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET || '';
+    if (!appSecret) {
+      console.error('WhatsApp webhook rejected: WHATSAPP_APP_SECRET not configured');
+      return res.sendStatus(503);
+    }
+    if (!verifyMetaHubSignature(req, appSecret)) {
+      return res.sendStatus(401);
+    }
+
     const body = req.body;
 
     if (body.object === 'whatsapp_business_account') {
@@ -205,125 +215,10 @@ async function processStatusUpdate(tenantId, status) {
   );
 }
 
-// ============== PUBLIC DEBUG ROUTE (TEMP) ==============
-router.get('/debug-chrome', async (req, res) => {
-  try {
-    const { execSync } = await import('child_process');
-    const { existsSync } = await import('fs');
-    const os = (await import('os')).default;
-
-    const detected = whatsappService._chromePath;
-    const envPath = process.env.CHROME_EXECUTABLE_PATH || null;
-    const results = {
-      platform: os.platform(),
-      nodeVersion: process.version,
-      envCHROME_EXECUTABLE_PATH: envPath,
-      serviceDetectedPath: detected,
-      checks: {}
-    };
-
-    const paths = [
-      '/usr/bin/google-chrome-stable',
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium',
-      '/snap/bin/chromium',
-    ];
-    for (const p of paths) results.checks[p] = existsSync(p);
-
-    try {
-      results.whichResult = execSync('which google-chrome-stable 2>/dev/null || which chromium-browser 2>/dev/null || echo NOT_FOUND', { encoding: 'utf8', timeout: 3000 }).trim();
-    } catch(e) { results.whichResult = 'error: ' + e.message; }
-
-    const chromePath = envPath || detected;
-    if (chromePath && existsSync(chromePath)) {
-      try {
-        results.chromeVersion = execSync(`"${chromePath}" --version 2>&1`, { encoding: 'utf8', timeout: 5000 }).trim();
-      } catch(e) { results.chromeVersionError = e.message; }
-      // Try launching headlessly
-      try {
-        const out = execSync(`"${chromePath}" --headless --no-sandbox --disable-gpu --dump-dom about:blank 2>&1`, { encoding: 'utf8', timeout: 10000 });
-        results.headlessLaunchTest = out.length > 0 ? 'SUCCESS (output length: ' + out.length + ')' : 'EMPTY_OUTPUT';
-      } catch(e) { results.headlessLaunchError = e.message.substring(0, 300); }
-    } else {
-      results.note = 'NO CHROME PATH FOUND';
-    }
-
-    res.json(results);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/debug-status', async (req, res) => {
-  try {
-    const clients = Array.from(whatsappService.clients.keys());
-    const statuses = Array.from(whatsappService.status.entries()).map(([k, v]) => ({ tenantId: k, ...v }));
-    const qrCodes = Array.from(whatsappService.qrCodes.keys());
-    
-    res.json({
-      activeClientsCount: clients.length,
-      clients,
-      statuses,
-      qrCodesCount: qrCodes.length,
-      qrCodes: qrCodes.map(k => ({ tenantId: k, hasQr: !!whatsappService.qrCodes.get(k) }))
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // ============== PROTECTED ROUTES ==============
 
 router.use(protect);
 router.use(tenantFilter);
-
-// ============== CONFIG ROUTES ==============
-router.get('/client/debug-chrome', async (req, res) => {
-  try {
-    const { execSync } = await import('child_process');
-    const { existsSync } = await import('fs');
-    const os = await import('os');
-    const path = await import('path');
-
-    const results = {
-      platform: os.default.platform(),
-      nodeVersion: process.version,
-      chromePath: whatsappService._chromePath,
-      envPath: process.env.CHROME_EXECUTABLE_PATH || null,
-      checks: {}
-    };
-
-    // Check known paths
-    const paths = [
-      '/usr/bin/google-chrome-stable',
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium',
-      '/snap/bin/chromium',
-    ];
-    for (const p of paths) {
-      results.checks[p] = existsSync(p);
-    }
-
-    // Try which command
-    try {
-      results.whichChromium = execSync('which chromium-browser 2>/dev/null || which google-chrome 2>/dev/null || echo NOT_FOUND', { encoding: 'utf8', timeout: 3000 }).trim();
-    } catch(e) { results.whichChromium = 'error: ' + e.message; }
-
-    // Try running chrome --version
-    const detectedPath = whatsappService._chromePath;
-    if (detectedPath) {
-      try {
-        results.chromeVersion = execSync(`"${detectedPath}" --version 2>&1`, { encoding: 'utf8', timeout: 5000 }).trim();
-      } catch(e) { results.chromeVersionError = e.message; }
-    }
-
-    res.json(results);
-  } catch (error) {
-    res.status(500).json({ error: error.message, stack: error.stack });
-  }
-});
 
 // ============== UNOFFICIAL API ROUTES ==============
 

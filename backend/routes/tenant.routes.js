@@ -24,14 +24,72 @@ import IoTDevice from '../models/IoTDevice.js';
 import IoTReading from '../models/IoTReading.js';
 import { WhatsAppConfig, WhatsAppContact, WhatsAppMessage, WhatsAppTemplate, QuickReply, Broadcast } from '../models/WhatsApp.js';
 import { getPrimaryBusinessType, normalizeBusinessTypes } from '../utils/businessTypes.js';
+import { serializeAuthTenant } from '../utils/authSerialize.js';
 import { TRIAL_LIMITS } from '../middleware/trialLimits.js';
+import { imageFileFilter } from '../utils/uploadMime.js';
+import netBuiltin from 'net';
 
 const router = express.Router();
+
+/** Allow only RFC1918 private IPs + localhost for printer TCP connects (SSRF guard). */
+function assertPrivatePrinterHost(ipAddress) {
+  const host = String(ipAddress || '').trim().toLowerCase();
+  if (!host) {
+    const err = new Error('IP address is required');
+    err.status = 400;
+    throw err;
+  }
+
+  // Block link-local / cloud metadata explicitly (even if somehow classified oddly)
+  if (host === '169.254.169.254' || host.startsWith('169.254.')) {
+    const err = new Error('Printer host is not allowed');
+    err.status = 400;
+    throw err;
+  }
+
+  if (host === 'localhost' || host === '::1' || host === '0:0:0:0:0:0:0:1') {
+    return host;
+  }
+
+  // Reject hostnames — require literal IPv4/IPv6 to avoid DNS rebinding SSRF
+  const isIp = netBuiltin.isIP(host);
+  if (!isIp) {
+    const err = new Error('Printer host must be a private IP address');
+    err.status = 400;
+    throw err;
+  }
+
+  if (isIp === 4) {
+    const parts = host.split('.').map((p) => Number(p));
+    const [a, b] = parts;
+    const isPrivate =
+      a === 10 ||
+      a === 127 ||
+      (a === 192 && b === 168) ||
+      (a === 172 && b >= 16 && b <= 31);
+    if (!isPrivate) {
+      const err = new Error('Printer host must be a private (RFC1918) or localhost address');
+      err.status = 400;
+      throw err;
+    }
+    return host;
+  }
+
+  // IPv6: allow loopback only
+  if (host === '::1' || host === '0:0:0:0:0:0:0:1') return host;
+  const err = new Error('Printer host must be a private (RFC1918) or localhost address');
+  err.status = 400;
+  throw err;
+}
 
 router.use(protect);
 
 const resolveTenantId = (req) => {
-  return req.tenantFilter?.tenantId || req.user?.tenantId || req.headers['x-tenant-id'] || null;
+  // Only super_admin may impersonate via x-tenant-id / tenantFilter header.
+  if (req.user?.role === 'super_admin') {
+    return req.tenantFilter?.tenantId || req.headers['x-tenant-id'] || req.user?.tenantId || null;
+  }
+  return req.user?.tenantId || null;
 };
 
 // @route   GET /api/tenants/current
@@ -46,7 +104,8 @@ router.get('/current', async (req, res) => {
     if (!tenant) {
       return res.status(404).json({ error: 'Tenant not found' });
     }
-    res.json(tenant);
+    // Never return ZATCA private keys, CSIDs, SMTP passwords, or integration secrets
+    res.json(serializeAuthTenant(tenant));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -277,13 +336,13 @@ router.put('/current', authorize('admin'), async (req, res) => {
     
     invalidateAuthCache(req.user._id, tenant._id);
 
-    res.json(tenant);
+    res.json(serializeAuthTenant(tenant));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: multer.memoryStorage(), fileFilter: imageFileFilter });
 
 // @route   POST /api/tenants/upload-qr-hero
 router.post('/upload-qr-hero', authorize('admin'), upload.single('image'), async (req, res) => {
@@ -603,6 +662,12 @@ router.post('/test-printer', authorize('admin'), async (req, res) => {
     return res.status(400).json({ error: 'IP address and port are required' });
   }
 
+  try {
+    assertPrivatePrinterHost(ipAddress);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+
   const socket = new net.Socket();
   const timeout = 5000;
 
@@ -634,6 +699,12 @@ router.post('/test-cash-drawer', authorize('admin'), async (req, res) => {
 
   if (!ipAddress || !port) {
     return res.status(400).json({ error: 'Printer IP address and port are required' });
+  }
+
+  try {
+    assertPrivatePrinterHost(ipAddress);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
   }
 
   const kickDigits = (kickCode || '27,112,0,50,250')
@@ -679,6 +750,12 @@ router.post('/test-thermal-print', authorize('admin'), async (req, res) => {
 
   if (!ipAddress || !port) {
     return res.status(400).json({ error: 'Printer IP address and port are required' });
+  }
+
+  try {
+    assertPrivatePrinterHost(ipAddress);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
   }
 
   const enc = encoding || 'utf8';
@@ -763,6 +840,12 @@ router.post('/print-receipt', authorize('admin'), async (req, res) => {
 
   if (!ipAddress || !port) {
     return res.status(400).json({ error: 'Printer IP address and port are required' });
+  }
+
+  try {
+    assertPrivatePrinterHost(ipAddress);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
   }
 
   const enc = encoding || 'utf8';

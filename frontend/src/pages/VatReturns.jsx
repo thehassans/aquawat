@@ -271,7 +271,7 @@ export default function VatReturns() {
     
     return (
       <div className="mb-8 overflow-hidden rounded-[2rem] border border-slate-200/60 bg-white/50 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:border-slate-800/60 dark:bg-slate-900/50">
-        <div className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50/50 to-transparent px-8 py-5 dark:border-slate-800/50 dark:from-slate-800/50">
+        <div className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50/50 to-transparent px-4 sm:px-8 py-5 dark:border-slate-800/50 dark:from-slate-800/50">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-md dark:bg-white dark:text-slate-900">
               {icon}
@@ -282,7 +282,7 @@ export default function VatReturns() {
           </div>
         </div>
         
-        <div className="px-8 py-2 overflow-x-auto">
+        <div className="px-4 sm:px-8 py-2 overflow-x-auto">
           <div className="min-w-[1020px]">
             <div className="grid grid-cols-[60px_minmax(300px,1fr)_160px_160px_160px] gap-4 border-b border-slate-100 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 dark:border-slate-800">
               <div>#</div>
@@ -378,7 +378,7 @@ export default function VatReturns() {
         <div className="absolute -right-64 -top-64 h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-[120px] dark:bg-blue-500/20"></div>
         <div className="absolute -left-64 -bottom-64 h-[500px] w-[500px] rounded-full bg-emerald-500/10 blur-[120px] dark:bg-emerald-500/20"></div>
         
-        <div className="relative grid gap-8 px-8 py-10 lg:grid-cols-[1.5fr_1fr] lg:px-12 lg:py-14">
+        <div className="relative grid gap-8 px-4 sm:px-8 py-10 lg:grid-cols-[1.5fr_1fr] lg:px-12 lg:py-14">
           <div className="flex flex-col justify-center">
             <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 border border-slate-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-600 backdrop-blur-md w-fit dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">
               <ShieldCheck className="h-4 w-4 text-emerald-500" />

@@ -5,6 +5,7 @@ import BakalaCategory from '../models/BakalaCategory.js';
 import BakalaBrand from '../models/BakalaBrand.js';
 import BakalaUnit from '../models/BakalaUnit.js';
 import Tenant from '../models/Tenant.js';
+import { clampLimit } from '../utils/pagination.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -92,7 +93,9 @@ router.get('/', protect, async (req, res) => {
   try {
     const tenantId = await getTargetTenantId(req.user);
     const filter = tenantId ? { tenantId } : {};
-    const products = await BakalaProduct.find(filter).sort('-createdAt');
+    // Inventory/POS UIs load the catalog in one request; keep a hard cap without truncating typical stores.
+    const limit = clampLimit(req.query.limit, { def: 1000, max: 5000 });
+    const products = await BakalaProduct.find(filter).sort('-createdAt').limit(limit);
     res.json(products);
   } catch (error) {
     res.status(500).json({ error: error.message });

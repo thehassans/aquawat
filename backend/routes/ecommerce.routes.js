@@ -40,7 +40,16 @@ const getTenantCloudflareConfig = (tenant) => {
 };
 
 // Sign and verify OAuth state parameters to prevent CSRF
-const getStateSecret = () => process.env.JWT_SECRET || process.env.CLOUDFLARE_OAUTH_CLIENT_SECRET || 'default-state-secret';
+const getStateSecret = () => {
+  const secret = process.env.JWT_SECRET || process.env.CLOUDFLARE_OAUTH_CLIENT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET must be set for OAuth state signing in production');
+    }
+    return 'default-state-secret';
+  }
+  return secret;
+};
 
 const signCloudflareState = (payload) => {
   const data = Buffer.from(JSON.stringify(payload)).toString('base64url');

@@ -6,6 +6,7 @@ import Tenant from '../models/Tenant.js';
 import { protect } from '../middleware/auth.js';
 import { sendPasswordResetEmail } from '../utils/emailService.js';
 import { provisionTenantApps } from '../utils/appProvisioning.js';
+import { serializeAuthTenant } from '../utils/authSerialize.js';
 
 const router = express.Router();
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000);
@@ -34,33 +35,20 @@ const sendRouteError = (res, error) => {
   return res.status(500).json({ error: error.message });
 };
 
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+const generateToken = (id, tenantId = null) => {
+  const payload = { id: String(id) };
+  if (tenantId) payload.tenantId = String(tenantId);
+  return jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '7d'
   });
 };
 
 const authTenantSelect = 'name slug businessType businessTypes business settings branding subscription isActive terminationNotice zatca nbr';
 
-const serializeAuthTenant = (tenant) => {
-  if (!tenant) return null;
-
-  const source = typeof tenant.toObject === 'function' ? tenant.toObject() : tenant;
-
-  return {
-    _id: source._id,
-    name: source.name,
-    slug: source.slug,
-    businessType: source.businessType,
-    businessTypes: source.businessTypes,
-    business: source.business,
-    settings: source.settings,
-    branding: source.branding,
-    subscription: source.subscription,
-    terminationNotice: source.terminationNotice,
-    zatca: source.zatca,
-    nbr: source.nbr,
-  };
+const demoLoginAllowed = () => {
+  if (process.env.ALLOW_DEMO_LOGIN === 'true') return true;
+  if (process.env.ALLOW_DEMO_LOGIN === 'false') return false;
+  return process.env.NODE_ENV !== 'production';
 };
 
 // @route   POST /api/auth/register
@@ -69,6 +57,14 @@ router.post('/register', async (req, res) => {
     const { email, password, firstName, lastName, tenantSlug } = req.body;
     const normalizedEmail = String(email || '').toLowerCase().trim();
     const normalizedTenantSlug = String(tenantSlug || '').trim().toLowerCase();
+
+    // Open registration without a tenant creates a tenantless admin — disabled by default.
+    if (!normalizedTenantSlug) {
+      const allowOpen = process.env.ALLOW_OPEN_REGISTER === 'true' && process.env.NODE_ENV !== 'production';
+      if (!allowOpen) {
+        return res.status(403).json({ error: 'Registration requires a valid tenant invite or slug' });
+      }
+    }
     
     let tenant = null;
     if (normalizedTenantSlug) {
@@ -86,17 +82,21 @@ router.post('/register', async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ error: 'User already exists' });
     }
+
+    if (!tenant) {
+      return res.status(400).json({ error: 'tenantSlug is required' });
+    }
     
     const user = await User.create({
       email: normalizedEmail,
       password,
       firstName,
       lastName,
-      tenantId: tenant?._id,
-      role: tenant ? 'viewer' : 'admin'
+      tenantId: tenant._id,
+      role: 'viewer'
     });
     
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.tenantId);
     
     res.status(201).json({
       token,
@@ -197,7 +197,7 @@ router.post('/login', async (req, res) => {
     }
     
     if (!user) {
-      if (normalizedEmail.endsWith('@test.com') && password === 'password123') {
+      if (demoLoginAllowed() && normalizedEmail.endsWith('@test.com') && password === 'password123') {
         const businessType = normalizedEmail.split('@')[0];
         
         tenant = await Tenant.create({
@@ -285,7 +285,7 @@ router.post('/login', async (req, res) => {
 
     User.updateOne({ _id: user._id }, updatePayload).catch(() => {});
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.tenantId || tenant?._id);
     const responseTenant = serializeAuthTenant(tenant);
     
     res.json({
@@ -298,6 +298,7 @@ router.post('/login', async (req, res) => {
         firstNameAr: user.firstNameAr,
         lastNameAr: user.lastNameAr,
         role: user.role,
+        tenantId: user.tenantId,
         branchId: user.branchId,
         permissions: user.permissions,
         preferences: user.preferences,
@@ -321,7 +322,9 @@ router.get('/me', protect, async (req, res) => {
       return res.status(401).json({ error: 'Session expired' });
     }
 
-    const requestedTenantId = user.tenantId || req.headers['x-tenant-id'] || null;
+    const requestedTenantId = user.role === 'super_admin'
+      ? (user.tenantId || req.headers['x-tenant-id'] || null)
+      : (user.tenantId || null);
 
     let tenant = req.tenant ? serializeAuthTenant(req.tenant) : null;
     if (!tenant && requestedTenantId) {
@@ -508,7 +511,7 @@ router.post('/verify-otp', async (req, res) => {
       tenant = await withQueryTimeout(Tenant.findById(user.tenantId).select(authTenantSelect));
     }
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.tenantId || tenant?._id);
     const responseTenant = serializeAuthTenant(tenant);
 
     res.json({
