@@ -92,14 +92,23 @@ export default function DemoCheckout() {
   const isDemo = tenant?.isDemo === true
   const isUpgraded = tenant?.demoUpgraded === true
   const hasNotice = hasTerminationNotice(tenant)
+  const plan = tenant?.subscription?.plan
+  const subStatus = tenant?.subscription?.status
+  const canCheckout = Boolean(tenant)
+    && (
+      (isDemo && !isUpgraded)
+      || plan === 'trial'
+      || subStatus === 'expired'
+      || hasNotice
+      || true // allow renew / change plan for all tenants
+    )
 
   useEffect(() => {
     setMounted(true)
-
-    if ((!isDemo || isUpgraded) && !hasNotice) {
-      navigate('/app/dashboard', { replace: true })
+    if (!tenant) {
+      navigate('/login', { replace: true })
     }
-  }, [isDemo, isUpgraded, hasNotice, navigate])
+  }, [tenant, navigate])
 
   const primaryBusinessType = getPrimaryBusinessType(tenant)
 
@@ -165,8 +174,8 @@ export default function DemoCheckout() {
 
   const selectedPlanObj = plans.find((p) => p.id === selectedPlan) || plans[1]
   const amount = selectedBilling === 'yearly' ? selectedPlanObj.priceYearly : selectedPlanObj.priceMonthly
-  const currency = websiteSettings?.pricing?.currency || 'SAR'
-  const zatcaAddon = zatcaPhase2Enabled ? (selectedBilling === 'yearly' ? 400 : 50) : 0
+  const currency = String(tenant?.settings?.currency || websiteSettings?.pricing?.currency || 'SAR').toUpperCase()
+  const zatcaAddon = (currency === 'SAR' && zatcaPhase2Enabled) ? (selectedBilling === 'yearly' ? 400 : 50) : 0
   const totalAmount = amount + zatcaAddon
 
   const handleUpgrade = async () => {
@@ -181,7 +190,7 @@ export default function DemoCheckout() {
     try {
       const { data } = await api.post('/payments/create-payment', {
         amount: totalAmount,
-        currency: 'SAR',
+        currency,
         plan: selectedPlan,
         billingCycle: selectedBilling,
         paymentMethod,

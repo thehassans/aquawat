@@ -150,13 +150,13 @@ export default function Header() {
         <div className="flex items-center gap-2">
           <SubscriptionBadge tenant={tenant} language={language} />
           {/* Get Full Version CTA — demo/trial users */}
-          {tenant?.isDemo === true && tenant?.demoUpgraded !== true && (
+          {((tenant?.isDemo === true && tenant?.demoUpgraded !== true) || tenant?.subscription?.plan === 'trial' || tenant?.subscription?.status === 'expired') && (
             <button
               onClick={() => navigate('/demo-checkout')}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:shadow-md hover:from-amber-500 hover:to-amber-600"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:shadow-md"
             >
               <Crown className="h-3.5 w-3.5" />
-              {language === 'ar' ? 'النسخة الكاملة' : 'Get Full Version'}
+              {language === 'ar' ? 'اشترك الآن' : 'Subscribe'}
             </button>
           )}
 

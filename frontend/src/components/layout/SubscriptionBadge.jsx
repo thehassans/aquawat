@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Crown, CalendarDays, Zap, TrendingUp, Clock, ChevronDown, AlertTriangle, XCircle, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Crown, CalendarDays, Zap, TrendingUp, Clock, ChevronDown, AlertTriangle, XCircle, Sparkles, CreditCard, ArrowRight } from 'lucide-react';
 
 export default function SubscriptionBadge({ tenant, language }) {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   if (!tenant || !tenant.subscription) return null;
 
@@ -11,6 +13,8 @@ export default function SubscriptionBadge({ tenant, language }) {
   if (plan === 'trial' && status !== 'active' && !endDate) return null;
 
   const isAr = language === 'ar';
+  const isDemoPending = tenant?.isDemo === true && tenant?.demoUpgraded !== true;
+  const isTrialPlan = plan === 'trial' || isDemoPending;
 
   const getPlanConfig = () => {
     switch (plan) {
@@ -74,6 +78,19 @@ export default function SubscriptionBadge({ tenant, language }) {
   const daysLeft = calculateDaysLeft();
   const isExpired = daysLeft === 0 || status === 'expired';
   const isExpiringSoon = !isExpired && daysLeft !== null && daysLeft <= 7;
+  const canPayOrSubscribe = isTrialPlan || isExpired || isExpiringSoon || isDemoPending;
+
+  const goToCheckout = () => {
+    setOpen(false);
+    navigate('/demo-checkout');
+  };
+
+  const ctaLabel = () => {
+    if (isExpired) return isAr ? 'تجديد الاشتراك' : 'Renew & Pay';
+    if (isTrialPlan || isDemoPending) return isAr ? 'اشترك وادفع' : 'Subscribe & Pay';
+    if (isExpiringSoon) return isAr ? 'ترقية / تجديد' : 'Upgrade / Renew';
+    return isAr ? 'تغيير الباقة' : 'Change Plan';
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return '—';
@@ -277,7 +294,7 @@ export default function SubscriptionBadge({ tenant, language }) {
                         {isAr ? 'انتهت فترة الاشتراك الخاصة بك' : 'Your subscription has expired'}
                       </p>
                       <p className="text-[11px] text-red-600/90 dark:text-red-400 leading-relaxed">
-                        {isAr ? 'يرجى التواصل مع مسؤول النظام لتجديد الباقة وضمان استمرار الخدمات.' : 'Contact support or admin to renew your plan and continue using features.'}
+                        {isAr ? 'اشترك الآن لاستعادة الوصول الكامل لجميع الميزات.' : 'Subscribe now to restore full access to all features.'}
                       </p>
                     </div>
                   </div>
@@ -296,6 +313,33 @@ export default function SubscriptionBadge({ tenant, language }) {
                     </div>
                   </div>
                 )}
+
+                {/* Pay / Subscribe CTA */}
+                <div className="pt-1 space-y-2">
+                  <button
+                    type="button"
+                    onClick={goToCheckout}
+                    className={`w-full inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-white shadow-md transition hover:opacity-95 ${
+                      isExpired
+                        ? 'bg-gradient-to-r from-red-600 to-rose-600'
+                        : 'bg-gradient-to-r from-emerald-600 to-teal-600'
+                    }`}
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    {ctaLabel()}
+                    <ArrowRight className={`w-4 h-4 ${isAr ? 'rotate-180' : ''}`} />
+                  </button>
+                  {!canPayOrSubscribe && (
+                    <p className="text-[10px] text-center text-gray-400">
+                      {isAr ? 'يمكنك ترقية أو تغيير باقتك في أي وقت' : 'You can upgrade or change your plan anytime'}
+                    </p>
+                  )}
+                  {(isTrialPlan || isDemoPending) && (
+                    <p className="text-[10px] text-center text-gray-500 dark:text-gray-400">
+                      {isAr ? 'اختر الباقة وادفع بأمان عبر بوابة الدفع' : 'Pick a plan and pay securely via checkout'}
+                    </p>
+                  )}
+                </div>
 
               </div>
             </div>

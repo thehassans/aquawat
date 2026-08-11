@@ -111,8 +111,9 @@ router.post('/create-payment', protect, async (req, res) => {
       return res.status(404).json({ error: 'Tenant not found' })
     }
 
-    if (!tenant.isDemo) {
-      return res.status(400).json({ error: 'Only demo accounts can upgrade' })
+    // Any authenticated tenant may subscribe, upgrade, or renew from checkout.
+    if (!tenant.isActive && tenant.subscription?.status !== 'expired') {
+      return res.status(403).json({ error: 'Tenant account is inactive' })
     }
 
     const finalAmount = Math.round(Number(amount) * 100)
