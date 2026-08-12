@@ -267,10 +267,26 @@ const getDocumentStatusMeta = (invoice, language = 'en', documentType = 'invoice
     return { label: labels[status] || (language === 'ar' ? 'مسودة' : 'Draft') }
   }
 
+  if (documentType === 'purchase_order') {
+    const status = String(invoice?.status || 'draft').trim().toLowerCase()
+    const labels = {
+      draft: language === 'ar' ? 'مسودة' : 'Draft',
+      sent: language === 'ar' ? 'مرسل' : 'Sent',
+      approved: language === 'ar' ? 'معتمد' : 'Approved',
+      partially_received: language === 'ar' ? 'مستلم جزئياً' : 'Partially received',
+      received: language === 'ar' ? 'مستلم' : 'Received',
+      cancelled: language === 'ar' ? 'ملغي' : 'Cancelled',
+    }
+    return { label: labels[status] || (language === 'ar' ? 'مسودة' : 'Draft') }
+  }
+
   return getZatcaStatusMeta(invoice, language)
 }
 
 const getInvoiceEyebrow = (invoice, language = 'en', documentType = 'invoice') => {
+  if (documentType === 'purchase_order') {
+    return language === 'ar' ? 'طلب شراء' : 'Purchase Order'
+  }
   if (documentType === 'quotation') {
     if (invoice?.businessContext === 'construction') {
       return language === 'ar' ? 'عرض سعر للمقاولات' : 'Construction Quotation'
@@ -300,6 +316,9 @@ const getInvoiceEyebrow = (invoice, language = 'en', documentType = 'invoice') =
 }
 
 const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => {
+  if (documentType === 'purchase_order') {
+    return language === 'ar' ? 'طلب شراء' : 'Purchase Order'
+  }
   if (documentType === 'quotation') {
     if (invoice?.businessContext === 'construction') {
       return language === 'ar' ? 'عرض سعر للمقاولات' : 'Construction Quotation'

@@ -223,16 +223,21 @@ const isPosInvoice = (invoice) => {
 const captureElementSnapshotCanvas = async (sourceElement) => {
   if (!sourceElement || typeof window === 'undefined') return null
 
-  await waitForElementImages(sourceElement)
+  try {
+    await waitForElementImages(sourceElement)
 
-  const html2canvasModule = await import('html2canvas')
-  const html2canvas = html2canvasModule?.default || html2canvasModule
-  return await html2canvas(sourceElement, {
-    backgroundColor: '#ffffff',
-    scale: Math.max(2, window.devicePixelRatio || 1),
-    useCORS: true,
-    logging: false,
-  })
+    const html2canvasModule = await import('html2canvas')
+    const html2canvas = html2canvasModule?.default || html2canvasModule
+    return await html2canvas(sourceElement, {
+      backgroundColor: '#ffffff',
+      scale: Math.max(2, window.devicePixelRatio || 1),
+      useCORS: true,
+      logging: false,
+    })
+  } catch (error) {
+    console.warn('[invoicePdf] html2canvas snapshot failed', error)
+    return null
+  }
 }
 
 const renderElementSnapshotPdf = async ({ doc, sourceElement }) => {
@@ -775,7 +780,10 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   if (!invoice) return
 
   const snapshotCurrency = invoice.currency || tenant?.settings?.currency || 'SAR'
-  const shouldUseSnapshotRenderer = Boolean(sourceElement) || shouldRenderBilingualInvoice(invoice, documentType, tenant) || isSarCurrency(snapshotCurrency)
+  // Purchase orders use the reliable jsPDF path — SAR snapshot/html2canvas often fails for PO shapes.
+  const shouldUseSnapshotRenderer =
+    documentType !== 'purchase_order' &&
+    (Boolean(sourceElement) || shouldRenderBilingualInvoice(invoice, documentType, tenant) || isSarCurrency(snapshotCurrency))
 
   const jspdfModule = await import('jspdf')
   const jsPDF = jspdfModule?.jsPDF || jspdfModule?.default || jspdfModule
@@ -1007,9 +1015,14 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     : invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency'
     ? ''
     : getInvoiceTitle(invoice, language, documentType)
-  const customerLabel = invoice.flow === 'purchase'
+  const customerLabel = isPurchaseOrderPdf
     ? toBilingualBlock('Buyer', 'المشتري')
-    : toBilingualBlock('Customer', 'العميل')
+    : invoice.flow === 'purchase'
+      ? toBilingualBlock('Buyer', 'المشتري')
+      : toBilingualBlock('Customer', 'العميل')
+  const sellerLabel = isPurchaseOrderPdf
+    ? toBilingualBlock('Supplier', 'المورد')
+    : toBilingualBlock('Seller', 'البائع')
   const amountInWords = getAmountInWords(totals.grandTotal, currency, language)
   const typography = invoiceBranding.typography || {}
   const bodyFontName = arabicFontReady ? 'Almarai' : (typography.bodyFontFamily || 'helvetica')
@@ -1109,10 +1122,24 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const cardY = topMargin
 
   const metaRows = [
-    { k: isQuotationPdf ? (isRtl ? 'رقم عرض السعر' : 'Quotation #') : (isRtl ? 'رقم الفاتورة' : 'Invoice #'), v: resolveDocumentNumber(invoice, documentType) },
+    {
+      k: isPurchaseOrderPdf
+        ? (isRtl ? 'رقم طلب الشراء' : 'PO #')
+        : isQuotationPdf
+          ? (isRtl ? 'رقم عرض السعر' : 'Quotation #')
+          : (isRtl ? 'رقم الفاتورة' : 'Invoice #'),
+      v: resolveDocumentNumber(invoice, documentType),
+    },
     { k: isRtl ? 'التاريخ' : 'Date', v: formatDateTime(invoice.issueDate, language) },
     { k: isRtl ? 'المستند' : 'Document', v: invoiceEyebrow },
-    { k: isRtl ? 'النوع / التدفق' : 'Type / Flow', v: isQuotationPdf ? `${invoice.transactionType || '—'} / ${(isRtl ? 'عرض سعر' : 'Quotation')}` : `${invoice.transactionType || '—'} / ${invoice.flow || 'sell'}` },
+    {
+      k: isRtl ? 'النوع / التدفق' : 'Type / Flow',
+      v: isPurchaseOrderPdf
+        ? (isRtl ? 'طلب شراء' : 'Purchase Order')
+        : isQuotationPdf
+          ? `${invoice.transactionType || '—'} / ${(isRtl ? 'عرض سعر' : 'Quotation')}`
+          : `${invoice.transactionType || '—'} / ${invoice.flow || 'sell'}`,
+    },
   ].filter(Boolean)
 
   const metaPairs = Math.ceil(metaRows.length / 2)
@@ -1207,7 +1234,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   drawPartyBox({
     x: firstBoxX,
     y: boxY,
-    label: toBilingualBlock('Seller', 'البائع'),
+    label: sellerLabel,
     nameLines: sellerNameLines,
     detailLines: sellerDetailTextLines,
   })
@@ -1587,35 +1614,93 @@ export const printQuotationSnapshot = async ({ quotation, language = 'en', tenan
   return await printInvoiceSnapshot({ invoice: quotation, language, tenant, sourceElement, documentType: 'quotation' })
 }
 
-export const downloadPurchaseOrderPdf = async ({ purchaseOrder, language = 'en', tenant }) => {
-  const mapped = {
+const mapPurchaseOrderForPdf = (purchaseOrder, tenant) => {
+  if (!purchaseOrder || typeof purchaseOrder !== 'object') {
+    throw new Error('Purchase order is required')
+  }
+
+  const supplier = purchaseOrder.supplierId && typeof purchaseOrder.supplierId === 'object'
+    ? purchaseOrder.supplierId
+    : {}
+  const business = tenant?.business || {}
+
+  const lineItems = (Array.isArray(purchaseOrder.lineItems) ? purchaseOrder.lineItems : []).map((li) => {
+    const product = li?.productId && typeof li.productId === 'object' ? li.productId : null
+    const productName =
+      li?.manualName ||
+      li?.productName ||
+      product?.nameEn ||
+      product?.nameAr ||
+      li?.description ||
+      'Item'
+    const productNameAr =
+      li?.productNameAr ||
+      product?.nameAr ||
+      li?.manualName ||
+      ''
+
+    return {
+      productId: product?._id || (typeof li?.productId === 'string' ? li.productId : '') || '',
+      productName,
+      productNameAr,
+      description: li?.description || '',
+      unitCode: li?.uom || li?.unitCode || product?.unitOfMeasure || 'PCE',
+      quantity: Number(li?.quantityOrdered ?? li?.quantity ?? 0),
+      unitPrice: Number(li?.unitCost ?? li?.unitPrice ?? 0),
+      taxRate: Number(li?.taxRate ?? 15),
+    }
+  })
+
+  return {
     ...purchaseOrder,
-    invoiceNumber: purchaseOrder.poNumber,
-    issueDate: purchaseOrder.orderDate,
-    dueDate: purchaseOrder.expectedDate,
-    buyer: tenant?.business || {},
-    seller: purchaseOrder.supplierId || {},
+    poNumber: purchaseOrder.poNumber || purchaseOrder.invoiceNumber || 'purchase_order',
+    invoiceNumber: purchaseOrder.poNumber || purchaseOrder.invoiceNumber || 'purchase_order',
+    issueDate: purchaseOrder.orderDate || purchaseOrder.issueDate || purchaseOrder.createdAt || new Date(),
+    dueDate: purchaseOrder.expectedDate || purchaseOrder.dueDate || null,
+    currency: purchaseOrder.currency || tenant?.settings?.currency || 'SAR',
     transactionType: 'Purchase Order',
     flow: 'purchase',
+    lineItems,
+    // Buyer = tenant company placing the order; seller = supplier
+    buyer: {
+      name: business.legalNameEn || business.legalNameAr || tenant?.name || '',
+      nameEn: business.legalNameEn || tenant?.name || '',
+      nameAr: business.legalNameAr || '',
+      vatNumber: business.vatNumber || '',
+      crNumber: business.crNumber || business.commercialRegistration?.crNumber || '',
+      contactPhone: business.contactPhone || '',
+      contactEmail: business.contactEmail || '',
+      address: business.address || {},
+    },
+    seller: {
+      name: supplier.nameEn || supplier.name || supplier.nameAr || '',
+      nameEn: supplier.nameEn || supplier.name || '',
+      nameAr: supplier.nameAr || '',
+      vatNumber: supplier.vatNumber || '',
+      crNumber: supplier.crNumber || '',
+      contactPhone: supplier.phone || supplier.contactPhone || '',
+      contactEmail: supplier.email || supplier.contactEmail || '',
+      address: supplier.address || {},
+    },
+    subtotal: purchaseOrder.subtotal,
+    totalTax: purchaseOrder.totalTax,
+    grandTotal: purchaseOrder.grandTotal,
   }
-  return await generateInvoicePdf({ invoice: mapped, language, tenant, output: 'save', documentType: 'purchase_order' })
+}
+
+export const downloadPurchaseOrderPdf = async ({ purchaseOrder, language = 'en', tenant }) => {
+  const mapped = mapPurchaseOrderForPdf(purchaseOrder, tenant)
+  const result = await generateInvoicePdf({ invoice: mapped, language, tenant, output: 'save', documentType: 'purchase_order' })
+  if (!result) throw new Error('Failed to generate purchase order PDF')
+  return result
 }
 
 export const printPurchaseOrderPdf = async ({ purchaseOrder, language = 'en', tenant }) => {
-  const mapped = {
-    ...purchaseOrder,
-    invoiceNumber: purchaseOrder.poNumber,
-    issueDate: purchaseOrder.orderDate,
-    dueDate: purchaseOrder.expectedDate,
-    buyer: tenant?.business || {},
-    seller: purchaseOrder.supplierId || {},
-    transactionType: 'Purchase Order',
-    flow: 'purchase',
-  }
+  const mapped = mapPurchaseOrderForPdf(purchaseOrder, tenant)
   const blob = await generateInvoicePdf({ invoice: mapped, language, tenant, output: 'blob', documentType: 'purchase_order' })
-  if (blob) {
-    const title = resolveDocumentNumber(mapped, 'purchase_order')
-    return await printPdfBlob(blob, title)
-  }
-  return false
+  if (!blob) throw new Error('Failed to generate purchase order PDF')
+  const title = resolveDocumentNumber(mapped, 'purchase_order')
+  const printed = await printPdfBlob(blob, title)
+  if (!printed) throw new Error('Failed to open print dialog')
+  return true
 }

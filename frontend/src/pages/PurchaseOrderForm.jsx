@@ -336,7 +336,10 @@ export default function PurchaseOrderForm() {
   const resolveOrderForPdf = async () => {
     if (order?.lineItems?.length) return order
     const res = await api.get(`/purchase-orders/${id}`)
-    return res.data
+    const data = res?.data
+    const full = data?.purchaseOrder || data?.order || data
+    if (!full?._id && !full?.poNumber) throw new Error('Purchase order not found')
+    return full
   }
 
   const handlePrintPdf = async () => {
@@ -348,6 +351,7 @@ export default function PurchaseOrderForm() {
       await printPurchaseOrderPdf({ purchaseOrder: full, language, tenant })
       toast.success(language === 'ar' ? 'جاهز للطباعة' : 'Ready to print', { id: toastId })
     } catch (e) {
+      console.error('[PurchaseOrderForm] PDF print failed', e)
       toast.error(language === 'ar' ? 'فشل الطباعة' : 'Print failed', { id: toastId })
     } finally {
       setPdfBusy(null)
@@ -363,6 +367,7 @@ export default function PurchaseOrderForm() {
       await downloadPurchaseOrderPdf({ purchaseOrder: full, language, tenant })
       toast.success(language === 'ar' ? 'تم التنزيل' : 'Downloaded', { id: toastId })
     } catch (e) {
+      console.error('[PurchaseOrderForm] PDF download failed', e)
       toast.error(language === 'ar' ? 'فشل التنزيل' : 'Download failed', { id: toastId })
     } finally {
       setPdfBusy(null)
