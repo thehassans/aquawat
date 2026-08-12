@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Clock, Crown, X, AlertTriangle } from 'lucide-react'
+import { getSubscriptionState } from '../../lib/subscriptionState'
 
 function formatTimeRemaining(ms) {
   if (ms <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true }
@@ -22,12 +23,15 @@ export default function DemoBanner() {
   const [timeLeft, setTimeLeft] = useState(null)
   const [showBanner, setShowBanner] = useState(true)
 
+  const subState = getSubscriptionState(tenant)
   const isDemo = tenant?.isDemo === true
-  const trialEndsAt = tenant?.demoTrialEndsAt || tenant?.subscription?.endDate
+  const isTrialPlan = subState.isTrialPlan
+  const trialEndsAt = subState.endDate
   const isUpgraded = tenant?.demoUpgraded === true
+  const showForTrial = isDemo || (isTrialPlan && trialEndsAt)
 
   useEffect(() => {
-    if (!isDemo || !trialEndsAt) return
+    if (!showForTrial || !trialEndsAt || isUpgraded) return
 
     const updateTimer = () => {
       const remaining = new Date(trialEndsAt).getTime() - Date.now()
@@ -37,59 +41,59 @@ export default function DemoBanner() {
     updateTimer()
     const interval = setInterval(updateTimer, 1000)
     return () => clearInterval(interval)
-  }, [isDemo, trialEndsAt])
+  }, [showForTrial, trialEndsAt, isUpgraded])
 
-  if (!isDemo || isUpgraded || !showBanner) return null
+  if (!showForTrial || isUpgraded || !showBanner) return null
 
-  const expired = timeLeft?.expired
+  const expired = timeLeft?.expired || subState.isTrialEnded || subState.isExpired
   const urgent = timeLeft && !expired && timeLeft.days === 0
 
   return (
-    <>
-      {/* Demo Banner */}
-      <div className={`relative px-4 py-2 text-sm ${expired ? 'bg-red-600' : urgent ? 'bg-amber-500' : 'bg-gradient-to-r from-[#0f3d2e] to-[#1a5d44]'} text-white`}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            {expired ? (
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-            ) : (
-              <Clock className="h-4 w-4 shrink-0" />
-            )}
-            <span className="truncate font-medium">
-              {expired
-                ? (isArabic ? 'انتهت فترة التجربة — اشترك الآن للمتابعة' : 'Trial expired — Subscribe now to continue')
-                : (
-                  <>
-                    {isArabic ? 'وضع تجريبي — متبقي: ' : 'Demo mode — Time left: '}
-                    {timeLeft && (
-                      <span className="font-bold tabular-nums">
-                        {timeLeft.days > 0 && `${timeLeft.days}d `}
-                        {String(timeLeft.hours).padStart(2, '0')}:{String(timeLeft.minutes).padStart(2, '0')}:{String(timeLeft.seconds).padStart(2, '0')}
-                      </span>
-                    )}
-                  </>
-                )}
-            </span>
-          </div>
+    <div className={`relative px-4 py-2 text-sm ${expired ? 'bg-red-600' : urgent ? 'bg-amber-500' : 'bg-gradient-to-r from-[#0f3d2e] to-[#1a5d44]'} text-white`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          {expired ? (
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+          ) : (
+            <Clock className="h-4 w-4 shrink-0" />
+          )}
+          <span className="truncate font-medium">
+            {expired
+              ? (isArabic ? 'انتهت التجربة — النظام مفتوح، اشترك للمتابعة' : 'Trial Ended — workspace is open; subscribe to continue')
+              : (
+                <>
+                  {isArabic ? 'وضع تجريبي — متبقي: ' : 'Demo mode — Time left: '}
+                  {timeLeft && (
+                    <span className="font-bold tabular-nums">
+                      {timeLeft.days > 0 && `${timeLeft.days}d `}
+                      {String(timeLeft.hours).padStart(2, '0')}:{String(timeLeft.minutes).padStart(2, '0')}:{String(timeLeft.seconds).padStart(2, '0')}
+                    </span>
+                  )}
+                </>
+              )}
+          </span>
+        </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => navigate('/demo-checkout')}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-bold backdrop-blur-sm transition hover:bg-white/25"
-            >
-              <Crown className="h-3.5 w-3.5" />
-              {isArabic ? 'احصل على النسخة الكاملة' : 'Get Full Version'}
-            </button>
-            <button
-              onClick={() => setShowBanner(false)}
-              className="rounded-lg p-1 transition hover:bg-white/20"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => navigate('/demo-checkout')}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-bold backdrop-blur-sm transition hover:bg-white/25"
+          >
+            <Crown className="h-3.5 w-3.5" />
+            {expired
+              ? (isArabic ? 'تغيير الباقة' : 'Change Plan')
+              : (isArabic ? 'احصل على النسخة الكاملة' : 'Get Full Version')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowBanner(false)}
+            className="rounded-lg p-1 transition hover:bg-white/20"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
-
-    </>
+    </div>
   )
 }

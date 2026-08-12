@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Crown, CalendarDays, Zap, TrendingUp, Clock, ChevronDown, AlertTriangle, XCircle, Sparkles, CreditCard, ArrowRight } from 'lucide-react';
+import {
+  formatSubscriptionDate,
+  getPlanDisplayName,
+  getPlanShortName,
+  getSubscriptionState,
+} from '../../lib/subscriptionState';
 
 export default function SubscriptionBadge({ tenant, language }) {
   const [open, setOpen] = useState(false);
@@ -8,59 +14,59 @@ export default function SubscriptionBadge({ tenant, language }) {
 
   if (!tenant || !tenant.subscription) return null;
 
-  const { plan, startDate, endDate, status } = tenant.subscription;
-  // If trial is inactive and expired, we still show the badge so user can see expired status and renew
-  if (plan === 'trial' && status !== 'active' && !endDate) return null;
+  const state = getSubscriptionState(tenant);
+  const { plan, startDate, endDate, status } = {
+    plan: state.plan,
+    startDate: state.startDate,
+    endDate: state.endDate,
+    status: state.status,
+  };
+
+  // If trial is inactive and expired with no end date, still show when we have status
+  if (plan === 'trial' && status !== 'active' && !endDate && !state.isExpired) return null;
 
   const isAr = language === 'ar';
-  const isDemoPending = tenant?.isDemo === true && tenant?.demoUpgraded !== true;
-  const isTrialPlan = plan === 'trial' || isDemoPending;
+  const isDemoPending = state.isDemoPending;
+  const isTrialPlan = state.isTrialPlan;
+  const isExpired = state.isExpired;
+  const isTrialEnded = state.isTrialEnded;
+  const isExpiringSoon = state.isExpiringSoon;
+  const daysLeft = state.daysLeft;
+  const canPayOrSubscribe = isTrialPlan || isExpired || isExpiringSoon || isDemoPending;
 
   const getPlanConfig = () => {
     switch (plan) {
       case 'starter':
         return {
-          name: isAr ? 'الباقة الأساسية' : 'Starter Plan',
-          shortName: isAr ? 'الأساسية' : 'Starter',
+          name: getPlanDisplayName(plan, language),
+          shortName: getPlanShortName(plan, language),
           gradient: 'from-blue-600 via-indigo-600 to-blue-700',
-          badgeBg: 'bg-blue-50 dark:bg-blue-950/40',
           border: 'border-blue-200/80 dark:border-blue-800/50',
-          textColor: 'text-blue-700 dark:text-blue-300',
-          tagColor: 'text-blue-600 dark:text-blue-400',
           icon: Zap,
         };
       case 'professional':
         return {
-          name: isAr ? 'الباقة الاحترافية' : 'Professional Plan',
-          shortName: isAr ? 'الاحترافية' : 'Professional',
+          name: getPlanDisplayName(plan, language),
+          shortName: getPlanShortName(plan, language),
           gradient: 'from-violet-600 via-purple-600 to-fuchsia-700',
-          badgeBg: 'bg-purple-50 dark:bg-purple-950/40',
           border: 'border-purple-200/80 dark:border-purple-800/50',
-          textColor: 'text-purple-700 dark:text-purple-300',
-          tagColor: 'text-purple-600 dark:text-purple-400',
           icon: TrendingUp,
         };
       case 'enterprise':
         return {
-          name: isAr ? 'باقة الشركات' : 'Enterprise Plan',
-          shortName: isAr ? 'الشركات' : 'Enterprise',
+          name: getPlanDisplayName(plan, language),
+          shortName: getPlanShortName(plan, language),
           gradient: 'from-amber-500 via-orange-600 to-rose-600',
-          badgeBg: 'bg-amber-50 dark:bg-amber-950/40',
           border: 'border-amber-200/80 dark:border-amber-700/50',
-          textColor: 'text-amber-700 dark:text-amber-300',
-          tagColor: 'text-amber-600 dark:text-amber-400',
           icon: Crown,
         };
       case 'trial':
       default:
         return {
-          name: isAr ? 'الباقة التجريبية' : 'Trial Plan',
-          shortName: isAr ? 'تجريبية' : 'Trial',
+          name: getPlanDisplayName(plan, language),
+          shortName: getPlanShortName(plan, language),
           gradient: 'from-amber-500 via-amber-600 to-orange-600',
-          badgeBg: 'bg-amber-50/80 dark:bg-amber-950/30',
           border: 'border-amber-300/70 dark:border-amber-700/40',
-          textColor: 'text-amber-800 dark:text-amber-200',
-          tagColor: 'text-amber-600 dark:text-amber-400',
           icon: Crown,
         };
     }
@@ -69,35 +75,26 @@ export default function SubscriptionBadge({ tenant, language }) {
   const cfg = getPlanConfig();
   const PlanIcon = cfg.icon;
 
-  const calculateDaysLeft = () => {
-    if (!endDate) return null;
-    const diffTime = new Date(endDate) - new Date();
-    return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-  };
-
-  const daysLeft = calculateDaysLeft();
-  const isExpired = daysLeft === 0 || status === 'expired';
-  const isExpiringSoon = !isExpired && daysLeft !== null && daysLeft <= 7;
-  const canPayOrSubscribe = isTrialPlan || isExpired || isExpiringSoon || isDemoPending;
-
   const goToCheckout = () => {
     setOpen(false);
     navigate('/demo-checkout');
   };
 
+  const statusLabel = () => {
+    if (isTrialEnded) return isAr ? 'انتهت التجربة' : 'Trial Ended';
+    if (isExpired) return isAr ? 'منتهي' : 'Expired';
+    return isAr ? 'نشط' : 'Active';
+  };
+
   const ctaLabel = () => {
+    if (isTrialEnded) return isAr ? 'اشترك الآن' : 'Subscribe Now';
     if (isExpired) return isAr ? 'تجديد الاشتراك' : 'Renew & Pay';
     if (isTrialPlan || isDemoPending) return isAr ? 'اشترك وادفع' : 'Subscribe & Pay';
     if (isExpiringSoon) return isAr ? 'ترقية / تجديد' : 'Upgrade / Renew';
     return isAr ? 'تغيير الباقة' : 'Change Plan';
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '—';
-    return new Date(dateString).toLocaleDateString(isAr ? 'ar-SA' : 'en-US', {
-      year: 'numeric', month: 'short', day: 'numeric'
-    });
-  };
+  const formatDate = (dateString) => formatSubscriptionDate(dateString, language);
 
   const totalDays = startDate && endDate
     ? Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)))
@@ -109,7 +106,6 @@ export default function SubscriptionBadge({ tenant, language }) {
 
   return (
     <div className="relative hidden md:block">
-      {/* Trigger Button - Ultra Professional & Compact */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -121,7 +117,6 @@ export default function SubscriptionBadge({ tenant, language }) {
           transition-all duration-200 ease-out focus:outline-none ring-0 group
         `}
       >
-        {/* Crown / Icon Disc */}
         <span className={`
           flex items-center justify-center w-7 h-7 rounded-xl
           bg-gradient-to-br ${isExpired ? 'from-red-500 to-rose-600' : cfg.gradient}
@@ -130,7 +125,6 @@ export default function SubscriptionBadge({ tenant, language }) {
           <PlanIcon className="w-3.5 h-3.5" strokeWidth={2.5} />
         </span>
 
-        {/* Info Text */}
         <div className="flex flex-col items-start leading-tight text-start min-w-[70px]">
           <span className="text-[9px] font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500">
             {isAr ? 'الباقة الحالية' : 'CURRENT PLAN'}
@@ -141,7 +135,7 @@ export default function SubscriptionBadge({ tenant, language }) {
           {isExpired ? (
             <span className="text-[9px] font-bold text-red-500 flex items-center gap-0.5 mt-0.5">
               <Clock className="w-2.5 h-2.5" />
-              {isAr ? 'منتهي' : 'Expired'}
+              {statusLabel()}
             </span>
           ) : isExpiringSoon ? (
             <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-0.5 mt-0.5">
@@ -156,23 +150,17 @@ export default function SubscriptionBadge({ tenant, language }) {
           ) : null}
         </div>
 
-        {/* Arrow */}
         <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180 text-amber-500' : 'group-hover:text-gray-600'}`} />
       </button>
 
-      {/* Popover Dropdown Card - 100% Solid Opacity to Prevent Overlap Bleed */}
       {open && (
         <>
-          {/* Transparent Overlay backdrop to dismiss */}
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
           <div className="absolute top-full mt-2 end-0 z-50 w-80">
-            {/* SOLID BACKGROUND CONTAINER */}
             <div className="rounded-3xl shadow-2xl bg-white dark:bg-dark-800 ring-1 ring-black/10 dark:ring-white/10 overflow-hidden border border-gray-100 dark:border-dark-700">
 
-              {/* Premium Gradient Header Header Banner */}
               <div className={`p-5 text-white bg-gradient-to-br ${isExpired ? 'from-gray-900 via-slate-900 to-rose-950' : 'from-slate-900 via-gray-900 to-slate-900'} relative overflow-hidden`}>
-                {/* Background Ambient Glows */}
                 <div className={`absolute -top-10 -right-10 w-28 h-28 rounded-full blur-2xl opacity-40 ${isExpired ? 'bg-rose-500' : 'bg-amber-400'}`} />
                 <div className="absolute -bottom-10 -left-10 w-28 h-28 rounded-full blur-2xl opacity-20 bg-indigo-500" />
 
@@ -191,7 +179,6 @@ export default function SubscriptionBadge({ tenant, language }) {
                   </div>
                 </div>
 
-                {/* Status Indicator Bar */}
                 <div className="relative mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`
@@ -199,7 +186,7 @@ export default function SubscriptionBadge({ tenant, language }) {
                       ${isExpired ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}
                     `}>
                       <span className={`w-1.5 h-1.5 rounded-full ${isExpired ? 'bg-red-400' : 'bg-emerald-400 animate-pulse'}`} />
-                      {isExpired ? (isAr ? 'منتهي' : 'Expired') : (isAr ? 'نشط' : 'Active')}
+                      {statusLabel()}
                     </span>
                   </div>
 
@@ -211,10 +198,7 @@ export default function SubscriptionBadge({ tenant, language }) {
                 </div>
               </div>
 
-              {/* Card Body - 100% Solid BG */}
               <div className="p-5 space-y-4 bg-white dark:bg-dark-800">
-
-                {/* Subscription Life Bar */}
                 {daysLeft !== null && (
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
@@ -236,7 +220,6 @@ export default function SubscriptionBadge({ tenant, language }) {
                   </div>
                 )}
 
-                {/* Start / End Dates */}
                 <div className="grid grid-cols-1 gap-2 pt-1">
                   <div className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 dark:bg-dark-700/60 border border-gray-100 dark:border-dark-700">
                     <div className="flex items-center gap-2.5">
@@ -285,16 +268,19 @@ export default function SubscriptionBadge({ tenant, language }) {
                   )}
                 </div>
 
-                {/* Expiry Message */}
                 {isExpired && (
                   <div className="p-3.5 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 flex items-start gap-2.5">
                     <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                     <div className="space-y-1">
                       <p className="text-xs font-bold text-red-700 dark:text-red-300 leading-tight">
-                        {isAr ? 'انتهت فترة الاشتراك الخاصة بك' : 'Your subscription has expired'}
+                        {isTrialEnded
+                          ? (isAr ? 'انتهت فترة التجربة' : 'Your trial has ended')
+                          : (isAr ? 'انتهت فترة الاشتراك الخاصة بك' : 'Your subscription has expired')}
                       </p>
                       <p className="text-[11px] text-red-600/90 dark:text-red-400 leading-relaxed">
-                        {isAr ? 'اشترك الآن لاستعادة الوصول الكامل لجميع الميزات.' : 'Subscribe now to restore full access to all features.'}
+                        {isAr
+                          ? 'يمكنك فتح النظام واختيار باقة جديدة للمتابعة.'
+                          : 'Your workspace stays open — choose a plan to continue with full access.'}
                       </p>
                     </div>
                   </div>
@@ -314,7 +300,6 @@ export default function SubscriptionBadge({ tenant, language }) {
                   </div>
                 )}
 
-                {/* Pay / Subscribe CTA */}
                 <div className="pt-1 space-y-2">
                   <button
                     type="button"
@@ -334,13 +319,12 @@ export default function SubscriptionBadge({ tenant, language }) {
                       {isAr ? 'يمكنك ترقية أو تغيير باقتك في أي وقت' : 'You can upgrade or change your plan anytime'}
                     </p>
                   )}
-                  {(isTrialPlan || isDemoPending) && (
+                  {(isTrialPlan || isDemoPending) && !isExpired && (
                     <p className="text-[10px] text-center text-gray-500 dark:text-gray-400">
                       {isAr ? 'اختر الباقة وادفع بأمان عبر بوابة الدفع' : 'Pick a plan and pay securely via checkout'}
                     </p>
                   )}
                 </div>
-
               </div>
             </div>
           </div>

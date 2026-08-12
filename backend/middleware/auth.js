@@ -118,6 +118,9 @@ export const protect = async (req, res, next) => {
           const TENANT_AUTH_SELECT = [
             'isActive',
             'subscription',
+            'isDemo',
+            'demoTrialEndsAt',
+            'demoUpgraded',
             'businessType',
             'businessTypes',
             'business',
@@ -144,9 +147,27 @@ export const protect = async (req, res, next) => {
       }
 
       req.tenant = tenant;
-      if (tenant.isActive && tenant.subscription?.status !== 'active') {
-        return res.status(403).json({ error: 'Subscription expired or inactive' });
+
+      // Soft-open expired / trial-ended tenants so they can still enter the app,
+      // see "Trial Ended", and change plan. Only hard-block if the tenant itself is deactivated.
+      if (tenant.isActive === false) {
+        return res.status(403).json({ error: 'Tenant account is inactive' });
       }
+
+      const sub = tenant.subscription || {};
+      const endRaw = tenant.demoTrialEndsAt || sub.endDate;
+      const endMs = endRaw ? new Date(endRaw).getTime() : NaN;
+      const dateExpired = Number.isFinite(endMs) && endMs < Date.now();
+      const status = String(sub.status || '').toLowerCase();
+      const statusExpired = ['expired', 'cancelled', 'inactive', 'terminated'].includes(status);
+      const isDemoPending = tenant.isDemo === true && tenant.demoUpgraded !== true;
+      const isTrialPlan = String(sub.plan || '').toLowerCase() === 'trial' || isDemoPending;
+      const isExpired = Boolean(dateExpired || statusExpired);
+      req.subscriptionGate = {
+        isExpired,
+        isTrialEnded: Boolean(isTrialPlan && isExpired),
+        status: isExpired ? (isTrialPlan ? 'trial_ended' : 'expired') : (status || 'active'),
+      };
     }
 
     req.user = user;

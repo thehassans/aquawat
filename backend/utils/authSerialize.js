@@ -73,6 +73,9 @@ export const serializeAuthTenant = (tenant) => {
     subscription: source.subscription,
     terminationNotice: source.terminationNotice,
     isActive: source.isActive,
+    isDemo: Boolean(source.isDemo),
+    demoTrialEndsAt: source.demoTrialEndsAt || null,
+    demoUpgraded: Boolean(source.demoUpgraded),
     zatca: serializeZatcaForAuth(source.zatca),
     nbr: serializeNbrForAuth(source.nbr),
   };

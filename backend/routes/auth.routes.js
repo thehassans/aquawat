@@ -77,7 +77,7 @@ const clearAuthCookie = (res) => {
   });
 };
 
-const authTenantSelect = 'name slug businessType businessTypes business settings branding subscription isActive terminationNotice zatca nbr';
+const authTenantSelect = 'name slug businessType businessTypes business settings branding subscription isActive isDemo demoTrialEndsAt demoUpgraded terminationNotice zatca nbr';
 
 const demoLoginAllowed = () => {
   if (process.env.ALLOW_DEMO_LOGIN === 'true') return true;

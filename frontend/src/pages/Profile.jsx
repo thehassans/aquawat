@@ -9,7 +9,6 @@ import {
   Building2,
   Building,
   User,
-  Mail,
   Phone,
   Globe,
   FileText,
@@ -29,7 +28,6 @@ import {
   Check,
   Edit3,
   ExternalLink,
-  QrCode,
   Layers,
   Crown,
   Server,
@@ -48,18 +46,16 @@ import {
   Clock,
   Wallet,
   Landmark,
-  Truck,
-  Cpu,
-  Scale,
   Store,
   UtensilsCrossed,
+  CalendarDays,
+  Package,
   Scissors,
   Shirt,
   Car,
   Wrench,
   BookOpen,
   ShoppingBag,
-  Flame,
   Star,
   Trash2,
   Hash,
@@ -69,6 +65,12 @@ import {
 import api from '../lib/api'
 import { updateTenant, updateUser } from '../store/slices/authSlice'
 import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes, normalizeBusinessTypes } from '../lib/businessTypes'
+import {
+  formatSubscriptionDate,
+  getPlanDisplayName,
+  getSubscriptionState,
+  humanizeAppId,
+} from '../lib/subscriptionState'
 
 const BUSINESS_TYPE_ICONS = {
   trading: Store,
@@ -354,18 +356,39 @@ export default function Profile() {
     }
   })
 
-  // Format subscription dates
-  const planName = (subscription.plan || 'trial').toUpperCase()
-  const isTrial = subscription.plan === 'trial' || (tenant.isDemo && !tenant.demoUpgraded)
-  const isSubActive = subscription.status === 'active' || isTrial
+  const subState = useMemo(() => getSubscriptionState(tenant), [tenant])
+  const planName = (subState.plan || 'trial').toUpperCase()
+  const isSubActive = subState.isActive
+  const isTrialEnded = subState.isTrialEnded
+  const isSubExpired = subState.isExpired
+  const daysRemaining = subState.daysLeft
 
-  const daysRemaining = useMemo(() => {
-    if (!subscription.endDate) return null
-    const end = new Date(subscription.endDate)
-    const now = new Date()
-    const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24))
-    return diff
-  }, [subscription.endDate])
+  const { data: appStoreCatalog = [] } = useQuery({
+    queryKey: ['app-store-apps'],
+    queryFn: () => api.get('/app-store/apps').then((r) => r.data?.apps || r.data || []),
+    enabled: activeTab === 'subscription',
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const installedModules = useMemo(() => {
+    const appsMap = tenant?.settings?.installedApps || {}
+    const catalogById = new Map(
+      (Array.isArray(appStoreCatalog) ? appStoreCatalog : []).map((app) => [app.appId, app])
+    )
+    return Object.entries(appsMap)
+      .filter(([, meta]) => meta?.isInstalled)
+      .map(([appId, meta]) => {
+        const catalog = catalogById.get(appId)
+        return {
+          appId,
+          nameEn: catalog?.nameEn || humanizeAppId(appId),
+          nameAr: catalog?.nameAr || catalog?.nameEn || humanizeAppId(appId),
+          isEnabled: meta?.isEnabled !== false,
+          installedAt: meta?.installedAt || null,
+        }
+      })
+      .sort((a, b) => a.nameEn.localeCompare(b.nameEn))
+  }, [tenant?.settings?.installedApps, appStoreCatalog])
 
   const tabs = [
     { id: 'overview', label: language === 'ar' ? 'بيانات المنشأة' : 'Company Overview', icon: Building2, color: 'text-blue-500', activeStyle: 'text-blue-700 dark:text-blue-300 bg-blue-50/80 dark:bg-blue-950/40 border-blue-200/80 dark:border-blue-800/60' },
@@ -441,11 +464,15 @@ export default function Profile() {
                       : 'bg-rose-400/15 text-rose-200 ring-rose-300/30'
                   }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${isSubActive ? 'bg-emerald-300' : 'bg-rose-300'}`} />
-                    {(subscription.plan || 'trial').toUpperCase()}
+                    {planName}
                     {' · '}
-                    {subscription.status === 'active'
-                      ? (language === 'ar' ? 'نشط' : 'Active')
-                      : (language === 'ar' ? 'تجريبي' : 'Trial')}
+                    {isTrialEnded
+                      ? (language === 'ar' ? 'انتهت التجربة' : 'Trial Ended')
+                      : isSubExpired
+                        ? (language === 'ar' ? 'منتهي' : 'Expired')
+                        : isSubActive
+                          ? (language === 'ar' ? 'نشط' : 'Active')
+                          : (language === 'ar' ? 'تجريبي' : 'Trial')}
                   </span>
 
                   {(business.vatNumber || business.crNumber || commercialReg.crNumber) && (
@@ -1279,125 +1306,202 @@ export default function Profile() {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-6"
           >
-            <div className="card p-6 sm:p-8 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-gray-100 dark:border-dark-700">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                    <Crown className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                        {language === 'ar' ? 'حالة الاشتراك والترخيص' : 'Subscription & Licensing Status'}
-                      </h3>
-                      <span className="px-3 py-1 rounded-full text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm">
-                        {planName} PLAN
-                      </span>
+            {/* Ultra-premium YOUR SUBSCRIPTION */}
+            <div className="overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_28px_60px_-36px_rgba(15,23,42,0.45)] dark:border-dark-700 dark:bg-dark-800">
+              <div className={`relative overflow-hidden px-6 py-7 sm:px-8 ${
+                isSubExpired
+                  ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-rose-950'
+                  : 'bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950'
+              }`}>
+                <div className={`pointer-events-none absolute -top-16 end-0 h-48 w-48 rounded-full blur-3xl opacity-40 ${isSubExpired ? 'bg-rose-500' : 'bg-amber-400'}`} />
+                <div className="pointer-events-none absolute -bottom-20 start-0 h-44 w-44 rounded-full bg-indigo-500/25 blur-3xl" />
+
+                <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br shadow-lg ring-2 ring-white/20 ${
+                      isSubExpired
+                        ? 'from-red-500 to-rose-600'
+                        : subState.plan === 'enterprise'
+                          ? 'from-amber-500 via-orange-600 to-rose-600'
+                          : 'from-emerald-500 to-teal-600'
+                    }`}>
+                      <Crown className="h-7 w-7 text-white" strokeWidth={2.4} />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {language === 'ar' ? 'تفاصيل باقة النظام، تاريخ التجديد، والميزات المفتوحة' : 'System plan details, renewal schedule, and active feature add-ons'}
-                    </p>
+                    <div>
+                      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-amber-300/90">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {language === 'ar' ? 'اشتراكك' : 'YOUR SUBSCRIPTION'}
+                      </p>
+                      <h3 className="mt-1.5 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                        {getPlanDisplayName(subState.plan, language)}
+                      </h3>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border ${
+                          isSubExpired
+                            ? 'bg-red-500/20 text-red-200 border-red-400/30'
+                            : 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30'
+                        }`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${isSubExpired ? 'bg-red-300' : 'bg-emerald-300 animate-pulse'}`} />
+                          {isTrialEnded
+                            ? (language === 'ar' ? 'انتهت التجربة' : 'Trial Ended')
+                            : isSubExpired
+                              ? (language === 'ar' ? 'منتهي' : 'Expired')
+                              : (language === 'ar' ? 'نشط' : 'Active')}
+                        </span>
+                        {!isSubExpired && daysRemaining !== null && (
+                          <span className="text-xs font-semibold text-white/60">
+                            {language === 'ar' ? `${daysRemaining} يوم متبقي` : `${daysRemaining} days left`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/demo-checkout')}
+                    className={`inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:opacity-95 ${
+                      isSubExpired
+                        ? 'bg-gradient-to-r from-red-500 to-rose-600'
+                        : 'bg-gradient-to-r from-emerald-500 to-teal-600'
+                    }`}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    {isTrialEnded
+                      ? (language === 'ar' ? 'اشترك الآن' : 'Subscribe Now')
+                      : isSubExpired
+                        ? (language === 'ar' ? 'تجديد الاشتراك' : 'Renew Plan')
+                        : (language === 'ar' ? 'تغيير الباقة' : 'Change Plan')}
+                    <ArrowRight className={`h-4 w-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                  </button>
                 </div>
 
-                {tenant?.isDemo && !tenant?.demoUpgraded && (
-                  <button
-                    onClick={() => navigate('/demo-checkout')}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs shadow-lg transition-all"
-                  >
-                    <Crown className="w-4 h-4" />
-                    {language === 'ar' ? 'الترقية للنسخة الكاملة' : 'Upgrade to Full Version'}
-                  </button>
+                {isSubExpired && (
+                  <div className="relative mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/85 backdrop-blur-sm">
+                    {isTrialEnded
+                      ? (language === 'ar'
+                        ? 'انتهت فترة التجربة. يمكنك فتح النظام واختيار باقة جديدة للمتابعة.'
+                        : 'Trial ended. Your tenant stays open — choose a plan to continue with full access.')
+                      : (language === 'ar'
+                        ? 'انتهى الاشتراك. يمكنك فتح النظام وتجديد الباقة في أي وقت.'
+                        : 'Subscription expired. Your tenant stays open — renew anytime to restore full access.')}
+                  </div>
                 )}
               </div>
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div className="p-5 rounded-3xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">
-                    {language === 'ar' ? 'حالة الحساب' : 'Subscription Status'}
+              <div className="space-y-4 p-6 sm:p-8">
+                <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3.5 dark:border-dark-600 dark:bg-dark-700/50">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-dark-600">
+                      <CalendarDays className="h-4 w-4 text-indigo-500" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                      {language === 'ar' ? 'تاريخ البدء' : 'Start Date'}
+                    </span>
+                  </div>
+                  <span className="text-sm font-black text-slate-900 dark:text-white">
+                    {formatSubscriptionDate(subState.startDate, language)}
                   </span>
-                  <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                    {subscription.status === 'active' ? (language === 'ar' ? 'نشط ومفعل' : 'Active') : (language === 'ar' ? 'تجريبي' : 'Trial')}
-                  </p>
                 </div>
 
-                <div className="p-5 rounded-3xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">
-                    {language === 'ar' ? 'دورة الفوترة' : 'Billing Cycle'}
-                  </span>
-                  <p className="text-lg font-black text-gray-900 dark:text-white">
-                    {subscription.billingCycle === 'yearly' ? (language === 'ar' ? 'سنوي (Yearly)' : 'Yearly') : (language === 'ar' ? 'شهري (Monthly)' : 'Monthly')}
-                  </p>
-                </div>
-
-                <div className="p-5 rounded-3xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">
-                    {language === 'ar' ? 'تاريخ الانتهاء / التجديد' : 'Expiration Date'}
-                  </span>
-                  <p className="text-lg font-black text-gray-900 dark:text-white">
-                    {subscription.endDate ? new Date(subscription.endDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
-                  </p>
-                  {daysRemaining !== null && (
-                    <p className="text-xs font-semibold text-primary-600 dark:text-primary-400 mt-1">
-                      {daysRemaining > 0 ? `${daysRemaining} ${language === 'ar' ? 'يوم متبقي' : 'days left'}` : (language === 'ar' ? 'منتهي' : 'Expired')}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-dark-600 dark:bg-dark-700/40">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      {language === 'ar' ? 'دورة الفوترة' : 'Billing Cycle'}
                     </p>
-                  )}
+                    <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
+                      {subState.billingCycle === 'yearly'
+                        ? (language === 'ar' ? 'سنوي' : 'Yearly')
+                        : (language === 'ar' ? 'شهري' : 'Monthly')}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-dark-600 dark:bg-dark-700/40">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      {language === 'ar' ? 'تاريخ الانتهاء' : 'Expiration Date'}
+                    </p>
+                    <p className={`mt-1 text-base font-black ${isSubExpired ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
+                      {formatSubscriptionDate(subState.endDate, language)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-dark-600 dark:bg-dark-700/40">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      {language === 'ar' ? 'الحد الأقصى للمستخدمين' : 'Max Users'}
+                    </p>
+                    <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
+                      {subState.maxUsers} {language === 'ar' ? 'مستخدم' : 'Users'}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="p-5 rounded-3xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">
-                    {language === 'ar' ? 'الحد الأقصى للمستخدمين' : 'Max Users Allowed'}
-                  </span>
-                  <p className="text-lg font-black text-gray-900 dark:text-white">
-                    {subscription.maxUsers || 5} {language === 'ar' ? 'مستخدمين' : 'Users'}
+                <p className="text-center text-[11px] text-slate-400">
+                  {language === 'ar' ? 'يمكنك ترقية أو تغيير باقتك في أي وقت' : 'You can upgrade or change your plan anytime'}
+                </p>
+              </div>
+            </div>
+
+            {/* Installed Modules */}
+            <div className="rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm sm:p-8 dark:border-dark-700 dark:bg-dark-800">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-bold uppercase tracking-[0.18em] text-slate-900 dark:text-white">
+                    {language === 'ar' ? 'الوحدات المثبتة' : 'Installed Modules'}
+                  </h4>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {language === 'ar'
+                      ? 'التطبيقات والوحدات المثبتة من متجر التطبيقات لهذا المستأجر'
+                      : 'Apps and modules installed for this tenant from the App Store'}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/app/dashboard/app-store')}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                >
+                  <Package className="h-3.5 w-3.5" />
+                  {language === 'ar' ? 'متجر التطبيقات' : 'App Store'}
+                  <ArrowRight className={`h-3.5 w-3.5 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                </button>
               </div>
 
-              {/* Add-ons List */}
-              <div>
-                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-4 uppercase tracking-wider">
-                  {language === 'ar' ? 'الإضافات والميزات المفعلة في الباقة' : 'Enabled System Add-ons'}
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {[
-                    { key: 'hasEmailAddon', label: language === 'ar' ? 'إضافة البريد الإلكتروني والفوترة الآلية' : 'Email & Auto Invoice Delivery', icon: Mail },
-                    { key: 'hasIotAddon', label: language === 'ar' ? 'إضافة إنترنت الأشياء (IoT Smart Corp)' : 'IoT Smart Infrastructure', icon: Cpu },
-                    { key: 'hasWeightScaleAddon', label: language === 'ar' ? 'إضافة الميزان الذكي (Supermarket/Bakala)' : 'Weight Scale Barcode System', icon: Scale },
-                    { key: 'hasBranchAddon', label: language === 'ar' ? 'إضافة الفروع المتعددة' : 'Multi-Branch Management', icon: Store },
-                    { key: 'hasDeliveryAddon', label: language === 'ar' ? 'إضافة منصات التوصيل' : 'Delivery Platforms Integration', icon: Truck },
-                    { key: 'hasMessAddon', label: language === 'ar' ? 'إضافة المطعم الجماعي (Mess/Cafeteria)' : 'Mess & Cafeteria Add-on', icon: UtensilsCrossed },
-                    { key: 'hasCombosAddon', label: language === 'ar' ? 'إضافة العروض والباقات المركبة' : 'Combos & Meal Deals', icon: Sparkles },
-                    { key: 'hasQrOrderingAddon', label: language === 'ar' ? 'إضافة قائمة الطعام والطلب عبر QR' : 'QR Menu & Online Ordering', icon: QrCode },
-                  ].map((addon) => {
-                    const isEnabled = subscription[addon.key] === true
-                    const Icon = addon.icon
-                    return (
-                      <div
-                        key={addon.key}
-                        className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all ${
-                          isEnabled
-                            ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/40 text-gray-900 dark:text-white'
-                            : 'bg-gray-50/50 dark:bg-dark-700/30 border-gray-100 dark:border-dark-600/30 text-gray-400 opacity-60'
-                        }`}
-                      >
-                        <div className={`p-2 rounded-xl ${isEnabled ? 'bg-emerald-500 text-white' : 'bg-gray-200 dark:bg-dark-600 text-gray-400'}`}>
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold truncate">{addon.label}</p>
-                          <p className="text-[10px] font-semibold text-gray-500">
-                            {isEnabled ? (language === 'ar' ? 'مفعل ومتاح' : 'Active') : (language === 'ar' ? 'غير مشمول' : 'Not included')}
-                          </p>
-                        </div>
-                        {isEnabled && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />}
-                      </div>
-                    )
-                  })}
+              {installedModules.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-10 text-center dark:border-dark-600 dark:bg-dark-700/30">
+                  <Layers className="mx-auto h-8 w-8 text-slate-300" />
+                  <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                    {language === 'ar' ? 'لا توجد وحدات مثبتة بعد' : 'No modules installed yet'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {language === 'ar' ? 'ثبّت التطبيقات من متجر التطبيقات لإظهارها هنا' : 'Install apps from the App Store to see them here'}
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {installedModules.map((mod) => (
+                    <div
+                      key={mod.appId}
+                      className={`flex items-center gap-3 rounded-2xl border p-3.5 transition-all ${
+                        mod.isEnabled
+                          ? 'border-emerald-200/80 bg-emerald-50/50 text-slate-900 dark:border-emerald-800/40 dark:bg-emerald-950/20 dark:text-white'
+                          : 'border-slate-100 bg-slate-50/70 text-slate-500 dark:border-dark-600 dark:bg-dark-700/30'
+                      }`}
+                    >
+                      <div className={`rounded-xl p-2 ${mod.isEnabled ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400 dark:bg-dark-600'}`}>
+                        <Package className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-bold">
+                          {language === 'ar' ? mod.nameAr : mod.nameEn}
+                        </p>
+                        <p className="text-[10px] font-semibold text-slate-500">
+                          {mod.isEnabled
+                            ? (language === 'ar' ? 'مثبت ومفعّل' : 'Installed · Enabled')
+                            : (language === 'ar' ? 'مثبت · معطّل' : 'Installed · Disabled')}
+                        </p>
+                      </div>
+                      {mod.isEnabled && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         )}
