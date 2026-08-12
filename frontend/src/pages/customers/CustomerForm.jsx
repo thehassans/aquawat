@@ -203,7 +203,7 @@ export default function CustomerForm() {
             </h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6" dir="ltr">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {language === 'ar' ? 'رقم العميل (اختياري)' : 'Customer ID (Optional)'}
@@ -215,10 +215,12 @@ export default function CustomerForm() {
                 placeholder="1001"
               />
             </div>
+            <div className="hidden md:block" />
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {language === 'ar' ? 'الاسم (بالإنجليزية)' : 'Name (English)'} *
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-baseline justify-between gap-2" dir="ltr">
+                <span>Name (EN) *</span>
+                <span dir="rtl" className="font-medium text-gray-500">الاسم بالإنجليزية</span>
               </label>
               <input
                 type="text"
@@ -230,8 +232,9 @@ export default function CustomerForm() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {language === 'ar' ? 'الاسم (بالعربية)' : 'Name (Arabic)'}
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-baseline justify-between gap-2" dir="ltr">
+                <span>Name (AR)</span>
+                <span dir="rtl" className="font-medium text-gray-500">الاسم بالعربية</span>
               </label>
               <input
                 type="text"

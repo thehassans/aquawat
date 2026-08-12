@@ -149,7 +149,7 @@ export default function Users() {
     defaultValues: {
       firstName: '', lastName: '', firstNameAr: '', lastNameAr: '',
       email: '', phone: '', password: '', role: 'viewer',
-      isActive: true, permissions: [],
+      isActive: true, permissions: [], sendWelcomeEmail: true,
     },
   })
 
@@ -199,27 +199,48 @@ export default function Users() {
   const openPanel = (u = null) => {
     setEditingUser(u)
     setActiveSection('info')
-    reset({
-      firstName: u?.firstName || '', lastName: u?.lastName || '',
-      firstNameAr: u?.firstNameAr || '', lastNameAr: u?.lastNameAr || '',
-      email: u?.email || '', phone: u?.phone || '', password: '',
-      role: u?.role || 'viewer',
-      isActive: typeof u?.isActive === 'boolean' ? u.isActive : true,
-      permissions: Array.isArray(u?.permissions) ? u.permissions : [],
-    })
+    if (u) {
+      reset({
+        firstName: u?.firstName || '', lastName: u?.lastName || '',
+        firstNameAr: u?.firstNameAr || '', lastNameAr: u?.lastNameAr || '',
+        email: u?.email || '', phone: u?.phone || '', password: '',
+        role: u?.role || 'viewer',
+        isActive: typeof u?.isActive === 'boolean' ? u.isActive : true,
+        permissions: Array.isArray(u?.permissions) ? u.permissions : [],
+        sendWelcomeEmail: false,
+      })
+    } else {
+      reset({
+        firstName: '', lastName: '', firstNameAr: '', lastNameAr: '',
+        email: '', phone: '', password: '',
+        role: roles[0]?.key || 'viewer',
+        isActive: true,
+        permissions: [],
+        sendWelcomeEmail: true,
+      })
+    }
     setPanelOpen(true)
   }
 
   const closePanel = () => {
     setPanelOpen(false)
     setEditingUser(null)
-    reset({ firstName: '', lastName: '', firstNameAr: '', lastNameAr: '', email: '', phone: '', password: '', role: roles[0]?.key || 'viewer', isActive: true, permissions: [] })
+    reset({ firstName: '', lastName: '', firstNameAr: '', lastNameAr: '', email: '', phone: '', password: '', role: roles[0]?.key || 'viewer', isActive: true, permissions: [], sendWelcomeEmail: true })
   }
 
   const mutation = useMutation({
     mutationFn: (payload) => (editingUser ? api.put(`/users/${editingUser._id}`, payload) : api.post('/users', payload)),
-    onSuccess: () => {
-      toast.success(editingUser ? (language === 'ar' ? 'تم تحديث المستخدم' : 'User updated') : (language === 'ar' ? 'تم إنشاء المستخدم' : 'User created'))
+    onSuccess: (res) => {
+      const data = res?.data || res
+      if (editingUser) {
+        toast.success(language === 'ar' ? 'تم تحديث المستخدم' : 'User updated')
+      } else if (data?.inviteEmailSent) {
+        toast.success(language === 'ar' ? 'تم إنشاء المستخدم وإرسال دعوة بالبريد' : 'User created and welcome email sent')
+      } else if (data?.inviteEmailError) {
+        toast.success(language === 'ar' ? 'تم إنشاء المستخدم (تعذر إرسال البريد)' : 'User created (welcome email failed)')
+      } else {
+        toast.success(language === 'ar' ? 'تم إنشاء المستخدم' : 'User created')
+      }
       queryClient.invalidateQueries(['tenant-users'])
       queryClient.invalidateQueries(['tenant-users-stats'])
       closePanel()
@@ -281,7 +302,13 @@ export default function Users() {
   }, [permMap])
 
   const onSubmit = (form) => {
-    const payload = { ...form, email: String(form.email || '').trim().toLowerCase(), permissions: Array.isArray(form.permissions) ? form.permissions : [] }
+    const payload = {
+      ...form,
+      email: String(form.email || '').trim().toLowerCase(),
+      permissions: Array.isArray(form.permissions) ? form.permissions : [],
+      sendWelcomeEmail: editingUser ? false : Boolean(form.sendWelcomeEmail),
+      inviteLanguage: language === 'ar' ? 'ar' : 'en',
+    }
     if (!payload.password) delete payload.password
     mutation.mutate(payload)
   }
@@ -562,40 +589,57 @@ export default function Users() {
                             exit={{ opacity: 0, y: -8 }}
                             className="p-5 space-y-4"
                           >
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="label">{t('firstName')} *</label>
-                                <input {...register('firstName', { required: true })} className="input text-sm" />
-                              </div>
-                              <div>
-                                <label className="label">{t('lastName')} *</label>
-                                <input {...register('lastName', { required: true })} className="input text-sm" />
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="label">{language === 'ar' ? 'الاسم الأول (AR)' : 'First Name (AR)'}</label>
-                                <input {...register('firstNameAr')} className="input text-sm" dir="rtl" />
-                              </div>
-                              <div>
-                                <label className="label">{language === 'ar' ? 'اسم العائلة (AR)' : 'Last Name (AR)'}</label>
-                                <input {...register('lastNameAr')} className="input text-sm" dir="rtl" />
+                            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-4 dark:border-white/10 dark:from-dark-900/60 dark:to-dark-800">
+                              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-teal-700 dark:text-teal-300">
+                                {language === 'ar' ? 'الهوية' : 'Identity'}
+                              </p>
+                              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2" dir="ltr">
+                                <div>
+                                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                                    <span>First Name *</span>
+                                    <span dir="rtl" className="font-medium text-gray-500">الاسم الأول</span>
+                                  </label>
+                                  <input {...register('firstName', { required: true })} className="input text-sm" placeholder="Ahmed" />
+                                </div>
+                                <div>
+                                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                                    <span>First Name (AR)</span>
+                                    <span dir="rtl" className="font-medium text-gray-500">الاسم الأول بالعربية</span>
+                                  </label>
+                                  <input {...register('firstNameAr')} className="input text-sm" dir="rtl" placeholder="أحمد" />
+                                </div>
+                                <div>
+                                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                                    <span>Last Name *</span>
+                                    <span dir="rtl" className="font-medium text-gray-500">اسم العائلة</span>
+                                  </label>
+                                  <input {...register('lastName', { required: true })} className="input text-sm" placeholder="Alharbi" />
+                                </div>
+                                <div>
+                                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                                    <span>Last Name (AR)</span>
+                                    <span dir="rtl" className="font-medium text-gray-500">اسم العائلة بالعربية</span>
+                                  </label>
+                                  <input {...register('lastNameAr')} className="input text-sm" dir="rtl" placeholder="الحربي" />
+                                </div>
                               </div>
                             </div>
 
                             <div>
                               <label className="label">
-                                <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" />{t('email')} *</span>
+                                <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" />{language === 'ar' ? 'البريد الإلكتروني (Gmail / Work)' : 'Email (Gmail / Work)'} *</span>
                               </label>
-                              <input type="email" {...register('email', { required: true })} className="input text-sm" />
+                              <input type="email" {...register('email', { required: true })} className="input text-sm" placeholder="name@gmail.com" autoComplete="off" />
+                              <p className="mt-1 text-[11px] text-gray-400">
+                                {language === 'ar' ? 'سيُستخدم لتسجيل الدخول واستلام الدعوة.' : 'Used for login and the welcome invite email.'}
+                              </p>
                             </div>
 
                             <div>
                               <label className="label">
                                 <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{language === 'ar' ? 'الهاتف' : 'Phone'}</span>
                               </label>
-                              <input {...register('phone')} className="input text-sm" />
+                              <input {...register('phone')} className="input text-sm" placeholder="+9665xxxxxxxx" />
                             </div>
 
                             <div>
@@ -607,6 +651,7 @@ export default function Users() {
                                   type={showPassword ? 'text' : 'password'}
                                   {...register('password', { required: !editingUser })}
                                   className="input text-sm pe-10"
+                                  autoComplete="new-password"
                                 />
                                 <button
                                   type="button"
@@ -622,6 +667,22 @@ export default function Users() {
                                 </p>
                               )}
                             </div>
+
+                            {!editingUser && (
+                              <label className="flex items-start gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3 cursor-pointer dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                                <input type="checkbox" {...register('sendWelcomeEmail')} className="mt-1 rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500" />
+                                <span>
+                                  <span className="block text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                                    {language === 'ar' ? 'إرسال دعوة بالبريد من المنشأة' : 'Send welcome email from company'}
+                                  </span>
+                                  <span className="mt-0.5 block text-[11px] text-emerald-800/80 dark:text-emerald-300/80">
+                                    {language === 'ar'
+                                      ? 'يصل المستخدم بريد دعوة من إعدادات البريد الخاصة بالمنشأة مع رابط تسجيل الدخول.'
+                                      : 'Sends an invite from your tenant email settings with login link and temporary password.'}
+                                  </span>
+                                </span>
+                              </label>
+                            )}
 
                             <div>
                               <label className="label">

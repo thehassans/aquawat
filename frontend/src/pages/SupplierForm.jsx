@@ -128,14 +128,21 @@ export default function SupplierForm() {
               <input {...register('vatNumber')} className="input" placeholder="300000000000003" />
             </div>
 
-            <div className="md:col-span-2">
-              <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
-              <input {...register('nameEn', { required: true })} className="input" />
-            </div>
-
-            <div>
-              <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
-              <input {...register('nameAr')} className="input" dir="rtl" />
+            <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4" dir="ltr">
+              <div>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Name (EN) *</span>
+                  <span dir="rtl" className="font-medium text-gray-500">الاسم بالإنجليزية</span>
+                </label>
+                <input {...register('nameEn', { required: true })} className="input" />
+              </div>
+              <div>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Name (AR)</span>
+                  <span dir="rtl" className="font-medium text-gray-500">الاسم بالعربية</span>
+                </label>
+                <input {...register('nameAr')} className="input" dir="rtl" />
+              </div>
             </div>
 
             <div>

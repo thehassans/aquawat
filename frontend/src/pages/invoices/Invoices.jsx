@@ -21,14 +21,12 @@ import {
   ShieldOff,
   Layers,
   MessageCircle,
-  Trash2,
-  Upload
+  Trash2
 } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
-import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import toast from 'react-hot-toast'
 import { downloadInvoicePdf, buildInvoicePdfBlob } from '../../lib/invoicePdf'
@@ -102,7 +100,6 @@ export default function Invoices() {
   const [waPhone, setWaPhone] = useState('')
   const [waLoadingId, setWaLoadingId] = useState(null)
   const [waMessageLang, setWaMessageLang] = useState('en')
-  const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [waMessage, setWaMessage] = useState('')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const hasTravel = tenantBusinessTypes.includes('travel_agency')
@@ -563,16 +560,10 @@ export default function Invoices() {
             disabled={isLoading || (data?.invoices || []).length === 0}
           />
           {showNewInvoiceBtn && (
-            <>
-              <button type="button" onClick={() => setShowBulkUpload(true)} className="btn btn-secondary">
-                <Upload className="w-4 h-4" />
-                {language === 'ar' ? 'رفع فواتير' : 'Upload Invoices'}
-              </button>
-              <Link to="/app/dashboard/invoices/new" className="btn btn-action-dark">
-                <Plus className="w-4 h-4" />
-                {t('newInvoice')}
-              </Link>
-            </>
+            <Link to="/app/dashboard/invoices/new" className="btn btn-action-dark">
+              <Plus className="w-4 h-4" />
+              {t('newInvoice')}
+            </Link>
           )}
         </div>
       </div>
@@ -977,13 +968,6 @@ export default function Invoices() {
           </div>
         </div>
       )}
-
-      <BulkInvoiceModal
-        isOpen={showBulkUpload}
-        onClose={() => setShowBulkUpload(false)}
-        language={language}
-        t={t}
-      />
     </div>
   )
 }

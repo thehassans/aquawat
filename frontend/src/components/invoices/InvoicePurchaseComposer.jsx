@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, UploadCloud } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -18,9 +18,6 @@ import InvoiceLivePreview from './InvoiceLivePreview'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
 import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
-import SmartInvoiceModal from '../../components/invoices/SmartInvoiceModal'
-import BulkInvoiceModal from '../../components/invoices/BulkInvoiceModal'
-import { ScanLine, UploadCloud } from 'lucide-react'
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { ZATCA_UOM_OPTIONS } from '../../lib/uomOptions'
@@ -72,8 +69,6 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [transactionType, setTransactionType] = useState('B2B')
-  const [isSmartModalOpen, setIsSmartModalOpen] = useState(false)
-  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
   const [showAuthorizedPerson, setShowAuthorizedPerson] = useState(() => {
@@ -420,66 +415,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isEdit ? (language === 'ar' ? 'تعديل فاتورة الشراء' : 'Edit Purchase Invoice') : (language === 'ar' ? 'فاتورة شراء جديدة' : 'New Purchase Invoice')}</h1>
           <p className="mt-1 text-gray-500 dark:text-gray-400">{isEdit ? (language === 'ar' ? 'حدّث بيانات الفاتورة قبل حفظ التعديلات' : 'Update the invoice details before saving your changes') : (language === 'ar' ? 'تدعم الشراء التجاري والخدمي وفواتير السفر' : 'Supports trading, service, and travel purchase invoices')}</p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={() => setIsSmartModalOpen(true)} className="btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/30 border-0">
-            <ScanLine className="w-4 h-4" />
-            {language === 'ar' ? 'مسح ذكي (OCR)' : 'Smart OCR'}
-          </button>
-          <button type="button" onClick={() => setIsBulkModalOpen(true)} className="btn btn-secondary">
-            <UploadCloud className="w-4 h-4" />
-            {language === 'ar' ? 'رفع مجمع' : 'Bulk Add'}
-          </button>
-        </div>
       </div>
-
-      <SmartInvoiceModal 
-        isOpen={isSmartModalOpen} 
-        onClose={() => setIsSmartModalOpen(false)} 
-        language={language}
-        onSuccess={(data) => {
-          if (data.supplier) {
-            setValue('seller.name', data.supplier.name || '')
-            setValue('seller.nameAr', data.supplier.nameAr || '')
-            setValue('seller.vatNumber', data.supplier.vatNumber || '')
-          }
-          if (data.lineItems && Array.isArray(data.lineItems)) {
-            replace(data.lineItems.map(item => ({
-              ...emptyLine,
-              productId: '',
-              productName: item.name || '',
-              productNameAr: item.nameAr || '',
-              quantity: item.quantity || 1,
-              unitPrice: item.unitPrice || 0,
-              taxRate: item.taxRate || 15,
-            })))
-          }
-        }}
-      />
-      <BulkInvoiceModal 
-        isOpen={isBulkModalOpen} 
-        onClose={() => setIsBulkModalOpen(false)} 
-        language={language} 
-        t={t}
-        mode="populate"
-        onPopulate={(data) => {
-          if (data.party) {
-            setValue('seller.name', data.party.name || '')
-            setValue('seller.nameAr', data.party.nameAr || '')
-            setValue('seller.vatNumber', data.party.vatNumber || '')
-          }
-          if (data.lineItems && data.lineItems.length > 0) {
-            replace(data.lineItems.map(item => ({
-              ...emptyLine,
-              productName: item.productName || '',
-              productNameAr: item.productNameAr || '',
-              quantity: item.quantity || 1,
-              unitPrice: item.unitPrice || 0,
-              taxRate: item.taxRate || 15,
-              unitCode: item.unitCode || 'PCE'
-            })))
-          }
-        }}
-      />
 
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

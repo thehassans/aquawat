@@ -4,6 +4,8 @@ import Tenant from '../models/Tenant.js';
 import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { getTenantBusinessTypes } from '../utils/businessTypes.js';
+import { sendUserWelcomeEmail } from '../utils/tenantEmailService.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -102,7 +104,7 @@ router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: 'No tenant associated with user' });
 
-    const tenant = await Tenant.findById(tenantId).select('subscription.maxUsers businessType businessTypes');
+    const tenant = await Tenant.findById(tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
     const maxUsers = Number(tenant.subscription?.maxUsers ?? 0);
@@ -117,6 +119,7 @@ router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'
     const password = String(req.body?.password || '');
     const firstName = String(req.body?.firstName || '').trim();
     const lastName = String(req.body?.lastName || '').trim();
+    const sendWelcomeEmail = req.body?.sendWelcomeEmail !== false;
 
     if (!email) return res.status(400).json({ error: 'Email is required' });
     if (!password || password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
@@ -157,7 +160,28 @@ router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'
     });
 
     const saved = await User.findById(created._id).select('-password');
-    res.status(201).json(sanitizeUserForClient(saved));
+    let inviteEmailSent = false;
+    let inviteEmailError = null;
+    if (sendWelcomeEmail) {
+      try {
+        await sendUserWelcomeEmail({
+          tenant,
+          user: saved,
+          temporaryPassword: password,
+          language: String(req.body?.inviteLanguage || req.headers['accept-language'] || 'en').startsWith('ar') ? 'ar' : 'en',
+        });
+        inviteEmailSent = true;
+      } catch (mailError) {
+        inviteEmailError = mailError?.message || 'Failed to send welcome email';
+        logger.warn(`User created but welcome email failed for ${email}: ${inviteEmailError}`);
+      }
+    }
+
+    res.status(201).json({
+      ...sanitizeUserForClient(saved),
+      inviteEmailSent,
+      inviteEmailError,
+    });
   } catch (error) {
     if (error?.code === 11000) {
       return res.status(400).json({ error: 'Duplicate user email' });

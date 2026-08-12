@@ -62,6 +62,8 @@ export default function Dashboard() {
   const isCarRental = businessTypes.includes('car_rental')
   const isTravel = businessTypes.includes('travel_agency')
   const isConstruction = businessTypes.includes('construction')
+  const mrpApp = tenant?.settings?.installedApps?.manufacturing_mes
+  const isMrpInstalled = Boolean(mrpApp?.isInstalled && mrpApp?.isEnabled !== false)
 
   // Fetch Dashboard Aggregated Data
   const { data: dashboard, isLoading } = useQuery({
@@ -127,7 +129,7 @@ export default function Dashboard() {
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
     retry: false,
-    enabled: isTrading
+    enabled: isTrading && isMrpInstalled
   })
 
   const { data: mrpTop } = useQuery({
@@ -137,7 +139,7 @@ export default function Dashboard() {
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
     retry: false,
-    enabled: isTrading
+    enabled: isTrading && isMrpInstalled
   })
 
   // Vertical-specific Stats
@@ -258,14 +260,16 @@ export default function Dashboard() {
             change: isAr ? 'يحتاج متابعة' : 'Needs attention',
             positive: false
           },
-          {
-            label: isAr ? 'توصيات MRP' : 'MRP Suggestions',
-            value: mrpSuggestions,
-            icon: Factory,
-            color: 'from-secondary-500 to-secondary-600',
-            change: isAr ? 'إعادة طلب' : 'Reorder',
-            positive: true
-          },
+          ...(isMrpInstalled
+            ? [{
+                label: isAr ? 'توصيات MRP' : 'MRP Suggestions',
+                value: mrpSuggestions,
+                icon: Factory,
+                color: 'from-secondary-500 to-secondary-600',
+                change: isAr ? 'إعادة طلب' : 'Reorder',
+                positive: true
+              }]
+            : []),
         ]
       : []),
     ...(isRestaurant
@@ -334,7 +338,7 @@ export default function Dashboard() {
           },
         ]
       : []),
-  ], [dashboard, payrollPaidNet, openPoCount, inTransitShipments, overdueTasks, mrpSuggestions, isTrading, isRestaurant, restaurantStats, isCarRental, carRentalStats, isTravel, travelStats, isConstruction, projectStats, isAr, t])
+  ], [dashboard, payrollPaidNet, openPoCount, inTransitShipments, overdueTasks, mrpSuggestions, isTrading, isMrpInstalled, isRestaurant, restaurantStats, isCarRental, carRentalStats, isTravel, travelStats, isConstruction, projectStats, isAr, t])
 
   const zatcaStatusData = dashboard?.invoices?.zatcaStatus?.map(s => ({
     name: s._id || 'Pending',
@@ -762,7 +766,7 @@ export default function Dashboard() {
 
             {/* Trading Supply Chain Cards (PO, Shipments, MRP) */}
             {isTrading && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className={`grid grid-cols-1 gap-6 ${isMrpInstalled ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -837,6 +841,7 @@ export default function Dashboard() {
                   </div>
                 </motion.div>
 
+                {isMrpInstalled ? (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -875,6 +880,7 @@ export default function Dashboard() {
                     )}
                   </div>
                 </motion.div>
+                ) : null}
               </div>
             )}
           </motion.div>

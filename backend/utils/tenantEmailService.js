@@ -735,3 +735,64 @@ export const saveInboundEmail = async (payload = {}, options = {}) => {
 
   return { saved: true, [ownerType === 'tenant' ? 'tenantId' : 'ownerType']: ownerType === 'tenant' ? ownerId : 'super_admin', message: saved };
 };
+
+export const sendUserWelcomeEmail = async ({ tenant, user, temporaryPassword, language = 'en' }) => {
+  if (!tenant || !user?.email) {
+    throw new Error('Tenant and user email are required');
+  }
+
+  const isAr = language === 'ar';
+  const loginUrl = getTenantLoginUrl(tenant);
+  const workspaceHost = getTenantWorkspaceHost(tenant);
+  const companyName = tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || tenant?.name || 'Maqder';
+  const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
+  const roleLabel = String(user.role || 'viewer').replace(/_/g, ' ');
+
+  const secondaryLinesEn = [
+    { label: 'Email', value: user.email },
+    { label: 'Role', value: roleLabel },
+    temporaryPassword ? { label: 'Temporary password', value: temporaryPassword } : null,
+    { label: 'Workspace', value: workspaceHost, href: loginUrl },
+  ].filter(Boolean);
+
+  const secondaryLinesAr = [
+    { label: 'البريد', value: user.email },
+    { label: 'الدور', value: roleLabel },
+    temporaryPassword ? { label: 'كلمة المرور المؤقتة', value: temporaryPassword } : null,
+    { label: 'مساحة العمل', value: workspaceHost, href: loginUrl },
+  ].filter(Boolean);
+
+  const html = buildPremiumBilingualEmailShell({
+    brandName: companyName,
+    title: isAr ? `مرحباً ${displayName}` : `Welcome, ${displayName}`,
+    sections: [
+      {
+        dir: 'ltr',
+        title: `Welcome to ${companyName}`,
+        body: `Your account has been created. Sign in with your email and the password provided by your administrator.`,
+        secondaryLines: secondaryLinesEn,
+      },
+      {
+        dir: 'rtl',
+        title: `مرحباً بك في ${companyName}`,
+        body: `تم إنشاء حسابك. سجّل الدخول باستخدام بريدك الإلكتروني وكلمة المرور التي زودك بها المسؤول.`,
+        secondaryLines: secondaryLinesAr,
+      },
+    ],
+    cta: {
+      href: loginUrl,
+      label: isAr ? 'تسجيل الدخول' : 'Sign in to workspace',
+    },
+    workspaceUrl: getTenantWorkspaceUrl(tenant),
+    workspaceHost,
+    logoUrl: tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo || undefined,
+  });
+
+  return sendTenantEmail({
+    tenant,
+    to: user.email,
+    subject: isAr ? `دعوة للانضمام إلى ${companyName}` : `You are invited to ${companyName}`,
+    html,
+    metadata: { type: 'user_welcome', userId: String(user._id || '') },
+  });
+};
