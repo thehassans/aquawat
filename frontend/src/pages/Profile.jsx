@@ -68,6 +68,7 @@ import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes,
 import {
   formatSubscriptionDate,
   getPlanDisplayName,
+  getPlanShortName,
   getSubscriptionState,
   humanizeAppId,
 } from '../lib/subscriptionState'
@@ -357,7 +358,7 @@ export default function Profile() {
   })
 
   const subState = useMemo(() => getSubscriptionState(tenant), [tenant])
-  const planName = (subState.plan || 'trial').toUpperCase()
+  const planName = getPlanShortName(subState.plan, language).toUpperCase()
   const isSubActive = subState.isActive
   const isTrialEnded = subState.isTrialEnded
   const isSubExpired = subState.isExpired

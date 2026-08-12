@@ -59,7 +59,7 @@ export function getPlanDisplayName(plan, language = 'en') {
     case 'professional':
       return isAr ? 'الباقة الاحترافية' : 'Professional Plan'
     case 'enterprise':
-      return isAr ? 'باقة الشركات' : 'Enterprise Plan'
+      return isAr ? 'ألترا بريميوم' : 'Ultra Premium Plan'
     case 'trial':
     default:
       return isAr ? 'الباقة التجريبية' : 'Trial Plan'
@@ -74,7 +74,7 @@ export function getPlanShortName(plan, language = 'en') {
     case 'professional':
       return isAr ? 'الاحترافية' : 'Professional'
     case 'enterprise':
-      return isAr ? 'الشركات' : 'Enterprise'
+      return isAr ? 'ألترا بريميوم' : 'Ultra Premium'
     case 'trial':
     default:
       return isAr ? 'تجريبية' : 'Trial'

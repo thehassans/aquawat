@@ -281,7 +281,7 @@ export default function TenantManagement() {
             <option value="trial">Trial</option>
             <option value="starter">Starter</option>
             <option value="professional">Professional</option>
-            <option value="enterprise">Enterprise</option>
+            <option value="enterprise">Ultra Premium</option>
           </select>
           <select value={filters.businessType} onChange={(e) => setFilters({ ...filters, businessType: e.target.value })} className="select w-full sm:w-40">
             <option value="">{language === 'ar' ? 'كل الأنشطة' : 'All Types'}</option>
