@@ -10,6 +10,10 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
   const hasSubject = Boolean(invoice?.subject || invoice?.subjectAr)
   const hasNotes = Boolean(invoice?.notes || invoice?.notesAr)
   const hasTerms = Boolean(invoice?.termsAndConditions || invoice?.termsAndConditionsAr)
+  const bank = invoice?.includeBankDetails ? (invoice?.bankDetails || {}) : null
+  const hasBank = Boolean(
+    bank && (bank.bankName || bank.accountName || bank.accountNumber || bank.iban)
+  )
   
   const stampImage = invoiceBranding?.stampImage || invoice?.stampImage
   const signatureImage = invoice?.authorizedPersonSignature || invoiceBranding?.signatureImage
@@ -17,7 +21,7 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
   const authorizedTitle = invoice?.authorizedPersonDesignation || invoice?.authorizedPersonDesignationAr
   
   const hasSignatory = Boolean(stampImage || signatureImage || authorizedName || authorizedTitle)
-  const hasTextExtras = Boolean(hasSubject || hasNotes || hasTerms)
+  const hasTextExtras = Boolean(hasSubject || hasNotes || hasTerms || hasBank)
 
   if (!hasTextExtras && !hasSignatory) {
     return null
@@ -25,7 +29,7 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
 
   return (
     <div className="mt-8 pt-4 border-t border-slate-100 flex flex-col md:flex-row justify-between items-start gap-8 text-black break-inside-avoid">
-      {/* Left Column: Subject, Notes, Terms */}
+      {/* Left Column: Subject, Notes, Terms, Bank */}
       <div className="space-y-4 flex-1 min-w-0">
         {hasSubject && (
           <div>
@@ -78,6 +82,36 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
                 {isAr ? (invoice?.termsAndConditionsAr || invoice?.termsAndConditions) : (invoice?.termsAndConditions || invoice?.termsAndConditionsAr)}
               </p>
             )}
+          </div>
+        )}
+
+        {hasBank && (
+          <div>
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+              {sectionTitle('Bank Details', 'بيانات البنك')}
+            </h4>
+            <div className="space-y-1 text-xs text-gray-700">
+              {bank.bankName ? (
+                <p>
+                  <span className="font-semibold text-gray-900">{isAr ? 'البنك' : 'Bank'}:</span> {bank.bankName}
+                </p>
+              ) : null}
+              {bank.accountName ? (
+                <p>
+                  <span className="font-semibold text-gray-900">{isAr ? 'اسم الحساب' : 'Account'}:</span> {bank.accountName}
+                </p>
+              ) : null}
+              {bank.accountNumber ? (
+                <p>
+                  <span className="font-semibold text-gray-900">{isAr ? 'رقم الحساب' : 'Acc No'}:</span> {bank.accountNumber}
+                </p>
+              ) : null}
+              {bank.iban ? (
+                <p className="font-mono">
+                  <span className="font-semibold font-sans text-gray-900">IBAN:</span> {bank.iban}
+                </p>
+              ) : null}
+            </div>
           </div>
         )}
       </div>

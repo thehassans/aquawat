@@ -59,6 +59,13 @@ const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext })
   subjectAr: quotation?.subjectAr || '',
   notes: quotation?.notes || '',
   termsAndConditions: quotation?.termsAndConditions || '',
+  includeBankDetails: Boolean(quotation?.includeBankDetails),
+  bankDetails: {
+    bankName: quotation?.bankDetails?.bankName || '',
+    accountName: quotation?.bankDetails?.accountName || '',
+    accountNumber: quotation?.bankDetails?.accountNumber || '',
+    iban: quotation?.bankDetails?.iban || '',
+  },
   invoiceDiscount: Math.max(0, toNumber(quotation?.invoiceDiscount, 0)),
   buyer: quotation?.buyer || {},
   authorizedPersonName: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonName || '') : '',
@@ -106,6 +113,12 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   })
   const [showNotesPanel, setShowNotesPanel] = useState(() => Boolean(String(initialQuotation?.notes || '').trim()))
   const [showTermsPanel, setShowTermsPanel] = useState(() => Boolean(String(initialQuotation?.termsAndConditions || '').trim()))
+  const [showBankPanel, setShowBankPanel] = useState(() => Boolean(
+    initialQuotation?.includeBankDetails ||
+    initialQuotation?.bankDetails?.bankName ||
+    initialQuotation?.bankDetails?.iban ||
+    initialQuotation?.bankDetails?.accountNumber
+  ))
   const showArabicFields = isGccArabicMarket(tenant)
 
   const handleToggleAuthorizedPerson = (enable) => {
@@ -150,6 +163,24 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       defaultBusinessContext,
     }),
   })
+
+  const handleToggleBankDetails = (enable) => {
+    setShowBankPanel(enable)
+    setValue('includeBankDetails', enable)
+    if (enable) {
+      const current = getValues('bankDetails') || {}
+      const tenantBank = tenant?.business?.bankDetails || {}
+      if (!current.bankName && tenantBank.bankName) setValue('bankDetails.bankName', tenantBank.bankName)
+      if (!current.accountName && tenantBank.accountName) setValue('bankDetails.accountName', tenantBank.accountName)
+      if (!current.accountNumber && tenantBank.accountNumber) setValue('bankDetails.accountNumber', tenantBank.accountNumber)
+      if (!current.iban && tenantBank.iban) setValue('bankDetails.iban', tenantBank.iban)
+    } else {
+      setValue('bankDetails.bankName', '')
+      setValue('bankDetails.accountName', '')
+      setValue('bankDetails.accountNumber', '')
+      setValue('bankDetails.iban', '')
+    }
+  }
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' })
   const values = watch()
@@ -331,6 +362,15 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       subject: data?.subject || '',
       subjectAr: data?.subjectAr || '',
       termsAndConditions: data?.termsAndConditions || '',
+      includeBankDetails: Boolean(showBankPanel),
+      bankDetails: showBankPanel
+        ? {
+            bankName: data?.bankDetails?.bankName || '',
+            accountName: data?.bankDetails?.accountName || '',
+            accountNumber: data?.bankDetails?.accountNumber || '',
+            iban: data?.bankDetails?.iban || '',
+          }
+        : { bankName: '', accountName: '', accountNumber: '', iban: '' },
       authorizedPersonName: showAuthorizedPerson ? (data?.authorizedPersonName || '') : '',
       authorizedPersonNameAr: showAuthorizedPerson ? (data?.authorizedPersonNameAr || '') : '',
       authorizedPersonDesignation: showAuthorizedPerson ? (data?.authorizedPersonDesignation || '') : '',
@@ -351,6 +391,17 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     authorizedPersonDesignationAr: showAuthorizedPerson ? (values?.authorizedPersonDesignationAr || '') : '',
     authorizedPersonSignature: showAuthorizedPerson ? (values?.authorizedPersonSignature || '') : '',
     stampImage: showAuthorizedPerson ? (values?.stampImage || '') : '',
+    includeBankDetails: Boolean(showBankPanel),
+    bankDetails: showBankPanel
+      ? {
+          bankName: values?.bankDetails?.bankName || '',
+          accountName: values?.bankDetails?.accountName || '',
+          accountNumber: values?.bankDetails?.accountNumber || '',
+          iban: values?.bankDetails?.iban || '',
+        }
+      : { bankName: '', accountName: '', accountNumber: '', iban: '' },
+    notes: showNotesPanel ? (values?.notes || '') : '',
+    termsAndConditions: showTermsPanel ? (values?.termsAndConditions || '') : '',
     quotationNumber: initialQuotation?.quotationNumber || 'PREVIEW-1234',
     issueDate: values?.issueDate ? new Date(values.issueDate) : new Date(),
     validUntil: values?.validUntil ? new Date(values.validUntil) : undefined,
@@ -869,6 +920,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 { id: 'signature', active: showAuthorizedPerson, labelEn: '+ Add Signature', labelAr: '+ إضافة توقيع', onClick: () => handleToggleAuthorizedPerson(!showAuthorizedPerson) },
                 { id: 'terms', active: showTermsPanel, labelEn: '+ Add Terms & Conditions', labelAr: '+ إضافة الشروط والأحكام', onClick: () => setShowTermsPanel((v) => !v) },
                 { id: 'notes', active: showNotesPanel, labelEn: '+ Add Notes', labelAr: '+ إضافة ملاحظات', onClick: () => setShowNotesPanel((v) => !v) },
+                { id: 'bank', active: showBankPanel, labelEn: '+ Add Bank Details', labelAr: '+ إضافة بيانات البنك', onClick: () => handleToggleBankDetails(!showBankPanel) },
               ].map((pill) => (
                 <button
                   key={pill.id}
@@ -969,8 +1021,64 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <AnimatePresence>
+              {showBankPanel && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-5 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="label">{language === 'ar' ? 'بيانات البنك' : 'Bank Details'}</label>
+                    <button type="button" onClick={() => handleToggleBankDetails(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">{language === 'ar' ? 'إزالة' : 'Remove'}</button>
+                  </div>
+                  <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+                    {language === 'ar'
+                      ? 'تُؤخذ تلقائياً من ملف الشركة ويمكن تعديلها لهذا العرض فقط.'
+                      : 'Prefills from your company profile. You can edit values for this quotation only.'}
+                  </p>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
+                    <div>
+                      <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                        <span>Bank Name</span>
+                        <span dir="rtl" className="font-medium text-slate-500">اسم البنك</span>
+                      </label>
+                      <input {...register('bankDetails.bankName')} className="input" placeholder="Al Rajhi Bank / SNB" />
+                    </div>
+                    <div>
+                      <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                        <span>Account Name</span>
+                        <span dir="rtl" className="font-medium text-slate-500">اسم الحساب</span>
+                      </label>
+                      <input {...register('bankDetails.accountName')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                        <span>Account Number</span>
+                        <span dir="rtl" className="font-medium text-slate-500">رقم الحساب</span>
+                      </label>
+                      <input {...register('bankDetails.accountNumber')} className="input font-mono" />
+                    </div>
+                    <div>
+                      <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                        <span>IBAN</span>
+                        <span dir="rtl" className="font-medium text-slate-500">الآيبان</span>
+                      </label>
+                      <input {...register('bankDetails.iban')} className="input font-mono" placeholder="SA0000000000000000000000" />
+                    </div>
+                  </div>
+                  <input type="hidden" {...register('includeBankDetails')} />
+                </motion.div>
+              )}
+            </AnimatePresence>
             {!showNotesPanel && <input type="hidden" {...register('notes')} />}
             {!showTermsPanel && <input type="hidden" {...register('termsAndConditions')} />}
+            {!showBankPanel && (
+              <>
+                <input type="hidden" {...register('includeBankDetails')} />
+                <input type="hidden" {...register('bankDetails.bankName')} />
+                <input type="hidden" {...register('bankDetails.accountName')} />
+                <input type="hidden" {...register('bankDetails.accountNumber')} />
+                <input type="hidden" {...register('bankDetails.iban')} />
+              </>
+            )}
           </div>
 
           <div className={sectionShell}>

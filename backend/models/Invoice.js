@@ -243,6 +243,13 @@ const invoiceSchema = new mongoose.Schema({
   // Metadata
   notes: { type: String },
   termsAndConditions: { type: String },
+  includeBankDetails: { type: Boolean, default: false },
+  bankDetails: {
+    bankName: { type: String, default: '' },
+    accountName: { type: String, default: '' },
+    accountNumber: { type: String, default: '' },
+    iban: { type: String, default: '' },
+  },
   internalNotes: { type: String },
   attachments: [{
     name: { type: String },

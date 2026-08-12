@@ -104,6 +104,13 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   contractNumber: invoice?.contractNumber || '',
   notes: invoice?.notes || '',
   termsAndConditions: invoice?.termsAndConditions || '',
+  includeBankDetails: Boolean(invoice?.includeBankDetails),
+  bankDetails: {
+    bankName: invoice?.bankDetails?.bankName || '',
+    accountName: invoice?.bankDetails?.accountName || '',
+    accountNumber: invoice?.bankDetails?.accountNumber || '',
+    iban: invoice?.bankDetails?.iban || '',
+  },
   invoiceDiscount: Math.max(0, toNumber(invoice?.invoiceDiscount, 0)),
   buyer: invoice?.buyer || {},
   travelDetails: sanitizeTravelDetails(invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] }),
@@ -163,6 +170,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   })
   const [showNotesPanel, setShowNotesPanel] = useState(() => Boolean(String(initialInvoice?.notes || '').trim()))
   const [showTermsPanel, setShowTermsPanel] = useState(() => Boolean(String(initialInvoice?.termsAndConditions || '').trim()))
+  const [showBankPanel, setShowBankPanel] = useState(() => Boolean(
+    initialInvoice?.includeBankDetails ||
+    initialInvoice?.bankDetails?.bankName ||
+    initialInvoice?.bankDetails?.iban ||
+    initialInvoice?.bankDetails?.accountNumber
+  ))
 
   const handleToggleAuthorizedPerson = (enable) => {
     setShowAuthorizedPerson(enable)
@@ -222,6 +235,24 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const [sourceId, setSourceId] = useState('')
   const skipBusinessContextResetRef = useRef(false)
 
+  const handleToggleBankDetails = (enable) => {
+    setShowBankPanel(enable)
+    setValue('includeBankDetails', enable)
+    if (enable) {
+      const current = getValues('bankDetails') || {}
+      const tenantBank = tenant?.business?.bankDetails || {}
+      if (!current.bankName && tenantBank.bankName) setValue('bankDetails.bankName', tenantBank.bankName)
+      if (!current.accountName && tenantBank.accountName) setValue('bankDetails.accountName', tenantBank.accountName)
+      if (!current.accountNumber && tenantBank.accountNumber) setValue('bankDetails.accountNumber', tenantBank.accountNumber)
+      if (!current.iban && tenantBank.iban) setValue('bankDetails.iban', tenantBank.iban)
+    } else {
+      setValue('bankDetails.bankName', '')
+      setValue('bankDetails.accountName', '')
+      setValue('bankDetails.accountNumber', '')
+      setValue('bankDetails.iban', '')
+    }
+  }
+
   useLiveTranslation({
     control, watch, setValue,
     sourceField: 'buyer.name',
@@ -257,6 +288,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         initialInvoice?.stampImage
       )
     )
+    setShowNotesPanel(Boolean(String(initialInvoice?.notes || '').trim()))
+    setShowTermsPanel(Boolean(String(initialInvoice?.termsAndConditions || '').trim()))
+    setShowBankPanel(Boolean(
+      initialInvoice?.includeBankDetails ||
+      initialInvoice?.bankDetails?.bankName ||
+      initialInvoice?.bankDetails?.iban ||
+      initialInvoice?.bankDetails?.accountNumber
+    ))
     reset(buildSellInvoiceFormValues({
       invoice: initialInvoice,
       tenant,
@@ -620,6 +659,15 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     payload.authorizedPersonDesignationAr = showAuthorizedPerson ? (data?.authorizedPersonDesignationAr || '') : ''
     payload.authorizedPersonSignature = showAuthorizedPerson ? (data?.authorizedPersonSignature || '') : ''
     payload.stampImage = showAuthorizedPerson ? (data?.stampImage || '') : ''
+    payload.includeBankDetails = Boolean(showBankPanel)
+    payload.bankDetails = showBankPanel
+      ? {
+          bankName: data?.bankDetails?.bankName || '',
+          accountName: data?.bankDetails?.accountName || '',
+          accountNumber: data?.bankDetails?.accountNumber || '',
+          iban: data?.bankDetails?.iban || '',
+        }
+      : { bankName: '', accountName: '', accountNumber: '', iban: '' }
     saveMutation.mutate(payload)
   }
 
@@ -631,6 +679,17 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     authorizedPersonDesignationAr: showAuthorizedPerson ? (values?.authorizedPersonDesignationAr || '') : '',
     authorizedPersonSignature: showAuthorizedPerson ? (values?.authorizedPersonSignature || '') : '',
     stampImage: showAuthorizedPerson ? (values?.stampImage || '') : '',
+    includeBankDetails: Boolean(showBankPanel),
+    bankDetails: showBankPanel
+      ? {
+          bankName: values?.bankDetails?.bankName || '',
+          accountName: values?.bankDetails?.accountName || '',
+          accountNumber: values?.bankDetails?.accountNumber || '',
+          iban: values?.bankDetails?.iban || '',
+        }
+      : { bankName: '', accountName: '', accountNumber: '', iban: '' },
+    notes: showNotesPanel ? (values?.notes || '') : '',
+    termsAndConditions: showTermsPanel ? (values?.termsAndConditions || '') : '',
     invoiceNumber: initialInvoice?.invoiceNumber || 'DRAFT-PREVIEW',
     issueDate: (() => {
       const raw = typeof values?.issueDate === 'string' ? values.issueDate.trim() : ''
@@ -1381,6 +1440,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     labelAr: '+ إضافة ملاحظات',
                     onClick: () => setShowNotesPanel((v) => !v),
                   },
+                  {
+                    id: 'bank',
+                    active: showBankPanel,
+                    labelEn: '+ Add Bank Details',
+                    labelAr: '+ إضافة بيانات البنك',
+                    onClick: () => handleToggleBankDetails(!showBankPanel),
+                  },
                 ].map((pill) => (
                   <button
                     key={pill.id}
@@ -1534,8 +1600,59 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <AnimatePresence>
+              {showBankPanel && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className={fieldLabelClass}>{language === 'ar' ? 'بيانات البنك' : 'Bank Details'}</label>
+                    <button type="button" onClick={() => handleToggleBankDetails(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
+                      {language === 'ar' ? 'إزالة' : 'Remove'}
+                    </button>
+                  </div>
+                  <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+                    {language === 'ar'
+                      ? 'تُؤخذ تلقائياً من ملف الشركة ويمكن تعديلها لهذه الفاتورة فقط.'
+                      : 'Prefills from your company profile. You can edit values for this document only.'}
+                  </p>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
+                    <div>
+                      <BilingualLabel en="Bank Name" ar="اسم البنك" />
+                      <input {...register('bankDetails.bankName')} className={`mt-1.5 ${fieldControlClass}`} placeholder="Al Rajhi Bank / SNB" />
+                    </div>
+                    <div>
+                      <BilingualLabel en="Account Name" ar="اسم الحساب" />
+                      <input {...register('bankDetails.accountName')} className={`mt-1.5 ${fieldControlClass}`} />
+                    </div>
+                    <div>
+                      <BilingualLabel en="Account Number" ar="رقم الحساب" />
+                      <input {...register('bankDetails.accountNumber')} className={`mt-1.5 ${fieldControlClass} font-mono`} />
+                    </div>
+                    <div>
+                      <BilingualLabel en="IBAN" ar="الآيبان" />
+                      <input {...register('bankDetails.iban')} className={`mt-1.5 ${fieldControlClass} font-mono`} placeholder="SA0000000000000000000000" />
+                    </div>
+                  </div>
+                  <input type="hidden" {...register('includeBankDetails')} />
+                </motion.div>
+              )}
+            </AnimatePresence>
             {!showNotesPanel && <input type="hidden" {...register('notes')} />}
             {!showTermsPanel && <input type="hidden" {...register('termsAndConditions')} />}
+            {!showBankPanel && (
+              <>
+                <input type="hidden" {...register('includeBankDetails')} />
+                <input type="hidden" {...register('bankDetails.bankName')} />
+                <input type="hidden" {...register('bankDetails.accountName')} />
+                <input type="hidden" {...register('bankDetails.accountNumber')} />
+                <input type="hidden" {...register('bankDetails.iban')} />
+              </>
+            )}
           </div>
 
           <div className={`${sectionCardClass} space-y-8`}>

@@ -121,6 +121,13 @@ const quotationSchema = new mongoose.Schema({
   notes: { type: String },
   internalNotes: { type: String },
   termsAndConditions: { type: String },
+  includeBankDetails: { type: Boolean, default: false },
+  bankDetails: {
+    bankName: { type: String, default: '' },
+    accountName: { type: String, default: '' },
+    accountNumber: { type: String, default: '' },
+    iban: { type: String, default: '' },
+  },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdByName: { type: String },
   createdByNameAr: { type: String },
