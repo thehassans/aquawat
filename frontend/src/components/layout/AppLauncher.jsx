@@ -578,10 +578,7 @@ export default function AppLauncher() {
                           {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
                             <img
                               src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
-                              alt={tenant?.name || 'Company'}
-                              className="h-8 w-8 rounded-lg object-contain bg-white"
-                            />
-                          ) : null}                              alt="Tenant"
+                              alt="Tenant"
                               className="h-14 w-14 rounded-2xl object-contain bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 dark:ring-white/15"
                             />
                           ) : (

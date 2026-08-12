@@ -10,7 +10,7 @@ import { useTranslation } from '../../lib/translations'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
-import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
+import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
@@ -104,6 +104,9 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       initialQuotation?.stampImage
     )
   })
+  const [showNotesPanel, setShowNotesPanel] = useState(() => Boolean(String(initialQuotation?.notes || '').trim()))
+  const [showTermsPanel, setShowTermsPanel] = useState(() => Boolean(String(initialQuotation?.termsAndConditions || '').trim()))
+  const showArabicFields = isGccArabicMarket(tenant)
 
   const handleToggleAuthorizedPerson = (enable) => {
     setShowAuthorizedPerson(enable)
@@ -394,8 +397,68 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
         </div>
       </div>
 
-      <div className="relative grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+      <div className="relative mx-auto w-full max-w-7xl grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.85fr)]">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className={sectionShell}>
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">
+                  {language === 'ar' ? 'البائع' : 'Seller'}
+                </p>
+                <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'بيانات المنشأة' : 'Your company details'}
+                </h3>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {language === 'ar' ? 'تُؤخذ تلقائياً من ملف الشركة' : 'Prefilled from your company profile'}
+                </p>
+              </div>
+              {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
+                <img
+                  src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
+                  alt="Tenant"
+                  className="h-14 w-14 rounded-2xl object-contain bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 dark:ring-white/15"
+                />
+              ) : null}
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <p className="label">{language === 'ar' ? 'الاسم القانوني' : 'Legal name'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {language === 'ar'
+                    ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || '—')
+                    : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || '—')}
+                </p>
+              </div>
+              <div>
+                <p className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.vatNumber || '—'}</p>
+              </div>
+              <div>
+                <p className="label">{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.crNumber || '—'}</p>
+              </div>
+              <div>
+                <p className="label">{language === 'ar' ? 'الهاتف' : 'Phone'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactPhone || '—'}</p>
+              </div>
+              <div>
+                <p className="label">{language === 'ar' ? 'البريد' : 'Email'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactEmail || '—'}</p>
+              </div>
+              <div>
+                <p className="label">{language === 'ar' ? 'العنوان' : 'Address'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {[
+                    tenant?.business?.address?.street,
+                    tenant?.business?.address?.district,
+                    tenant?.business?.address?.city,
+                    tenant?.business?.address?.country || 'SA',
+                  ].filter(Boolean).join(', ') || '—'}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className={sectionShell}>
             <div className="mb-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
@@ -499,11 +562,11 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
           <div className={sectionShell}>
             <div className="mb-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                {language === 'ar' ? 'الطرف المقابل' : 'Counterparty'}
+                {language === 'ar' ? 'المشتري' : 'Buyer'}
               </p>
               <h3 className="mt-1 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
                 <UserRound className="h-4 w-4 text-emerald-500" />
-                {language === 'ar' ? 'بيانات العميل' : 'Customer Details'}
+                {language === 'ar' ? 'بيانات العميل' : 'Who is this for?'}
               </h3>
             </div>
             <div className="mb-4">
@@ -594,6 +657,14 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                   >
                     <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                      {showArabicFields ? (
+                        <div className={isTradingContext ? 'md:col-span-4' : 'md:col-span-6'}>
+                          <label className="label">اسم البند بالعربية</label>
+                          <input {...register(`lineItems.${index}.productNameAr`)} className="input" dir="rtl" />
+                        </div>
+                      ) : (
+                        <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                      )}
                       {isTradingContext ? (
                         <div className="md:col-span-4">
                           <label className="label">{language === 'ar' ? 'المنتج' : 'Product'}</label>
@@ -605,13 +676,9 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                           </select>
                         </div>
                       ) : null}
-                      <div className={isTradingContext ? 'md:col-span-4' : 'md:col-span-6'}>
-                        <label className="label">{language === 'ar' ? 'اسم البند' : 'Item Name'}</label>
+                      <div className={isTradingContext ? (showArabicFields ? 'md:col-span-4' : 'md:col-span-4') : (showArabicFields ? 'md:col-span-6' : 'md:col-span-6')}>
+                        <label className="label">{language === 'ar' ? 'اسم البند' : 'Item Name'} *</label>
                         <input {...register(`lineItems.${index}.productName`)} className="input" />
-                      </div>
-                      <div className={isTradingContext ? 'md:col-span-4' : 'md:col-span-6'}>
-                        <label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
-                        <input {...register(`lineItems.${index}.productNameAr`)} className="input" />
                       </div>
                     </div>
 
@@ -693,99 +760,63 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
           </div>
 
           <div className={sectionShell}>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                    {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
-                  </h3>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold transition-colors ${
-                    showAuthorizedPerson
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                      : 'bg-slate-100 text-slate-500 dark:bg-dark-900 dark:text-slate-400'
-                  }`}>
-                    {showAuthorizedPerson ? (language === 'ar' ? 'مفعّل' : 'Active') : (language === 'ar' ? 'معطّل' : 'Disabled')}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {language === 'ar'
-                    ? 'إضافة المفوض بالتوقيع والختم الرسمي على مستند عرض السعر'
-                    : 'Include signatory name, designation, signature and official stamp on quotation.'}
-                </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showAuthorizedPerson}
-                onClick={() => handleToggleAuthorizedPerson(!showAuthorizedPerson)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  showAuthorizedPerson ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-700'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    showAuthorizedPerson ? (language === 'ar' ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              {language === 'ar' ? 'معلومات إضافية' : 'Additional Information'}
+            </h3>
+            <div className="mt-4 flex flex-wrap gap-2.5">
+              {[
+                { id: 'signature', active: showAuthorizedPerson, labelEn: '+ Add Signature', labelAr: '+ إضافة توقيع', onClick: () => handleToggleAuthorizedPerson(!showAuthorizedPerson) },
+                { id: 'terms', active: showTermsPanel, labelEn: '+ Add Terms & Conditions', labelAr: '+ إضافة الشروط والأحكام', onClick: () => setShowTermsPanel((v) => !v) },
+                { id: 'notes', active: showNotesPanel, labelEn: '+ Add Notes', labelAr: '+ إضافة ملاحظات', onClick: () => setShowNotesPanel((v) => !v) },
+              ].map((pill) => (
+                <button
+                  key={pill.id}
+                  type="button"
+                  onClick={pill.onClick}
+                  className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.12em] transition ${
+                    pill.active
+                      ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                      : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400 dark:border-white/15 dark:bg-dark-900 dark:text-slate-100'
                   }`}
-                />
-              </button>
+                >
+                  {language === 'ar' ? pill.labelAr : pill.labelEn}
+                </button>
+              ))}
             </div>
 
             <AnimatePresence>
               {showAuthorizedPerson && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="mt-4 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10"
-                >
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-5 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}</h4>
+                    <button type="button" onClick={() => handleToggleAuthorizedPerson(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">{language === 'ar' ? 'إزالة' : 'Remove'}</button>
+                  </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="label">{language === 'ar' ? 'الاسم' : 'Name'}</label>
-                      <input {...register('authorizedPersonName')} className="input" placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
-                    </div>
-                    <div>
-                      <label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
-                      <input {...register('authorizedPersonNameAr')} className="input" dir="rtl" />
-                    </div>
-                    <div>
-                      <label className="label">{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label>
-                      <input {...register('authorizedPersonDesignation')} className="input" placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
-                    </div>
-                    <div>
-                      <label className="label">{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label>
-                      <input {...register('authorizedPersonDesignationAr')} className="input" dir="rtl" />
-                    </div>
+                    <div><label className="label">{language === 'ar' ? 'الاسم' : 'Name'}</label><input {...register('authorizedPersonName')} className="input" /></div>
+                    <div><label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label><input {...register('authorizedPersonNameAr')} className="input" dir="rtl" /></div>
+                    <div><label className="label">{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label><input {...register('authorizedPersonDesignation')} className="input" /></div>
+                    <div><label className="label">{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label><input {...register('authorizedPersonDesignationAr')} className="input" dir="rtl" /></div>
                     <div className="md:col-span-2">
                       <label className="label">{language === 'ar' ? 'التوقيع' : 'Signature'}</label>
                       <div className="flex items-center gap-3">
                         <input type="file" accept="image/*" className="hidden" id="quotation-signature-upload" onChange={(e) => {
                           const file = e.target.files?.[0]
                           if (!file) return
-                          if (file.size > 2 * 1024 * 1024) {
-                            toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
-                            return
-                          }
+                          if (file.size > 2 * 1024 * 1024) { toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB'); return }
                           const reader = new FileReader()
                           reader.onload = () => setValue('authorizedPersonSignature', String(reader.result || ''))
                           reader.readAsDataURL(file)
                         }} />
-                        <label htmlFor="quotation-signature-upload" className="btn btn-secondary cursor-pointer">
-                          <Upload className="w-4 h-4" />
-                          {language === 'ar' ? 'رفع توقيع' : 'Upload Signature'}
-                        </label>
+                        <label htmlFor="quotation-signature-upload" className="btn btn-secondary cursor-pointer"><Upload className="w-4 h-4" />{language === 'ar' ? 'رفع توقيع' : 'Upload Signature'}</label>
                         {values?.authorizedPersonSignature ? (
                           <div className="relative">
                             <img src={values.authorizedPersonSignature} alt="Signature" className="h-16 max-w-[200px] rounded-lg border border-slate-200 bg-white object-contain p-1 dark:border-white/10" />
-                            <button type="button" onClick={() => setValue('authorizedPersonSignature', '')} className="absolute -top-2 -end-2 rounded-full bg-red-100 p-1 text-red-600">
-                              <X className="w-3 h-3" />
-                            </button>
+                            <button type="button" onClick={() => setValue('authorizedPersonSignature', '')} className="absolute -top-2 -end-2 rounded-full bg-red-100 p-1 text-red-600"><X className="w-3 h-3" /></button>
                           </div>
                         ) : (
-                          <span className="text-sm text-slate-400">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
+                          <span className="text-sm text-slate-500">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
                         )}
                       </div>
-                      <p className="mt-2 text-xs text-slate-400">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
                     </div>
                     <div className="md:col-span-2">
                       <label className="label">{language === 'ar' ? 'الختم' : 'Stamp'}</label>
@@ -793,88 +824,70 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                         <input type="file" accept="image/*" className="hidden" id="quotation-stamp-upload" onChange={(e) => {
                           const file = e.target.files?.[0]
                           if (!file) return
-                          if (file.size > 2 * 1024 * 1024) {
-                            toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
-                            return
-                          }
+                          if (file.size > 2 * 1024 * 1024) { toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB'); return }
                           const reader = new FileReader()
                           reader.onload = () => setValue('stampImage', String(reader.result || ''))
                           reader.readAsDataURL(file)
                         }} />
-                        <label htmlFor="quotation-stamp-upload" className="btn btn-secondary cursor-pointer">
-                          <Upload className="w-4 h-4" />
-                          {language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}
-                        </label>
+                        <label htmlFor="quotation-stamp-upload" className="btn btn-secondary cursor-pointer"><Upload className="w-4 h-4" />{language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}</label>
                         {values?.stampImage ? (
                           <div className="relative">
                             <img src={values.stampImage} alt="Stamp" className="h-16 max-w-[200px] rounded-lg border border-slate-200 bg-white object-contain p-1 dark:border-white/10" />
-                            <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 rounded-full bg-red-100 p-1 text-red-600">
-                              <X className="w-3 h-3" />
-                            </button>
+                            <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 rounded-full bg-red-100 p-1 text-red-600"><X className="w-3 h-3" /></button>
                           </div>
                         ) : (
-                          <span className="text-sm text-slate-400">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
+                          <span className="text-sm text-slate-500">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
                         )}
                       </div>
-                      <p className="mt-2 text-xs text-slate-400">{language === 'ar' ? 'يجب أن يكون الختم بخلفية شفافة.' : 'Stamp image should have a transparent background.'}</p>
                     </div>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <AnimatePresence>
+              {showTermsPanel && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-5 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="label">{language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}</label>
+                    <button type="button" onClick={() => { setShowTermsPanel(false); setValue('termsAndConditions', '') }} className="text-xs font-semibold text-slate-500 hover:text-red-600">{language === 'ar' ? 'إزالة' : 'Remove'}</button>
+                  </div>
+                  <textarea {...register('termsAndConditions')} rows="5" className="input min-h-[140px]" placeholder={language === 'ar' ? 'أدخل الشروط والأحكام...' : 'Enter terms and conditions...'} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {showNotesPanel && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-5 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="label">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
+                    <button type="button" onClick={() => { setShowNotesPanel(false); setValue('notes', '') }} className="text-xs font-semibold text-slate-500 hover:text-red-600">{language === 'ar' ? 'إزالة' : 'Remove'}</button>
+                  </div>
+                  <textarea {...register('notes')} rows="4" className="input min-h-[120px]" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {!showNotesPanel && <input type="hidden" {...register('notes')} />}
+            {!showTermsPanel && <input type="hidden" {...register('termsAndConditions')} />}
           </div>
 
           <div className={sectionShell}>
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                {language === 'ar' ? 'الملخص' : 'Summary'}
-              </p>
-              <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
-                {language === 'ar' ? 'الملاحظات والملخص' : 'Notes & Summary'}
-              </h3>
+            <div className="mb-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{language === 'ar' ? 'الملخص' : 'Summary'}</p>
+              <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">{language === 'ar' ? 'الخصم والإجمالي' : 'Discount & Totals'}</h3>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="label">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
-                <textarea {...register('notes')} rows="5" className="input min-h-[132px]" />
+                <label className="label">{language === 'ar' ? 'خصم المستند' : 'Document Discount'}</label>
+                <input type="number" min="0" step="0.01" {...register('invoiceDiscount')} className="input" />
               </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="label">{language === 'ar' ? 'خصم المستند' : 'Document Discount'}</label>
-                  <input type="number" min="0" step="0.01" {...register('invoiceDiscount')} className="input" />
-                </div>
-                <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-dark-900/50">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500 dark:text-slate-400">{language === 'ar' ? 'الإجمالي الفرعي' : 'Subtotal'}</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">{totals.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500 dark:text-slate-400">{language === 'ar' ? 'إجمالي الخصم' : 'Total Discount'}</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">{totals.totalDiscount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500 dark:text-slate-400">{language === 'ar' ? 'الضريبة' : 'Tax'}</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">{totals.totalTax.toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-bold text-slate-900 dark:border-white/10 dark:text-white">
-                    <span>{language === 'ar' ? 'الإجمالي النهائي' : 'Grand Total'}</span>
-                    <span>{totals.grandTotal.toFixed(2)}</span>
-                  </div>
-                </div>
+              <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-dark-900/50">
+                <div className="flex items-center justify-between text-sm"><span className="text-slate-500">{language === 'ar' ? 'الإجمالي الفرعي' : 'Subtotal'}</span><span className="font-semibold">{totals.subtotal.toFixed(2)}</span></div>
+                <div className="flex items-center justify-between text-sm"><span className="text-slate-500">{language === 'ar' ? 'الضريبة' : 'Tax'}</span><span className="font-semibold">{totals.totalTax.toFixed(2)}</span></div>
+                <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-bold dark:border-white/10"><span>{language === 'ar' ? 'الإجمالي النهائي' : 'Grand Total'}</span><span>{totals.grandTotal.toFixed(2)}</span></div>
               </div>
             </div>
-          </div>
-
-          <div className={sectionShell}>
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                {language === 'ar' ? 'الشروط' : 'Legal'}
-              </p>
-              <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
-                {language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}
-              </h3>
-            </div>
-            <textarea {...register('termsAndConditions')} rows="6" className="input min-h-[160px]" placeholder={language === 'ar' ? 'أدخل الشروط والأحكام...' : 'Enter terms and conditions...'} />
           </div>
 
           <div className="flex justify-end">

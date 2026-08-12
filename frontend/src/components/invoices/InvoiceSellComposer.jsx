@@ -92,6 +92,7 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   manpowerAssignmentId: invoice?.manpowerAssignmentId || '',
   contractNumber: invoice?.contractNumber || '',
   notes: invoice?.notes || '',
+  termsAndConditions: invoice?.termsAndConditions || '',
   invoiceDiscount: Math.max(0, toNumber(invoice?.invoiceDiscount, 0)),
   buyer: invoice?.buyer || {},
   travelDetails: sanitizeTravelDetails(invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] }),
@@ -149,6 +150,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       initialInvoice?.stampImage
     )
   })
+  const [showNotesPanel, setShowNotesPanel] = useState(() => Boolean(String(initialInvoice?.notes || '').trim()))
+  const [showTermsPanel, setShowTermsPanel] = useState(() => Boolean(String(initialInvoice?.termsAndConditions || '').trim()))
 
   const handleToggleAuthorizedPerson = (enable) => {
     setShowAuthorizedPerson(enable)
@@ -742,7 +745,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         }}
       />
 
-      <div className="mx-auto w-full max-w-4xl space-y-8">
+      <div className="mx-auto w-full max-w-6xl space-y-8">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
           <div className={`${sectionCardClass} space-y-5`}>
             <div className="mb-1 flex items-end justify-between gap-3">
@@ -912,10 +915,74 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           )}
 
+          <div className={`${sectionCardClass} space-y-5`}>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className={sectionEyebrowClass}>
+                  {language === 'ar' ? 'البائع' : 'Seller'}
+                </p>
+                <h3 className={sectionTitleClass}>
+                  {language === 'ar' ? 'بيانات المنشأة' : 'Your company details'}
+                </h3>
+                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {language === 'ar' ? 'تُؤخذ تلقائياً من ملف الشركة' : 'Prefilled from your company profile'}
+                </p>
+              </div>
+              {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
+                <img
+                  src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
+                  alt="Tenant"
+                  className="h-14 w-14 rounded-2xl object-contain bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 dark:ring-white/15"
+                />
+              ) : null}
+            </div>
+            <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <p className={fieldLabelClass}>{language === 'ar' ? 'الاسم القانوني' : 'Legal name'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {language === 'ar'
+                    ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || '—')
+                    : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || '—')}
+                </p>
+                {showArabicFields && tenant?.business?.legalNameAr && language !== 'ar' ? (
+                  <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300" dir="rtl">{tenant.business.legalNameAr}</p>
+                ) : null}
+              </div>
+              <div>
+                <p className={fieldLabelClass}>{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.vatNumber || '—'}</p>
+              </div>
+              <div>
+                <p className={fieldLabelClass}>{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.crNumber || '—'}</p>
+              </div>
+              <div>
+                <p className={fieldLabelClass}>{language === 'ar' ? 'الهاتف' : 'Phone'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactPhone || '—'}</p>
+              </div>
+              <div>
+                <p className={fieldLabelClass}>{language === 'ar' ? 'البريد' : 'Email'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactEmail || '—'}</p>
+              </div>
+              <div>
+                <p className={fieldLabelClass}>{language === 'ar' ? 'العنوان' : 'Address'}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {[
+                    tenant?.business?.address?.street,
+                    tenant?.business?.address?.district,
+                    tenant?.business?.address?.city,
+                    tenant?.business?.address?.postalCode,
+                    tenant?.business?.address?.country || 'SA',
+                  ].filter(Boolean).join(', ') || '—'}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className={`${sectionCardClass} space-y-6`}>
             <div>
               <p className={sectionEyebrowClass}>
-                {language === 'ar' ? 'العميل' : 'Customer'}
+                {language === 'ar' ? 'المشتري' : 'Buyer'}
               </p>
               <h3 className={sectionTitleClass}>
                 {language === 'ar' ? 'بيانات العميل' : 'Who is this for?'}
@@ -1065,21 +1132,23 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               {fields.map((field, index) => (
                 <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 dark:border-dark-600 dark:bg-dark-900/50">
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''} initialName={initialInvoice?.lineItems?.[index]?.productName || ''} />
-                  {showArabicFields ? (
-                    <div className="mb-3">
-                      <label className={fieldLabelClass}>اسم البند بالعربية</label>
-                      <input {...register(`lineItems.${index}.productNameAr`)} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
-                    </div>
-                  ) : (
-                    <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
-                  )}
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
-                  <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
-                    <div className={isTravelContext ? 'md:col-span-2' : 'md:col-span-3'}>
+                  <div className="grid grid-cols-1 items-end gap-4 lg:grid-cols-12">
+                    {showArabicFields ? (
+                      <div className={isTravelContext ? 'lg:col-span-2' : 'lg:col-span-3'}>
+                        <label className={fieldLabelClass}>اسم البند بالعربية</label>
+                        <input {...register(`lineItems.${index}.productNameAr`)} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" placeholder="اسم المنتج أو الخدمة" />
+                      </div>
+                    ) : (
+                      <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                    )}
+                    <div className={isTravelContext
+                      ? (showArabicFields ? 'lg:col-span-2' : 'lg:col-span-2')
+                      : (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-3')}>
                       <label htmlFor={`product-select-${index}`} className={fieldLabelClass}>{t('productName')} *</label>
                       {isTradingContext ? (
-                        <div className="mb-2">
+                        <div>
                           <CreatableSelect
                             inputId={`product-select-${index}`}
                             name={`react-select-product-${index}`}
@@ -1122,7 +1191,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className={`mt-1.5 ${fieldControlClass}`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="lg:col-span-2">
                       <label htmlFor={`unit-${index}`} className={fieldLabelClass}>{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
                       <select
                         {...register(`lineItems.${index}.unitCode`)}
@@ -1138,12 +1207,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     {isTravelContext ? (
                       <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} />
                     ) : (
-                      <div className="md:col-span-1">
+                      <div className="lg:col-span-1">
                         <label htmlFor={`qty-${index}`} className={fieldLabelClass}>{t('quantity')}</label>
                         <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className={`mt-1.5 ${fieldControlClass}`} />
                       </div>
                     )}
-                    <div className="md:col-span-2">
+                    <div className="lg:col-span-2">
                       <label htmlFor={`price-${index}`} className={fieldLabelClass}>
                         {isTravelContext
                           ? (language === 'ar' ? 'سعر التذكرة' : 'Unit Price')
@@ -1153,7 +1222,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     </div>
                     {isTravelContext ? (
                       <>
-                        <div className="md:col-span-2">
+                        <div className="lg:col-span-2">
                           <label htmlFor={`agencyprice-${index}`} className={fieldLabelClass}>{language === 'ar' ? 'سعر الوكالة' : 'Agency Price'}</label>
                           <input
                             id={`agencyprice-${index}`}
@@ -1165,7 +1234,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                             placeholder="0.00"
                           />
                         </div>
-                        <div className="md:col-span-2">
+                        <div className="lg:col-span-2">
                           <label htmlFor={`custprice-${index}`} className={fieldLabelClass}>
                             {language === 'ar' ? 'سعر العميل' : 'Customer Price'}
                           </label>
@@ -1181,12 +1250,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         </div>
                       </>
                     ) : (
-                      <div className="md:col-span-2">
+                      <div className="lg:col-span-1">
                         <label className={fieldLabelClass}>{t('tax')} %</label>
                         <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={`mt-1.5 ${fieldControlClass}`}><option value={15}>15%</option><option value={0}>0%</option></select>
                       </div>
                     )}
-                    <div className="md:col-span-2 flex items-center gap-2">
+                    <div className="lg:col-span-2 flex items-center gap-2">
                       <div className="flex-1 text-end"><p className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-300">{t('total')}</p><p className="text-base font-bold text-slate-900 dark:text-white"><Money value={calculateLineTotal(index).total} /></p></div>
                       {fields.length > 1 && <button type="button" onClick={() => remove(index)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4" /></button>}
                     </div>
@@ -1236,42 +1305,49 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           </div>
 
-          <div className="space-y-4 border-t border-slate-200/80 pt-8 dark:border-dark-600">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-lg font-semibold tracking-[-0.02em] text-slate-950 dark:text-white">
-                    {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
-                  </h3>
-                  <span className={`text-[10px] font-semibold uppercase tracking-[0.14em] px-2 py-0.5 rounded-full ${
-                    showAuthorizedPerson 
-                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' 
-                      : 'bg-slate-100 text-slate-500 dark:bg-dark-700 dark:text-slate-400'
-                  }`}>
-                    {showAuthorizedPerson ? (language === 'ar' ? 'مفعّل' : 'Active') : (language === 'ar' ? 'معطّل' : 'Disabled')}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  {language === 'ar' 
-                    ? 'إضافة المفوض بالتوقيع والختم الرسمي على مستند الفاتورة' 
-                    : 'Include signatory name, designation, signature and official stamp on document.'}
-                </p>
+          <div className={`${sectionCardClass} space-y-5`}>
+            <div>
+              <h3 className="text-lg font-semibold tracking-[-0.02em] text-slate-950 dark:text-white">
+                {language === 'ar' ? 'معلومات إضافية' : 'Additional Information'}
+              </h3>
+              <div className="mt-4 flex flex-wrap gap-2.5">
+                {[
+                  {
+                    id: 'signature',
+                    active: showAuthorizedPerson,
+                    labelEn: '+ Add Signature',
+                    labelAr: '+ إضافة توقيع',
+                    onClick: () => handleToggleAuthorizedPerson(!showAuthorizedPerson),
+                  },
+                  {
+                    id: 'terms',
+                    active: showTermsPanel,
+                    labelEn: '+ Add Terms & Conditions',
+                    labelAr: '+ إضافة الشروط والأحكام',
+                    onClick: () => setShowTermsPanel((v) => !v),
+                  },
+                  {
+                    id: 'notes',
+                    active: showNotesPanel,
+                    labelEn: '+ Add Notes',
+                    labelAr: '+ إضافة ملاحظات',
+                    onClick: () => setShowNotesPanel((v) => !v),
+                  },
+                ].map((pill) => (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={pill.onClick}
+                    className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.12em] transition ${
+                      pill.active
+                        ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                        : 'border-slate-300 bg-white text-slate-800 hover:border-slate-500 dark:border-dark-500 dark:bg-dark-800 dark:text-slate-100'
+                    }`}
+                  >
+                    {language === 'ar' ? pill.labelAr : pill.labelEn}
+                  </button>
+                ))}
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showAuthorizedPerson}
-                onClick={() => handleToggleAuthorizedPerson(!showAuthorizedPerson)}
-                className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  showAuthorizedPerson ? 'bg-slate-900 dark:bg-white' : 'bg-slate-200 dark:bg-dark-600'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out dark:bg-slate-900 ${
-                    showAuthorizedPerson ? (language === 'ar' ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
-                  }`}
-                />
-              </button>
             </div>
 
             <AnimatePresence>
@@ -1281,8 +1357,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="overflow-hidden pt-5 border-t border-gray-100 dark:border-gray-800 mt-4"
+                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
                 >
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
+                    </h4>
+                    <button type="button" onClick={() => handleToggleAuthorizedPerson(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
+                      {language === 'ar' ? 'إزالة' : 'Remove'}
+                    </button>
+                  </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
                       <label className={fieldLabelClass}>{language === 'ar' ? 'الاسم' : 'Name'}</label>
@@ -1329,7 +1413,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                           <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
                         )}
                       </div>
-                      <p className="mt-2 text-xs font-medium text-slate-500">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
                     </div>
                     <div className="md:col-span-2">
                       <label className={fieldLabelClass}>{language === 'ar' ? 'الختم' : 'Stamp'}</label>
@@ -1360,20 +1443,54 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                           <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
                         )}
                       </div>
-                      <p className="mt-2 text-xs font-medium text-slate-500">{language === 'ar' ? 'يجب أن يكون الختم بخلفية شفافة.' : 'Stamp image should have a transparent background.'}</p>
                     </div>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <AnimatePresence>
+              {showTermsPanel && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className={fieldLabelClass}>{language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}</label>
+                    <button type="button" onClick={() => { setShowTermsPanel(false); setValue('termsAndConditions', '') }} className="text-xs font-semibold text-slate-500 hover:text-red-600">
+                      {language === 'ar' ? 'إزالة' : 'Remove'}
+                    </button>
+                  </div>
+                  <textarea {...register('termsAndConditions')} className={fieldControlClass} rows={5} placeholder={language === 'ar' ? 'أدخل الشروط والأحكام...' : 'Enter terms and conditions...'} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {showNotesPanel && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className={fieldLabelClass}>{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
+                    <button type="button" onClick={() => { setShowNotesPanel(false); setValue('notes', '') }} className="text-xs font-semibold text-slate-500 hover:text-red-600">
+                      {language === 'ar' ? 'إزالة' : 'Remove'}
+                    </button>
+                  </div>
+                  <textarea {...register('notes')} className={fieldControlClass} rows={4} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {!showNotesPanel && <input type="hidden" {...register('notes')} />}
+            {!showTermsPanel && <input type="hidden" {...register('termsAndConditions')} />}
           </div>
 
           <div className={`${sectionCardClass} space-y-8`}>
-            <div>
-              <label className={fieldLabelClass}>{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
-              <textarea {...register('notes')} className={`mt-1.5 ${fieldControlClass}`} rows={3} />
-            </div>
-
             <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
               <div>
                 <p className={sectionEyebrowClass}>

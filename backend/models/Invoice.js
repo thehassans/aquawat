@@ -242,6 +242,7 @@ const invoiceSchema = new mongoose.Schema({
   
   // Metadata
   notes: { type: String },
+  termsAndConditions: { type: String },
   internalNotes: { type: String },
   attachments: [{
     name: { type: String },
