@@ -75,6 +75,7 @@ landedCostSchema.pre('save', function(next) {
 landedCostSchema.index({ tenantId: 1, lcNumber: 1 }, { unique: true });
 landedCostSchema.index({ tenantId: 1, status: 1 });
 landedCostSchema.index({ tenantId: 1, purchaseOrder: 1 });
+landedCostSchema.index({ tenantId: 1, shipment: 1 });
 
 const LandedCost = mongoose.model('LandedCost', landedCostSchema);
 export default LandedCost;

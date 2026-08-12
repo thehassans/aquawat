@@ -4,10 +4,13 @@ import { useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plus, Search, X, Save, Shield, CheckCircle2,
+  Search, X, Save, Shield, CheckCircle2,
   UserPlus, Users as UsersIcon, UserCheck, AlertTriangle,
   ChevronRight, Eye, EyeOff, Mail, Phone,
-  Lock, Fingerprint, Sliders
+  Lock, Fingerprint, Sliders, Sparkles,
+  Receipt, Package, Truck, Plane, UtensilsCrossed,
+  FolderKanban, Wallet, Landmark, HardHat, Cog, Cpu, Settings,
+  Anchor, FileText
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
@@ -15,30 +18,39 @@ import { useTranslation } from '../lib/translations'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
 
 const MODULES = [
-  { key: 'invoicing', labelEn: 'Invoicing', labelAr: 'الفوترة', icon: '🧾' },
-  { key: 'inventory', labelEn: 'Inventory', labelAr: 'المخزون', icon: '📦' },
-  { key: 'supply_chain', labelEn: 'Supply Chain', labelAr: 'سلسلة التوريد', icon: '🔗' },
-  { key: 'travel', labelEn: 'Travel', labelAr: 'السفر', icon: '✈️' },
-  { key: 'restaurant', labelEn: 'Restaurant', labelAr: 'المطعم', icon: '🍽️' },
-  { key: 'project_management', labelEn: 'Project Mgmt', labelAr: 'إدارة المشاريع', icon: '📋' },
-  { key: 'hr', labelEn: 'HR', labelAr: 'الموارد البشرية', icon: '👥' },
-  { key: 'payroll', labelEn: 'Payroll', labelAr: 'الرواتب', icon: '💰' },
-  { key: 'finance', labelEn: 'Finance', labelAr: 'المالية', icon: '📊' },
-  { key: 'job_costing', labelEn: 'Job Costing', labelAr: 'تكلفة الأعمال', icon: '🏗️' },
-  { key: 'mrp', labelEn: 'MRP', labelAr: 'MRP', icon: '⚙️' },
-  { key: 'iot', labelEn: 'IoT', labelAr: 'إنترنت الأشياء', icon: '📡' },
-  { key: 'settings', labelEn: 'Settings', labelAr: 'الإعدادات', icon: '🔧' },
+  { key: 'invoicing', labelEn: 'Invoicing', labelAr: 'الفوترة', Icon: Receipt },
+  { key: 'inventory', labelEn: 'Inventory', labelAr: 'المخزون', Icon: Package },
+  { key: 'supply_chain', labelEn: 'Supply Chain', labelAr: 'سلسلة التوريد', Icon: Truck },
+  { key: 'landed_costs', labelEn: 'Landed Costs', labelAr: 'التكاليف المرسية', Icon: Anchor },
+  { key: 'travel', labelEn: 'Travel', labelAr: 'السفر', Icon: Plane },
+  { key: 'restaurant', labelEn: 'Restaurant', labelAr: 'المطعم', Icon: UtensilsCrossed },
+  { key: 'project_management', labelEn: 'Projects', labelAr: 'المشاريع', Icon: FolderKanban },
+  { key: 'hr', labelEn: 'HR', labelAr: 'الموارد البشرية', Icon: UsersIcon },
+  { key: 'payroll', labelEn: 'Payroll', labelAr: 'الرواتب', Icon: Wallet },
+  { key: 'finance', labelEn: 'Finance', labelAr: 'المالية', Icon: Landmark },
+  { key: 'job_costing', labelEn: 'Job Costing', labelAr: 'تكلفة الأعمال', Icon: HardHat },
+  { key: 'mrp', labelEn: 'MRP', labelAr: 'MRP', Icon: Cog },
+  { key: 'iot', labelEn: 'IoT', labelAr: 'إنترنت الأشياء', Icon: Cpu },
+  { key: 'settings', labelEn: 'Settings', labelAr: 'الإعدادات', Icon: Settings },
 ]
 
 const ACTIONS = ['create', 'read', 'update', 'delete', 'approve', 'export']
 
-const ACTION_COLORS = {
-  create: 'from-emerald-500 to-green-500',
-  read: 'from-blue-500 to-sky-500',
-  update: 'from-amber-500 to-yellow-500',
-  delete: 'from-red-500 to-rose-500',
-  approve: 'from-violet-500 to-purple-500',
-  export: 'from-cyan-500 to-teal-500',
+const fieldClass =
+  'w-full rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 text-[13px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 dark:border-white/10 dark:bg-[#0c111a] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-white/25'
+
+const inkBtn =
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'
+
+const ghostBtn =
+  'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition hover:border-slate-300 disabled:opacity-50 dark:border-white/10 dark:bg-[#0c111a] dark:text-slate-200 dark:hover:border-white/20'
+
+function generateInvitePassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+  const bytes = new Uint8Array(12)
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(bytes)
+  else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256)
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('')
 }
 
 const ROLE_PRESETS = {
@@ -50,6 +62,7 @@ const ROLE_PRESETS = {
     travel: ['create', 'read', 'update', 'export'],
     restaurant: ['create', 'read', 'update', 'export'],
     project_management: ['create', 'read', 'update', 'export'],
+    landed_costs: ['create', 'read', 'update', 'export'],
     hr: ['read', 'update', 'export'],
     payroll: ['read', 'update', 'approve', 'export'],
     finance: ['create', 'read', 'update', 'approve', 'export'],
@@ -72,6 +85,7 @@ const ROLE_PRESETS = {
   inventory_manager: {
     inventory: ['create', 'read', 'update', 'delete', 'export'],
     supply_chain: ['create', 'read', 'update', 'export'],
+    landed_costs: ['create', 'read', 'update', 'export'],
     mrp: ['read', 'update'],
     settings: ['read'],
   },
@@ -91,43 +105,28 @@ const ROLE_PRESETS = {
   },
 }
 
-const ROLE_COLORS = {
-  admin: 'from-rose-500 to-pink-500',
-  manager: 'from-violet-500 to-purple-500',
-  accountant: 'from-blue-500 to-sky-500',
-  hr_manager: 'from-amber-500 to-orange-500',
-  inventory_manager: 'from-emerald-500 to-green-500',
-  sales: 'from-cyan-500 to-teal-500',
-  kitchen_staff: 'from-orange-500 to-red-500',
-  viewer: 'from-gray-400 to-gray-500',
-}
-
 function Avatar({ user, size = 'md' }) {
-  const sizes = { sm: 'w-8 h-8 text-xs', md: 'w-10 h-10 text-sm', lg: 'w-14 h-14 text-lg' }
-  const role = user?.role || 'viewer'
-  const gradient = ROLE_COLORS[role] || 'from-gray-400 to-gray-500'
+  const sizes = { sm: 'h-8 w-8 text-[11px]', md: 'h-10 w-10 text-sm', lg: 'h-12 w-12 text-base' }
+  const initials = `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.trim() || 'U'
   return (
-    <div className={`${sizes[size]} rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white font-bold shadow-lg flex-shrink-0`}>
-      {user?.firstName?.[0]}{user?.lastName?.[0]}
+    <div className={`${sizes[size]} flex flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-white font-semibold tracking-tight dark:bg-white dark:text-slate-900`}>
+      {initials}
     </div>
   )
 }
 
-function PermToggle({ active, label, color, onClick }) {
+function PermToggle({ active, label, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`relative px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all duration-200 overflow-hidden ${
+      className={`rounded-lg border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
         active
-          ? 'text-white border-transparent shadow-md scale-[1.02]'
-          : 'bg-white dark:bg-dark-800 border-gray-200 dark:border-dark-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-dark-500'
+          ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+          : 'border-slate-200/80 bg-white text-slate-400 hover:border-slate-300 dark:border-white/10 dark:bg-[#0c111a] dark:text-slate-500'
       }`}
     >
-      {active && (
-        <span className={`absolute inset-0 bg-gradient-to-r ${color} opacity-100`} />
-      )}
-      <span className="relative z-10 uppercase tracking-wide">{label}</span>
+      {label}
     </button>
   )
 }
@@ -155,6 +154,8 @@ export default function Users() {
 
   const permissions = watch('permissions')
   const watchedRole = watch('role')
+  const watchedFirstName = watch('firstName')
+  const watchedLastName = watch('lastName')
 
   const { data, isLoading } = useQuery({
     queryKey: ['tenant-users', page, search],
@@ -203,7 +204,7 @@ export default function Users() {
       reset({
         firstName: u?.firstName || '', lastName: u?.lastName || '',
         firstNameAr: u?.firstNameAr || '', lastNameAr: u?.lastNameAr || '',
-        email: u?.email || '', phone: u?.phone || '', password: '',
+        email: u?.email || '', phone: String(u?.phone || '').replace(/^\+966\s?/, ''), password: '',
         role: u?.role || 'viewer',
         isActive: typeof u?.isActive === 'boolean' ? u.isActive : true,
         permissions: Array.isArray(u?.permissions) ? u.permissions : [],
@@ -302,8 +303,15 @@ export default function Users() {
   }, [permMap])
 
   const onSubmit = (form) => {
+    const rawPhone = String(form.phone || '').trim()
+    const phone = !rawPhone
+      ? ''
+      : rawPhone.startsWith('+')
+        ? rawPhone
+        : `+966${rawPhone.replace(/^0+/, '')}`
     const payload = {
       ...form,
+      phone,
       email: String(form.email || '').trim().toLowerCase(),
       permissions: Array.isArray(form.permissions) ? form.permissions : [],
       sendWelcomeEmail: editingUser ? false : Boolean(form.sendWelcomeEmail),
@@ -313,179 +321,153 @@ export default function Users() {
     mutation.mutate(payload)
   }
 
-  const roleGradient = ROLE_COLORS[watchedRole] || 'from-gray-400 to-gray-500'
+  const displayName = [watchedFirstName, watchedLastName].filter(Boolean).join(' ')
+    || (editingUser ? `${editingUser.firstName || ''} ${editingUser.lastName || ''}`.trim() : '')
 
   return (
     <div className="h-full flex flex-col space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-teal-500 flex items-center justify-center shadow-lg shadow-primary-500/30">
-              <UsersIcon className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('users')}</h1>
-          </div>
-          <p className="text-gray-500 dark:text-gray-400 text-sm ms-12">
+          <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
+            {language === 'ar' ? 'الوصول' : 'Access'}
+          </p>
+          <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.03em] text-slate-900 dark:text-white sm:text-[28px]">
+            {t('users')}
+          </h1>
+          <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
             {language === 'ar' ? 'إدارة المستخدمين والصلاحيات' : 'Manage users and permissions'}
           </p>
         </div>
         <button
           onClick={() => openPanel()}
           disabled={isAtLimit}
-          className="btn btn-primary"
+          className={inkBtn}
         >
-          <UserPlus className="w-4 h-4" />
+          <UserPlus className="h-4 w-4" />
           {language === 'ar' ? 'إضافة مستخدم' : 'Add User'}
         </button>
       </div>
 
-      {/* Stats Strip */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="card p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-primary-500/10 flex items-center justify-center">
-            <UserCheck className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{language === 'ar' ? 'المستخدمون النشطون' : 'Active Users'}</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{activeUsers}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-slate-500/10 flex items-center justify-center">
-            <Shield className="w-5 h-5 text-slate-500" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{language === 'ar' ? 'الحد الأقصى' : 'Max Users'}</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{isLimitEnabled ? maxUsers : '∞'}</p>
-          </div>
-        </div>
-        <div className={`card p-4 flex items-center gap-4 ${isAtLimit ? 'border-amber-300 dark:border-amber-600' : ''}`}>
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isAtLimit ? 'bg-amber-500/10' : 'bg-emerald-500/10'}`}>
-            {isAtLimit
-              ? <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              : <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            }
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{language === 'ar' ? 'الحالة' : 'Status'}</p>
-            <p className={`text-sm font-bold mt-0.5 ${isAtLimit ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-              {isAtLimit ? (language === 'ar' ? 'الحد مكتمل' : 'Limit Reached') : (language === 'ar' ? 'متاح' : 'Available')}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Main layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1">
-        {/* Users List */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="lg:col-span-3 space-y-4">
-          {/* Search */}
-          <div className="card p-4">
-            <div className="relative">
-              <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder={`${t('search')}...`}
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                className="input ps-10"
-              />
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: language === 'ar' ? 'النشطون' : 'Active', value: activeUsers, Icon: UserCheck },
+          { label: language === 'ar' ? 'الحد' : 'Seat limit', value: isLimitEnabled ? maxUsers : '∞', Icon: Shield },
+          {
+            label: language === 'ar' ? 'الحالة' : 'Seats',
+            value: isAtLimit ? (language === 'ar' ? 'مكتمل' : 'Full') : (language === 'ar' ? 'متاح' : 'Open'),
+            Icon: isAtLimit ? AlertTriangle : CheckCircle2,
+            warn: isAtLimit,
+          },
+        ].map((item) => (
+          <div key={item.label} className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 dark:border-white/10 dark:bg-[#0c111a]">
+            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400">{item.label}</p>
+            <div className="mt-1.5 flex items-center justify-between gap-2">
+              <p className={`text-xl font-semibold tracking-tight ${item.warn ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
+                {item.value}
+              </p>
+              <item.Icon className={`h-4 w-4 ${item.warn ? 'text-amber-500' : 'text-slate-300 dark:text-slate-600'}`} />
             </div>
           </div>
+        ))}
+      </div>
 
-          {/* User Cards */}
-          <div className="space-y-2">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="lg:col-span-3 space-y-4">
+          <div className="relative">
+            <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder={`${t('search')}...`}
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              className={`${fieldClass} ps-10`}
+            />
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-[#0c111a]">
             {isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="card p-4 animate-pulse">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gray-200 dark:bg-dark-700" />
+              <div className="space-y-0 divide-y divide-slate-100 dark:divide-white/5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3.5 animate-pulse">
+                    <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-white/10" />
                     <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-gray-200 dark:bg-dark-700 rounded w-1/3" />
-                      <div className="h-3 bg-gray-100 dark:bg-dark-600 rounded w-1/2" />
+                      <div className="h-3.5 w-1/3 rounded bg-slate-100 dark:bg-white/10" />
+                      <div className="h-3 w-1/2 rounded bg-slate-50 dark:bg-white/5" />
                     </div>
                   </div>
-                </div>
-              ))
-            ) : (
-              <AnimatePresence>
-                {users.map((u, i) => (
-                  <motion.div
-                    key={u._id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.04 }}
-                    className={`card p-4 cursor-pointer transition-all hover:shadow-md group ${
-                      panelOpen && editingUser?._id === u._id
-                        ? 'border-primary-300 dark:border-primary-700 bg-primary-50/50 dark:bg-primary-900/10'
-                        : 'hover:border-gray-200 dark:hover:border-dark-600'
-                    }`}
-                    onClick={() => openPanel(u)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar user={u} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">
-                            {u.firstName} {u.lastName}
-                          </p>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-white bg-gradient-to-r ${ROLE_COLORS[u.role] || 'from-gray-400 to-gray-500'} flex-shrink-0`}>
-                            {u.role}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{u.email}</p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={`w-2 h-2 rounded-full ${u.isActive ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                        <button
-                          onClick={(e) => { e.stopPropagation(); if (u.isActive) deleteMutation.mutate(u._id) }}
-                          disabled={deleteMutation.isPending || !u.isActive}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all disabled:opacity-30"
-                          title={language === 'ar' ? 'إلغاء تفعيل' : 'Deactivate'}
-                        >
-                          <X className="w-3.5 h-3.5 text-red-500" />
-                        </button>
-                        <ChevronRight className={`w-4 h-4 transition-transform ${panelOpen && editingUser?._id === u._id ? 'text-primary-500 rotate-90' : 'text-gray-300 dark:text-gray-600'}`} />
-                      </div>
-                    </div>
-                  </motion.div>
                 ))}
-              </AnimatePresence>
-            )}
-            {!isLoading && users.length === 0 && (
-              <div className="card p-12 text-center">
-                <div className="w-16 h-16 bg-gray-100 dark:bg-dark-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <UsersIcon className="w-8 h-8 text-gray-400" />
-                </div>
-                <p className="text-gray-500 dark:text-gray-400 font-medium mb-4">{language === 'ar' ? 'لا يوجد مستخدمون' : 'No users yet'}</p>
-                <button onClick={() => openPanel()} className="btn btn-primary">
-                  <UserPlus className="w-4 h-4" />
+              </div>
+            ) : users.length === 0 ? (
+              <div className="px-6 py-16 text-center">
+                <UsersIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-600" />
+                <p className="mt-3 text-[13px] font-medium text-slate-600 dark:text-slate-300">
+                  {language === 'ar' ? 'لا يوجد مستخدمون' : 'No users yet'}
+                </p>
+                <button onClick={() => openPanel()} className={`${inkBtn} mt-4`}>
+                  <UserPlus className="h-4 w-4" />
                   {language === 'ar' ? 'إضافة مستخدم' : 'Add User'}
                 </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-white/5">
+                {users.map((u) => {
+                  const selected = panelOpen && editingUser?._id === u._id
+                  return (
+                    <button
+                      key={u._id}
+                      type="button"
+                      onClick={() => openPanel(u)}
+                      className={`group flex w-full items-center gap-3 px-4 py-3.5 text-start transition ${
+                        selected ? 'bg-slate-50 dark:bg-white/[0.04]' : 'hover:bg-slate-50/80 dark:hover:bg-white/[0.03]'
+                      }`}
+                    >
+                      <Avatar user={u} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
+                            {u.firstName} {u.lastName}
+                          </p>
+                          <span className="flex-shrink-0 rounded-md border border-slate-200/80 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500 dark:border-white/10 dark:text-slate-400">
+                            {u.role?.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <p className="truncate text-[12px] text-slate-400">{u.email}</p>
+                      </div>
+                      <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${u.isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                      <span
+                        role="button"
+                        tabIndex={-1}
+                        onClick={(e) => { e.stopPropagation(); if (u.isActive) deleteMutation.mutate(u._id) }}
+                        className="rounded-lg p-1.5 text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100 dark:hover:bg-rose-500/10"
+                        title={language === 'ar' ? 'إلغاء تفعيل' : 'Deactivate'}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </span>
+                      <ChevronRight className={`h-4 w-4 flex-shrink-0 text-slate-300 transition ${selected ? 'rotate-90 text-slate-500' : ''}`} />
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
 
-          {/* Pagination */}
           {pagination?.pages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="btn btn-secondary">
+            <div className="flex items-center justify-between pt-1">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className={ghostBtn}>
                 {language === 'ar' ? 'السابق' : 'Previous'}
               </button>
-              <span className="text-sm text-gray-500">
-                {language === 'ar' ? `${pagination.page} / ${pagination.pages}` : `${pagination.page} / ${pagination.pages}`}
+              <span className="text-[12px] text-slate-400">
+                {pagination.page} / {pagination.pages}
               </span>
-              <button onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))} disabled={page >= pagination.pages} className="btn btn-secondary">
+              <button onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))} disabled={page >= pagination.pages} className={ghostBtn}>
                 {language === 'ar' ? 'التالي' : 'Next'}
               </button>
             </div>
           )}
         </motion.div>
 
-        {/* Side Panel */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="lg:col-span-2">
-          <div className="card sticky top-6 overflow-hidden">
+          <div className="sticky top-6 overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-[#0c111a]">
             <AnimatePresence mode="wait">
               {!panelOpen ? (
                 <motion.div
@@ -493,89 +475,84 @@ export default function Users() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="p-8 text-center"
+                  className="px-8 py-14 text-center"
                 >
-                  <div className="w-16 h-16 bg-gradient-to-br from-primary-500/10 to-teal-500/10 border border-primary-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Fingerprint className="w-8 h-8 text-primary-500" />
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/80 dark:border-white/10">
+                    <Fingerprint className="h-5 w-5 text-slate-400" />
                   </div>
-                  <p className="font-semibold text-gray-900 dark:text-white mb-2">
-                    {language === 'ar' ? 'إدارة الصلاحيات' : 'Manage Access'}
+                  <p className="mt-4 text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white">
+                    {language === 'ar' ? 'مستخدم جديد' : 'Invite a teammate'}
                   </p>
-                  <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
+                  <p className="mx-auto mt-1.5 max-w-[240px] text-[13px] leading-relaxed text-slate-400">
                     {language === 'ar'
-                      ? 'اختر مستخدماً من القائمة لتحرير بياناته وصلاحياته'
-                      : 'Select a user from the list to edit their details and permissions'}
+                      ? 'أضف مستخدماً بالهوية الثنائية والصلاحيات الدقيقة، أو اختر شخصاً من القائمة للتعديل.'
+                      : 'Create a bilingual identity, assign a role, then fine-tune access — or pick someone from the list.'}
                   </p>
-                  <button onClick={() => openPanel()} disabled={isAtLimit} className="btn btn-primary w-full">
-                    <UserPlus className="w-4 h-4" />
-                    {language === 'ar' ? 'إضافة مستخدم جديد' : 'Add New User'}
+                  <button onClick={() => openPanel()} disabled={isAtLimit} className={`${inkBtn} mt-6 w-full`}>
+                    <UserPlus className="h-4 w-4" />
+                    {language === 'ar' ? 'إضافة مستخدم' : 'Add User'}
                   </button>
                 </motion.div>
               ) : (
                 <motion.div
                   key="panel"
-                  initial={{ opacity: 0, x: 20 }}
+                  initial={{ opacity: 0, x: 12 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
+                  exit={{ opacity: 0, x: 12 }}
                 >
-                  {/* Panel Header */}
-                  <div className="relative overflow-hidden">
-                    <div className={`absolute inset-0 bg-gradient-to-r ${roleGradient} opacity-10`} />
-                    <div className="relative p-5 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {editingUser ? (
-                          <Avatar user={{ ...editingUser, role: watchedRole }} size="md" />
-                        ) : (
-                          <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${roleGradient} flex items-center justify-center shadow-lg`}>
-                            <UserPlus className="w-5 h-5 text-white" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {editingUser ? (language === 'ar' ? 'تعديل مستخدم' : 'Edit User') : (language === 'ar' ? 'مستخدم جديد' : 'New User')}
-                          </p>
-                          <p className="font-bold text-gray-900 dark:text-white text-sm">
-                            {editingUser ? `${editingUser.firstName} ${editingUser.lastName}` : (language === 'ar' ? 'إنشاء مستخدم' : 'Create User')}
-                          </p>
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/10">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {editingUser ? (
+                        <Avatar user={{ ...editingUser, firstName: watchedFirstName || editingUser.firstName, lastName: watchedLastName || editingUser.lastName }} />
+                      ) : (
+                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900">
+                          <UserPlus className="h-4 w-4" />
                         </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">
+                          {editingUser ? (language === 'ar' ? 'تعديل' : 'Edit') : (language === 'ar' ? 'دعوة' : 'Invite')}
+                        </p>
+                        <p className="truncate text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white">
+                          {displayName || (language === 'ar' ? 'مستخدم جديد' : 'New user')}
+                        </p>
                       </div>
-                      <button onClick={closePanel} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors">
-                        <X className="w-4 h-4 text-gray-500" />
-                      </button>
                     </div>
+                    <button type="button" onClick={closePanel} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:hover:bg-white/5">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
 
-                    {/* Section Tabs */}
-                    <div className="flex border-t border-gray-100 dark:border-dark-700">
-                      <button
-                        type="button"
-                        onClick={() => setActiveSection('info')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-semibold transition-all ${
-                          activeSection === 'info'
-                            ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-500 bg-primary-50/50 dark:bg-primary-900/10'
-                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                        }`}
-                      >
-                        <Mail className="w-3.5 h-3.5" />
-                        {language === 'ar' ? 'المعلومات' : 'Info'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveSection('permissions')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-semibold transition-all ${
-                          activeSection === 'permissions'
-                            ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-500 bg-primary-50/50 dark:bg-primary-900/10'
-                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                        }`}
-                      >
-                        <Sliders className="w-3.5 h-3.5" />
-                        {language === 'ar' ? 'الصلاحيات' : 'Permissions'}
-                        {totalPermCount > 0 && (
-                          <span className="px-1.5 py-0.5 bg-primary-500 text-white rounded-full text-[10px] font-bold">
-                            {totalPermCount}
-                          </span>
-                        )}
-                      </button>
-                    </div>
+                  <div className="grid grid-cols-2 border-b border-slate-100 dark:border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection('info')}
+                      className={`flex items-center justify-center gap-2 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition ${
+                        activeSection === 'info'
+                          ? 'border-b-2 border-slate-900 text-slate-900 dark:border-white dark:text-white'
+                          : 'border-b-2 border-transparent text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                      {language === 'ar' ? 'الهوية' : 'Identity'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection('permissions')}
+                      className={`flex items-center justify-center gap-2 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition ${
+                        activeSection === 'permissions'
+                          ? 'border-b-2 border-slate-900 text-slate-900 dark:border-white dark:text-white'
+                          : 'border-b-2 border-transparent text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      <Sliders className="h-3.5 w-3.5" />
+                      {language === 'ar' ? 'الصلاحيات' : 'Access'}
+                      {totalPermCount > 0 && (
+                        <span className="rounded-full bg-slate-900 px-1.5 py-0.5 text-[9px] font-bold text-white dark:bg-white dark:text-slate-900">
+                          {totalPermCount}
+                        </span>
+                      )}
+                    </button>
                   </div>
 
                   <form onSubmit={handleSubmit(onSubmit)}>
@@ -584,121 +561,138 @@ export default function Users() {
                         {activeSection === 'info' ? (
                           <motion.div
                             key="info"
-                            initial={{ opacity: 0, y: 8 }}
+                            initial={{ opacity: 0, y: 6 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -8 }}
-                            className="p-5 space-y-4"
+                            exit={{ opacity: 0, y: -6 }}
+                            className="space-y-5 p-5"
                           >
-                            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-4 dark:border-white/10 dark:from-dark-900/60 dark:to-dark-800">
-                              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-teal-700 dark:text-teal-300">
-                                {language === 'ar' ? 'الهوية' : 'Identity'}
+                            <div>
+                              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+                                {language === 'ar' ? 'الاسم' : 'Name'}
                               </p>
                               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2" dir="ltr">
                                 <div>
-                                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                                    <span>First Name *</span>
-                                    <span dir="rtl" className="font-medium text-gray-500">الاسم الأول</span>
+                                  <label className="mb-1.5 flex items-baseline justify-between text-[11px] font-medium text-slate-500">
+                                    <span>First name</span>
+                                    <span dir="rtl">الاسم الأول</span>
                                   </label>
-                                  <input {...register('firstName', { required: true })} className="input text-sm" placeholder="Ahmed" />
+                                  <input {...register('firstName', { required: true })} className={fieldClass} placeholder="Ahmed" />
                                 </div>
                                 <div>
-                                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                                    <span>First Name (AR)</span>
-                                    <span dir="rtl" className="font-medium text-gray-500">الاسم الأول بالعربية</span>
+                                  <label className="mb-1.5 flex items-baseline justify-between text-[11px] font-medium text-slate-500">
+                                    <span>First name (AR)</span>
+                                    <span dir="rtl">بالعربية</span>
                                   </label>
-                                  <input {...register('firstNameAr')} className="input text-sm" dir="rtl" placeholder="أحمد" />
+                                  <input {...register('firstNameAr')} className={fieldClass} dir="rtl" placeholder="أحمد" />
                                 </div>
                                 <div>
-                                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                                    <span>Last Name *</span>
-                                    <span dir="rtl" className="font-medium text-gray-500">اسم العائلة</span>
+                                  <label className="mb-1.5 flex items-baseline justify-between text-[11px] font-medium text-slate-500">
+                                    <span>Last name</span>
+                                    <span dir="rtl">اسم العائلة</span>
                                   </label>
-                                  <input {...register('lastName', { required: true })} className="input text-sm" placeholder="Alharbi" />
+                                  <input {...register('lastName', { required: true })} className={fieldClass} placeholder="Alharbi" />
                                 </div>
                                 <div>
-                                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                                    <span>Last Name (AR)</span>
-                                    <span dir="rtl" className="font-medium text-gray-500">اسم العائلة بالعربية</span>
+                                  <label className="mb-1.5 flex items-baseline justify-between text-[11px] font-medium text-slate-500">
+                                    <span>Last name (AR)</span>
+                                    <span dir="rtl">بالعربية</span>
                                   </label>
-                                  <input {...register('lastNameAr')} className="input text-sm" dir="rtl" placeholder="الحربي" />
+                                  <input {...register('lastNameAr')} className={fieldClass} dir="rtl" placeholder="الحربي" />
                                 </div>
                               </div>
                             </div>
 
                             <div>
-                              <label className="label">
-                                <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" />{language === 'ar' ? 'البريد الإلكتروني (Gmail / Work)' : 'Email (Gmail / Work)'} *</span>
+                              <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                                <Mail className="h-3.5 w-3.5" />
+                                {language === 'ar' ? 'البريد (تسجيل الدخول)' : 'Email (login)'}
                               </label>
-                              <input type="email" {...register('email', { required: true })} className="input text-sm" placeholder="name@gmail.com" autoComplete="off" />
-                              <p className="mt-1 text-[11px] text-gray-400">
-                                {language === 'ar' ? 'سيُستخدم لتسجيل الدخول واستلام الدعوة.' : 'Used for login and the welcome invite email.'}
-                              </p>
+                              <input type="email" {...register('email', { required: true })} className={fieldClass} placeholder="name@company.com" autoComplete="off" />
                             </div>
 
                             <div>
-                              <label className="label">
-                                <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{language === 'ar' ? 'الهاتف' : 'Phone'}</span>
+                              <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                                <Phone className="h-3.5 w-3.5" />
+                                {language === 'ar' ? 'الهاتف' : 'Phone'}
                               </label>
-                              <input {...register('phone')} className="input text-sm" placeholder="+9665xxxxxxxx" />
+                              <div className="flex overflow-hidden rounded-xl border border-slate-200/80 dark:border-white/10">
+                                <span className="flex items-center border-e border-slate-200/80 bg-slate-50 px-3 text-[12px] font-medium text-slate-500 dark:border-white/10 dark:bg-white/5">+966</span>
+                                <input {...register('phone')} className="w-full bg-transparent px-3.5 py-2.5 text-[13px] text-slate-900 outline-none placeholder:text-slate-400 dark:text-white" placeholder="5xxxxxxxx" />
+                              </div>
                             </div>
 
                             <div>
-                              <label className="label">
-                                <span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />{language === 'ar' ? 'كلمة المرور' : 'Password'}{editingUser ? '' : ' *'}</span>
-                              </label>
+                              <div className="mb-1.5 flex items-center justify-between">
+                                <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                                  <Lock className="h-3.5 w-3.5" />
+                                  {language === 'ar' ? 'كلمة المرور' : 'Password'}{editingUser ? '' : ' *'}
+                                </label>
+                                {!editingUser && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setValue('password', generateInvitePassword(), { shouldDirty: true })
+                                      setShowPassword(true)
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                  >
+                                    <Sparkles className="h-3 w-3" />
+                                    {language === 'ar' ? 'توليد' : 'Generate'}
+                                  </button>
+                                )}
+                              </div>
                               <div className="relative">
                                 <input
                                   type={showPassword ? 'text' : 'password'}
                                   {...register('password', { required: !editingUser })}
-                                  className="input text-sm pe-10"
+                                  className={`${fieldClass} pe-10`}
                                   autoComplete="new-password"
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => setShowPassword(v => !v)}
-                                  className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                  onClick={() => setShowPassword((v) => !v)}
+                                  className="absolute end-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                                 >
-                                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
                               </div>
                               {editingUser && (
-                                <p className="text-[11px] text-gray-400 mt-1">
-                                  {language === 'ar' ? 'اتركها فارغة للحفاظ على كلمة المرور الحالية.' : 'Leave empty to keep current password.'}
+                                <p className="mt-1 text-[11px] text-slate-400">
+                                  {language === 'ar' ? 'اتركها فارغة للحفاظ على كلمة المرور الحالية.' : 'Leave empty to keep the current password.'}
                                 </p>
                               )}
                             </div>
 
                             {!editingUser && (
-                              <label className="flex items-start gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3 cursor-pointer dark:border-emerald-500/30 dark:bg-emerald-500/10">
-                                <input type="checkbox" {...register('sendWelcomeEmail')} className="mt-1 rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500" />
+                              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200/80 p-3.5 dark:border-white/10">
+                                <input type="checkbox" {...register('sendWelcomeEmail')} className="mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-slate-400" />
                                 <span>
-                                  <span className="block text-sm font-semibold text-emerald-900 dark:text-emerald-200">
-                                    {language === 'ar' ? 'إرسال دعوة بالبريد من المنشأة' : 'Send welcome email from company'}
+                                  <span className="block text-[13px] font-medium text-slate-900 dark:text-white">
+                                    {language === 'ar' ? 'إرسال دعوة بالبريد' : 'Send welcome email'}
                                   </span>
-                                  <span className="mt-0.5 block text-[11px] text-emerald-800/80 dark:text-emerald-300/80">
+                                  <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-400">
                                     {language === 'ar'
-                                      ? 'يصل المستخدم بريد دعوة من إعدادات البريد الخاصة بالمنشأة مع رابط تسجيل الدخول.'
-                                      : 'Sends an invite from your tenant email settings with login link and temporary password.'}
+                                      ? 'دعوة من بريد المنشأة مع رابط الدخول وكلمة المرور المؤقتة.'
+                                      : 'Invite from your company email with login link and temporary password.'}
                                   </span>
                                 </span>
                               </label>
                             )}
 
                             <div>
-                              <label className="label">
-                                <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />{language === 'ar' ? 'الدور' : 'Role'}</span>
-                              </label>
+                              <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+                                {language === 'ar' ? 'الدور' : 'Role'}
+                              </p>
                               <div className="grid grid-cols-2 gap-2">
                                 {roles.map((r) => {
-                                  const grad = ROLE_COLORS[r.key] || 'from-gray-400 to-gray-500'
                                   const isActive = watchedRole === r.key
                                   return (
                                     <label
                                       key={r.key}
-                                      className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${
+                                      className={`cursor-pointer rounded-xl border px-3 py-2.5 text-[12px] font-medium transition ${
                                         isActive
-                                          ? 'border-transparent ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                                          : 'border-gray-200 dark:border-dark-600 hover:border-gray-300 dark:hover:border-dark-500'
+                                          ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                                          : 'border-slate-200/80 text-slate-600 hover:border-slate-300 dark:border-white/10 dark:text-slate-300'
                                       }`}
                                     >
                                       <input
@@ -722,70 +716,70 @@ export default function Users() {
                                         })}
                                         className="sr-only"
                                       />
-                                      <div className={`w-2 h-2 rounded-full bg-gradient-to-br ${grad} flex-shrink-0`} />
-                                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{r.label}</span>
+                                      {r.label}
                                     </label>
                                   )
                                 })}
                               </div>
-                              <p className="mt-2 text-[11px] text-gray-400">
+                              <p className="mt-2 text-[11px] text-slate-400">
                                 {language === 'ar'
-                                  ? 'يقوم تغيير الدور بتحديد صلاحيات افتراضية تلقائياً.'
-                                  : 'Changing role auto-selects default permissions.'}
+                                  ? 'تغيير الدور يضبط الصلاحيات الافتراضية. يمكنك تعديلها من تبويب الوصول.'
+                                  : 'Role sets a default access map. Refine it in Access.'}
                               </p>
                             </div>
 
-                            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-700/50 rounded-xl">
+                            <div className="flex items-center justify-between rounded-xl border border-slate-200/80 px-3.5 py-3 dark:border-white/10">
                               <div>
-                                <p className="text-sm font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'الحساب نشط' : 'Account Active'}</p>
-                                <p className="text-xs text-gray-400">{language === 'ar' ? 'يمكن للمستخدم تسجيل الدخول' : 'User can sign in'}</p>
+                                <p className="text-[13px] font-medium text-slate-900 dark:text-white">{language === 'ar' ? 'الحساب نشط' : 'Account active'}</p>
+                                <p className="text-[11px] text-slate-400">{language === 'ar' ? 'يمكن للمستخدم تسجيل الدخول' : 'Can sign in to this tenant'}</p>
                               </div>
-                              <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" {...register('isActive')} className="sr-only peer" />
-                                <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-dark-600 peer-checked:after:translate-x-full peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-0.5 after:start-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+                              <label className="relative inline-flex cursor-pointer items-center">
+                                <input type="checkbox" {...register('isActive')} className="peer sr-only" />
+                                <div className="h-6 w-10 rounded-full bg-slate-200 after:absolute after:start-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:bg-slate-900 peer-checked:after:translate-x-4 dark:bg-white/10 dark:peer-checked:bg-white dark:peer-checked:after:bg-slate-900" />
                               </label>
                             </div>
                           </motion.div>
                         ) : (
                           <motion.div
                             key="permissions"
-                            initial={{ opacity: 0, y: 8 }}
+                            initial={{ opacity: 0, y: 6 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -8 }}
-                            className="p-5 space-y-3"
+                            exit={{ opacity: 0, y: -6 }}
+                            className="space-y-2.5 p-5"
                           >
                             <div className="flex items-center justify-between">
-                              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                {language === 'ar' ? 'الصلاحيات التفصيلية' : 'Granular Permissions'}
+                              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+                                {language === 'ar' ? 'الصلاحيات' : 'Modules'}
                               </p>
-                              <span className="text-xs text-gray-400">{totalPermCount} {language === 'ar' ? 'صلاحية' : 'active'}</span>
+                              <span className="text-[11px] text-slate-400">{totalPermCount} {language === 'ar' ? 'صلاحية' : 'grants'}</span>
                             </div>
                             {enabledModules.map((m) => {
                               const set = permMap.get(m.key) || new Set()
                               const allOn = ACTIONS.every((a) => set.has(a))
                               const someOn = ACTIONS.some((a) => set.has(a))
                               const label = language === 'ar' ? m.labelAr : m.labelEn
+                              const Icon = m.Icon || FileText
                               return (
                                 <div
                                   key={m.key}
-                                  className={`rounded-xl border p-3.5 transition-all ${
+                                  className={`rounded-xl border p-3.5 ${
                                     someOn
-                                      ? 'border-primary-200 dark:border-primary-800/50 bg-primary-50/50 dark:bg-primary-900/10'
-                                      : 'border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800'
+                                      ? 'border-slate-900/20 bg-slate-50/80 dark:border-white/20 dark:bg-white/[0.04]'
+                                      : 'border-slate-200/80 dark:border-white/10'
                                   }`}
                                 >
-                                  <div className="flex items-center justify-between mb-3">
+                                  <div className="mb-2.5 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-base">{m.icon}</span>
-                                      <p className="font-semibold text-sm text-gray-900 dark:text-white">{label}</p>
+                                      <Icon className="h-3.5 w-3.5 text-slate-400" />
+                                      <p className="text-[13px] font-medium text-slate-900 dark:text-white">{label}</p>
                                     </div>
                                     <button
                                       type="button"
                                       onClick={() => toggleAllForModule(m.key, !allOn)}
-                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                                         allOn
-                                          ? 'bg-primary-500 text-white'
-                                          : 'bg-gray-100 dark:bg-dark-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-600'
+                                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                                          : 'text-slate-400 hover:text-slate-700'
                                       }`}
                                     >
                                       {language === 'ar' ? 'الكل' : 'All'}
@@ -797,7 +791,6 @@ export default function Users() {
                                         key={a}
                                         active={set.has(a)}
                                         label={a}
-                                        color={ACTION_COLORS[a] || 'from-gray-400 to-gray-500'}
                                         onClick={() => toggleAction(m.key, a)}
                                       />
                                     ))}
@@ -810,18 +803,17 @@ export default function Users() {
                       </AnimatePresence>
                     </div>
 
-                    {/* Footer Actions */}
-                    <div className="p-4 border-t border-gray-100 dark:border-dark-700 flex gap-3">
-                      <button type="button" onClick={closePanel} className="btn btn-secondary flex-1">
+                    <div className="flex gap-2 border-t border-slate-100 p-4 dark:border-white/10">
+                      <button type="button" onClick={closePanel} className={`${ghostBtn} flex-1`}>
                         {t('cancel')}
                       </button>
-                      <button type="submit" disabled={mutation.isPending} className="btn btn-primary flex-1">
+                      <button type="submit" disabled={mutation.isPending} className={`${inkBtn} flex-1`}>
                         {mutation.isPending ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white dark:border-slate-400 dark:border-t-slate-900" />
                         ) : (
                           <>
-                            <Save className="w-4 h-4" />
-                            {t('save')}
+                            <Save className="h-4 w-4" />
+                            {editingUser ? (language === 'ar' ? 'حفظ' : 'Save') : (language === 'ar' ? 'إنشاء المستخدم' : 'Create user')}
                           </>
                         )}
                       </button>

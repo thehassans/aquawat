@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
 import { Save, X, Plus, Trash2, Calculator, CheckCircle } from 'lucide-react'
@@ -28,15 +28,17 @@ const emptyAllocation = () => ({ productName: '', productCode: '', quantity: '',
 export default function LandedCostForm() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const isEdit = !!id
   const { language } = useSelector(s => s.ui)
   const isAr = language === 'ar'
   const t = (en, ar) => isAr ? ar : en
+  const presetShipmentId = String(searchParams.get('shipment') || '').trim()
 
   const [form, setForm] = useState({
     lcNumber: '', vendor: '', invoiceDate: '', referenceNumber: '', notes: '',
     allocationMethod: 'by_value', status: 'draft',
-    purchaseOrder: '', shipment: ''
+    purchaseOrder: '', shipment: presetShipmentId
   })
   const [costLines, setCostLines] = useState([emptyCostLine()])
   const [allocations, setAllocations] = useState([emptyAllocation()])
@@ -45,6 +47,9 @@ export default function LandedCostForm() {
   const [calculating, setCalculating] = useState(false)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
+  const [shipments, setShipments] = useState([])
+  const [purchaseOrders, setPurchaseOrders] = useState([])
+  const [linkedPrefillDone, setLinkedPrefillDone] = useState(false)
 
   const fetchLC = useCallback(async () => {
     if (!isEdit) return
@@ -56,7 +61,8 @@ export default function LandedCostForm() {
         invoiceDate: data.invoiceDate?.split('T')[0] || '',
         referenceNumber: data.referenceNumber || '', notes: data.notes || '',
         allocationMethod: data.allocationMethod || 'by_value', status: data.status || 'draft',
-        purchaseOrder: data.purchaseOrder?.poNumber || '', shipment: data.shipment?.shipmentNumber || ''
+        purchaseOrder: data.purchaseOrder?._id || data.purchaseOrder || '',
+        shipment: data.shipment?._id || data.shipment || ''
       })
       setCostLines(data.costLines?.length ? data.costLines : [emptyCostLine()])
       setAllocations(data.allocations?.length ? data.allocations : [emptyAllocation()])
@@ -65,6 +71,111 @@ export default function LandedCostForm() {
   }, [id, isEdit])
 
   useEffect(() => { fetchLC() }, [fetchLC])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadLookups = async () => {
+      try {
+        const [shipRes, poRes] = await Promise.all([
+          api.get('/shipments', { params: { page: 1, limit: 200, type: 'inbound' } }),
+          api.get('/purchase-orders', { params: { page: 1, limit: 200 } }),
+        ])
+        if (cancelled) return
+        setShipments(shipRes.data?.shipments || [])
+        setPurchaseOrders(poRes.data?.purchaseOrders || [])
+      } catch (_) { /* lookups optional */ }
+    }
+    loadLookups()
+    return () => { cancelled = true }
+  }, [])
+
+  const applyLinkedDocs = useCallback(async (shipmentId, purchaseOrderId, { fillVendor = true } = {}) => {
+    if (!shipmentId && !purchaseOrderId) return
+    try {
+      let vendor = ''
+      let nextPo = purchaseOrderId || ''
+      let nextAlloc = []
+
+      if (shipmentId) {
+        const { data: shipment } = await api.get(`/shipments/${shipmentId}`)
+        vendor = isAr
+          ? (shipment.supplierId?.nameAr || shipment.supplierId?.nameEn || '')
+          : (shipment.supplierId?.nameEn || shipment.supplierId?.nameAr || '')
+        const poRef = shipment.purchaseOrderId?._id || shipment.purchaseOrderId || ''
+        if (poRef) nextPo = String(poRef)
+        nextAlloc = (shipment.lineItems || []).map((line) => {
+          const p = line.productId && typeof line.productId === 'object' ? line.productId : null
+          return {
+            productId: p?._id || line.productId || '',
+            productName: p?.nameEn || p?.nameAr || line.description || '',
+            productCode: p?.sku || '',
+            quantity: line.quantity || '',
+            unitCostBeforeLanded: '',
+            weight: '',
+            lineValue: '',
+          }
+        })
+      }
+
+      if (nextPo) {
+        const { data: po } = await api.get(`/purchase-orders/${nextPo}`)
+        if (!vendor) {
+          vendor = isAr
+            ? (po.supplierId?.nameAr || po.supplierId?.nameEn || '')
+            : (po.supplierId?.nameEn || po.supplierId?.nameAr || '')
+        }
+        const byProduct = new Map()
+        for (const line of po.lineItems || []) {
+          const pid = String(line.productId?._id || line.productId || '')
+          if (pid) byProduct.set(pid, line)
+        }
+        if (nextAlloc.length === 0) {
+          nextAlloc = (po.lineItems || []).map((line) => {
+            const p = line.productId && typeof line.productId === 'object' ? line.productId : null
+            const qty = line.quantityOrdered || 0
+            const unit = line.unitCost || 0
+            return {
+              productId: p?._id || line.productId || '',
+              productName: p?.nameEn || p?.nameAr || line.manualName || line.description || '',
+              productCode: p?.sku || '',
+              quantity: qty,
+              unitCostBeforeLanded: unit,
+              weight: '',
+              lineValue: qty * unit,
+            }
+          })
+        } else {
+          nextAlloc = nextAlloc.map((alloc) => {
+            const line = byProduct.get(String(alloc.productId || ''))
+            if (!line) return alloc
+            const unit = line.unitCost || 0
+            const qty = Number(alloc.quantity) || 0
+            return {
+              ...alloc,
+              unitCostBeforeLanded: unit,
+              lineValue: qty * unit,
+              productName: alloc.productName || line.productId?.nameEn || line.manualName || '',
+              productCode: alloc.productCode || line.productId?.sku || '',
+            }
+          })
+        }
+      }
+
+      setForm((f) => ({
+        ...f,
+        shipment: shipmentId || f.shipment,
+        purchaseOrder: nextPo || f.purchaseOrder,
+        vendor: fillVendor && vendor ? vendor : f.vendor,
+      }))
+      if (nextAlloc.length) setAllocations(nextAlloc)
+    } catch (_) { /* keep current form */ }
+  }, [isAr])
+
+  useEffect(() => {
+    if (isEdit || linkedPrefillDone || !presetShipmentId) return
+    setLinkedPrefillDone(true)
+    applyLinkedDocs(presetShipmentId, '')
+  }, [applyLinkedDocs, isEdit, linkedPrefillDone, presetShipmentId])
 
   const totalCost = costLines.reduce((s, l) => s + (parseFloat(l.amount) || 0) * (parseFloat(l.exchangeRate) || 1), 0)
 
@@ -155,8 +266,38 @@ export default function LandedCostForm() {
           <Field label={t('LC Number', 'رقم ت.م')}><Input value={form.lcNumber} onChange={e => setForm(f => ({ ...f, lcNumber: e.target.value }))} disabled={isPosted} placeholder="Auto-generated" /></Field>
           <Field label={t('Vendor', 'المورد')}><Input value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} disabled={isPosted} /></Field>
           <Field label={t('Invoice Date', 'تاريخ الفاتورة')}><Input type="date" value={form.invoiceDate} onChange={e => setForm(f => ({ ...f, invoiceDate: e.target.value }))} disabled={isPosted} /></Field>
-          <Field label={t('PO Reference', 'أمر الشراء')}><Input value={form.purchaseOrder} onChange={e => setForm(f => ({ ...f, purchaseOrder: e.target.value }))} disabled={isPosted} placeholder="Enter PO number" /></Field>
-          <Field label={t('Shipment Ref', 'رقم الشحنة')}><Input value={form.shipment} onChange={e => setForm(f => ({ ...f, shipment: e.target.value }))} disabled={isPosted} /></Field>
+          <Field label={t('Purchase Order', 'أمر الشراء')}>
+            <Select
+              value={form.purchaseOrder}
+              disabled={isPosted}
+              onChange={(e) => {
+                const next = e.target.value
+                setForm((f) => ({ ...f, purchaseOrder: next }))
+                if (next && !isEdit) applyLinkedDocs(form.shipment, next, { fillVendor: !form.vendor })
+              }}
+            >
+              <option value="">{t('Select PO', 'اختر أمر شراء')}</option>
+              {purchaseOrders.map((po) => (
+                <option key={po._id} value={po._id}>{po.poNumber}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t('Shipment', 'الشحنة')}>
+            <Select
+              value={form.shipment}
+              disabled={isPosted}
+              onChange={(e) => {
+                const next = e.target.value
+                setForm((f) => ({ ...f, shipment: next }))
+                if (next) applyLinkedDocs(next, form.purchaseOrder)
+              }}
+            >
+              <option value="">{t('Select inbound shipment', 'اختر شحنة واردة')}</option>
+              {shipments.map((s) => (
+                <option key={s._id} value={s._id}>{s.shipmentNumber}</option>
+              ))}
+            </Select>
+          </Field>
           <Field label={t('Reference #', 'المرجع')}><Input value={form.referenceNumber} onChange={e => setForm(f => ({ ...f, referenceNumber: e.target.value }))} disabled={isPosted} /></Field>
           <Field label={t('Allocation Method', 'طريقة التوزيع')}>
             <Select value={form.allocationMethod} onChange={e => setForm(f => ({ ...f, allocationMethod: e.target.value }))} disabled={isPosted}>

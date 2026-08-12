@@ -718,9 +718,9 @@ function App() {
         <Route path="purchase-orders/:id" element={<PurchaseOrderForm />} />
         <Route path="grn" element={<GoodsReceiptNote />} />
         <Route path="purchase-returns" element={<PurchaseReturns />} />
-        <Route path="shipments" element={<BusinessTypeRoute allowedTypes={['trading']}><Shipments /></BusinessTypeRoute>} />
-        <Route path="shipments/new" element={<BusinessTypeRoute allowedTypes={['trading']}><ShipmentForm /></BusinessTypeRoute>} />
-        <Route path="shipments/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><ShipmentForm /></BusinessTypeRoute>} />
+        <Route path="shipments" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><Shipments /></BusinessTypeRoute>} />
+        <Route path="shipments/new" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><ShipmentForm /></BusinessTypeRoute>} />
+        <Route path="shipments/:id" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><ShipmentForm /></BusinessTypeRoute>} />
         
         <Route path="delivery-notes" element={<BusinessTypeRoute allowedTypes={['trading']}><DeliveryNotes /></BusinessTypeRoute>} />
         <Route path="delivery-notes/new" element={<BusinessTypeRoute allowedTypes={['trading']}><DeliveryNoteForm /></BusinessTypeRoute>} />
@@ -855,9 +855,9 @@ function App() {
         <Route path="contracts/new" element={<ContractForm />} />
         <Route path="contracts/:id" element={<ContractForm />} />
         {/* Landed Costs */}
-        <Route path="landed-costs" element={<BusinessTypeRoute allowedTypes={['trading']}><LandedCosts /></BusinessTypeRoute>} />
-        <Route path="landed-costs/new" element={<BusinessTypeRoute allowedTypes={['trading']}><LandedCostForm /></BusinessTypeRoute>} />
-        <Route path="landed-costs/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><LandedCostForm /></BusinessTypeRoute>} />
+        <Route path="landed-costs" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><LandedCosts /></BusinessTypeRoute>} />
+        <Route path="landed-costs/new" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><LandedCostForm /></BusinessTypeRoute>} />
+        <Route path="landed-costs/:id" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><LandedCostForm /></BusinessTypeRoute>} />
         {/* Local Compliance */}
         <Route path="compliance" element={<Compliance />} />
       </Route>

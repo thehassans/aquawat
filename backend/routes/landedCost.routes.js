@@ -1,14 +1,113 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import LandedCost from '../models/LandedCost.js';
+import Shipment from '../models/Shipment.js';
+import PurchaseOrder from '../models/PurchaseOrder.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
-router.use(requireBusinessType('trading'));
+router.use(requireBusinessType('trading', 'bakala', 'furniture_shop'));
 
-// ─── Helper ────────────────────────────────────────────────────────────────────
+function asObjectId(value) {
+  if (!value) return undefined;
+  const raw = typeof value === 'object' && value._id ? value._id : value;
+  const s = String(raw);
+  if (mongoose.Types.ObjectId.isValid(s) && String(new mongoose.Types.ObjectId(s)) === s) return s;
+  return undefined;
+}
+
+function productLabel(product, fallback = '') {
+  if (!product || typeof product !== 'object') return fallback;
+  return product.nameEn || product.nameAr || fallback;
+}
+
+async function allocationsFromLinks(shipmentId, purchaseOrderId, tenantFilterValue) {
+  const allocations = [];
+  let vendor = '';
+  let resolvedPoId = purchaseOrderId;
+  let resolvedShipmentId = shipmentId;
+
+  if (shipmentId) {
+    const shipment = await Shipment.findOne({ _id: shipmentId, ...tenantFilterValue, isActive: true })
+      .populate('lineItems.productId', 'sku nameEn nameAr')
+      .populate('purchaseOrderId')
+      .populate('supplierId', 'nameEn nameAr');
+    if (shipment) {
+      resolvedShipmentId = shipment._id;
+      if (!resolvedPoId && shipment.purchaseOrderId) {
+        resolvedPoId = shipment.purchaseOrderId._id || shipment.purchaseOrderId;
+      }
+      vendor = shipment.supplierId?.nameEn || shipment.supplierId?.nameAr || '';
+      for (const line of shipment.lineItems || []) {
+        const p = line.productId && typeof line.productId === 'object' ? line.productId : null;
+        allocations.push({
+          productId: p?._id || line.productId || undefined,
+          productName: productLabel(p, line.description || ''),
+          productCode: p?.sku || '',
+          quantity: line.quantity || 0,
+          unitCostBeforeLanded: 0,
+          weight: 0,
+          lineValue: 0
+        });
+      }
+    }
+  }
+
+  if (resolvedPoId) {
+    const po = await PurchaseOrder.findOne({ _id: resolvedPoId, ...tenantFilterValue })
+      .populate('lineItems.productId', 'sku nameEn nameAr')
+      .populate('supplierId', 'nameEn nameAr');
+    if (po) {
+      if (!vendor) vendor = po.supplierId?.nameEn || po.supplierId?.nameAr || '';
+      const byProduct = new Map();
+      for (const line of po.lineItems || []) {
+        const pid = String(line.productId?._id || line.productId || line.manualName || '');
+        if (pid) byProduct.set(pid, line);
+      }
+      if (allocations.length === 0) {
+        for (const line of po.lineItems || []) {
+          const p = line.productId && typeof line.productId === 'object' ? line.productId : null;
+          const qty = line.quantityOrdered || 0;
+          const unit = line.unitCost || 0;
+          allocations.push({
+            productId: p?._id || line.productId || undefined,
+            productName: productLabel(p, line.manualName || line.description || ''),
+            productCode: p?.sku || '',
+            quantity: qty,
+            unitCostBeforeLanded: unit,
+            weight: 0,
+            lineValue: qty * unit
+          });
+        }
+      } else {
+        for (const alloc of allocations) {
+          const pid = String(alloc.productId || '');
+          const line = byProduct.get(pid);
+          if (line) {
+            alloc.unitCostBeforeLanded = line.unitCost || 0;
+            alloc.lineValue = (Number(alloc.quantity) || 0) * (line.unitCost || 0);
+            if (!alloc.productName) alloc.productName = productLabel(line.productId, line.manualName || '');
+            if (!alloc.productCode) alloc.productCode = line.productId?.sku || '';
+          }
+        }
+      }
+    }
+  }
+
+  return { allocations, vendor, purchaseOrder: resolvedPoId, shipment: resolvedShipmentId };
+}
+
+function sanitizeLandedCostBody(body) {
+  const next = { ...body };
+  next.purchaseOrder = asObjectId(body.purchaseOrder);
+  next.shipment = asObjectId(body.shipment);
+  if (!next.purchaseOrder) delete next.purchaseOrder;
+  if (!next.shipment) delete next.shipment;
+  return next;
+}
 
 async function generateLcNumber(tenantFilterValue) {
   const today = new Date();
@@ -103,8 +202,17 @@ router.get('/', checkPermission('landed_costs', 'read'), async (req, res) => {
 router.post('/', checkPermission('landed_costs', 'create'), async (req, res) => {
   try {
     const lcNumber = req.body.lcNumber || (await generateLcNumber(req.tenantFilter));
+    const payload = sanitizeLandedCostBody(req.body);
+    const hasAllocations = Array.isArray(payload.allocations) && payload.allocations.some((a) => a?.productName || a?.productId || a?.quantity);
+    if (!hasAllocations && (payload.shipment || payload.purchaseOrder)) {
+      const linked = await allocationsFromLinks(payload.shipment, payload.purchaseOrder, req.tenantFilter);
+      payload.allocations = linked.allocations;
+      if (!payload.vendor) payload.vendor = linked.vendor;
+      if (!payload.purchaseOrder && linked.purchaseOrder) payload.purchaseOrder = linked.purchaseOrder;
+      if (!payload.shipment && linked.shipment) payload.shipment = linked.shipment;
+    }
     const lc = new LandedCost({
-      ...req.body,
+      ...payload,
       lcNumber,
       tenantId: req.user.tenantId,
       createdBy: req.user._id
@@ -136,7 +244,7 @@ router.put('/:id', checkPermission('landed_costs', 'update'), async (req, res) =
     const lc = await LandedCost.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!lc) return res.status(404).json({ error: 'Landed cost not found' });
     if (lc.status === 'posted') return res.status(400).json({ error: 'Cannot edit a posted landed cost' });
-    Object.assign(lc, req.body);
+    Object.assign(lc, sanitizeLandedCostBody(req.body));
     await lc.save();
     res.json(lc);
   } catch (error) {

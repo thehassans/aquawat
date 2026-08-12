@@ -121,7 +121,7 @@ export default function LandedCosts() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-dark-700 bg-gray-50 dark:bg-dark-700/50">
-                    {[t('LC #', 'رقم ت.م'), t('PO Ref', 'أمر الشراء'), t('Vendor', 'المورد'), t('Cost Lines', 'بنود التكلفة'), t('Total Cost', 'الإجمالي'), t('Method', 'طريقة التوزيع'), t('Status', 'الحالة'), t('Actions', 'إجراءات')].map(h => (
+                    {[t('LC #', 'رقم ت.م'), t('Shipment', 'الشحنة'), t('PO', 'أمر الشراء'), t('Vendor', 'المورد'), t('Cost Lines', 'بنود التكلفة'), t('Total Cost', 'الإجمالي'), t('Method', 'طريقة التوزيع'), t('Status', 'الحالة'), t('Actions', 'إجراءات')].map(h => (
                       <th key={h} className="px-4 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -131,6 +131,7 @@ export default function LandedCosts() {
                     <motion.tr key={lc._id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.03 }}
                       className="hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-primary-600 dark:text-primary-400">{lc.lcNumber}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{lc.shipment?.shipmentNumber || '—'}</td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{lc.purchaseOrder?.poNumber || '—'}</td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{lc.vendor || '—'}</td>
                       <td className="px-4 py-3">

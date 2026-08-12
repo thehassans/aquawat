@@ -3,14 +3,17 @@ import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Search, Truck, Building, Warehouse as WarehouseIcon, Calendar, Edit } from 'lucide-react'
+import { Plus, Search, Truck, Building, Warehouse as WarehouseIcon, Calendar, Edit, Anchor } from 'lucide-react'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
 
 export default function Shipments() {
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const landedCostApp = tenant?.settings?.installedApps?.landed_costs
+  const hasLandedCosts = Boolean(landedCostApp?.isInstalled && landedCostApp?.isEnabled)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState({ status: '', type: '', supplierId: '', warehouseId: '' })
@@ -366,9 +369,18 @@ export default function Shipments() {
                     </td>
                     <td>
                       <div className="flex items-center gap-2">
-                        <Link to={`/shipments/${s._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                        <Link to={`/app/dashboard/shipments/${s._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
                           <Edit className="w-4 h-4 text-gray-600" />
                         </Link>
+                        {hasLandedCosts && s.type === 'inbound' && (
+                          <Link
+                            to={`/app/dashboard/landed-costs/new?shipment=${s._id}`}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"
+                            title={language === 'ar' ? 'تكلفة مرسية' : 'Landed cost'}
+                          >
+                            <Anchor className="w-4 h-4 text-gray-600" />
+                          </Link>
+                        )}
                       </div>
                     </td>
                   </tr>

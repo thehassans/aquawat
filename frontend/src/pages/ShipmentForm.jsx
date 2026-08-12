@@ -19,6 +19,7 @@ import {
   Warehouse as WarehouseIcon,
   Package,
   Mail,
+  Anchor,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
@@ -51,6 +52,8 @@ export default function ShipmentForm() {
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
+  const landedCostApp = tenant?.settings?.installedApps?.landed_costs
+  const hasLandedCosts = Boolean(landedCostApp?.isInstalled && landedCostApp?.isEnabled)
 
   const formatDateForInput = (value) => {
     if (!value) return ''
@@ -395,6 +398,16 @@ export default function ShipmentForm() {
 
         {isEdit && (
           <div className="flex items-center gap-2">
+            {hasLandedCosts && (shipment?.type === 'inbound' || shipmentType === 'inbound') ? (
+              <button
+                type="button"
+                onClick={() => navigate(`/app/dashboard/landed-costs/new?shipment=${id}`)}
+                className="btn btn-secondary"
+              >
+                <Anchor className="w-4 h-4" />
+                {language === 'ar' ? 'تكلفة مرسية' : 'Landed Cost'}
+              </button>
+            ) : null}
             {shipment?.type === 'outbound' && hasEmailAddon ? (
               <button
                 type="button"

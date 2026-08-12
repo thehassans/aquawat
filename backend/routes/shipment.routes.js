@@ -15,7 +15,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
-router.use(requireBusinessType('trading'));
+router.use(requireBusinessType('trading', 'bakala', 'furniture_shop'));
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
