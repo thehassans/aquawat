@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Crown, CalendarDays, Zap, TrendingUp, ChevronDown, AlertTriangle, XCircle, Sparkles, CreditCard, ArrowRight } from 'lucide-react';
+import { ChevronDown, ArrowUpRight } from 'lucide-react';
 import {
   formatSubscriptionDate,
   getPlanDisplayName,
@@ -32,46 +32,8 @@ export default function SubscriptionBadge({ tenant, language }) {
   const isExpiringSoon = state.isExpiringSoon;
   const daysLeft = state.daysLeft;
 
-  const getPlanConfig = () => {
-    switch (plan) {
-      case 'starter':
-        return {
-          name: getPlanDisplayName(plan, language),
-          shortName: getPlanShortName(plan, language),
-          gradient: 'from-emerald-500 via-teal-500 to-cyan-600',
-          triggerBorder: 'border-emerald-200/90 dark:border-emerald-800/50',
-          icon: Zap,
-        };
-      case 'professional':
-        return {
-          name: getPlanDisplayName(plan, language),
-          shortName: getPlanShortName(plan, language),
-          gradient: 'from-violet-500 via-purple-600 to-fuchsia-600',
-          triggerBorder: 'border-violet-200/90 dark:border-violet-800/50',
-          icon: TrendingUp,
-        };
-      case 'enterprise':
-        return {
-          name: getPlanDisplayName(plan, language),
-          shortName: getPlanShortName(plan, language),
-          gradient: 'from-amber-400 via-orange-500 to-rose-500',
-          triggerBorder: 'border-amber-300/90 dark:border-amber-700/50',
-          icon: Crown,
-        };
-      case 'trial':
-      default:
-        return {
-          name: getPlanDisplayName(plan, language),
-          shortName: getPlanShortName(plan, language),
-          gradient: 'from-amber-500 via-orange-500 to-orange-600',
-          triggerBorder: 'border-amber-300/80 dark:border-amber-700/40',
-          icon: Crown,
-        };
-    }
-  };
-
-  const cfg = getPlanConfig();
-  const PlanIcon = cfg.icon;
+  const planName = getPlanDisplayName(plan, language);
+  const shortName = getPlanShortName(plan, language);
 
   const goToCheckout = () => {
     setOpen(false);
@@ -81,14 +43,15 @@ export default function SubscriptionBadge({ tenant, language }) {
   const statusLabel = () => {
     if (isTrialEnded) return isAr ? 'انتهت التجربة' : 'Trial Ended';
     if (isExpired) return isAr ? 'منتهي' : 'Expired';
+    if (isExpiringSoon) return isAr ? 'ينتهي قريباً' : 'Ending soon';
     return isAr ? 'نشط' : 'Active';
   };
 
   const ctaLabel = () => {
-    if (isTrialEnded) return isAr ? 'اشترك الآن' : 'Subscribe Now';
-    if (isExpired) return isAr ? 'تجديد الاشتراك' : 'Renew & Pay';
-    if (isTrialPlan || isDemoPending) return isAr ? 'اشترك وادفع' : 'Subscribe & Pay';
-    if (isExpiringSoon) return isAr ? 'ترقية / تجديد' : 'Upgrade / Renew';
+    if (isTrialEnded) return isAr ? 'اشترك الآن' : 'Subscribe';
+    if (isExpired) return isAr ? 'تجديد' : 'Renew';
+    if (isTrialPlan || isDemoPending) return isAr ? 'اشترك' : 'Subscribe';
+    if (isExpiringSoon) return isAr ? 'تجديد' : 'Renew';
     return isAr ? 'تغيير الباقة' : 'Change Plan';
   };
 
@@ -99,156 +62,135 @@ export default function SubscriptionBadge({ tenant, language }) {
       <button
         type="button"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className={`
-          group relative flex items-center gap-2.5 rounded-full px-2.5 py-1.5
-          bg-white/95 dark:bg-dark-800/95 backdrop-blur-sm
-          border ${isExpired ? 'border-red-300 dark:border-red-800/60' : cfg.triggerBorder}
-          shadow-[0_8px_24px_-12px_rgba(15,23,42,0.35)]
-          hover:shadow-[0_12px_28px_-12px_rgba(15,23,42,0.45)]
-          transition-all duration-200 ease-out focus:outline-none
+          group flex items-center gap-2.5 rounded-full border bg-white/90 px-3 py-1.5
+          backdrop-blur-sm transition-colors duration-200
+          dark:bg-dark-800/90
+          focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400/40
+          ${isExpired
+            ? 'border-rose-300/70 dark:border-rose-800/50'
+            : 'border-slate-200/90 hover:border-slate-300 dark:border-white/10 dark:hover:border-white/20'}
         `}
       >
-        <span className={`
-          flex h-8 w-8 items-center justify-center rounded-full
-          bg-gradient-to-br ${isExpired ? 'from-red-500 to-rose-600' : cfg.gradient}
-          text-white shadow-md ring-2 ring-white/40 dark:ring-white/10
-          group-hover:scale-[1.04] transition-transform
-        `}>
-          <PlanIcon className="h-3.5 w-3.5" strokeWidth={2.6} />
+        <span
+          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+            isExpired ? 'bg-rose-500' : isExpiringSoon ? 'bg-amber-500' : 'bg-emerald-500'
+          }`}
+        />
+        <span className="flex flex-col items-start leading-none text-start">
+          <span className="text-[9px] font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+            {isAr ? 'الباقة' : 'Plan'}
+          </span>
+          <span className="mt-0.5 text-[12px] font-semibold tracking-tight text-slate-900 dark:text-white">
+            {shortName}
+          </span>
         </span>
-
-        <div className="flex min-w-[88px] flex-col items-start leading-tight text-start">
-          <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-            {isAr ? 'الباقة الحالية' : 'CURRENT PLAN'}
-          </span>
-          <span className="text-[13px] font-black tracking-tight text-slate-900 dark:text-white">
-            {cfg.shortName}
-          </span>
-          {isExpired && (
-            <span className="mt-0.5 text-[9px] font-bold text-red-500">
-              {statusLabel()}
-            </span>
-          )}
-        </div>
-
-        <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180 text-amber-500' : 'group-hover:text-slate-600'}`} />
+        <ChevronDown
+          className={`ms-0.5 h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
+            open ? 'rotate-180' : ''
+          }`}
+        />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
-          <div className="absolute top-full end-0 z-50 mt-3 w-[22rem]">
-            <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white shadow-[0_32px_64px_-24px_rgba(15,23,42,0.55)] ring-1 ring-black/5 dark:bg-dark-800 dark:ring-white/10">
-              {/* Premium header */}
-              <div className={`relative overflow-hidden px-5 pb-5 pt-5 text-white ${
-                isExpired
-                  ? 'bg-gradient-to-br from-[#0b0f1a] via-[#1a0b12] to-[#3f0d1c]'
-                  : 'bg-gradient-to-br from-[#0b1220] via-[#101826] to-[#0f1f1a]'
-              }`}>
-                <div className={`pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full blur-3xl opacity-50 ${isExpired ? 'bg-rose-500' : 'bg-amber-400'}`} />
-                <div className="pointer-events-none absolute -bottom-12 -left-6 h-32 w-32 rounded-full bg-emerald-500/20 blur-3xl" />
-                <div
-                  className="pointer-events-none absolute inset-0 opacity-[0.07]"
-                  style={{
-                    backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
-                    backgroundSize: '18px 18px',
-                  }}
-                />
-
-                <div className="relative flex items-center gap-3.5">
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br shadow-lg ring-2 ring-white/20 ${
-                    isExpired ? 'from-red-500 to-rose-600' : cfg.gradient
-                  }`}>
-                    <PlanIcon className="h-5 w-5 text-white" strokeWidth={2.5} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300/95">
-                      <Sparkles className="h-3 w-3" />
-                      {isAr ? 'اشتراكك' : 'YOUR SUBSCRIPTION'}
-                    </p>
-                    <h3 className="mt-1 truncate text-[1.35rem] font-black leading-none tracking-tight text-white">
-                      {cfg.name}
-                    </h3>
-                  </div>
-                </div>
-
-                <div className="relative mt-4 flex items-center justify-between border-t border-white/10 pt-3">
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border ${
-                    isExpired
-                      ? 'bg-red-500/15 text-red-200 border-red-400/30'
-                      : 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30'
-                  }`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${isExpired ? 'bg-red-300' : 'bg-emerald-300 animate-pulse'}`} />
+          <div className="absolute top-full z-50 mt-2.5 end-0 w-[300px]">
+            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.35)]                           dark:border-white/[0.08] dark:bg-[#0c111a] dark:shadow-[0_24px_48px_-28px_rgba(0,0,0,0.65)]">
+              <div className="px-5 pt-5 pb-4">
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                  {isAr ? 'اشتراكك' : 'Your subscription'}
+                </p>
+                <div className="mt-2 flex items-baseline justify-between gap-3">
+                  <h3 className="text-[17px] font-semibold tracking-[-0.02em] text-slate-900 dark:text-white">
+                    {planName}
+                  </h3>
+                  <span
+                    className={`shrink-0 text-[11px] font-medium tracking-wide ${
+                      isExpired
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : isExpiringSoon
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                    }`}
+                  >
                     {statusLabel()}
-                  </span>
-                  {!isExpired && daysLeft !== null && (
-                    <span className="text-[11px] font-semibold text-white/55">
-                      {isAr ? `${daysLeft} يوم متبقي` : `${daysLeft} days left`}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Body */}
-              <div className="space-y-3 bg-white p-5 dark:bg-dark-800">
-                <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/90 px-3.5 py-3 dark:border-dark-600 dark:bg-dark-700/50">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-dark-600">
-                      <CalendarDays className="h-4 w-4 text-violet-500" />
-                    </div>
-                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      {isAr ? 'تاريخ البدء' : 'Start Date'}
-                    </span>
-                  </div>
-                  <span className="text-xs font-black text-slate-900 dark:text-white">
-                    {formatDate(startDate)}
                   </span>
                 </div>
 
                 {isExpired && (
-                  <div className="flex items-start gap-2.5 rounded-2xl border border-red-200 bg-red-50 px-3.5 py-3 dark:border-red-800/40 dark:bg-red-950/30">
-                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-                    <div>
-                      <p className="text-xs font-bold text-red-700 dark:text-red-300">
-                        {isTrialEnded
-                          ? (isAr ? 'انتهت فترة التجربة' : 'Trial Ended')
-                          : (isAr ? 'انتهى الاشتراك' : 'Subscription expired')}
-                      </p>
-                      <p className="mt-0.5 text-[11px] leading-relaxed text-red-600/90 dark:text-red-400">
-                        {isAr
-                          ? 'النظام مفتوح — اختر باقة للمتابعة.'
-                          : 'Workspace stays open — choose a plan to continue.'}
-                      </p>
-                    </div>
+                  <p className="mt-2 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    {isTrialEnded
+                      ? (isAr
+                        ? 'انتهت التجربة. النظام مفتوح — اختر باقة للمتابعة.'
+                        : 'Trial ended. Workspace stays open — choose a plan to continue.')
+                      : (isAr
+                        ? 'انتهى الاشتراك. النظام مفتوح — جدّد للمتابعة.'
+                        : 'Subscription ended. Workspace stays open — renew to continue.')}
+                  </p>
+                )}
+              </div>
+
+              <div className="mx-5 border-t border-slate-100 dark:border-white/[0.08]" />
+
+              <div className="space-y-3 px-5 py-4">
+                <div className="flex items-center justify-between gap-4 text-[12px]">
+                  <span className="text-slate-400 dark:text-slate-500">
+                    {isAr ? 'تاريخ البدء' : 'Start date'}
+                  </span>
+                  <span className="font-medium tabular-nums text-slate-800 dark:text-slate-200">
+                    {formatDate(startDate)}
+                  </span>
+                </div>
+
+                {endDate && (
+                  <div className="flex items-center justify-between gap-4 text-[12px]">
+                    <span className="text-slate-400 dark:text-slate-500">
+                      {isAr ? 'تاريخ الانتهاء' : 'Ends on'}
+                    </span>
+                    <span
+                      className={`font-medium tabular-nums ${
+                        isExpired
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : 'text-slate-800 dark:text-slate-200'
+                      }`}
+                    >
+                      {formatDate(endDate)}
+                    </span>
                   </div>
                 )}
 
-                {isExpiringSoon && !isExpired && (
-                  <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-3 dark:border-amber-800/40 dark:bg-amber-950/30">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
-                      {isAr ? `متبقي ${daysLeft} أيام على الانتهاء.` : `Only ${daysLeft} days remaining.`}
-                    </p>
+                {!isExpired && daysLeft !== null && (
+                  <div className="flex items-center justify-between gap-4 text-[12px]">
+                    <span className="text-slate-400 dark:text-slate-500">
+                      {isAr ? 'المتبقي' : 'Remaining'}
+                    </span>
+                    <span className="font-medium tabular-nums text-slate-800 dark:text-slate-200">
+                      {isAr ? `${daysLeft} يوم` : `${daysLeft} days`}
+                    </span>
                   </div>
                 )}
+              </div>
 
+              <div className="px-5 pb-5 pt-1">
                 <button
                   type="button"
                   onClick={goToCheckout}
-                  className={`flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-bold text-white shadow-lg transition hover:opacity-95 ${
-                    isExpired
-                      ? 'bg-gradient-to-r from-red-600 to-rose-600 shadow-red-500/25'
-                      : 'bg-gradient-to-r from-emerald-500 to-teal-600 shadow-emerald-500/25'
-                  }`}
+                  className={`
+                    group/cta flex w-full items-center justify-between rounded-xl px-4 py-2.5
+                    text-[13px] font-medium tracking-tight transition-colors
+                    ${isExpired
+                      ? 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'
+                      : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'}
+                  `}
                 >
-                  <CreditCard className="h-4 w-4" />
-                  {ctaLabel()}
-                  <ArrowRight className={`h-4 w-4 ${isAr ? 'rotate-180' : ''}`} />
+                  <span>{ctaLabel()}</span>
+                  <ArrowUpRight className="h-3.5 w-3.5 opacity-70 transition-transform group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5" />
                 </button>
-
-                <p className="text-center text-[10px] text-slate-400">
-                  {isAr ? 'يمكنك ترقية أو تغيير باقتك في أي وقت' : 'You can upgrade or change your plan anytime'}
+                <p className="mt-2.5 text-center text-[10px] tracking-wide text-slate-400 dark:text-slate-500">
+                  {isAr ? 'يمكنك تغيير باقتك في أي وقت' : 'Change your plan anytime'}
                 </p>
               </div>
             </div>

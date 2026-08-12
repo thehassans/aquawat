@@ -13,14 +13,12 @@ import {
   Globe,
   FileText,
   Receipt,
-  CreditCard,
   Shield,
   ShieldCheck,
   CheckCircle2,
   MapPin,
   Briefcase,
   Calendar,
-  Sparkles,
   Lock,
   Key,
   KeyRound,
@@ -48,8 +46,6 @@ import {
   Landmark,
   Store,
   UtensilsCrossed,
-  CalendarDays,
-  Package,
   Scissors,
   Shirt,
   Car,
@@ -68,7 +64,6 @@ import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes,
 import {
   formatSubscriptionDate,
   getPlanDisplayName,
-  getPlanShortName,
   getSubscriptionState,
   humanizeAppId,
 } from '../lib/subscriptionState'
@@ -358,7 +353,7 @@ export default function Profile() {
   })
 
   const subState = useMemo(() => getSubscriptionState(tenant), [tenant])
-  const planName = getPlanShortName(subState.plan, language).toUpperCase()
+  const planName = (subState.plan || 'trial').toUpperCase()
   const isSubActive = subState.isActive
   const isTrialEnded = subState.isTrialEnded
   const isSubExpired = subState.isExpired
@@ -1308,200 +1303,152 @@ export default function Profile() {
             className="space-y-6"
           >
             {/* Ultra-premium YOUR SUBSCRIPTION */}
-            <div className="overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_28px_60px_-36px_rgba(15,23,42,0.45)] dark:border-dark-700 dark:bg-dark-800">
-              <div className={`relative overflow-hidden px-6 py-7 sm:px-8 ${
-                isSubExpired
-                  ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-rose-950'
-                  : 'bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950'
-              }`}>
-                <div className={`pointer-events-none absolute -top-16 end-0 h-48 w-48 rounded-full blur-3xl opacity-40 ${isSubExpired ? 'bg-rose-500' : 'bg-amber-400'}`} />
-                <div className="pointer-events-none absolute -bottom-20 start-0 h-44 w-44 rounded-full bg-indigo-500/25 blur-3xl" />
-
-                <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br shadow-lg ring-2 ring-white/20 ${
-                      isSubExpired
-                        ? 'from-red-500 to-rose-600'
-                        : subState.plan === 'enterprise'
-                          ? 'from-amber-500 via-orange-600 to-rose-600'
-                          : 'from-emerald-500 to-teal-600'
-                    }`}>
-                      <Crown className="h-7 w-7 text-white" strokeWidth={2.4} />
-                    </div>
-                    <div>
-                      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-amber-300/90">
-                        <Sparkles className="h-3.5 w-3.5" />
-                        {language === 'ar' ? 'اشتراكك' : 'YOUR SUBSCRIPTION'}
-                      </p>
-                      <h3 className="mt-1.5 text-2xl font-black tracking-tight text-white sm:text-3xl">
-                        {getPlanDisplayName(subState.plan, language)}
-                      </h3>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border ${
+            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-[#0c111a]">
+              <div className="px-6 py-7 sm:px-8 sm:py-8">
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
+                      {language === 'ar' ? 'اشتراكك' : 'Your subscription'}
+                    </p>
+                    <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-900 dark:text-white sm:text-[28px]">
+                      {getPlanDisplayName(subState.plan, language)}
+                    </h3>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-[12px] font-medium ${
                           isSubExpired
-                            ? 'bg-red-500/20 text-red-200 border-red-400/30'
-                            : 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30'
-                        }`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${isSubExpired ? 'bg-red-300' : 'bg-emerald-300 animate-pulse'}`} />
-                          {isTrialEnded
-                            ? (language === 'ar' ? 'انتهت التجربة' : 'Trial Ended')
-                            : isSubExpired
-                              ? (language === 'ar' ? 'منتهي' : 'Expired')
-                              : (language === 'ar' ? 'نشط' : 'Active')}
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${isSubExpired ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                        {isTrialEnded
+                          ? (language === 'ar' ? 'انتهت التجربة' : 'Trial Ended')
+                          : isSubExpired
+                            ? (language === 'ar' ? 'منتهي' : 'Expired')
+                            : (language === 'ar' ? 'نشط' : 'Active')}
+                      </span>
+                      {!isSubExpired && daysRemaining !== null && (
+                        <span className="text-[12px] text-slate-400 dark:text-slate-500">
+                          {language === 'ar' ? `${daysRemaining} يوم متبقي` : `${daysRemaining} days left`}
                         </span>
-                        {!isSubExpired && daysRemaining !== null && (
-                          <span className="text-xs font-semibold text-white/60">
-                            {language === 'ar' ? `${daysRemaining} يوم متبقي` : `${daysRemaining} days left`}
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </div>
+
+                    {isSubExpired && (
+                      <p className="mt-3 max-w-xl text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+                        {isTrialEnded
+                          ? (language === 'ar'
+                            ? 'انتهت فترة التجربة. يمكنك فتح النظام واختيار باقة جديدة للمتابعة.'
+                            : 'Trial ended. Your tenant stays open — choose a plan to continue with full access.')
+                          : (language === 'ar'
+                            ? 'انتهى الاشتراك. يمكنك فتح النظام وتجديد الباقة في أي وقت.'
+                            : 'Subscription expired. Your tenant stays open — renew anytime to restore full access.')}
+                      </p>
+                    )}
                   </div>
 
                   <button
                     type="button"
                     onClick={() => navigate('/demo-checkout')}
-                    className={`inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:opacity-95 ${
-                      isSubExpired
-                        ? 'bg-gradient-to-r from-red-500 to-rose-600'
-                        : 'bg-gradient-to-r from-emerald-500 to-teal-600'
-                    }`}
+                    className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
                   >
-                    <CreditCard className="h-4 w-4" />
                     {isTrialEnded
-                      ? (language === 'ar' ? 'اشترك الآن' : 'Subscribe Now')
+                      ? (language === 'ar' ? 'اشترك الآن' : 'Subscribe')
                       : isSubExpired
-                        ? (language === 'ar' ? 'تجديد الاشتراك' : 'Renew Plan')
+                        ? (language === 'ar' ? 'تجديد' : 'Renew')
                         : (language === 'ar' ? 'تغيير الباقة' : 'Change Plan')}
-                    <ArrowRight className={`h-4 w-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                    <ArrowRight className={`h-3.5 w-3.5 opacity-70 ${language === 'ar' ? 'rotate-180' : ''}`} />
                   </button>
                 </div>
 
-                {isSubExpired && (
-                  <div className="relative mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/85 backdrop-blur-sm">
-                    {isTrialEnded
-                      ? (language === 'ar'
-                        ? 'انتهت فترة التجربة. يمكنك فتح النظام واختيار باقة جديدة للمتابعة.'
-                        : 'Trial ended. Your tenant stays open — choose a plan to continue with full access.')
-                      : (language === 'ar'
-                        ? 'انتهى الاشتراك. يمكنك فتح النظام وتجديد الباقة في أي وقت.'
-                        : 'Subscription expired. Your tenant stays open — renew anytime to restore full access.')}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-4 p-6 sm:p-8">
-                <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3.5 dark:border-dark-600 dark:bg-dark-700/50">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-dark-600">
-                      <CalendarDays className="h-4 w-4 text-indigo-500" />
-                    </div>
-                    <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                      {language === 'ar' ? 'تاريخ البدء' : 'Start Date'}
-                    </span>
-                  </div>
-                  <span className="text-sm font-black text-slate-900 dark:text-white">
-                    {formatSubscriptionDate(subState.startDate, language)}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-dark-600 dark:bg-dark-700/40">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      {language === 'ar' ? 'دورة الفوترة' : 'Billing Cycle'}
-                    </p>
-                    <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-                      {subState.billingCycle === 'yearly'
+                <div className="mt-8 grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-slate-100 bg-slate-100 sm:grid-cols-4 dark:border-white/[0.08] dark:bg-white/[0.08]">
+                  {[
+                    {
+                      label: language === 'ar' ? 'تاريخ البدء' : 'Start date',
+                      value: formatSubscriptionDate(subState.startDate, language),
+                    },
+                    {
+                      label: language === 'ar' ? 'دورة الفوترة' : 'Billing',
+                      value: subState.billingCycle === 'yearly'
                         ? (language === 'ar' ? 'سنوي' : 'Yearly')
-                        : (language === 'ar' ? 'شهري' : 'Monthly')}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-dark-600 dark:bg-dark-700/40">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      {language === 'ar' ? 'تاريخ الانتهاء' : 'Expiration Date'}
-                    </p>
-                    <p className={`mt-1 text-base font-black ${isSubExpired ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
-                      {formatSubscriptionDate(subState.endDate, language)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-dark-600 dark:bg-dark-700/40">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      {language === 'ar' ? 'الحد الأقصى للمستخدمين' : 'Max Users'}
-                    </p>
-                    <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-                      {subState.maxUsers} {language === 'ar' ? 'مستخدم' : 'Users'}
-                    </p>
-                  </div>
+                        : (language === 'ar' ? 'شهري' : 'Monthly'),
+                    },
+                    {
+                      label: language === 'ar' ? 'تاريخ الانتهاء' : 'Expires',
+                      value: formatSubscriptionDate(subState.endDate, language),
+                      alert: isSubExpired,
+                    },
+                    {
+                      label: language === 'ar' ? 'المستخدمون' : 'Users',
+                      value: `${subState.maxUsers}`,
+                    },
+                  ].map((item) => (
+                    <div key={item.label} className="bg-white px-4 py-3.5 dark:bg-[#0c111a]">
+                      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                        {item.label}
+                      </p>
+                      <p className={`mt-1.5 text-[14px] font-medium tabular-nums tracking-tight ${
+                        item.alert ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'
+                      }`}>
+                        {item.value}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-
-                <p className="text-center text-[11px] text-slate-400">
-                  {language === 'ar' ? 'يمكنك ترقية أو تغيير باقتك في أي وقت' : 'You can upgrade or change your plan anytime'}
-                </p>
               </div>
             </div>
 
             {/* Installed Modules */}
-            <div className="rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm sm:p-8 dark:border-dark-700 dark:bg-dark-800">
+            <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-6 sm:px-8 sm:py-7 dark:border-white/10 dark:bg-[#0c111a]">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h4 className="text-sm font-bold uppercase tracking-[0.18em] text-slate-900 dark:text-white">
-                    {language === 'ar' ? 'الوحدات المثبتة' : 'Installed Modules'}
+                  <h4 className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                    {language === 'ar' ? 'الوحدات المثبتة' : 'Installed modules'}
                   </h4>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1.5 text-[13px] text-slate-500 dark:text-slate-400">
                     {language === 'ar'
-                      ? 'التطبيقات والوحدات المثبتة من متجر التطبيقات لهذا المستأجر'
-                      : 'Apps and modules installed for this tenant from the App Store'}
+                      ? 'التطبيقات المثبتة من متجر التطبيقات'
+                      : 'Apps installed from the App Store'}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => navigate('/app/dashboard/app-store')}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-slate-700 transition hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
                 >
-                  <Package className="h-3.5 w-3.5" />
                   {language === 'ar' ? 'متجر التطبيقات' : 'App Store'}
                   <ArrowRight className={`h-3.5 w-3.5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                 </button>
               </div>
 
               {installedModules.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-10 text-center dark:border-dark-600 dark:bg-dark-700/30">
-                  <Layers className="mx-auto h-8 w-8 text-slate-300" />
-                  <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                <div className="border-t border-slate-100 py-10 text-center dark:border-white/[0.08]">
+                  <p className="text-[13px] font-medium text-slate-600 dark:text-slate-300">
                     {language === 'ar' ? 'لا توجد وحدات مثبتة بعد' : 'No modules installed yet'}
                   </p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-[12px] text-slate-400">
                     {language === 'ar' ? 'ثبّت التطبيقات من متجر التطبيقات لإظهارها هنا' : 'Install apps from the App Store to see them here'}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <ul className="divide-y divide-slate-100 border-t border-slate-100 dark:divide-white/[0.08] dark:border-white/[0.08]">
                   {installedModules.map((mod) => (
-                    <div
-                      key={mod.appId}
-                      className={`flex items-center gap-3 rounded-2xl border p-3.5 transition-all ${
-                        mod.isEnabled
-                          ? 'border-emerald-200/80 bg-emerald-50/50 text-slate-900 dark:border-emerald-800/40 dark:bg-emerald-950/20 dark:text-white'
-                          : 'border-slate-100 bg-slate-50/70 text-slate-500 dark:border-dark-600 dark:bg-dark-700/30'
-                      }`}
-                    >
-                      <div className={`rounded-xl p-2 ${mod.isEnabled ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400 dark:bg-dark-600'}`}>
-                        <Package className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold">
+                    <li key={mod.appId} className="flex items-center justify-between gap-3 py-3.5">
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-medium text-slate-900 dark:text-white">
                           {language === 'ar' ? mod.nameAr : mod.nameEn}
                         </p>
-                        <p className="text-[10px] font-semibold text-slate-500">
+                        <p className="mt-0.5 text-[11px] text-slate-400">
                           {mod.isEnabled
                             ? (language === 'ar' ? 'مثبت ومفعّل' : 'Installed · Enabled')
                             : (language === 'ar' ? 'مثبت · معطّل' : 'Installed · Disabled')}
                         </p>
                       </div>
-                      {mod.isEnabled && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />}
-                    </div>
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${mod.isEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </div>
           </motion.div>
