@@ -53,7 +53,7 @@ const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext })
   pdfTemplateId: quotation?.pdfTemplateId || getInvoiceTemplateId(tenant, quotation?.businessContext || defaultBusinessContext),
   issueDate: formatDateForInput(quotation?.issueDate) || formatDateForInput(new Date()),
   validUntil: formatDateForInput(quotation?.validUntil),
-  transactionType: quotation?.transactionType || 'B2C',
+  transactionType: quotation?.transactionType || 'B2B',
   customerId: quotation?.customerId?._id || quotation?.customerId || '',
   subject: quotation?.subject || '',
   subjectAr: quotation?.subjectAr || '',
@@ -397,7 +397,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
         </div>
       </div>
 
-      <div className="relative mx-auto w-full max-w-7xl grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.85fr)]">
+      <div className="relative mx-auto w-full max-w-6xl space-y-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className={sectionShell}>
             <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
@@ -420,41 +420,76 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 />
               ) : null}
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <div>
-                <p className="label">{language === 'ar' ? 'الاسم القانوني' : 'Legal name'}</p>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {language === 'ar'
-                    ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || '—')
-                    : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || '—')}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" dir="ltr">
+              <div className={showArabicFields ? 'sm:col-span-2' : ''}>
+                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Legal name</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الاسم القانوني</span>
                 </p>
+                <div className={`mt-1 grid gap-3 ${showArabicFields ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {tenant?.business?.legalNameEn || tenant?.name || '—'}
+                  </p>
+                  {showArabicFields ? (
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white" dir="rtl">
+                      {tenant?.business?.legalNameAr || '—'}
+                    </p>
+                  ) : null}
+                </div>
               </div>
               <div>
-                <p className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</p>
+                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>VAT Number</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الرقم الضريبي</span>
+                </p>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.vatNumber || '—'}</p>
               </div>
               <div>
-                <p className="label">{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</p>
+                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>CR Number</span>
+                  <span dir="rtl" className="font-medium text-slate-500">السجل التجاري</span>
+                </p>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.crNumber || '—'}</p>
               </div>
               <div>
-                <p className="label">{language === 'ar' ? 'الهاتف' : 'Phone'}</p>
+                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Phone</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الهاتف</span>
+                </p>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactPhone || '—'}</p>
               </div>
               <div>
-                <p className="label">{language === 'ar' ? 'البريد' : 'Email'}</p>
+                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Email</span>
+                  <span dir="rtl" className="font-medium text-slate-500">البريد</span>
+                </p>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactEmail || '—'}</p>
               </div>
-              <div>
-                <p className="label">{language === 'ar' ? 'العنوان' : 'Address'}</p>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {[
-                    tenant?.business?.address?.street,
-                    tenant?.business?.address?.district,
-                    tenant?.business?.address?.city,
-                    tenant?.business?.address?.country || 'SA',
-                  ].filter(Boolean).join(', ') || '—'}
+              <div className={showArabicFields ? 'sm:col-span-2' : ''}>
+                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Address</span>
+                  <span dir="rtl" className="font-medium text-slate-500">العنوان</span>
                 </p>
+                <div className={`mt-1 grid gap-3 ${showArabicFields ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {[
+                      tenant?.business?.address?.street,
+                      tenant?.business?.address?.district,
+                      tenant?.business?.address?.city,
+                      tenant?.business?.address?.country || 'SA',
+                    ].filter(Boolean).join(', ') || '—'}
+                  </p>
+                  {showArabicFields ? (
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white" dir="rtl">
+                      {[
+                        tenant?.business?.address?.streetAr,
+                        tenant?.business?.address?.districtAr,
+                        tenant?.business?.address?.cityAr,
+                        tenant?.business?.address?.country || 'SA',
+                      ].filter(Boolean).join('، ') || '—'}
+                    </p>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
@@ -530,8 +565,8 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 <div>
                   <label className="label">{language === 'ar' ? 'نوع العميل' : 'Customer Type'}</label>
                   <select {...register('transactionType')} className="select">
-                    <option value="B2C">{t('b2cInvoice')}</option>
                     <option value="B2B">{t('b2bInvoice')}</option>
+                    <option value="B2C">{t('b2cInvoice')}</option>
                   </select>
                 </div>
               </div>
@@ -547,13 +582,19 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 {language === 'ar' ? 'موضوع عرض السعر' : 'Quotation Subject'}
               </h3>
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
               <div>
-                <label className="label">{language === 'ar' ? 'الموضوع' : 'Subject'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Subject</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الموضوع</span>
+                </label>
                 <input {...register('subject')} className="input" placeholder={language === 'ar' ? 'مثال: أعمال استبدال ملفات الغاز...' : 'e.g. Coil replacement job in Ghazlan Power Plant'} />
               </div>
               <div>
-                <label className="label">{language === 'ar' ? 'الموضوع بالعربية' : 'Arabic Subject'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Subject (Arabic)</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الموضوع بالعربية</span>
+                </label>
                 <input {...register('subjectAr')} className="input" dir="rtl" />
               </div>
             </div>
@@ -579,49 +620,109 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
               </select>
             </div>
             <input type="hidden" {...register('customerId')} />
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
               <div>
-                <label className="label">{language === 'ar' ? 'الاسم / الشركة' : 'Name / Company'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Name / Company</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الاسم / الشركة</span>
+                </label>
                 <input {...register('buyer.name', { required: values?.transactionType === 'B2B' })} className="input" />
               </div>
               <div>
-                <label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
-                <input {...register('buyer.nameAr')} className="input" />
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Name (Arabic)</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الاسم بالعربية</span>
+                </label>
+                <input {...register('buyer.nameAr')} className="input" dir="rtl" />
               </div>
               <div>
-                <label className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>VAT Number</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الرقم الضريبي</span>
+                </label>
                 <input {...register('buyer.vatNumber')} className="input" />
               </div>
               <div>
-                <label className="label">{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>CR Number</span>
+                  <span dir="rtl" className="font-medium text-slate-500">السجل التجاري</span>
+                </label>
                 <input {...register('buyer.crNumber')} className="input" />
               </div>
               <div>
-                <label className="label">{language === 'ar' ? 'الهاتف' : 'Phone'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Phone</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الهاتف</span>
+                </label>
                 <input {...register('buyer.contactPhone')} className="input" />
               </div>
               <div>
-                <label className="label">{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Email</span>
+                  <span dir="rtl" className="font-medium text-slate-500">البريد الإلكتروني</span>
+                </label>
                 <input type="email" {...register('buyer.contactEmail')} className="input" />
               </div>
               <div>
-                <label className="label">{language === 'ar' ? 'المدينة' : 'City'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>City</span>
+                  <span dir="rtl" className="font-medium text-slate-500">المدينة</span>
+                </label>
                 <input {...register('buyer.address.city')} className="input" />
               </div>
+              {showArabicFields ? (
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>City (Arabic)</span>
+                    <span dir="rtl" className="font-medium text-slate-500">المدينة بالعربية</span>
+                  </label>
+                  <input {...register('buyer.address.cityAr')} className="input" dir="rtl" />
+                </div>
+              ) : null}
               <div>
-                <label className="label">{language === 'ar' ? 'الحي' : 'District'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>District</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الحي</span>
+                </label>
                 <input {...register('buyer.address.district')} className="input" />
               </div>
+              {showArabicFields ? (
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>District (Arabic)</span>
+                    <span dir="rtl" className="font-medium text-slate-500">الحي بالعربية</span>
+                  </label>
+                  <input {...register('buyer.address.districtAr')} className="input" dir="rtl" />
+                </div>
+              ) : null}
               <div>
-                <label className="label">{language === 'ar' ? 'الشارع' : 'Street'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Street</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الشارع</span>
+                </label>
                 <input {...register('buyer.address.street')} className="input" />
               </div>
+              {showArabicFields ? (
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Street (Arabic)</span>
+                    <span dir="rtl" className="font-medium text-slate-500">الشارع بالعربية</span>
+                  </label>
+                  <input {...register('buyer.address.streetAr')} className="input" dir="rtl" />
+                </div>
+              ) : null}
               <div>
-                <label className="label">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Postal Code</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الرمز البريدي</span>
+                </label>
                 <input {...register('buyer.address.postalCode')} className="input" />
               </div>
               <div>
-                <label className="label">{language === 'ar' ? 'الدولة' : 'Country'}</label>
+                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Country</span>
+                  <span dir="rtl" className="font-medium text-slate-500">الدولة</span>
+                </label>
                 <input {...register('buyer.address.country')} className="input" placeholder="SA" />
               </div>
             </div>
@@ -656,15 +757,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                     className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/40 p-4 transition hover:border-emerald-300/80 hover:bg-emerald-50/30 dark:border-white/10 dark:bg-dark-900/50 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/5"
                   >
                     <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                      {showArabicFields ? (
-                        <div className={isTradingContext ? 'md:col-span-4' : 'md:col-span-6'}>
-                          <label className="label">اسم البند بالعربية</label>
-                          <input {...register(`lineItems.${index}.productNameAr`)} className="input" dir="rtl" />
-                        </div>
-                      ) : (
-                        <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
-                      )}
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-12" dir="ltr">
                       {isTradingContext ? (
                         <div className="md:col-span-4">
                           <label className="label">{language === 'ar' ? 'المنتج' : 'Product'}</label>
@@ -680,9 +773,17 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                         <label className="label">{language === 'ar' ? 'اسم البند' : 'Item Name'} *</label>
                         <input {...register(`lineItems.${index}.productName`)} className="input" />
                       </div>
+                      {showArabicFields ? (
+                        <div className={isTradingContext ? 'md:col-span-4' : 'md:col-span-6'}>
+                          <label className="label">اسم البند بالعربية</label>
+                          <input {...register(`lineItems.${index}.productNameAr`)} className="input" dir="rtl" />
+                        </div>
+                      ) : (
+                        <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-12" dir="ltr">
                       <div className="md:col-span-3">
                         <label className="label">{language === 'ar' ? 'الوصف' : 'Description'}</label>
                         <textarea {...register(`lineItems.${index}.description`)} className="input min-h-[80px]" placeholder={language === 'ar' ? '• النقطة الأولى\n• النقطة الثانية' : '• First point\n• Second point'} />
@@ -906,7 +1007,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
           </div>
         </form>
 
-        <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+        <div className="space-y-4">
           <div className={`${sectionShell} !p-4`}>
             <div className="flex items-center gap-2.5">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">

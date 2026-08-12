@@ -35,6 +35,17 @@ const fieldControlClass = 'w-full rounded-xl border border-slate-300 bg-white px
 const sectionCardClass = 'rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)] sm:p-6 dark:border-dark-600 dark:bg-dark-800'
 const sectionEyebrowClass = 'text-[11px] font-bold uppercase tracking-[0.18em] text-teal-700 dark:text-teal-300'
 const sectionTitleClass = 'mt-1 text-xl font-semibold tracking-[-0.02em] text-slate-950 dark:text-white'
+const bilingualPairGridClass = 'grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2'
+/** Always EN left / AR right regardless of UI language */
+const BilingualLabel = ({ en, ar, htmlFor, as = 'label' }) => {
+  const Tag = as
+  return (
+    <Tag htmlFor={htmlFor} className={`${fieldLabelClass} !mb-1.5 !flex items-baseline justify-between gap-3`} dir="ltr">
+      <span>{en}</span>
+      <span className="font-medium text-slate-500 dark:text-slate-400" dir="rtl">{ar}</span>
+    </Tag>
+  )
+}
 
 const sanitizeTravelDetails = (travelDetails = {}) => ({
   passengerTitle: ['mr', 'mrs', 'ms'].includes(travelDetails?.passengerTitle) ? travelDetails.passengerTitle : 'mr',
@@ -82,8 +93,8 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   invoiceSubtype: invoice?.invoiceSubtype || (hasTravel ? 'travel_ticket' : 'standard'),
   pdfTemplateId: invoice?.pdfTemplateId || getInvoiceTemplateId(tenant, invoice?.businessContext || defaultBusinessContext),
   issueDate: invoice?.issueDate ? toDatetimeLocalInput(invoice.issueDate) : '',
-  transactionType: invoice?.transactionType || 'B2C',
-  invoiceTypeCode: invoice?.invoiceTypeCode || (invoice?.transactionType === 'B2B' ? '0100000' : '0200000'),
+  transactionType: invoice?.transactionType || 'B2B',
+  invoiceTypeCode: invoice?.invoiceTypeCode || (invoice?.transactionType === 'B2C' ? '0200000' : '0100000'),
   paymentMethod: invoice?.paymentMethod || 'cash',
   customerId: invoice?.customerId || '',
   warehouseId: invoice?.warehouseId || '',
@@ -135,7 +146,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const showArabicFields = isGccArabicMarket(tenant)
-  const [invoiceType, setInvoiceType] = useState('B2C')
+  const [invoiceType, setInvoiceType] = useState('B2B')
   const [isSmartModalOpen, setIsSmartModalOpen] = useState(false)
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
@@ -342,7 +353,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       throw new Error('Unsupported business context')
     },
     onSuccess: ({ type, data }) => {
-      const nextTransactionType = type === 'travel' ? invoiceType : 'B2C'
+      const nextTransactionType = type === 'travel' ? invoiceType : (invoiceType || 'B2B')
       setInvoiceType(nextTransactionType)
       setValue('transactionType', nextTransactionType)
       setValue('invoiceTypeCode', nextTransactionType === 'B2B' ? '0100000' : '0200000')
@@ -442,8 +453,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             businessContext: data.businessContext || 'trading',
             invoiceSubtype: data.invoiceSubtype || 'standard',
             pdfTemplateId: Number(data.pdfTemplateId) || 1,
-            transactionType: data.transactionType || 'B2C',
-            invoiceTypeCode: data.transactionType === 'B2B' ? '0100000' : '0200000',
+            transactionType: data.transactionType || 'B2B',
+            invoiceTypeCode: data.transactionType === 'B2C' ? '0200000' : '0100000',
             issueDate: new Date(),
             status: 'draft',
             lineItems: (data.lineItems || []).map((line, index) => ({
@@ -873,20 +884,20 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               {language === 'ar' ? 'النوع' : 'Type'}
             </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <button type="button" onClick={() => setInvoiceType('B2C')} className={`rounded-2xl border px-4 py-4 text-start transition ${invoiceType === 'B2C' ? 'border-slate-900 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950' : 'border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-800'}`}>
-                <p className="text-sm font-semibold">{t('b2cInvoice')}</p>
-                <p className={`mt-1 text-xs ${invoiceType === 'B2C' ? 'text-white/70 dark:text-slate-600' : 'text-slate-500'}`}>
-                  {isTravelContext
-                    ? (language === 'ar' ? 'فاتورة سفر مبسطة للأفراد' : 'Simplified travel invoice for individual customers')
-                    : (language === 'ar' ? 'مبيعات نقدية أو مباشرة' : 'Cash or direct sale invoices')}
-                </p>
-              </button>
               <button type="button" onClick={() => setInvoiceType('B2B')} className={`rounded-2xl border px-4 py-4 text-start transition ${invoiceType === 'B2B' ? 'border-slate-900 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950' : 'border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-800'}`}>
                 <p className="text-sm font-semibold">{t('b2bInvoice')}</p>
                 <p className={`mt-1 text-xs ${invoiceType === 'B2B' ? 'text-white/70 dark:text-slate-600' : 'text-slate-500'}`}>
                   {isTravelContext
                     ? (language === 'ar' ? 'فاتورة سفر ضريبية للشركات والعملاء المسجلين ضريبياً' : 'Tax travel invoice for companies and VAT-registered customers')
                     : (language === 'ar' ? 'فواتير الشركات والجهات' : 'Invoices for business customers')}
+                </p>
+              </button>
+              <button type="button" onClick={() => setInvoiceType('B2C')} className={`rounded-2xl border px-4 py-4 text-start transition ${invoiceType === 'B2C' ? 'border-slate-900 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950' : 'border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-800'}`}>
+                <p className="text-sm font-semibold">{t('b2cInvoice')}</p>
+                <p className={`mt-1 text-xs ${invoiceType === 'B2C' ? 'text-white/70 dark:text-slate-600' : 'text-slate-500'}`}>
+                  {isTravelContext
+                    ? (language === 'ar' ? 'فاتورة سفر مبسطة للأفراد' : 'Simplified travel invoice for individual customers')
+                    : (language === 'ar' ? 'مبيعات نقدية أو مباشرة' : 'Cash or direct sale invoices')}
                 </p>
               </button>
             </div>
@@ -936,45 +947,60 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 />
               ) : null}
             </div>
-            <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-              <div>
-                <p className={fieldLabelClass}>{language === 'ar' ? 'الاسم القانوني' : 'Legal name'}</p>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {language === 'ar'
-                    ? (tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || '—')
-                    : (tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || '—')}
-                </p>
-                {showArabicFields && tenant?.business?.legalNameAr && language !== 'ar' ? (
-                  <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300" dir="rtl">{tenant.business.legalNameAr}</p>
-                ) : null}
+            <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3" dir="ltr">
+              <div className={showArabicFields ? 'sm:col-span-2 lg:col-span-2' : ''}>
+                <BilingualLabel en="Legal name" ar="الاسم القانوني" as="p" />
+                <div className={`mt-1 grid gap-3 ${showArabicFields ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {tenant?.business?.legalNameEn || tenant?.name || '—'}
+                  </p>
+                  {showArabicFields ? (
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white" dir="rtl">
+                      {tenant?.business?.legalNameAr || '—'}
+                    </p>
+                  ) : null}
+                </div>
               </div>
               <div>
-                <p className={fieldLabelClass}>{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</p>
+                <BilingualLabel en="VAT Number" ar="الرقم الضريبي" as="p" />
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.vatNumber || '—'}</p>
               </div>
               <div>
-                <p className={fieldLabelClass}>{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</p>
+                <BilingualLabel en="CR Number" ar="السجل التجاري" as="p" />
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.crNumber || '—'}</p>
               </div>
               <div>
-                <p className={fieldLabelClass}>{language === 'ar' ? 'الهاتف' : 'Phone'}</p>
+                <BilingualLabel en="Phone" ar="الهاتف" as="p" />
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactPhone || '—'}</p>
               </div>
               <div>
-                <p className={fieldLabelClass}>{language === 'ar' ? 'البريد' : 'Email'}</p>
+                <BilingualLabel en="Email" ar="البريد" as="p" />
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactEmail || '—'}</p>
               </div>
-              <div>
-                <p className={fieldLabelClass}>{language === 'ar' ? 'العنوان' : 'Address'}</p>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {[
-                    tenant?.business?.address?.street,
-                    tenant?.business?.address?.district,
-                    tenant?.business?.address?.city,
-                    tenant?.business?.address?.postalCode,
-                    tenant?.business?.address?.country || 'SA',
-                  ].filter(Boolean).join(', ') || '—'}
-                </p>
+              <div className={showArabicFields ? 'sm:col-span-2' : ''}>
+                <BilingualLabel en="Address" ar="العنوان" as="p" />
+                <div className={`mt-1 grid gap-3 ${showArabicFields ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {[
+                      tenant?.business?.address?.street,
+                      tenant?.business?.address?.district,
+                      tenant?.business?.address?.city,
+                      tenant?.business?.address?.postalCode,
+                      tenant?.business?.address?.country || 'SA',
+                    ].filter(Boolean).join(', ') || '—'}
+                  </p>
+                  {showArabicFields ? (
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white" dir="rtl">
+                      {[
+                        tenant?.business?.address?.streetAr,
+                        tenant?.business?.address?.districtAr,
+                        tenant?.business?.address?.cityAr,
+                        tenant?.business?.address?.postalCode,
+                        tenant?.business?.address?.country || 'SA',
+                      ].filter(Boolean).join('، ') || '—'}
+                    </p>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
@@ -1000,114 +1026,136 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               <>
                 <TravelInvoiceFields language={language} register={register} control={control} watch={watch} setValue={setValue} />
                 {invoiceType === 'B2B' && (
-                  <div className="mt-2 grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
+                  <div className={`mt-2 ${bilingualPairGridClass}`} dir="ltr">
                     <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
+                      <BilingualLabel en="VAT Number" ar="الرقم الضريبي" />
                       <input {...register('buyer.vatNumber')} className={`mt-1.5 ${fieldControlClass}`} />
                     </div>
                     <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'السجل التجاري' : 'CR Number'}</label>
+                      <BilingualLabel en="CR Number" ar="السجل التجاري" />
                       <input {...register('buyer.crNumber')} className={`mt-1.5 ${fieldControlClass}`} />
                     </div>
                     <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'المدينة' : 'City'}</label>
+                      <BilingualLabel en="City" ar="المدينة" />
                       <input {...register('buyer.address.city')} className={`mt-1.5 ${fieldControlClass}`} />
                     </div>
+                    {showArabicFields ? (
+                      <div>
+                        <BilingualLabel en="City (Arabic)" ar="المدينة بالعربية" />
+                        <input {...register('buyer.address.cityAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
+                      </div>
+                    ) : null}
                     <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'الحي' : 'District'}</label>
+                      <BilingualLabel en="District" ar="الحي" />
                       <input {...register('buyer.address.district')} className={`mt-1.5 ${fieldControlClass}`} />
                     </div>
+                    {showArabicFields ? (
+                      <div>
+                        <BilingualLabel en="District (Arabic)" ar="الحي بالعربية" />
+                        <input {...register('buyer.address.districtAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
+                      </div>
+                    ) : null}
                     <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'الشارع' : 'Street'}</label>
+                      <BilingualLabel en="Street" ar="الشارع" />
                       <input {...register('buyer.address.street')} className={`mt-1.5 ${fieldControlClass}`} />
                     </div>
+                    {showArabicFields ? (
+                      <div>
+                        <BilingualLabel en="Street (Arabic)" ar="الشارع بالعربية" />
+                        <input {...register('buyer.address.streetAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
+                      </div>
+                    ) : null}
                     <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
+                      <BilingualLabel en="Postal Code" ar="الرمز البريدي" />
                       <input {...register('buyer.address.postalCode')} className={`mt-1.5 ${fieldControlClass}`} />
                     </div>
                     <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'الدولة' : 'Country'}</label>
+                      <BilingualLabel en="Country" ar="الدولة" />
                       <input {...register('buyer.address.country')} className={`mt-1.5 ${fieldControlClass}`} placeholder="SA" />
                     </div>
                     <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'رقم المبنى' : 'Building Number'}</label>
+                      <BilingualLabel en="Building Number" ar="رقم المبنى" />
                       <input {...register('buyer.address.buildingNumber')} className={`mt-1.5 ${fieldControlClass}`} />
                     </div>
                     <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'الرقم الإضافي' : 'Additional Number'}</label>
+                      <BilingualLabel en="Additional Number" ar="الرقم الإضافي" />
                       <input {...register('buyer.address.additionalNumber')} className={`mt-1.5 ${fieldControlClass}`} />
                     </div>
                   </div>
                 )}
               </>
             ) : (
-              <div className="grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2">
+              <div className={bilingualPairGridClass} dir="ltr">
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'الاسم / الشركة' : 'Name / Company'}</label>
+                  <BilingualLabel en="Name / Company" ar="الاسم / الشركة" />
                   <input {...register('buyer.name', { required: invoiceType === 'B2B' })} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
-                {showArabicFields && (
+                {showArabicFields ? (
                   <div>
-                    <label className={fieldLabelClass}>الاسم بالعربية</label>
+                    <BilingualLabel en="Name (Arabic)" ar="الاسم بالعربية" />
                     <input {...register('buyer.nameAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
                   </div>
-                )}
+                ) : null}
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
+                  <BilingualLabel en="VAT Number" ar="الرقم الضريبي" />
                   <input {...register('buyer.vatNumber', { required: invoiceType === 'B2B' })} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'رقم الهاتف' : 'Phone Number'}</label>
+                  <BilingualLabel en="Phone Number" ar="رقم الهاتف" />
                   <input {...register('buyer.contactPhone')} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
+                  <BilingualLabel en="Email" ar="البريد الإلكتروني" />
                   <input type="email" {...register('buyer.contactEmail')} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'المدينة' : 'City'}</label>
+                  <BilingualLabel en="CR Number" ar="السجل التجاري" />
+                  <input {...register('buyer.crNumber')} className={`mt-1.5 ${fieldControlClass}`} />
+                </div>
+                <div>
+                  <BilingualLabel en="City" ar="المدينة" />
                   <input {...register('buyer.address.city')} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
-                {showArabicFields && (
+                {showArabicFields ? (
                   <div>
-                    <label className={fieldLabelClass}>المدينة بالعربية</label>
+                    <BilingualLabel en="City (Arabic)" ar="المدينة بالعربية" />
                     <input {...register('buyer.address.cityAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
                   </div>
-                )}
+                ) : null}
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'الحي' : 'District'}</label>
+                  <BilingualLabel en="District" ar="الحي" />
                   <input {...register('buyer.address.district')} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
-                {showArabicFields && (
+                {showArabicFields ? (
                   <div>
-                    <label className={fieldLabelClass}>الحي بالعربية</label>
+                    <BilingualLabel en="District (Arabic)" ar="الحي بالعربية" />
                     <input {...register('buyer.address.districtAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
                   </div>
-                )}
+                ) : null}
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'الشارع' : 'Street'}</label>
+                  <BilingualLabel en="Street" ar="الشارع" />
                   <input {...register('buyer.address.street')} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
-                {showArabicFields && (
+                {showArabicFields ? (
                   <div>
-                    <label className={fieldLabelClass}>الشارع بالعربية</label>
+                    <BilingualLabel en="Street (Arabic)" ar="الشارع بالعربية" />
                     <input {...register('buyer.address.streetAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
                   </div>
-                )}
+                ) : null}
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
+                  <BilingualLabel en="Postal Code" ar="الرمز البريدي" />
                   <input {...register('buyer.address.postalCode')} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'الدولة' : 'Country'}</label>
+                  <BilingualLabel en="Country" ar="الدولة" />
                   <input {...register('buyer.address.country')} className={`mt-1.5 ${fieldControlClass}`} placeholder="SA" />
                 </div>
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'رقم المبنى' : 'Building Number'}</label>
+                  <BilingualLabel en="Building Number" ar="رقم المبنى" />
                   <input {...register('buyer.address.buildingNumber')} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
                 <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'الرقم الإضافي' : 'Additional Number'}</label>
+                  <BilingualLabel en="Additional Number" ar="الرقم الإضافي" />
                   <input {...register('buyer.address.additionalNumber')} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
               </div>
@@ -1134,15 +1182,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''} initialName={initialInvoice?.lineItems?.[index]?.productName || ''} />
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
-                  <div className="grid grid-cols-1 items-end gap-4 lg:grid-cols-12">
-                    {showArabicFields ? (
-                      <div className={isTravelContext ? 'lg:col-span-2' : 'lg:col-span-3'}>
-                        <label className={fieldLabelClass}>اسم البند بالعربية</label>
-                        <input {...register(`lineItems.${index}.productNameAr`)} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" placeholder="اسم المنتج أو الخدمة" />
-                      </div>
-                    ) : (
-                      <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
-                    )}
+                  <div className="grid grid-cols-1 items-end gap-4 lg:grid-cols-12" dir="ltr">
                     <div className={isTravelContext
                       ? (showArabicFields ? 'lg:col-span-2' : 'lg:col-span-2')
                       : (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-3')}>
@@ -1191,6 +1231,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className={`mt-1.5 ${fieldControlClass}`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
+                    {showArabicFields ? (
+                      <div className={isTravelContext ? 'lg:col-span-2' : 'lg:col-span-3'}>
+                        <label className={fieldLabelClass}>اسم البند بالعربية</label>
+                        <input {...register(`lineItems.${index}.productNameAr`)} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" placeholder="اسم المنتج أو الخدمة" />
+                      </div>
+                    ) : (
+                      <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                    )}
                     <div className="lg:col-span-2">
                       <label htmlFor={`unit-${index}`} className={fieldLabelClass}>{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
                       <select

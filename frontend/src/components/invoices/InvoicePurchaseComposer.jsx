@@ -11,6 +11,7 @@ import { useTranslation } from '../../lib/translations'
 import Money from '../ui/Money'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
+import { isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from './InvoiceLivePreview'
@@ -139,7 +140,21 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const selectedWarehouseId = values.warehouseId || ''
   const isTradingContext = businessContext === 'trading'
   const isTravelContext = businessContext === 'travel_agency'
+  const showArabicFields = isGccArabicMarket(tenant)
   const skipBusinessContextResetRef = useRef(false)
+
+  useLiveTranslation({
+    control, watch, setValue,
+    sourceField: 'seller.name',
+    targetField: 'seller.nameAr',
+    sourceLang: 'en', targetLang: 'ar',
+  })
+  useLiveTranslation({
+    control, watch, setValue,
+    sourceField: 'seller.nameAr',
+    targetField: 'seller.name',
+    sourceLang: 'ar', targetLang: 'en',
+  })
 
   useLiveTranslation({
     control, watch, setValue,
@@ -290,8 +305,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue('seller.contactPhone', supplier.phone || '')
     setValue('seller.contactEmail', supplier.email || '')
     setValue('seller.address.city', supplier.address?.city || '')
+    setValue('seller.address.cityAr', supplier.address?.cityAr || '')
     setValue('seller.address.district', supplier.address?.district || '')
+    setValue('seller.address.districtAr', supplier.address?.districtAr || '')
     setValue('seller.address.street', supplier.address?.street || '')
+    setValue('seller.address.streetAr', supplier.address?.streetAr || '')
     setValue('seller.address.postalCode', supplier.address?.postalCode || '')
     setValue('seller.address.country', supplier.address?.country || 'SA')
     setValue('seller.address.buildingNumber', supplier.address?.buildingNumber || '')
@@ -463,7 +481,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         }}
       />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+      <div className="mx-auto w-full max-w-6xl space-y-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="card p-6">
             <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'سياق الشراء' : 'Purchase Context'}</h3>
@@ -520,18 +538,129 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             {invoiceSubtype === 'travel_ticket' ? (
               <TravelInvoiceFields language={language} register={register} control={control} watch={watch} setValue={setValue} partyPrefix="seller" partyNameLabel={language === 'ar' ? 'اسم المورد / الجهة' : 'Vendor / Supplier Name'} />
             ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div><label className="label">{language === 'ar' ? 'الاسم / الشركة' : 'Name / Company'}</label><input {...register('seller.name', { required: true })} className="input" /></div>
-                <div><label className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label><input {...register('seller.vatNumber')} className="input" /></div>
-                <div><label className="label">{language === 'ar' ? 'رقم الهاتف' : 'Phone Number'}</label><input {...register('seller.contactPhone')} className="input" /></div>
-                <div><label className="label">{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label><input type="email" {...register('seller.contactEmail')} className="input" /></div>
-                <div><label className="label">{language === 'ar' ? 'المدينة' : 'City'}</label><input {...register('seller.address.city')} className="input" /></div>
-                <div><label className="label">{language === 'ar' ? 'الحي' : 'District'}</label><input {...register('seller.address.district')} className="input" /></div>
-                <div><label className="label">{language === 'ar' ? 'الشارع' : 'Street'}</label><input {...register('seller.address.street')} className="input" /></div>
-                <div><label className="label">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label><input {...register('seller.address.postalCode')} className="input" /></div>
-                <div><label className="label">{language === 'ar' ? 'الدولة' : 'Country'}</label><input {...register('seller.address.country')} className="input" placeholder="SA" /></div>
-                <div><label className="label">{language === 'ar' ? 'رقم المبنى' : 'Building Number'}</label><input {...register('seller.address.buildingNumber')} className="input" /></div>
-                <div><label className="label">{language === 'ar' ? 'الرقم الإضافي' : 'Additional Number'}</label><input {...register('seller.address.additionalNumber')} className="input" /></div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Name / Company</span>
+                    <span dir="rtl" className="font-medium text-gray-500">الاسم / الشركة</span>
+                  </label>
+                  <input {...register('seller.name', { required: true })} className="input" />
+                </div>
+                {showArabicFields ? (
+                  <div>
+                    <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                      <span>Name (Arabic)</span>
+                      <span dir="rtl" className="font-medium text-gray-500">الاسم بالعربية</span>
+                    </label>
+                    <input {...register('seller.nameAr')} className="input" dir="rtl" />
+                  </div>
+                ) : (
+                  <input type="hidden" {...register('seller.nameAr')} />
+                )}
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>VAT Number</span>
+                    <span dir="rtl" className="font-medium text-gray-500">الرقم الضريبي</span>
+                  </label>
+                  <input {...register('seller.vatNumber')} className="input" />
+                </div>
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>CR Number</span>
+                    <span dir="rtl" className="font-medium text-gray-500">السجل التجاري</span>
+                  </label>
+                  <input {...register('seller.crNumber')} className="input" />
+                </div>
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Phone Number</span>
+                    <span dir="rtl" className="font-medium text-gray-500">رقم الهاتف</span>
+                  </label>
+                  <input {...register('seller.contactPhone')} className="input" />
+                </div>
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Email</span>
+                    <span dir="rtl" className="font-medium text-gray-500">البريد الإلكتروني</span>
+                  </label>
+                  <input type="email" {...register('seller.contactEmail')} className="input" />
+                </div>
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>City</span>
+                    <span dir="rtl" className="font-medium text-gray-500">المدينة</span>
+                  </label>
+                  <input {...register('seller.address.city')} className="input" />
+                </div>
+                {showArabicFields ? (
+                  <div>
+                    <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                      <span>City (Arabic)</span>
+                      <span dir="rtl" className="font-medium text-gray-500">المدينة بالعربية</span>
+                    </label>
+                    <input {...register('seller.address.cityAr')} className="input" dir="rtl" />
+                  </div>
+                ) : null}
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>District</span>
+                    <span dir="rtl" className="font-medium text-gray-500">الحي</span>
+                  </label>
+                  <input {...register('seller.address.district')} className="input" />
+                </div>
+                {showArabicFields ? (
+                  <div>
+                    <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                      <span>District (Arabic)</span>
+                      <span dir="rtl" className="font-medium text-gray-500">الحي بالعربية</span>
+                    </label>
+                    <input {...register('seller.address.districtAr')} className="input" dir="rtl" />
+                  </div>
+                ) : null}
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Street</span>
+                    <span dir="rtl" className="font-medium text-gray-500">الشارع</span>
+                  </label>
+                  <input {...register('seller.address.street')} className="input" />
+                </div>
+                {showArabicFields ? (
+                  <div>
+                    <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                      <span>Street (Arabic)</span>
+                      <span dir="rtl" className="font-medium text-gray-500">الشارع بالعربية</span>
+                    </label>
+                    <input {...register('seller.address.streetAr')} className="input" dir="rtl" />
+                  </div>
+                ) : null}
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Postal Code</span>
+                    <span dir="rtl" className="font-medium text-gray-500">الرمز البريدي</span>
+                  </label>
+                  <input {...register('seller.address.postalCode')} className="input" />
+                </div>
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Country</span>
+                    <span dir="rtl" className="font-medium text-gray-500">الدولة</span>
+                  </label>
+                  <input {...register('seller.address.country')} className="input" placeholder="SA" />
+                </div>
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Building Number</span>
+                    <span dir="rtl" className="font-medium text-gray-500">رقم المبنى</span>
+                  </label>
+                  <input {...register('seller.address.buildingNumber')} className="input" />
+                </div>
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Additional Number</span>
+                    <span dir="rtl" className="font-medium text-gray-500">الرقم الإضافي</span>
+                  </label>
+                  <input {...register('seller.address.additionalNumber')} className="input" />
+                </div>
               </div>
             )}
           </div>
@@ -542,9 +671,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               {fields.map((field, index) => (
                 <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
-                  <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
-                  <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
-                    <div className="md:col-span-3">
+                  <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12" dir="ltr">
+                    <div className={showArabicFields ? 'md:col-span-3' : 'md:col-span-3'}>
                       <label htmlFor={`product-select-${index}`} className="label">{language === 'ar' ? 'الوصف *' : 'Description *'}</label>
                       {isTradingContext ? (
                         <div className="mb-2">
@@ -581,6 +709,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                         <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
+                    {showArabicFields ? (
+                      <div className="md:col-span-3">
+                        <label className="label">اسم البند بالعربية</label>
+                        <input {...register(`lineItems.${index}.productNameAr`)} className="input" dir="rtl" placeholder="اسم المنتج أو الخدمة" />
+                      </div>
+                    ) : (
+                      <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                    )}
                     <div className="md:col-span-2">
                       <label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
                       <select
@@ -776,7 +912,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           </div>
         </form>
 
-        <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+        <div className="space-y-4">
           <div className="card p-4"><h3 className="text-base font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'تعرض المعاينة شكل الطباعة النهائي تقريباً.' : 'The preview closely reflects the final printed layout.'}</p></div>
           <InvoiceLivePreview invoice={previewInvoice} tenant={tenant} language={language} templateId={selectedTemplateId} bilingual={previewInvoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction'].includes(previewInvoice?.businessContext)} />
         </div>
