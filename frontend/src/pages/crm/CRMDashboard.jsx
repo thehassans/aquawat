@@ -1,84 +1,132 @@
+import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { Users, BarChart3, DollarSign, TrendingUp, AlertCircle } from 'lucide-react'
-import { FunnelChart, Funnel, LabelList, Tooltip, ResponsiveContainer } from 'recharts'
+import { ArrowRight } from 'lucide-react'
 import api from '../../lib/api'
 import CRMDealsTab from './CRMDealsTab'
 import CRMActivitiesTab from './CRMActivitiesTab'
+import CRMSubnav from './CRMSubnav'
+import { crmShell, crmInkBtn, crmLabel, DEAL_STAGES, formatMoney } from './crmUi'
 
 export default function CRMDashboard() {
   const { language } = useSelector((state) => state.ui)
-  const t = (en, ar) => language === 'ar' ? ar : en
+  const { tenant } = useSelector((state) => state.auth)
+  const t = (en, ar) => (language === 'ar' ? ar : en)
+  const currency = tenant?.settings?.currency || 'SAR'
 
-  const { data: stats } = useQuery({ queryKey: ['crm-stats'], queryFn: async () => (await api.get('/crm/stats')).data })
+  const { data: stats } = useQuery({
+    queryKey: ['crm-stats'],
+    queryFn: async () => (await api.get('/crm/stats')).data,
+  })
+
+  const pipelineByStage = useMemo(() => {
+    const map = Object.fromEntries((stats?.pipeline || []).map((p) => [p._id, p]))
+    return DEAL_STAGES.filter((s) => s.id !== 'closed_lost').map((stage) => {
+      const row = map[stage.id] || { count: 0, value: 0 }
+      return { ...stage, count: row.count || 0, value: row.value || 0 }
+    })
+  }, [stats])
+
+  const maxFunnel = Math.max(1, ...pipelineByStage.map((s) => s.count), stats?.leadTotal || 0)
+  const wonCount = pipelineByStage.find((s) => s.id === 'closed_won')?.count || 0
+  const openValue = (stats?.dealValue || 0) - (stats?.wonValue || 0)
 
   const kpis = [
-    { label: t('Total Leads', 'إجمالي العملاء'), value: stats?.leadTotal ?? 0, icon: Users, color: 'bg-blue-500' },
-    { label: t('Total Deals', 'إجمالي الصفقات'), value: stats?.dealTotal ?? 0, icon: BarChart3, color: 'bg-indigo-500' },
-    { label: t('Pipeline', 'القيمة'), value: `${(stats?.dealValue ?? 0).toLocaleString()} SAR`, icon: DollarSign, color: 'bg-emerald-500' },
-    { label: t('Won', 'الفوز'), value: `${(stats?.wonValue ?? 0).toLocaleString()} SAR`, icon: TrendingUp, color: 'bg-teal-500' },
-    { label: t('Follow-ups', 'متابعات'), value: stats?.followUpCount ?? 0, icon: AlertCircle, color: 'bg-amber-500' },
+    { label: t('Leads', 'العملاء'), value: stats?.leadTotal ?? 0 },
+    { label: t('Deals', 'الصفقات'), value: stats?.dealTotal ?? 0 },
+    { label: t('Open pipeline', 'المسار المفتوح'), value: formatMoney(Math.max(0, openValue), currency) },
+    { label: t('Won', 'الفوز'), value: formatMoney(stats?.wonValue ?? 0, currency), accent: true },
+    { label: t('Follow-ups', 'متابعات'), value: stats?.followUpCount ?? 0 },
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6">
+      <CRMSubnav />
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-black bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">{t('CRM', 'إدارة العملاء')}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">{t('Manage leads, deals, and customer relationships', 'إدارة العملاء المحتملين والصفقات وعلاقات العملاء')}</p>
+          <p className={crmLabel}>{t('Relationships', 'العلاقات')}</p>
+          <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.03em] text-slate-900 dark:text-white sm:text-[28px]">
+            {t('CRM', 'إدارة العملاء')}
+          </h1>
+          <p className="mt-1.5 text-[13px] text-slate-500 dark:text-slate-400">
+            {t('Pipeline, follow-ups, and conversion in one workspace', 'المسار والمتابعات والتحويل في مساحة واحدة')}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/app/dashboard/crm/leads" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">
+            {t('Leads', 'العملاء المحتملون')}
+            <ArrowRight className={`h-3.5 w-3.5 ${language === 'ar' ? 'rotate-180' : ''}`} />
+          </Link>
+          <Link to="/app/dashboard/crm/deals" className={crmInkBtn}>
+            {t('Open pipeline', 'فتح المسار')}
+            <ArrowRight className={`h-3.5 w-3.5 opacity-70 ${language === 'ar' ? 'rotate-180' : ''}`} />
+          </Link>
         </div>
       </div>
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          {kpis.map((k, i) => { const Icon = k.icon; return (
-            <motion.div key={k.label} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08, type: 'spring', stiffness: 100 }} className="relative overflow-hidden bg-white/70 dark:bg-dark-800/70 backdrop-blur-xl rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] border border-white/40 dark:border-dark-700/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
-              <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-gradient-to-br from-white/20 to-transparent dark:from-white/5 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700" />
-              <div className={`w-10 h-10 rounded-xl ${k.color} flex items-center justify-center mb-3 shadow-inner`}>
-                <Icon className="w-5 h-5 text-white drop-shadow-md" />
-              </div>
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{k.label}</p>
-              <p className="text-2xl font-black text-gray-900 dark:text-white mt-1 tracking-tight">{k.value}</p>
-            </motion.div>
-          )})}
+
+      <div className={crmShell}>
+        <div className="grid grid-cols-2 gap-px bg-slate-100 sm:grid-cols-5 dark:bg-white/[0.08]">
+          {kpis.map((item) => (
+            <div key={item.label} className="bg-white px-4 py-4 sm:px-5 sm:py-5 dark:bg-[#0c111a]">
+              <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                {item.label}
+              </p>
+              <p
+                className={`mt-2 text-[20px] font-semibold tabular-nums tracking-tight ${
+                  item.accent ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'
+                }`}
+              >
+                {item.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <div className="min-w-0 xl:col-span-8">
+          <CRMDealsTab preview />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 space-y-4">
-            <CRMDealsTab preview />
-            <CRMActivitiesTab preview />
-          </div>
-          
-          <div className="space-y-4 relative">
-            <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-purple-500/5 dark:from-blue-500/10 dark:to-purple-500/10 rounded-3xl blur-3xl -z-10" />
-            <div className="bg-white/80 dark:bg-dark-800/80 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/40 dark:border-dark-700/50">
-              <h3 className="text-base font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-primary-500" />
-                {t('Sales Funnel', 'قمع المبيعات')}
-              </h3>
-              <div className="h-72 w-full text-sm font-medium">
-                <ResponsiveContainer width="100%" height="100%">
-                  <FunnelChart>
-                    <Tooltip cursor={false} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(10px)', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)' }} />
-                    <Funnel
-                      dataKey="value"
-                      data={[
-                        { name: t('Leads', 'عملاء محتملون'), value: stats?.leadTotal || 1, fill: '#3b82f6' },
-                        { name: t('Prospecting', 'استكشاف'), value: Math.round((stats?.dealTotal || 0) * 0.8) || 1, fill: '#6366f1' },
-                        { name: t('Proposal', 'عروض'), value: Math.round((stats?.dealTotal || 0) * 0.5) || 1, fill: '#0ea5e9' },
-                        { name: t('Won', 'تم الفوز'), value: stats?.wonCount || 0, fill: '#10b981' }
-                      ]}
-                      isAnimationActive={true}
-                    >
-                      <LabelList position="right" fill="#6b7280" stroke="none" dataKey="name" className="font-semibold" />
-                    </Funnel>
-                  </FunnelChart>
-                </ResponsiveContainer>
+        <div className={`${crmShell} p-5 xl:col-span-4`}>
+          <p className={crmLabel}>{t('Conversion', 'التحويل')}</p>
+          <h3 className="mt-1.5 text-[15px] font-medium text-slate-900 dark:text-white">
+            {t('Sales funnel', 'قمع المبيعات')}
+          </h3>
+          <div className="mt-5 space-y-4">
+            {[
+              { id: 'leads', label: t('Leads', 'عملاء محتملون'), count: stats?.leadTotal || 0 },
+              ...pipelineByStage.map((s) => ({
+                id: s.id,
+                label: t(s.label, s.ar),
+                count: s.count,
+              })),
+            ].map((row) => (
+              <div key={row.id}>
+                <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                  <span className="text-[12px] text-slate-500 dark:text-slate-400">{row.label}</span>
+                  <span className="text-[12px] font-medium tabular-nums text-slate-800 dark:text-slate-200">
+                    {row.count}
+                  </span>
+                </div>
+                <div className="h-1 overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.06]">
+                  <div
+                    className={`h-full rounded-full ${row.id === 'closed_won' ? 'bg-emerald-500' : 'bg-slate-900 dark:bg-white'}`}
+                    style={{ width: `${Math.max(4, Math.round((row.count / maxFunnel) * 100))}%` }}
+                  />
+                </div>
               </div>
-            </div>
+            ))}
           </div>
+          <p className="mt-5 text-[11px] text-slate-400">
+            {t('Won deals', 'صفقات فائزة')}: <span className="tabular-nums text-slate-600 dark:text-slate-300">{wonCount}</span>
+          </p>
         </div>
       </div>
+
+      <CRMActivitiesTab preview />
     </div>
   )
 }
