@@ -72,8 +72,6 @@ import {
   Gift,
   HelpCircle,
   Globe2,
-  UserCircle,
-  Megaphone,
   Store,
   Smartphone, 
   CalendarRange, 
@@ -357,12 +355,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       title: language === 'ar' ? 'إدارة العملاء (CRM)' : 'CRM',
       requireApp: 'crm_sales_pipeline',
       items: [
-        { path: '/app/dashboard/crm', icon: Target, label: language === 'ar' ? 'لوحة CRM' : 'CRM Dashboard', end: true, perm: { module: 'crm', action: 'read' } },
-        { path: '/app/dashboard/crm/leads', icon: Users, label: language === 'ar' ? 'العملاء المحتملون' : 'Leads', perm: { module: 'crm', action: 'read' } },
-        { path: '/app/dashboard/crm/contacts', icon: UserCircle, label: language === 'ar' ? 'جهات الاتصال' : 'Contacts', perm: { module: 'crm', action: 'read' } },
-        { path: '/app/dashboard/crm/deals', icon: BarChart3, label: language === 'ar' ? 'الصفقات' : 'Deals', perm: { module: 'crm', action: 'read' } },
-        { path: '/app/dashboard/crm/activities', icon: ClipboardList, label: language === 'ar' ? 'الأنشطة' : 'Activities', perm: { module: 'crm', action: 'read' } },
-        { path: '/app/dashboard/crm/campaigns', icon: Megaphone, label: language === 'ar' ? 'الحملات' : 'Campaigns', perm: { module: 'crm', action: 'read' } },
+        { path: '/app/dashboard/crm', icon: Target, label: language === 'ar' ? 'لوحة CRM' : 'CRM Dashboard', perm: { module: 'crm', action: 'read' } },
       ]
     },
     {
