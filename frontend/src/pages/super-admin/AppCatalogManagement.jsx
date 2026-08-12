@@ -28,13 +28,13 @@ import { App3DIcon } from '../../components/ui/App3DIcon'
 const PRICING_TIERS = [
   { value: 'free', labelEn: 'Free', labelAr: 'مجاني', color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
   { value: 'paid', labelEn: 'Paid', labelAr: 'مدفوع', color: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800' },
-  { value: 'enterprise', labelEn: 'Ultra Premium', labelAr: 'ألترا بريميوم', color: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800' }
+  { value: 'enterprise', labelEn: 'Enterprise', labelAr: 'مؤسسات', color: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 dark:border-purple-800' }
 ]
 
 const SAAS_PLANS = [
   { id: 'starter', labelEn: 'Starter', labelAr: 'البداية' },
   { id: 'professional', labelEn: 'Professional', labelAr: 'الاحترافية' },
-  { id: 'enterprise', labelEn: 'Ultra Premium', labelAr: 'ألترا بريميوم' },
+  { id: 'enterprise', labelEn: 'Enterprise', labelAr: 'المؤسسات' },
 ]
 
 export default function AppCatalogManagement() {

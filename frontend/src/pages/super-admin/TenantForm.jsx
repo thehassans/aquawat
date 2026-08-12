@@ -631,7 +631,7 @@ export default function TenantForm() {
                 <option value="trial">Trial</option>
                 <option value="starter">Starter</option>
                 <option value="professional">Professional</option>
-                <option value="enterprise">Ultra Premium</option>
+                <option value="enterprise">Enterprise</option>
               </select>
             </div>
             <div>

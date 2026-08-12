@@ -7,8 +7,6 @@ import { motion } from 'framer-motion'
 import {
   ArrowLeft,
   Save,
-  ShoppingCart,
-  Building,
   Calendar,
   Plus,
   Trash2,
@@ -20,6 +18,7 @@ import {
   X,
   Printer,
   Download,
+  Loader2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
@@ -29,6 +28,16 @@ import Money from '../components/ui/Money'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
 import Select from 'react-select'
 import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
+
+const STATUS_PILL = {
+  received: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
+  partially_received: 'bg-amber-50 text-amber-700 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
+  cancelled: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
+  approved: 'bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10',
+  sent: 'bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10',
+  draft: 'bg-slate-50 text-slate-500 ring-slate-200/70 dark:bg-white/[0.04] dark:text-slate-400 dark:ring-white/10',
+}
+
 export default function PurchaseOrderForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
@@ -45,6 +54,7 @@ export default function PurchaseOrderForm() {
   const [receiveQty, setReceiveQty] = useState({})
   const [manualModes, setManualModes] = useState([])
   const [showSupplierModal, setShowSupplierModal] = useState(false)
+  const [pdfBusy, setPdfBusy] = useState(null)
   const [supplierForm, setSupplierForm] = useState({
     code: '',
     nameEn: '',
@@ -136,7 +146,7 @@ export default function PurchaseOrderForm() {
     const payload = {
       ...supplierForm,
       nameEn: supplierForm.nameEn || supplierForm.nameAr,
-      code: supplierForm.code || `SUP-${Math.floor(Date.now() / 1000).toString().slice(-5)}`
+      code: supplierForm.code || `SUP-${Math.floor(Date.now() / 1000).toString().slice(-5)}`,
     }
     addSupplierMutation.mutate(payload)
   }
@@ -146,7 +156,7 @@ export default function PurchaseOrderForm() {
     const s = supplierForm.nameEn?.trim()
     if (!s || s.length < 2 || !showSupplierModal) return
     const timer = setTimeout(() => {
-      if (supplierForm.nameAr?.trim()) return // Don't overwrite if user typed AR
+      if (supplierForm.nameAr?.trim()) return
       const translated = autoTranslateText(s, 'en', 'ar')
       if (translated) {
         setSupplierForm((p) => ({ ...p, nameAr: translated }))
@@ -159,7 +169,7 @@ export default function PurchaseOrderForm() {
     const s = supplierForm.nameAr?.trim()
     if (!s || s.length < 2 || !showSupplierModal) return
     const timer = setTimeout(() => {
-      if (supplierForm.nameEn?.trim()) return // Don't overwrite if user typed EN
+      if (supplierForm.nameEn?.trim()) return
       const translated = autoTranslateText(s, 'ar', 'en')
       if (translated) {
         setSupplierForm((p) => ({ ...p, nameEn: translated }))
@@ -234,7 +244,7 @@ export default function PurchaseOrderForm() {
         if (res.data?.offline) {
           navigate('/app/dashboard/purchase-orders')
         } else {
-          navigate(`/purchase-orders/${res.data?._id}`)
+          navigate(`/app/dashboard/purchase-orders/${res.data?._id}`)
         }
       }
     },
@@ -323,118 +333,158 @@ export default function PurchaseOrderForm() {
     receiveMutation.mutate({ warehouseId: receiveWarehouseId, items })
   }
 
+  const resolveOrderForPdf = async () => {
+    if (order?.lineItems?.length) return order
+    const res = await api.get(`/purchase-orders/${id}`)
+    return res.data
+  }
+
+  const handlePrintPdf = async () => {
+    if (!isEdit || !id) return
+    const toastId = toast.loading(language === 'ar' ? 'جاري التحضير للطباعة...' : 'Preparing print...')
+    setPdfBusy('print')
+    try {
+      const full = await resolveOrderForPdf()
+      await printPurchaseOrderPdf({ purchaseOrder: full, language, tenant })
+      toast.success(language === 'ar' ? 'جاهز للطباعة' : 'Ready to print', { id: toastId })
+    } catch (e) {
+      toast.error(language === 'ar' ? 'فشل الطباعة' : 'Print failed', { id: toastId })
+    } finally {
+      setPdfBusy(null)
+    }
+  }
+
+  const handleDownloadPdf = async () => {
+    if (!isEdit || !id) return
+    const toastId = toast.loading(language === 'ar' ? 'جاري إنشاء PDF...' : 'Generating PDF...')
+    setPdfBusy('download')
+    try {
+      const full = await resolveOrderForPdf()
+      await downloadPurchaseOrderPdf({ purchaseOrder: full, language, tenant })
+      toast.success(language === 'ar' ? 'تم التنزيل' : 'Downloaded', { id: toastId })
+    } catch (e) {
+      toast.error(language === 'ar' ? 'فشل التنزيل' : 'Download failed', { id: toastId })
+    } finally {
+      setPdfBusy(null)
+    }
+  }
+
+  const statusLabel = (status) => {
+    if (language === 'ar') {
+      if (status === 'draft') return 'مسودة'
+      if (status === 'sent') return 'مرسل'
+      if (status === 'approved') return 'معتمد'
+      if (status === 'partially_received') return 'مستلم جزئياً'
+      if (status === 'received') return 'مستلم'
+      if (status === 'cancelled') return 'ملغي'
+      return status
+    }
+    if (status === 'partially_received') return 'Partially received'
+    return status ? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ') : status
+  }
+
+  const shell = 'overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-[#0c111a]'
+  const ghostBtn =
+    'inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-transparent dark:text-slate-200 dark:hover:border-white/20 dark:hover:bg-white/[0.04]'
+  const primaryBtn =
+    'inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'
+  const inkBtn =
+    'inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'
+
   if (isEdit && isLoading) {
     return (
       <div className="flex justify-center p-12">
-        <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900 dark:border-slate-600 dark:border-t-white" />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon">
-            <ArrowLeft className="w-5 h-5" />
+    <div className="space-y-6 pb-24">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/app/dashboard/purchase-orders')}
+            className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-transparent dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {isEdit ? (language === 'ar' ? 'تعديل طلب شراء' : 'Edit Purchase Order') : language === 'ar' ? 'إضافة طلب شراء' : 'Add Purchase Order'}
+            <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
+              {language === 'ar' ? 'طلبات الشراء' : 'Purchase orders'}
+            </p>
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.03em] text-slate-900 dark:text-white sm:text-[28px]">
+              {isEdit
+                ? language === 'ar'
+                  ? 'تعديل طلب شراء'
+                  : 'Edit purchase order'
+                : language === 'ar'
+                  ? 'طلب شراء جديد'
+                  : 'New purchase order'}
             </h1>
-            {isEdit && (
-              <p className="text-sm text-gray-500 mt-1">
-                {language === 'ar' ? 'الحالة:' : 'Status:'}{' '}
-                <span className={`badge ${order?.status === 'received' ? 'badge-success' : order?.status === 'partially_received' ? 'badge-warning' : order?.status === 'cancelled' ? 'badge-danger' : order?.status === 'approved' ? 'badge-info' : 'badge-neutral'}`}>
-                  {language === 'ar'
-                    ? order?.status === 'draft'
-                      ? 'مسودة'
-                      : order?.status === 'sent'
-                        ? 'مرسل'
-                        : order?.status === 'approved'
-                          ? 'معتمد'
-                          : order?.status === 'partially_received'
-                            ? 'مستلم جزئياً'
-                            : order?.status === 'received'
-                              ? 'مستلم'
-                              : order?.status === 'cancelled'
-                                ? 'ملغي'
-                                : order?.status
-                    : order?.status}
+            {isEdit && order && (
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <span className="font-mono text-[12px] text-slate-500 dark:text-slate-400">{order.poNumber}</span>
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
+                    STATUS_PILL[order.status] || STATUS_PILL.draft
+                  }`}
+                >
+                  {statusLabel(order.status)}
                 </span>
-              </p>
+              </div>
             )}
           </div>
         </div>
 
-        {isEdit && (
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await printPurchaseOrderPdf({ purchaseOrder: order, language, tenant })
-                } catch (e) {
-                  toast.error(language === 'ar' ? 'فشل الطباعة' : 'Print failed')
-                }
-              }}
-              className="btn btn-secondary"
-            >
-              <Printer className="w-4 h-4" />
+        {isEdit && order && (
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            <button type="button" onClick={handlePrintPdf} disabled={Boolean(pdfBusy)} className={ghostBtn}>
+              {pdfBusy === 'print' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4 opacity-70" />}
               {language === 'ar' ? 'طباعة' : 'Print'}
             </button>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await downloadPurchaseOrderPdf({ purchaseOrder: order, language, tenant })
-                  toast.success(language === 'ar' ? 'تم التنزيل' : 'Downloaded')
-                } catch (e) {
-                  toast.error(language === 'ar' ? 'فشل التنزيل' : 'Download failed')
-                }
-              }}
-              className="btn btn-secondary"
-            >
-              <Download className="w-4 h-4" />
+            <button type="button" onClick={handleDownloadPdf} disabled={Boolean(pdfBusy)} className={inkBtn}>
+              {pdfBusy === 'download' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 opacity-80" />}
               {language === 'ar' ? 'تنزيل PDF' : 'Download PDF'}
             </button>
             <button
               type="button"
               onClick={() => navigate(`/app/dashboard/invoices/new/purchase?poId=${id}`)}
-              className="btn btn-secondary"
+              className={ghostBtn}
             >
-              <FileText className="w-4 h-4" />
-              {language === 'ar' ? 'إنشاء فاتورة شراء' : 'Create Purchase Invoice'}
+              <FileText className="h-4 w-4 opacity-70" />
+              {language === 'ar' ? 'فاتورة شراء' : 'Purchase invoice'}
             </button>
             {order?.flow === 'sell' && (
               <button
                 type="button"
                 onClick={() => navigate(`/app/dashboard/delivery-notes/new?poId=${id}`)}
-                className="btn btn-secondary"
+                className={ghostBtn}
               >
-                <FileText className="w-4 h-4" />
-                {language === 'ar' ? 'إنشاء إذن تسليم' : 'Create Delivery Note'}
+                <FileText className="h-4 w-4 opacity-70" />
+                {language === 'ar' ? 'إذن تسليم' : 'Delivery note'}
               </button>
             )}
             <button
               type="button"
               onClick={() => navigate(`/app/dashboard/invoices/new/sell?poId=${id}`)}
-              className="btn btn-secondary"
+              className={ghostBtn}
             >
-              <FileText className="w-4 h-4" />
-              {language === 'ar' ? 'إنشاء فاتورة بيع' : 'Create Sell Invoice'}
+              <FileText className="h-4 w-4 opacity-70" />
+              {language === 'ar' ? 'فاتورة بيع' : 'Sell invoice'}
             </button>
             <button
               type="button"
               onClick={() => approveMutation.mutate()}
               disabled={approveMutation.isPending || ['approved', 'received', 'cancelled', 'partially_received'].includes(order?.status)}
-              className="btn btn-secondary"
+              className={ghostBtn}
             >
               {approveMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  <CheckCircle2 className="w-4 h-4" />
+                  <CheckCircle2 className="h-4 w-4 opacity-70" />
                   {language === 'ar' ? 'اعتماد' : 'Approve'}
                 </>
               )}
@@ -443,13 +493,13 @@ export default function PurchaseOrderForm() {
               type="button"
               onClick={() => cancelMutation.mutate()}
               disabled={cancelMutation.isPending || ['received', 'cancelled'].includes(order?.status)}
-              className="btn btn-danger"
+              className="inline-flex items-center gap-2 rounded-xl border border-rose-200/80 bg-white px-3.5 py-2 text-[13px] font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-40 dark:border-rose-500/30 dark:bg-transparent dark:text-rose-300 dark:hover:bg-rose-500/10"
             >
               {cancelMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  <XCircle className="w-4 h-4" />
+                  <XCircle className="h-4 w-4 opacity-70" />
                   {language === 'ar' ? 'إلغاء' : 'Cancel'}
                 </>
               )}
@@ -458,18 +508,20 @@ export default function PurchaseOrderForm() {
         )}
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
-              <ShoppingCart className="w-5 h-5 text-primary-600" />
-            </div>
-            <h3 className="text-lg font-semibold">{language === 'ar' ? 'معلومات الطلب' : 'Order Information'}</h3>
+      <form id="po-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`${shell} p-5 sm:p-6`}>
+          <div className="mb-5 border-b border-slate-100 pb-4 dark:border-white/[0.08]">
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+              {language === 'ar' ? 'معلومات الطلب' : 'Order information'}
+            </p>
+            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+              {language === 'ar' ? 'المورد والتواريخ والملاحظات' : 'Supplier, dates, and notes'}
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className="label">{language === 'ar' ? 'رقم الطلب' : 'PO Number'}</label>
+              <label className="label">{language === 'ar' ? 'رقم الطلب' : 'PO number'}</label>
               <input
                 {...register('poNumber')}
                 className="input"
@@ -481,11 +533,7 @@ export default function PurchaseOrderForm() {
             <div>
               <label className="label">{language === 'ar' ? 'المورد' : 'Supplier'} *</label>
               <div className="flex gap-2">
-                <select
-                  {...register('supplierId', { required: true })}
-                  className="select flex-1"
-                  disabled={isLocked}
-                >
+                <select {...register('supplierId', { required: true })} className="select flex-1" disabled={isLocked}>
                   <option value="">{language === 'ar' ? 'اختر مورد' : 'Select supplier'}</option>
                   {(suppliers || []).map((s) => (
                     <option key={s._id} value={s._id}>
@@ -497,14 +545,16 @@ export default function PurchaseOrderForm() {
                   <button
                     type="button"
                     onClick={() => setShowSupplierModal(true)}
-                    className="btn btn-secondary shrink-0"
+                    className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-slate-200/80 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
                     title={language === 'ar' ? 'إضافة مورد جديد' : 'Add new supplier'}
                   >
-                    <UserPlus className="w-4 h-4" />
+                    <UserPlus className="h-4 w-4" />
                   </button>
                 )}
               </div>
-              {errors.supplierId && <p className="text-xs text-red-600 mt-1">{language === 'ar' ? 'المورد مطلوب' : 'Supplier is required'}</p>}
+              {errors.supplierId && (
+                <p className="mt-1 text-xs text-rose-600">{language === 'ar' ? 'المورد مطلوب' : 'Supplier is required'}</p>
+              )}
             </div>
 
             <div>
@@ -513,17 +563,17 @@ export default function PurchaseOrderForm() {
             </div>
 
             <div>
-              <label className="label">{language === 'ar' ? 'تاريخ الطلب' : 'Order Date'}</label>
+              <label className="label">{language === 'ar' ? 'تاريخ الطلب' : 'Order date'}</label>
               <div className="relative">
-                <Calendar className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Calendar className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input type="date" {...register('orderDate')} className="input ps-10" disabled={isLocked} />
               </div>
             </div>
 
             <div>
-              <label className="label">{language === 'ar' ? 'تاريخ متوقع' : 'Expected Date'}</label>
+              <label className="label">{language === 'ar' ? 'تاريخ متوقع' : 'Expected date'}</label>
               <div className="relative">
-                <Calendar className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Calendar className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input type="date" {...register('expectedDate')} className="input ps-10" disabled={isLocked} />
               </div>
             </div>
@@ -535,28 +585,47 @@ export default function PurchaseOrderForm() {
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="card p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Building className="w-5 h-5 text-blue-600" />
-              </div>
-              <h3 className="text-lg font-semibold">{language === 'ar' ? 'بنود الطلب' : 'Line Items'}</h3>
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.04 }}
+          className={`${shell} p-5 sm:p-6`}
+        >
+          <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white/[0.08]">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                {language === 'ar' ? 'بنود الطلب' : 'Line items'}
+              </p>
+              <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+                {language === 'ar' ? 'المنتجات والكميات والتكاليف' : 'Products, quantities, and costs'}
+              </p>
             </div>
 
             {!isLocked && (
               <button
                 type="button"
-                onClick={() => { append({ productId: '', manualName: '', uom: '', description: '', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }); setManualModes((p) => [...p, false]); }}
-                className="btn btn-secondary"
+                onClick={() => {
+                  append({
+                    productId: '',
+                    manualName: '',
+                    uom: '',
+                    description: '',
+                    quantityOrdered: 1,
+                    quantityReceived: 0,
+                    unitCost: 0,
+                    taxRate: 15,
+                  })
+                  setManualModes((p) => [...p, false])
+                }}
+                className={ghostBtn}
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="h-4 w-4 opacity-70" />
                 {language === 'ar' ? 'إضافة بند' : 'Add item'}
               </button>
             )}
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {fields.map((field, index) => {
               const current = lineItems?.[index] || {}
               const qty = Number(current?.quantityOrdered || 0)
@@ -569,20 +638,27 @@ export default function PurchaseOrderForm() {
               const remaining = Math.max(0, qty - received)
 
               return (
-                <div key={field.id} className="p-4 bg-gray-50 dark:bg-dark-700 rounded-xl">
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
+                <div
+                  key={field.id}
+                  className="rounded-2xl border border-slate-100 p-4 dark:border-white/[0.08]"
+                >
+                  <div className="grid grid-cols-1 items-end gap-4 lg:grid-cols-12">
                     <div className="lg:col-span-4">
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="mb-1 flex items-center justify-between">
                         <label className="label mb-0">{language === 'ar' ? 'المنتج' : 'Product'} *</label>
                         {!isLocked && (
                           <button
                             type="button"
                             onClick={() => toggleManualMode(index)}
-                            className="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 underline underline-offset-2"
+                            className="text-[11px] font-medium text-slate-500 underline underline-offset-2 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                           >
                             {manualModes[index]
-                              ? (language === 'ar' ? 'اختر من قائمة' : 'Select from list')
-                              : (language === 'ar' ? 'كتابة يدوية' : 'Type manually')}
+                              ? language === 'ar'
+                                ? 'اختر من قائمة'
+                                : 'Select from list'
+                              : language === 'ar'
+                                ? 'كتابة يدوية'
+                                : 'Type manually'}
                           </button>
                         )}
                       </div>
@@ -597,15 +673,36 @@ export default function PurchaseOrderForm() {
                           <div className="w-48">
                             <Select
                               inputId={`uom-${index}`}
-                              options={ZATCA_UOM_OPTIONS.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
-                              value={ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.uom`)) ? { value: watch(`lineItems.${index}.uom`), label: language === 'ar' ? ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.uom`))?.labelAr : ZATCA_UOM_OPTIONS.find(u => u.code === watch(`lineItems.${index}.uom`))?.labelEn } : null}
+                              options={ZATCA_UOM_OPTIONS.map((u) => ({
+                                value: u.code,
+                                label: language === 'ar' ? u.labelAr : u.labelEn,
+                              }))}
+                              value={
+                                ZATCA_UOM_OPTIONS.find((u) => u.code === watch(`lineItems.${index}.uom`))
+                                  ? {
+                                      value: watch(`lineItems.${index}.uom`),
+                                      label:
+                                        language === 'ar'
+                                          ? ZATCA_UOM_OPTIONS.find((u) => u.code === watch(`lineItems.${index}.uom`))
+                                              ?.labelAr
+                                          : ZATCA_UOM_OPTIONS.find((u) => u.code === watch(`lineItems.${index}.uom`))
+                                              ?.labelEn,
+                                    }
+                                  : null
+                              }
                               onChange={(selected) => setValue(`lineItems.${index}.uom`, selected?.value || 'PCE')}
                               isSearchable
                               isDisabled={isLocked}
                               menuPortalTarget={document.body}
                               styles={{
-                                menuPortal: base => ({ ...base, zIndex: 9999 }),
-                                control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
+                                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                                control: (base) => ({
+                                  ...base,
+                                  borderRadius: '0.75rem',
+                                  borderColor: '#e2e8f0',
+                                  padding: '0.125rem',
+                                  minHeight: '42px',
+                                }),
                               }}
                             />
                             <input type="hidden" {...register(`lineItems.${index}.uom`)} />
@@ -633,14 +730,18 @@ export default function PurchaseOrderForm() {
                         type="number"
                         min="0"
                         step="1"
-                        {...register(`lineItems.${index}.quantityOrdered`, { valueAsNumber: true, required: true, min: 0 })}
+                        {...register(`lineItems.${index}.quantityOrdered`, {
+                          valueAsNumber: true,
+                          required: true,
+                          min: 0,
+                        })}
                         className="input"
                         disabled={isLocked}
                       />
                     </div>
 
                     <div className="lg:col-span-2">
-                      <label className="label">{language === 'ar' ? 'سعر الوحدة' : 'Unit Cost'}</label>
+                      <label className="label">{language === 'ar' ? 'سعر الوحدة' : 'Unit cost'}</label>
                       <input
                         type="number"
                         min="0"
@@ -653,18 +754,26 @@ export default function PurchaseOrderForm() {
 
                     <div className="lg:col-span-2">
                       <label className="label">{language === 'ar' ? 'الضريبة' : 'Tax'} %</label>
-                      <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className="select" disabled={isLocked}>
+                      <select
+                        {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })}
+                        className="select"
+                        disabled={isLocked}
+                      >
                         <option value={15}>15%</option>
                         <option value={0}>0%</option>
                       </select>
                     </div>
 
-                    <div className="lg:col-span-2 flex items-center justify-between gap-3">
-                      <div className="text-end flex-1">
-                        <p className="text-xs text-gray-500 mb-1">{t('total')}</p>
-                        <p className="font-semibold"><Money value={lineTotal} /></p>
+                    <div className="flex items-center justify-between gap-3 lg:col-span-2">
+                      <div className="flex-1 text-end">
+                        <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                          {t('total')}
+                        </p>
+                        <p className="text-[14px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                          <Money value={lineTotal} />
+                        </p>
                         {isEdit && (
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="mt-1 text-[11px] text-slate-400">
                             {language === 'ar' ? 'متبقي' : 'Remaining'}: {remaining}
                           </p>
                         )}
@@ -673,9 +782,9 @@ export default function PurchaseOrderForm() {
                         <button
                           type="button"
                           onClick={() => remove(index)}
-                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50 dark:hover:bg-rose-500/10"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       )}
                     </div>
@@ -693,33 +802,44 @@ export default function PurchaseOrderForm() {
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-6">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-            <div className="space-y-2 md:w-72">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">{t('subtotal')}</span>
-                <span><Money value={totals.subtotal} /></span>
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className={`${shell} p-5 sm:p-6`}
+        >
+          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div className="w-full space-y-2.5 md:w-72">
+              <div className="flex justify-between text-[13px]">
+                <span className="text-slate-500">{t('subtotal')}</span>
+                <span className="tabular-nums text-slate-800 dark:text-slate-100">
+                  <Money value={totals.subtotal} />
+                </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">{t('tax')}</span>
-                <span><Money value={totals.totalTax} /></span>
+              <div className="flex justify-between text-[13px]">
+                <span className="text-slate-500">{t('tax')}</span>
+                <span className="tabular-nums text-slate-800 dark:text-slate-100">
+                  <Money value={totals.totalTax} />
+                </span>
               </div>
-              <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-dark-600">
-                <span>{t('total')}</span>
-                <span className="text-primary-600"><Money value={totals.grandTotal} /></span>
+              <div className="flex justify-between border-t border-slate-100 pt-3 text-[15px] font-semibold dark:border-white/[0.08]">
+                <span className="text-slate-900 dark:text-white">{t('total')}</span>
+                <span className="tabular-nums text-slate-900 dark:text-white">
+                  <Money value={totals.grandTotal} />
+                </span>
               </div>
             </div>
 
-            <div className="flex gap-3">
-              <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary">
+            <div className="hidden gap-3 md:flex">
+              <button type="button" onClick={() => navigate('/app/dashboard/purchase-orders')} className={ghostBtn}>
                 {t('cancel')}
               </button>
-              <button type="submit" disabled={saveMutation.isPending || isLocked} className="btn btn-primary">
+              <button type="submit" disabled={saveMutation.isPending || isLocked} className={primaryBtn}>
                 {saveMutation.isPending ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Save className="w-4 h-4" />
+                    <Save className="h-4 w-4 opacity-80" />
                     {t('save')}
                   </>
                 )}
@@ -729,19 +849,53 @@ export default function PurchaseOrderForm() {
         </motion.div>
       </form>
 
+      {/* Sticky primary save */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/80 bg-white/90 px-4 py-3 backdrop-blur-md dark:border-white/10 dark:bg-[#0c111a]/90 md:hidden">
+        <div className="mx-auto flex max-w-lg gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/app/dashboard/purchase-orders')}
+            className={`${ghostBtn} flex-1 justify-center`}
+          >
+            {t('cancel')}
+          </button>
+          <button
+            type="submit"
+            form="po-form"
+            disabled={saveMutation.isPending || isLocked}
+            className={`${primaryBtn} flex-1 justify-center`}
+          >
+            {saveMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Save className="h-4 w-4 opacity-80" />
+                {t('save')}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
       {isEdit && order && ['approved', 'partially_received'].includes(order.status) && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
-              <WarehouseIcon className="w-5 h-5 text-emerald-600" />
-            </div>
-            <h3 className="text-lg font-semibold">{language === 'ar' ? 'استلام المخزون' : 'Receive Stock'}</h3>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`${shell} p-5 sm:p-6`}>
+          <div className="mb-5 border-b border-slate-100 pb-4 dark:border-white/[0.08]">
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+              {language === 'ar' ? 'استلام المخزون' : 'Receive stock'}
+            </p>
+            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+              {language === 'ar' ? 'تسجيل الكميات الواردة وتحديث المخزون' : 'Record incoming quantities and update stock'}
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="lg:col-span-1">
               <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
-              <select value={receiveWarehouseId} onChange={(e) => setReceiveWarehouseId(e.target.value)} className="select">
+              <select
+                value={receiveWarehouseId}
+                onChange={(e) => setReceiveWarehouseId(e.target.value)}
+                className="select"
+              >
                 {(warehouses || []).map((w) => (
                   <option key={w._id} value={w._id}>
                     {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
@@ -751,54 +905,74 @@ export default function PurchaseOrderForm() {
             </div>
 
             <div className="lg:col-span-2">
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>{language === 'ar' ? 'المنتج' : 'Product'}</th>
-                      <th>{language === 'ar' ? 'المتبقي' : 'Remaining'}</th>
-                      <th>{language === 'ar' ? 'استلام' : 'Receive'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(order.lineItems || []).map((li) => {
-                      const productId = li?.productId?._id || li?.productId
-                      const name = li?.manualName
-                        ? `${li.manualName}${li.uom ? ` (${li.uom})` : ''}`
-                        : (language === 'ar' ? li?.productId?.nameAr || li?.productId?.nameEn : li?.productId?.nameEn || li?.productId?.nameAr)
-                      const remaining = Math.max(0, Number(li.quantityOrdered || 0) - Number(li.quantityReceived || 0))
+              <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-white/[0.08]">
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                          {language === 'ar' ? 'المنتج' : 'Product'}
+                        </th>
+                        <th className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                          {language === 'ar' ? 'المتبقي' : 'Remaining'}
+                        </th>
+                        <th className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                          {language === 'ar' ? 'استلام' : 'Receive'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(order.lineItems || []).map((li, rowIndex) => {
+                        const productId = li?.productId?._id || li?.productId
+                        const name = li?.manualName
+                          ? `${li.manualName}${li.uom ? ` (${li.uom})` : ''}`
+                          : language === 'ar'
+                            ? li?.productId?.nameAr || li?.productId?.nameEn
+                            : li?.productId?.nameEn || li?.productId?.nameAr
+                        const remaining = Math.max(
+                          0,
+                          Number(li.quantityOrdered || 0) - Number(li.quantityReceived || 0)
+                        )
 
-                      return (
-                        <tr key={productId || li?.manualName || index}>
-                          <td className="font-medium text-gray-900 dark:text-white">{name || '-'}</td>
-                          <td>{remaining}</td>
-                          <td>
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              max={remaining}
-                              value={receiveQty?.[productId] ?? ''}
-                              onChange={(e) => setReceiveQty((prev) => ({ ...prev, [productId]: e.target.value }))}
-                              className="input"
-                              placeholder="0"
-                              disabled={remaining <= 0}
-                            />
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                        return (
+                          <tr key={productId || li?.manualName || rowIndex}>
+                            <td className="text-[13px] font-medium text-slate-900 dark:text-white">{name || '—'}</td>
+                            <td className="tabular-nums text-slate-600 dark:text-slate-300">{remaining}</td>
+                            <td>
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                max={remaining}
+                                value={receiveQty?.[productId] ?? ''}
+                                onChange={(e) =>
+                                  setReceiveQty((prev) => ({ ...prev, [productId]: e.target.value }))
+                                }
+                                className="input"
+                                placeholder="0"
+                                disabled={remaining <= 0}
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <div className="mt-4 flex justify-end">
-                <button type="button" onClick={submitReceive} disabled={receiveMutation.isPending} className="btn btn-primary">
+                <button
+                  type="button"
+                  onClick={submitReceive}
+                  disabled={receiveMutation.isPending}
+                  className={primaryBtn}
+                >
                   {receiveMutation.isPending ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      <WarehouseIcon className="w-4 h-4" />
+                      <WarehouseIcon className="h-4 w-4 opacity-80" />
                       {language === 'ar' ? 'تسجيل الاستلام' : 'Receive'}
                     </>
                   )}
@@ -810,21 +984,27 @@ export default function PurchaseOrderForm() {
       )}
 
       {showSupplierModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="card p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto"
+            className={`${shell} w-full max-w-sm max-h-[90vh] overflow-y-auto p-6`}
           >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
-                  <UserPlus className="w-5 h-5 text-primary-600" />
-                </div>
-                <h3 className="text-lg font-semibold">{language === 'ar' ? 'إضافة مورد سريع' : 'Quick Add Supplier'}</h3>
+            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-white/[0.08]">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                  {language === 'ar' ? 'الموردون' : 'Suppliers'}
+                </p>
+                <h3 className="mt-1 text-[16px] font-semibold tracking-tight text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'إضافة مورد سريع' : 'Quick add supplier'}
+                </h3>
               </div>
-              <button type="button" onClick={() => setShowSupplierModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
-                <X className="w-5 h-5" />
+              <button
+                type="button"
+                onClick={() => setShowSupplierModal(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:hover:bg-white/10"
+              >
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -857,22 +1037,22 @@ export default function PurchaseOrderForm() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button type="button" onClick={() => setShowSupplierModal(false)} className="btn btn-secondary">
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowSupplierModal(false)} className={ghostBtn}>
                 {t('cancel')}
               </button>
               <button
                 type="button"
                 onClick={submitInlineSupplier}
                 disabled={addSupplierMutation.isPending}
-                className="btn btn-primary"
+                className={primaryBtn}
               >
                 {addSupplierMutation.isPending ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Save className="w-4 h-4" />
-                    {language === 'ar' ? 'حفظ المورد' : 'Save Supplier'}
+                    <Save className="h-4 w-4 opacity-80" />
+                    {language === 'ar' ? 'حفظ المورد' : 'Save supplier'}
                   </>
                 )}
               </button>

@@ -236,8 +236,8 @@ const fallbackPricingPlans = [
   },
   {
     id: 'enterprise',
-    nameEn: 'Ultra Premium',
-    nameAr: 'ألترا بريميوم',
+    nameEn: 'Enterprise',
+    nameAr: 'المؤسسات',
     priceMonthly: 0,
     priceYearly: 0,
     popular: false,

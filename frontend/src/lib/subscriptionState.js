@@ -2,9 +2,18 @@
  * Shared subscription / trial gate helpers for Profile, badge, and banners.
  */
 
+export function normalizePlanId(plan) {
+  const raw = String(plan || 'trial').trim().toLowerCase().replace(/[\s-]+/g, '_')
+  if (['enterprise', 'ultra_premium', 'ultrapremium', 'ultra'].includes(raw)) return 'enterprise'
+  if (['professional', 'pro'].includes(raw)) return 'professional'
+  if (['starter', 'basic'].includes(raw)) return 'starter'
+  if (['trial', 'demo'].includes(raw)) return 'trial'
+  return raw || 'trial'
+}
+
 export function getSubscriptionState(tenant) {
   const sub = tenant?.subscription || {}
-  const plan = String(sub.plan || 'trial').toLowerCase()
+  const plan = normalizePlanId(sub.plan || 'trial')
   const status = String(sub.status || '').toLowerCase()
   const isDemoPending = tenant?.isDemo === true && tenant?.demoUpgraded !== true
   const isTrialPlan = plan === 'trial' || isDemoPending
@@ -53,13 +62,13 @@ export function formatSubscriptionDate(dateString, language = 'en') {
 
 export function getPlanDisplayName(plan, language = 'en') {
   const isAr = language === 'ar'
-  switch (String(plan || 'trial').toLowerCase()) {
+  switch (normalizePlanId(plan)) {
     case 'starter':
       return isAr ? 'الباقة الأساسية' : 'Starter Plan'
     case 'professional':
       return isAr ? 'الباقة الاحترافية' : 'Professional Plan'
     case 'enterprise':
-      return isAr ? 'ألترا بريميوم' : 'Ultra Premium Plan'
+      return isAr ? 'باقة المؤسسات' : 'Enterprise Plan'
     case 'trial':
     default:
       return isAr ? 'الباقة التجريبية' : 'Trial Plan'
@@ -68,13 +77,13 @@ export function getPlanDisplayName(plan, language = 'en') {
 
 export function getPlanShortName(plan, language = 'en') {
   const isAr = language === 'ar'
-  switch (String(plan || 'trial').toLowerCase()) {
+  switch (normalizePlanId(plan)) {
     case 'starter':
       return isAr ? 'الأساسية' : 'Starter'
     case 'professional':
       return isAr ? 'الاحترافية' : 'Professional'
     case 'enterprise':
-      return isAr ? 'ألترا بريميوم' : 'Ultra Premium'
+      return isAr ? 'المؤسسات' : 'Enterprise'
     case 'trial':
     default:
       return isAr ? 'تجريبية' : 'Trial'

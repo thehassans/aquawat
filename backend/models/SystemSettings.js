@@ -62,8 +62,8 @@ const getDefaultPlans = () => [
   },
   {
     id: 'enterprise',
-    nameEn: 'Ultra Premium',
-    nameAr: 'ألترا بريميوم',
+    nameEn: 'Enterprise',
+    nameAr: 'المؤسسات',
     ...applyStandardPrices('enterprise'),
     popular: false,
     featuresEn: ['Everything in Professional', 'Unlimited users', 'Dedicated Account Manager', 'Custom Integrations', 'On-premise Option', '24/7 Phone Support', 'SLA Guarantee'],
@@ -89,7 +89,7 @@ export const getDefaultPlansByBusinessType = (businessType) => {
   const professional = (priceMonthly, priceYearly, featuresEn, featuresAr) =>
     plan('professional', 'Professional', 'الاحترافية', priceMonthly, priceYearly, true, featuresEn, featuresAr);
   const enterprise = () =>
-    plan('enterprise', 'Ultra Premium', 'ألترا بريميوم', 0, 0, false, ['Unlimited users', 'Dedicated account manager', 'Custom integrations', 'On-premise or private cloud', '24/7 phone support'], ['مستخدمون غير محدودين', 'مدير حساب مخصص', 'تكاملات مخصصة', 'خادم خاص أو سحابة خاصة', 'دعم هاتفي 24/7']);
+    plan('enterprise', 'Enterprise', 'المؤسسات', 0, 0, false, ['Unlimited users', 'Dedicated account manager', 'Custom integrations', 'On-premise or private cloud', '24/7 phone support'], ['مستخدمون غير محدودين', 'مدير حساب مخصص', 'تكاملات مخصصة', 'خادم خاص أو سحابة خاصة', 'دعم هاتفي 24/7']);
 
   switch (type) {
     case 'trading':

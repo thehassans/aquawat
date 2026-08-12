@@ -60,8 +60,8 @@ const fallbackPlans = [
   },
   {
     id: 'enterprise',
-    nameEn: 'Ultra Premium',
-    nameAr: 'ألترا بريميوم',
+    nameEn: 'Enterprise',
+    nameAr: 'المؤسسات',
     taglineEn: 'Custom solutions for large organizations',
     taglineAr: 'حلول مخصصة للمؤسسات الكبيرة',
     priceMonthlyUsd: 0,
@@ -346,7 +346,7 @@ export default function MarketingPricing() {
               <thead>
                 <tr className="border-b border-white/10 bg-white/[0.04]">
                   <th className="p-5 text-left font-bold text-white/60 w-1/2">{isArabic ? 'الميزة' : 'Feature'}</th>
-                  {['Starter', 'Pro', 'Ultra Premium'].map((h) => (
+                  {['Starter', 'Pro', 'Enterprise'].map((h) => (
                     <th key={h} className="p-5 text-center font-bold text-white">{h}</th>
                   ))}
                 </tr>

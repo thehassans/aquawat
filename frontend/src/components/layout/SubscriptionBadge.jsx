@@ -145,22 +145,20 @@ export default function SubscriptionBadge({ tenant, language }) {
                   </span>
                 </div>
 
-                {endDate && (
-                  <div className="flex items-center justify-between gap-4 text-[12px]">
-                    <span className="text-slate-400 dark:text-slate-500">
-                      {isAr ? 'تاريخ الانتهاء' : 'Ends on'}
-                    </span>
-                    <span
-                      className={`font-medium tabular-nums ${
-                        isExpired
-                          ? 'text-rose-600 dark:text-rose-400'
-                          : 'text-slate-800 dark:text-slate-200'
-                      }`}
-                    >
-                      {formatDate(endDate)}
-                    </span>
-                  </div>
-                )}
+                <div className="flex items-center justify-between gap-4 text-[12px]">
+                  <span className="text-slate-400 dark:text-slate-500">
+                    {isAr ? 'تاريخ الانتهاء' : 'End date'}
+                  </span>
+                  <span
+                    className={`font-medium tabular-nums ${
+                      isExpired
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : 'text-slate-800 dark:text-slate-200'
+                    }`}
+                  >
+                    {formatDate(endDate)}
+                  </span>
+                </div>
 
                 {!isExpired && daysLeft !== null && (
                   <div className="flex items-center justify-between gap-4 text-[12px]">

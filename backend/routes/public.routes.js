@@ -114,13 +114,42 @@ const generateToken = (id) => {
   })
 }
 
+const normalizeStoredPlanLabels = (plans = []) =>
+  (Array.isArray(plans) ? plans : []).map((plan) => {
+    if (!plan) return plan
+    const id = String(plan.id || '').toLowerCase()
+    const nameEn = String(plan.nameEn || '')
+    const nameAr = String(plan.nameAr || '')
+    const isEnterprise =
+      id === 'enterprise' ||
+      /ultra\s*premium/i.test(nameEn) ||
+      /ألترا\s*بريميوم/.test(nameAr) ||
+      /ultra\s*premium/i.test(nameAr)
+    if (!isEnterprise) return plan
+    return {
+      ...(typeof plan.toObject === 'function' ? plan.toObject() : plan),
+      id: 'enterprise',
+      nameEn: 'Enterprise',
+      nameAr: 'المؤسسات',
+    }
+  })
+
 const resolvePricingForBusinessType = (pricing, businessType) => {
-  if (!businessType) return pricing
+  if (!businessType) {
+    return {
+      ...pricing,
+      plans: normalizeStoredPlanLabels(pricing?.plans),
+      plansByBusinessType: (pricing?.plansByBusinessType || []).map((row) => ({
+        ...row,
+        plans: normalizeStoredPlanLabels(row?.plans),
+      })),
+    }
+  }
   const custom = pricing?.plansByBusinessType?.find((p) => p.businessType === businessType)
   const plans = custom?.plans?.length ? custom.plans : getDefaultPlansByBusinessType(businessType)
   return {
     ...pricing,
-    plans
+    plans: normalizeStoredPlanLabels(plans),
   }
 }
 
