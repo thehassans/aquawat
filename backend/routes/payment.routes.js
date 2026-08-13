@@ -1,6 +1,7 @@
 import express from 'express'
 import SystemSettings from '../models/SystemSettings.js'
 import Tenant from '../models/Tenant.js'
+import { getPlanEntitlements } from '../utils/planEntitlements.js'
 import DemoUser from '../models/DemoUser.js'
 import { protect } from '../middleware/auth.js'
 import { sendUpgradeWelcomeEmail, sendPaymentFailedEmail } from '../utils/emailService.js'
@@ -82,6 +83,7 @@ const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amo
   const now = new Date()
   const endDate = new Date(now.getTime() + (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000)
 
+  const entitlements = getPlanEntitlements(plan, billingCycle)
   const update = {
     isDemo: false,
     demoUpgraded: true,
@@ -91,6 +93,9 @@ const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amo
     'subscription.endDate': endDate,
     'subscription.billingCycle': billingCycle,
     'subscription.price': Number(amountHalalas) / 100,
+    'subscription.maxUsers': entitlements.maxUsers,
+    'subscription.maxInvoices': entitlements.maxInvoices,
+    'subscription.maxQuotations': entitlements.maxQuotations,
   }
 
   if (zatcaPhase2 === true || zatcaPhase2 === '1' || zatcaPhase2 === 1) {

@@ -40,8 +40,9 @@ export function getSubscriptionState(tenant) {
     startDate: sub.startDate || null,
     endDate: endRaw,
     billingCycle: sub.billingCycle || 'monthly',
-    maxUsers: sub.maxUsers || 5,
-    maxInvoices: sub.maxInvoices || 100,
+    maxUsers: sub.maxUsers || 1,
+    maxInvoices: sub.maxInvoices || 10,
+    maxQuotations: sub.maxQuotations || 10,
     isDemoPending,
     isTrialPlan,
     isExpired,
@@ -91,11 +92,27 @@ export function getPlanShortName(plan, language = 'en') {
   }
 }
 
-/** Display limits that match backend/middleware/trialLimits.js for trial/demo. */
+/** Display limits that match backend trial + paid entitlements. */
 export const TRIAL_DISPLAY_LIMITS = {
-  users: 5,
+  users: 1,
   invoices: 10,
   quotations: 10,
+}
+
+export const PLAN_DISPLAY_LIMITS = {
+  trial: { monthly: TRIAL_DISPLAY_LIMITS, yearly: TRIAL_DISPLAY_LIMITS },
+  starter: {
+    monthly: { users: 1, invoices: 50, quotations: 50 },
+    yearly: { users: 1, invoices: 500, quotations: 500 },
+  },
+  professional: {
+    monthly: { users: 3, invoices: 100, quotations: 100 },
+    yearly: { users: 3, invoices: 1000, quotations: 1000 },
+  },
+  enterprise: {
+    monthly: { users: 0, invoices: 0, quotations: 0 },
+    yearly: { users: 0, invoices: 0, quotations: 0 },
+  },
 }
 
 export function formatPlanLimit(value, language = 'en') {
@@ -106,14 +123,20 @@ export function formatPlanLimit(value, language = 'en') {
 
 export function getPlanLimits(tenant) {
   const state = getSubscriptionState(tenant)
+  if (state.isTrialPlan) return { ...TRIAL_DISPLAY_LIMITS }
+
   const sub = tenant?.subscription || {}
-  if (state.isTrialPlan) {
-    return { ...TRIAL_DISPLAY_LIMITS }
-  }
+  const cycle = state.billingCycle === 'yearly' ? 'yearly' : 'monthly'
+  const catalog = PLAN_DISPLAY_LIMITS[state.plan]?.[cycle] || PLAN_DISPLAY_LIMITS.starter.monthly
+
+  const users = Number(sub.maxUsers)
+  const invoices = Number(sub.maxInvoices)
+  const quotations = Number(sub.maxQuotations)
+
   return {
-    users: Number(sub.maxUsers) || state.maxUsers || 5,
-    invoices: Number(sub.maxInvoices) || 0,
-    quotations: 0,
+    users: Number.isFinite(users) && users > 0 ? users : catalog.users,
+    invoices: Number.isFinite(invoices) && invoices > 0 ? invoices : catalog.invoices,
+    quotations: Number.isFinite(quotations) && quotations > 0 ? quotations : catalog.quotations,
   }
 }
 

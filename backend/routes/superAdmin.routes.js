@@ -14,7 +14,8 @@ import TravelBooking from '../models/TravelBooking.js';
 import RestaurantOrder from '../models/RestaurantOrder.js';
 import EmailMessage from '../models/EmailMessage.js';
 import Employee from '../models/Employee.js';
-import SystemSettings, { getDefaultPricingPlans, getDefaultPlansByBusinessType } from '../models/SystemSettings.js';
+import SystemSettings, { getDefaultPricingPlans, getDefaultPlansByBusinessType, overlayCatalogPrices } from '../models/SystemSettings.js';
+import { getPlanEntitlements } from '../utils/planEntitlements.js';
 import Expense from '../models/Expense.js';
 import Product from '../models/Product.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
@@ -135,8 +136,11 @@ const mergeWebsiteDefaults = (website) => {
     pricing: {
       ...(defaults.pricing || {}),
       ...(current.pricing || {}),
-      plans: hasPlans ? currentPlans : getDefaultPricingPlans(),
-      plansByBusinessType: mergedPlansByBusinessType
+      plans: overlayCatalogPrices(hasPlans ? currentPlans : getDefaultPricingPlans()),
+      plansByBusinessType: mergedPlansByBusinessType.map((row) => ({
+        ...row,
+        plans: overlayCatalogPrices(row?.plans),
+      })),
     }
   };
 };
@@ -998,6 +1002,8 @@ router.post('/tenants', async (req, res) => {
       ? businessType
       : getPrimaryBusinessType({ businessTypes: nextBusinessTypes, businessType });
 
+    const entitlements = getPlanEntitlements(subscription?.plan || 'starter', subscription?.billingCycle || 'monthly');
+
     // Create tenant
     const tenant = await Tenant.create({
       name,
@@ -1013,6 +1019,9 @@ router.post('/tenants', async (req, res) => {
       ...(zatca ? { zatca: { phase: zatca.phase || 1 } } : {}),
       subscription: {
         ...subscription,
+        maxUsers: subscription?.maxUsers ?? entitlements.maxUsers,
+        maxInvoices: subscription?.maxInvoices ?? entitlements.maxInvoices,
+        maxQuotations: subscription?.maxQuotations ?? entitlements.maxQuotations,
         startDate: subscription?.startDate ? new Date(subscription.startDate) : new Date(),
         endDate: subscription?.endDate ? new Date(subscription.endDate) : new Date(Date.now() + (subscription?.billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000)
       },
@@ -1186,12 +1195,13 @@ router.put('/tenants/:id', async (req, res) => {
 // @route   PUT /api/super-admin/tenants/:id/subscription
 router.put('/tenants/:id/subscription', async (req, res) => {
   try {
-    const { plan, status, maxUsers, maxInvoices, features, billingCycle, price, hasEmailAddon, endDate } = req.body;
+    const { plan, status, maxUsers, maxInvoices, maxQuotations, features, billingCycle, price, hasEmailAddon, endDate } = req.body;
     
     const updateData = { 'subscription.plan': plan };
     if (status) updateData['subscription.status'] = status;
-    if (maxUsers) updateData['subscription.maxUsers'] = maxUsers;
-    if (maxInvoices) updateData['subscription.maxInvoices'] = maxInvoices;
+    if (maxUsers !== undefined && maxUsers !== null && maxUsers !== '') updateData['subscription.maxUsers'] = maxUsers;
+    if (maxInvoices !== undefined && maxInvoices !== null && maxInvoices !== '') updateData['subscription.maxInvoices'] = maxInvoices;
+    if (maxQuotations !== undefined && maxQuotations !== null && maxQuotations !== '') updateData['subscription.maxQuotations'] = maxQuotations;
     if (features) {
       const featureList = Array.isArray(features) ? features.filter(Boolean) : [];
       updateData['subscription.features'] = hasEmailAddon === true

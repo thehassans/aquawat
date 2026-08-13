@@ -690,6 +690,10 @@ export default function TenantForm() {
                   <input type="number" {...register('subscription.maxInvoices', { valueAsNumber: true })} className="input" />
                 </div>
                 <div>
+                  <label className="label">{language === 'ar' ? 'الحد الأقصى لعروض الأسعار' : 'Max Quotations'}</label>
+                  <input type="number" {...register('subscription.maxQuotations', { valueAsNumber: true })} className="input" />
+                </div>
+                <div>
                   <label className="label">
                     <span className="inline-flex items-center gap-1">
                       {language === 'ar' ? 'السعر' : 'Price'}

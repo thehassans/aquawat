@@ -3,7 +3,7 @@ import mongoose from 'mongoose'
 import jwt from 'jsonwebtoken'
 import Tenant from '../models/Tenant.js'
 import User from '../models/User.js'
-import SystemSettings, { getDefaultPricingPlans, getDefaultPlansByBusinessType } from '../models/SystemSettings.js'
+import SystemSettings, { getDefaultPricingPlans, getDefaultPlansByBusinessType, overlayCatalogPrices } from '../models/SystemSettings.js'
 import RestaurantMenuItem from '../models/RestaurantMenuItem.js'
 import RestaurantOrder from '../models/RestaurantOrder.js'
 import SaloonService from '../models/SaloonService.js'
@@ -133,8 +133,11 @@ const mergeWebsiteDefaults = (website) => {
     pricing: {
       ...(defaults.pricing || {}),
       ...(current.pricing || {}),
-      plans: hasPlans ? currentPlans : getDefaultPricingPlans(),
-      plansByBusinessType: mergedPlansByBusinessType
+      plans: overlayCatalogPrices(hasPlans ? currentPlans : getDefaultPricingPlans()),
+      plansByBusinessType: mergedPlansByBusinessType.map((row) => ({
+        ...row,
+        plans: overlayCatalogPrices(row?.plans),
+      })),
     },
   }
 }
@@ -177,7 +180,7 @@ const resolvePricingForBusinessType = (pricing, businessType) => {
     }
   }
   const custom = pricing?.plansByBusinessType?.find((p) => p.businessType === businessType)
-  const plans = custom?.plans?.length ? custom.plans : getDefaultPlansByBusinessType(businessType)
+  const plans = overlayCatalogPrices(custom?.plans?.length ? custom.plans : getDefaultPlansByBusinessType(businessType))
   return {
     ...pricing,
     plans: normalizeStoredPlanLabels(plans),
@@ -440,8 +443,9 @@ router.post('/demo-signup', async (req, res) => {
         status: 'active',
         startDate: trialStartDate,
         endDate: trialEndDate,
-        maxUsers: 10,
-        maxInvoices: 500,
+        maxUsers: 1,
+        maxInvoices: 10,
+        maxQuotations: 10,
         billingCycle: 'monthly',
         price: 0,
       },

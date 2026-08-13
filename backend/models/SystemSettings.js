@@ -1,12 +1,12 @@
 import mongoose from 'mongoose';
 
-const defaultPlanFeaturesEn = ['ZATCA E-Invoicing', 'Inventory & Warehouses', 'Basic Reports', 'Up to 5 users'];
-const defaultPlanFeaturesAr = ['الفوترة الإلكترونية', 'المخزون والمستودعات', 'تقارير أساسية', 'حتى 5 مستخدمين'];
+const defaultPlanFeaturesEn = ['ZATCA E-Invoicing', 'Inventory & Warehouses', 'Basic Reports', '1 user'];
+const defaultPlanFeaturesAr = ['الفوترة الإلكترونية', 'المخزون والمستودعات', 'تقارير أساسية', 'مستخدم واحد'];
 
 /** Clean psychological list prices — set independently per currency (no FX conversion). */
 export const STANDARD_PLAN_PRICES = {
-  starter: { monthlySar: 99.99, yearlySar: 999.99, monthlyUsd: 29.99, yearlyUsd: 299.99 },
-  professional: { monthlySar: 199.99, yearlySar: 1999.99, monthlyUsd: 59.99, yearlyUsd: 599.99 },
+  starter: { monthlySar: 49.99, yearlySar: 499.99, monthlyUsd: 29.99, yearlyUsd: 299.99 },
+  professional: { monthlySar: 99.99, yearlySar: 999.99, monthlyUsd: 59.99, yearlyUsd: 599.99 },
   enterprise: { monthlySar: 0, yearlySar: 0, monthlyUsd: 0, yearlyUsd: 0 },
 }
 
@@ -30,10 +30,10 @@ const planSchema = new mongoose.Schema({
   id: { type: String, default: 'starter' },
   nameEn: { type: String, default: 'Starter' },
   nameAr: { type: String, default: 'البداية' },
-  priceMonthly: { type: Number, default: 99.99 },
-  priceYearly: { type: Number, default: 999.99 },
-  priceMonthlySar: { type: Number, default: 99.99 },
-  priceYearlySar: { type: Number, default: 999.99 },
+  priceMonthly: { type: Number, default: 49.99 },
+  priceYearly: { type: Number, default: 499.99 },
+  priceMonthlySar: { type: Number, default: 49.99 },
+  priceYearlySar: { type: Number, default: 499.99 },
   priceMonthlyUsd: { type: Number, default: 29.99 },
   priceYearlyUsd: { type: Number, default: 299.99 },
   popular: { type: Boolean, default: false },
@@ -48,8 +48,8 @@ const getDefaultPlans = () => [
     nameAr: 'البداية',
     ...applyStandardPrices('starter'),
     popular: false,
-    featuresEn: ['ZATCA E-Invoicing', 'Up to 100 invoices/month', 'Inventory & Warehouses', 'Basic Reports', 'Up to 5 users', 'Email Support'],
-    featuresAr: ['الفوترة الإلكترونية', 'حتى 100 فاتورة/شهر', 'المخزون والمستودعات', 'تقارير أساسية', 'حتى 5 مستخدمين', 'دعم بالبريد']
+    featuresEn: ['ZATCA E-Invoicing', '1 user', '50 invoices / month', '50 quotations / month', 'Inventory & Warehouses', 'Basic Reports', 'Email Support'],
+    featuresAr: ['الفوترة الإلكترونية', 'مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'المخزون والمستودعات', 'تقارير أساسية', 'دعم بالبريد']
   },
   {
     id: 'professional',
@@ -57,8 +57,8 @@ const getDefaultPlans = () => [
     nameAr: 'الاحترافية',
     ...applyStandardPrices('professional'),
     popular: true,
-    featuresEn: ['Everything in Starter', 'Unlimited Invoices', 'HR & Payroll (GOSI/WPS)', 'Expenses & Finance', 'Projects & Tasks', 'Advanced Reports', 'Up to 25 users', 'Priority Support'],
-    featuresAr: ['كل ما في البداية', 'فواتير غير محدودة', 'الموارد البشرية والرواتب', 'المصروفات والمالية', 'المشاريع والمهام', 'تقارير متقدمة', 'حتى 25 مستخدم', 'دعم ذو أولوية']
+    featuresEn: ['Everything in Starter', '3 users', '100 invoices / month', '100 quotations / month', 'HR & Payroll (GOSI/WPS)', 'Expenses & Finance', 'Projects & Tasks', 'Advanced Reports', 'Priority Support'],
+    featuresAr: ['كل ما في البداية', '3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'الموارد البشرية والرواتب', 'المصروفات والمالية', 'المشاريع والمهام', 'تقارير متقدمة', 'دعم ذو أولوية']
   },
   {
     id: 'enterprise',
@@ -94,92 +94,102 @@ export const getDefaultPlansByBusinessType = (businessType) => {
   switch (type) {
     case 'trading':
       return [
-        starter(199, 1990, ['1 user', '100 invoices/month', 'Purchase orders', 'Inventory management', 'ZATCA E-Invoicing', 'Basic reports'], ['مستخدم واحد', '100 فاتورة/شهر', 'أوامر الشراء', 'إدارة المخزون', 'الفوترة الإلكترونية', 'تقارير أساسية']),
-        professional(499, 4990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Multi-warehouse', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'مستودعات متعددة', 'تقارير متقدمة']),
+        starter(199, 1990, ['1 user', '50 invoices / month', '50 quotations / month', 'Purchase orders', 'Inventory management', 'ZATCA E-Invoicing', 'Basic reports'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'أوامر الشراء', 'إدارة المخزون', 'الفوترة الإلكترونية', 'تقارير أساسية']),
+        professional(499, 4990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Multi-warehouse', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'مستودعات متعددة', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'construction':
       return [
-        starter(249, 2490, ['1 user', '100 invoices/month', 'Projects & job costing', 'Purchase orders', 'Quotations', 'ZATCA E-Invoicing'], ['مستخدم واحد', '100 فاتورة/شهر', 'المشاريع وتكلفة المهام', 'أوامر الشراء', 'عروض الأسعار', 'الفوترة الإلكترونية']),
-        professional(599, 5990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Progress billing', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'الفوترة التدريجية', 'تقارير متقدمة']),
+        starter(249, 2490, ['1 user', '50 invoices / month', '50 quotations / month', 'Projects & job costing', 'Purchase orders', 'Quotations', 'ZATCA E-Invoicing'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'المشاريع وتكلفة المهام', 'أوامر الشراء', 'عروض الأسعار', 'الفوترة الإلكترونية']),
+        professional(599, 5990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Progress billing', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'الفوترة التدريجية', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'travel_agency':
       return [
-        starter(249, 2490, ['1 user', '100 invoices/month', 'Travel bookings', 'Ticket invoices', 'Package management', 'ZATCA E-Invoicing'], ['مستخدم واحد', '100 فاتورة/شهر', 'حجوزات السفر', 'فواتير التذاكر', 'إدارة الباقات', 'الفوترة الإلكترونية']),
-        professional(599, 5990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Supplier reconciliation', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تسوية الموردين', 'تقارير متقدمة']),
+        starter(249, 2490, ['1 user', '50 invoices / month', '50 quotations / month', 'Travel bookings', 'Ticket invoices', 'Package management', 'ZATCA E-Invoicing'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'حجوزات السفر', 'فواتير التذاكر', 'إدارة الباقات', 'الفوترة الإلكترونية']),
+        professional(599, 5990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Supplier reconciliation', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تسوية الموردين', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'restaurant':
       return [
-        starter(249, 2490, ['1 user', '100 invoices/month', 'POS & orders', 'Menu management', 'Table management', 'Kitchen display'], ['مستخدم واحد', '100 فاتورة/شهر', 'نقطة البيع والطلبات', 'إدارة القائمة', 'إدارة الطاولات', 'شاشة المطبخ']),
-        professional(599, 5990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Inventory tracking', 'Online menu & QR'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تتبع المخزون', 'قائمة وQR اونلاين']),
+        starter(249, 2490, ['1 user', '50 invoices / month', '50 quotations / month', 'POS & orders', 'Menu management', 'Table management', 'Kitchen display'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'نقطة البيع والطلبات', 'إدارة القائمة', 'إدارة الطاولات', 'شاشة المطبخ']),
+        professional(599, 5990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Inventory tracking', 'Online menu & QR'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تتبع المخزون', 'قائمة وQR اونلاين']),
         enterprise()
       ];
     case 'car_rental':
       return [
-        starter(249, 2490, ['1 user', '100 invoices/month', 'Fleet management', 'Rental contracts', 'POS checkout', 'Vehicle tracking'], ['مستخدم واحد', '100 فاتورة/شهر', 'إدارة الأسطول', 'عقود التأجير', 'نقطة البيع', 'تتبع المركبات']),
-        professional(599, 5990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Maintenance logs', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'سجلات الصيانة', 'تقارير متقدمة']),
+        starter(249, 2490, ['1 user', '50 invoices / month', '50 quotations / month', 'Fleet management', 'Rental contracts', 'POS checkout', 'Vehicle tracking'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'إدارة الأسطول', 'عقود التأجير', 'نقطة البيع', 'تتبع المركبات']),
+        professional(599, 5990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Maintenance logs', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'سجلات الصيانة', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'laundry':
       return [
-        starter(199, 1990, ['1 user', '100 invoices/month', 'Laundry orders', 'POS checkout', 'Inventory management', 'Customer tracking'], ['مستخدم واحد', '100 فاتورة/شهر', 'طلبات المغسلة', 'نقطة البيع', 'إدارة المخزون', 'تتبع العملاء']),
-        professional(499, 4990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Delivery tracking', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تتبع التوصيل', 'تقارير متقدمة']),
+        starter(199, 1990, ['1 user', '50 invoices / month', '50 quotations / month', 'Laundry orders', 'POS checkout', 'Inventory management', 'Customer tracking'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'طلبات المغسلة', 'نقطة البيع', 'إدارة المخزون', 'تتبع العملاء']),
+        professional(499, 4990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Delivery tracking', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تتبع التوصيل', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'saloon':
       return [
-        starter(199, 1990, ['1 user', '100 invoices/month', 'Services & appointments', 'POS checkout', 'Customer profiles', 'Staff scheduling'], ['مستخدم واحد', '100 فاتورة/شهر', 'الخدمات والمواعيد', 'نقطة البيع', 'ملفات العملاء', 'جدولة الموظفين']),
-        professional(499, 4990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Online booking', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'حجز اونلاين', 'تقارير متقدمة']),
+        starter(199, 1990, ['1 user', '50 invoices / month', '50 quotations / month', 'Services & appointments', 'POS checkout', 'Customer profiles', 'Staff scheduling'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'الخدمات والمواعيد', 'نقطة البيع', 'ملفات العملاء', 'جدولة الموظفين']),
+        professional(499, 4990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Online booking', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'حجز اونلاين', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'khayyat':
       return [
-        starter(199, 1990, ['1 user', '100 invoices/month', 'Measurements & orders', 'POS checkout', 'Stitching tracking', 'Customer profiles'], ['مستخدم واحد', '100 فاتورة/شهر', 'المقاسات والطلبات', 'نقطة البيع', 'تتبع الخياطة', 'ملفات العملاء']),
-        professional(499, 4990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Order photos', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'صور الطلبات', 'تقارير متقدمة']),
+        starter(199, 1990, ['1 user', '50 invoices / month', '50 quotations / month', 'Measurements & orders', 'POS checkout', 'Stitching tracking', 'Customer profiles'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'المقاسات والطلبات', 'نقطة البيع', 'تتبع الخياطة', 'ملفات العملاء']),
+        professional(499, 4990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Order photos', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'صور الطلبات', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'boutique':
       return [
-        starter(199, 1990, ['1 user', '100 invoices/month', 'Dress inventory', 'Rental calendar', 'POS checkout', 'Customer profiles'], ['مستخدم واحد', '100 فاتورة/شهر', 'مخزون الفساتين', 'تقويم الإيجار', 'نقطة البيع', 'ملفات العملاء']),
-        professional(499, 4990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Online catalog', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'كتالوج اونلاين', 'تقارير متقدمة']),
+        starter(199, 1990, ['1 user', '50 invoices / month', '50 quotations / month', 'Dress inventory', 'Rental calendar', 'POS checkout', 'Customer profiles'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'مخزون الفساتين', 'تقويم الإيجار', 'نقطة البيع', 'ملفات العملاء']),
+        professional(499, 4990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Online catalog', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'كتالوج اونلاين', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'manpower':
       return [
-        starter(249, 2490, ['1 user', '100 invoices/month', 'Labor contracts', 'Assignments', 'Project billing', 'ZATCA E-Invoicing'], ['مستخدم واحد', '100 فاتورة/شهر', 'عقود العمالة', 'التعيينات', 'فوترة المشاريع', 'الفوترة الإلكترونية']),
-        professional(599, 5990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Timesheets', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'سجلات الدوام', 'تقارير متقدمة']),
+        starter(249, 2490, ['1 user', '50 invoices / month', '50 quotations / month', 'Labor contracts', 'Assignments', 'Project billing', 'ZATCA E-Invoicing'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'عقود العمالة', 'التعيينات', 'فوترة المشاريع', 'الفوترة الإلكترونية']),
+        professional(599, 5990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Timesheets', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'سجلات الدوام', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'bakala':
       return [
-        starter(199, 1990, ['1 user', '100 invoices/month', 'Fast POS', 'Barcode scanning', 'Inventory management', 'Customer tracking'], ['مستخدم واحد', '100 فاتورة/شهر', 'نقطة بيع سريعة', 'مسح الباركود', 'إدارة المخزون', 'تتبع العملاء']),
-        professional(499, 4990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Multi-device POS', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'نقطة بيع متعددة الأجهزة', 'تقارير متقدمة']),
+        starter(199, 1990, ['1 user', '50 invoices / month', '50 quotations / month', 'Fast POS', 'Barcode scanning', 'Inventory management', 'Customer tracking'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'نقطة بيع سريعة', 'مسح الباركود', 'إدارة المخزون', 'تتبع العملاء']),
+        professional(499, 4990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Multi-device POS', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'نقطة بيع متعددة الأجهزة', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'car_workshop':
       return [
-        starter(299, 2990, ['1 user', '100 invoices/month', 'Job cards', 'Taqdeer estimates', 'Parts inventory', 'ZATCA E-Invoicing'], ['مستخدم واحد', '100 فاتورة/شهر', 'بطاقات الإصلاح', 'تقديرات تقدير', 'مخزون القطع', 'الفوترة الإلكترونية']),
-        professional(699, 6990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Absher integration', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تكامل أبشر', 'تقارير متقدمة']),
+        starter(299, 2990, ['1 user', '50 invoices / month', '50 quotations / month', 'Job cards', 'Taqdeer estimates', 'Parts inventory', 'ZATCA E-Invoicing'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'بطاقات الإصلاح', 'تقديرات تقدير', 'مخزون القطع', 'الفوترة الإلكترونية']),
+        professional(699, 6990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Absher integration', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تكامل أبشر', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'bookstore':
       return [
-        starter(199, 1990, ['1 user', '100 invoices/month', 'POS checkout', 'ISBN scanning', 'Inventory management', 'Thermal printer support'], ['مستخدم واحد', '100 فاتورة/شهر', 'نقطة البيع', 'مسح ISBN', 'إدارة المخزون', 'دعم الطابعة الحرارية']),
-        professional(499, 4990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Online catalog', 'Advanced reports'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'كتالوج اونلاين', 'تقارير متقدمة']),
+        starter(199, 1990, ['1 user', '50 invoices / month', '50 quotations / month', 'POS checkout', 'ISBN scanning', 'Inventory management', 'Thermal printer support'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'نقطة البيع', 'مسح ISBN', 'إدارة المخزون', 'دعم الطابعة الحرارية']),
+        professional(499, 4990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Online catalog', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'كتالوج اونلاين', 'تقارير متقدمة']),
         enterprise()
       ];
     case 'ecommerce':
       return [
-        starter(299, 2990, ['1 user', '100 invoices/month', 'Online store', 'Custom domain', 'Payment gateways', 'Order management'], ['مستخدم واحد', '100 فاتورة/شهر', 'متجر اونلاين', 'نطاق مخصص', 'بوابات الدفع', 'إدارة الطلبات']),
-        professional(699, 6990, ['Up to 3 users', 'Unlimited invoices', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Courier integrations', 'Theme editor'], ['حتى 3 مستخدمين', 'فواتير غير محدودة', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تكاملات شركات الشحن', 'محرر القوالب']),
+        starter(299, 2990, ['1 user', '50 invoices / month', '50 quotations / month', 'Online store', 'Custom domain', 'Payment gateways', 'Order management'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'متجر اونلاين', 'نطاق مخصص', 'بوابات الدفع', 'إدارة الطلبات']),
+        professional(699, 6990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Courier integrations', 'Theme editor'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تكاملات شركات الشحن', 'محرر القوالب']),
         enterprise()
       ];
     default:
       return getDefaultPlans();
   }
 };
+
+export const overlayCatalogPrices = (plans = []) =>
+  (Array.isArray(plans) ? plans : []).map((plan) => {
+    if (!plan) return plan
+    const id = String(plan.id || '').toLowerCase()
+    const std = STANDARD_PLAN_PRICES[id]
+    if (!std) return plan
+    const obj = typeof plan.toObject === 'function' ? plan.toObject() : { ...plan }
+    return { ...obj, ...applyStandardPrices(id) }
+  })
 
 const systemSettingsSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true, default: 'global' },

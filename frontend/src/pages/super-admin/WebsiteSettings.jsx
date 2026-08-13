@@ -12,10 +12,10 @@ const defaultPlan = {
   id: '',
   nameEn: '',
   nameAr: '',
-  priceMonthly: 99.99,
-  priceYearly: 999.99,
-  priceMonthlySar: 99.99,
-  priceYearlySar: 999.99,
+  priceMonthly: 49.99,
+  priceYearly: 499.99,
+  priceMonthlySar: 49.99,
+  priceYearlySar: 499.99,
   priceMonthlyUsd: 29.99,
   priceYearlyUsd: 299.99,
   popular: false,
@@ -477,7 +477,7 @@ export default function WebsiteSettings() {
                         value={(plan.featuresEn || []).join('\n')}
                         onChange={(e) => updatePlan(index, 'featuresEn', e.target.value.split('\n').filter(Boolean))}
                         className="input text-sm min-h-[100px]"
-                        placeholder="ZATCA E-Invoicing&#10;Up to 100 invoices/month&#10;5 users"
+                        placeholder="ZATCA E-Invoicing&#10;1 user&#10;50 invoices / month&#10;50 quotations / month"
                       />
                     </div>
                     <div>

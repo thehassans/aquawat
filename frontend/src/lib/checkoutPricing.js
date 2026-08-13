@@ -1,6 +1,6 @@
 /**
  * Platform SaaS checkout list prices are set independently per currency
- * in Super Admin (e.g. 29.99 USD and 99.99 SAR) — never derive one from the other via FX.
+ * in Super Admin (e.g. 29.99 USD and 49.99 SAR) — never derive one from the other via FX.
  */
 
 export const CHECKOUT_CURRENCY = 'USD'
@@ -48,10 +48,10 @@ export function normalizeCheckoutPlan(plan, fallback = {}) {
 
   // Defaults when Super Admin has not set dual prices yet
   const defaults = {
-    starter: { monthlyUsd: 29.99, yearlyUsd: 299.99, monthlySar: 99.99, yearlySar: 999.99 },
-    professional: { monthlyUsd: 59.99, yearlyUsd: 599.99, monthlySar: 199.99, yearlySar: 1999.99 },
+    starter: { monthlyUsd: 29.99, yearlyUsd: 299.99, monthlySar: 49.99, yearlySar: 499.99 },
+    professional: { monthlyUsd: 59.99, yearlyUsd: 599.99, monthlySar: 99.99, yearlySar: 999.99 },
     enterprise: { monthlyUsd: 0, yearlyUsd: 0, monthlySar: 0, yearlySar: 0 },
-  }[id] || { monthlyUsd: 29.99, yearlyUsd: 299.99, monthlySar: 99.99, yearlySar: 999.99 }
+  }[id] || { monthlyUsd: 29.99, yearlyUsd: 299.99, monthlySar: 49.99, yearlySar: 499.99 }
 
   const hasUsd = Number.isFinite(monthlyUsd) && (merged.priceMonthlyUsd != null || fallback.priceMonthlyUsd != null)
   const hasSar = Number.isFinite(monthlySar)

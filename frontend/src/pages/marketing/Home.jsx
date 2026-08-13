@@ -183,7 +183,7 @@ export default function MarketingHome() {
             <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-5 py-2 shadow-sm backdrop-blur-sm">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-sm font-bold text-slate-700">
-                {isArabic ? 'من 29.99 دولار / شهرياً — جميع التطبيقات' : 'From US$ 29.99 / month — all apps included'}
+                {isArabic ? 'من 49.99 ريال / شهرياً — جميع التطبيقات' : 'From SAR 49.99 / month — all apps included'}
               </span>
             </div>
           </motion.div>

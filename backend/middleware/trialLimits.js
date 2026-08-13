@@ -1,41 +1,7 @@
 import Tenant from '../models/Tenant.js';
+import { TRIAL_LIMITS } from '../utils/planEntitlements.js';
 
-/**
- * Trial/Demo resource limits.
- * When a tenant is on trial or demo plan, these limits apply to all create operations.
- */
-export const TRIAL_LIMITS = {
-  invoices: 10,
-  quotations: 10,
-  customers: 10,
-  suppliers: 1,
-  purchaseOrders: 10,
-  purchaseReturns: 5,
-  products: 10,
-  warehouses: 1,
-  users: 5,
-  projects: 5,
-  tasks: 10,
-  employees: 5,
-  expenses: 10,
-  vouchers: 10,
-  shipments: 5,
-  restaurantOrders: 10,
-  restaurantMenuItems: 200,
-  restaurantTables: 5,
-  travelBookings: 10,
-  rentalCars: 5,
-  rentalCustomers: 10,
-  saloonServices: 10,
-  saloonStaff: 5,
-  saloonAppointments: 10,
-  laundryServices: 10,
-  laundryCustomers: 10,
-  laundryInventory: 10,
-  promotions: 5,
-  manpowerTimesheets: 10,
-  khayyatStitchings: 10,
-};
+export { TRIAL_LIMITS };
 
 /**
  * Map of resource type -> Mongoose model name (for countDocuments).
@@ -113,9 +79,6 @@ export function checkTrialLimits(resourceType) {
       // Super admins bypass
       if (req.user?.role === 'super_admin') return next();
 
-      const limit = TRIAL_LIMITS[resourceType];
-      if (!limit) return next(); // no limit defined, allow
-
       // Get tenant from req.tenant (set by protect middleware) or fetch
       let tenant = req.tenant;
       if (!tenant && req.user?.tenantId) {
@@ -123,8 +86,21 @@ export function checkTrialLimits(resourceType) {
       }
       if (!tenant) return next();
 
-      // Only apply limits to trial/demo tenants
-      if (!isTrialTenant(tenant)) return next();
+      let limit = TRIAL_LIMITS[resourceType];
+      if (isTrialTenant(tenant)) {
+        if (!limit) return next();
+      } else if (resourceType === 'invoices') {
+        limit = Number(tenant.subscription?.maxInvoices) || 0;
+        if (!limit) return next();
+      } else if (resourceType === 'quotations') {
+        limit = Number(tenant.subscription?.maxQuotations) || 0;
+        if (!limit) return next();
+      } else if (resourceType === 'users') {
+        limit = Number(tenant.subscription?.maxUsers) || 0;
+        if (!limit) return next();
+      } else {
+        return next();
+      }
 
       // Get the model and count existing records
       const modelName = MODEL_MAP[resourceType];
@@ -142,7 +118,7 @@ export function checkTrialLimits(resourceType) {
           limitType: resourceType,
           limit,
           current: currentCount,
-          message: `Trial limit reached: ${currentCount}/${limit} ${resourceType}. Upgrade to full version to continue.`,
+          message: `Plan limit reached: ${currentCount}/${limit} ${resourceType}. Upgrade to continue.`,
         });
       }
 
