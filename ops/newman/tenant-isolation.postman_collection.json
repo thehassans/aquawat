@@ -296,7 +296,27 @@
       "name": "3. Super-admin x-tenant-id requirement",
       "item": [
         {
-          "name": "Super-admin GET invoices without x-tenant-id is 400",
+          "name": "Super-admin GET /api/tenants/current without x-tenant-id is 400",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/tenants/current"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('super_admin tenants/current without x-tenant-id is 400 or 404', function () {",
+                  "  pm.expect([400, 404]).to.include(pm.response.code);",
+                  "  pm.expect(pm.response.code).to.not.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
           "request": {
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}" }] },
             "method": "GET",

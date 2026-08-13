@@ -28,7 +28,7 @@ test('every router.use(tenantFilter) is followed by requireTenantFilter', () => 
 });
 
 test('req.user.tenantId without requireTenantFilter stays on the known allowlist', () => {
-  const allowed = new Set(['payment.routes.js', 'tenant.routes.js']);
+  const allowed = new Set(['payment.routes.js']);
   const unexpected = [];
   for (const file of walk(routesDir)) {
     const rel = path.relative(routesDir, file).replaceAll('\\', '/');

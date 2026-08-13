@@ -20,13 +20,9 @@ const toObjectId = (value) => {
 /**
  * Resolve a concrete tenant id for data access.
  * Never returns null — throws TenantScopeError instead (prevents cross-tenant leaks).
+ * Super-admin: x-tenant-id (or query/body tenantId) wins over JWT tenantId so impersonation works.
  */
 export function resolveTenantId(user, req = null) {
-  if (user?.tenantId) {
-    const id = toObjectId(user.tenantId) || user.tenantId;
-    return id;
-  }
-
   if (user?.role === 'super_admin') {
     const headerId = req?.headers?.['x-tenant-id'] || req?.query?.tenantId || req?.body?.tenantId;
     if (headerId) {
@@ -34,6 +30,13 @@ export function resolveTenantId(user, req = null) {
       if (!id) throw new TenantScopeError('Invalid tenant id', 400);
       return id;
     }
+  }
+
+  if (user?.tenantId) {
+    return toObjectId(user.tenantId) || user.tenantId;
+  }
+
+  if (user?.role === 'super_admin') {
     throw new TenantScopeError('x-tenant-id header required for super_admin tenant data access', 400);
   }
 

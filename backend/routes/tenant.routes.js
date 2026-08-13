@@ -1,6 +1,7 @@
 import express from 'express';
 import Tenant from '../models/Tenant.js';
 import { protect, authorize, invalidateAuthCache } from '../middleware/auth.js';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { hasPremiumTemplateAccess, ESSENTIAL_TEMPLATE_ID, MAX_TEMPLATE_ID } from '../utils/premiumTemplates.js';
 import { streamSingleTenantBackup } from '../utils/tenantBackupStream.js';
@@ -84,18 +85,12 @@ function assertPrivatePrinterHost(ipAddress) {
 
 router.use(protect);
 
-const resolveTenantId = (req) => {
-  // Only super_admin may impersonate via x-tenant-id / tenantFilter header.
-  if (req.user?.role === 'super_admin') {
-    return req.tenantFilter?.tenantId || req.headers['x-tenant-id'] || req.user?.tenantId || null;
-  }
-  return req.user?.tenantId || null;
-};
+const tenantIdOf = (req) => resolveTenantId(req.user, req);
 
 // @route   GET /api/tenants/current
 router.get('/current', async (req, res) => {
   try {
-    const tenantId = resolveTenantId(req);
+    const tenantId = tenantIdOf(req);
     if (!tenantId) {
       return res.status(404).json({ error: 'No tenant associated with user' });
     }
@@ -107,6 +102,7 @@ router.get('/current', async (req, res) => {
     // Never return ZATCA private keys, CSIDs, SMTP passwords, or integration secrets
     res.json(serializeAuthTenant(tenant));
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -115,11 +111,8 @@ router.get('/current', async (req, res) => {
 // @desc    Get current resource usage and limits for trial/demo tenants
 router.get('/trial-limits', async (req, res) => {
   try {
-    if (!req.user.tenantId) {
-      return res.status(404).json({ error: 'No tenant associated with user' });
-    }
-
-    const tenant = await Tenant.findById(req.user.tenantId).lean();
+    const tenantId = tenantIdOf(req);
+    const tenant = await Tenant.findById(tenantId).lean();
 
     // Determine if tenant is on trial
     const isTrial = (tenant.isDemo === true && !tenant.demoUpgraded) || tenant.subscription?.plan === 'trial';
@@ -146,7 +139,7 @@ router.get('/trial-limits', async (req, res) => {
     };
 
     const usage = {};
-    const tenantFilter = { tenantId: req.user.tenantId };
+    const tenantFilter = { tenantId };
 
     for (const [resourceType, Model] of Object.entries(MODEL_MAP)) {
       if (Model && TRIAL_LIMITS[resourceType]) {
@@ -161,6 +154,7 @@ router.get('/trial-limits', async (req, res) => {
 
     res.json({ isTrial: true, limits: TRIAL_LIMITS, usage });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -170,7 +164,7 @@ router.put('/current', authorize('admin'), async (req, res) => {
   try {
     const { business, settings, branding, businessType, businessTypes } = req.body;
     
-    const tenantId = resolveTenantId(req);
+    const tenantId = tenantIdOf(req);
     if (!tenantId) {
       return res.status(404).json({ error: 'No tenant associated with user' });
     }
@@ -338,6 +332,7 @@ router.put('/current', authorize('admin'), async (req, res) => {
 
     res.json(serializeAuthTenant(tenant));
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -351,7 +346,7 @@ router.post('/upload-qr-hero', authorize('admin'), upload.single('image'), async
       return res.status(400).json({ error: 'No image uploaded' });
     }
 
-    const tenantIdStr = req.user.tenantId.toString();
+    const tenantIdStr = String(tenantIdOf(req));
     const filename = `qrhero-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
     const key = `restaurant/${tenantIdStr}/${filename}`;
 
@@ -369,6 +364,7 @@ router.post('/upload-qr-hero', authorize('admin'), upload.single('image'), async
 
     res.json({ imageUrl });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     console.error('Image processing error:', error);
     res.status(500).json({ error: 'Failed to process image' });
   }
@@ -381,7 +377,7 @@ router.post('/upload-qr-menu-image', authorize('admin'), upload.single('image'),
       return res.status(400).json({ error: 'No image uploaded' });
     }
 
-    const tenantIdStr = req.user.tenantId.toString();
+    const tenantIdStr = String(tenantIdOf(req));
     const filename = `qrmenu-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
     const key = `restaurant/${tenantIdStr}/${filename}`;
 
@@ -399,6 +395,7 @@ router.post('/upload-qr-menu-image', authorize('admin'), upload.single('image'),
 
     res.json({ imageUrl });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     console.error('Image processing error:', error);
     res.status(500).json({ error: 'Failed to process image' });
   }
@@ -409,7 +406,7 @@ router.post('/zatca/generate-keys', authorize('admin'), async (req, res) => {
   try {
     const { privateKey, publicKey } = ZatcaService.generateKeyPair();
 
-    await Tenant.findByIdAndUpdate(req.user.tenantId, {
+    await Tenant.findByIdAndUpdate(tenantIdOf(req), {
       'zatca.privateKey': encryptPrivateKey(privateKey),
     });
 
@@ -418,6 +415,7 @@ router.post('/zatca/generate-keys', authorize('admin'), async (req, res) => {
       publicKey,
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -426,7 +424,7 @@ router.post('/zatca/generate-keys', authorize('admin'), async (req, res) => {
 router.post('/zatca/onboard', authorize('admin'), async (req, res) => {
   try {
     const { otp } = req.body;
-    const tenant = await Tenant.findById(req.user.tenantId);
+    const tenant = await Tenant.findById(tenantIdOf(req));
     
     if (!tenant.zatca?.privateKey) {
       return res.status(400).json({ error: 'Generate keys first' });
@@ -435,7 +433,7 @@ router.post('/zatca/onboard', authorize('admin'), async (req, res) => {
     // In production, this would call ZATCA API for compliance check
     // and exchange OTP for CSID
     
-    await Tenant.findByIdAndUpdate(req.user.tenantId, {
+    await Tenant.findByIdAndUpdate(tenantIdOf(req), {
       'zatca.isOnboarded': true,
       'zatca.onboardedAt': new Date(),
       'zatca.deviceSerialNumber': `EGS1-${Date.now()}`
@@ -443,6 +441,7 @@ router.post('/zatca/onboard', authorize('admin'), async (req, res) => {
     
     res.json({ message: 'ZATCA onboarding initiated', status: 'pending_verification' });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -450,7 +449,7 @@ router.post('/zatca/onboard', authorize('admin'), async (req, res) => {
 // @route   GET /api/tenants/zatca/status
 router.get('/zatca/status', async (req, res) => {
   try {
-    const tenant = await Tenant.findById(req.user.tenantId)
+    const tenant = await Tenant.findById(tenantIdOf(req))
       .select('zatca.isOnboarded zatca.onboardedAt zatca.invoiceCounter zatca.deviceSerialNumber');
     
     res.json({
@@ -460,6 +459,7 @@ router.get('/zatca/status', async (req, res) => {
       deviceSerialNumber: tenant.zatca?.deviceSerialNumber
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -467,7 +467,7 @@ router.get('/zatca/status', async (req, res) => {
 router.post('/zatca/test-connection', authorize('admin'), async (req, res) => {
   try {
     const { type = 'phase1' } = req.body || {};
-    const tenant = await Tenant.findById(req.user.tenantId)
+    const tenant = await Tenant.findById(tenantIdOf(req))
       .select('business zatca');
 
     if (!tenant) {
@@ -574,23 +574,21 @@ router.post('/zatca/test-connection', authorize('admin'), async (req, res) => {
       },
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
 
 router.get('/backup', authorize('admin'), async (req, res) => {
   try {
-    if (!req.user.tenantId) {
-      return res.status(404).json({ error: 'No tenant associated with user' });
-    }
-
-    const tenant = await Tenant.findById(req.user.tenantId).lean();
+    const tenant = await Tenant.findById(tenantIdOf(req)).lean();
     if (!tenant) {
       return res.status(404).json({ error: 'Tenant not found' });
     }
 
     await streamSingleTenantBackup(req, res, tenant);
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     if (!res.headersSent) {
       return res.status(500).json({ error: error.message });
     }
