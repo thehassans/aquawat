@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -25,7 +25,8 @@ import api from '../lib/api'
 import { autoTranslateText } from '../lib/builtInTranslator'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
-import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
+import { downloadPurchaseOrderPdf, printPurchaseOrderPdf, mapPurchaseOrderForPdf } from '../lib/invoicePdf'
+import InvoiceLivePreview from '../components/invoices/InvoiceLivePreview'
 import Select from 'react-select'
 import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 
@@ -55,6 +56,7 @@ export default function PurchaseOrderForm() {
   const [manualModes, setManualModes] = useState([])
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(null)
+  const previewRef = useRef(null)
   const [supplierForm, setSupplierForm] = useState({
     code: '',
     nameEn: '',
@@ -182,27 +184,34 @@ export default function PurchaseOrderForm() {
     queryKey: ['purchase-order', id],
     queryFn: () => api.get(`/purchase-orders/${id}`).then((res) => res.data),
     enabled: isEdit,
-    onSuccess: (data) => {
-      reset({
-        poNumber: data?.poNumber || '',
-        supplierId: data?.supplierId?._id || data?.supplierId || '',
-        orderDate: formatDateForInput(data?.orderDate),
-        expectedDate: formatDateForInput(data?.expectedDate),
-        currency: data?.currency || tenant?.settings?.currency || 'SAR',
-        notes: data?.notes || '',
-        lineItems: (data?.lineItems || []).map((li) => ({
-          productId: li?.productId?._id || li?.productId || '',
-          manualName: li?.manualName || '',
-          uom: li?.uom || '',
-          description: li?.description || '',
-          quantityOrdered: li?.quantityOrdered ?? 0,
-          quantityReceived: li?.quantityReceived ?? 0,
-          unitCost: li?.unitCost ?? 0,
-          taxRate: li?.taxRate ?? 15,
-        })),
-      })
-    },
   })
+
+  useEffect(() => {
+    if (!order) return
+    const items = Array.isArray(order.lineItems) ? order.lineItems : []
+    reset({
+      poNumber: order.poNumber || '',
+      supplierId: order.supplierId?._id || order.supplierId || '',
+      orderDate: formatDateForInput(order.orderDate),
+      expectedDate: formatDateForInput(order.expectedDate),
+      currency: order.currency || tenant?.settings?.currency || 'SAR',
+      notes: order.notes || '',
+      lineItems:
+        items.length > 0
+          ? items.map((li) => ({
+              productId: li?.productId?._id || li?.productId || '',
+              manualName: li?.manualName || '',
+              uom: li?.uom || '',
+              description: li?.description || '',
+              quantityOrdered: li?.quantityOrdered ?? 0,
+              quantityReceived: li?.quantityReceived ?? 0,
+              unitCost: li?.unitCost ?? 0,
+              taxRate: li?.taxRate ?? 15,
+            }))
+          : [{ productId: '', manualName: '', uom: '', description: '', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
+    })
+    setManualModes(items.map((li) => Boolean(li?.manualName && !li?.productId)))
+  }, [order, reset, tenant?.settings?.currency])
 
   const isLocked = isEdit && ['partially_received', 'received', 'cancelled'].includes(order?.status)
 
@@ -223,6 +232,42 @@ export default function PurchaseOrderForm() {
 
     return { subtotal, totalTax, grandTotal: subtotal + totalTax }
   }, [lineItems])
+
+  const watched = watch()
+
+  const previewInvoice = useMemo(() => {
+    try {
+      const supplier =
+        (suppliers || []).find((s) => String(s._id) === String(watched.supplierId)) || order?.supplierId || {}
+      const items = Array.isArray(watched.lineItems) ? watched.lineItems : []
+      return mapPurchaseOrderForPdf(
+        {
+          poNumber: watched.poNumber || order?.poNumber || 'PO-DRAFT',
+          status: order?.status || 'draft',
+          orderDate: watched.orderDate,
+          expectedDate: watched.expectedDate,
+          currency: watched.currency,
+          notes: watched.notes,
+          supplierId: supplier,
+          lineItems: items.map((li) => {
+            const product = (products || []).find((p) => String(p._id) === String(li.productId))
+            return {
+              ...li,
+              productId: product || li.productId,
+              productName: li.manualName || product?.nameEn || product?.nameAr,
+              productNameAr: product?.nameAr || li.manualName,
+            }
+          }),
+          subtotal: totals.subtotal,
+          totalTax: totals.totalTax,
+          grandTotal: totals.grandTotal,
+        },
+        tenant
+      )
+    } catch {
+      return null
+    }
+  }, [watched, suppliers, products, order, totals, tenant])
 
   const saveMutation = useMutation({
     mutationFn: (data) => (isEdit ? api.put(`/purchase-orders/${id}`, data) : api.post('/purchase-orders', data)),
@@ -348,7 +393,12 @@ export default function PurchaseOrderForm() {
     setPdfBusy('print')
     try {
       const full = await resolveOrderForPdf()
-      await printPurchaseOrderPdf({ purchaseOrder: full, language, tenant })
+      await printPurchaseOrderPdf({
+        purchaseOrder: full,
+        language,
+        tenant,
+        sourceElement: previewRef.current,
+      })
       toast.success(language === 'ar' ? 'جاهز للطباعة' : 'Ready to print', { id: toastId })
     } catch (e) {
       console.error('[PurchaseOrderForm] PDF print failed', e)
@@ -388,13 +438,29 @@ export default function PurchaseOrderForm() {
     return status ? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ') : status
   }
 
-  const shell = 'overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-[#0c111a]'
+  const shell =
+    'overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_40px_-32px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#0c111a]'
   const ghostBtn =
     'inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-transparent dark:text-slate-200 dark:hover:border-white/20 dark:hover:bg-white/[0.04]'
   const primaryBtn =
-    'inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'
+    'inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100'
   const inkBtn =
-    'inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'
+    'inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100'
+
+  const workflow = [
+    { id: 'draft', label: language === 'ar' ? 'مسودة' : 'Draft' },
+    { id: 'approved', label: language === 'ar' ? 'اعتماد' : 'Approved' },
+    { id: 'partially_received', label: language === 'ar' ? 'استلام' : 'Receiving' },
+    { id: 'received', label: language === 'ar' ? 'مكتمل' : 'Received' },
+  ]
+  const workflowIndex = (() => {
+    const s = order?.status || 'draft'
+    if (s === 'cancelled') return -1
+    if (s === 'received') return 3
+    if (s === 'partially_received') return 2
+    if (s === 'approved' || s === 'sent') return 1
+    return 0
+  })()
 
   if (isEdit && isLoading) {
     return (
@@ -419,11 +485,11 @@ export default function PurchaseOrderForm() {
             <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
               {language === 'ar' ? 'طلبات الشراء' : 'Purchase orders'}
             </p>
-            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.03em] text-slate-900 dark:text-white sm:text-[28px]">
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white sm:text-[28px]">
               {isEdit
                 ? language === 'ar'
-                  ? 'تعديل طلب شراء'
-                  : 'Edit purchase order'
+                  ? 'طلب شراء'
+                  : 'Purchase order'
                 : language === 'ar'
                   ? 'طلب شراء جديد'
                   : 'New purchase order'}
@@ -513,6 +579,37 @@ export default function PurchaseOrderForm() {
         )}
       </div>
 
+      {isEdit && order && order.status !== 'cancelled' && (
+        <div className={`${shell} px-5 py-4`}>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {workflow.map((step, index) => {
+              const done = workflowIndex >= index
+              const current = workflowIndex === index
+              return (
+                <div key={step.id} className="flex items-center gap-2 sm:gap-3">
+                  {index > 0 && <div className={`h-px w-6 sm:w-10 ${done ? 'bg-teal-600' : 'bg-slate-200 dark:bg-white/10'}`} />}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold ${
+                        done
+                          ? 'bg-teal-700 text-white'
+                          : 'bg-slate-100 text-slate-400 dark:bg-white/10 dark:text-slate-500'
+                      } ${current ? 'ring-2 ring-teal-600/30' : ''}`}
+                    >
+                      {index + 1}
+                    </span>
+                    <span className={`text-[12px] font-medium ${done ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
       <form id="po-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`${shell} p-5 sm:p-6`}>
           <div className="mb-5 border-b border-slate-100 pb-4 dark:border-white/[0.08]">
@@ -853,6 +950,28 @@ export default function PurchaseOrderForm() {
           </div>
         </motion.div>
       </form>
+
+      {previewInvoice && (
+        <div className="hidden xl:block">
+          <div className="sticky top-20">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+              {language === 'ar' ? 'معاينة الطباعة' : 'Print preview'}
+            </p>
+            <div
+              ref={previewRef}
+              className="origin-top overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.5)] dark:border-white/10"
+            >
+              <InvoiceLivePreview
+                invoice={previewInvoice}
+                tenant={tenant}
+                language={language}
+                documentType="purchase_order"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
 
       {/* Sticky primary save */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/80 bg-white/90 px-4 py-3 backdrop-blur-md dark:border-white/10 dark:bg-[#0c111a]/90 md:hidden">

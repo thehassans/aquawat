@@ -3,13 +3,14 @@ import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
 import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
@@ -89,7 +90,18 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
     }
 
     if (search) {
-      query.poNumber = { $regex: search, $options: 'i' };
+      const matchingSuppliers = await Supplier.find({
+        ...req.tenantFilter,
+        $or: [
+          { nameEn: { $regex: search, $options: 'i' } },
+          { nameAr: { $regex: search, $options: 'i' } },
+          { code: { $regex: search, $options: 'i' } },
+        ],
+      }).select('_id');
+      query.$or = [
+        { poNumber: { $regex: search, $options: 'i' } },
+        { supplierId: { $in: matchingSuppliers.map((s) => s._id) } },
+      ];
     }
 
     const purchaseOrders = await PurchaseOrder.find(query)
@@ -157,8 +169,8 @@ router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) =
 router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter })
-      .populate('supplierId', 'code nameEn nameAr phone email')
-      .populate('lineItems.productId', 'sku nameEn nameAr barcode')
+      .populate('supplierId', 'code nameEn nameAr phone email vatNumber crNumber address contactPerson')
+      .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure')
       .populate('receiving.warehouseId', 'code nameEn nameAr');
 
     if (!order) {

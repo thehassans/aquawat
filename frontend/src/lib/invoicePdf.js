@@ -72,6 +72,25 @@ const downloadPdfBlob = (blob, fileName) => {
 const printPdfBlob = async (blob, title) => {
   if (!blob || typeof window === 'undefined' || typeof document === 'undefined') return false
   const objectUrl = window.URL.createObjectURL(blob)
+  const revokeLater = () => window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000)
+
+  const popup = window.open(objectUrl, '_blank')
+  if (popup) {
+    popup.document.title = title || 'Print'
+    const tryPrint = () => {
+      try {
+        popup.focus()
+        popup.print()
+      } catch {
+        /* ignore */
+      }
+    }
+    popup.onload = tryPrint
+    window.setTimeout(tryPrint, 700)
+    revokeLater()
+    return true
+  }
+
   const frame = document.createElement('iframe')
   frame.style.position = 'fixed'
   frame.style.right = '0'
@@ -79,30 +98,34 @@ const printPdfBlob = async (blob, title) => {
   frame.style.width = '0'
   frame.style.height = '0'
   frame.style.border = '0'
-  frame.title = title
+  frame.title = title || 'Print'
   document.body.appendChild(frame)
-
-  await new Promise((resolve) => {
-    frame.onload = () => resolve()
-    frame.src = objectUrl
-  })
+  frame.src = objectUrl
+  await Promise.race([
+    new Promise((resolve) => {
+      frame.onload = () => resolve()
+    }),
+    new Promise((resolve) => window.setTimeout(resolve, 800)),
+  ])
 
   const printWindow = frame.contentWindow
   if (!printWindow) {
-    if (frame.parentNode) {
-      frame.parentNode.removeChild(frame)
-    }
+    if (frame.parentNode) frame.parentNode.removeChild(frame)
     window.URL.revokeObjectURL(objectUrl)
     return false
   }
 
-  printWindow.focus()
-  printWindow.print()
+  try {
+    printWindow.focus()
+    printWindow.print()
+  } catch {
+    if (frame.parentNode) frame.parentNode.removeChild(frame)
+    window.URL.revokeObjectURL(objectUrl)
+    return false
+  }
 
   window.setTimeout(() => {
-    if (frame.parentNode) {
-      frame.parentNode.removeChild(frame)
-    }
+    if (frame.parentNode) frame.parentNode.removeChild(frame)
     window.URL.revokeObjectURL(objectUrl)
   }, 1500)
 
@@ -1633,7 +1656,7 @@ export const printQuotationSnapshot = async ({ quotation, language = 'en', tenan
   return await printInvoiceSnapshot({ invoice: quotation, language, tenant, sourceElement, documentType: 'quotation' })
 }
 
-const mapPurchaseOrderForPdf = (purchaseOrder, tenant) => {
+export const mapPurchaseOrderForPdf = (purchaseOrder, tenant) => {
   if (!purchaseOrder || typeof purchaseOrder !== 'object') {
     throw new Error('Purchase order is required')
   }
@@ -1714,8 +1737,21 @@ export const downloadPurchaseOrderPdf = async ({ purchaseOrder, language = 'en',
   return result
 }
 
-export const printPurchaseOrderPdf = async ({ purchaseOrder, language = 'en', tenant }) => {
+export const printPurchaseOrderPdf = async ({ purchaseOrder, language = 'en', tenant, sourceElement = null }) => {
   const mapped = mapPurchaseOrderForPdf(purchaseOrder, tenant)
+  try {
+    const snapshotOk = await printInvoiceSnapshot({
+      invoice: mapped,
+      language,
+      tenant,
+      sourceElement,
+      documentType: 'purchase_order',
+    })
+    if (snapshotOk) return true
+  } catch (error) {
+    console.warn('[printPurchaseOrderPdf] snapshot print failed, using PDF blob', error)
+  }
+
   const blob = await generateInvoicePdf({ invoice: mapped, language, tenant, output: 'blob', documentType: 'purchase_order' })
   if (!blob) throw new Error('Failed to generate purchase order PDF')
   const title = resolveDocumentNumber(mapped, 'purchase_order')
