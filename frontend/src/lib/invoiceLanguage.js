@@ -256,3 +256,7 @@ export const bilingualLabel = (english, arabic, bilingual = true) => {
   if (!secondary || secondary === english) return english
   return `${english} / ${secondary}`
 }
+
+export const toEasternArabicNumerals = (value) => (
+  String(value || '').replace(/[0-9]/g, (digit) => '٠١٢٣٤٥٦٧٨٩'[digit])
+)

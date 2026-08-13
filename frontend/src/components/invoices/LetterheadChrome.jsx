@@ -1,5 +1,6 @@
 import { Building2, Mail, Phone, MapPin } from 'lucide-react'
 import { getLetterheadContact, splitCompanyNameLines } from '../../lib/invoiceBranding'
+import { toEasternArabicNumerals } from '../../lib/invoiceLanguage'
 
 /**
  * Official company letterhead chrome (header + footer).
@@ -14,6 +15,9 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
   const showAr = lang !== 'en' && Boolean(contact.companyAr)
   const nameEnLines = splitCompanyNameLines(contact.companyEn || '—')
   const nameArLines = splitCompanyNameLines(contact.companyAr)
+  const crAr = toEasternArabicNumerals(contact.crNumber)
+  const vatAr = toEasternArabicNumerals(contact.vatNumber)
+  const addressAr = toEasternArabicNumerals(contact.addressAr)
 
   return (
     <div data-letterhead-root className={`relative mx-auto flex min-h-[297mm] w-full max-w-4xl flex-col overflow-hidden bg-white text-gray-900 ${className}`}>
@@ -24,17 +28,24 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
       ) : null}
 
       <header className="relative z-10 border-b-2 border-primary-500/20 bg-gradient-to-r from-white to-gray-50/80 p-8 print:bg-none print:p-4">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-x-4 gap-y-1">
-          {showEn ? (
-            <h1 className="min-h-16 text-2xl font-bold leading-8 text-start print:text-black">
-              {nameEnLines.map((line) => (
-                <span key={line} className="block">{line}</span>
-              ))}
-            </h1>
-          ) : (
-            <div />
-          )}
-          <div className="row-span-3 flex items-center justify-center self-center px-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-x-4">
+          <div className="min-w-0 text-start">
+            {showEn ? (
+              <>
+                <h1 className="min-h-16 text-2xl font-bold leading-8 print:text-black">
+                  {nameEnLines.map((line) => (
+                    <span key={line} className="block">{line}</span>
+                  ))}
+                </h1>
+                <div className="mt-1 space-y-1 text-sm font-bold leading-5">
+                  {contact.crNumber ? <p>C.R # : {contact.crNumber}</p> : null}
+                  {contact.vatNumber ? <p>VAT # : {contact.vatNumber}</p> : null}
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          <div className="flex items-center justify-center self-center px-2">
             {logoSrc ? (
               <img src={logoSrc} alt="Logo" className="h-28 w-auto max-w-[200px] object-contain" />
             ) : (
@@ -43,37 +54,22 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
               </div>
             )}
           </div>
-          {showAr ? (
-            <h1 className="min-h-16 text-2xl font-bold leading-8 text-end print:text-black" dir="rtl">
-              {nameArLines.map((line) => (
-                <span key={line} className="block">{line}</span>
-              ))}
-            </h1>
-          ) : (
-            <div />
-          )}
 
-          {showEn && contact.crNumber ? (
-            <p className="text-sm font-bold leading-5 text-start">C.R # : {contact.crNumber}</p>
-          ) : (
-            <div />
-          )}
-          {showAr && contact.crNumber ? (
-            <p className="text-sm font-bold leading-5 text-end" dir="rtl">س.ت : {contact.crNumber}</p>
-          ) : (
-            <div />
-          )}
-
-          {showEn && contact.vatNumber ? (
-            <p className="text-sm font-bold leading-5 text-start">VAT # : {contact.vatNumber}</p>
-          ) : (
-            <div />
-          )}
-          {showAr && contact.vatNumber ? (
-            <p className="text-sm font-bold leading-5 text-end" dir="rtl">الرقم الضريبي : {contact.vatNumber}</p>
-          ) : (
-            <div />
-          )}
+          <div className="min-w-0 text-end font-['Almarai']" dir="rtl">
+            {showAr ? (
+              <>
+                <h1 className="min-h-16 text-2xl font-bold leading-8 print:text-black">
+                  {nameArLines.map((line) => (
+                    <span key={line} className="block">{line}</span>
+                  ))}
+                </h1>
+                <div className="mt-1 space-y-1 text-sm font-bold leading-5">
+                  {contact.crNumber ? <p>س.ت : {crAr}</p> : null}
+                  {contact.vatNumber ? <p>الرقم الضريبي : {vatAr}</p> : null}
+                </div>
+              </>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -87,10 +83,10 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
               <span>{contact.addressLine}</span>
             </p>
           ) : null}
-          {contact.addressAr ? (
-            <p className="flex items-start justify-center gap-1.5" dir="rtl">
+          {addressAr ? (
+            <p className="flex items-start justify-center gap-1.5 font-['Almarai']" dir="rtl">
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>{contact.addressAr}</span>
+              <span>{addressAr}</span>
             </p>
           ) : null}
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-1">

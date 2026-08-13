@@ -9,7 +9,7 @@ import { calculateInvoiceSummary, normalizeTravelDetails } from './invoiceDocume
 import { getInvoiceBranding, getInvoiceTemplateId, splitBrandingText, getLetterheadContact, splitCompanyNameLines } from './invoiceBranding'
 import { getAmountInWords } from './amountInWords'
 import { resolveTaxInvoiceQr } from './taxInvoiceQr'
-import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from './invoiceLanguage'
+import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, toEasternArabicNumerals } from './invoiceLanguage'
 import { LETTERHEAD_TEMPLATE_ID, resolveQuotationTemplateId } from './invoiceTemplates'
 
 const sanitizeFileName = (value) => {
@@ -1187,11 +1187,11 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       doc.setTextColor(15, 23, 42)
       if (contact.crNumber) {
         doc.text(shape(`C.R # : ${contact.crNumber}`), contentLeft, crY, { align: 'left' })
-        doc.text(shape(`س.ت : ${contact.crNumber}`), contentRightEdge, crY, { align: 'right' })
+        doc.text(shape(`س.ت : ${toEasternArabicNumerals(contact.crNumber)}`), contentRightEdge, crY, { align: 'right' })
       }
       if (contact.vatNumber) {
         doc.text(shape(`VAT # : ${contact.vatNumber}`), contentLeft, vatY, { align: 'left' })
-        doc.text(shape(`الرقم الضريبي : ${contact.vatNumber}`), contentRightEdge, vatY, { align: 'right' })
+        doc.text(shape(`الرقم الضريبي : ${toEasternArabicNumerals(contact.vatNumber)}`), contentRightEdge, vatY, { align: 'right' })
       }
 
       doc.setDrawColor(teal.r, teal.g, teal.b)
@@ -1737,7 +1737,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
         footerY += 12
       }
       if (letterheadContact.addressAr) {
-        doc.text(shape(letterheadContact.addressAr), pageW / 2, footerY, {
+        doc.text(shape(toEasternArabicNumerals(letterheadContact.addressAr)), pageW / 2, footerY, {
           align: 'center',
           maxWidth: contentW,
         })
