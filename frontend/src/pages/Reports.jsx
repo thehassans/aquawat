@@ -10,7 +10,7 @@ import ExportMenu from '../components/ui/ExportMenu'
 import { downloadBusinessReportPdf } from '../lib/businessReportPdf'
 import { downloadVatReturnReportPdf } from '../lib/vatReturnReportPdf'
 import { downloadAuditReportPdf } from '../lib/auditReportPdf'
-import { downloadMasterReportPdf } from '../lib/masterReportPdf'
+import { downloadMasterReportPdf, printMasterReport } from '../lib/masterReportPdf'
 import { exportReportToCsv, exportReportToExcel } from '../lib/masterReportSpreadsheet'
 import InternalAuditView from '../components/reports/InternalAuditView'
 import ExternalAuditView from '../components/reports/ExternalAuditView'
@@ -301,6 +301,7 @@ export default function Reports() {
   const [viewMode, setViewMode] = useState('analytics') // 'analytics' | 'document'
 
   const [downloadingReportPdf, setDownloadingReportPdf] = useState(false)
+  const [printingReport, setPrintingReport] = useState(false)
   const [downloadingExcel, setDownloadingExcel] = useState(false)
   const [downloadingCsv, setDownloadingCsv] = useState(false)
   const [showScheduleForm, setShowScheduleForm] = useState(false)
@@ -516,6 +517,20 @@ export default function Reports() {
     }
   }
 
+  const handlePrintReport = async () => {
+    try {
+      setPrintingReport(true)
+      setViewMode('document')
+      const printed = await printMasterReport({ reportType, report: data, tenant, language })
+      if (!printed) throw new Error('Print dialog was blocked')
+    } catch (e) {
+      console.error(e)
+      toast.error(language === 'ar' ? 'فشل طباعة التقرير' : 'Failed to print report')
+    } finally {
+      setPrintingReport(false)
+    }
+  }
+
   const handleExportExcel = async () => {
     try {
       setDownloadingExcel(true)
@@ -576,14 +591,14 @@ export default function Reports() {
   )
 
   return (
-    <div className="space-y-7" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+    <div className="space-y-7 report-page" dir={language === 'ar' ? 'rtl' : 'ltr'}>
 
       {/* ── Premium Top Header ──────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-white dark:bg-dark-800 p-6 rounded-3xl border border-gray-100 dark:border-dark-700 shadow-sm"
+        className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-white dark:bg-dark-800 p-6 rounded-3xl border border-gray-100 dark:border-dark-700 shadow-sm print:hidden"
       >
         {/* Left: icon + title */}
         <div className="flex items-center gap-4">
@@ -704,11 +719,16 @@ export default function Reports() {
 
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="p-2 rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-xs font-bold transition-all shadow-sm"
-                title={language === 'ar' ? 'طباعة المستند' : 'Print Document'}
+                onClick={handlePrintReport}
+                disabled={printingReport || downloadingReportPdf}
+                className="p-2 rounded-xl border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-xs font-bold transition-all shadow-sm disabled:opacity-60"
+                title={language === 'ar' ? 'طباعة المستند الرسمي' : 'Print official statement'}
               >
-                <Printer className="w-4 h-4" />
+                {printingReport ? (
+                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Printer className="w-4 h-4" />
+                )}
               </button>
             </div>
           )}
@@ -716,7 +736,7 @@ export default function Reports() {
       </motion.div>
 
       {/* ── Category Tabs & Filter Toolbar ──────────────────────────────────── */}
-      <div className="space-y-4">
+      <div className="space-y-4 print:hidden">
         {/* Category Tabs: Financials / Audit / Industry Verticals */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200/80 dark:border-dark-700 pb-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -1274,7 +1294,7 @@ export default function Reports() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="bg-white dark:bg-dark-800 rounded-3xl p-4 sm:p-8 shadow-sm border border-gray-100 dark:border-dark-700"
+              className="bg-white dark:bg-dark-800 rounded-3xl p-4 sm:p-8 shadow-sm border border-gray-100 dark:border-dark-700 overflow-x-auto print:bg-white print:shadow-none print:border-none print:p-0 print:rounded-none"
             >
               <MasterReportDocumentPreview
                 reportType={reportType}
@@ -2124,6 +2144,17 @@ export default function Reports() {
           ) : null}
         </>
       )}
+
+      {data && !isLoading && !error && !hasInvalidRange && viewMode !== 'document' ? (
+        <div className="hidden print:block" aria-hidden="true">
+          <MasterReportDocumentPreview
+            reportType={reportType}
+            report={data}
+            tenant={tenant}
+            language={language}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

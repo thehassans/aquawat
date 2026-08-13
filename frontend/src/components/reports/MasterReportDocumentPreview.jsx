@@ -403,29 +403,51 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
 
   // ── Reusable Component Snippets ─────────────────────────────────────────────
 
-  const renderKpiGrid = (kpis) => (
-    <div className="grid grid-cols-5 gap-3">
-      {kpis.slice(0, 5).map((kpi, idx) => (
-        <div key={idx} className="bg-slate-50 rounded-lg p-3 border border-slate-200 relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: kpi.color || primaryColor }} />
-          <div>
-            <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">{kpi.labelEn}</div>
-            {showSecondaryAr && kpi.labelAr && <div className="text-[10px] text-slate-600 font-medium mt-0.5 leading-tight">{kpi.labelAr}</div>}
+  const renderKpiGrid = (kpis) => {
+    const count = Math.min(kpis.length, 5)
+    const grid = count <= 3 ? 'grid-cols-3' : count === 4 ? 'grid-cols-4' : 'grid-cols-5'
+    return (
+      <div className={`grid ${grid} gap-3 mb-1`}>
+        {kpis.slice(0, 5).map((kpi, idx) => (
+          <div
+            key={idx}
+            className="relative overflow-hidden rounded-md border border-slate-200 bg-gradient-to-b from-slate-50 to-white px-3.5 py-3"
+          >
+            <div className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: kpi.color || primaryColor }} />
+            <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">{kpi.labelEn}</div>
+            {showSecondaryAr && kpi.labelAr ? (
+              <div className="mt-0.5 text-[10px] font-medium leading-tight text-slate-500" dir="rtl">{kpi.labelAr}</div>
+            ) : null}
+            <div className="mt-2 text-[17px] font-semibold tabular-nums tracking-tight text-slate-950">{kpi.value}</div>
           </div>
-          <div className="text-base font-extrabold text-slate-900 mt-2 tracking-tight tabular-nums">{kpi.value}</div>
-        </div>
-      ))}
+        ))}
+      </div>
+    )
+  }
+
+  const SectionHeader = ({ number, titleEn, titleAr }) => (
+    <div className="mb-2.5 flex items-end justify-between gap-3 border-b border-slate-200 pb-1.5">
+      <div className="flex items-baseline gap-2">
+        <span
+          className="inline-flex h-5 min-w-[20px] items-center justify-center rounded px-1 text-[10px] font-bold text-white"
+          style={{ backgroundColor: primaryColor }}
+        >
+          {number}
+        </span>
+        <h2 className="text-[13px] font-semibold tracking-tight text-slate-950">{titleEn}</h2>
+        {showSecondaryAr && titleAr ? (
+          <span className="text-[11px] font-medium text-slate-500" dir="rtl">/ {titleAr}</span>
+        ) : null}
+      </div>
     </div>
   )
 
-  const SectionHeader = ({ number, titleEn, titleAr }) => (
-    <div className="flex items-center gap-2 mb-2.5">
-      <div className="w-1 h-5 rounded-full" style={{ backgroundColor: primaryColor }} />
-      <div className="flex items-baseline gap-2">
-        <h2 className="text-sm font-bold text-slate-900">{number}. {titleEn}</h2>
-        {showSecondaryAr && titleAr && <span className="text-xs font-semibold text-slate-600">/ {titleAr}</span>}
-      </div>
-    </div>
+  const EmptyTableRow = ({ cols }) => (
+    <tr>
+      <td colSpan={cols} className="py-7 text-center text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">
+        No activity recorded for this period · لا توجد حركة خلال الفترة
+      </td>
+    </tr>
   )
 
   const renderSummaryTotals = (rows) => (
@@ -492,24 +514,24 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
 
         <div>
           <SectionHeader number="1" titleEn="Official VAT Declaration Statement" titleAr="إقرار ضريبة القيمة المضافة الرسمي (هيئة الزكاة والضريبة والجمارك)" />
-          <table className="w-full text-left border-collapse border border-slate-200 text-xs">
+          <table className="w-full text-left border-collapse overflow-hidden text-[11px] rounded-md">
             <thead>
-              <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-semibold">
+              <tr className="text-white" style={{ backgroundColor: primaryColor }}>
                 <th className="py-2.5 px-3">
                   <div>VAT Declaration Line Item</div>
-                  <div className="text-[10px] text-slate-500 font-normal">بند الإقرار الضريبي</div>
+                  <div className="text-[9px] font-normal text-white/70">بند الإقرار الضريبي</div>
                 </th>
                 <th className="py-2.5 px-3 text-right">
                   <div>Base Amount</div>
-                  <div className="text-[10px] text-slate-500 font-normal">المبلغ الخاضع (SAR)</div>
+                  <div className="text-[9px] font-normal text-white/70">المبلغ الخاضع (SAR)</div>
                 </th>
                 <th className="py-2.5 px-3 text-right">
                   <div>Adjustment</div>
-                  <div className="text-[10px] text-slate-500 font-normal">التعديل (SAR)</div>
+                  <div className="text-[9px] font-normal text-white/70">التعديل (SAR)</div>
                 </th>
                 <th className="py-2.5 px-3 text-right">
                   <div>VAT Amount (15%)</div>
-                  <div className="text-[10px] text-slate-500 font-normal">مبلغ الضريبة (SAR)</div>
+                  <div className="text-[9px] font-normal text-white/70">مبلغ الضريبة (SAR)</div>
                 </th>
               </tr>
             </thead>
@@ -560,26 +582,26 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
           <SectionHeader number="1" titleEn="Sales Revenue by Transaction Channel" titleAr="الإيرادات حسب نوع المعاملة والقناة" />
           <table className="w-full text-left border-collapse border border-slate-200 text-xs">
             <thead>
-              <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-semibold">
+              <tr className="text-white font-semibold" style={{ backgroundColor: primaryColor }}>
                 <th className="py-2.5 px-3">
                   <div>Transaction Channel</div>
-                  <div className="text-[10px] text-slate-500 font-normal">نوع المعاملة</div>
+                  <div className="text-[9px] font-normal text-white/70">نوع المعاملة</div>
                 </th>
                 <th className="py-2.5 px-3 text-center">
                   <div>Invoices Count</div>
-                  <div className="text-[10px] text-slate-500 font-normal">عدد الفواتير</div>
+                  <div className="text-[9px] font-normal text-white/70">عدد الفواتير</div>
                 </th>
                 <th className="py-2.5 px-3 text-right">
                   <div>Discounts (SAR)</div>
-                  <div className="text-[10px] text-slate-500 font-normal">الخصم</div>
+                  <div className="text-[9px] font-normal text-white/70">الخصم</div>
                 </th>
                 <th className="py-2.5 px-3 text-right">
                   <div>Taxable Net (SAR)</div>
-                  <div className="text-[10px] text-slate-500 font-normal">المبلغ الخاضع</div>
+                  <div className="text-[9px] font-normal text-white/70">المبلغ الخاضع</div>
                 </th>
                 <th className="py-2.5 px-3 text-right">
                   <div>Total Revenue (SAR)</div>
-                  <div className="text-[10px] text-slate-500 font-normal">الإجمالي شامل الضريبة</div>
+                  <div className="text-[9px] font-normal text-white/70">الإجمالي شامل الضريبة</div>
                 </th>
               </tr>
             </thead>
@@ -602,22 +624,22 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
             <SectionHeader number="2" titleEn="Top Revenue Contributing Customers" titleAr="أعلى العملاء مساهمة في الإيرادات" />
             <table className="w-full text-left border-collapse border border-slate-200 text-xs">
               <thead>
-                <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-semibold">
+                <tr className="text-white font-semibold" style={{ backgroundColor: primaryColor }}>
                   <th className="py-2.5 px-3">
                     <div>Customer Name</div>
-                    <div className="text-[10px] text-slate-500 font-normal">اسم العميل</div>
+                    <div className="text-[9px] font-normal text-white/70">اسم العميل</div>
                   </th>
                   <th className="py-2.5 px-3 text-center">
                     <div>Invoices Count</div>
-                    <div className="text-[10px] text-slate-500 font-normal">عدد الفواتير</div>
+                    <div className="text-[9px] font-normal text-white/70">عدد الفواتير</div>
                   </th>
                   <th className="py-2.5 px-3 text-right">
                     <div>Total Revenue (SAR)</div>
-                    <div className="text-[10px] text-slate-500 font-normal">إجمالي الإيرادات</div>
+                    <div className="text-[9px] font-normal text-white/70">إجمالي الإيرادات</div>
                   </th>
                   <th className="py-2.5 px-3 text-center">
                     <div>Share %</div>
-                    <div className="text-[10px] text-slate-500 font-normal">النسبة</div>
+                    <div className="text-[9px] font-normal text-white/70">النسبة</div>
                   </th>
                 </tr>
               </thead>
@@ -672,27 +694,29 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
           <SectionHeader number="1" titleEn="Chronological Daily Sales Register" titleAr="سجل المبيعات والفوترة اليومية التفصيلي" />
           <table className="w-full text-left border-collapse border border-slate-200 text-xs">
             <thead>
-              <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-semibold">
+              <tr className="text-white font-semibold" style={{ backgroundColor: primaryColor }}>
                 <th className="py-2.5 px-3">
                   <div>Date (YYYY-MM-DD)</div>
-                  <div className="text-[10px] text-slate-500 font-normal">التاريخ</div>
+                  <div className="text-[9px] font-normal text-white/70">التاريخ</div>
                 </th>
                 <th className="py-2.5 px-3 text-center">
                   <div>Invoices Count</div>
-                  <div className="text-[10px] text-slate-500 font-normal">عدد الفواتير</div>
+                  <div className="text-[9px] font-normal text-white/70">عدد الفواتير</div>
                 </th>
                 <th className="py-2.5 px-3 text-right">
                   <div>VAT Tax Collected (SAR)</div>
-                  <div className="text-[10px] text-slate-500 font-normal">ضريبة القيمة المضافة (15%)</div>
+                  <div className="text-[9px] font-normal text-white/70">ضريبة القيمة المضافة (15%)</div>
                 </th>
                 <th className="py-2.5 px-3 text-right">
                   <div>Gross Total Amount (SAR)</div>
-                  <div className="text-[10px] text-slate-500 font-normal">المجموع الإجمالي شامل الضريبة</div>
+                  <div className="text-[9px] font-normal text-white/70">المجموع الإجمالي شامل الضريبة</div>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {rows.map((row, idx) => (
+              {rows.length === 0 ? (
+                <EmptyTableRow cols={4} />
+              ) : rows.map((row, idx) => (
                 <tr key={idx} className={idx % 2 === 1 ? 'bg-slate-50' : 'bg-white'}>
                   <td className="py-2 px-3 font-semibold text-slate-900">{row._id || '—'}</td>
                   <td className="py-2 px-3 text-center tabular-nums text-slate-700">{(row.invoiceCount || 0).toLocaleString()}</td>
@@ -703,7 +727,7 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
               <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-300">
                 <td className="py-2.5 px-3">
                   <div>Total Period Summary</div>
-                  <div className="text-[10px] text-slate-500 font-normal">المجموع العام للفترة</div>
+                  <div className="text-[9px] font-normal text-slate-500">المجموع العام للفترة</div>
                 </td>
                 <td className="py-2.5 px-3 text-center tabular-nums">{totalInvoices.toLocaleString()}</td>
                 <td className="py-2.5 px-3 text-right tabular-nums">{fmtMoney(totalTax)}</td>
@@ -745,31 +769,33 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
           <SectionHeader number="1" titleEn="Customer Lifetime & Period Revenue Rankings" titleAr="تصنيف مبيعات وحسابات العملاء" />
           <table className="w-full text-left border-collapse border border-slate-200 text-xs">
             <thead>
-              <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-semibold">
+              <tr className="text-white font-semibold" style={{ backgroundColor: primaryColor }}>
                 <th className="py-2.5 px-3 text-center w-12">
                   <div>Rank</div>
-                  <div className="text-[10px] text-slate-500 font-normal">الترتيب</div>
+                  <div className="text-[9px] font-normal text-white/70">الترتيب</div>
                 </th>
                 <th className="py-2.5 px-3">
                   <div>Customer / Account Name</div>
-                  <div className="text-[10px] text-slate-500 font-normal">اسم العميل والحساب</div>
+                  <div className="text-[9px] font-normal text-white/70">اسم العميل والحساب</div>
                 </th>
                 <th className="py-2.5 px-3 text-center">
                   <div>Invoices Count</div>
-                  <div className="text-[10px] text-slate-500 font-normal">عدد الفواتير</div>
+                  <div className="text-[9px] font-normal text-white/70">عدد الفواتير</div>
                 </th>
                 <th className="py-2.5 px-3 text-right">
                   <div>Total Revenue (SAR)</div>
-                  <div className="text-[10px] text-slate-500 font-normal">إجمالي المبيعات</div>
+                  <div className="text-[9px] font-normal text-white/70">إجمالي المبيعات</div>
                 </th>
                 <th className="py-2.5 px-3 text-center">
                   <div>Revenue Share %</div>
-                  <div className="text-[10px] text-slate-500 font-normal">النسبة المئوية</div>
+                  <div className="text-[9px] font-normal text-white/70">النسبة المئوية</div>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {rows.map((row, idx) => {
+              {rows.length === 0 ? (
+                <EmptyTableRow cols={5} />
+              ) : rows.map((row, idx) => {
                 const share = totalAmount > 0 ? (((row.totalAmount || 0) / totalAmount) * 100).toFixed(1) : '0'
                 return (
                   <tr key={idx} className={idx % 2 === 1 ? 'bg-slate-50' : 'bg-white'}>
@@ -816,26 +842,26 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
             <SectionHeader number="1" titleEn="Cancelled & Voided Invoices Register" titleAr="سجل الفواتير الملغاة والمعدلة" />
             <table className="w-full text-left border-collapse border border-slate-200 text-xs">
               <thead>
-                <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-semibold">
+                <tr className="text-white font-semibold" style={{ backgroundColor: primaryColor }}>
                   <th className="py-2.5 px-3">
                     <div>Invoice Number</div>
-                    {showSecondaryAr && <div className="text-[10px] text-slate-500 font-normal">رقم الفاتورة</div>}
+                    {showSecondaryAr && <div className="text-[9px] font-normal text-white/70">رقم الفاتورة</div>}
                   </th>
                   <th className="py-2.5 px-3">
                     <div>Issue Date</div>
-                    {showSecondaryAr && <div className="text-[10px] text-slate-500 font-normal">تاريخ الإصدار</div>}
+                    {showSecondaryAr && <div className="text-[9px] font-normal text-white/70">تاريخ الإصدار</div>}
                   </th>
                   <th className="py-2.5 px-3">
                     <div>Customer</div>
-                    {showSecondaryAr && <div className="text-[10px] text-slate-500 font-normal">العميل</div>}
+                    {showSecondaryAr && <div className="text-[9px] font-normal text-white/70">العميل</div>}
                   </th>
                   <th className="py-2.5 px-3 text-right">
                     <div>Amount (SAR)</div>
-                    {showSecondaryAr && <div className="text-[10px] text-slate-500 font-normal">المبلغ</div>}
+                    {showSecondaryAr && <div className="text-[9px] font-normal text-white/70">المبلغ</div>}
                   </th>
                   <th className="py-2.5 px-3">
                     <div>Cancellation Reason</div>
-                    {showSecondaryAr && <div className="text-[10px] text-slate-500 font-normal">سبب الإلغاء</div>}
+                    {showSecondaryAr && <div className="text-[9px] font-normal text-white/70">سبب الإلغاء</div>}
                   </th>
                 </tr>
               </thead>
@@ -901,18 +927,18 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
           <SectionHeader number="2" titleEn="ZATCA Phase 2 Clearance & Cryptographic Verification" titleAr="التحقق من الفحص والربط والتكامل لضريبة القيمة المضافة" />
           <table className="w-full text-left border-collapse border border-slate-200 text-xs">
             <thead>
-              <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-semibold">
+              <tr className="text-white font-semibold" style={{ backgroundColor: primaryColor }}>
                 <th className="py-2.5 px-3">
                   <div>Verification Checkpoint</div>
-                  <div className="text-[10px] text-slate-500 font-normal">بند الفحص والتحقق</div>
+                  <div className="text-[9px] font-normal text-white/70">بند الفحص والتحقق</div>
                 </th>
                 <th className="py-2.5 px-3 text-center">
                   <div>Status</div>
-                  <div className="text-[10px] text-slate-500 font-normal">الحالة</div>
+                  <div className="text-[9px] font-normal text-white/70">الحالة</div>
                 </th>
                 <th className="py-2.5 px-3">
                   <div>Assurance Standard</div>
-                  <div className="text-[10px] text-slate-500 font-normal">المعيار النظامي</div>
+                  <div className="text-[9px] font-normal text-white/70">المعيار النظامي</div>
                 </th>
               </tr>
             </thead>
@@ -955,11 +981,11 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
     const rawKpis = section?.kpis || []
     const tables = section?.tables || []
 
-    const kpis = rawKpis.map((k) => ({
+    const kpis = rawKpis.map((k, i) => ({
       labelEn: typeof k.label === 'object' ? String(k.label.en || '').toUpperCase() : String(k.label || '').toUpperCase(),
       labelAr: typeof k.label === 'object' ? k.label.ar : '',
       value: k.format === 'money' ? fmtMoney(k.value) : k.format === 'percent' ? `${k.value}%` : Number(k.value || 0).toLocaleString(),
-      color: '#e11d48',
+      color: ['#0f172a', '#0f766e', '#1d4ed8', '#b45309', '#be123c'][i % 5],
     }))
 
     return (
@@ -975,41 +1001,47 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
           return (
             <div key={tIdx}>
               <SectionHeader number={String(tIdx + 1)} titleEn={titleEn} titleAr={titleAr} />
-              <table className="w-full text-left border-collapse border border-slate-200 text-xs">
+              <div className="overflow-hidden rounded-md border border-slate-200">
+              <table className="w-full text-left border-collapse overflow-hidden text-[11px]">
                 <thead>
-                  <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-semibold">
+                  <tr className="text-white" style={{ backgroundColor: primaryColor }}>
                     {columns.map((col, cIdx) => {
                       const colEn = typeof col.label === 'object' ? col.label.en : col.label
                       const colAr = typeof col.label === 'object' ? col.label.ar : ''
-                      const isMoney = col.format === 'money' || col.key?.includes('revenue') || col.key?.includes('amount') || col.key?.includes('price')
-                      const isNum = col.format === 'number' || col.key?.includes('qty') || col.key?.includes('count') || col.key?.includes('invoices')
+                      const isMoney = col.format === 'money' || col.key?.includes('revenue') || col.key?.includes('amount') || col.key?.includes('price') || col.key?.includes('value') || col.key?.includes('cost')
+                      const isNum = col.format === 'number' || col.key?.includes('qty') || col.key?.includes('count') || col.key?.includes('invoices') || col.key?.includes('stock')
                       return (
-                        <th key={cIdx} className={`py-2.5 px-3 ${isMoney ? 'text-right' : isNum ? 'text-center' : 'text-left'}`}>
+                        <th key={cIdx} className={`py-2.5 px-3 font-semibold ${isMoney ? 'text-right' : isNum ? 'text-center' : 'text-left'}`}>
                           <div>{colEn}</div>
-                          {colAr && <div className="text-[10px] text-slate-500 font-normal">{colAr}</div>}
+                          {colAr ? <div className="text-[9px] font-normal text-white/70">{colAr}</div> : null}
                         </th>
                       )
                     })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {rows.map((row, rIdx) => (
-                    <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-slate-50' : 'bg-white'}>
+                  {rows.length === 0 ? (
+                    <EmptyTableRow cols={columns.length || 1} />
+                  ) : (
+                    rows.map((row, rIdx) => (
+                    <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-slate-50/80' : 'bg-white'}>
                       {columns.map((col, cIdx) => {
                         const val = row[col.key]
-                        const isMoney = col.format === 'money' || col.key?.includes('revenue') || col.key?.includes('amount') || col.key?.includes('price')
-                        const isNum = col.format === 'number' || col.key?.includes('qty') || col.key?.includes('count') || col.key?.includes('invoices')
+                        const isMoney = col.format === 'money' || col.key?.includes('revenue') || col.key?.includes('amount') || col.key?.includes('price') || col.key?.includes('value') || col.key?.includes('cost')
+                        const isNum = col.format === 'number' || col.key?.includes('qty') || col.key?.includes('count') || col.key?.includes('invoices') || col.key?.includes('stock')
                         const formatted = isMoney ? fmtMoney(val) : isNum ? Number(val || 0).toLocaleString() : String(val ?? '—')
                         return (
-                          <td key={cIdx} className={`py-2 px-3 ${isMoney ? 'text-right tabular-nums font-bold text-slate-900' : isNum ? 'text-center tabular-nums text-slate-700' : 'font-medium text-slate-900'}`}>
+                          <td key={cIdx} className={`py-2.5 px-3 ${isMoney ? 'text-right tabular-nums font-semibold text-slate-950' : isNum ? 'text-center tabular-nums text-slate-700' : 'font-medium text-slate-900'}`}>
                             {formatted}
                           </td>
                         )
                       })}
                     </tr>
-                  ))}
+                    ))
+                  )}
                 </tbody>
               </table>
+              </div>
             </div>
           )
         })}
@@ -1022,86 +1054,98 @@ export default function MasterReportDocumentPreview({ reportType = 'vat', report
     )
   }
 
+  const issuedAt = new Date()
+  const docRef = `RPT-${String(reportType || 'OPS').replace(/[^A-Z0-9]+/gi, '-').toUpperCase()}-${todayStr.replace(/-/g, '')}`
+  const addressLine = [tenant?.business?.address?.street, tenant?.business?.address?.district, tenant?.business?.city, tenant?.business?.address?.postalCode]
+    .filter(Boolean)
+    .join(' · ') || location
+
   return (
     <div
       id="master-report-preview-canvas"
-      className="bg-white text-slate-900 p-8 w-[1120px] mx-auto min-h-[1400px] flex flex-col justify-between"
+      className="mx-auto flex min-h-[1400px] w-[1120px] flex-col justify-between bg-white text-slate-900"
       style={{
-        fontFamily: "'Almarai', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-        lineHeight: 1.4,
+        fontFamily: "'Almarai', 'Inter', 'Segoe UI', sans-serif",
+        lineHeight: 1.45,
       }}
     >
       <div>
-        {/* ── Top Brand Header Stripe ────────────────────────────────────── */}
-        <div className="h-1.5 w-full rounded-full mb-6" style={{ backgroundColor: primaryColor }} />
-
-        {/* ── Light Enterprise Header (Bilingual & Non-overlapping) ───────── */}
-        <div className="flex justify-between items-start pb-6 border-b border-slate-200 gap-8">
-          {/* Left Column: Company Branding */}
-          <div className="flex items-start gap-4 max-w-[55%]">
-            {logo && (
-              <img src={logo} alt="Company Logo" className="h-14 w-auto object-contain rounded" />
-            )}
-            <div className="space-y-1">
-              <div className="text-base font-extrabold text-slate-900 leading-tight">
-                {companyEn} {showSecondaryAr && companyAr && <span className="font-semibold text-slate-700">/ {companyAr}</span>}
+        <div className="px-10 pt-8">
+          <div className="overflow-hidden rounded-lg" style={{ backgroundColor: primaryColor }}>
+            <div className="flex items-stretch justify-between gap-6 px-6 py-5 text-white">
+              <div className="flex min-w-0 items-start gap-4">
+                <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-md bg-white p-1.5">
+                  {logo ? (
+                    <img src={logo} alt="" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="text-[11px] font-bold tracking-[0.18em] text-slate-800">MQ</span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[18px] font-semibold leading-tight tracking-tight">{companyEn}</div>
+                  {showSecondaryAr && companyAr ? (
+                    <div className="mt-0.5 text-[13px] font-medium text-white/85" dir="rtl">{companyAr}</div>
+                  ) : null}
+                  <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-0.5 text-[10px] text-white/80">
+                    <span>CR {crNumber}</span>
+                    <span>VAT {vatNumber}</span>
+                    <span className="col-span-2">{addressLine}</span>
+                  </div>
+                </div>
               </div>
-              <div className="text-xs text-slate-600 flex items-center gap-2">
-                <span className="font-medium text-slate-500">{showSecondaryAr ? 'CR No. / السجل التجاري:' : 'CR No.:'}</span>
-                <span className="font-semibold text-slate-800">{crNumber}</span>
-              </div>
-              <div className="text-xs text-slate-600 flex items-center gap-2">
-                <span className="font-medium text-slate-500">{showSecondaryAr ? 'VAT TRN / الرقم الضريبي:' : 'VAT TRN:'}</span>
-                <span className="font-semibold text-slate-800">{vatNumber}</span>
-              </div>
-              <div className="text-xs text-slate-600 flex items-center gap-2">
-                <span className="font-medium text-slate-500">{showSecondaryAr ? 'Location / الموقع:' : 'Location:'}</span>
-                <span className="font-semibold text-slate-800">{location}</span>
+              <div className="shrink-0 text-right">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70">Official statement</div>
+                <h1 className="mt-1 max-w-[340px] text-[16px] font-semibold leading-snug">{meta.titleEn}</h1>
+                {showSecondaryAr ? <div className="mt-1 text-[12px] text-white/85" dir="rtl">{meta.titleAr}</div> : null}
+                <div className="mt-2 inline-flex rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide">
+                  {meta.badgeEn}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Right Column: Report Meta & Document Details */}
-          <div className="text-right space-y-1.5 max-w-[45%]">
-            <h1 className="text-base font-black text-slate-900 tracking-tight leading-tight">{meta.titleEn}</h1>
-            {showSecondaryAr && <div className="text-xs font-bold text-slate-700">{meta.titleAr}</div>}
-
-            <div className="inline-block mt-1">
-              <span
-                className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border"
-                style={{
-                  color: meta.badgeColor || primaryColor,
-                  borderColor: meta.badgeColor || primaryColor,
-                  backgroundColor: '#f8fafc',
-                }}
-              >
-                {showSecondaryAr ? `${meta.badgeEn} / ${meta.badgeAr}` : meta.badgeEn}
-              </span>
+          <div className="mt-3 grid grid-cols-4 gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200 text-[10px]">
+            <div className="bg-slate-50 px-3 py-2">
+              <div className="font-semibold uppercase tracking-[0.14em] text-slate-400">Period</div>
+              <div className="mt-0.5 font-semibold text-slate-800">{formatDate(startDate)} — {formatDate(endDate)}</div>
             </div>
-
-            <div className="text-xs text-slate-500 pt-1 space-y-0.5">
-              <div>Period / الفترة: <span className="font-semibold text-slate-700">{formatDate(startDate)} — {formatDate(endDate)}</span></div>
-              <div>Issued / تاريخ الإصدار: <span className="font-semibold text-slate-700">{todayStr}</span></div>
+            <div className="bg-slate-50 px-3 py-2">
+              <div className="font-semibold uppercase tracking-[0.14em] text-slate-400">Issued</div>
+              <div className="mt-0.5 font-semibold text-slate-800">{issuedAt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+            </div>
+            <div className="bg-slate-50 px-3 py-2">
+              <div className="font-semibold uppercase tracking-[0.14em] text-slate-400">Reference</div>
+              <div className="mt-0.5 font-mono font-semibold text-slate-800">{docRef}</div>
+            </div>
+            <div className="bg-slate-50 px-3 py-2">
+              <div className="font-semibold uppercase tracking-[0.14em] text-slate-400">Classification</div>
+              <div className="mt-0.5 font-semibold text-slate-800">Confidential · Management</div>
             </div>
           </div>
         </div>
 
-        {/* ── Main Report Content Body ───────────────────────────────────── */}
-        <div className="py-6">
+        <div className="px-10 py-6">
           {reportType === 'vat' && renderVatContent()}
           {reportType === 'business' && renderBusinessContent()}
           {reportType === 'daily' && renderDailyContent()}
           {reportType === 'sales' && renderSalesContent()}
           {reportType === 'internal_audit' && renderInternalAuditContent()}
           {reportType === 'external_audit' && renderExternalAuditContent()}
-          {(reportType.startsWith('ops:') || Boolean(report?.sections) || !['vat', 'business', 'daily', 'sales', 'internal_audit', 'external_audit'].includes(reportType)) && renderOpsContent()}
+          {(String(reportType).startsWith('ops:') || !['vat', 'business', 'daily', 'sales', 'internal_audit', 'external_audit'].includes(reportType)) && renderOpsContent()}
         </div>
       </div>
 
-      {/* ── Official Footer ──────────────────────────────────────────────── */}
-      <div className="pt-4 border-t border-slate-200 flex justify-between items-center text-[11px] text-slate-500">
-        <div>Maqder ERP Enterprise Financial Reporting Engine • Confidential Document</div>
-        <div className="font-medium">نظام مقدر للتقارير المالية والضريبية المعتمدة</div>
+      <div className="px-10 pb-8">
+        <div className="flex items-end justify-between gap-4 border-t border-slate-200 pt-3 text-[10px] text-slate-500">
+          <div>
+            <div className="font-semibold text-slate-700">Maqder ERP · Certified operational reporting</div>
+            <div>Generated {issuedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC · Do not distribute without authorization</div>
+          </div>
+          <div className="text-right" dir="rtl">
+            <div className="font-semibold text-slate-700">نظام مقدر للتقارير المالية المعتمدة</div>
+            <div>وثيقة سرية — للإدارة والامتثال فقط</div>
+          </div>
+        </div>
       </div>
     </div>
   )

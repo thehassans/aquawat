@@ -364,3 +364,41 @@ html.display-mode-tablet .table td {
 html.display-mode-desktop {
   font-size: 16px;
 }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 14mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #0f172a !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-shadow: none !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  #master-report-preview-canvas,
+  #master-report-preview-canvas * {
+    visibility: visible !important;
+  }
+
+  #master-report-preview-canvas {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}

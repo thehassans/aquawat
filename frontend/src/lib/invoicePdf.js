@@ -69,7 +69,7 @@ const downloadPdfBlob = (blob, fileName) => {
   return true
 }
 
-const printPdfBlob = async (blob, title) => {
+export const printPdfBlob = async (blob, title) => {
   if (!blob || typeof window === 'undefined' || typeof document === 'undefined') return false
   const objectUrl = window.URL.createObjectURL(blob)
   const revokeLater = () => window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000)
