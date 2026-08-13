@@ -9,8 +9,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
-import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
-import { LETTERHEAD_TEMPLATE_ID } from '../../lib/invoiceTemplates'
+import { LETTERHEAD_TEMPLATE_ID, QUOTATION_TEMPLATE_IDS, resolveQuotationTemplateId } from '../../lib/invoiceTemplates'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
@@ -51,7 +50,7 @@ const formatDateForInput = (value) => {
 
 const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext }) => ({
   businessContext: quotation?.businessContext || defaultBusinessContext,
-  pdfTemplateId: quotation?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID,
+  pdfTemplateId: resolveQuotationTemplateId(quotation?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID),
   issueDate: formatDateForInput(quotation?.issueDate) || formatDateForInput(new Date()),
   validUntil: formatDateForInput(quotation?.validUntil),
   transactionType: quotation?.transactionType || 'B2B',
@@ -187,7 +186,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   const values = watch()
   const lineItems = Array.isArray(values?.lineItems) ? values.lineItems : []
   const businessContext = values?.businessContext || defaultBusinessContext
-  const selectedTemplateId = Number(values?.pdfTemplateId || getInvoiceTemplateId(tenant, businessContext))
+  const selectedTemplateId = resolveQuotationTemplateId(values?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID)
   const isTradingContext = businessContext === 'trading'
   const [customerLookupId, setCustomerLookupId] = useState('')
 
@@ -605,15 +604,16 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
               </h3>
               <p className="mt-1 text-sm text-slate-500">
                 {language === 'ar'
-                  ? 'ورق رسمي يضع السجل التجاري والضريبة أعلى الصفحة وبيانات التواصل في التذييل.'
-                  : 'Letterhead puts C.R. # and VAT # at the top, and address, email and phone in the footer.'}
+                  ? 'اختر أساسي أو ورق رسمي. الورق الرسمي يطابق خطاب الشركة: السجل التجاري والضريبة في الترويسة، والعنوان والبريد والهاتف في التذييل.'
+                  : 'Choose Essential or Letterhead. Letterhead matches the official company letter: C.R. # and VAT # in the header, address, email and phone in the footer.'}
               </p>
             </div>
             <InvoiceTemplateSelector
               language={language}
               value={selectedTemplateId}
-              hasPremiumAccess={Boolean(tenant?.settings?.installedApps?.premium_invoice_templates?.isInstalled && tenant?.settings?.installedApps?.premium_invoice_templates?.isEnabled !== false) || Number(tenant?.settings?.invoicePdfTemplate) > 1}
-              onChange={(id) => setValue('pdfTemplateId', id)}
+              allowedIds={QUOTATION_TEMPLATE_IDS}
+              hasPremiumAccess
+              onChange={(id) => setValue('pdfTemplateId', resolveQuotationTemplateId(id))}
               onLockedClick={() => navigate('/app/dashboard/app-store')}
             />
             <input type="hidden" {...register('pdfTemplateId')} />

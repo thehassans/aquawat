@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import { useSelector } from 'react-redux';
-import { Building2, Mail, Phone, Globe, MapPin, Printer } from 'lucide-react';
+import { Printer } from 'lucide-react';
 import debounce from 'lodash.debounce';
-import api from '../lib/api';
 import { autoTranslateText } from '../lib/builtInTranslator';
 import { getInvoiceSecondaryLanguage } from '../lib/invoiceLanguage';
+import LetterheadChrome from '../components/invoices/LetterheadChrome';
 
 export default function Letterhead() {
   const { tenant } = useSelector((state) => state.auth);
@@ -48,16 +48,6 @@ export default function Letterhead() {
     []
   );
 
-  const companyNameEn = tenant?.business?.legalNameEn || tenant?.name || tenant?.business?.legalNameAr || 'Company Name';
-  const companyNameAr = tenant?.business?.legalNameAr || tenant?.name || tenant?.business?.legalNameEn || 'اسم الشركة';
-  const addressObj = tenant?.business?.address || {};
-  const addressEn = [addressObj.buildingNumber, addressObj.street, addressObj.district, addressObj.city].filter(Boolean).join(', ') || 'Address not provided';
-  const addressAr = [addressObj.buildingNumber, addressObj.streetAr || addressObj.street, addressObj.districtAr || addressObj.district, addressObj.cityAr || addressObj.city].filter(Boolean).join('، ') || 'العنوان غير متوفر';
-  const phone = tenant?.business?.contactPhone || '';
-  const email = tenant?.business?.contactEmail || '';
-  const website = tenant?.business?.website || '';
-  const logoUrl = tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo || '';
-
   const handlePrint = () => {
     window.print();
   };
@@ -98,89 +88,13 @@ export default function Letterhead() {
       </div>
 
       {/* The Letter Paper */}
-      <div className="relative w-full max-w-4xl mx-auto bg-white dark:bg-white text-gray-900 rounded-xl shadow-lg border border-gray-200 overflow-hidden print:shadow-none print:border-none print:m-0 print:p-0 flex flex-col min-h-[1050px]">
-        
-        {/* Centered Background Watermark Logo */}
-        {logoUrl && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none print:flex">
-            <img
-              src={logoUrl}
-              alt=""
-              className="w-72 h-72 sm:w-96 sm:h-96 md:w-[460px] md:h-[460px] object-contain opacity-[0.06] print:opacity-[0.08]"
-            />
-          </div>
-        )}
-
-        {/* Letterhead Header */}
-        <div className="relative z-10 border-b-2 border-primary-500/20 bg-gradient-to-r from-white to-gray-50/80 p-8 print:bg-none print:p-4">
-          <div className="flex items-start justify-between gap-6">
-            
-            {/* Left (English/Logo) */}
-            <div className="flex-1">
-              {(outputLang === 'en' || outputLang === 'both') && (
-                <div className="text-left">
-                  <h1 className="text-2xl font-bold mb-3 print:text-black">{companyNameEn}</h1>
-                  <div className="space-y-1.5 text-sm text-gray-600 print:text-black">
-                    {addressEn && (
-                      <div className="flex items-center justify-start gap-2">
-                        <MapPin className="h-3.5 w-3.5" />
-                        <span>{addressEn}</span>
-                      </div>
-                    )}
-                    {phone && (
-                      <div className="flex items-center justify-start gap-2">
-                        <Phone className="h-3.5 w-3.5" />
-                        <span>{phone}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Center Logo */}
-            <div className="flex-shrink-0 mx-4">
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt="Logo"
-                  className="h-28 w-auto max-w-[200px] object-contain"
-                />
-              ) : (
-                <div className="h-16 w-16 rounded-lg bg-primary-100 flex items-center justify-center">
-                  <Building2 className="h-8 w-8 text-primary-600" />
-                </div>
-              )}
-            </div>
-
-            {/* Right (Arabic) */}
-            <div className="flex-1">
-              {(outputLang === 'ar' || outputLang === 'both') && (
-                <div className="text-right" dir="rtl">
-                  <h1 className="text-2xl font-bold mb-3 print:text-black">{companyNameAr}</h1>
-                  <div className="space-y-1.5 text-sm text-gray-600 print:text-black">
-                    {addressAr && (
-                      <div className="flex items-center justify-end gap-2">
-                        <span>{addressAr}</span>
-                        <MapPin className="h-3.5 w-3.5" />
-                      </div>
-                    )}
-                    {email && (
-                      <div className="flex items-center justify-end gap-2">
-                        <span>{email}</span>
-                        <Mail className="h-3.5 w-3.5" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
-
+      <LetterheadChrome
+        tenant={tenant}
+        outputLang={outputLang}
+        className="rounded-xl border border-gray-200 shadow-lg print:m-0 print:border-none print:p-0 print:shadow-none dark:bg-white"
+      >
         {/* Content Area */}
-        <div className="relative z-10 p-8 min-h-[650px] print:min-h-0 print:p-4 bg-transparent text-black flex-1">
+        <div className="relative z-10 min-h-[650px] flex-1 bg-transparent p-8 text-black print:min-h-0 print:p-4">
           {/* Date */}
           <div className="mb-8 flex justify-between">
             <div className="w-1/3">
@@ -361,34 +275,7 @@ export default function Letterhead() {
             
           </div>
         </div>
-
-        {/* Footer Section */}
-        <div className="relative z-10 border-t-2 border-primary-500/20 bg-gradient-to-r from-gray-50/80 to-white p-6 print:bg-none print:p-4 mt-auto">
-          <div className="flex flex-col items-center justify-center gap-3">
-            <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-gray-500 print:text-black">
-              {phone && (
-                <div className="flex items-center gap-1.5">
-                  <Phone className="h-3 w-3" />
-                  <span>{phone}</span>
-                </div>
-              )}
-              {email && (
-                <div className="flex items-center gap-1.5">
-                  <Mail className="h-3 w-3" />
-                  <span>{email}</span>
-                </div>
-              )}
-              {website && (
-                <div className="flex items-center gap-1.5">
-                  <Globe className="h-3 w-3" />
-                  <span>{website}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-      </div>
+      </LetterheadChrome>
     </div>
   );
 }

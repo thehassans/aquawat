@@ -191,16 +191,23 @@ export const getLetterheadContact = (tenant, invoice) => {
     address.postalCode,
     address.country,
   ].filter(Boolean).join(', ')
+  const addressAr = [
+    address.buildingNumber,
+    address.streetAr || address.street,
+    address.districtAr || address.district,
+    address.cityAr || address.city,
+  ].filter(Boolean).join('، ')
 
   const website = String(business.website || '').trim().replace(/^https?:\/\//i, '')
 
   return {
     vatNumber: seller.vatNumber || business.vatNumber || '',
-    crNumber: seller.crNumber || business.crNumber || '',
-    phone: seller.contactPhone || business.contactPhone || '',
+    crNumber: seller.crNumber || business.crNumber || business.commercialRegistration?.crNumber || '',
+    phone: seller.contactPhone || business.contactPhone || tenant?.phone || '',
     email: seller.contactEmail || business.contactEmail || '',
     website,
     addressLine,
+    addressAr,
     companyEn: business.legalNameEn || seller.name || tenant?.name || '',
     companyAr: business.legalNameAr || seller.nameAr || '',
   }

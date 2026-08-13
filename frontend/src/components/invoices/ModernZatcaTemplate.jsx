@@ -4,7 +4,7 @@ import DocumentExtras from './DocumentExtras'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
-import { getInvoiceBranding } from '../../lib/invoiceBranding'
+import { getInvoiceBranding, getLetterheadContact } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { Building2, Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info } from 'lucide-react'
 import { getAmountInWords } from '../../lib/amountInWords'
@@ -29,6 +29,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
 
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
+  const letterheadContact = getLetterheadContact(tenant, invoice)
   
   const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
   const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
@@ -122,7 +123,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             </div>
             
             <div className="mt-2 space-y-1 text-sm">
-              {(invoice?.seller?.address?.street || invoice?.seller?.address?.city) && (
+              {!isQuotation && (invoice?.seller?.address?.street || invoice?.seller?.address?.city) && (
                 <div className="flex flex-col gap-1">
                   <p className="flex items-start gap-2">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
@@ -136,13 +137,13 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   )}
                 </div>
               )}
-              {invoice?.seller?.contactPhone && (
+              {!isQuotation && invoice?.seller?.contactPhone && (
                 <p className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-gray-500" />
                   {invoice.seller.contactPhone}
                 </p>
               )}
-              {invoice?.seller?.contactEmail && (
+              {!isQuotation && invoice?.seller?.contactEmail && (
                 <p className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-gray-500" />
                   {invoice.seller.contactEmail}
@@ -188,8 +189,8 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                 : L('Tax Invoice', 'فاتورة ضريبية')}
             </div>
             
-            <div className="mt-2 space-y-1 text-sm text-gray-600 md:text-right">
-              {(invoice?.seller?.contactPhone || tenant?.business?.contactPhone || tenant?.phone) && (
+            <div className={`mt-2 space-y-1 text-sm md:text-right ${isQuotation ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
+              {!isQuotation && (invoice?.seller?.contactPhone || tenant?.business?.contactPhone || tenant?.phone) && (
                 <div className="flex items-center gap-2 md:justify-end mb-2">
                   <span className="font-semibold text-gray-900">Phone:</span>
                   <span className="font-mono">{invoice?.seller?.contactPhone || tenant?.business?.contactPhone || tenant?.phone}</span>
@@ -198,21 +199,21 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               {(invoice?.seller?.vatNumber || tenant?.business?.vatNumber) && (
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center justify-end gap-2">
-                    <span className="font-semibold text-gray-900">VAT No:</span>
-                    <span className="font-mono">{invoice?.seller?.vatNumber || tenant?.business?.vatNumber}</span>
+                    <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{isQuotation ? 'VAT #' : 'VAT No'}:</span>
+                    <span className={`font-mono ${isQuotation ? 'font-bold' : ''}`}>{invoice?.seller?.vatNumber || tenant?.business?.vatNumber}</span>
                   </div>
                   {bilingual && S('الرقم الضريبي') && (
                     <div className="flex items-center justify-end gap-2" dir={secondaryDir}>
-                      <span className="font-semibold text-gray-900">{S('الرقم الضريبي')}:</span>
-                      <span className="font-sans">{isArabicSecondary ? toEasternArabicNumerals(invoice?.seller?.vatNumber || tenant?.business?.vatNumber) : (invoice?.seller?.vatNumber || tenant?.business?.vatNumber)}</span>
+                      <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{S('الرقم الضريبي')}:</span>
+                      <span className={`font-sans ${isQuotation ? 'font-bold' : ''}`}>{isArabicSecondary ? toEasternArabicNumerals(invoice?.seller?.vatNumber || tenant?.business?.vatNumber) : (invoice?.seller?.vatNumber || tenant?.business?.vatNumber)}</span>
                     </div>
                   )}
                 </div>
               )}
               {(invoice?.seller?.crNumber || tenant?.business?.crNumber) && (
                 <div className="flex items-center gap-2 md:justify-end mt-2">
-                  <span className="font-semibold text-gray-900">CR No:</span>
-                  <span className="font-mono">{invoice?.seller?.crNumber || tenant?.business?.crNumber}</span>
+                  <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{isQuotation ? 'C.R #' : 'CR No'}:</span>
+                  <span className={`font-mono ${isQuotation ? 'font-bold' : ''}`}>{invoice?.seller?.crNumber || tenant?.business?.crNumber}</span>
                 </div>
               )}
             </div>
@@ -619,6 +620,35 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         {/* Document Extras & Unified Signatory */}
         <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} />
       </div>
+      {isQuotation ? (
+        <footer className="border-t border-gray-200 px-6 py-4">
+          <div className="flex flex-col items-center justify-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm font-bold text-gray-900">
+              {letterheadContact.addressLine ? (
+                <p className="flex max-w-xl items-start gap-1.5 text-center">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>{letterheadContact.addressLine}</span>
+                </p>
+              ) : null}
+              {letterheadContact.phone ? (
+                <p className="flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5 shrink-0" />
+                  <span>{letterheadContact.phone}</span>
+                </p>
+              ) : null}
+              {letterheadContact.email ? (
+                <p className="flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  <span>{letterheadContact.email}</span>
+                </p>
+              ) : null}
+            </div>
+            {letterheadContact.addressAr && letterheadContact.addressAr !== letterheadContact.addressLine ? (
+              <p className="max-w-xl text-center text-sm font-bold text-gray-900" dir="rtl">{letterheadContact.addressAr}</p>
+            ) : null}
+          </div>
+        </footer>
+      ) : null}
       </div>
     </div>
   )

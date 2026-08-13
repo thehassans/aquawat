@@ -1,5 +1,11 @@
 export const LETTERHEAD_TEMPLATE_ID = 9
 export const FREE_TEMPLATE_IDS = [1, LETTERHEAD_TEMPLATE_ID]
+export const QUOTATION_TEMPLATE_IDS = [1, LETTERHEAD_TEMPLATE_ID]
+
+export const resolveQuotationTemplateId = (templateId) => {
+  const id = Number(templateId)
+  return QUOTATION_TEMPLATE_IDS.includes(id) ? id : LETTERHEAD_TEMPLATE_ID
+}
 
 export const invoiceTemplateOptions = [
   {

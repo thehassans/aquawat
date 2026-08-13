@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import InvoiceLivePreview from '../../components/invoices/InvoiceLivePreview'
-import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
+import { resolveQuotationTemplateId } from '../../lib/invoiceTemplates'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { buildQuotationPdfBlob, downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoicePdf'
 import { exportToExcel } from '../../lib/export'
@@ -54,7 +54,7 @@ export default function QuotationView() {
   const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
   const convertedInvoiceId = quotation?.convertedInvoiceId?._id || quotation?.convertedInvoiceId || ''
   const convertedInvoiceNumber = quotation?.convertedInvoiceId?.invoiceNumber || ''
-  const templateId = Number(quotation?.pdfTemplateId || getInvoiceTemplateId(tenant, quotation?.businessContext || 'trading'))
+  const templateId = resolveQuotationTemplateId(quotation?.pdfTemplateId)
 
   const excelRows = useMemo(() => (Array.isArray(quotation?.lineItems) ? quotation.lineItems : []).map((line, index) => ({
     no: index + 1,

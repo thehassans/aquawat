@@ -1,24 +1,18 @@
-import { MapPin, Mail, Phone, Globe } from 'lucide-react'
 import DocumentExtras from './DocumentExtras'
+import LetterheadChrome from './LetterheadChrome'
 import { getCommercialCounterpartyLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber } from '../../lib/commercialDocumentLabels'
 import { getUomLabel } from '../../lib/uomOptions'
 import { calculateInvoiceSummary } from '../../lib/invoiceDocument'
-import { getInvoiceBranding, getLetterheadContact } from '../../lib/invoiceBranding'
+import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
-const GREEN = '#16A34A'
-const RED = '#DC2626'
 
 export default function LetterheadTemplate({ invoice, tenant, language = 'en', bilingual = false, documentType = 'invoice' }) {
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
-  const contact = getLetterheadContact(tenant, invoice)
-  const logoSrc = invoiceBranding.logoSrc
 
-  const sellerNameEn = contact.companyEn
-  const sellerNameAr = contact.companyAr
   const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
   const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
   const buyerName = bilingual ? buyerNameEn : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
@@ -60,44 +54,20 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
   ].filter(Boolean).join(', ')
 
   return (
-    <div dir="ltr" className="relative mx-auto max-w-5xl overflow-hidden bg-white font-sans text-slate-900 shadow-xl" style={{ fontFamily: 'Arial, Helvetica, "Almarai", sans-serif' }}>
-      <div className="px-8 pt-5">
-        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-1 text-[11px] font-semibold tracking-wide text-slate-800">
-          {contact.crNumber ? <span>C.R # : {contact.crNumber}</span> : null}
-          {contact.vatNumber ? <span>VAT # : {contact.vatNumber}</span> : null}
-          {contact.crNumber && bilingual ? <span dir="rtl">س.ت : {contact.crNumber}</span> : null}
-          {contact.vatNumber && bilingual ? <span dir="rtl">الرقم الضريبي : {contact.vatNumber}</span> : null}
-        </div>
-
-        <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-          <div className="min-w-0">
-            <h2 className="text-lg font-black leading-tight text-slate-900 sm:text-xl">{sellerNameEn || '—'}</h2>
-          </div>
-          <div className="flex justify-center">
-            {logoSrc ? (
-              <img src={logoSrc} alt="" className="h-20 w-auto max-w-[11rem] object-contain" />
-            ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border text-xs font-bold text-slate-400">LOGO</div>
-            )}
-          </div>
-          <div className="min-w-0 text-end">
-            {sellerNameAr ? (
-              <h2 className="text-lg font-black leading-tight text-slate-900 sm:text-xl" dir="rtl">{sellerNameAr}</h2>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-8 mt-3 h-[3px]" style={{ backgroundColor: GREEN }} />
-
-      <div className="px-8 py-6">
+    <LetterheadChrome
+      tenant={tenant}
+      invoice={invoice}
+      bilingual={bilingual}
+      className="rounded-xl border border-gray-200 shadow-xl"
+    >
+      <div className="px-8 py-6" style={{ fontFamily: 'Arial, Helvetica, "Almarai", sans-serif' }}>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{isQuotation ? 'Quotation' : 'Document'}</p>
             <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900">{invoiceTitle}</h1>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-            <p><span className="font-semibold text-slate-500">{isQuotation ? 'No' : 'No'}.</span> {documentNumber}</p>
+            <p><span className="font-semibold text-slate-500">No.</span> {documentNumber}</p>
             <p className="mt-1"><span className="font-semibold text-slate-500">Date:</span> {formatDate(invoice?.issueDate || new Date())}</p>
             {isQuotation && invoice?.validUntil ? (
               <p className="mt-1"><span className="font-semibold text-slate-500">Valid until:</span> {formatDate(invoice.validUntil)}</p>
@@ -126,7 +96,7 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
 
         <div className="mt-6 overflow-hidden rounded-xl border border-slate-200">
           <table className="min-w-full text-sm">
-            <thead style={{ backgroundColor: GREEN }}>
+            <thead className="bg-primary-500">
               <tr className="text-white">
                 <th className="px-3 py-2.5 text-start font-semibold">#</th>
                 <th className="px-3 py-2.5 text-start font-semibold">Item</th>
@@ -174,38 +144,6 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
 
         <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} />
       </div>
-
-      <div className="mt-4 px-8 pb-5">
-        <div className="h-[3px]" style={{ backgroundColor: GREEN }} />
-        <div className="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
-          {contact.addressLine ? (
-            <p className="flex items-start gap-2">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: RED }} />
-              <span>{contact.addressLine}</span>
-            </p>
-          ) : null}
-          {contact.email ? (
-            <p className="flex items-center gap-2 md:justify-end">
-              <Mail className="h-4 w-4 shrink-0" style={{ color: RED }} />
-              <span>{contact.email}</span>
-            </p>
-          ) : null}
-          {contact.phone ? (
-            <p className="flex items-center gap-2">
-              <Phone className="h-4 w-4 shrink-0" style={{ color: RED }} />
-              <span>{contact.phone}</span>
-            </p>
-          ) : null}
-        </div>
-        {contact.website ? (
-          <div className="mt-3 flex justify-center">
-            <span className="inline-flex items-center gap-2 rounded-full px-5 py-1.5 text-sm font-semibold text-white" style={{ backgroundColor: RED }}>
-              <Globe className="h-4 w-4" />
-              {contact.website}
-            </span>
-          </div>
-        ) : null}
-      </div>
-    </div>
+    </LetterheadChrome>
   )
 }
