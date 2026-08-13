@@ -78,7 +78,8 @@ jobs:
 
       - name: Deploy to Plesk server
         env:
-          SSH_USER: ${{ secrets.PLESK_SSH_USER || 'maqder.com_eucg0ssmgds' }}
+          # Site user cannot docker compose; Plesk web SSH is root.
+          SSH_USER: root
           SSH_HOST: ${{ secrets.PLESK_SSH_HOST || 'maqder.com' }}
           SSH_PORT: ${{ secrets.PLESK_SSH_PORT || '22' }}
         run: |
