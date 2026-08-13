@@ -3,6 +3,7 @@ import { Suspense, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import Sidebar from '../components/layout/Sidebar'
 import Header from '../components/layout/Header'
+import DemoWelcome from '../components/layout/DemoWelcome'
 import AppLauncher from '../components/layout/AppLauncher'
 import OfflineBanner from '../components/ui/OfflineBanner'
 import PageLoader from '../components/ui/PageLoader'
@@ -40,6 +41,7 @@ export default function MainLayout() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-900 flex flex-col overflow-x-hidden w-full max-w-full">
+      <DemoWelcome />
       <div className="print:hidden">
         <OfflineBanner />
         <AppLauncher />

@@ -397,13 +397,21 @@ export default function Dashboard() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-              {t('dashboard')}
+              {tenant?.isDemo && !tenant?.demoUpgraded
+                ? (isAr
+                    ? `مرحباً بك في ${tenant?.business?.legalNameAr || tenant?.name || 'مساحتك'}`
+                    : `Welcome to ${tenant?.business?.legalNameEn || tenant?.name || 'your workspace'}`)
+                : t('dashboard')}
             </h1>
           </div>
           <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-            {isAr 
-              ? 'مرحباً بعودتك! مركز القيادة الموحد لجميع مساحات العمل والتطبيقات التشغيلية' 
-              : "Welcome back! Unified command center for all business verticals and operational apps"}
+            {tenant?.isDemo && !tenant?.demoUpgraded
+              ? (isAr
+                  ? 'مساحتك المباشرة جاهزة — الفوترة والعملاء والتقارير في مركز قيادة واحد'
+                  : 'Your live workspace is ready — invoicing, customers, and reports in one command center')
+              : (isAr
+                  ? 'مرحباً بعودتك! مركز القيادة الموحد لجميع مساحات العمل والتطبيقات التشغيلية'
+                  : 'Welcome back! Unified command center for all business verticals and operational apps')}
           </p>
         </div>
 
