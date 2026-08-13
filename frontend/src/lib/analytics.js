@@ -10,13 +10,43 @@ export function initAnalytics(cfg) {
   initialized = true
 
   if (cfg.provider === 'posthog') {
-    // PostHog lazy init
     if (typeof window !== 'undefined' && !window.posthog) {
       window.__analytics_provider__ = 'posthog'
     }
   } else if (cfg.provider === 'mixpanel') {
     window.__analytics_provider__ = 'mixpanel'
   }
+}
+
+function loadSentryBrowser(dsn) {
+  if (typeof window === 'undefined' || !dsn || window.Sentry) return
+  const script = document.createElement('script')
+  script.src = 'https://browser.sentry-cdn.com/8.47.0/bundle.min.js'
+  script.crossOrigin = 'anonymous'
+  script.onload = () => {
+    try {
+      window.Sentry?.init({ dsn, environment: import.meta.env.MODE })
+      window.__ERROR_TRACKING_ENABLED__ = true
+      window.__captureError__ = (error, context = {}) => {
+        try {
+          window.Sentry?.captureException(error, { extra: context })
+        } catch {}
+      }
+    } catch {}
+  }
+  document.head.appendChild(script)
+}
+
+export async function initTelemetryFromServer() {
+  try {
+    const res = await fetch('/api/public/telemetry', { credentials: 'omit' })
+    if (!res.ok) return
+    const data = await res.json()
+    if (data?.analytics) initAnalytics(data.analytics)
+    if (data?.errorTracking?.enabled && data?.errorTracking?.dsn && data?.errorTracking?.provider === 'sentry') {
+      loadSentryBrowser(data.errorTracking.dsn)
+    }
+  } catch {}
 }
 
 export function track(event, properties = {}) {
@@ -54,4 +84,4 @@ export function page(name, properties = {}) {
   track('$pageview', { page_name: name, ...properties })
 }
 
-export default { initAnalytics, track, identify, page }
+export default { initAnalytics, initTelemetryFromServer, track, identify, page }

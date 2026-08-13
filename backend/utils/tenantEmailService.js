@@ -4,7 +4,7 @@ import Customer from '../models/Customer.js';
 import EmailMessage from '../models/EmailMessage.js';
 import SystemSettings from '../models/SystemSettings.js';
 import logger from './logger.js';
-import { buildInvoicePdfAttachment } from './invoicePdfService.js';
+import { getOrBuildInvoicePdfAttachment } from '../services/invoicePdfQueue.js';
 import { ensureEmailDeliveryConfig, sendEmailWithConfig } from './emailProviderService.js';
 import {
   buildPremiumEmailShell,
@@ -437,7 +437,7 @@ export const sendInvoiceToRecipient = async ({ tenant, invoice, recipient, custo
         size: Number(attachment.size || 0),
         url: String(attachment.url || '').trim(),
       }
-    : await buildInvoicePdfAttachment({ invoice, tenant, customerName, language: 'bilingual' });
+    : await getOrBuildInvoicePdfAttachment({ invoice, tenant, customerName, language: 'bilingual' });
 
   return await sendTenantEmail({
     tenant,

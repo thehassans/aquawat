@@ -54,6 +54,8 @@ const boutiqueDetailsSchema = new mongoose.Schema({
   transactionType: { type: String, enum: ['rental', 'sale'], default: 'rental' },
 }, { _id: false });
 
+const roundMoney = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
 const cleanObjectId = (v) => {
   if (!v || v === '' || v === 'null' || v === 'undefined') return undefined;
   if (typeof v === 'string' && !mongoose.Types.ObjectId.isValid(v)) return undefined;
@@ -227,6 +229,7 @@ const invoiceSchema = new mongoose.Schema({
   rentalNumber: { type: String, index: true },
   travelDetails: travelDetailsSchema,
   boutiqueDetails: boutiqueDetailsSchema,
+  searchText: { type: String, default: '' },
   
   // ZATCA Compliance
   zatca: zatcaSchema,
@@ -278,6 +281,10 @@ invoiceSchema.index({ tenantId: 1, travelBookingId: 1 });
 invoiceSchema.index({ tenantId: 1, createdAt: -1 });
 // Used by the Created By column / filter.
 invoiceSchema.index({ tenantId: 1, createdBy: 1, issueDate: -1 });
+invoiceSchema.index({ tenantId: 1, customerId: 1, issueDate: -1 });
+invoiceSchema.index({ tenantId: 1, paymentStatus: 1, dueDate: 1 });
+invoiceSchema.index({ tenantId: 1, flow: 1, status: 1, issueDate: -1 });
+invoiceSchema.index({ tenantId: 1, searchText: 1 });
 
 // Pre-save hook for Hijri dates
 invoiceSchema.pre('validate', function(next) {
@@ -339,43 +346,68 @@ invoiceSchema.pre('validate', function(next) {
   normalizedLines.forEach((item, index) => {
     const isLast = index === normalizedLines.length - 1;
     const proportionalDiscount = subtotalBeforeInvoiceDiscount > 0
-      ? appliedInvoiceDiscount * (item.netBeforeInvoiceDiscount / subtotalBeforeInvoiceDiscount)
+      ? roundMoney(appliedInvoiceDiscount * (item.netBeforeInvoiceDiscount / subtotalBeforeInvoiceDiscount))
       : 0;
     const invoiceDiscountShare = isLast
-      ? remainingInvoiceDiscount
-      : Math.min(remainingInvoiceDiscount, proportionalDiscount);
-    const customerLineTotal = Math.max(0, item.netBeforeInvoiceDiscount - invoiceDiscountShare);
+      ? roundMoney(remainingInvoiceDiscount)
+      : roundMoney(Math.min(remainingInvoiceDiscount, proportionalDiscount));
+    const customerLineTotal = roundMoney(Math.max(0, item.netBeforeInvoiceDiscount - invoiceDiscountShare));
     const marginShareFactor = item.netBeforeInvoiceDiscount > 0
       ? customerLineTotal / item.netBeforeInvoiceDiscount
       : 0;
     const marginTaxable = item.isTravelMargin
-      ? Math.max(0, item.marginBeforeInvoiceDiscount * marginShareFactor)
+      ? roundMoney(Math.max(0, item.marginBeforeInvoiceDiscount * marginShareFactor))
       : 0;
     const vatBase = item.isTravelMargin ? marginTaxable : customerLineTotal;
-    const taxAmount = vatBase * (item.taxRate / 100);
+    const taxAmount = roundMoney(vatBase * (item.taxRate / 100));
     const lineTotal = item.isTravelMargin
-      ? Math.max(0, customerLineTotal - taxAmount)
+      ? roundMoney(Math.max(0, customerLineTotal - taxAmount))
       : customerLineTotal;
     const lineTotalWithTax = item.isTravelMargin
       ? customerLineTotal
-      : lineTotal + taxAmount;
+      : roundMoney(lineTotal + taxAmount);
 
     item.line.lineTotal = lineTotal;
     item.line.taxAmount = taxAmount;
     item.line.lineTotalWithTax = lineTotalWithTax;
     item.line.marginTaxable = marginTaxable;
 
-    remainingInvoiceDiscount = Math.max(0, remainingInvoiceDiscount - invoiceDiscountShare);
+    remainingInvoiceDiscount = roundMoney(Math.max(0, remainingInvoiceDiscount - invoiceDiscountShare));
   });
   
   // Calculate invoice totals
-  this.invoiceDiscount = appliedInvoiceDiscount;
-  this.subtotal = normalizedLines.reduce((sum, item) => sum + item.lineSubtotal, 0);
+  this.invoiceDiscount = roundMoney(appliedInvoiceDiscount);
+  this.subtotal = roundMoney(normalizedLines.reduce((sum, item) => sum + item.lineSubtotal, 0));
   const lineDiscountTotal = normalizedLines.reduce((sum, item) => sum + item.lineDiscount, 0);
-  this.totalDiscount = lineDiscountTotal + appliedInvoiceDiscount;
-  this.taxableAmount = normalizedLines.reduce((sum, item) => sum + (item.line.lineTotal || 0), 0);
-  this.totalTax = lines.reduce((sum, line) => sum + (line.taxAmount || 0), 0);
-  this.grandTotal = this.taxableAmount + this.totalTax;
+  this.totalDiscount = roundMoney(lineDiscountTotal + appliedInvoiceDiscount);
+  this.taxableAmount = roundMoney(normalizedLines.reduce((sum, item) => sum + (item.line.lineTotal || 0), 0));
+  this.totalTax = roundMoney(lines.reduce((sum, line) => sum + (line.taxAmount || 0), 0));
+  this.grandTotal = roundMoney(this.taxableAmount + this.totalTax);
+
+  const passengerBits = Array.isArray(this.travelDetails?.passengers)
+    ? this.travelDetails.passengers.flatMap((p) => [p?.pnr, p?.travelerName, p?.ticketNumber])
+    : [];
+  this.searchText = [
+    this.invoiceNumber,
+    this.contractNumber,
+    this.rentalNumber,
+    this.buyer?.name,
+    this.buyer?.nameAr,
+    this.buyer?.vatNumber,
+    this.buyer?.crNumber,
+    this.buyer?.contactPhone,
+    this.buyer?.contactEmail,
+    this.seller?.name,
+    this.seller?.nameAr,
+    this.seller?.vatNumber,
+    this.seller?.crNumber,
+    this.seller?.contactPhone,
+    this.seller?.contactEmail,
+    this.travelDetails?.pnr,
+    this.travelDetails?.travelerName,
+    this.travelDetails?.ticketNumber,
+    ...passengerBits,
+  ].filter(Boolean).join(' ').slice(0, 4000);
   
   next();
 });

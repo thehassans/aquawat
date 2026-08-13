@@ -116,17 +116,69 @@ export async function cacheDel(key) {
   }
 }
 
+export async function cacheDelPrefix(prefix) {
+  if (!isRedisReady() || !prefix) return 0;
+  try {
+    let cursor = '0';
+    let deleted = 0;
+    do {
+      const [next, keys] = await redisClient.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 100);
+      cursor = next;
+      if (keys?.length) {
+        deleted += await redisClient.del(...keys);
+      }
+    } while (cursor !== '0');
+    return deleted;
+  } catch {
+    return 0;
+  }
+}
+
+const inflight = new Map();
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Cache-aside pattern: fetch from cache, fallback to fetchFn, repopulate.
+ * Cache-aside with single-flight: one Mongo compute per key on a miss.
+ * Redis NX lock coordinates across workers; in-process Map covers one worker.
  */
 export async function cacheAside(key, ttlSeconds, fetchFn) {
   const cached = await cacheGet(key);
   if (cached !== null) return cached;
-  const data = await fetchFn();
-  if (data !== null && data !== undefined) {
-    await cacheSet(key, data, ttlSeconds);
+
+  const existing = inflight.get(key);
+  if (existing) return existing;
+
+  const run = (async () => {
+    const lockKey = `lock:${key}`;
+    const lockTtl = Math.min(30, Math.max(8, Number(ttlSeconds) || 60));
+    const acquired = await cacheSetNx(lockKey, { at: Date.now() }, lockTtl);
+    if (!acquired) {
+      for (let i = 0; i < 25; i++) {
+        await sleep(40 + i * 20);
+        const again = await cacheGet(key);
+        if (again !== null) return again;
+      }
+    }
+    try {
+      const data = await fetchFn();
+      if (data !== null && data !== undefined) {
+        await cacheSet(key, data, ttlSeconds);
+      }
+      return data;
+    } finally {
+      await cacheDel(lockKey);
+    }
+  })();
+
+  inflight.set(key, run);
+  try {
+    return await run;
+  } finally {
+    inflight.delete(key);
   }
-  return data;
 }
 
 export default redisClient;

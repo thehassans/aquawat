@@ -4,6 +4,7 @@ import Tenant from '../models/Tenant.js'
 import DemoUser from '../models/DemoUser.js'
 import { protect } from '../middleware/auth.js'
 import { sendUpgradeWelcomeEmail } from '../utils/emailService.js'
+import { emitPlatformEvent } from '../utils/platformEvents.js'
 import {
   getStripeConfig,
   createStripeCheckoutSession,
@@ -71,6 +72,10 @@ const TAMARA_API_BASE = (env) => env === 'live' ? 'https://api.tamara.co/api/v1'
 const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amountHalalas, currency, paymentId, zatcaPhase2 = false }) => {
   if (!tenantId) return
 
+  const prior = await Tenant.findById(tenantId).select('subscription demoUpgraded isDemo createdAt').lean()
+  const wasActive = prior?.subscription?.status === 'active' && prior?.demoUpgraded === true
+  const wasTrial = String(prior?.subscription?.plan || '').toLowerCase() === 'trial' || prior?.isDemo === true
+
   const now = new Date()
   const endDate = new Date(now.getTime() + (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000)
 
@@ -115,6 +120,46 @@ const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amo
     amount: Number(amountHalalas) / 100,
     currency,
   }).catch(() => {})
+
+  emitPlatformEvent(wasActive ? 'subscription_renewed' : 'subscription_started', {
+    tenantId: String(tenantId),
+    plan,
+    billingCycle,
+    amount: Number(amountHalalas) / 100,
+    currency,
+    paymentId,
+  })
+
+  if (!wasActive && wasTrial && String(plan || '').toLowerCase() !== 'trial') {
+    const start = prior?.subscription?.startDate || prior?.createdAt
+    const daysToConvert = start
+      ? Math.max(0, Math.round((Date.now() - new Date(start).getTime()) / 86400000))
+      : undefined
+    emitPlatformEvent('trial_converted', {
+      tenantId: String(tenantId),
+      plan,
+      billingCycle,
+      daysToConvert,
+      paymentId,
+    })
+  }
+}
+
+/** Poll endpoints are JWT-gated. Never apply an upgrade unless metadata.tenantId is the caller. */
+const canFulfillPaymentForTenant = (req, metadata = {}) => {
+  const targetTenantId = metadata?.tenantId
+  if (!targetTenantId) return false
+  if (req.user?.role === 'super_admin') return true
+  if (req.user?.tenantId && String(req.user.tenantId) === String(targetTenantId)) return true
+  const demoEmail = String(metadata.demoEmail || '').trim().toLowerCase()
+  const userEmail = String(req.user?.email || '').trim().toLowerCase()
+  return Boolean(demoEmail && userEmail && demoEmail === userEmail)
+}
+
+const applyTenantUpgradeIfAuthorized = async (req, metadata, args) => {
+  if (!canFulfillPaymentForTenant(req, metadata)) return false
+  await applyTenantUpgrade(args)
+  return true
 }
 
 // @route   POST /api/payments/create-payment
@@ -559,7 +604,7 @@ router.get('/tabby/:id', protect, async (req, res) => {
     const meta = checkout?.metadata || checkout?.payment?.metadata || {}
 
     if (status === 'authorized' || status === 'captured' || status === 'closed') {
-      await applyTenantUpgrade({
+      await applyTenantUpgradeIfAuthorized(req, meta, {
         tenantId: meta.tenantId,
         demoEmail: meta.demoEmail,
         plan: meta.plan || 'professional',
@@ -600,7 +645,7 @@ router.get('/tamara/:id', protect, async (req, res) => {
 
     if (status === 'approved' || status === 'fully_captured') {
       const totalAmount = order?.total_amount || {}
-      await applyTenantUpgrade({
+      await applyTenantUpgradeIfAuthorized(req, meta, {
         tenantId: meta.tenantId,
         demoEmail: meta.demoEmail,
         plan: meta.plan || 'professional',
@@ -692,7 +737,7 @@ router.get('/invoice/:id', protect, async (req, res) => {
     }
 
     if (invoice.status === 'paid') {
-      await applyTenantUpgrade({
+      await applyTenantUpgradeIfAuthorized(req, invoice?.metadata || {}, {
         tenantId: invoice?.metadata?.tenantId,
         demoEmail: invoice?.metadata?.demoEmail,
         plan: invoice?.metadata?.plan || 'professional',
@@ -775,6 +820,10 @@ router.get('/stripe-session/:id', protect, async (req, res) => {
     if (session.payment_status !== 'paid' && session.status !== 'complete') {
       return res.json({ paid: false, status: session.payment_status || session.status, sessionId: session.id })
     }
+    const meta = session?.metadata || {}
+    if (!canFulfillPaymentForTenant(req, meta)) {
+      return res.status(403).json({ error: 'Not authorized to apply this payment' })
+    }
     const result = await handleStripeCheckoutCompleted(session)
     res.json({ paid: true, sessionId: session.id, ...result })
   } catch (error) {
@@ -843,52 +892,17 @@ router.get('/:id', protect, async (req, res) => {
     }
 
     if (paymentData.status === 'paid') {
-      const tenantId = paymentData?.metadata?.tenantId
-      const demoEmail = paymentData?.metadata?.demoEmail
-      const plan = paymentData?.metadata?.plan || 'professional'
-      const billingCycle = paymentData?.metadata?.billingCycle || 'monthly'
-
-      if (tenantId) {
-        const now = new Date()
-        const endDate = new Date(now.getTime() + (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000)
-
-        await Tenant.findByIdAndUpdate(tenantId, {
-          isDemo: false,
-          demoUpgraded: true,
-          'subscription.plan': plan,
-          'subscription.status': 'active',
-          'subscription.startDate': now,
-          'subscription.endDate': endDate,
-          'subscription.billingCycle': billingCycle,
-          'subscription.price': Number(paymentData.amount) / 100,
-        })
-
-        if (demoEmail) {
-          await DemoUser.findOneAndUpdate(
-            { email: demoEmail },
-            {
-              isUpgraded: true,
-              upgradedAt: now,
-              paymentId: paymentData.id,
-              amount: Number(paymentData.amount) / 100,
-              currency: paymentData.currency,
-              plan,
-              billingCycle,
-            }
-          )
-        }
-
-        // Send upgrade welcome email
-        const upgradedTenant = await Tenant.findById(tenantId).lean()
-        sendUpgradeWelcomeEmail({
-          email: demoEmail || upgradedTenant?.demoEmail || '',
-          tenant: upgradedTenant,
-          plan,
-          billingCycle,
-          amount: Number(paymentData.amount) / 100,
-          currency: paymentData.currency,
-        }).catch(() => {})
-      }
+      const meta = paymentData?.metadata || {}
+      await applyTenantUpgradeIfAuthorized(req, meta, {
+        tenantId: meta.tenantId,
+        demoEmail: meta.demoEmail,
+        plan: meta.plan || 'professional',
+        billingCycle: meta.billingCycle || 'monthly',
+        amountHalalas: paymentData.amount,
+        currency: paymentData.currency,
+        paymentId: paymentData.id,
+        zatcaPhase2: meta.zatcaPhase2,
+      })
     }
 
     res.json({

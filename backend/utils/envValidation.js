@@ -68,6 +68,11 @@ export function validateProductionEnv({ logger = console } = {}) {
     if (!process.env.REDIS_URL && !process.env.REDIS_HOST) {
       warnings.push('Redis not configured — rate limits, Socket.IO adapter, and cron election will be process-local');
     }
+
+    const mongoUri = String(process.env.MONGODB_URI || '');
+    if (/mongodb\.net/i.test(mongoUri) && process.env.ATLAS_PITR !== 'true') {
+      warnings.push('Atlas cluster detected — enable Continuous Cloud Backup (PITR) in the Atlas UI. File mongodump is not point-in-time recovery');
+    }
   }
 
   for (const w of warnings) {

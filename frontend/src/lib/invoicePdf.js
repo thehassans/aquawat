@@ -30,11 +30,30 @@ const resolveDocumentNumber = (invoice, documentType = 'invoice') => {
 
 const fetchInvoicePdfBlob = async (invoiceId) => {
   if (!invoiceId) return null
-  const response = await api.get(`/invoices/${invoiceId}/pdf`, {
+
+  const asPdfBlob = (data) => (data instanceof Blob ? data : new Blob([data], { type: 'application/pdf' }))
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const response = await api.get(`/invoices/${invoiceId}/pdf`, {
+      responseType: 'blob',
+      timeout: 120000,
+      params: { async: 1 },
+      validateStatus: (status) => status === 200 || status === 202,
+    })
+    const type = String(response.headers?.['content-type'] || '')
+    if (response.status === 200 && type.includes('pdf')) {
+      return asPdfBlob(response.data)
+    }
+    await sleep(400 + attempt * 150)
+  }
+
+  const fallback = await api.get(`/invoices/${invoiceId}/pdf`, {
     responseType: 'blob',
     timeout: 120000,
+    params: { sync: 1 },
   })
-  return response?.data instanceof Blob ? response.data : new Blob([response?.data], { type: 'application/pdf' })
+  return asPdfBlob(fallback?.data)
 }
 
 const downloadPdfBlob = (blob, fileName) => {

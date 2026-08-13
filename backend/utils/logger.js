@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
+import { getRequestId } from './requestId.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,8 +11,15 @@ const logsDirectory = path.resolve(__dirname, '../logs');
 
 fs.mkdirSync(logsDirectory, { recursive: true });
 
+const withRequestId = winston.format((info) => {
+  const requestId = getRequestId();
+  if (requestId && !info.requestId) info.requestId = requestId;
+  return info;
+});
+
 // Shared format: timestamp + error stack + JSON
 const baseFormat = winston.format.combine(
+  withRequestId(),
   winston.format.timestamp(),
   winston.format.errors({ stack: true }),
   winston.format.json()

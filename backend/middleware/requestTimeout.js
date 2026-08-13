@@ -15,6 +15,9 @@ const requestTimeout = (timeoutMs = 30_000) => (req, res, next) => {
     return next();
   }
 
+  const isPdf = /\/pdf(\?|$)/i.test(req.originalUrl || req.path || '');
+  const effectiveMs = isPdf ? Math.max(timeoutMs, 120_000) : timeoutMs;
+
   const timer = setTimeout(() => {
     if (res.headersSent) return;
 
@@ -22,13 +25,13 @@ const requestTimeout = (timeoutMs = 30_000) => (req, res, next) => {
       message: 'Request timeout',
       method: req.method,
       url: req.originalUrl,
-      timeoutMs,
+      timeoutMs: effectiveMs,
     });
 
     res.status(503).json({
       error: 'Request timed out. Please try again.',
     });
-  }, timeoutMs);
+  }, effectiveMs);
 
   // Ensure the timer is always cleared when the response finishes
   res.on('finish', () => clearTimeout(timer));

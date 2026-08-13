@@ -22,6 +22,20 @@ router.use(protect);
 router.use(tenantFilter);
 router.use(requireBusinessType('restaurant'));
 
+async function copyDefaultMenuImage(tenantIdStr, defaultsDir, localImage) {
+  const sourceImg = path.join(defaultsDir, localImage);
+  if (!fs.existsSync(sourceImg)) return '';
+  const buffer = await fs.promises.readFile(sourceImg);
+  const key = `restaurant/${tenantIdStr}/${localImage}`;
+  const { url } = await saveUploadBuffer({
+    buffer,
+    key,
+    contentType: 'image/png',
+    publicUrlPath: `/uploads/${key}`,
+  });
+  return url;
+}
+
 router.get('/', checkPermission('restaurant', 'read'), async (req, res) => {
   try {
     const { page = 1, limit = 50, search, category, isActive = 'true' } = req.query;
@@ -185,11 +199,6 @@ router.post('/seed-drinks', checkPermission('restaurant', 'create'), async (req,
   try {
     const tenantIdStr = req.user.tenantId.toString();
     const defaultsDir = path.join(process.cwd(), 'public', 'defaults', 'drinks');
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'restaurant', tenantIdStr);
-
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
 
     const drinks = [
       {
@@ -246,10 +255,7 @@ router.post('/seed-drinks', checkPermission('restaurant', 'create'), async (req,
       const sourceImg = path.join(defaultsDir, drink.localImage);
       let imageUrl = '';
       if (fs.existsSync(sourceImg)) {
-        const destName = drink.localImage;
-        const destPath = path.join(uploadsDir, destName);
-        fs.copyFileSync(sourceImg, destPath);
-        imageUrl = `/uploads/restaurant/${tenantIdStr}/${destName}`;
+        imageUrl = await copyDefaultMenuImage(tenantIdStr, defaultsDir, drink.localImage);
       }
 
       await RestaurantMenuItem.findOneAndUpdate(
@@ -286,11 +292,6 @@ router.post('/seed-food', checkPermission('restaurant', 'create'), async (req, r
   try {
     const tenantIdStr = req.user.tenantId.toString();
     const defaultsDir = path.join(process.cwd(), 'public', 'defaults', 'food');
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'restaurant', tenantIdStr);
-
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
 
     const foods = [
       // Arabic Category
@@ -311,10 +312,7 @@ router.post('/seed-food', checkPermission('restaurant', 'create'), async (req, r
       const sourceImg = path.join(defaultsDir, food.localImage);
       let imageUrl = '';
       if (fs.existsSync(sourceImg)) {
-        const destName = food.localImage;
-        const destPath = path.join(uploadsDir, destName);
-        fs.copyFileSync(sourceImg, destPath);
-        imageUrl = `/uploads/restaurant/${tenantIdStr}/${destName}`;
+        imageUrl = await copyDefaultMenuImage(tenantIdStr, defaultsDir, food.localImage);
       }
 
       await RestaurantMenuItem.findOneAndUpdate(

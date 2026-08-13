@@ -1,4 +1,11 @@
 import { randomUUID } from 'crypto';
+import { AsyncLocalStorage } from 'async_hooks';
+
+const requestContext = new AsyncLocalStorage();
+
+export function getRequestId() {
+  return requestContext.getStore()?.requestId;
+}
 
 /** Attach x-request-id for log correlation. */
 export function requestIdMiddleware(req, res, next) {
@@ -6,7 +13,7 @@ export function requestIdMiddleware(req, res, next) {
   const id = incoming && incoming.length <= 128 ? incoming : randomUUID();
   req.requestId = id;
   res.setHeader('x-request-id', id);
-  next();
+  requestContext.run({ requestId: id }, () => next());
 }
 
 export default requestIdMiddleware;

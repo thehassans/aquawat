@@ -9,10 +9,9 @@ import { protect } from '../../middleware/auth.js';
 import { checkTrialLimits } from '../../middleware/trialLimits.js';
 import multer from 'multer';
 import sharp from 'sharp';
-import path from 'path';
-import fs from 'fs';
 import Tenant from '../../models/Tenant.js';
 import whatsappService from '../../services/whatsappService.js';
+import { saveUploadBuffer } from '../../utils/objectStorage.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -20,6 +19,23 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 const router = express.Router();
 
 router.use(protect);
+
+async function saveMeasurementImage(tenantId, buffer) {
+  const tenantIdStr = String(tenantId);
+  const filename = `measurement-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
+  const key = `khayyat/${tenantIdStr}/measurements/${filename}`;
+  const webp = await sharp(buffer)
+    .resize({ width: 1200, withoutEnlargement: true })
+    .webp({ quality: 80 })
+    .toBuffer();
+  const { url } = await saveUploadBuffer({
+    buffer: webp,
+    key,
+    contentType: 'image/webp',
+    publicUrlPath: `/uploads/${key}`,
+  });
+  return url;
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -175,6 +191,10 @@ router.get('/:id', async (req, res) => {
     if (!stitching) {
       return res.status(404).json({ error: 'Stitching not found' });
     }
+
+    if (!stitching.trackToken) {
+      await stitching.save();
+    }
     
     res.json({ stitching });
   } catch (error) {
@@ -287,18 +307,7 @@ router.post('/', checkTrialLimits('khayyatStitchings'), upload.single('measureme
     });
 
     if (req.file) {
-      const tenantIdStr = req.user.tenantId.toString();
-      const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'khayyat', tenantIdStr, 'measurements');
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-      const filename = `measurement-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-      const filepath = path.join(uploadsDir, filename);
-      await sharp(req.file.buffer)
-        .resize({ width: 1200, withoutEnlargement: true })
-        .webp({ quality: 80 })
-        .toFile(filepath);
-      stitching.measurementImage = `/uploads/khayyat/${tenantIdStr}/measurements/${filename}`;
+      stitching.measurementImage = await saveMeasurementImage(req.user.tenantId, req.file.buffer);
       stitching.measurementImageUpdatedAt = Date.now();
     }
 
@@ -367,18 +376,7 @@ router.put('/:id', upload.single('measurementImage'), async (req, res) => {
     }
 
     if (req.file) {
-      const tenantIdStr = req.user.tenantId.toString();
-      const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'khayyat', tenantIdStr, 'measurements');
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-      const filename = `measurement-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-      const filepath = path.join(uploadsDir, filename);
-      await sharp(req.file.buffer)
-        .resize({ width: 1200, withoutEnlargement: true })
-        .webp({ quality: 80 })
-        .toFile(filepath);
-      stitching.measurementImage = `/uploads/khayyat/${tenantIdStr}/measurements/${filename}`;
+      stitching.measurementImage = await saveMeasurementImage(req.user.tenantId, req.file.buffer);
       stitching.measurementImageUpdatedAt = Date.now();
     }
 

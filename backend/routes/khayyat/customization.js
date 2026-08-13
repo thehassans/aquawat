@@ -1,10 +1,9 @@
 import express from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import sharp from 'sharp';
 import KhayyatCustomization from '../../models/khayyat/KhayyatCustomization.js';
 import { protect } from '../../middleware/auth.js';
+import { saveUploadBuffer } from '../../utils/objectStorage.js';
 
 const router = express.Router();
 
@@ -14,6 +13,23 @@ const upload = multer({
 });
 
 router.use(protect);
+
+async function saveCustomizationImage(tenantId, category, buffer) {
+  const tenantIdStr = String(tenantId);
+  const filename = `${category || 'custom'}-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
+  const key = `khayyat/customizations/${tenantIdStr}/${filename}`;
+  const webp = await sharp(buffer)
+    .resize({ width: 300, height: 300, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+    .webp({ quality: 85 })
+    .toBuffer();
+  const { url } = await saveUploadBuffer({
+    buffer: webp,
+    key,
+    contentType: 'image/webp',
+    publicUrlPath: `/uploads/${key}`,
+  });
+  return url;
+}
 
 // GET /api/khayyat/customizations
 router.get('/', async (req, res) => {
@@ -136,22 +152,7 @@ router.post('/', upload.single('image'), async (req, res) => {
     let imageUrl = bodyImage || null;
 
     if (req.file) {
-      const tenantIdStr = req.user.tenantId.toString();
-      const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'khayyat', 'customizations', tenantIdStr);
-      
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-
-      const filename = `${category}-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-      const filepath = path.join(uploadsDir, filename);
-
-      await sharp(req.file.buffer)
-        .resize({ width: 300, height: 300, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
-        .webp({ quality: 85 })
-        .toFile(filepath);
-
-      imageUrl = `/uploads/khayyat/customizations/${tenantIdStr}/${filename}`;
+      imageUrl = await saveCustomizationImage(req.user.tenantId, category, req.file.buffer);
     }
 
     const customization = new KhayyatCustomization({
@@ -192,22 +193,7 @@ router.put('/:id', upload.single('image'), async (req, res) => {
     if (sortOrder !== undefined) customization.sortOrder = Number(sortOrder) || 0;
 
     if (req.file) {
-      const tenantIdStr = req.user.tenantId.toString();
-      const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'khayyat', 'customizations', tenantIdStr);
-      
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-
-      const filename = `${customization.category}-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-      const filepath = path.join(uploadsDir, filename);
-
-      await sharp(req.file.buffer)
-        .resize({ width: 300, height: 300, fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
-        .webp({ quality: 85 })
-        .toFile(filepath);
-
-      imageUrl = `/uploads/khayyat/customizations/${tenantIdStr}/${filename}`;
+      imageUrl = await saveCustomizationImage(req.user.tenantId, customization.category, req.file.buffer);
     }
     
     if (imageUrl) {

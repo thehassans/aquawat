@@ -1,11 +1,10 @@
 import express from 'express';
-import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
-import path from 'path';
-import fs from 'fs';
 import multer from 'multer';
 import sharp from 'sharp';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import { protect } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
 const upload = multer({
@@ -425,20 +424,20 @@ router.post('/upload', protect, upload.single('image'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
 
     const tenantIdStr = req.user.tenantId.toString();
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'ecommerce', tenantIdStr);
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     const filename = `theme-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-    const filepath = path.join(uploadsDir, filename);
+    const key = `ecommerce/${tenantIdStr}/${filename}`;
 
-    await sharp(req.file.buffer)
+    const buffer = await sharp(req.file.buffer)
       .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
-      .toFile(filepath);
+      .toBuffer();
 
-    const imageUrl = `/uploads/ecommerce/${tenantIdStr}/${filename}`;
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
     res.json({ imageUrl });
   } catch (error) {
     console.error('Ecommerce theme upload error:', error);

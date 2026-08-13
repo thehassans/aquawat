@@ -30,10 +30,11 @@ import FurnitureOrder from '../models/FurnitureOrder.js';
 import FurnitureProduct from '../models/FurnitureProduct.js';
 import Project from '../models/Project.js';
 import Tenant from '../models/Tenant.js';
-import { protect, tenantFilter } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import { getTenantBusinessTypes, normalizeBusinessTypes } from '../utils/businessTypes.js';
 import { DEFAULT_APP_CATALOG } from './appStore.routes.js';
 import { cacheAside } from '../lib/redis.js';
+import { statsRead } from '../utils/mongoReadPreference.js';
 
 // Dashboard aggregates ~24 collections per request (see below) — this is the
 // single most expensive endpoint tenants hit on every page load. Values are
@@ -46,10 +47,11 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 const safeAggregate = async (model, pipeline) => {
   try {
-    return await model.aggregate(pipeline);
+    return await statsRead(model.aggregate(pipeline));
   } catch (error) {
     return [];
   }
@@ -57,7 +59,7 @@ const safeAggregate = async (model, pipeline) => {
 
 const safeCount = async (model, filter) => {
   try {
-    return await model.countDocuments(filter);
+    return await statsRead(model.countDocuments(filter));
   } catch (error) {
     return 0;
   }

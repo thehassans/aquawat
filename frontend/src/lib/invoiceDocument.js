@@ -3,6 +3,8 @@ export const toNumber = (value, fallback = 0) => {
   return Number.isFinite(numericValue) ? numericValue : fallback
 }
 
+export const roundMoney = (n) => Math.round((Number(n) || 0) * 100) / 100
+
 export const passengerTitleLabel = (value, language = 'en') => {
   const labels = {
     mr: language === 'ar' ? 'السيد' : 'Mr.',
@@ -140,28 +142,28 @@ export const calculateInvoiceSummary = (invoice = {}) => {
   const lineSummaries = normalizedLines.map((line, index) => {
     const isLast = index === normalizedLines.length - 1
     const proportionalDiscount = subtotalBeforeInvoiceDiscount > 0
-      ? appliedInvoiceDiscount * (line.netBeforeInvoiceDiscount / subtotalBeforeInvoiceDiscount)
+      ? roundMoney(appliedInvoiceDiscount * (line.netBeforeInvoiceDiscount / subtotalBeforeInvoiceDiscount))
       : 0
     const invoiceDiscountShare = isLast
-      ? remainingInvoiceDiscount
-      : Math.min(remainingInvoiceDiscount, proportionalDiscount)
-    const customerLineTotal = Math.max(0, line.netBeforeInvoiceDiscount - invoiceDiscountShare)
+      ? roundMoney(remainingInvoiceDiscount)
+      : roundMoney(Math.min(remainingInvoiceDiscount, proportionalDiscount))
+    const customerLineTotal = roundMoney(Math.max(0, line.netBeforeInvoiceDiscount - invoiceDiscountShare))
     const marginShareFactor = line.netBeforeInvoiceDiscount > 0
       ? customerLineTotal / line.netBeforeInvoiceDiscount
       : 0
     const marginTaxable = line.isTravelMargin
-      ? Math.max(0, line.marginBeforeInvoiceDiscount * marginShareFactor)
+      ? roundMoney(Math.max(0, line.marginBeforeInvoiceDiscount * marginShareFactor))
       : 0
     const vatBase = line.isTravelMargin ? marginTaxable : customerLineTotal
-    const taxAmount = vatBase * (line.taxRate / 100)
+    const taxAmount = roundMoney(vatBase * (line.taxRate / 100))
     const lineTotal = line.isTravelMargin
-      ? Math.max(0, customerLineTotal - taxAmount)
+      ? roundMoney(Math.max(0, customerLineTotal - taxAmount))
       : customerLineTotal
     const lineTotalWithTax = line.isTravelMargin
       ? customerLineTotal
-      : lineTotal + taxAmount
+      : roundMoney(lineTotal + taxAmount)
 
-    remainingInvoiceDiscount = Math.max(0, remainingInvoiceDiscount - invoiceDiscountShare)
+    remainingInvoiceDiscount = roundMoney(Math.max(0, remainingInvoiceDiscount - invoiceDiscountShare))
 
     return {
       ...line,
@@ -174,16 +176,16 @@ export const calculateInvoiceSummary = (invoice = {}) => {
   })
 
   const lineDiscountTotal = lineSummaries.reduce((sum, line) => sum + line.lineDiscount, 0)
-  const taxableAmount = lineSummaries.reduce((sum, line) => sum + line.lineTotal, 0)
-  const totalTax = lineSummaries.reduce((sum, line) => sum + line.taxAmount, 0)
-  const grandTotal = lineSummaries.reduce((sum, line) => sum + line.lineTotalWithTax, 0)
-  const travelMarginTaxable = lineSummaries.reduce((sum, line) => sum + (line.isTravelMargin ? line.marginTaxable : 0), 0)
-  const travelAgencyCost = lineSummaries.reduce((sum, line) => sum + (line.isTravelMargin ? line.quantity * line.agencyPrice : 0), 0)
+  const taxableAmount = roundMoney(lineSummaries.reduce((sum, line) => sum + line.lineTotal, 0))
+  const totalTax = roundMoney(lineSummaries.reduce((sum, line) => sum + line.taxAmount, 0))
+  const grandTotal = roundMoney(lineSummaries.reduce((sum, line) => sum + line.lineTotalWithTax, 0))
+  const travelMarginTaxable = roundMoney(lineSummaries.reduce((sum, line) => sum + (line.isTravelMargin ? line.marginTaxable : 0), 0))
+  const travelAgencyCost = roundMoney(lineSummaries.reduce((sum, line) => sum + (line.isTravelMargin ? line.quantity * line.agencyPrice : 0), 0))
 
   return {
-    subtotal,
-    invoiceDiscount: appliedInvoiceDiscount,
-    totalDiscount: lineDiscountTotal + appliedInvoiceDiscount,
+    subtotal: roundMoney(subtotal),
+    invoiceDiscount: roundMoney(appliedInvoiceDiscount),
+    totalDiscount: roundMoney(lineDiscountTotal + appliedInvoiceDiscount),
     taxableAmount,
     totalTax,
     grandTotal,

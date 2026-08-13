@@ -1,4 +1,5 @@
 import logger from '../utils/logger.js';
+import { captureException } from '../utils/errorTracking.js';
 
 export const notFound = (req, res, next) => {
   const error = new Error(`Not Found - ${req.originalUrl}`);
@@ -38,6 +39,15 @@ export const errorHandler = (err, req, res, next) => {
     user: req.user?.id || req.user?._id,
     requestId: req.requestId,
   });
+
+  if (statusCode >= 500) {
+    captureException(err, {
+      user: req.user?.id || req.user?._id,
+      url: req.originalUrl,
+      method: req.method,
+      requestId: req.requestId,
+    });
+  }
 
   // Never leak internal exception text on 5xx in production
   if (isProd && statusCode >= 500) {

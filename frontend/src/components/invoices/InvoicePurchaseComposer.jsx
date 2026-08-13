@@ -20,13 +20,10 @@ import TravelInvoiceFields from './TravelInvoiceFields'
 import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
-import { ZATCA_UOM_OPTIONS } from '../../lib/uomOptions'
+import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
+
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
-const toNumber = (value, fallback = 0) => {
-  const numericValue = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(numericValue) ? numericValue : fallback
-}
 
 const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, hasTravel }) => ({
   businessContext: invoice?.businessContext || defaultBusinessContext,
@@ -46,6 +43,9 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
   authorizedPersonSignature: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonSignature || '') : '',
   stampImage: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.stampImage || '') : '',
   paymentTerms: invoice?.paymentTerms || '',
+  paymentMethod: invoice?.paymentMethod || 'cash',
+  paidAmount: toNumber(invoice?.paidAmount, 0),
+  invoiceDiscount: toNumber(invoice?.invoiceDiscount, 0),
   notes: invoice?.notes || '',
   lineItems: Array.isArray(invoice?.lineItems) && invoice.lineItems.length > 0
     ? invoice.lineItems.map((line) => ({
@@ -311,21 +311,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue('seller.address.additionalNumber', supplier.address?.additionalNumber || '')
   }
 
-  const calculateLineTotal = (index) => {
-    const line = lineItems[index]
-    if (!line) return { subtotal: 0, tax: 0, total: 0 }
-    const subtotal = toNumber(line.quantity) * toNumber(line.unitPrice)
-    const tax = subtotal * (toNumber(line.taxRate, 0) / 100)
-    return { subtotal, tax, total: subtotal + tax }
-  }
-
-  const totals = lineItems.reduce((acc, _, index) => {
-    const calc = calculateLineTotal(index)
-    acc.subtotal += calc.subtotal
-    acc.totalTax += calc.tax
-    acc.grandTotal += calc.total
-    return acc
-  }, { subtotal: 0, totalTax: 0, grandTotal: 0 })
+  const summary = useMemo(
+    () => calculateInvoiceSummary({
+      lineItems,
+      invoiceDiscount: toNumber(values.invoiceDiscount, 0),
+    }),
+    [lineItems, values.invoiceDiscount]
+  )
+  const totals = summary
+  const summarizedLines = summary.lines || []
 
   const onSubmit = (data) => {
     const payload = {
@@ -339,17 +333,21 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       status: 'approved',
       issueDate: isEdit ? (initialInvoice?.issueDate || new Date()) : new Date(),
       lineItems: (data.lineItems || []).map((line, index) => {
-        const calc = calculateLineTotal(index)
+        const calc = summarizedLines[index] || {}
         return {
           ...line,
           lineNumber: index + 1,
           taxCategory: 'S',
           productId: isTradingContext ? line.productId || undefined : undefined,
-          lineTotal: calc.subtotal,
-          taxAmount: calc.tax,
-          lineTotalWithTax: calc.total
+          lineTotal: calc.lineTotal,
+          taxAmount: calc.taxAmount,
+          lineTotalWithTax: calc.lineTotalWithTax,
         }
       }),
+      invoiceDiscount: toNumber(data.invoiceDiscount, 0),
+      subtotal: totals.subtotal,
+      totalTax: totals.totalTax,
+      grandTotal: totals.grandTotal,
     }
 
     if (!isTradingContext) {
@@ -389,6 +387,9 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     subtotal: totals.subtotal,
     totalTax: totals.totalTax,
     grandTotal: totals.grandTotal,
+    invoiceDiscount: totals.invoiceDiscount,
+    totalDiscount: totals.totalDiscount,
+    taxableAmount: totals.taxableAmount,
     buyer: {
       name: tenant?.business?.legalNameEn,
       nameAr: tenant?.business?.legalNameAr,
@@ -396,13 +397,13 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       address: tenant?.business?.address,
     },
     lineItems: (values.lineItems || []).map((line, index) => {
-      const calc = calculateLineTotal(index)
+      const calc = summarizedLines[index] || {}
       return {
         ...line,
         lineNumber: index + 1,
-        lineTotal: calc.subtotal,
-        taxAmount: calc.tax,
-        lineTotalWithTax: calc.total
+        lineTotal: calc.lineTotal,
+        taxAmount: calc.taxAmount,
+        lineTotalWithTax: calc.lineTotalWithTax,
       }
     }),
   }
@@ -672,7 +673,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     </div>
                     <div className="md:col-span-2"><label htmlFor={`price-${index}`} className="label">{t('unitPrice')}</label><input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className="input" /></div>
                     <div className="md:col-span-2"><label className="label">{t('tax')} %</label><select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className="select"><option value={15}>15%</option><option value={0}>0%</option></select></div>
-                    <div className="md:col-span-2 flex items-center gap-2"><div className="flex-1 text-end"><p className="mb-1 text-xs text-gray-500">{t('total')}</p><p className="font-semibold"><Money value={calculateLineTotal(index).total} /></p></div>{fields.length > 1 && <button type="button" onClick={() => remove(index)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4" /></button>}</div>
+                    <div className="md:col-span-2 flex items-center gap-2"><div className="flex-1 text-end"><p className="mb-1 text-xs text-gray-500">{t('total')}</p><p className="font-semibold"><Money value={summarizedLines[index]?.lineTotalWithTax} /></p></div>{fields.length > 1 && <button type="button" onClick={() => remove(index)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4" /></button>}</div>
                   </div>
                 </motion.div>
               ))}

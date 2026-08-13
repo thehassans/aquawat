@@ -94,7 +94,7 @@ export const printStitchingInvoice = async ({ stitch, user, resolveUploadsUrl })
   const zatcaEnabled = user?.zatcaSettings?.enabled && user?.zatcaSettings?.showOnInvoice;
 
   try {
-    qrCodeUrl = await QRCode.toDataURL(`${window.location.origin}/track-order?id=${stitch._id}`, { width: 120, margin: 1 });
+    qrCodeUrl = await QRCode.toDataURL(`${window.location.origin}/track-order?id=${stitch.trackToken || stitch._id}`, { width: 120, margin: 1 });
 
     if (zatcaEnabled && user?.zatcaSettings?.vatNumber) {
       const vatRate = 0.15;

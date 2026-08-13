@@ -63,8 +63,8 @@ RUN npm install --production
 
 COPY . .
 
-# Create uploads directory
-RUN mkdir -p /app/uploads
+# Create uploads and PDF cache directories
+RUN mkdir -p /app/uploads /app/storage
 
 # CLUSTER_WORKERS=2 uses both cores; set to 1 to disable cluster mode
 ENV CLUSTER_WORKERS=2

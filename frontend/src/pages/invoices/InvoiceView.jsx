@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2 } from 'lucide-react'
+import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -60,6 +60,9 @@ export default function InvoiceView() {
   const { t } = useTranslation(language)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [printModalOpen, setPrintModalOpen] = useState(false)
+  const [payOpen, setPayOpen] = useState(false)
+  const [payAmount, setPayAmount] = useState('')
+  const [payMethod, setPayMethod] = useState('bank_transfer')
   const invoicePreviewRef = useRef(null)
   const printModalRef = useRef(null)
 
@@ -142,6 +145,29 @@ export default function InvoiceView() {
     }
   })
 
+  const remainingBalance = Math.max(0, Number(invoice?.grandTotal || 0) - Number(invoice?.paidAmount || 0))
+  const canRecordPayment = invoice?.flow !== 'purchase'
+    && !['draft', 'cancelled', 'credited'].includes(invoice?.status)
+    && remainingBalance > 0.005
+
+  const recordPaymentMutation = useMutation({
+    mutationFn: () => api.post(`/invoices/${id}/payments`, {
+      amount: Number(payAmount),
+      method: payMethod,
+    }),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم تسجيل الدفعة' : 'Payment recorded')
+      setPayOpen(false)
+      setPayAmount('')
+      queryClient.invalidateQueries(['invoice', id])
+      queryClient.invalidateQueries(['invoices'])
+      queryClient.invalidateQueries(['customers'])
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || (language === 'ar' ? 'فشل تسجيل الدفعة' : 'Failed to record payment'))
+    }
+  })
+
   const sendEmailMutation = useMutation({
     mutationFn: async () => {
       if (!invoice) {
@@ -213,9 +239,28 @@ export default function InvoiceView() {
                 </p>
               ) : null
             })()}
+            {invoice?.paymentStatus && (
+              <p className="text-xs mt-1 text-gray-500">
+                {language === 'ar' ? 'حالة الدفع' : 'Payment'}: <span className="font-medium text-gray-800 dark:text-gray-200">{invoice.paymentStatus}</span>
+                {remainingBalance > 0.005 ? ` · ${language === 'ar' ? 'المتبقي' : 'Due'} ${remainingBalance.toFixed(2)}` : ''}
+              </p>
+            )}
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
+          {canRecordPayment && (
+            <button
+              type="button"
+              onClick={() => {
+                setPayAmount(remainingBalance.toFixed(2))
+                setPayOpen(true)
+              }}
+              className="btn btn-primary"
+            >
+              <Banknote className="w-4 h-4" />
+              {language === 'ar' ? 'تسجيل دفعة' : 'Record payment'}
+            </button>
+          )}
           {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
             <button
               type="button"
@@ -627,6 +672,49 @@ export default function InvoiceView() {
               </button>
               <button onClick={() => { if (printModalRef.current) printThermalElement(printModalRef.current, getThermalPrinterSettings(tenant)) }} className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700">
                 {language === 'ar' ? 'طباعة' : 'Print'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {payOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-dark-800 p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {language === 'ar' ? 'تسجيل دفعة' : 'Record payment'}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {language === 'ar' ? 'المتبقي' : 'Remaining'}: {remainingBalance.toFixed(2)}
+            </p>
+            <label className="label mt-4">{language === 'ar' ? 'المبلغ' : 'Amount'}</label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              max={remainingBalance}
+              value={payAmount}
+              onChange={(e) => setPayAmount(e.target.value)}
+              className="input"
+            />
+            <label className="label mt-3">{language === 'ar' ? 'طريقة الدفع' : 'Method'}</label>
+            <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="select">
+              <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
+              <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
+              <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank transfer'}</option>
+            </select>
+            <div className="mt-5 flex gap-3">
+              <button type="button" className="btn btn-secondary flex-1" onClick={() => setPayOpen(false)}>
+                {language === 'ar' ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary flex-1"
+                disabled={recordPaymentMutation.isPending}
+                onClick={() => recordPaymentMutation.mutate()}
+              >
+                {recordPaymentMutation.isPending
+                  ? (language === 'ar' ? 'جارٍ الحفظ...' : 'Saving...')
+                  : (language === 'ar' ? 'حفظ' : 'Save')}
               </button>
             </div>
           </div>

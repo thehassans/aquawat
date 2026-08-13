@@ -43,6 +43,7 @@ import {
   Broadcast,
 } from '../models/WhatsApp.js';
 import { protect, authorize, invalidateAuthCache } from '../middleware/auth.js';
+import { emitPlatformEvent } from '../utils/platformEvents.js';
 import { getPrimaryBusinessType, normalizeBusinessTypes, BUSINESS_TYPES } from '../utils/businessTypes.js';
 import { sendTenantWelcomeEmail } from '../utils/emailService.js';
 import { verifyEmailDeliveryConnection, sendEmailWithConfig } from '../utils/emailProviderService.js';
@@ -1216,6 +1217,7 @@ router.put('/tenants/:id/subscription', async (req, res) => {
       updateData['subscription.endDate'] = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
     }
     
+    const prior = await Tenant.findById(req.params.id).select('subscription').lean();
     const tenant = await Tenant.findByIdAndUpdate(
       req.params.id,
       updateData,
@@ -1227,6 +1229,20 @@ router.put('/tenants/:id/subscription', async (req, res) => {
     }
     
     invalidateAuthCache(null, tenant._id);
+
+    const canceledStatuses = new Set(['cancelled', 'canceled', 'terminated', 'expired']);
+    if (
+      status &&
+      canceledStatuses.has(String(status)) &&
+      prior?.subscription?.status === 'active'
+    ) {
+      emitPlatformEvent('subscription_canceled', {
+        tenantId: String(tenant._id),
+        plan: prior.subscription?.plan,
+        mrrDelta: -(Number(prior.subscription?.price) || 0),
+        reason: status,
+      });
+    }
 
     res.json(tenant);
   } catch (error) {
@@ -1415,7 +1431,16 @@ router.put('/tenants/:id/termination', async (req, res) => {
         reason
       };
       if (new Date(date) <= new Date()) {
+        const wasActive = tenant.subscription.status === 'active';
         tenant.subscription.status = 'terminated';
+        if (wasActive) {
+          emitPlatformEvent('subscription_canceled', {
+            tenantId: String(tenant._id),
+            plan: tenant.subscription?.plan,
+            mrrDelta: -(Number(tenant.subscription?.price) || 0),
+            reason,
+          });
+        }
       }
     }
 

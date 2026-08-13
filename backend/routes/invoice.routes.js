@@ -1,6 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import * as xlsx from 'xlsx';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
@@ -13,24 +14,41 @@ import Warehouse from '../models/Warehouse.js';
 import RestaurantOrder from '../models/RestaurantOrder.js';
 import TravelBooking from '../models/TravelBooking.js';
 import EmailMessage from '../models/EmailMessage.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../utils/businessTypes.js';
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 import { buildDraftInvoiceQr } from '../utils/zatca/draftInvoiceQr.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { autoSendInvoice, sendInvoiceToRecipient } from '../utils/tenantEmailService.js';
-import { buildInvoicePdfAttachment } from '../utils/invoicePdfService.js';
+import { getOrBuildInvoicePdfAttachment, getCachedInvoicePdfAttachment, enqueueInvoicePdf } from '../services/invoicePdfQueue.js';
+import { afterInvoiceWrite } from '../utils/invoiceLifecycle.js';
+import { emitPlatformEvent } from '../utils/platformEvents.js';
 import { createInvoiceFromMultipleDNs } from '../controllers/invoiceController.js';
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
 import { clampTemplateId } from '../utils/premiumTemplates.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
+import { ensureInvoiceDueDate } from '../utils/invoicePaymentTerms.js';
+import { isPastDueInRiyadh } from '../utils/riyadhTime.js';
+import { cacheAside } from '../lib/redis.js';
+import { applyInvoiceListSearch } from '../utils/invoiceSearch.js';
+import { statsRead } from '../utils/mongoReadPreference.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
+
+const invoiceWriteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.INVOICE_CREATE_RATE_LIMIT_MAX || 40),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `invoice-write:${req.user?.tenantId || req.ip || 'unknown'}`,
+  message: { error: 'Too many invoices created. Please wait a moment.' },
+});
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
@@ -51,19 +69,80 @@ function resolvePaymentStatus(invoiceData) {
   if (method === 'cash' || method === 'card' || method === 'bank_transfer') {
     invoiceData.paidAmount = grandTotal;
     invoiceData.paymentStatus = 'paid';
-  } else if (method === 'credit' || method === 'split') {
-    const paid = Number(invoiceData.paidAmount) || 0;
-    invoiceData.paidAmount = Math.min(Math.max(0, paid), grandTotal); // Prevent overpaying and negative
-    if (invoiceData.paidAmount >= grandTotal && grandTotal > 0) {
-      invoiceData.paymentStatus = 'paid';
-    } else if (invoiceData.paidAmount > 0) {
-      invoiceData.paymentStatus = 'partial';
-    } else {
-      invoiceData.paymentStatus = 'pending';
-    }
+  } else if (method === 'credit' || method === 'split' || method === 'khata') {
+    applyPaidAmountStatus(invoiceData);
   } else {
     invoiceData.paidAmount = grandTotal;
     invoiceData.paymentStatus = 'paid';
+  }
+}
+
+function applyPaidAmountStatus(invoiceData) {
+  const grandTotal = Number(invoiceData.grandTotal) || 0;
+  const paid = Math.min(Math.max(0, Number(invoiceData.paidAmount) || 0), grandTotal);
+  invoiceData.paidAmount = Math.round(paid * 100) / 100;
+  if (grandTotal > 0 && invoiceData.paidAmount >= grandTotal - 0.005) {
+    invoiceData.paidAmount = grandTotal;
+    invoiceData.paymentStatus = 'paid';
+    return;
+  }
+  if (invoiceData.paidAmount > 0) {
+    invoiceData.paymentStatus = isPastDueInRiyadh(invoiceData.dueDate) ? 'overdue' : 'partial';
+    return;
+  }
+  invoiceData.paymentStatus = isPastDueInRiyadh(invoiceData.dueDate) ? 'overdue' : 'pending';
+}
+
+function rejectOverpay(req, res) {
+  const paid = Number(req.body?.paidAmount);
+  const grand = Number(req.body?.grandTotal);
+  if (Number.isFinite(paid) && Number.isFinite(grand) && paid > grand + 0.005) {
+    res.status(400).json({ error: 'paidAmount cannot exceed grandTotal' });
+    return true;
+  }
+  return false;
+}
+
+async function applyResolvedPayment(invoice) {
+  resolvePaymentStatus(invoice);
+  if (invoice.isModified?.('paidAmount') || invoice.isModified?.('paymentStatus')) {
+    await invoice.save();
+  }
+  return invoice;
+}
+
+async function postSellInvoiceLedgers(invoice, req, tenant) {
+  if (
+    invoice.flow === 'purchase' ||
+    invoice.invoiceType !== '388' ||
+    invoice.invoiceSubtype === 'proforma' ||
+    ['draft', 'cancelled'].includes(invoice.status)
+  ) {
+    return;
+  }
+
+  try {
+    const { postSalesInvoiceJournal, postInvoicePaymentJournal } = await import('../services/accountingService.js');
+    await postSalesInvoiceJournal({
+      tenantId: invoice.tenantId,
+      userId: req.user._id,
+      invoice,
+      currency: invoice.currency || tenant?.settings?.currency || 'SAR',
+    });
+    if (Number(invoice.paidAmount || 0) > 0) {
+      await postInvoicePaymentJournal({
+        tenantId: invoice.tenantId,
+        userId: req.user._id,
+        invoice,
+        amount: invoice.paidAmount,
+        paymentMethod: invoice.paymentMethod || 'bank_transfer',
+        paymentDate: invoice.issueDate || new Date(),
+        reference: `initial-${invoice.invoiceNumber}`,
+        currency: invoice.currency || tenant?.settings?.currency || 'SAR',
+      });
+    }
+  } catch (glError) {
+    console.warn('[accounting] invoice journal failed:', glError.message);
   }
 }
 
@@ -586,7 +665,7 @@ async function syncCustomerStats(tenantId, customerId) {
     ]);
     const totalReceived = voucherStats[0]?.totalReceived || 0;
 
-    const stats = await Invoice.aggregate([
+    const stats = await statsRead(Invoice.aggregate([
       {
         $match: {
           tenantId: tenantObjectId,
@@ -604,7 +683,7 @@ async function syncCustomerStats(tenantId, customerId) {
           lastInvoiceDate: { $max: '$issueDate' }
         }
       }
-    ]);
+    ]));
 
     const doc = stats[0] || { totalInvoices: 0, totalRevenue: 0, totalPaidOnInvoices: 0, lastInvoiceDate: null };
     const currentBalance = doc.totalRevenue - doc.totalPaidOnInvoices - totalReceived;
@@ -666,10 +745,11 @@ async function ensureProductsExist(tenantId, userId, lineItems, flow) {
 // @route   GET /api/invoices
 router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, transactionType, businessContext, search, startDate, endDate, zatcaFilter, flow } = req.query;
+    const { page = 1, limit = 20, status, paymentStatus, transactionType, businessContext, search, startDate, endDate, zatcaFilter, flow, cursor } = req.query;
     
     const query = { ...req.tenantFilter };
     if (status) query.status = status;
+    if (paymentStatus) query.paymentStatus = paymentStatus;
     if (flow) query.flow = flow;
     if (transactionType) query.transactionType = transactionType;
     if (businessContext) query.businessContext = businessContext;
@@ -678,30 +758,9 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
       if (startDate) query.issueDate.$gte = new Date(startDate);
       if (endDate) query.issueDate.$lte = new Date(endDate);
     }
-    if (search) {
-      const re = { $regex: search, $options: 'i' };
-      query.$or = [
-        { invoiceNumber: re },
-        { contractNumber: re },
-        { 'buyer.name': re },
-        { 'buyer.nameAr': re },
-        { 'buyer.vatNumber': re },
-        { 'buyer.crNumber': re },
-        { 'buyer.contactPhone': re },
-        { 'buyer.contactEmail': re },
-        { 'seller.name': re },
-        { 'seller.nameAr': re },
-        { 'seller.vatNumber': re },
-        { 'seller.crNumber': re },
-        { 'seller.contactPhone': re },
-        { 'seller.contactEmail': re },
-        { 'travelDetails.pnr': re },
-        { 'travelDetails.travelerName': re },
-        { 'travelDetails.ticketNumber': re },
-        { 'travelDetails.passengers.pnr': re },
-        { 'travelDetails.passengers.travelerName': re },
-        { 'travelDetails.passengers.ticketNumber': re },
-      ];
+    const searchTerm = String(search || '').trim();
+    if (searchTerm) {
+      await applyInvoiceListSearch(query, searchTerm, req.tenantFilter?.tenantId || req.user?.tenantId);
     }
     if (zatcaFilter === 'signed') {
       query['zatca.signedXml'] = { $exists: true, $nin: [null, ''] };
@@ -712,16 +771,43 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
     } else if (zatcaFilter === 'submitted') {
       query['zatca.submittedAt'] = { $exists: true, $ne: null };
     }
+
+    const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const pageNumber = Math.max(1, parseInt(page, 10) || 1);
+    let cursorDate = null;
+    let cursorId = null;
+    if (cursor) {
+      try {
+        const decoded = Buffer.from(String(cursor), 'base64url').toString('utf8');
+        const [iso, id] = decoded.split('|');
+        cursorDate = new Date(iso);
+        if (id && mongoose.Types.ObjectId.isValid(id) && !Number.isNaN(cursorDate.getTime())) {
+          cursorId = id;
+          query.$and = (query.$and || []).concat([{
+            $or: [
+              { issueDate: { $lt: cursorDate } },
+              { issueDate: cursorDate, _id: { $lt: id } },
+            ],
+          }]);
+        }
+      } catch {
+        cursorDate = null;
+      }
+    }
    
-   const [invoices, total] = await Promise.all([
-      Invoice.find(query)
-        .select('-zatca.signedXml -zatca.qrCodeData -travelDetails.passengers -travelDetails.segments')
+   const findQuery = Invoice.find(query)
+        .select('-zatca.signedXml -zatca.qrCodeData -travelDetails.passengers -travelDetails.segments -searchText')
         .populate('createdBy', 'firstName lastName firstNameAr lastNameAr email')
-        .sort({ issueDate: -1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit))
-        .lean(),
-      Invoice.countDocuments(query)
+        .sort({ issueDate: -1, _id: -1 })
+        .limit(pageSize)
+        .lean();
+    if (!cursorId) {
+      findQuery.skip((pageNumber - 1) * pageSize);
+    }
+
+   const [invoices, total] = await Promise.all([
+      findQuery,
+      cursorId ? Promise.resolve(null) : Invoice.countDocuments(query)
     ]);
 
     const toNumber = (value) => {
@@ -746,7 +832,8 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
             if (line?.isTravelMargin) {
               const taxCategory = String(line?.taxCategory || '').trim().toUpperCase();
               if (taxCategory === 'S') {
-                return sum + (toNumber(line?.marginTaxable) * 0.15);
+                const rate = toNumber(line?.taxRate, 15);
+                return sum + (toNumber(line?.marginTaxable) * (rate / 100));
               }
             }
 
@@ -762,9 +849,20 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
       };
     });
     
+    const last = invoices?.length ? invoices[invoices.length - 1] : null;
+    const nextCursor = last && invoices.length === pageSize && last.issueDate
+      ? Buffer.from(`${new Date(last.issueDate).toISOString()}|${last._id}`).toString('base64url')
+      : null;
+
     res.json({
       invoices: normalizedInvoices,
-      pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / limit) }
+      nextCursor,
+      pagination: {
+        page: pageNumber,
+        limit: pageSize,
+        total: total == null ? undefined : total,
+        pages: total == null ? undefined : Math.ceil(total / pageSize),
+      }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -774,45 +872,61 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
 // @route   GET /api/invoices/stats
 router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const stats = await Invoice.aggregate([
-      { $match: req.tenantFilter },
-      {
-        $facet: {
-          byStatus: [{ $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$grandTotal' } } }],
-          byZatcaStatus: [{ $group: { _id: '$zatca.submissionStatus', count: { $sum: 1 } } }],
-          byTransactionType: [
-            { $match: { status: { $nin: ['draft', 'cancelled', 'credited'] } } },
-            { $group: { _id: '$transactionType', count: { $sum: 1 }, total: { $sum: '$grandTotal' } } }
-          ],
-          monthly: [
-            { $match: { status: { $nin: ['draft', 'cancelled', 'credited'] } } },
-            {
-              $group: {
-                _id: { year: { $year: '$issueDate' }, month: { $month: '$issueDate' } },
-                count: { $sum: 1 },
-                total: { $sum: '$grandTotal' },
-                tax: { $sum: '$totalTax' }
+    const match = { ...req.tenantFilter };
+    if (req.query.from || req.query.to) {
+      match.issueDate = {};
+      if (req.query.from) match.issueDate.$gte = new Date(req.query.from);
+      if (req.query.to) match.issueDate.$lte = new Date(req.query.to);
+    }
+
+    const tenantKey = String(req.tenantFilter?.tenantId || 'none');
+    const fromKey = req.query.from || 'all';
+    const toKey = req.query.to || 'all';
+    const cacheKey = `invoices:stats:${tenantKey}:${fromKey}:${toKey}`;
+
+    const stats = await cacheAside(cacheKey, 60, async () => {
+      const rows = await statsRead(Invoice.aggregate([
+        { $match: match },
+        {
+          $facet: {
+            byStatus: [{ $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$grandTotal' } } }],
+            byPaymentStatus: [{ $group: { _id: '$paymentStatus', count: { $sum: 1 }, total: { $sum: '$grandTotal' } } }],
+            byZatcaStatus: [{ $group: { _id: '$zatca.submissionStatus', count: { $sum: 1 } } }],
+            byTransactionType: [
+              { $match: { status: { $nin: ['draft', 'cancelled', 'credited'] } } },
+              { $group: { _id: '$transactionType', count: { $sum: 1 }, total: { $sum: '$grandTotal' } } }
+            ],
+            monthly: [
+              { $match: { status: { $nin: ['draft', 'cancelled', 'credited'] } } },
+              {
+                $group: {
+                  _id: { year: { $year: '$issueDate' }, month: { $month: '$issueDate' } },
+                  count: { $sum: 1 },
+                  total: { $sum: '$grandTotal' },
+                  tax: { $sum: '$totalTax' }
+                }
+              },
+              { $sort: { '_id.year': -1, '_id.month': -1 } },
+              { $limit: 12 }
+            ],
+            totals: [
+              { $match: { status: { $nin: ['draft', 'cancelled', 'credited'] } } },
+              {
+                $group: {
+                  _id: null,
+                  totalInvoices: { $sum: 1 },
+                  totalRevenue: { $sum: '$grandTotal' },
+                  totalTax: { $sum: '$totalTax' }
+                }
               }
-            },
-            { $sort: { '_id.year': -1, '_id.month': -1 } },
-            { $limit: 12 }
-          ],
-          totals: [
-            { $match: { status: { $nin: ['draft', 'cancelled', 'credited'] } } },
-            {
-              $group: {
-                _id: null,
-                totalInvoices: { $sum: 1 },
-                totalRevenue: { $sum: '$grandTotal' },
-                totalTax: { $sum: '$totalTax' }
-              }
-            }
-          ]
+            ]
+          }
         }
-      }
-    ]);
-    
-    res.json(stats[0]);
+      ]));
+      return rows[0];
+    });
+
+    res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -825,7 +939,7 @@ router.get('/:id/pdf', checkPermission('invoicing', 'read'), async (req, res) =>
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    const tenant = await Tenant.findById(req.user.tenantId);
+    const tenant = await Tenant.findById(invoice.tenantId || req.user.tenantId);
     if (!tenant) {
       return res.status(404).json({ error: 'Tenant not found' });
     }
@@ -834,19 +948,100 @@ router.get('/:id/pdf', checkPermission('invoicing', 'read'), async (req, res) =>
       ? await Customer.findOne({ _id: invoice.customerId, tenantId: invoice.tenantId }).select('name nameAr')
       : null;
 
-    const attachment = await buildInvoicePdfAttachment({
+    const sendPdf = (attachment) => {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${String(attachment.filename || 'invoice.pdf').replace(/"/g, '')}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(attachment.content);
+    };
+
+    const cached = await getCachedInvoicePdfAttachment(invoice);
+    if (cached) return sendPdf(cached);
+
+    const wantAsync = String(req.query.async || '') === '1';
+    const wantSync = String(req.query.sync || '') === '1';
+    if (wantAsync && !wantSync) {
+      enqueueInvoicePdf(invoice._id);
+      res.setHeader('Retry-After', '1');
+      return res.status(202).json({
+        status: 'queued',
+        invoiceId: String(invoice._id),
+        retryAfter: 1,
+      });
+    }
+
+    const attachment = await getOrBuildInvoicePdfAttachment({
       invoice,
       tenant,
       customerName: customer?.name || customer?.nameAr || invoice?.buyer?.name || invoice?.buyer?.nameAr,
       language: 'bilingual',
     });
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${String(attachment.filename || 'invoice.pdf').replace(/"/g, '')}"`);
-    res.setHeader('Cache-Control', 'no-store');
-    return res.send(attachment.content);
+    return sendPdf(attachment);
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/invoices/:id/payments
+router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req, res) => {
+  try {
+    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+    if (invoice.flow === 'purchase') {
+      return res.status(400).json({ error: 'Purchase invoices do not accept customer payments' });
+    }
+    if (['draft', 'cancelled', 'credited'].includes(invoice.status)) {
+      return res.status(400).json({ error: 'Cannot record payment on this invoice' });
+    }
+
+    const amount = Math.round((Number(req.body?.amount) || 0) * 100) / 100;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Payment amount must be greater than zero' });
+    }
+
+    const remaining = Math.round(((Number(invoice.grandTotal) || 0) - (Number(invoice.paidAmount) || 0)) * 100) / 100;
+    if (amount > remaining + 0.005) {
+      return res.status(400).json({ error: 'Amount exceeds remaining balance' });
+    }
+
+    const method = ['cash', 'card', 'bank_transfer', 'other', 'khata'].includes(req.body?.method)
+      ? req.body.method
+      : 'bank_transfer';
+
+    const previousPaymentStatus = invoice.paymentStatus;
+    invoice.paidAmount = Math.round(((Number(invoice.paidAmount) || 0) + amount) * 100) / 100;
+    invoice.payments = [...(invoice.payments || []), { method, amount }];
+    applyPaidAmountStatus(invoice);
+    await invoice.save();
+
+    try {
+      const { postInvoicePaymentJournal } = await import('../services/accountingService.js');
+      await postInvoicePaymentJournal({
+        tenantId: invoice.tenantId,
+        userId: req.user._id,
+        invoice,
+        amount,
+        paymentMethod: method,
+        paymentDate: req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date(),
+        reference: `pay-${invoice.invoiceNumber}-${Date.now()}`,
+        currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
+      });
+    } catch (glError) {
+      console.warn('[accounting] invoice payment journal failed:', glError.message);
+    }
+
+    if (invoice.customerId) {
+      await syncCustomerStats(invoice.tenantId, invoice.customerId);
+    }
+
+    afterInvoiceWrite(invoice, { userId: req.user._id, previousPaymentStatus });
+
+    res.json(invoice);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 
@@ -1032,9 +1227,10 @@ router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoi
   }
 });
 
-router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'create'), async (req, res) => {
+router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermission('invoicing', 'create'), async (req, res) => {
   try {
     req.body = sanitizeInvoicePayload(req.body);
+    if (rejectOverpay(req, res)) return;
     const tenant = await Tenant.findById(req.user.tenantId);
 
     const tenantId = req.user.tenantId;
@@ -1123,43 +1319,18 @@ router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'cre
       delete invoiceData.warehouseId;
     }
 
+    ensureInvoiceDueDate(invoiceData);
+
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const invoice = await Invoice.create(enrichedInvoiceData);
+    await applyResolvedPayment(invoice);
 
     if (invoice.customerId) {
       await syncCustomerStats(invoice.tenantId, invoice.customerId);
     }
 
-    if (
-      invoice.flow !== 'purchase' &&
-      invoice.invoiceType === '388' &&
-      invoice.invoiceSubtype !== 'proforma' &&
-      !['draft', 'cancelled'].includes(invoice.status)
-    ) {
-      try {
-        const { postSalesInvoiceJournal, postInvoicePaymentJournal } = await import('../services/accountingService.js');
-        await postSalesInvoiceJournal({
-          tenantId: invoice.tenantId,
-          userId: req.user._id,
-          invoice,
-          currency: invoice.currency || tenant?.settings?.currency || 'SAR',
-        });
-        if (Number(invoice.paidAmount || 0) > 0) {
-          await postInvoicePaymentJournal({
-            tenantId: invoice.tenantId,
-            userId: req.user._id,
-            invoice,
-            amount: invoice.paidAmount,
-            paymentMethod: invoice.paymentMethod || 'bank_transfer',
-            paymentDate: invoice.issueDate || new Date(),
-            reference: `initial-${invoice.invoiceNumber}`,
-            currency: invoice.currency || tenant?.settings?.currency || 'SAR',
-          });
-        }
-      } catch (glError) {
-        console.warn('[accounting] invoice journal failed:', glError.message);
-      }
-    }
+    await postSellInvoiceLedgers(invoice, req, tenant);
+    afterInvoiceWrite(invoice, { userId: req.user._id, created: true, previousPaymentStatus: 'pending' });
 
     let emailDelivery = { sent: false, reason: 'disabled' };
     if (invoice.flow === 'sell' && (invoice.status === 'approved' || invoice.zatca?.signedXml)) {
@@ -1185,9 +1356,10 @@ router.post('/', checkTrialLimits('invoices'), checkPermission('invoicing', 'cre
 router.post('/consolidated', checkPermission('invoicing', 'create'), createInvoiceFromMultipleDNs);
 
 // @route   POST /api/invoices/sell
-router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) => {
+router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create'), async (req, res) => {
   try {
     req.body = sanitizeInvoicePayload(req.body);
+    if (rejectOverpay(req, res)) return;
     const tenantBusinessTypes = getTenantBusinessTypes(req.tenant);
     const primaryBusinessType = getPrimaryBusinessType(req.tenant);
     const tenant = await Tenant.findById(req.user.tenantId);
@@ -1378,8 +1550,11 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
       invoiceData.travelDetails = requestTravelDetails;
     }
 
+    ensureInvoiceDueDate(invoiceData);
+
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const createdInvoice = await Invoice.create(enrichedInvoiceData);
+    await applyResolvedPayment(createdInvoice);
     const invoice = await attachDraftQr(createdInvoice, tenant.business, tenant);
 
     if (restaurantOrder) {
@@ -1415,6 +1590,9 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
     if (invoice.customerId) {
       await syncCustomerStats(invoice.tenantId, invoice.customerId);
     }
+
+    await postSellInvoiceLedgers(invoice, req, tenant);
+    afterInvoiceWrite(invoice, { userId: req.user._id, created: true, previousPaymentStatus: 'pending' });
 
     const invoiceCustomer = invoice.customerId
       ? await Customer.findOne({ _id: invoice.customerId, tenantId: invoice.tenantId }).select('name nameAr email contactPerson')
@@ -1453,7 +1631,7 @@ router.post('/sell', checkPermission('invoicing', 'create'), async (req, res) =>
 });
 
 // @route   POST /api/invoices/purchase
-router.post('/purchase', checkPermission('invoicing', 'create'), async (req, res) => {
+router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'create'), async (req, res) => {
   try {
     req.body = sanitizeInvoicePayload(req.body);
     const tenantBusinessTypes = getTenantBusinessTypes(req.tenant);
@@ -1568,9 +1746,13 @@ router.post('/purchase', checkPermission('invoicing', 'create'), async (req, res
       invoiceData.travelDetails = req.body.travelDetails;
     }
 
+    ensureInvoiceDueDate(invoiceData);
+
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const createdInvoice = await Invoice.create(enrichedInvoiceData);
+    await applyResolvedPayment(createdInvoice);
     const invoice = await attachDraftQr(createdInvoice, seller, tenant);
+    afterInvoiceWrite(invoice, { userId: req.user._id, created: true, previousPaymentStatus: 'pending' });
 
     if (businessContext === 'trading') {
       const posted = await postInventoryForInvoice(invoice, req.tenantFilter);
@@ -1638,6 +1820,7 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
 
     Object.assign(invoice, req.body);
     await invoice.save();
+    afterInvoiceWrite(invoice, { userId: req.user._id });
 
     if (invoice.flow === 'sell' && (invoice.status === 'approved' || invoice.zatca?.signedXml)) {
       try {
@@ -1827,6 +2010,15 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
     if (invoice.customerId) {
       await syncCustomerStats(invoice.tenantId, invoice.customerId);
     }
+
+    afterInvoiceWrite(invoice, { userId: req.user._id });
+    emitPlatformEvent('invoice_signed', {
+      tenantId: String(invoice.tenantId),
+      invoiceId: String(invoice._id),
+      zatcaPhase: tenant.zatca?.phase,
+      success: invoice.zatca?.submissionStatus !== 'rejected',
+      userId: String(req.user._id),
+    });
 
     const customer = invoice.customerId
       ? await Customer.findOne({ _id: invoice.customerId, tenantId: invoice.tenantId }).select('name nameAr email contactPerson')

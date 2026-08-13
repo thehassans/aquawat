@@ -21,7 +21,9 @@ import {
   ShieldOff,
   Layers,
   MessageCircle,
-  Trash2
+  Trash2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -89,9 +91,11 @@ export default function Invoices() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [filters, setFilters] = useState({ status: '', businessContext: '', flow: '' })
+  const [filters, setFilters] = useState({ status: '', paymentStatus: '', businessContext: '', flow: '' })
   const [zatcaFilter, setZatcaFilter] = useState('')
-  const [page, setPage] = useState(1)
+  const [cursor, setCursor] = useState('')
+  const [cursorStack, setCursorStack] = useState([])
+  const [knownTotal, setKnownTotal] = useState(null)
   const [pdfLoadingId, setPdfLoadingId] = useState(null)
   const [signModalInvoice, setSignModalInvoice] = useState(null)
   const [waModalInvoice, setWaModalInvoice] = useState(null)
@@ -112,14 +116,29 @@ export default function Invoices() {
     return () => clearTimeout(handle)
   }, [search])
 
+  const resetPaging = () => {
+    setCursor('')
+    setCursorStack([])
+    setKnownTotal(null)
+  }
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['invoices', page, debouncedSearch, filters, zatcaFilter],
+    queryKey: ['invoices', cursor, debouncedSearch, filters, zatcaFilter],
     queryFn: () => api.get('/invoices', {
-      params: { page, search: debouncedSearch, ...filters, zatcaFilter }
+      params: {
+        search: debouncedSearch,
+        ...filters,
+        zatcaFilter,
+        ...(cursor ? { cursor } : {}),
+      }
     }).then(res => res.data),
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   })
+
+  useEffect(() => {
+    if (data?.pagination?.total != null) setKnownTotal(data.pagination.total)
+  }, [data])
 
   const deleteMutation = useMutation({
     mutationFn: (invoiceId) => api.delete(`/invoices/${invoiceId}`).then((res) => res.data),
@@ -251,6 +270,25 @@ export default function Invoices() {
     return <span className={`badge ${badgeClass}`}>{icon}{meta.label}</span>
   }, [tenant?.zatca?.phase, language])
 
+  const getPaymentBadge = useCallback((invoice) => {
+    const status = String(invoice?.paymentStatus || 'pending')
+    const labels = {
+      paid: language === 'ar' ? 'مدفوعة' : 'Paid',
+      partial: language === 'ar' ? 'جزئي' : 'Partial',
+      overdue: language === 'ar' ? 'متأخرة' : 'Overdue',
+      pending: language === 'ar' ? 'غير مدفوعة' : 'Unpaid',
+      cancelled: language === 'ar' ? 'ملغاة' : 'Cancelled',
+    }
+    const tone = status === 'paid'
+      ? 'badge-success'
+      : status === 'overdue'
+        ? 'badge-danger'
+        : status === 'partial'
+          ? 'badge-warning'
+          : 'badge-neutral'
+    return <span className={`badge ${tone}`}>{labels[status] || status}</span>
+  }, [language])
+
   const exportColumns = useMemo(() => [
     {
       key: 'invoiceNumber',
@@ -295,20 +333,18 @@ export default function Invoices() {
 
   const getExportRows = useCallback(async () => {
     const limit = 200
-    let currentPage = 1
+    let nextCursor = ''
     let all = []
 
     while (true) {
       const res = await api.get('/invoices', {
-        params: { page: currentPage, limit, search, ...filters }
+        params: { limit, search, ...filters, ...(nextCursor ? { cursor: nextCursor } : {}) }
       })
       const batch = res.data?.invoices || []
       all = all.concat(batch)
 
-      const pages = res.data?.pagination?.pages || 1
-      if (currentPage >= pages) break
-      currentPage += 1
-
+      nextCursor = res.data?.nextCursor || ''
+      if (!nextCursor || batch.length === 0) break
       if (all.length >= 10000) break
     }
 
@@ -581,7 +617,7 @@ export default function Invoices() {
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
-                setPage(1)
+                resetPaging()
               }}
               className="input ps-10"
             />
@@ -590,7 +626,7 @@ export default function Invoices() {
             value={filters.flow}
             onChange={(e) => {
               setFilters({ ...filters, flow: e.target.value })
-              setPage(1)
+              resetPaging()
             }}
             className="select w-full sm:w-52"
           >
@@ -602,7 +638,7 @@ export default function Invoices() {
             value={filters.businessContext}
             onChange={(e) => {
               setFilters({ ...filters, businessContext: e.target.value })
-              setPage(1)
+              resetPaging()
             }}
             className="select w-full sm:w-52"
           >
@@ -615,7 +651,7 @@ export default function Invoices() {
             value={filters.status}
             onChange={(e) => {
               setFilters({ ...filters, status: e.target.value })
-              setPage(1)
+              resetPaging()
             }}
             className="select w-full sm:w-40"
           >
@@ -623,6 +659,20 @@ export default function Invoices() {
             <option value="draft">{language === 'ar' ? 'مسودة' : 'Draft'}</option>
             <option value="pending">{t('pending')}</option>
             <option value="approved">{language === 'ar' ? 'معتمدة' : 'Approved'}</option>
+          </select>
+          <select
+            value={filters.paymentStatus}
+            onChange={(e) => {
+              setFilters({ ...filters, paymentStatus: e.target.value })
+              resetPaging()
+            }}
+            className="select w-full sm:w-40"
+          >
+            <option value="">{language === 'ar' ? 'كل حالات الدفع' : 'All payments'}</option>
+            <option value="pending">{language === 'ar' ? 'غير مدفوعة' : 'Unpaid'}</option>
+            <option value="partial">{language === 'ar' ? 'جزئي' : 'Partial'}</option>
+            <option value="paid">{language === 'ar' ? 'مدفوعة' : 'Paid'}</option>
+            <option value="overdue">{language === 'ar' ? 'متأخرة' : 'Overdue'}</option>
           </select>
         </div>
         {/* ZATCA status quick-filter chips */}
@@ -632,7 +682,7 @@ export default function Invoices() {
             <button
               key={opt.value}
               type="button"
-              onClick={() => { setZatcaFilter(opt.value); setPage(1) }}
+              onClick={() => { setZatcaFilter(opt.value); resetPaging() }}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                 zatcaFilter === opt.value
                   ? 'bg-primary-600 text-white border-primary-600'
@@ -679,7 +729,10 @@ export default function Invoices() {
                         <p className="text-sm text-gray-900 dark:text-white truncate">{party}</p>
                         <p className="text-xs text-gray-500 mt-0.5">{new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</p>
                       </button>
-                      <div className="shrink-0">{getStatusBadge(invoice)}</div>
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        {getStatusBadge(invoice)}
+                        {getPaymentBadge(invoice)}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-gray-900 dark:text-white"><Money value={invoice.grandTotal} /></span>
@@ -791,7 +844,12 @@ export default function Invoices() {
                           ? <Money value={getInvoiceVatAmount(invoice)} />
                           : <span className="text-gray-400 text-sm">—</span>}
                       </td>
-                      <td>{getStatusBadge(invoice)}</td>
+                      <td>
+                        <div className="flex flex-col items-start gap-1">
+                          {getStatusBadge(invoice)}
+                          {getPaymentBadge(invoice)}
+                        </div>
+                      </td>
                       <td>
                         <div className="flex items-center gap-1">
                           {['draft', 'pending'].includes(invoice?.status) && !invoice?.zatca?.invoiceHash && invoice?.flow !== 'purchase' && (
@@ -878,47 +936,43 @@ export default function Invoices() {
             </ResponsiveDataList>
 
             {/* Pagination */}
-            {data?.pagination && data.pagination.pages > 1 && (() => {
-              const totalPages = data.pagination.pages
-              const getPageNumbers = (current, total) => {
-                if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-                const pages = [1]
-                if (current > 3) pages.push('...')
-                for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i)
-                if (current < total - 2) pages.push('...')
-                if (total > 1) pages.push(total)
-                return pages
-              }
-              return (
+            {(data?.nextCursor || cursor || cursorStack.length > 0) && (
                 <div className="p-4 border-t border-gray-100 dark:border-dark-700 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <p className="text-sm text-gray-500">
                     {language === 'ar'
-                      ? `${data.pagination.total} نتيجة — صفحة ${page} من ${totalPages}`
-                      : `${data.pagination.total} results — page ${page} of ${totalPages}`}
+                      ? `${knownTotal != null ? knownTotal : (data?.invoices?.length || 0)} نتيجة`
+                      : `${knownTotal != null ? knownTotal : (data?.invoices?.length || 0)} results`}
                   </p>
-                  <div className="flex items-center gap-1">
-                    {getPageNumbers(page, totalPages).map((p, i) =>
-                      p === '...' ? (
-                        <span key={`ellipsis-${i}`} className="w-9 h-9 flex items-center justify-center text-gray-400 text-sm select-none">…</span>
-                      ) : (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => setPage(p)}
-                          className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
-                            p === page
-                              ? 'bg-primary-600 text-white shadow-sm'
-                              : 'hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      )
-                    )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={!cursor && cursorStack.length === 0}
+                      onClick={() => {
+                        setCursorStack((stack) => {
+                          const next = [...stack]
+                          setCursor(next.pop() || '')
+                          return next
+                        })
+                      }}
+                      className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300 disabled:opacity-40"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!data?.nextCursor}
+                      onClick={() => {
+                        if (!data?.nextCursor) return
+                        setCursorStack((stack) => [...stack, cursor])
+                        setCursor(data.nextCursor)
+                      }}
+                      className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300 disabled:opacity-40"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              )
-            })()}
+            )}
           </>
         )}
       </motion.div>

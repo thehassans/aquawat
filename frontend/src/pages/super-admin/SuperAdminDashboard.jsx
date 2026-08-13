@@ -116,14 +116,29 @@ export default function SuperAdminDashboard() {
         </motion.div>
       </div>
 
-      {/* Revenue Card */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="card p-6">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-semibold">{language === 'ar' ? 'إجمالي إيرادات الفواتير' : 'Total Invoice Revenue'}</h3>
-          <span className="text-2xl font-bold text-primary-600"><Money value={data?.invoiceStats?.total} minimumFractionDigits={0} maximumFractionDigits={0} /></span>
-        </div>
-        <p className="text-sm text-gray-500">{language === 'ar' ? 'من جميع المستأجرين' : 'From all tenants'}</p>
-      </motion.div>
+      {/* Revenue cards — SaaS MRR is subscription.price, not tenant invoice GMV */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="card p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold">{language === 'ar' ? 'إيراد الاشتراكات (MRR)' : 'SaaS subscription MRR'}</h3>
+            <span className="text-2xl font-bold text-emerald-600">
+              <Money
+                value={(data?.monthlyRevenue || []).reduce((sum, row) => sum + Number(row.total || 0), 0)}
+                minimumFractionDigits={0}
+                maximumFractionDigits={0}
+              />
+            </span>
+          </div>
+          <p className="text-sm text-gray-500">{language === 'ar' ? 'من خطط المستأجرين النشطة فقط' : 'From active tenant subscription prices only'}</p>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }} className="card p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold">{language === 'ar' ? 'إجمالي فواتير المستأجرين (GMV)' : 'Tenant invoice GMV'}</h3>
+            <span className="text-2xl font-bold text-primary-600"><Money value={data?.invoiceStats?.total} minimumFractionDigits={0} maximumFractionDigits={0} /></span>
+          </div>
+          <p className="text-sm text-gray-500">{language === 'ar' ? 'ليس إيراد منصة — فواتير عملاء المستأجرين' : 'Not platform revenue — tenant customer invoices'}</p>
+        </motion.div>
+      </div>
     </div>
   )
 }

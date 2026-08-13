@@ -9,9 +9,11 @@ import { store } from './store'
 import './index.css'
 import { ErrorBoundary } from './lib/errorBoundary'
 import { initMaqderPwaInstall } from './lib/pwaInstall'
+import { initTelemetryFromServer } from './lib/analytics'
 
 if (typeof window !== 'undefined') {
   initMaqderPwaInstall()
+  initTelemetryFromServer()
 }
 
 // ─── Self-Healing Deploy & Chunk Load Auto-Recovery ────────────────────────────

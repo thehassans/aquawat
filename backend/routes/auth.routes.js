@@ -7,6 +7,7 @@ import { protect } from '../middleware/auth.js';
 import { sendPasswordResetEmail } from '../utils/emailService.js';
 import { provisionTenantApps } from '../utils/appProvisioning.js';
 import { serializeAuthTenant } from '../utils/authSerialize.js';
+import { emitPlatformEvent } from '../utils/platformEvents.js';
 
 const router = express.Router();
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000);
@@ -85,6 +86,13 @@ const demoLoginAllowed = () => {
   return process.env.NODE_ENV !== 'production';
 };
 
+const demoLoginPassword = () => {
+  const fromEnv = String(process.env.DEMO_LOGIN_PASSWORD || '').trim();
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV !== 'production') return 'password123';
+  return '';
+};
+
 // @route   POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
@@ -132,6 +140,11 @@ router.post('/register', async (req, res) => {
     
     const token = generateToken(user._id, user.tenantId);
     setAuthCookie(res, token);
+
+    emitPlatformEvent('sign_up', {
+      userId: String(user._id),
+      tenantId: user.tenantId ? String(user.tenantId) : undefined,
+    });
 
     res.status(201).json({
       token,
@@ -232,7 +245,8 @@ router.post('/login', async (req, res) => {
     }
     
     if (!user) {
-      if (demoLoginAllowed() && normalizedEmail.endsWith('@test.com') && password === 'password123') {
+      const expectedDemoPassword = demoLoginPassword();
+      if (demoLoginAllowed() && expectedDemoPassword && normalizedEmail.endsWith('@test.com') && password === expectedDemoPassword) {
         const businessType = normalizedEmail.split('@')[0];
         
         tenant = await Tenant.create({
@@ -246,7 +260,7 @@ router.post('/login', async (req, res) => {
 
         user = await User.create({
           email: normalizedEmail,
-          password: 'password123',
+          password: expectedDemoPassword,
           firstName: 'Demo',
           lastName: 'User',
           tenantId: tenant._id,
@@ -323,6 +337,11 @@ router.post('/login', async (req, res) => {
     const token = generateToken(user._id, user.tenantId || tenant?._id);
     const responseTenant = serializeAuthTenant(tenant);
     setAuthCookie(res, token);
+
+    emitPlatformEvent('login', {
+      userId: String(user._id),
+      tenantId: user.tenantId ? String(user.tenantId) : (tenant?._id ? String(tenant._id) : undefined),
+    });
 
     res.json({
       token,

@@ -151,12 +151,14 @@ import { syncZatcaInvoices } from './jobs/zatcaSync.js';
 import { fetchImapEmails } from './jobs/imapFetcher.js';
 import { startBoutiqueReminderJobs } from './jobs/boutiqueReminderJob.js';
 import { checkRestaurantAutoStatus } from './jobs/restaurantAutoStatusJob.js';
+import { markOverdueInvoices } from './jobs/invoiceOverdueJob.js';
 import { processQueue as processZatcaQueue } from './services/zatcaQueueProcessor.js';
 import { runZatcaMonitoring, runCertExpiryCheck } from './jobs/zatcaMonitoringJob.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import requestTimeout from './middleware/requestTimeout.js';
 import responseTime from './middleware/responseTime.js';
 import { etag } from './middleware/httpCache.js';
+import { gateSensitiveUploads } from './middleware/uploadsAccess.js';
 import { mongoSanitize } from './middleware/mongoSanitize.js';
 import { getRedisClient, isRedisReady, cacheSet, cacheSetNx } from './lib/redis.js';
 import logger from './utils/logger.js';
@@ -166,6 +168,11 @@ import Supplier from './models/Supplier.js';
 import { seedAlliedPowerTenant } from './scripts/seedAlliedPowerTenant.js';
 import { validateProductionEnv } from './utils/envValidation.js';
 import { requestIdMiddleware } from './utils/requestId.js';
+import SystemSettings from './models/SystemSettings.js';
+import { initErrorTracking } from './utils/errorTracking.js';
+import { getRateLimitConfig, loadRateLimitConfig } from './utils/rateLimitConfig.js';
+import { startInvoicePdfWorker } from './services/invoicePdfQueue.js';
+import { ensureAtlasSearchIndex } from './utils/invoiceSearch.js';
 
 dotenv.config();
 validateProductionEnv({ logger });
@@ -184,8 +191,6 @@ mongoose.plugin((schema) => {
 });
 
 const app = express();
-const parsedApiRateLimitMax = Number(process.env.API_RATE_LIMIT_MAX || 2000);
-const apiRateLimitMax = Number.isFinite(parsedApiRateLimitMax) && parsedApiRateLimitMax > 0 ? parsedApiRateLimitMax : 2000;
 const parsedTrustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 1);
 const trustProxyHops = Number.isFinite(parsedTrustProxyHops) && parsedTrustProxyHops >= 0 ? parsedTrustProxyHops : 1;
 const parsedMongoServerSelectionTimeoutMs = Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 5000);
@@ -335,6 +340,11 @@ const startJobs = async () => {
   cron.schedule('* * * * *', async () => {
     await checkRestaurantAutoStatus();
   });
+
+  cron.schedule('5 0 * * *', async () => {
+    logger.info('Marking overdue invoices (Asia/Riyadh)...');
+    await markOverdueInvoices();
+  }, { timezone: 'Asia/Riyadh' });
 };
 
 const scheduleReconnect = () => {
@@ -364,12 +374,12 @@ const connectToDatabase = async () => {
   databaseConnectionPromise = mongoose.connect(mongoUri, {
     serverSelectionTimeoutMS: mongoServerSelectionTimeoutMs,
     socketTimeoutMS: mongoSocketTimeoutMs,
-    // Connection pool tuning for single-VPS deployment
     maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE || 20),
     minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 2),
-    maxIdleTimeMS: 30_000,          // release idle connections after 30 s
-    heartbeatFrequencyMS: 10_000,   // detect stale connections every 10 s
-    compressors: 'zlib',            // wire compression between app and Mongo
+    maxIdleTimeMS: 30_000,
+    heartbeatFrequencyMS: 10_000,
+    compressors: 'zlib',
+    readPreference: process.env.MONGODB_READ_PREFERENCE || 'primary',
   })
     .then(async () => {
       logger.info('MongoDB connected successfully');
@@ -395,6 +405,22 @@ const connectToDatabase = async () => {
         await db.collection('tenants').dropIndex('business.crNumber_1');
         logger.info('Dropped unique index business.crNumber_1');
       } catch (_) { /* index may not exist */ }
+      try {
+        const settings = await SystemSettings.findOne({ key: 'global' }).select('errorTracking').lean();
+        await initErrorTracking(settings);
+      } catch (trackErr) {
+        logger.warn(`[errorTracking] init failed: ${trackErr.message}`);
+      }
+      try {
+        await loadRateLimitConfig();
+      } catch (rateErr) {
+        logger.warn(`[rateLimit] config load failed: ${rateErr.message}`);
+      }
+      try {
+        await ensureAtlasSearchIndex();
+      } catch (searchErr) {
+        logger.warn(`[invoiceSearch] init failed: ${searchErr.message}`);
+      }
       startJobs();
     })
     .catch((err) => {
@@ -613,7 +639,7 @@ const makeRateLimitStore = (prefix) => new HybridRateLimitStore(prefix);
 // 1. Auth endpoints — 40 req / 15 min (override via AUTH_RATE_LIMIT_MAX)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.AUTH_RATE_LIMIT_MAX || 40),
+  max: () => getRateLimitConfig().authMaxRequests,
   standardHeaders: true,
   legacyHeaders: false,
   store: makeRateLimitStore('auth'),
@@ -644,7 +670,7 @@ const getTenantOrIpKey = (req) => {
 // 3. General API — configurable (default 10 000 req / 15 min)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: apiRateLimitMax,
+  max: () => getRateLimitConfig().apiMaxRequests,
   standardHeaders: true,
   legacyHeaders: false,
   store: makeRateLimitStore('api'),
@@ -750,9 +776,13 @@ app.get('/api/health/ready', (req, res) => {
   });
 });
 
-// Serve uploads
-app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
-app.use('/api/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+// Serve uploads — catalog/branding stay public; HR/receipts/khayyat require auth
+const uploadsStatic = express.static(path.join(__dirname, 'public', 'uploads'), {
+  index: false,
+  dotfiles: 'deny',
+});
+app.use('/uploads', gateSensitiveUploads, uploadsStatic);
+app.use('/api/uploads', gateSensitiveUploads, uploadsStatic);
 
 // API Routes
 app.use('/api/public', publicRoutes);
@@ -974,6 +1004,7 @@ connectToDatabase();
 const PORT = process.env.PORT || 5000;
 const httpServer = app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
+  startInvoicePdfWorker();
 });
 
 // Initialize Socket.io using the HTTP server

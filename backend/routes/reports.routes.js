@@ -6,17 +6,20 @@ import ReportSchedule from '../models/ReportSchedule.js';
 import RentalContract from '../models/RentalContract.js';
 import LaundryOrder from '../models/LaundryOrder.js';
 import RestaurantOrder from '../models/RestaurantOrder.js';
-import { protect, tenantFilter, authorize, checkEmailAddon, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter, authorize, checkEmailAddon, requireBusinessType } from '../middleware/auth.js';
 import { getTenantBusinessTypes } from '../utils/businessTypes.js';
 import { buildBusinessReports } from '../utils/businessReports.js';
 import { buildInternalAuditReport, buildExternalAuditReport } from '../utils/auditReports.js';
 import { computeNextRunAt, normalizeRecipients, serializeReportSchedule, REPORT_SCHEDULE_FREQUENCIES, REPORT_SCHEDULE_PRESETS, REPORT_SCHEDULE_TYPES } from '../utils/reportScheduleService.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
+import { cacheAside, cacheDelPrefix } from '../lib/redis.js';
+import { statsRead, statsAggregate } from '../utils/mongoReadPreference.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function normalizeReportSchedulePayload(payload = {}) {
   const reportType = REPORT_SCHEDULE_TYPES.includes(String(payload?.reportType || '').trim())
@@ -342,7 +345,7 @@ async function buildVatReturnPayload({ tenantId, tenantFilterValue, startDate, e
 
   const [savedReturn, invoiceLines, expenseAggregation] = await Promise.all([
     VatReturn.findOne({ tenantId, periodKey }).lean(),
-    Invoice.aggregate([
+    statsAggregate(Invoice, [
       { $match: invoiceMatch },
       { $unwind: '$lineItems' },
       {
@@ -411,6 +414,9 @@ router.get('/vat-return', async (req, res) => {
       return res.status(400).json({ error: 'The Saudi VAT return format only applies to SAR-denominated tenants.' });
     }
     const { startDate, endDate } = resolvePeriod(req);
+    const tenantKey = String(req.user?.tenantId || req.tenantFilter?.tenantId || '');
+    const cacheKey = `reports:vat:${tenantKey}:${startDate.toISOString()}:${endDate.toISOString()}`;
+    const payload = await cacheAside(cacheKey, 60, async () => {
     const invoiceTaxableAmountExpression = buildVatReportInvoiceLineSumExpression(buildVatReportLineAmountExpression);
     const invoiceVatAmountExpression = buildVatReportInvoiceLineSumExpression(buildVatReportLineVatExpression);
 
@@ -420,7 +426,7 @@ router.get('/vat-return', async (req, res) => {
       status: { $nin: ['draft', 'cancelled', 'credited'] }
     };
 
-    const [result] = await Invoice.aggregate([
+    const [result] = await statsRead(Invoice.aggregate([
       { $match: match },
       {
         $facet: {
@@ -512,7 +518,7 @@ router.get('/vat-return', async (req, res) => {
           ]
         }
       }
-    ]);
+    ]));
 
     const invoices = result?.invoices?.[0] || { invoiceCount: 0, totalDiscount: 0, taxableAmount: 0, totalTax: 0, grandTotal: 0 };
     const byTaxCategory = result?.byTaxCategory || [];
@@ -553,7 +559,7 @@ router.get('/vat-return', async (req, res) => {
       endDate,
     });
 
-    res.json({
+    return {
       period: {
         startDate,
         endDate,
@@ -584,7 +590,9 @@ router.get('/vat-return', async (req, res) => {
         manual: vatReturn.manualLines,
         statement: vatReturn.statement,
       },
+    };
     });
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -635,6 +643,8 @@ router.put('/vat-return', authorize('admin'), async (req, res) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
+    cacheDelPrefix(`reports:vat:${String(req.user.tenantId)}:`).catch(() => {});
+
     const payload = await buildVatReturnPayload({
       tenantId: req.user.tenantId,
       tenantFilterValue: req.tenantFilter,
@@ -673,7 +683,7 @@ router.get('/business-summary', async (req, res) => {
     };
 
     const [invoiceAgg, expenseAgg] = await Promise.all([
-      Invoice.aggregate([
+      statsAggregate(Invoice, [
         { $match: invoiceMatch },
         {
           $facet: {
@@ -875,7 +885,7 @@ router.get('/business-summary', async (req, res) => {
 router.get('/daily-invoices', async (req, res) => {
   try {
     const { startDate, endDate } = resolvePeriod(req);
-    const invoices = await Invoice.aggregate([
+    const invoices = await statsAggregate(Invoice, [
       { $match: { ...req.tenantFilter, flow: 'sell', issueDate: { $gte: startDate, $lte: endDate }, status: { $nin: ['draft', 'cancelled'] } } },
       { $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$issueDate' } },
@@ -895,7 +905,7 @@ router.get('/daily-invoices', async (req, res) => {
 router.get('/customer-sales', async (req, res) => {
   try {
     const { startDate, endDate } = resolvePeriod(req);
-    const sales = await Invoice.aggregate([
+    const sales = await statsAggregate(Invoice, [
       { $match: { ...req.tenantFilter, flow: 'sell', issueDate: { $gte: startDate, $lte: endDate }, status: { $nin: ['draft', 'cancelled'] } } },
       { $group: {
           _id: '$customerId',

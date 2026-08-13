@@ -1,6 +1,6 @@
-import fs from 'fs';
 import path from 'path';
 import LeadSetup from '../models/LeadSetup.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 export const getLeadSetups = async (req, res) => {
   try {
@@ -97,16 +97,16 @@ export const createOrUpdateLeadSetup = async (req, res) => {
     let bannerImage = undefined;
 
     if (req.file) {
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'leads');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      const filename = `lead-banner-${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(req.file.originalname)}`;
-      const filePath = path.join(uploadDir, filename);
-      
-      fs.writeFileSync(filePath, req.file.buffer);
-      bannerImage = `/uploads/leads/${filename}`;
+      const ext = path.extname(req.file.originalname) || '.bin';
+      const filename = `lead-banner-${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
+      const key = `leads/${filename}`;
+      const { url } = await saveUploadBuffer({
+        buffer: req.file.buffer,
+        key,
+        contentType: req.file.mimetype || 'application/octet-stream',
+        publicUrlPath: `/uploads/${key}`,
+      });
+      bannerImage = url;
     }
 
     const updateData = { message };

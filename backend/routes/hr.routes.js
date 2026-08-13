@@ -8,7 +8,7 @@ import Payroll from '../models/Payroll.js';
 import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
 const upload = multer({
@@ -80,17 +80,19 @@ router.delete('/requisitions/:id', checkPermission('hr', 'delete'), async (req, 
 
 /* ───────────────── CANDIDATES ───────────────── */
 
-function _saveCandidateFile(tenantId, fieldname, buffer, originalname) {
+async function _saveCandidateFile(tenantId, fieldname, file) {
+  const originalname = file?.originalname || `${fieldname}.pdf`;
   const ext = path.extname(originalname) || '.pdf';
   const filename = `${fieldname}-${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
   const tenantIdStr = String(tenantId);
-  const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'hr', 'candidates', tenantIdStr);
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-  const filepath = path.join(uploadsDir, filename);
-  fs.writeFileSync(filepath, buffer);
-  return `/uploads/hr/candidates/${tenantIdStr}/${filename}`;
+  const key = `hr/candidates/${tenantIdStr}/${filename}`;
+  const { url } = await saveUploadBuffer({
+    buffer: file.buffer,
+    key,
+    contentType: file.mimetype || 'application/octet-stream',
+    publicUrlPath: `/uploads/${key}`,
+  });
+  return url;
 }
 
 // GET /api/hr/candidates
@@ -117,10 +119,10 @@ router.post('/candidates', checkPermission('hr', 'create'), upload.fields([{ nam
   try {
     const data = { ...req.body, tenantId: req.user.tenantId, createdBy: req.user._id };
     if (req.files?.resumeFile?.[0]) {
-      data.resumeFile = _saveCandidateFile(req.user.tenantId, 'resume', req.files.resumeFile[0].buffer, req.files.resumeFile[0].originalname);
+      data.resumeFile = await _saveCandidateFile(req.user.tenantId, 'resume', req.files.resumeFile[0]);
     }
     if (req.files?.coverLetterFile?.[0]) {
-      data.coverLetterFile = _saveCandidateFile(req.user.tenantId, 'coverLetter', req.files.coverLetterFile[0].buffer, req.files.coverLetterFile[0].originalname);
+      data.coverLetterFile = await _saveCandidateFile(req.user.tenantId, 'coverLetter', req.files.coverLetterFile[0]);
     }
     const cand = await Candidate.create(data);
     res.status(201).json(cand);
@@ -131,10 +133,10 @@ router.put('/candidates/:id', checkPermission('hr', 'update'), upload.fields([{ 
   try {
     const update = { ...req.body };
     if (req.files?.resumeFile?.[0]) {
-      update.resumeFile = _saveCandidateFile(req.user.tenantId, 'resume', req.files.resumeFile[0].buffer, req.files.resumeFile[0].originalname);
+      update.resumeFile = await _saveCandidateFile(req.user.tenantId, 'resume', req.files.resumeFile[0]);
     }
     if (req.files?.coverLetterFile?.[0]) {
-      update.coverLetterFile = _saveCandidateFile(req.user.tenantId, 'coverLetter', req.files.coverLetterFile[0].buffer, req.files.coverLetterFile[0].originalname);
+      update.coverLetterFile = await _saveCandidateFile(req.user.tenantId, 'coverLetter', req.files.coverLetterFile[0]);
     }
     const cand = await Candidate.findOneAndUpdate(
       { _id: req.params.id, ...req.tenantFilter },

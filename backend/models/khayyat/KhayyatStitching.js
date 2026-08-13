@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const measurementSchema = new mongoose.Schema({
   length: { type: Number, default: null },
@@ -210,6 +211,10 @@ const khayyatStitchingSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  trackToken: {
+    type: String,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -224,9 +229,13 @@ khayyatStitchingSchema.index({ tenantId: 1, receiptNumber: 1 }, { unique: true }
 khayyatStitchingSchema.index({ tenantId: 1, oldInvoiceNumber: 1 });
 khayyatStitchingSchema.index({ tenantId: 1, status: 1 });
 khayyatStitchingSchema.index({ workerId: 1, status: 1 });
+khayyatStitchingSchema.index({ trackToken: 1 }, { unique: true, sparse: true });
 
 khayyatStitchingSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
+  if (!this.trackToken) {
+    this.trackToken = crypto.randomBytes(24).toString('base64url');
+  }
   next();
 });
 

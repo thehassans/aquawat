@@ -1,4 +1,5 @@
 import express from 'express'
+import mongoose from 'mongoose'
 import jwt from 'jsonwebtoken'
 import Tenant from '../models/Tenant.js'
 import User from '../models/User.js'
@@ -37,6 +38,36 @@ const sendRouteError = (res, error) => {
 
   return res.status(500).json({ error: error.message })
 }
+
+// @route   GET /api/public/telemetry
+// Public analytics + Sentry DSN only (no secrets). Used to init client SDKs.
+router.get('/telemetry', async (req, res) => {
+  try {
+    const settings = await withQueryTimeout(
+      SystemSettings.findOne({ key: 'global' }).select('analytics errorTracking')
+    ).lean()
+
+    const analytics = settings?.analytics || {}
+    const errorTracking = settings?.errorTracking || {}
+
+    res.set('Cache-Control', 'public, max-age=60')
+    res.json({
+      analytics: {
+        enabled: analytics.enabled === true,
+        provider: analytics.provider || 'posthog',
+        apiKey: analytics.enabled ? (analytics.apiKey || '') : '',
+        endpoint: analytics.enabled ? (analytics.endpoint || '') : '',
+      },
+      errorTracking: {
+        enabled: errorTracking.enabled === true,
+        provider: errorTracking.provider || 'sentry',
+        dsn: errorTracking.enabled ? (errorTracking.dsn || '') : '',
+      },
+    })
+  } catch (error) {
+    return sendRouteError(res, error)
+  }
+})
 
 const createDefaultSettings = () => new SystemSettings({ key: 'global', website: {} })
 
@@ -689,12 +720,30 @@ import KhayyatStitching from '../models/khayyat/KhayyatStitching.js'
 
 router.get('/track/khayyat/:id', async (req, res) => {
   try {
-    const order = await withQueryTimeout(
-      KhayyatStitching.findById(req.params.id)
-        .select('orderNumber receiptNumber status customerName customerPhone dueDate completedDate deliveredDate description quantity price paidAmount tenantId')
+    const id = String(req.params.id || '').trim()
+    if (!id) {
+      return res.status(404).json({ error: 'Order not found' })
+    }
+
+    const trackSelect = 'orderNumber receiptNumber status customerName customerPhone dueDate completedDate deliveredDate description quantity price paidAmount tenantId trackToken'
+    let order = await withQueryTimeout(
+      KhayyatStitching.findOne({ trackToken: id })
+        .select(trackSelect)
         .populate('tenantId', 'name business.phone branding.logo')
         .lean()
     )
+
+    if (!order && mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === id) {
+      const byId = await withQueryTimeout(
+        KhayyatStitching.findById(id)
+          .select(trackSelect)
+          .populate('tenantId', 'name business.phone branding.logo')
+          .lean()
+      )
+      if (byId && !byId.trackToken) {
+        order = byId
+      }
+    }
 
     if (!order) {
       return res.status(404).json({ error: 'Order not found' })

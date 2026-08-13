@@ -277,9 +277,12 @@ export async function postSalesInvoiceJournal({
   const vatOut = byCode[ACCOUNT_CODE_MAP.vatOutput];
   if (!ar || !sales) return null;
 
-  const net = round2(Number(invoice.subtotal ?? (Number(invoice.grandTotal || 0) - Number(invoice.taxAmount || 0))));
-  const tax = round2(Number(invoice.taxAmount || 0));
-  const gross = round2(Number(invoice.grandTotal || net + tax));
+  const tax = round2(Number(invoice.totalTax ?? invoice.taxAmount ?? 0));
+  const gross = round2(Number(invoice.grandTotal || 0));
+  let net = round2(Number(invoice.taxableAmount ?? (gross - tax)));
+  if (round2(net + tax) !== gross) {
+    net = round2(gross - tax);
+  }
   if (gross <= 0) return null;
 
   const lines = [

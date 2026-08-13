@@ -935,13 +935,15 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   {language === 'ar' ? 'تُؤخذ تلقائياً من ملف الشركة' : 'Prefilled from your company profile'}
                 </p>
               </div>
-              {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
-                <img
-                  src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
-                  alt="Tenant"
-                  className="h-14 w-14 rounded-2xl object-contain bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 dark:ring-white/15"
-                />
-              ) : null}
+              <div className="h-14 w-14 shrink-0 rounded-2xl bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 dark:ring-white/15">
+                {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
+                  <img
+                    src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
+                    alt=""
+                    className="h-full w-full object-contain"
+                  />
+                ) : null}
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3" dir="ltr">
               <div className={showArabicFields ? 'sm:col-span-2 lg:col-span-2' : ''}>
@@ -1651,7 +1653,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-slate-950 px-5 py-5 text-white dark:bg-white dark:text-slate-950">
+              <div className="rounded-2xl bg-slate-950 px-5 py-5 text-white dark:bg-white dark:text-slate-950 lg:sticky lg:top-4 self-start">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50 dark:text-slate-400">
                   {language === 'ar' ? 'الملخص' : 'Summary'}
                 </p>

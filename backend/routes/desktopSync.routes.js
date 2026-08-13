@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { protect } from '../middleware/auth.js';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
@@ -7,13 +8,50 @@ import Tenant from '../models/Tenant.js';
 
 const router = express.Router();
 
+function requireSyncTenant(req, res) {
+  if (!req.user?.tenantId) {
+    res.status(403).json({ success: false, error: 'Tenant context required' });
+    return null;
+  }
+  return req.user.tenantId;
+}
+
+function isMongoObjectId(id) {
+  return typeof id === 'string' && id.length === 24 && mongoose.Types.ObjectId.isValid(id);
+}
+
+async function upsertTenantOwned(Model, rawId, data, tenantId) {
+  const payload = { ...data, tenantId };
+  delete payload._id;
+
+  if (!isMongoObjectId(rawId)) {
+    return Model.create(payload);
+  }
+
+  const existing = await Model.findById(rawId).select('tenantId').lean();
+  if (existing && String(existing.tenantId) !== String(tenantId)) {
+    const err = new Error('Document belongs to another tenant');
+    err.status = 403;
+    throw err;
+  }
+
+  return Model.findOneAndUpdate(
+    { _id: rawId, tenantId },
+    { $set: payload },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+}
+
 /**
  * POST /api/desktop/sync/auth
  * Authenticates desktop app and returns basic tenant info + Phase 2 check
  */
 router.post('/auth', protect, async (req, res) => {
   try {
-    const tenant = await Tenant.findById(req.user.tenantId);
+    const tenantId = requireSyncTenant(req, res);
+    if (!tenantId) return;
+
+    const tenant = await Tenant.findById(tenantId);
     
     // Check if Phase 2 is enabled
     const isPhase2 = tenant?.zatca?.phase === '2';
@@ -38,44 +76,31 @@ router.post('/auth', protect, async (req, res) => {
  */
 router.post('/push', protect, async (req, res) => {
   try {
-    const { invoices = [], customers = [] } = req.body;
-    const tenantId = req.user.tenantId;
+    const tenantId = requireSyncTenant(req, res);
+    if (!tenantId) return;
 
-    // Process Customers
+    const { invoices = [], customers = [] } = req.body;
+
     for (const cust of customers) {
       if (cust._id) {
-        // If it's a desktop-generated ID that isn't a Mongo ObjectId, we might need to handle it.
-        // Assuming desktop NeDB uses generated 16-char strings or UUIDs.
-        // We can upsert by a unique field like email or phone, or just create new.
-        // For simplicity, we'll strip the NeDB _id and create new if it doesn't match ObjectId format.
-        
-        const customerData = { ...cust, tenantId };
-        if (typeof cust._id === 'string' && cust._id.length !== 24) {
-          delete customerData._id; // Let Mongo generate _id
-          await Customer.create(customerData);
-        } else {
-          await Customer.findByIdAndUpdate(cust._id, customerData, { upsert: true });
-        }
+        await upsertTenantOwned(Customer, cust._id, cust, tenantId);
       } else {
         await Customer.create({ ...cust, tenantId });
       }
     }
 
-    // Process Invoices
     for (const inv of invoices) {
-      const invoiceData = { ...inv, tenantId };
-      if (typeof inv._id === 'string' && inv._id.length !== 24) {
-        delete invoiceData._id;
-        // Invoices generated offline should be inserted as new
-        await Invoice.create(invoiceData);
+      if (inv._id) {
+        await upsertTenantOwned(Invoice, inv._id, inv, tenantId);
       } else {
-        await Invoice.findByIdAndUpdate(inv._id, invoiceData, { upsert: true });
+        await Invoice.create({ ...inv, tenantId });
       }
     }
 
     res.json({ success: true, message: 'Sync push completed' });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    const status = error.status === 403 ? 403 : 500;
+    res.status(status).json({ success: false, error: error.message });
   }
 });
 
@@ -85,8 +110,10 @@ router.post('/push', protect, async (req, res) => {
  */
 router.get('/pull', protect, async (req, res) => {
   try {
+    const tenantId = requireSyncTenant(req, res);
+    if (!tenantId) return;
+
     const { since } = req.query;
-    const tenantId = req.user.tenantId;
 
     const query = { tenantId };
     if (since) {

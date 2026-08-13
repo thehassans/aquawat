@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 let loggedSdkFallback = false;
+let s3ClientPromise = null;
 
 /**
  * Object storage is enabled when bucket + credentials are configured.
@@ -15,8 +16,31 @@ export function isObjectStorageEnabled() {
   );
 }
 
-async function saveLocal({ buffer, key, publicUrlPath }) {
-  const dest = path.join(process.cwd(), 'public', 'uploads', ...String(key).split('/').filter(Boolean));
+async function getS3Client() {
+  if (!s3ClientPromise) {
+    s3ClientPromise = import('@aws-sdk/client-s3').then(({ S3Client }) => {
+      const endpoint = process.env.S3_ENDPOINT || undefined;
+      return new S3Client({
+        region: process.env.S3_REGION || 'auto',
+        endpoint,
+        forcePathStyle: Boolean(endpoint),
+        credentials: {
+          accessKeyId: process.env.S3_ACCESS_KEY,
+          secretAccessKey: process.env.S3_SECRET_KEY,
+        },
+      });
+    });
+  }
+  return s3ClientPromise;
+}
+
+function localDest(key, localBaseDir) {
+  const root = localBaseDir || path.join(process.cwd(), 'public', 'uploads');
+  return path.join(root, ...String(key).split('/').filter(Boolean));
+}
+
+async function saveLocal({ buffer, key, publicUrlPath, localBaseDir }) {
+  const dest = localDest(key, localBaseDir);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   await fs.promises.writeFile(dest, buffer);
   const url = publicUrlPath || `/uploads/${key}`;
@@ -24,18 +48,8 @@ async function saveLocal({ buffer, key, publicUrlPath }) {
 }
 
 async function saveS3({ buffer, key, contentType, publicUrlPath }) {
-  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-  const endpoint = process.env.S3_ENDPOINT || undefined;
-  const region = process.env.S3_REGION || 'auto';
-  const client = new S3Client({
-    region,
-    endpoint,
-    forcePathStyle: Boolean(endpoint),
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY,
-      secretAccessKey: process.env.S3_SECRET_KEY,
-    },
-  });
+  const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+  const client = await getS3Client();
 
   await client.send(
     new PutObjectCommand({
@@ -51,12 +65,25 @@ async function saveS3({ buffer, key, contentType, publicUrlPath }) {
   return { url, storage: 's3' };
 }
 
+async function readS3(key) {
+  const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+  const client = await getS3Client();
+  const out = await client.send(
+    new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: key,
+    })
+  );
+  const bytes = await out.Body.transformToByteArray();
+  return Buffer.from(bytes);
+}
+
 /**
  * Persist an upload buffer to S3/R2 when configured, otherwise local disk.
- * @param {{ buffer: Buffer, key: string, contentType?: string, publicUrlPath?: string }} opts
+ * @param {{ buffer: Buffer, key: string, contentType?: string, publicUrlPath?: string, localBaseDir?: string }} opts
  * @returns {Promise<{ url: string, storage: 's3'|'local' }>}
  */
-export async function saveUploadBuffer({ buffer, key, contentType, publicUrlPath }) {
+export async function saveUploadBuffer({ buffer, key, contentType, publicUrlPath, localBaseDir }) {
   const normalizedKey = String(key || '').replace(/^\/+/, '');
   if (!normalizedKey) throw new Error('saveUploadBuffer: key is required');
 
@@ -83,7 +110,7 @@ export async function saveUploadBuffer({ buffer, key, contentType, publicUrlPath
           loggedSdkFallback = true;
           console.warn('[objectStorage] @aws-sdk/client-s3 missing; falling back to local uploads');
         }
-        return saveLocal({ buffer, key: normalizedKey, publicUrlPath });
+        return saveLocal({ buffer, key: normalizedKey, publicUrlPath, localBaseDir });
       }
       throw err;
     }
@@ -98,7 +125,37 @@ export async function saveUploadBuffer({ buffer, key, contentType, publicUrlPath
     console.warn('[objectStorage] Using local disk uploads — not multi-replica safe. Configure S3_* for SaaS scale.');
   }
 
-  return saveLocal({ buffer, key: normalizedKey, publicUrlPath });
+  return saveLocal({ buffer, key: normalizedKey, publicUrlPath, localBaseDir });
 }
 
-export default { isObjectStorageEnabled, saveUploadBuffer };
+/**
+ * Read a previously stored object. Returns null if missing.
+ */
+export async function readUploadBuffer(key, { localBaseDir } = {}) {
+  const normalizedKey = String(key || '').replace(/^\/+/, '');
+  if (!normalizedKey) return null;
+
+  if (isObjectStorageEnabled()) {
+    try {
+      return await readS3(normalizedKey);
+    } catch (err) {
+      const status = err?.$metadata?.httpStatusCode;
+      if (status === 404 || err?.name === 'NoSuchKey' || err?.Code === 'NoSuchKey') {
+        return null;
+      }
+      if (err?.code === 'ERR_MODULE_NOT_FOUND' || /Cannot find package '@aws-sdk\/client-s3'/.test(String(err?.message || err))) {
+        // fall through to local
+      } else {
+        return null;
+      }
+    }
+  }
+
+  try {
+    return await fs.promises.readFile(localDest(normalizedKey, localBaseDir));
+  } catch {
+    return null;
+  }
+}
+
+export default { isObjectStorageEnabled, saveUploadBuffer, readUploadBuffer };
