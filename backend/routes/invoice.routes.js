@@ -32,7 +32,8 @@ import { ensureInvoiceDueDate } from '../utils/invoicePaymentTerms.js';
 import { cacheAside } from '../lib/redis.js';
 import { applyInvoiceListSearch } from '../utils/invoiceSearch.js';
 import { statsRead } from '../utils/mongoReadPreference.js';
-import { resolvePaymentStatus, applyPaidAmountStatus, isOverpay } from '../utils/invoicePaymentStatus.js';
+import { resolvePaymentStatus, applyPaidAmountStatus, isOverpay, paymentExceedsRemaining, canRecordPayment } from '../utils/invoicePaymentStatus.js';
+import { makeRateLimitStore } from '../utils/hybridRateLimitStore.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -46,6 +47,7 @@ const invoiceWriteLimiter = rateLimit({
   max: Number(process.env.INVOICE_CREATE_RATE_LIMIT_MAX || 40),
   standardHeaders: true,
   legacyHeaders: false,
+  store: makeRateLimitStore('invoice-write'),
   keyGenerator: (req) => `invoice-write:${req.user?.tenantId || req.ip || 'unknown'}`,
   message: { error: 'Too many invoices created. Please wait a moment.' },
 });
@@ -852,7 +854,7 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
     const cacheKey = `invoices:stats:${tenantKey}:${fromKey}:${toKey}`;
 
     const stats = await cacheAside(cacheKey, 60, async () => {
-      const rows = await statsRead(Invoice.aggregate([
+      const rows = await Invoice.statsAggregate([
         { $match: match },
         {
           $facet: {
@@ -889,7 +891,7 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
             ]
           }
         }
-      ]));
+      ]);
       return rows[0];
     });
 
@@ -957,11 +959,12 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
-    if (invoice.flow === 'purchase') {
-      return res.status(400).json({ error: 'Purchase invoices do not accept customer payments' });
-    }
-    if (['draft', 'cancelled', 'credited'].includes(invoice.status)) {
-      return res.status(400).json({ error: 'Cannot record payment on this invoice' });
+    if (!canRecordPayment(invoice)) {
+      return res.status(400).json({
+        error: invoice.flow === 'purchase'
+          ? 'Purchase invoices do not accept customer payments'
+          : 'Cannot record payment on this invoice',
+      });
     }
 
     const amount = Math.round((Number(req.body?.amount) || 0) * 100) / 100;
@@ -969,8 +972,7 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
       return res.status(400).json({ error: 'Payment amount must be greater than zero' });
     }
 
-    const remaining = Math.round(((Number(invoice.grandTotal) || 0) - (Number(invoice.paidAmount) || 0)) * 100) / 100;
-    if (amount > remaining + 0.005) {
+    if (paymentExceedsRemaining(amount, invoice.grandTotal, invoice.paidAmount)) {
       return res.status(400).json({ error: 'Amount exceeds remaining balance' });
     }
 

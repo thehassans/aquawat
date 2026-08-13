@@ -22,8 +22,9 @@ export function validateProductionEnv({ logger = console } = {}) {
     'your-super-secret-jwt-key-change-in-production-min-32',
   ]);
   if (jwt && insecureJwtDefaults.has(jwt.toLowerCase())) {
-    // Warn (don't crash existing VPS deploys) — rotate ASAP.
-    warnings.push('JWT_SECRET matches a known insecure example value — rotate it immediately');
+    const msg = 'JWT_SECRET matches a known insecure example value — set a unique secret';
+    if (isProd) errors.push(msg);
+    else warnings.push(msg);
   }
 
   if (isProd) {
@@ -76,7 +77,8 @@ export function validateProductionEnv({ logger = console } = {}) {
   }
 
   for (const w of warnings) {
-    logger.warn?.(`[env] ${w}`) || console.warn(`[env] ${w}`);
+    if (typeof logger.warn === 'function') logger.warn(`[env] ${w}`);
+    else console.warn(`[env] ${w}`);
   }
 
   if (errors.length) {
@@ -84,7 +86,8 @@ export function validateProductionEnv({ logger = console } = {}) {
     if (isProd) {
       throw new Error(message);
     }
-    logger.warn?.(`[env] ${message}`) || console.warn(`[env] ${message}`);
+    if (typeof logger.warn === 'function') logger.warn(`[env] ${message}`);
+    else console.warn(`[env] ${message}`);
   }
 
   return { ok: errors.length === 0, errors, warnings };

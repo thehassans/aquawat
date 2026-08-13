@@ -37,4 +37,22 @@ export function isOverpay(paidAmount, grandTotal) {
   return Number.isFinite(paid) && Number.isFinite(grand) && paid > grand + 0.005;
 }
 
-export default { applyPaidAmountStatus, resolvePaymentStatus, isOverpay };
+/** POST /:id/payments — reject amounts above remaining balance (halala epsilon). */
+export function paymentExceedsRemaining(amount, grandTotal, paidAmount) {
+  const remaining = roundMoney((Number(grandTotal) || 0) - (Number(paidAmount) || 0));
+  return roundMoney(amount) > remaining + 0.005;
+}
+
+export function canRecordPayment(invoice) {
+  if (!invoice) return false;
+  if (invoice.flow === 'purchase') return false;
+  return !['draft', 'cancelled', 'credited'].includes(invoice.status);
+}
+
+export default {
+  applyPaidAmountStatus,
+  resolvePaymentStatus,
+  isOverpay,
+  paymentExceedsRemaining,
+  canRecordPayment,
+};

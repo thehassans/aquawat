@@ -6,10 +6,19 @@ function normalizeUploadPath(reqPath = '') {
   return String(reqPath || '').replace(/^\/+/, '').replace(/\\/g, '/');
 }
 
-function isSensitiveUploadPath(relPath) {
+export function isSensitiveUploadPath(relPath) {
   return SENSITIVE_PREFIXES.some(
     (prefix) => relPath === prefix.slice(0, -1) || relPath.startsWith(prefix)
   );
+}
+
+export function uploadPathAllowsTenant(relPath, tenantId) {
+  const id = String(tenantId || '');
+  if (!id) return false;
+  const segments = String(relPath || '').split('/').filter(Boolean);
+  const objectIds = segments.filter((s) => /^[a-f0-9]{24}$/i.test(s));
+  if (objectIds.length === 0) return true;
+  return objectIds.every((seg) => seg === id);
 }
 
 /**
@@ -27,8 +36,7 @@ export const gateSensitiveUploads = (req, res, next) => {
     if (!tenantId) {
       return res.status(403).json({ error: 'Not authorized' });
     }
-    const hasTenantSegment = /(?:^|\/)[a-f0-9]{24}(?:\/|$)/i.test(relPath);
-    if (hasTenantSegment && !relPath.includes(tenantId)) {
+    if (!uploadPathAllowsTenant(relPath, tenantId)) {
       return res.status(403).json({ error: 'Not authorized' });
     }
     return next();

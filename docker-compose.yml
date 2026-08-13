@@ -135,6 +135,40 @@ services:
       - ./scripts/mongo-rs-init.sh:/mongo-rs-init.sh:ro
     entrypoint: ["bash", "-c", "sed -i 's/\\r$//' /mongo-rs-init.sh && bash /mongo-rs-init.sh"]
 
+  mongo-backup:
+    image: mongo:7.0
+    container_name: maqder_mongo_backup
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - maqder_net
+    volumes:
+      - ./backups:/backups
+      - ./scripts/mongo-backup-loop.sh:/mongo-backup-loop.sh:ro
+    environment:
+      MONGO_BACKUP_URI: mongodb://mongo:27017
+      DB_NAME: maqder
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: "14"
+      BACKUP_INTERVAL_SECONDS: "86400"
+      BACKUP_INITIAL_DELAY_SECONDS: "120"
+    entrypoint: ["bash", "-c", "sed -i 's/\\r$//' /mongo-backup-loop.sh && bash /mongo-backup-loop.sh"]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
   backend:
     build:
       context: ./backend
@@ -210,6 +244,7 @@ services:
       REDIS_ENABLED: "true"
       NODE_ENV: production
       PDF_WORKER_CONCURRENCY: "1"
+      PDF_WORKER_HEALTH_PORT: "3001"
       MONGODB_MAX_POOL_SIZE: "5"
     depends_on:
       mongo:
@@ -221,6 +256,12 @@ services:
     volumes:
       - ./uploads:/app/public/uploads
       - ./storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     deploy:
       resources:
         limits:

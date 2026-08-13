@@ -129,6 +129,29 @@ export function verifyStripeWebhookSignature({ headers, rawBody, webhookSecret }
   }
 }
 
+export function isStripeFulfillmentEvent(type) {
+  return type === 'checkout.session.completed' || type === 'checkout.session.async_payment_succeeded'
+}
+
+export function isStripePaymentFailedEvent(type) {
+  return (
+    type === 'checkout.session.async_payment_failed'
+    || type === 'invoice.payment_failed'
+    || type === 'payment_intent.payment_failed'
+  )
+}
+
+export function stripeFailureContext(event) {
+  const obj = event?.data?.object || {}
+  const meta = obj.metadata || {}
+  return {
+    tenantId: meta.tenantId || obj.subscription_details?.metadata?.tenantId || '',
+    email: obj.customer_email || obj.customer_details?.email || meta.demoEmail || '',
+    plan: meta.plan || '',
+    reason: obj.last_payment_error?.message || obj.payment_status || event?.type || 'payment_failed',
+  }
+}
+
 export async function testStripeConnection() {
   const config = await getStripeConfig()
   if (!config.secretKey) {

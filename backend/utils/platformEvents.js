@@ -8,6 +8,7 @@ const EVENT_FLAG = {
   subscription_started: 'subscriptionStarted',
   subscription_renewed: 'subscriptionRenewed',
   subscription_canceled: 'subscriptionCanceled',
+  subscription_payment_failed: 'subscriptionPaymentFailed',
   trial_converted: 'trialConverted',
   first_invoice_within_7d: 'firstInvoiceWithin7d',
   sign_up: 'signUp',

@@ -4,8 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
-import rateLimit, { MemoryStore } from 'express-rate-limit';
-import { RedisStore } from 'rate-limit-redis';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
 import fs from 'fs';
@@ -160,13 +159,16 @@ import responseTime from './middleware/responseTime.js';
 import { etag } from './middleware/httpCache.js';
 import { gateSensitiveUploads } from './middleware/uploadsAccess.js';
 import { mongoSanitize } from './middleware/mongoSanitize.js';
-import { getRedisClient, isRedisReady, cacheSet, cacheSetNx } from './lib/redis.js';
+import { csrfCookieGuard } from './middleware/csrfOrigin.js';
+import { isRedisReady, cacheSet, cacheSetNx } from './lib/redis.js';
+import { makeRateLimitStore } from './utils/hybridRateLimitStore.js';
 import logger from './utils/logger.js';
 import User from './models/User.js';
 import Tenant from './models/Tenant.js';
 import Supplier from './models/Supplier.js';
 import { seedAlliedPowerTenant } from './scripts/seedAlliedPowerTenant.js';
 import { validateProductionEnv } from './utils/envValidation.js';
+import { applySecretFiles } from './utils/secretFiles.js';
 import { requestIdMiddleware } from './utils/requestId.js';
 import SystemSettings from './models/SystemSettings.js';
 import { initErrorTracking } from './utils/errorTracking.js';
@@ -174,8 +176,11 @@ import { getRateLimitConfig, loadRateLimitConfig } from './utils/rateLimitConfig
 import { startInvoicePdfWorker } from './services/invoicePdfQueue.js';
 import { ensureAtlasSearchIndex } from './utils/invoiceSearch.js';
 import { backfillMissingTrackTokens } from './models/khayyat/KhayyatStitching.js';
+import { sloSnapshot } from './utils/sloMetrics.js';
+import { evaluateSloAndAlert } from './jobs/sloAlertJob.js';
 
 dotenv.config();
+applySecretFiles();
 validateProductionEnv({ logger });
 
 mongoose.set('bufferCommands', false);
@@ -346,6 +351,14 @@ const startJobs = async () => {
     logger.info('Marking overdue invoices (Asia/Riyadh)...');
     await markOverdueInvoices();
   }, { timezone: 'Asia/Riyadh' });
+
+  cron.schedule('*/2 * * * *', async () => {
+    await evaluateSloAndAlert({
+      dbReady: isDatabaseReady(),
+      redisReady: isRedisReady(),
+      redisRequired: process.env.REDIS_ENABLED !== 'false',
+    });
+  });
 };
 
 const scheduleReconnect = () => {
@@ -584,71 +597,7 @@ const getClientIp = (req) => {
     '127.0.0.1';
 };
 
-// ── Redis-backed shared rate-limit store (works across all cluster workers) ───
-// Falls back to in-memory if Redis is not available.
-//
-// Redis connects lazily/asynchronously (see lib/redis.js), so checking
-// `isRedisReady()` once at limiter-construction time (server boot) almost
-// always finds Redis not-yet-connected and would permanently pin the limiter
-// to an in-memory store for the whole process lifetime — defeating the whole
-// point of a shared store across cluster workers. This hybrid store instead
-// re-checks readiness on every call and transparently swaps between an
-// in-memory store (before Redis is ready / if it drops) and the shared Redis
-// store (once available), self-healing without ever crashing the request path.
-class HybridRateLimitStore {
-  constructor(prefix) {
-    this.prefix = prefix;
-    this.memoryStore = new MemoryStore();
-    this.redisStore = null;
-    this.options = null;
-  }
-
-  init(options) {
-    this.options = options;
-    this.memoryStore.init?.(options);
-  }
-
-  _activeStore() {
-    if (isRedisReady()) {
-      if (!this.redisStore) {
-        this.redisStore = new RedisStore({
-          prefix: `rl:${this.prefix}:`,
-          sendCommand: (...args) => getRedisClient().call(...args),
-        });
-        if (this.options) this.redisStore.init?.(this.options);
-      }
-      return this.redisStore;
-    }
-    return this.memoryStore;
-  }
-
-  async increment(key) {
-    try {
-      return await this._activeStore().increment(key);
-    } catch {
-      // Redis hiccup mid-request — degrade to in-memory rather than 500
-      return this.memoryStore.increment(key);
-    }
-  }
-
-  async decrement(key) {
-    try {
-      return await this._activeStore().decrement(key);
-    } catch {
-      return this.memoryStore.decrement(key);
-    }
-  }
-
-  async resetKey(key) {
-    try {
-      return await this._activeStore().resetKey(key);
-    } catch {
-      return this.memoryStore.resetKey(key);
-    }
-  }
-}
-
-const makeRateLimitStore = (prefix) => new HybridRateLimitStore(prefix);
+// Redis HybridRateLimitStore is shared across cluster workers (see hybridRateLimitStore.js).
 
 // 1. Auth endpoints — 40 req / 15 min (override via AUTH_RATE_LIMIT_MAX)
 const authLimiter = rateLimit({
@@ -734,6 +683,7 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true, limit: jsonBodyLimit }));
 app.use(cookieParser());
+app.use(csrfCookieGuard);
 
 // Strip Mongo operator keys ($…) from body/query/params (express-mongo-sanitize not installed)
 app.use(mongoSanitize);
@@ -786,7 +736,21 @@ app.get('/api/health/ready', (req, res) => {
       enabled: redisRequired,
       ready: redisReady,
     },
+    slo: sloSnapshot(),
     timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/health/slo', (req, res) => {
+  const snap = sloSnapshot();
+  const p95Ms = Number(process.env.SLO_P95_MS || 2000);
+  const errorRate = Number(process.env.SLO_ERROR_RATE || 0.05);
+  const breached = snap.count >= 20 && (snap.p95Ms > p95Ms || snap.errorRate > errorRate);
+  res.status(breached ? 503 : 200).json({
+    status: breached ? 'BREACHED' : 'OK',
+    limits: { p95Ms, errorRate },
+    ...snap,
+    timestamp: new Date().toISOString(),
   });
 });
 

@@ -271,21 +271,22 @@ const invoiceSchema = new mongoose.Schema({
 });
 
 invoiceSchema.index({ tenantId: 1, invoiceNumber: 1 }, { unique: true });
-invoiceSchema.index({ tenantId: 1, status: 1 });
-invoiceSchema.index({ tenantId: 1, issueDate: -1 });
-invoiceSchema.index({ tenantId: 1, 'zatca.submissionStatus': 1 });
-invoiceSchema.index({ tenantId: 1, transactionType: 1 });
+invoiceSchema.index({ tenantId: 1, status: 1, issueDate: -1 });
+invoiceSchema.index({ tenantId: 1, issueDate: -1, _id: -1 });
+invoiceSchema.index({ tenantId: 1, 'zatca.submissionStatus': 1, issueDate: -1 });
+invoiceSchema.index({ tenantId: 1, transactionType: 1, issueDate: -1 });
 invoiceSchema.index({ tenantId: 1, flow: 1, issueDate: -1 });
 invoiceSchema.index({ tenantId: 1, restaurantOrderId: 1 });
 invoiceSchema.index({ tenantId: 1, travelBookingId: 1 });
-// Used by invoice-number generation (findOne sort by createdAt desc).
 invoiceSchema.index({ tenantId: 1, createdAt: -1 });
-// Used by the Created By column / filter.
 invoiceSchema.index({ tenantId: 1, createdBy: 1, issueDate: -1 });
 invoiceSchema.index({ tenantId: 1, customerId: 1, issueDate: -1 });
 invoiceSchema.index({ tenantId: 1, paymentStatus: 1, dueDate: 1 });
+invoiceSchema.index({ tenantId: 1, paymentStatus: 1, issueDate: -1 });
 invoiceSchema.index({ tenantId: 1, flow: 1, status: 1, issueDate: -1 });
 invoiceSchema.index({ tenantId: 1, searchText: 1 });
+// Overdue job is platform-wide (no tenantId in the filter).
+invoiceSchema.index({ paymentStatus: 1, dueDate: 1, status: 1, flow: 1 });
 
 // Pre-save hook for Hijri dates
 invoiceSchema.pre('validate', function(next) {
@@ -413,8 +414,8 @@ invoiceSchema.pre('validate', function(next) {
   next();
 });
 
-invoiceSchema.statics.statsAggregate = function statsAggregate(pipeline, options) {
-  return statsRead(this.aggregate(pipeline, options));
+invoiceSchema.statics.statsAggregate = function statsAggregate(pipeline, options = {}) {
+  return statsRead(this.aggregate(pipeline, { allowDiskUse: true, ...options }));
 };
 
 const Invoice = mongoose.model('Invoice', invoiceSchema);

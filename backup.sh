@@ -1,6 +1,7 @@
 #!/bin/sh
-# Daily MongoDB backup script for Docker deployment
-# Usage: crontab: 0 3 * * * /var/www/vhosts/maqder.com/httpdocs/backup.sh
+# Daily MongoDB backup script for Docker host (optional S3 upload).
+# Compose also runs scripts/mongo-backup-loop.sh as maqder_mongo_backup (local dumps).
+# Host crontab still useful for S3: 0 3 * * * /var/www/vhosts/maqder.com/httpdocs/backup.sh
 
 set -e
 

@@ -6,9 +6,12 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const devPort = Number(env.VITE_DEV_PORT || 5173)
   const apiTarget = env.VITE_DEV_API_TARGET || 'http://localhost:5000'
+  const cdn = String(env.VITE_CDN_URL || '').trim()
+  const base = cdn ? (cdn.endsWith('/') ? cdn : `${cdn}/`) : '/'
   const isProd = mode === 'production'
 
   return {
+    base,
     plugins: [
       react(),
     ],

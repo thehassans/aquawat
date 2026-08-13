@@ -3,13 +3,16 @@ import SystemSettings from '../models/SystemSettings.js'
 import Tenant from '../models/Tenant.js'
 import DemoUser from '../models/DemoUser.js'
 import { protect } from '../middleware/auth.js'
-import { sendUpgradeWelcomeEmail } from '../utils/emailService.js'
+import { sendUpgradeWelcomeEmail, sendPaymentFailedEmail } from '../utils/emailService.js'
 import { emitPlatformEvent } from '../utils/platformEvents.js'
 import {
   getStripeConfig,
   createStripeCheckoutSession,
   retrieveStripeCheckoutSession,
   verifyStripeWebhookSignature,
+  isStripeFulfillmentEvent,
+  isStripePaymentFailedEvent,
+  stripeFailureContext,
 } from '../services/platformStripe.js'
 import {
   CHECKOUT_CURRENCY,
@@ -812,6 +815,28 @@ const handleStripeCheckoutCompleted = async (session) => {
   return { type: 'tenant_upgrade', tenantId: meta.tenantId }
 }
 
+const handleStripePaymentFailed = async (event) => {
+  const ctx = stripeFailureContext(event)
+  emitPlatformEvent('subscription_payment_failed', {
+    tenantId: ctx.tenantId || undefined,
+    email: ctx.email || undefined,
+    stripeEvent: event?.type,
+    reason: ctx.reason,
+  })
+  let tenant = null
+  if (ctx.tenantId) {
+    tenant = await Tenant.findById(ctx.tenantId).select('name slug business.contactEmail').lean()
+  }
+  await sendPaymentFailedEmail({
+    tenant,
+    tenantId: ctx.tenantId,
+    email: ctx.email,
+    plan: ctx.plan,
+    reason: ctx.reason,
+  })
+  return ctx
+}
+
 // @route   GET /api/payments/stripe-session/:id
 // @desc    Confirm Stripe Checkout Session and fulfill entitlements (success-page fallback)
 router.get('/stripe-session/:id', protect, async (req, res) => {
@@ -857,9 +882,11 @@ export async function stripeWebhookHandler(req, res) {
       ? req.body
       : JSON.parse(rawBody)
 
-    if (event.type === 'checkout.session.completed') {
+    if (isStripeFulfillmentEvent(event.type)) {
       const session = event.data?.object
       if (session) await handleStripeCheckoutCompleted(session)
+    } else if (isStripePaymentFailedEvent(event.type)) {
+      await handleStripePaymentFailed(event)
     }
 
     res.json({ received: true })

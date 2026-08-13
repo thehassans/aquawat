@@ -371,6 +371,59 @@ export const sendTenantWelcomeEmail = async ({ tenant, adminUser } = {}) => {
   }
 };
 
+export const sendPaymentFailedEmail = async ({ tenant, tenantId, email, plan, reason } = {}) => {
+  try {
+    const settings = await getGlobalSettings();
+    const config = resolveEmailConfig(settings, { allowEnvFallback: false });
+    if (!config.enabled) {
+      return { sent: false, reason: 'email_disabled' };
+    }
+    ensureEmailConfigured(config);
+
+    let tenantDoc = tenant;
+    if (!tenantDoc && tenantId) {
+      const Tenant = (await import('../models/Tenant.js')).default;
+      tenantDoc = await Tenant.findById(tenantId).select('name slug business.contactEmail').lean();
+    }
+
+    const recipients = dedupeRecipients(email, tenantDoc?.business?.contactEmail);
+    if (recipients.length === 0) {
+      return { sent: false, reason: 'missing_recipient' };
+    }
+
+    const brandName = config.brandName;
+    const loginUrl = getTenantLoginUrl(tenantDoc);
+    const planName = plan ? String(plan) : 'your plan';
+    const subject = `Payment unsuccessful — ${brandName}`;
+    const htmlBody = `
+      <p style="margin:0 0 14px;">We could not complete a payment for <strong>${escapeHtml(String(tenantDoc?.name || brandName))}</strong> (${escapeHtml(planName)}).</p>
+      <p style="margin:0 0 14px;">${escapeHtml(String(reason || 'The card issuer declined the charge.'))}</p>
+      <p style="margin:0;">Update the payment method in billing to keep the workspace active. No invoice entitlements were granted for this attempt.</p>
+    `;
+    const fullHtml = buildEmailShell({
+      brandName,
+      title: subject,
+      htmlBody,
+      cta: { href: loginUrl, label: 'Open billing' },
+      workspaceUrl: getTenantWorkspaceUrl(tenantDoc),
+      workspaceHost: getTenantWorkspaceHost(tenantDoc),
+      dir: 'ltr',
+    });
+
+    await sendEmailWithConfig({
+      config,
+      to: recipients,
+      subject,
+      html: fullHtml,
+      replyTo: config.replyTo,
+    });
+    return { sent: true, to: recipients };
+  } catch (error) {
+    logger.error(`Failed to send payment-failed email: ${error.message}`);
+    return { sent: false, reason: 'send_failed', error: error.message };
+  }
+};
+
 export const sendInvoiceEmail = async ({ tenant, invoice, recipient, customerName, language }) => {
   const settings = await getGlobalSettings();
   const config = resolveEmailConfig(settings);

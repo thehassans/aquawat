@@ -384,8 +384,6 @@ const systemSettingsSchema = new mongoose.Schema({
   timestamps: true
 });
 
-systemSettingsSchema.index({ key: 1 }, { unique: true });
-
 const SystemSettings = mongoose.model('SystemSettings', systemSettingsSchema);
 export const getDefaultPricingPlans = getDefaultPlans;
 export default SystemSettings;

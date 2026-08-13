@@ -330,7 +330,7 @@ const tenantSchema = new mongoose.Schema({
   slug: { type: String, required: true, unique: true, lowercase: true },
   personalEmail: { type: String },
   phoneNumber: { type: String },
-  businessType: { type: String, enum: BUSINESS_TYPES, default: 'trading', index: true },
+  businessType: { type: String, enum: BUSINESS_TYPES, default: 'trading' },
   businessTypes: {
     type: [{ type: String, enum: BUSINESS_TYPES }],
     default: ['trading'],
