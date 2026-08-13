@@ -62,8 +62,10 @@ import api from '../lib/api'
 import { updateTenant, updateUser } from '../store/slices/authSlice'
 import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes, normalizeBusinessTypes } from '../lib/businessTypes'
 import {
+  formatPlanLimit,
   formatSubscriptionDate,
   getPlanDisplayName,
+  getPlanLimits,
   getSubscriptionState,
   humanizeAppId,
 } from '../lib/subscriptionState'
@@ -353,6 +355,7 @@ export default function Profile() {
   })
 
   const subState = useMemo(() => getSubscriptionState(tenant), [tenant])
+  const planLimits = useMemo(() => getPlanLimits(tenant), [tenant])
   const planName = (subState.plan || 'trial').toUpperCase()
   const isSubActive = subState.isActive
   const isTrialEnded = subState.isTrialEnded
@@ -1362,7 +1365,7 @@ export default function Profile() {
                   </button>
                 </div>
 
-                <div className="mt-8 grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-slate-100 bg-slate-100 sm:grid-cols-4 dark:border-white/[0.08] dark:bg-white/[0.08]">
+                <div className="mt-8 grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-slate-100 bg-slate-100 sm:grid-cols-3 dark:border-white/[0.08] dark:bg-white/[0.08]">
                   {[
                     {
                       label: language === 'ar' ? 'تاريخ البدء' : 'Start date',
@@ -1380,8 +1383,16 @@ export default function Profile() {
                       alert: isSubExpired,
                     },
                     {
-                      label: language === 'ar' ? 'المستخدمون' : 'Users',
-                      value: `${subState.maxUsers}`,
+                      label: language === 'ar' ? 'حد الفواتير' : 'Invoice limit',
+                      value: formatPlanLimit(planLimits.invoices, language),
+                    },
+                    {
+                      label: language === 'ar' ? 'حد المستخدمين' : 'User limit',
+                      value: formatPlanLimit(planLimits.users, language),
+                    },
+                    {
+                      label: language === 'ar' ? 'حد عروض الأسعار' : 'Quotation limit',
+                      value: formatPlanLimit(planLimits.quotations, language),
                     },
                   ].map((item) => (
                     <div key={item.label} className="bg-white px-4 py-3.5 dark:bg-[#0c111a]">

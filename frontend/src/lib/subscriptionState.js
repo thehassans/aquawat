@@ -41,6 +41,7 @@ export function getSubscriptionState(tenant) {
     endDate: endRaw,
     billingCycle: sub.billingCycle || 'monthly',
     maxUsers: sub.maxUsers || 5,
+    maxInvoices: sub.maxInvoices || 100,
     isDemoPending,
     isTrialPlan,
     isExpired,
@@ -87,6 +88,32 @@ export function getPlanShortName(plan, language = 'en') {
     case 'trial':
     default:
       return isAr ? 'تجريبية' : 'Trial'
+  }
+}
+
+/** Display limits that match backend/middleware/trialLimits.js for trial/demo. */
+export const TRIAL_DISPLAY_LIMITS = {
+  users: 5,
+  invoices: 10,
+  quotations: 10,
+}
+
+export function formatPlanLimit(value, language = 'en') {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return language === 'ar' ? 'غير محدود' : 'Unlimited'
+  return String(n)
+}
+
+export function getPlanLimits(tenant) {
+  const state = getSubscriptionState(tenant)
+  const sub = tenant?.subscription || {}
+  if (state.isTrialPlan) {
+    return { ...TRIAL_DISPLAY_LIMITS }
+  }
+  return {
+    users: Number(sub.maxUsers) || state.maxUsers || 5,
+    invoices: Number(sub.maxInvoices) || 0,
+    quotations: 0,
   }
 }
 

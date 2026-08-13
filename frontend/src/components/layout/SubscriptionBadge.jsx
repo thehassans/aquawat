@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ArrowUpRight } from 'lucide-react';
 import {
+  formatPlanLimit,
   formatSubscriptionDate,
   getPlanDisplayName,
+  getPlanLimits,
   getPlanShortName,
   getSubscriptionState,
 } from '../../lib/subscriptionState';
@@ -34,6 +36,7 @@ export default function SubscriptionBadge({ tenant, language }) {
 
   const planName = getPlanDisplayName(plan, language);
   const shortName = getPlanShortName(plan, language);
+  const limits = getPlanLimits(tenant);
 
   const goToCheckout = () => {
     setOpen(false);
@@ -97,7 +100,7 @@ export default function SubscriptionBadge({ tenant, language }) {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
-          <div className="absolute top-full z-50 mt-2.5 end-0 w-[300px]">
+          <div className="absolute top-full z-50 mt-2.5 end-0 w-[320px]">
             <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.35)]                           dark:border-white/[0.08] dark:bg-[#0c111a] dark:shadow-[0_24px_48px_-28px_rgba(0,0,0,0.65)]">
               <div className="px-5 pt-5 pb-4">
                 <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
@@ -170,6 +173,24 @@ export default function SubscriptionBadge({ tenant, language }) {
                     </span>
                   </div>
                 )}
+              </div>
+
+              <div className="mx-5 border-t border-slate-100 dark:border-white/[0.08]" />
+
+              <div className="space-y-3 px-5 py-4">
+                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                  {isAr ? 'حدود الباقة' : 'Plan limits'}
+                </p>
+                {[
+                  { label: isAr ? 'حد الفواتير' : 'Invoice limit', value: formatPlanLimit(limits.invoices, language) },
+                  { label: isAr ? 'حد المستخدمين' : 'User limit', value: formatPlanLimit(limits.users, language) },
+                  { label: isAr ? 'حد عروض الأسعار' : 'Quotation limit', value: formatPlanLimit(limits.quotations, language) },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between gap-4 text-[12px]">
+                    <span className="text-slate-400 dark:text-slate-500">{row.label}</span>
+                    <span className="font-medium tabular-nums text-slate-800 dark:text-slate-200">{row.value}</span>
+                  </div>
+                ))}
               </div>
 
               <div className="px-5 pb-5 pt-1">
