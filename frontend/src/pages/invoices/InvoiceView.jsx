@@ -571,7 +571,7 @@ export default function InvoiceView() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* QR Code — hidden on travel agency invoices */}
-          {invoice?.zatca?.qrCodeData && invoice?.invoiceSubtype !== 'travel_ticket' && invoice?.businessContext !== 'travel_agency' && (
+          {(invoice?.zatca?.qrCodeData || invoice?.fbr?.qrCode) && invoice?.invoiceSubtype !== 'travel_ticket' && invoice?.businessContext !== 'travel_agency' && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -583,10 +583,12 @@ export default function InvoiceView() {
                 {t('viewQr')}
               </h3>
               <div className="flex justify-center p-4 bg-white rounded-xl">
-                <QRCodeSVG value={invoice.zatca.qrCodeData} size={180} />
+                <QRCodeSVG value={invoice.zatca?.qrCodeData || invoice.fbr?.qrCode} size={180} />
               </div>
               <p className="text-xs text-gray-500 text-center mt-3">
-                {language === 'ar' ? 'رمز QR للفاتورة الإلكترونية' : 'E-Invoice QR Code'}
+                {invoice.fbr?.qrCode && !invoice.zatca?.qrCodeData
+                  ? (language === 'ar' ? 'رمز QR للفاتورة الرقمية FBR' : 'FBR Digital Invoice QR')
+                  : (language === 'ar' ? 'رمز QR للفاتورة الإلكترونية' : 'E-Invoice QR Code')}
               </p>
             </motion.div>
           )}
@@ -623,6 +625,41 @@ export default function InvoiceView() {
                     <p className="text-xs font-mono break-all bg-gray-50 dark:bg-dark-700 p-2 rounded">
                       {invoice.zatca.invoiceHash}
                     </p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {String(tenant?.settings?.currency || '').toUpperCase() === 'PKR' && invoice?.invoiceSubtype !== 'proforma' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="card p-6"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                {language === 'ar' ? 'معلومات FBR' : 'FBR Digital Invoicing'}
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-gray-500">{language === 'ar' ? 'رقم فاتورة FBR' : 'FBR Invoice No'}</p>
+                  <p className="text-sm font-mono break-all">{invoice?.fbr?.fbrInvoiceNo || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">{language === 'ar' ? 'حالة الإرسال' : 'Submission'}</p>
+                  <p className="text-sm capitalize">{invoice?.fbr?.submissionStatus || 'pending'}</p>
+                </div>
+                {invoice?.fbr?.submittedAt && (
+                  <div>
+                    <p className="text-xs text-gray-500">{language === 'ar' ? 'تاريخ الإرسال' : 'Submitted At'}</p>
+                    <p className="text-sm">{new Date(invoice.fbr.submittedAt).toLocaleString()}</p>
+                  </div>
+                )}
+                {invoice?.fbr?.lastError && (
+                  <div>
+                    <p className="text-xs text-gray-500">{language === 'ar' ? 'آخر خطأ' : 'Last error'}</p>
+                    <p className="text-xs text-red-600">{invoice.fbr.lastError}</p>
                   </div>
                 )}
               </div>

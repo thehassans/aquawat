@@ -54,6 +54,7 @@ const CATEGORIES = [
   { id: 'industry_verticals', en: 'Verticals', ar: 'القطاعات' },
   { id: 'saudi_compliance', en: 'Saudi Tax', ar: 'ضريبة السعودية', currencies: ['SAR'] },
   { id: 'bangladesh_compliance', en: 'BD Tax', ar: 'ضريبة BD', currencies: ['BDT'] },
+  { id: 'pakistan_compliance', en: 'Pakistan Tax', ar: 'ضريبة باكستان', currencies: ['PKR'] },
   { id: 'manufacturing', en: 'Manufacturing', ar: 'التصنيع' },
   { id: 'pos_retail', en: 'Point of Sale', ar: 'نقاط البيع' },
   { id: 'hr_manpower', en: 'Human Resources', ar: 'الموارد البشرية' },
@@ -84,7 +85,7 @@ function appMatchesCategory(app, categoryId) {
     return app.category === 'manufacturing' || app.appId.includes('manufacturing');
   }
   if (categoryId === 'finance_accounting') {
-    return app.category === 'finance_accounting' || app.appId.includes('landed') || app.appId.includes('vat');
+    return app.category === 'finance_accounting' || app.appId.includes('vat');
   }
   if (categoryId === 'hardware_iot') {
     return app.category === 'hardware_iot' || app.appType === 'hardware_integration' || app.appId.includes('iot') || app.appId.includes('terminal') || app.appId.includes('printer') || app.appId.includes('scale');
@@ -118,6 +119,13 @@ function appMatchesCategory(app, categoryId) {
       app.appId.includes('nbr') ||
       app.appId.includes('bangladesh') ||
       app.appId.includes('mushak')
+    );
+  }
+  if (categoryId === 'pakistan_compliance') {
+    return (
+      app.category === 'pakistan_compliance' ||
+      app.appId.includes('fbr') ||
+      app.appId.includes('pakistan')
     );
   }
   if (categoryId === 'automation_comm') {

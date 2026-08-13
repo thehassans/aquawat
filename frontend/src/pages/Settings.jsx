@@ -84,6 +84,7 @@ function MenuVisibilitySettings() {
   const si = tenant?.settings?.saudiIntegrations || {}
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   const isBdtCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'BDT'
+  const isPkrCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'PKR'
   const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1
   const business = tenant?.business || {}
   const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country)
@@ -92,6 +93,7 @@ function MenuVisibilitySettings() {
   const hasQiwa = isSarCurrencyTenant && si.qiwaConnectionStatus === 'connected'
   const hasGosi = isSarCurrencyTenant && si.gosiConnectionStatus === 'connected'
   const hasNbr = isBdtCurrencyTenant && (tenant?.nbr?.isOnboarded || tenant?.nbr?.connectionStatus === 'connected' || !!tenant?.nbr?.binNumber || !!business.binNumber)
+  const hasFbr = isPkrCurrencyTenant
 
   const govChildren = []
   if (hasZatca) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/zatca', label: language === 'ar' ? `بوابة زاتكا ${isZatcaPhase1 ? '(المرحلة 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal` })
@@ -99,6 +101,7 @@ function MenuVisibilitySettings() {
   if (hasQiwa) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/qiwa', label: language === 'ar' ? 'بوابة قوى' : 'Qiwa Portal' })
   if (hasGosi) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/gosi', label: language === 'ar' ? 'بوابة التأمينات / مدد' : 'GOSI/Mudad Portal' })
   if (hasNbr) govChildren.push({ path: '/app/dashboard/tenant-settings/nbr-dashboard', label: language === 'ar' ? 'بوابة NBR / Mushak' : 'NBR / Mushak Portal' })
+  if (hasFbr) govChildren.push({ path: '/app/dashboard/tenant-settings/fbr-dashboard', label: language === 'ar' ? 'بوابة FBR' : 'FBR Portal' })
 
   const businessTypes = getTenantBusinessTypes(tenant)
   const navSections = getNavSections({ language, t, tenant, businessTypes, govChildren })
@@ -1247,7 +1250,7 @@ export default function Settings() {
                       <p className="text-[10px] text-gray-500 mt-1">
                         {language === 'ar'
                           ? 'تُستخدم هذه العملة كافتراضي في كل صفحات النظام. زاتكا للريال السعودي، وNBR/Mushak للتاكا البنغلاديشي.'
-                          : 'Used as the default currency across the app (POS, receipts, invoices). ZATCA requires SAR; NBR/Mushak Bangladesh tax suite requires BDT.'}
+                          : 'Used as the default currency across the app (POS, receipts, invoices). ZATCA requires SAR; NBR/Mushak requires BDT; FBR Digital Invoicing requires PKR.'}
                       </p>
                     </div>
                     <div className="mt-3">

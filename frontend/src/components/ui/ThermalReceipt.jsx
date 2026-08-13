@@ -5,7 +5,8 @@ import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { generateNbrQrValue } from '../../lib/nbrQr'
 import { getThermalPrinterSettings, getReceiptStyle, getPrintCss, getPageCss } from '../../lib/thermalPrinter'
 import { CURRENCY_CODE } from '../../lib/currency'
-import { isSaudiTenant, isBangladeshTenant } from '../../lib/saudiTenant'
+import { isSaudiTenant, isBangladeshTenant, isPakistanTenant } from '../../lib/saudiTenant'
+import { generateFbrQrValue } from '../../lib/fbrQr'
 
 const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false, isUpdated = false }, ref) => {
   const { tenant } = useSelector(state => state.auth)
@@ -16,9 +17,12 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
   const bilingualAr = isSaudiTenant(tenant)
   const isZatcaApplicable = bilingualAr
   const isBangladesh = isBangladeshTenant(tenant) || currency === 'BDT'
+  const isPakistan = isPakistanTenant(tenant) || currency === 'PKR'
   const vatRate = isBangladesh
     ? (Number(tenant?.nbr?.defaultVatRate) || 15)
-    : (bilingualAr ? 15 : null)
+    : isPakistan
+      ? (Number(tenant?.fbr?.defaultSalesTaxRate) || 18)
+      : (bilingualAr ? 15 : null)
 
   const lbl = (en, ar) => (bilingualAr ? `${en} / ${ar}` : en)
   const money = (value) => `${currency} ${(Number(value) || 0).toFixed(2)}`
@@ -116,6 +120,24 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
       })
     } catch (err) {
       console.error('Failed to generate NBR QR code value:', err)
+    }
+  }
+
+  let fbrQrPayload = null
+  if (isPakistan && tenant?.fbr?.autoGenerateQr !== false) {
+    try {
+      fbrQrPayload = generateFbrQrValue({
+        sellerName: businessNameEn,
+        ntn: tenant?.fbr?.ntn || vatNumber,
+        strn: tenant?.fbr?.strn || '',
+        invoiceNumber: orderNumber,
+        fbrInvoiceNo: order?.fbr?.fbrInvoiceNo || '',
+        timestamp: new Date(order.createdAt || Date.now()).toISOString(),
+        totalWithTax: order.grandTotal || order.total || 0,
+        salesTax: order.totalVat || order.totalTax || 0,
+      })
+    } catch (err) {
+      console.error('Failed to generate FBR QR code value:', err)
     }
   }
 
@@ -416,6 +438,22 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
                 <div className="bg-white p-1 border border-gray-200 rounded-lg">
                   <QRCodeSVG
                     value={nbrQrPayload}
+                    size={80}
+                    level="M"
+                    includeMargin={false}
+                  />
+                </div>
+              </div>
+            )}
+
+            {thermalSettings.showQrCode && fbrQrPayload && (
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="text-[7px] text-gray-500 mb-1 font-bold whitespace-nowrap">
+                  FBR | DIGITAL INVOICE
+                </div>
+                <div className="bg-white p-1 border border-gray-200 rounded-lg">
+                  <QRCodeSVG
+                    value={fbrQrPayload}
                     size={80}
                     level="M"
                     includeMargin={false}

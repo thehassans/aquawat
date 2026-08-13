@@ -1,14 +1,19 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
+import { isFbrCurrency } from '../utils/fbrCurrency.js';
+import { applyFbrToInvoice } from '../utils/fbr/FbrService.js';
 import mongoose from 'mongoose';
 import BakalaProduct from '../models/BakalaProduct.js';
 import PosSession from '../models/PosSession.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 /**
  * Get all Bakala products for offline sync
@@ -121,6 +126,10 @@ router.post('/sync', protect, async (req, res) => {
           // Update tenant's last hash for chain
           tenant.zatca.lastInvoiceHash = processed.invoiceHash;
           tenant.zatca.invoiceCounter = processed.invoiceCounter;
+        }
+
+        if (isFbrCurrency(tenant)) {
+          await applyFbrToInvoice(newInvoice, tenant, tenant.business);
         }
 
         await newInvoice.save();

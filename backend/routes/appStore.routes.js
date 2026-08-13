@@ -105,6 +105,18 @@ const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}, payme
     tenant.markModified('nbr');
   }
 
+  if (appId === 'pakistan_fbr_einvoicing') {
+    if (!tenant.fbr) tenant.fbr = {};
+    tenant.fbr.isEnabled = true;
+    if (appConfig.config?.environment) tenant.fbr.environment = appConfig.config.environment;
+    if (appConfig.config?.autoGenerateQr !== undefined) tenant.fbr.autoGenerateQr = !!appConfig.config.autoGenerateQr;
+    if (appConfig.config?.autoSubmit !== undefined) tenant.fbr.autoSubmit = !!appConfig.config.autoSubmit;
+    if (!tenant.fbr.connectionStatus || tenant.fbr.connectionStatus === 'disconnected') {
+      tenant.fbr.connectionStatus = 'action_required';
+    }
+    tenant.markModified('fbr');
+  }
+
   if (isDeliveryPartnerApp(appId)) {
     if (!tenant.subscription) tenant.subscription = {};
     tenant.subscription.hasDeliveryAddon = true;
@@ -817,39 +829,6 @@ export const DEFAULT_APP_CATALOG = [
     configSchema: []
   },
   {
-    appId: 'landed_costs',
-    nameEn: 'Landed Costs',
-    nameAr: 'التكاليف المرسية',
-    taglineEn: 'Allocate import duties, freight, and customs charges across purchase orders.',
-    taglineAr: 'توزيع رسوم الاستيراد والشحن والجمارك على أوامر الشراء.',
-    descriptionEn: 'Accurately allocate landed costs including freight, insurance, customs duties, and handling charges to imported goods for true cost-of-goods-sold calculations.',
-    descriptionAr: 'توزيع دقيق للتكاليف المرسية على البضائع المستوردة لحساب التكلفة الحقيقية للبضائع المباعة.',
-    category: 'finance_accounting',
-    appType: 'core_vertical',
-    icon: 'anchor',
-    version: '2.4.0',
-    downloadSize: '3.8 MB',
-    author: 'Maqder Core',
-    rating: 4.7,
-    reviewsCount: 68,
-    pricingTier: 'free',
-    badge: 'Import/Export',
-    defaultRoute: '/app/dashboard/landed-costs',
-    featuresEn: [
-      'Multi-Currency Freight & Duty Allocation',
-      'Per-Unit Cost Breakdown by SKU',
-      'Customs Clearance Document Management',
-      'Automatic COGS Adjustment on Receipt'
-    ],
-    featuresAr: [
-      'توزيع الشحن والرسوم متعدد العملات',
-      'تفصيل التكلفة لكل وحدة حسب المنتج',
-      'إدارة مستندات التخليص الجمركي',
-      'تعديل تلقائي لتكلفة البضاعة عند الاستلام'
-    ],
-    configSchema: []
-  },
-  {
     appId: 'iot_devices',
     nameEn: 'IoT & Smart Devices',
     nameAr: 'إنترنت الأشياء والأجهزة الذكية',
@@ -1550,6 +1529,49 @@ export const DEFAULT_APP_CATALOG = [
     ]
   },
   // ══════════════════════════════════════════════════════════════════════════════
+  // ── PAKISTAN FBR DIGITAL INVOICING ───────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════════
+  {
+    appId: 'pakistan_fbr_einvoicing',
+    nameEn: 'FBR Digital Invoicing (Pakistan)',
+    nameAr: 'الفوترة الرقمية FBR (باكستان)',
+    taglineEn: 'NTN, STRN, 18% sales tax, FBR QR, and Digital Invoicing posting for PKR businesses.',
+    taglineAr: 'الرقم الضريبي NTN وSTRN وضريبة المبيعات 18% ورمز QR والإرسال إلى الفوترة الرقمية الباكستانية.',
+    descriptionEn: 'Complete Federal Board of Revenue (Pakistan) Digital Invoicing suite: National Tax Number (NTN) and Sales Tax Registration Number (STRN), POS ID, 18% standard sales tax, FBR verification QR on invoices and thermal receipts, sandbox/production posting to the FBR DI gateway, and invoice submission status on every sale. Shown only when the tenant currency is PKR.',
+    descriptionAr: 'حزمة هيئة الإيرادات الفيدرالية الباكستانية: NTN وSTRN، ضريبة مبيعات 18%، رمز تحقق FBR على الفواتير والإيصالات، وإرسال الفواتير إلى بوابة الفوترة الرقمية.',
+    category: 'pakistan_compliance',
+    appType: 'pakistan_compliance',
+    requiredCurrency: 'PKR',
+    icon: 'fbr',
+    version: '1.0.0',
+    downloadSize: '5.1 MB',
+    author: 'Maqder Pakistan Gov Suite',
+    rating: 4.92,
+    reviewsCount: 38,
+    pricingTier: 'free',
+    badge: 'FBR Ready',
+    defaultRoute: '/app/dashboard/tenant-settings/fbr-dashboard',
+    featuresEn: [
+      'NTN / STRN / CNIC seller identity vault',
+      'FBR Digital Invoicing post on every approved sale',
+      '18% sales tax defaults and HS-code on lines',
+      'FBR QR on invoices, PDFs, and POS thermal receipts',
+      'Sandbox waybills until live IRIS bearer token is saved',
+    ],
+    featuresAr: [
+      'خزنة هوية البائع NTN / STRN / CNIC',
+      'إرسال فاتورة FBR عند اعتماد كل بيع',
+      'ضريبة مبيعات 18% ورموز HS على البنود',
+      'رمز QR لهيئة الإيرادات على الفواتير وإيصالات نقاط البيع',
+      'بيئة تجريبية حتى حفظ رمز IRIS الحي',
+    ],
+    configSchema: [
+      { key: 'environment', labelEn: 'FBR Environment', labelAr: 'بيئة FBR', type: 'select', defaultValue: 'sandbox', options: [{ value: 'sandbox', labelEn: 'Sandbox (Testing)', labelAr: 'بيئة التجربة' }, { value: 'production', labelEn: 'Live Production', labelAr: 'البيئة الإنتاجية' }] },
+      { key: 'autoGenerateQr', labelEn: 'Auto-generate FBR QR on receipts', labelAr: 'توليد رمز QR تلقائياً على الإيصالات', type: 'boolean', defaultValue: true },
+      { key: 'autoSubmit', labelEn: 'Auto-post invoices to FBR', labelAr: 'إرسال الفواتير تلقائياً إلى FBR', type: 'boolean', defaultValue: true },
+    ]
+  },
+  // ══════════════════════════════════════════════════════════════════════════════
   // ── DOCUMENT DESIGN ADD-ONS ────────────────────────────────────────────────────
   // ══════════════════════════════════════════════════════════════════════════════
   {
@@ -1630,6 +1652,7 @@ export const ensureCatalogInitialized = async () => {
         { upsert: true, new: true }
       );
     }
+    await AppAddon.updateOne({ appId: 'landed_costs' }, { $set: { isActive: false } });
   } catch (err) {
     console.error('Failed to initialize app catalog:', err.message);
   }
@@ -1661,6 +1684,9 @@ router.get('/apps', protect, async (req, res) => {
       }
       if (app.category === 'bangladesh_compliance' || app.appType === 'bangladesh_compliance') {
         return tenantCurrency === 'BDT';
+      }
+      if (app.category === 'pakistan_compliance' || app.appType === 'pakistan_compliance') {
+        return tenantCurrency === 'PKR';
       }
       return true;
     };
@@ -1746,6 +1772,9 @@ router.post('/apps/:appId/install', protect, async (req, res) => {
     }
     if ((appDef.category === 'bangladesh_compliance' || appDef.appType === 'bangladesh_compliance') && tenantCurrency !== 'BDT') {
       return res.status(400).json({ error: 'Bangladesh NBR apps require BDT as the tenant default currency.' });
+    }
+    if ((appDef.category === 'pakistan_compliance' || appDef.appType === 'pakistan_compliance') && tenantCurrency !== 'PKR') {
+      return res.status(400).json({ error: 'Pakistan FBR apps require PKR as the tenant default currency.' });
     }
 
     // Paid apps must go through Stripe unless included free in the tenant's SaaS plan.

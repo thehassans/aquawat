@@ -10,10 +10,8 @@ import ExportMenu from '../components/ui/ExportMenu'
 
 export default function Shipments() {
   const { language } = useSelector((state) => state.ui)
-  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
-  const landedCostApp = tenant?.settings?.installedApps?.landed_costs
-  const hasLandedCosts = Boolean(landedCostApp?.isInstalled && landedCostApp?.isEnabled)
+  const hasLandedCosts = true
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState({ status: '', type: '', supplierId: '', warehouseId: '' })

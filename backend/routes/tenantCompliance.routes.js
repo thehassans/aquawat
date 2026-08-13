@@ -9,6 +9,8 @@ import { verifyQrIntegrity, verifyHashChain } from '../lib/zatcaQr.js';
 import { preSubmissionValidation } from '../utils/zatca/ublValidator.js';
 import { isKeyEncrypted } from '../utils/zatcaKeyVault.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
+import { isFbrCurrency } from '../utils/fbrCurrency.js';
+import { testFbrConnection } from '../utils/fbr/FbrService.js';
 
 const router = express.Router();
 
@@ -21,6 +23,8 @@ router.use(authorize('admin'));
 // ZATCA, Elm, Qiwa and GOSI/Mudad are Saudi government integrations that
 // only apply to SAR-denominated tenants.
 router.use((req, res, next) => {
+  const path = String(req.path || '');
+  if (path.startsWith('/nbr') || path.startsWith('/fbr')) return next();
   if (!isZatcaCurrency(req.tenant)) {
     return res.status(400).json({ error: 'Saudi government integrations (ZATCA/Elm/Qiwa/GOSI) only apply to SAR-denominated tenants.' });
   }
@@ -1252,6 +1256,110 @@ router.post('/nbr/test-connection', protect, async (req, res) => {
       message: `NBR credentials validated for BIN ${tenant.nbr.binNumber} (${tenant.nbr.environment || 'sandbox'})`,
       connectionStatus: 'connected',
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Pakistan FBR Digital Invoicing ──────────────────────────────────────────
+router.get('/fbr', protect, async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
+    const tenant = await Tenant.findById(tenantId).select('name business fbr settings.currency').lean();
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    if (!isFbrCurrency(tenant)) {
+      return res.status(400).json({ error: 'FBR configuration is only available for PKR tenants' });
+    }
+    const fbr = tenant.fbr || {};
+    res.json({
+      success: true,
+      business: {
+        ntn: tenant.business?.ntn || '',
+        vatNumber: tenant.business?.vatNumber || '',
+        legalNameEn: tenant.business?.legalNameEn || tenant.name || '',
+      },
+      fbr: {
+        ...fbr,
+        apiToken: undefined,
+        apiKey: undefined,
+        hasApiToken: Boolean(fbr.apiToken || fbr.apiKey),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/fbr', protect, async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    if (!isFbrCurrency(tenant)) {
+      return res.status(400).json({ error: 'FBR configuration is only available for PKR tenants' });
+    }
+
+    const body = req.body || {};
+    if (!tenant.fbr) tenant.fbr = {};
+    if (!tenant.business) tenant.business = {};
+
+    const ntn = String(body.ntn || '').trim();
+    tenant.fbr.ntn = ntn;
+    if (ntn) tenant.business.vatNumber = ntn;
+    if (body.strn !== undefined) tenant.fbr.strn = String(body.strn || '').trim();
+    if (body.cnic !== undefined) tenant.fbr.cnic = String(body.cnic || '').trim();
+    if (body.posId !== undefined) tenant.fbr.posId = String(body.posId || '').trim();
+    if (body.scenarioId !== undefined) tenant.fbr.scenarioId = String(body.scenarioId || '').trim();
+    if (body.province !== undefined) tenant.fbr.province = String(body.province || '').trim();
+    if (body.defaultHsCode !== undefined) tenant.fbr.defaultHsCode = String(body.defaultHsCode || '').trim();
+    if (body.defaultSalesTaxRate !== undefined) tenant.fbr.defaultSalesTaxRate = Number(body.defaultSalesTaxRate) || 18;
+    if (body.autoGenerateQr !== undefined) tenant.fbr.autoGenerateQr = !!body.autoGenerateQr;
+    if (body.autoSubmit !== undefined) tenant.fbr.autoSubmit = !!body.autoSubmit;
+    if (body.environment) tenant.fbr.environment = body.environment === 'production' ? 'production' : 'sandbox';
+    if (body.apiBaseUrl !== undefined) tenant.fbr.apiBaseUrl = String(body.apiBaseUrl || '').trim();
+    if (body.apiToken && !String(body.apiToken).startsWith('•')) tenant.fbr.apiToken = String(body.apiToken);
+    if (body.apiKey && !String(body.apiKey).startsWith('•')) tenant.fbr.apiKey = String(body.apiKey);
+    if (body.isEnabled !== undefined) tenant.fbr.isEnabled = !!body.isEnabled;
+
+    const ready = Boolean(tenant.fbr.ntn);
+    tenant.fbr.isOnboarded = ready;
+    if (ready && !tenant.fbr.onboardedAt) tenant.fbr.onboardedAt = new Date();
+    tenant.fbr.connectionStatus = ready
+      ? ((tenant.fbr.apiToken || tenant.fbr.apiKey) ? 'connected' : 'action_required')
+      : 'disconnected';
+    tenant.markModified('fbr');
+    tenant.markModified('business');
+    await tenant.save();
+
+    res.json({
+      success: true,
+      fbr: { ...tenant.fbr.toObject?.() || tenant.fbr, apiToken: undefined, apiKey: undefined },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/fbr/test-connection', protect, async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.user?.tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    if (!isFbrCurrency(tenant)) {
+      return res.status(400).json({ error: 'FBR is only available for PKR tenants' });
+    }
+    const result = await testFbrConnection(tenant);
+    if (result.success) {
+      if (!tenant.fbr) tenant.fbr = {};
+      tenant.fbr.connectionStatus = 'connected';
+      tenant.fbr.lastSyncAt = new Date();
+      tenant.fbr.isOnboarded = true;
+      if (!tenant.fbr.onboardedAt) tenant.fbr.onboardedAt = new Date();
+      tenant.markModified('fbr');
+      await tenant.save();
+    }
+    res.json({ ...result, connectionStatus: result.success ? 'connected' : 'disconnected' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

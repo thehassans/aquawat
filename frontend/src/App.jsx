@@ -269,6 +269,7 @@ const GovernmentIntegrations = lazy(() => import('./pages/tenant-settings/Govern
 const GovernmentIntegrationDetail = lazy(() => import('./pages/tenant-settings/GovernmentIntegrationDetail'))
 const ZatcaDashboard = lazy(() => import('./pages/tenant-settings/ZatcaDashboard'))
 const NbrDashboard = lazy(() => import('./pages/tenant-settings/NbrDashboard'))
+const FbrDashboard = lazy(() => import('./pages/tenant-settings/FbrDashboard'))
 const FleetList = lazy(() => import('./pages/car-rental/FleetList'))
 const CarForm = lazy(() => import('./pages/car-rental/CarForm'))
 const CustomerRegistry = lazy(() => import('./pages/car-rental/CustomerRegistry'))
@@ -825,6 +826,7 @@ function App() {
         <Route path="tenant-settings/government-integrations/:service" element={<GovernmentIntegrationDetail />} />
         <Route path="tenant-settings/zatca-dashboard" element={<ZatcaDashboard />} />
         <Route path="tenant-settings/nbr-dashboard" element={<NbrDashboard />} />
+        <Route path="tenant-settings/fbr-dashboard" element={<FbrDashboard />} />
         <Route path="backup" element={<Backup />} />
         <Route path="super-admin" element={<BusinessTypeRoute allowedTypes={['super_admin']}><SuperAdminDashboard /></BusinessTypeRoute>} />
         <Route path="super-admin/resellers" element={<BusinessTypeRoute allowedTypes={['super_admin']}><ResellerManagement /></BusinessTypeRoute>} />

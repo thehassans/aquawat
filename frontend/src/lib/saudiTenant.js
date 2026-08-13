@@ -39,5 +39,6 @@ export function getTaxRegion(tenant) {
   const currency = getTenantCurrency(tenant)
   if (currency === 'SAR') return 'saudi'
   if (currency === 'BDT') return 'bangladesh'
+  if (currency === 'PKR') return 'pakistan'
   return null
 }

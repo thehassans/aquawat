@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import BookStoreProduct from '../models/BookStoreProduct.js';
 import SchoolSupplyList from '../models/SchoolSupplyList.js';
 import BookRental from '../models/BookRental.js';
@@ -9,6 +9,8 @@ import Tenant from '../models/Tenant.js';
 import PosSession from '../models/PosSession.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
+import { isFbrCurrency } from '../utils/fbrCurrency.js';
+import { applyFbrToInvoice } from '../utils/fbr/FbrService.js';
 import { clampLimit } from '../utils/pagination.js';
 import { resolveTenantId, withTenant, handleTenantScopeError } from '../utils/tenantScope.js';
 import mongoose from 'mongoose';
@@ -18,6 +20,9 @@ import { imageUpload } from '../utils/uploadMime.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const getTargetTenantId = (user, req) => resolveTenantId(user, req);
@@ -257,6 +262,10 @@ router.post('/sync', protect, async (req, res) => {
           newInvoice.zatca = { ...processed, submissionStatus: 'pending' };
           tenant.zatca.lastInvoiceHash = processed.invoiceHash;
           tenant.zatca.invoiceCounter = processed.invoiceCounter;
+        }
+
+        if (isFbrCurrency(tenant)) {
+          await applyFbrToInvoice(newInvoice, tenant, tenant.business);
         }
 
         await newInvoice.save();

@@ -47,6 +47,7 @@ export function getPreferredAppIds(tenant) {
 
   if (market === 'pakistan') {
     return [
+      'pakistan_fbr_einvoicing',
       'premium_invoice_templates',
       'whatsapp_cloud_auto',
       'email_suite',
@@ -56,7 +57,6 @@ export function getPreferredAppIds(tenant) {
       'ecommerce_store',
       'crm_sales_pipeline',
       'hr_payroll_pro',
-      'payment_terminal',
     ]
   }
 
@@ -101,10 +101,10 @@ export function getAppStoreMarketCopy(tenant, language = 'en') {
   if (market === 'pakistan') {
     return {
       eyebrow: isAr ? 'موصى به لسوقك' : 'Recommended for your market',
-      title: isAr ? 'الأهم لمنشأتك في باكستان' : 'Built for Pakistan businesses',
+      title: isAr ? 'FBR أولاً لمنشأتك في باكستان' : 'FBR first for Pakistan businesses',
       subtitle: isAr
-        ? 'زاتكا غير إلزامي — نبدأ بالقوالب والواتساب ونقاط البيع والفوترة.'
-        : 'ZATCA is not compulsory — templates, WhatsApp, POS, and invoicing lead the list.',
+        ? 'الفوترة الرقمية لهيئة الإيرادات الفيدرالية — NTN وSTRN ورمز QR على كل فاتورة.'
+        : 'Federal Board of Revenue digital invoicing — NTN, STRN, and FBR QR on every sale.',
       badge: 'PKR · Pakistan',
     }
   }
@@ -140,6 +140,9 @@ export function scoreAppForMarket(app, tenant) {
 
   if (market !== 'saudi' && isSaudiApp) score += 5000
   if (market === 'bangladesh' && (app.appId === 'bangladesh_nbr_einvoicing' || app.category === 'bangladesh_compliance')) {
+    score = Math.min(score, 0)
+  }
+  if (market === 'pakistan' && (app.appId === 'pakistan_fbr_einvoicing' || app.category === 'pakistan_compliance')) {
     score = Math.min(score, 0)
   }
   if (app.isInstalled) score -= 0.25

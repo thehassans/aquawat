@@ -52,8 +52,7 @@ export default function ShipmentForm() {
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
-  const landedCostApp = tenant?.settings?.installedApps?.landed_costs
-  const hasLandedCosts = Boolean(landedCostApp?.isInstalled && landedCostApp?.isEnabled)
+  const hasLandedCosts = true
 
   const formatDateForInput = (value) => {
     if (!value) return ''

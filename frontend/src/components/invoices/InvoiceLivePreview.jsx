@@ -1,5 +1,7 @@
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
+import { generateFbrQrValue } from '../../lib/fbrQr'
+import { generateNbrQrValue } from '../../lib/nbrQr'
 import { calculateInvoiceSummary, normalizeTravelDetails, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding, getInvoiceCssFontFamily, getInvoiceCurrencyDisplay, splitBrandingText } from '../../lib/invoiceBranding'
 import { getZatcaStatusMeta } from '../../lib/zatcaStatus'
@@ -377,16 +379,43 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const vatNumber = invoice?.seller?.vatNumber || tenant?.business?.vatNumber
   // ZATCA is a Saudi-only requirement tied to SAR-denominated invoices.
   const isZatcaApplicable = String(currency || 'SAR').toUpperCase() === 'SAR'
+  const isFbrApplicable = String(currency || 'SAR').toUpperCase() === 'PKR'
+  const isNbrApplicable = String(currency || 'SAR').toUpperCase() === 'BDT'
   const qrValue = (() => {
-    if (!isZatcaApplicable) return null
     try {
-      return invoice?.zatca?.qrCodeData || generateZatcaQrValue({
-        sellerName: sellerNameEn || sellerNameAr,
-        vatNumber,
-        timestamp: invoice?.issueDate || new Date().toISOString(),
-        totalWithVat: toNumber(invoice?.grandTotal),
-        vatTotal: toNumber(invoice?.totalTax),
-      })
+      if (isZatcaApplicable) {
+        return invoice?.zatca?.qrCodeData || generateZatcaQrValue({
+          sellerName: sellerNameEn || sellerNameAr,
+          vatNumber,
+          timestamp: invoice?.issueDate || new Date().toISOString(),
+          totalWithVat: toNumber(invoice?.grandTotal),
+          vatTotal: toNumber(invoice?.totalTax),
+        })
+      }
+      if (isFbrApplicable && tenant?.fbr?.autoGenerateQr !== false) {
+        return invoice?.fbr?.qrCode || generateFbrQrValue({
+          sellerName: sellerNameEn || sellerNameAr,
+          ntn: tenant?.fbr?.ntn || vatNumber,
+          strn: tenant?.fbr?.strn || '',
+          invoiceNumber: invoice?.invoiceNumber,
+          fbrInvoiceNo: invoice?.fbr?.fbrInvoiceNo,
+          timestamp: invoice?.issueDate || new Date().toISOString(),
+          totalWithTax: toNumber(invoice?.grandTotal),
+          salesTax: toNumber(invoice?.totalTax),
+        })
+      }
+      if (isNbrApplicable && tenant?.nbr?.autoGenerateQr !== false) {
+        return generateNbrQrValue({
+          sellerName: sellerNameEn || sellerNameAr,
+          binNumber: tenant?.nbr?.binNumber || vatNumber,
+          invoiceNumber: invoice?.invoiceNumber,
+          timestamp: invoice?.issueDate || new Date().toISOString(),
+          totalWithVat: toNumber(invoice?.grandTotal),
+          vatTotal: toNumber(invoice?.totalTax),
+          mushakForm: tenant?.nbr?.mushakForm,
+        })
+      }
+      return null
     } catch {
       return null
     }
@@ -648,7 +677,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
               </div>
             </div>
             <div className="flex min-w-[148px] flex-col items-center gap-3 self-start text-center">
-              {!isTravelInvoice && !isQuotation && !isPurchaseOrder && isZatcaApplicable && (
+              {!isTravelInvoice && !isQuotation && !isPurchaseOrder && (isZatcaApplicable || isFbrApplicable || isNbrApplicable) && (
                 <div className="rounded-[1.5rem] border border-slate-200 bg-white p-2 shadow-sm">
                   {qrValue ? (
                     <QRCodeSVG value={qrValue} size={88} bgColor="transparent" fgColor="#0F172A" />

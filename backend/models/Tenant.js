@@ -144,6 +144,34 @@ const nbrConfigSchema = new mongoose.Schema({
   invoiceCounter: { type: Number, default: 0 },
 });
 
+/** Pakistan FBR Digital Invoicing (IRIS / DI) config */
+const fbrConfigSchema = new mongoose.Schema({
+  isEnabled: { type: Boolean, default: false },
+  isOnboarded: { type: Boolean, default: false },
+  ntn: { type: String, default: '' },
+  strn: { type: String, default: '' },
+  cnic: { type: String, default: '' },
+  posId: { type: String, default: '' },
+  scenarioId: { type: String, default: '' },
+  province: { type: String, default: 'Sindh' },
+  defaultHsCode: { type: String, default: '0000.0000' },
+  defaultSalesTaxRate: { type: Number, default: 18 },
+  autoGenerateQr: { type: Boolean, default: true },
+  autoSubmit: { type: Boolean, default: true },
+  environment: { type: String, enum: ['sandbox', 'production'], default: 'sandbox' },
+  apiBaseUrl: { type: String, default: '' },
+  apiToken: { type: String, default: '' },
+  apiKey: { type: String, default: '' },
+  connectionStatus: {
+    type: String,
+    enum: ['disconnected', 'action_required', 'connected'],
+    default: 'disconnected',
+  },
+  lastSyncAt: { type: Date },
+  onboardedAt: { type: Date },
+  invoiceCounter: { type: Number, default: 0 },
+});
+
 const invoiceBrandingProfileSchema = new mongoose.Schema({
   templateId: { type: Number, min: 1, max: 8 },
   logo: { type: String },
@@ -346,6 +374,7 @@ const tenantSchema = new mongoose.Schema({
   },
   zatca: zatcaConfigSchema,
   nbr: nbrConfigSchema,
+  fbr: fbrConfigSchema,
   ecommerce: { type: ecommerceSchema, default: () => ({}) },
   settings: {
     installedApps: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },

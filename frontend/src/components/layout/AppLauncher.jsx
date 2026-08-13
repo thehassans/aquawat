@@ -81,6 +81,7 @@ const APP_STYLE_MAP = {
   // Government Integration Apps — each gets a distinct Saudi-palette gradient
   '/app/dashboard/tenant-settings/zatca-dashboard': { gradient: 'from-[#006633] to-[#00A34A]' },
   '/app/dashboard/tenant-settings/nbr-dashboard': { gradient: 'from-[#006A4E] to-[#F42A41]' },
+  '/app/dashboard/tenant-settings/fbr-dashboard': { gradient: 'from-[#01411C] to-[#0B8A3C]' },
   '/app/dashboard/tenant-settings/government-integrations/zatca': { gradient: 'from-[#006633] to-[#00A34A]' },
   '/app/dashboard/tenant-settings/government-integrations/elm': { gradient: 'from-[#1D4ED8] to-[#3B82F6]' },
   '/app/dashboard/tenant-settings/government-integrations/qiwa': { gradient: 'from-[#7C3AED] to-[#A855F7]' },
@@ -228,6 +229,7 @@ export default function AppLauncher() {
   const si = tenant?.settings?.saudiIntegrations || {};
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR';
   const isBdtCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'BDT';
+  const isPkrCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'PKR';
   const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1;
   const business = tenant?.business || {};
   const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country);
@@ -250,6 +252,9 @@ export default function AppLauncher() {
   if (isAppActive('etimad_procurement')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/etimad', label: language === 'ar' ? 'بوابة اعتماد' : 'Etimad Portal' });
   if (isBdAppActive('bangladesh_nbr_einvoicing') || (isBdtCurrencyTenant && (tenant?.nbr?.isOnboarded || tenant?.nbr?.binNumber))) {
     govChildren.push({ path: '/app/dashboard/tenant-settings/nbr-dashboard', label: language === 'ar' ? 'بوابة NBR / Mushak' : 'NBR / Mushak Portal' });
+  }
+  if (isPkrCurrencyTenant) {
+    govChildren.push({ path: '/app/dashboard/tenant-settings/fbr-dashboard', label: language === 'ar' ? 'بوابة FBR' : 'FBR Portal' });
   }
   const hasAccess = (module, action) => {
     if (!user) return false

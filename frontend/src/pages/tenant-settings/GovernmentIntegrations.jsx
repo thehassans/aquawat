@@ -430,6 +430,43 @@ export default function GovernmentIntegrations() {
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   if (!isSarCurrencyTenant) {
     const isBdt = String(tenant?.settings?.currency || '').toUpperCase() === 'BDT'
+    const isPkr = String(tenant?.settings?.currency || '').toUpperCase() === 'PKR'
+    if (isPkr) {
+      return (
+        <div className="max-w-3xl mx-auto space-y-6 py-8 px-4">
+          <div>
+            <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+              Pakistan Government Integrations
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
+              Federal Board of Revenue (FBR) Digital Invoicing — the Pakistan counterpart to Saudi ZATCA.
+            </p>
+          </div>
+          <div className="card p-6 space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                <Shield className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-gray-900 dark:text-white">FBR Digital Invoicing</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Configure NTN, STRN, 18% sales tax, FBR QR, and IRIS Digital Invoicing credentials. Open the FBR dashboard to connect, or install
+                  &quot;FBR Digital Invoicing (Pakistan)&quot; from the App Store.
+                </p>
+                <div className="flex flex-wrap gap-3 mt-4">
+                  <a href="/app/dashboard/tenant-settings/fbr-dashboard" className="btn btn-primary text-sm">
+                    Open FBR Dashboard
+                  </a>
+                  <a href="/app/dashboard/app-store" className="btn btn-secondary text-sm">
+                    App Store
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
     if (isBdt) {
       return (
         <div className="max-w-3xl mx-auto space-y-6 py-8 px-4">
@@ -476,7 +513,7 @@ export default function GovernmentIntegrations() {
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
           {t(
-            'ZATCA, Elm, Qiwa and GOSI are Saudi Arabian government integrations that only apply to SAR-denominated businesses. Set your default currency to SAR in Settings to enable this section. Bangladesh tenants (BDT) should use the NBR / Mushak suite instead.',
+            'ZATCA, Elm, Qiwa and GOSI are Saudi Arabian government integrations that only apply to SAR-denominated businesses. Set your default currency to SAR in Settings to enable this section. Bangladesh tenants (BDT) should use the NBR / Mushak suite. Pakistan tenants (PKR) should use FBR Digital Invoicing.',
             'زاتكا وعلم وقوى والتأمينات الاجتماعية تكاملات حكومية سعودية تنطبق فقط على المنشآت التي تتعامل بالريال السعودي. غيّر العملة الافتراضية إلى الريال السعودي من الإعدادات لتفعيل هذا القسم.'
           )}
         </p>

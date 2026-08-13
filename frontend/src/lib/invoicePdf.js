@@ -8,7 +8,7 @@ import { formatCurrency, isSarCurrency } from './currency'
 import { calculateInvoiceSummary, normalizeTravelDetails } from './invoiceDocument'
 import { getInvoiceBranding, getInvoiceTemplateId, splitBrandingText } from './invoiceBranding'
 import { getAmountInWords } from './amountInWords'
-import { generateZatcaQrValue } from './zatcaQr'
+import { resolveTaxInvoiceQr } from './taxInvoiceQr'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from './invoiceLanguage'
 
 const sanitizeFileName = (value) => {
@@ -1031,20 +1031,21 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const isQuotationPdf = Boolean(invoice?.quotationNumber) || documentType === 'quotation'
   const isPurchaseOrderPdf = documentType === 'purchase_order'
   const isTravelInvoicePdf = !isQuotationPdf && !isPurchaseOrderPdf && (invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency')
-  // ZATCA is a Saudi-only requirement tied to SAR-denominated invoices; skip
-  // the TLV QR entirely for tenants configured with another currency.
+  const skipDocumentQr = isTravelInvoicePdf || isQuotationPdf || isPurchaseOrderPdf
   const isZatcaApplicablePdf = String(invoice?.currency || tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
-  const skipQr = !isZatcaApplicablePdf || isTravelInvoicePdf || isQuotationPdf || isPurchaseOrderPdf
-  const qrValue = invoice?.zatca?.qrCodeData || (skipQr ? null : generateZatcaQrValue({
-    sellerName,
-    vatNumber: seller?.vatNumber || tenant?.business?.vatNumber,
-    timestamp: invoice?.issueDate || new Date().toISOString(),
-    totalWithVat: totals.grandTotal,
-    vatTotal: totals.totalTax,
-  }))
-  // Travel agency invoices omit the ZATCA QR from the printed document.
-  const fallbackQrImage = skipQr || invoice?.zatca?.qrCodeImage || !qrValue ? null : await renderQrToDataUrl(qrValue, 120)
-  const qr = skipQr ? null : await resolveImageSource(invoice?.zatca?.qrCodeImage || fallbackQrImage || null)
+  const qrValue = skipDocumentQr
+    ? null
+    : resolveTaxInvoiceQr({
+        invoice,
+        tenant,
+        currency,
+        sellerName,
+        vatNumber: seller?.vatNumber || tenant?.business?.vatNumber,
+      })
+  const skipQr = !qrValue || skipDocumentQr
+  // Travel agency invoices omit the tax QR from the printed document.
+  const fallbackQrImage = skipQr || (isZatcaApplicablePdf && invoice?.zatca?.qrCodeImage) || !qrValue ? null : await renderQrToDataUrl(qrValue, 120)
+  const qr = skipQr ? null : await resolveImageSource((isZatcaApplicablePdf && invoice?.zatca?.qrCodeImage) || fallbackQrImage || null)
   const qrFormat = detectImageFormat(qr)
   const companyName = invoiceBranding.companyName || sellerNameEn || sellerNameAr || ''
   const headerLines = splitBrandingText(invoiceBranding.headerText)

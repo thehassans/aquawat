@@ -28,6 +28,8 @@ import { createInvoiceFromMultipleDNs } from '../controllers/invoiceController.j
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
 import { clampTemplateId } from '../utils/premiumTemplates.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
+import { isFbrCurrency } from '../utils/fbrCurrency.js';
+import { applyFbrToInvoice } from '../utils/fbr/FbrService.js';
 import { ensureInvoiceDueDate } from '../utils/invoicePaymentTerms.js';
 import { cacheAside } from '../lib/redis.js';
 import { applyInvoiceListSearch } from '../utils/invoiceSearch.js';
@@ -407,21 +409,28 @@ function resolveInitialSellInvoiceStatus(requestedStatus, tenant) {
 async function attachDraftQr(invoice, seller, tenant) {
   // ZATCA only applies to SAR-denominated invoices. Skip the Saudi TLV QR
   // entirely for tenants configured with a different default currency.
-  if (!isZatcaCurrency(tenant)) return invoice;
+  if (isZatcaCurrency(tenant)) {
+    const qr = await buildDraftInvoiceQr({
+      seller,
+      issueDate: invoice.issueDate,
+      grandTotal: invoice.grandTotal,
+      totalTax: invoice.totalTax,
+    });
 
-  const qr = await buildDraftInvoiceQr({
-    seller,
-    issueDate: invoice.issueDate,
-    grandTotal: invoice.grandTotal,
-    totalTax: invoice.totalTax,
-  });
+    invoice.zatca = {
+      ...(invoice.zatca || {}),
+      ...qr,
+    };
 
-  invoice.zatca = {
-    ...(invoice.zatca || {}),
-    ...qr,
-  };
+    await invoice.save();
+    return invoice;
+  }
 
-  await invoice.save();
+  if (isFbrCurrency(tenant)) {
+    await applyFbrToInvoice(invoice, tenant, seller);
+    await invoice.save();
+  }
+
   return invoice;
 }
 

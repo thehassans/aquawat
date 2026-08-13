@@ -258,7 +258,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/grn', icon: Truck, label: language === 'ar' ? 'استلام البضائع' : 'Goods Receipt', perm: { module: 'supply_chain', action: 'read' } },
         { path: '/app/dashboard/purchase-returns', icon: PackageMinus, label: language === 'ar' ? 'مرتجعات المشتريات' : 'Purchase Returns', perm: { module: 'supply_chain', action: 'read' } },
         { path: '/app/dashboard/shipments', icon: Truck, label: language === 'ar' ? 'الشحنات' : 'Shipments', perm: { module: 'supply_chain', action: 'read' } },
-        { path: '/app/dashboard/landed-costs', icon: Anchor, label: language === 'ar' ? 'التكاليف المرسية' : 'Landed Costs', perm: { module: 'landed_costs', action: 'read' }, requireApp: 'landed_costs' },
+        { path: '/app/dashboard/landed-costs', icon: Anchor, label: language === 'ar' ? 'التكاليف المرسية' : 'Landed Costs', perm: { module: 'landed_costs', action: 'read' } },
       ]
     },
     {

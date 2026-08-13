@@ -12,6 +12,7 @@ import { updateTenant } from '../../store/slices/authSlice';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generateZatcaQrValue } from '../../lib/zatcaQr';
+import { generateFbrQrValue } from '../../lib/fbrQr';
 import { getThermalPrinterSettings, getBodyWidthCss, getPageCss } from '../../lib/thermalPrinter';
 import { isAndroidPos, isAndroidDevice, detectBridge, isWebUsbSupported, isWebSerialSupported, printText as androidPrintText, openCashDrawer as androidOpenCashDrawer, openCashDrawerViaRaw, openCashDrawerViaWebUSB, openCashDrawerViaSerial, openCashDrawerViaSystemPrint, printViaSystemPrint, buildReceiptHtml } from '../../lib/androidPosPrinter';
 
@@ -940,6 +941,7 @@ export default function BakalaPOS() {
     const pmLabel = paymentMethod === 'cash' ? 'Cash | نقدي' : paymentMethod === 'card' ? 'Card | بطاقة' : paymentMethod === 'split' ? 'Split | مقسم' : paymentMethod === 'khata' ? 'Khata | خطة' : String(paymentMethod);
 
     const isZatcaApplicable = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR';
+    const isFbrApplicable = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'PKR';
     let zatcaQrPayload = '';
     try {
       if (isZatcaApplicable) zatcaQrPayload = generateZatcaQrValue({
@@ -949,6 +951,18 @@ export default function BakalaPOS() {
         totalWithVat: order.grandTotal || 0,
         vatTotal: order.totalTax || 0
       });
+      else if (isFbrApplicable && tenant?.fbr?.autoGenerateQr !== false) {
+        zatcaQrPayload = generateFbrQrValue({
+          sellerName: businessNameEn,
+          ntn: tenant?.fbr?.ntn || vatNumber,
+          strn: tenant?.fbr?.strn || '',
+          invoiceNumber: order.invoiceNumber || order.receiptNumber || '',
+          fbrInvoiceNo: order.fbr?.fbrInvoiceNo || '',
+          timestamp: new Date().toISOString(),
+          totalWithTax: order.grandTotal || 0,
+          salesTax: order.totalTax || 0,
+        });
+      }
     } catch (_) {}
 
     const _thermal = getThermalPrinterSettings(tenant);
@@ -1006,7 +1020,7 @@ export default function BakalaPOS() {
   <div class="total" style="display:flex;justify-content:space-between;"><span>Total / الإجمالي:</span><span>SAR ${Number(order.grandTotal || 0).toFixed(2)}</span></div>
   ${zatcaQrPayload ? `
   <div class="qr">
-    <div style="font-size:7px;color:#666;margin-bottom:2px;">ZATCA | هيئة الزكاة</div>
+    <div style="font-size:7px;color:#666;margin-bottom:2px;">${isFbrApplicable ? 'FBR | DIGITAL INVOICE' : 'ZATCA | هيئة الزكاة'}</div>
     <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(zatcaQrPayload)}" />
   </div>
   ` : ''}

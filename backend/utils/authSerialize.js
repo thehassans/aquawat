@@ -56,6 +56,31 @@ export const serializeNbrForAuth = (nbr) => {
   };
 };
 
+export const serializeFbrForAuth = (fbr) => {
+  if (!fbr) return null;
+  return {
+    isEnabled: fbr.isEnabled !== false,
+    isOnboarded: Boolean(fbr.isOnboarded),
+    ntn: fbr.ntn || '',
+    strn: fbr.strn || '',
+    cnic: fbr.cnic || '',
+    posId: fbr.posId || '',
+    scenarioId: fbr.scenarioId || '',
+    province: fbr.province || 'Sindh',
+    defaultHsCode: fbr.defaultHsCode || '0000.0000',
+    defaultSalesTaxRate: fbr.defaultSalesTaxRate ?? 18,
+    autoGenerateQr: fbr.autoGenerateQr !== false,
+    autoSubmit: fbr.autoSubmit !== false,
+    environment: fbr.environment || 'sandbox',
+    apiBaseUrl: fbr.apiBaseUrl || '',
+    connectionStatus: fbr.connectionStatus || 'disconnected',
+    lastSyncAt: fbr.lastSyncAt || null,
+    onboardedAt: fbr.onboardedAt || null,
+    invoiceCounter: fbr.invoiceCounter || 0,
+    hasApiToken: Boolean(fbr.apiToken || fbr.apiKey),
+  };
+};
+
 export const serializeAuthTenant = (tenant) => {
   if (!tenant) return null;
 
@@ -78,6 +103,7 @@ export const serializeAuthTenant = (tenant) => {
     demoUpgraded: Boolean(source.demoUpgraded),
     zatca: serializeZatcaForAuth(source.zatca),
     nbr: serializeNbrForAuth(source.nbr),
+    fbr: serializeFbrForAuth(source.fbr),
   };
 };
 

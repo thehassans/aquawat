@@ -5,14 +5,17 @@ import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
 import Branch from '../models/Branch.js';
 import { emitToTenant } from '../lib/socket.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { sendRestaurantWhatsApp, sendRestaurantOpenNotification } from '../services/restaurantWhatsAppService.js';
+import { isFbrCurrency } from '../utils/fbrCurrency.js';
+import { applyFbrToInvoice } from '../utils/fbr/FbrService.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('restaurant'));
 
 // Helper: build branch-scoped filter for non-admin users with a branchId
@@ -210,6 +213,11 @@ export async function createInvoiceForOrder(order, req) {
     createdBy: req.user._id,
     notes: order.notes,
   });
+
+  if (isFbrCurrency(tenant)) {
+    await applyFbrToInvoice(invoice, tenant, tenant.business);
+    await invoice.save();
+  }
 
   order.invoiceId = invoice._id;
   order.invoiceNumber = invoice.invoiceNumber;

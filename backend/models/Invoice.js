@@ -149,6 +149,20 @@ const zatcaSchema = new mongoose.Schema({
   lastError: { type: String }
 });
 
+const fbrInvoiceSchema = new mongoose.Schema({
+  fbrInvoiceNo: { type: String, default: '' },
+  qrCode: { type: String, default: '' },
+  submissionStatus: {
+    type: String,
+    enum: ['pending', 'submitted', 'accepted', 'rejected', 'sandbox'],
+    default: 'pending',
+  },
+  submittedAt: { type: Date },
+  lastError: { type: String, default: '' },
+  sandbox: { type: Boolean, default: false },
+  response: { type: mongoose.Schema.Types.Mixed },
+}, { _id: false });
+
 const inventorySchema = new mongoose.Schema({
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', set: cleanObjectId },
   postedAt: { type: Date },
@@ -234,6 +248,8 @@ const invoiceSchema = new mongoose.Schema({
   
   // ZATCA Compliance
   zatca: zatcaSchema,
+  // Pakistan FBR Digital Invoicing
+  fbr: fbrInvoiceSchema,
 
   inventory: inventorySchema,
   

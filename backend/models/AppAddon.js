@@ -16,6 +16,7 @@ const appAddonSchema = new mongoose.Schema({
       'pos_retail',
       'saudi_compliance',
       'bangladesh_compliance',
+      'pakistan_compliance',
       'hardware_iot',
       'automation_comm',
       'ai_intelligence',
@@ -35,6 +36,7 @@ const appAddonSchema = new mongoose.Schema({
       'hardware_integration',
       'saudi_compliance',
       'bangladesh_compliance',
+      'pakistan_compliance',
       'automation_comm',
       'ai_tool',
       'premium_addon'

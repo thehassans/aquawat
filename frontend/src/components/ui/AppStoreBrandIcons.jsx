@@ -158,6 +158,13 @@ const ICONS = {
       <path d="M24 31l4.5 4.5L40 24" stroke="#B45309" strokeWidth="2.6" strokeLinecap="round" />
     </Tile>
   ),
+  fbr: (uid, className) => (
+    <Tile uid={uid} className={className} from="#01411C" to="#0B8A3C" glow="#016630" stroke="#86EFAC">
+      <rect x="18" y="16" width="28" height="32" rx="4" fill="#FFFFFF" />
+      <path d="M24 24h16M24 30h12M24 36h8" stroke="#016630" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="40" cy="40" r="4" fill="#0B8A3C" />
+    </Tile>
+  ),
 }
 
 const APP_ID_MAP = {
@@ -169,6 +176,8 @@ const APP_ID_MAP = {
   saber_conformity: 'saber',
   balady_municipal: 'balady',
   etimad_procurement: 'etimad',
+  pakistan_fbr_einvoicing: 'fbr',
+  bangladesh_nbr_einvoicing: 'zatca',
   smsa_express: 'smsa',
   aramex_shipping: 'aramex',
   jnt_express: 'jnt',
