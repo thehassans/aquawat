@@ -8,6 +8,7 @@ import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { Building2 } from 'lucide-react'
 import DocumentExtras from './DocumentExtras'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
@@ -37,7 +38,7 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   
-  const documentNumber = invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
+  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
   
   const formatDate = (dateString, locale = 'en-US') => {
     if (!dateString) return '—'
@@ -64,9 +65,8 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
     )
   }
 
-  const isQuotation = documentType === 'quotation'
-  const invoiceTitleEn = isQuotation ? 'QUOTATION' : 'TAX INVOICE'
-  const invoiceTitleAr = isQuotation ? 'عرض سعر' : 'فاتورة ضريبية'
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { uppercase: true })
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar')
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border-2 border-black overflow-hidden font-sans rounded-none">
@@ -98,7 +98,7 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
         {/* Info Grid */}
         <div className="flex border-b-2 border-black pb-6 mb-6">
           <div className="w-1/3 pr-6 border-r-2 border-black">
-            <h3 className="text-[10px] text-black uppercase font-black mb-2 tracking-widest">BILL TO</h3>
+            <h3 className="text-[10px] text-black uppercase font-black mb-2 tracking-widest">{getCommercialCounterpartyLabel(documentType, 'en').toUpperCase()}</h3>
             <p className="text-base font-bold text-black uppercase">{buyerNameEn}</p>
             {bilingual && buyerNameAr && <p className="text-sm font-bold text-black mt-1" dir="rtl">{buyerNameAr}</p>}
             {invoice?.buyer?.vatNumber && <p className="text-xs font-mono text-black mt-2 font-bold">VAT: {invoice.buyer.vatNumber}</p>}
@@ -106,7 +106,7 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
           
           <div className="w-1/3 px-6 border-r-2 border-black">
             <div className="mb-4">
-              <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">INVOICE NO.</h3>
+              <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">{getCommercialDocumentNumberLabel(documentType, 'en').toUpperCase()}</h3>
               <p className="text-base font-mono font-bold text-black">#{documentNumber}</p>
             </div>
             <div>
@@ -122,7 +122,7 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
                <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">SELLER CR</h3>
                <p className="text-sm font-mono font-bold text-black">{invoice?.seller?.crNumber || '—'}</p>
              </div>
-             {qrValue && (
+             {shouldShowZatcaQr(documentType) && qrValue && (
                 <div className="p-1 border-2 border-black bg-white">
                   <QRCodeSVG value={qrValue} size={70} bgColor="#ffffff" fgColor="#000000" />
                 </div>

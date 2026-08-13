@@ -1,5 +1,5 @@
 import React from 'react'
-import DocumentExtras from './DocumentExtras'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -8,6 +8,7 @@ import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { Building2, MapPin, Phone, Mail } from 'lucide-react'
+import DocumentExtras from './DocumentExtras'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
@@ -39,7 +40,7 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   
-  const documentNumber = invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
+  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
   
   const formatDate = (dateString, locale = 'en-US') => {
     if (!dateString) return '—'
@@ -66,9 +67,8 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
     )
   }
 
-  const isQuotation = documentType === 'quotation'
-  const invoiceTitleEn = isQuotation ? 'Quotation' : 'Tax Invoice'
-  const invoiceTitleAr = isQuotation ? 'عرض سعر' : 'فاتورة ضريبية'
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en')
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar')
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-200 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] overflow-hidden font-sans rounded-xl">
@@ -102,7 +102,7 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
               </h1>
               {bilingual && <h1 className="text-3xl font-extrabold tracking-tighter mt-1" style={{ color: primaryColor }} dir="rtl">{invoiceTitleAr}</h1>}
               <div className="mt-6 inline-block bg-slate-50 px-5 py-3 rounded-lg border border-slate-200 shadow-sm">
-                <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Invoice No.</p>
+                <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">{getCommercialDocumentNumberLabel(documentType, 'en')}</p>
                 <p className="text-xl font-bold text-slate-900 mt-0.5">#{documentNumber}</p>
               </div>
             </div>
@@ -112,7 +112,7 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
         {/* Info Grid */}
         <div className="grid grid-cols-3 gap-8 mb-12 border-y border-slate-200 py-8">
           <div>
-            <h3 className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-4">Bill To</h3>
+            <h3 className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-4">{getCommercialCounterpartyLabel(documentType, 'en')}</h3>
             <p className="text-lg font-bold text-slate-900 leading-tight">{buyerNameEn}</p>
             {bilingual && buyerNameAr && <p className="text-base font-bold text-slate-900 mt-1" dir="rtl">{buyerNameAr}</p>}
             {invoice?.buyer?.vatNumber && <p className="text-sm text-slate-500 mt-3 font-medium">VAT: {invoice.buyer.vatNumber}</p>}
@@ -128,7 +128,7 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
             )}
           </div>
           <div className="flex justify-end items-center">
-             {qrValue && (
+             {shouldShowZatcaQr(documentType) && qrValue && (
                 <div className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm">
                   <QRCodeSVG value={qrValue} size={100} bgColor="#ffffff" fgColor={primaryColor} />
                 </div>

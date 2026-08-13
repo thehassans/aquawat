@@ -27,6 +27,8 @@ import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf, mapPurchaseOrderForPdf } from '../lib/invoicePdf'
 import InvoiceLivePreview from '../components/invoices/InvoiceLivePreview'
+import { getInvoiceTemplateId } from '../lib/invoiceBranding'
+import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../lib/invoiceLanguage'
 import Select from 'react-select'
 import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 
@@ -965,6 +967,9 @@ export default function PurchaseOrderForm() {
                 invoice={previewInvoice}
                 tenant={tenant}
                 language={language}
+                templateId={getInvoiceTemplateId(tenant, previewInvoice?.businessContext, previewInvoice?.pdfTemplateId)}
+                bilingual={resolveInvoiceBilingual(tenant, true)}
+                secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
                 documentType="purchase_order"
               />
             </div>

@@ -17,6 +17,9 @@ import AirTemplate from './AirTemplate'
 import LedgerTemplate from './LedgerTemplate'
 import SignatureTemplate from './SignatureTemplate'
 import DocumentExtras from './DocumentExtras'
+import {
+  resolveCommercialDocumentNumber,
+} from '../../lib/commercialDocumentLabels'
 
 const joinClasses = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -359,13 +362,17 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const styles = getTemplateClasses(Number(templateId || invoiceBranding.templateId || 1))
   const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
   const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
+  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || (documentType === 'purchase_order' ? 'Supplier' : 'Cash Customer')
   const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
   const sellerName = bilingual ? toBilingualText(sellerNameEn, sellerNameAr) : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
   const buyerName = bilingual ? toBilingualText(buyerNameEn, buyerNameAr) : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
   const customerLabel = bilingual
-    ? (invoice?.flow === 'purchase' ? toBilingualText('Buyer', 'المشتري') : toBilingualText('Customer', 'العميل'))
-    : (invoice?.flow === 'purchase' ? (language === 'ar' ? 'المشتري' : 'Buyer') : (language === 'ar' ? 'العميل' : 'Customer'))
+    ? (documentType === 'purchase_order'
+      ? toBilingualText('Supplier', 'المورد')
+      : invoice?.flow === 'purchase' ? toBilingualText('Buyer', 'المشتري') : toBilingualText('Customer', 'العميل'))
+    : (documentType === 'purchase_order'
+      ? (language === 'ar' ? 'المورد' : 'Supplier')
+      : (invoice?.flow === 'purchase' ? (language === 'ar' ? 'المشتري' : 'Buyer') : (language === 'ar' ? 'العميل' : 'Customer')))
   const logoSrc = invoiceBranding.logoSrc
   const vatNumber = invoice?.seller?.vatNumber || tenant?.business?.vatNumber
   // ZATCA is a Saudi-only requirement tied to SAR-denominated invoices.
@@ -400,7 +407,8 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const isTravelInvoice = isTravelAgencyInvoice(invoice)
   const travelInvoiceLabelMeta = isTravelInvoice ? getTravelInvoiceLabelMeta(invoice, language) : null
   const isQuotation = documentType === 'quotation'
-  const documentNumber = invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
+  const isPurchaseOrder = documentType === 'purchase_order'
+  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
   const amountInWordsLines = bilingual
     ? uniqueLines(
         getAmountInWords(totals.grandTotal, currency, 'en'),
@@ -410,7 +418,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
       )
     : [getAmountInWords(totals.grandTotal, currency, language)]
   const hideTaxOnInvoice = isTravelInvoice && toNumber(totals.totalTax) <= 0
-  const showInvoiceTitle = isQuotation || !(invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency')
+  const showInvoiceTitle = isQuotation || isPurchaseOrder || !(invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency')
   const invoiceTitle = bilingual
     ? toBilingualText(getInvoiceTitle(invoice, 'en', documentType), getInvoiceTitle(invoice, 'ar', documentType))
     : getInvoiceTitle(invoice, language, documentType)
@@ -640,7 +648,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
               </div>
             </div>
             <div className="flex min-w-[148px] flex-col items-center gap-3 self-start text-center">
-              {!isTravelInvoice && !isQuotation && isZatcaApplicable && (
+              {!isTravelInvoice && !isQuotation && !isPurchaseOrder && isZatcaApplicable && (
                 <div className="rounded-[1.5rem] border border-slate-200 bg-white p-2 shadow-sm">
                   {qrValue ? (
                     <QRCodeSVG value={qrValue} size={88} bgColor="transparent" fgColor="#0F172A" />
@@ -723,7 +731,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
 
         <div className="mt-4 grid grid-cols-1 gap-4 rounded-[1.5rem] border border-slate-200 bg-white p-5 md:grid-cols-2 xl:grid-cols-4">
           <div>
-            <p className={`text-xs ${mutedText}`}>{isQuotation ? (language === 'ar' ? 'رقم عرض السعر' : 'Quotation #') : (language === 'ar' ? 'رقم الفاتورة' : 'Invoice #')}</p>
+            <p className={`text-xs ${mutedText}`}>{isPurchaseOrder ? (language === 'ar' ? 'رقم طلب الشراء' : 'PO #') : isQuotation ? (language === 'ar' ? 'رقم عرض السعر' : 'Quotation #') : (language === 'ar' ? 'رقم الفاتورة' : 'Invoice #')}</p>
             <p className={`mt-1 text-sm font-semibold ${titleText}`}>{documentNumber}</p>
           </div>
           <div>
@@ -731,8 +739,8 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
             <p className={`mt-1 text-sm font-semibold ${titleText}`}>{formatDate((isQuotation ? invoice?.validUntil : invoice?.issueDate) || new Date(), language)}</p>
           </div>
           <div>
-            <p className={`text-xs ${mutedText}`}>{isQuotation ? (language === 'ar' ? 'نوع المستند' : 'Document Type') : (language === 'ar' ? 'التدفق' : 'Flow')}</p>
-            <p className={`mt-1 text-sm font-semibold ${titleText}`}>{isQuotation ? (language === 'ar' ? 'عرض سعر' : 'Quotation') : (invoice?.flow || 'sell')}</p>
+            <p className={`text-xs ${mutedText}`}>{isPurchaseOrder || isQuotation ? (language === 'ar' ? 'نوع المستند' : 'Document Type') : (language === 'ar' ? 'التدفق' : 'Flow')}</p>
+            <p className={`mt-1 text-sm font-semibold ${titleText}`}>{isPurchaseOrder ? (language === 'ar' ? 'طلب شراء' : 'Purchase Order') : isQuotation ? (language === 'ar' ? 'عرض سعر' : 'Quotation') : (invoice?.flow || 'sell')}</p>
           </div>
           <div>
             <p className={`text-xs ${mutedText}`}>{language === 'ar' ? 'تم الإنشاء بواسطة' : 'Created By'}</p>

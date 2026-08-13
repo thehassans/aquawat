@@ -1,5 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -38,7 +39,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   
-  const documentNumber = invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
+  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
   
   const formatDate = (dateString, locale = 'en-US') => {
     if (!dateString) return '—'
@@ -65,9 +66,8 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
     )
   }
 
-  const isQuotation = documentType === 'quotation'
-  const invoiceTitleEn = isQuotation ? 'QUOTATION' : 'TAX INVOICE'
-  const invoiceTitleAr = isQuotation ? 'عرض سعر' : 'فاتورة ضريبية'
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { uppercase: true })
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar')
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-300 font-sans shadow-md rounded-none">
@@ -95,7 +95,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
           <table className="w-full text-sm">
             <tbody>
               <tr>
-                <td className="py-1 font-bold text-slate-600 uppercase w-32">Invoice No:</td>
+                <td className="py-1 font-bold text-slate-600 uppercase w-32">{getCommercialDocumentNumberLabel(documentType, 'en')}:</td>
                 <td className="py-1 font-medium text-slate-900">{documentNumber}</td>
               </tr>
               <tr>
@@ -124,7 +124,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
               </tr>
             </tbody>
           </table>
-          {qrValue && (
+          {shouldShowZatcaQr(documentType) && qrValue && (
             <div className="p-1 border border-slate-300 bg-white shadow-sm">
               <QRCodeSVG value={qrValue} size={64} bgColor="#ffffff" fgColor="#1e293b" />
             </div>
@@ -134,7 +134,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
 
       {/* Bill To */}
       <div className="p-6 border-b border-slate-300 bg-slate-50/50">
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 pb-1 w-fit">Bill To</h3>
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 pb-1 w-fit">{getCommercialCounterpartyLabel(documentType, 'en')}</h3>
         <p className="text-base font-bold text-slate-900">{buyerNameEn}</p>
         {bilingual && buyerNameAr && <p className="text-sm font-bold text-slate-900 mt-1" dir="rtl">{buyerNameAr}</p>}
         {invoice?.buyer?.vatNumber && <p className="text-sm text-slate-700 mt-2">VAT: {invoice.buyer.vatNumber}</p>}

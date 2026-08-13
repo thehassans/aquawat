@@ -1,5 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -38,7 +39,7 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   
-  const documentNumber = invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
+  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
   
   const formatDate = (dateString, locale = 'en-US') => {
     if (!dateString) return '—'
@@ -65,9 +66,8 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
     )
   }
 
-  const isQuotation = documentType === 'quotation'
-  const invoiceTitleEn = isQuotation ? 'Quotation' : 'Invoice'
-  const invoiceTitleAr = isQuotation ? 'عرض سعر' : 'فاتورة'
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en')
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar')
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white overflow-hidden font-sans rounded-3xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.05)] relative">
@@ -103,7 +103,7 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
             
             <div className="mt-16 flex gap-12 text-right">
               <div>
-                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-medium mb-2">Invoice No.</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-medium mb-2">{getCommercialDocumentNumberLabel(documentType, 'en')}</p>
                 <p className="text-xl font-light text-slate-800">{documentNumber}</p>
               </div>
               <div>
@@ -117,14 +117,14 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
         {/* Bill To & QR */}
         <div className="flex justify-between items-end mb-24 bg-slate-50/50 rounded-3xl p-10 relative">
           <div className="pl-4">
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-medium mb-6">Billed To</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-medium mb-6">{getCommercialCounterpartyLabel(documentType, 'en')}</p>
             <h3 className="text-3xl font-light text-slate-900 mb-2">{buyerNameEn}</h3>
             {bilingual && buyerNameAr && <h3 className="text-xl font-light text-slate-500 mb-4" dir="rtl">{buyerNameAr}</h3>}
             {invoice?.buyer?.vatNumber && <p className="text-sm text-slate-500 mt-2 font-light tracking-wide">VAT: {invoice.buyer.vatNumber}</p>}
           </div>
 
           <div>
-             {qrValue && (
+             {shouldShowZatcaQr(documentType) && qrValue && (
                 <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100">
                   <QRCodeSVG value={qrValue} size={90} bgColor="transparent" fgColor={primaryColor} />
                 </div>

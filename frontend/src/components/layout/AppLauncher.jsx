@@ -21,6 +21,7 @@ const APP_STYLE_MAP = {
   // Finance & Accounting Group (Purple / Indigo)
   '/app/dashboard/finance': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   '/app/dashboard/invoices': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
+  '/app/dashboard/letterhead': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   '/app/dashboard/expenses': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   '/app/dashboard/vat-returns': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   '/app/dashboard/vouchers': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
@@ -37,6 +38,7 @@ const APP_STYLE_MAP = {
 
   // Sales & CRM Group (Orange / Red)
   '/app/dashboard/customers': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
+  '/app/dashboard/customers/statement': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
   '/app/dashboard/quotations': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
   '/app/dashboard/contacts': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
   '/app/dashboard/calendar': { gradient: 'from-[#E11D48] to-[#FB7185]' },
@@ -49,6 +51,7 @@ const APP_STYLE_MAP = {
   '/app/dashboard/purchase-orders': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/suppliers': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/shipments': { gradient: 'from-[#11998e] to-[#38ef7d]' },
+  '/app/dashboard/landed-costs': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/warehouses': { gradient: 'from-[#11998e] to-[#38ef7d]' },
 
   // Project & Task Management (Blue)

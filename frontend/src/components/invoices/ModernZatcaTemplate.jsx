@@ -9,6 +9,12 @@ import { formatCurrencyAmount } from '../../lib/currency'
 import { Building2, Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info } from 'lucide-react'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { bilingualLabel, localizeSecondaryText, setActiveInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
+import {
+  getCommercialCounterpartyLabel,
+  getCounterpartyFallbackName,
+  resolveCommercialDocumentNumber,
+  shouldShowZatcaQr,
+} from '../../lib/commercialDocumentLabels'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 const toEasternArabicNumerals = (str) => String(str || '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d])
@@ -26,7 +32,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   
   const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
   const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
+  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || getCounterpartyFallbackName(documentType, 'en')
   const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
   
   const sellerName = bilingual ? sellerNameEn : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
@@ -47,7 +53,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   
-  const documentNumber = invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
+  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
   
   const formatDate = (dateString, locale = 'en-SA') => {
     if (!dateString) return '—'
@@ -91,6 +97,8 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
 
   const isBoutiqueRental = invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental'
   const isQuotation = documentType === 'quotation'
+  const isPurchaseOrder = documentType === 'purchase_order'
+  const showZatcaQr = shouldShowZatcaQr(documentType)
 
   return (
     <div dir="ltr" className={`relative mx-auto max-w-5xl ${invoiceBranding.letterheadImage ? 'bg-transparent' : 'bg-white'} border rounded-[2rem] shadow-xl overflow-hidden font-sans`}>
@@ -157,7 +165,9 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
 
           <div className="flex flex-col gap-4 md:items-end">
             <div className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium w-fit ${
-              invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
+              isPurchaseOrder
+                ? 'bg-slate-900 text-white border-slate-900'
+                : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
                 ? 'bg-blue-50 text-blue-700 border-blue-200'
                 : invoice?.businessContext === 'boutique'
                 ? invoice?.boutiqueDetails?.transactionType === 'sale'
@@ -166,7 +176,9 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                 : 'bg-primary-50 text-primary-700'
             }`}>
               <FileText className="mr-2 h-4 w-4" />
-              {invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
+              {isPurchaseOrder
+                ? L('Purchase Order', 'طلب شراء')
+                : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
                 ? L('Furniture Sale Invoice', 'فاتورة بيع مفروشات')
                 : invoice?.businessContext === 'boutique'
                 ? invoice?.boutiqueDetails?.transactionType === 'sale'
@@ -215,7 +227,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
           <div className="rounded-xl border bg-gray-50 p-3">
             <h3 className="mb-2 flex items-center gap-2 font-semibold text-gray-900 border-b pb-1 text-sm">
               <User className="h-4 w-4 text-primary-600" />
-              {L('Bill To', 'الفاتورة إلى')}
+              {L(getCommercialCounterpartyLabel(documentType, 'en'), getCommercialCounterpartyLabel(documentType, 'ar'))}
             </h3>
             <div className="space-y-1 text-sm text-gray-700">
               <p className="font-bold text-gray-900 text-base">{buyerName}</p>
@@ -563,7 +575,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             </div>
           </div>
 
-          {!isQuotation && isZatcaApplicable && (
+          {showZatcaQr && isZatcaApplicable && (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50/50 p-3 w-full md:w-56">
               <QRCodeSVG value={qrValue} size={100} bgColor="transparent" fgColor="#111827" />
               <p className="mt-2 text-xs text-center text-gray-500">ZATCA Compliant QR</p>

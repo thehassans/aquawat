@@ -251,6 +251,7 @@ const renderQrToDataUrl = async (value, size = 112) => {
 
 const shouldRenderBilingualInvoice = (invoice, documentType = 'invoice', tenant = null) => {
   const contextBilingual = documentType === 'quotation'
+    || documentType === 'purchase_order'
     || invoice?.invoiceSubtype === 'travel_ticket'
     || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
   return resolveInvoiceBilingual(tenant, contextBilingual)
@@ -1703,8 +1704,8 @@ export const mapPurchaseOrderForPdf = (purchaseOrder, tenant) => {
     transactionType: 'Purchase Order',
     flow: 'purchase',
     lineItems,
-    // Buyer = tenant company placing the order; seller = supplier
-    buyer: {
+    // Letterhead = tenant issuing the PO; counterparty box = supplier
+    seller: {
       name: business.legalNameEn || business.legalNameAr || tenant?.name || '',
       nameEn: business.legalNameEn || tenant?.name || '',
       nameAr: business.legalNameAr || '',
@@ -1714,7 +1715,7 @@ export const mapPurchaseOrderForPdf = (purchaseOrder, tenant) => {
       contactEmail: business.contactEmail || '',
       address: business.address || {},
     },
-    seller: {
+    buyer: {
       name: supplier.nameEn || supplier.name || supplier.nameAr || '',
       nameEn: supplier.nameEn || supplier.name || '',
       nameAr: supplier.nameAr || '',

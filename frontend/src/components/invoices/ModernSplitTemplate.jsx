@@ -1,5 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -37,7 +38,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   
-  const documentNumber = invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
+  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
   
   const formatDate = (dateString, locale = 'en-SA') => {
     if (!dateString) return '—'
@@ -64,10 +65,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
     )
   }
 
-  const isQuotation = documentType === 'quotation'
-  const invoiceTitle = isQuotation 
-    ? (language === 'ar' ? 'عرض سعر' : 'QUOTATION')
-    : (language === 'ar' ? 'فاتورة ضريبية' : 'TAX INVOICE')
+  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { uppercase: language !== 'ar' })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white shadow-xl flex font-sans min-h-[1056px]" style={{ fontFamily: 'Arial, Helvetica, "Almarai", sans-serif' }}>
@@ -87,7 +85,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
           <h1 className="text-2xl font-bold tracking-widest mb-8 uppercase text-slate-300 border-b border-slate-700 pb-4">{invoiceTitle}</h1>
           
           <div className="mb-8">
-            <p className="text-slate-400 text-xs tracking-widest uppercase mb-1">Invoice Number</p>
+            <p className="text-slate-400 text-xs tracking-widest uppercase mb-1">{getCommercialDocumentNumberLabel(documentType, 'en')}</p>
             <p className="text-lg font-bold">#{documentNumber}</p>
           </div>
           
@@ -96,7 +94,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
             <p className="text-lg font-bold">{formatDate(invoice?.issueDate || new Date(), 'en-US')}</p>
           </div>
 
-          {!isQuotation && qrValue && (
+          {shouldShowZatcaQr(documentType) && qrValue && (
             <div className="mt-8 bg-white p-2 rounded-xl inline-block">
               <QRCodeSVG value={qrValue} size={120} bgColor="transparent" fgColor="#0f172a" />
             </div>
@@ -124,7 +122,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
           </div>
           
           <div className="w-[45%] bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-bold text-blue-500 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Billed To</p>
+            <p className="text-xs font-bold text-blue-500 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">{getCommercialCounterpartyLabel(documentType, 'en')}</p>
             <h3 className="text-lg font-bold text-slate-900">{buyerNameEn}</h3>
             {bilingual && <h3 className="text-md font-bold text-slate-700 mt-1" dir="rtl">{buyerNameAr}</h3>}
             <div className="mt-3 text-sm text-slate-600 space-y-1">

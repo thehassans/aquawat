@@ -1,5 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
+import { getCommercialCounterpartyLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -37,7 +38,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   
-  const documentNumber = invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
+  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
   
   const formatDate = (dateString, locale = 'en-SA') => {
     if (!dateString) return '—'
@@ -64,10 +65,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
     )
   }
 
-  const isQuotation = documentType === 'quotation'
-  const invoiceTitle = isQuotation 
-    ? (language === 'ar' ? 'عرض سعر' : 'Quotation')
-    : (language === 'ar' ? 'فاتورة ضريبية' : 'Tax Invoice')
+  const invoiceTitle = getCommercialDocumentTitle(documentType, language)
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border-double border-[6px] border-amber-900 shadow-2xl p-8 font-serif" style={{ fontFamily: '"Times New Roman", Times, "Almarai", serif' }}>
@@ -101,7 +99,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
       {/* Bill To & QR */}
       <div className="flex justify-between items-start mb-8">
         <div className="w-1/2">
-          <p className="text-sm font-semibold text-amber-900 uppercase tracking-widest mb-2 border-b border-amber-200 pb-1 inline-block">Bill To</p>
+          <p className="text-sm font-semibold text-amber-900 uppercase tracking-widest mb-2 border-b border-amber-200 pb-1 inline-block">{getCommercialCounterpartyLabel(documentType, 'en')}</p>
           <h3 className="text-lg font-bold text-gray-900">{buyerNameEn}</h3>
           {bilingual && <h3 className="text-lg font-bold text-gray-900 mt-1" dir="rtl">{buyerNameAr}</h3>}
           <div className="mt-2 text-sm text-gray-700">
@@ -110,7 +108,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
           </div>
         </div>
         
-        {!isQuotation && qrValue && (
+        {shouldShowZatcaQr(documentType) && qrValue && (
           <div className="w-32 h-32 p-2 border-2 border-amber-900">
             <QRCodeSVG value={qrValue} size="100%" bgColor="transparent" fgColor="#451a03" />
           </div>

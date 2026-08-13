@@ -1,5 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -38,7 +39,7 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   
-  const documentNumber = invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
+  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
   
   const formatDate = (dateString, locale = 'en-US') => {
     if (!dateString) return '—'
@@ -65,9 +66,8 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
     )
   }
 
-  const isQuotation = documentType === 'quotation'
-  const invoiceTitleEn = isQuotation ? 'Quotation' : 'Invoice'
-  const invoiceTitleAr = isQuotation ? 'عرض سعر' : 'فاتورة'
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en')
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar')
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-200 overflow-hidden font-serif rounded-lg shadow-xl relative">
@@ -86,7 +86,7 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
             {bilingual && <h1 className="text-2xl font-normal text-slate-600 mt-2 tracking-wider" dir="rtl">{invoiceTitleAr}</h1>}
             <div className="mt-8 flex gap-12">
               <div>
-                <p className="text-[9px] text-slate-400 uppercase tracking-[0.2em] font-sans mb-1">Invoice Number</p>
+                <p className="text-[9px] text-slate-400 uppercase tracking-[0.2em] font-sans mb-1">{getCommercialDocumentNumberLabel(documentType, 'en')}</p>
                 <p className="text-base font-serif text-slate-900">{documentNumber}</p>
               </div>
               <div>
@@ -116,13 +116,13 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
         {/* Bill To & QR */}
         <div className="flex justify-between items-start mb-16">
           <div className="w-1/2">
-            <h3 className="text-[9px] text-slate-400 uppercase tracking-[0.2em] font-sans mb-4 border-b border-slate-100 pb-2 w-fit">Invoiced To</h3>
+            <h3 className="text-[9px] text-slate-400 uppercase tracking-[0.2em] font-sans mb-4 border-b border-slate-100 pb-2 w-fit">{getCommercialCounterpartyLabel(documentType, 'en')}</h3>
             <p className="text-2xl font-normal text-slate-900 mb-1">{buyerNameEn}</p>
             {bilingual && buyerNameAr && <p className="text-xl font-normal text-slate-600 mb-2" dir="rtl">{buyerNameAr}</p>}
             {invoice?.buyer?.vatNumber && <p className="text-sm font-sans text-slate-500 mt-2">VAT: {invoice.buyer.vatNumber}</p>}
           </div>
           <div>
-             {qrValue && (
+             {shouldShowZatcaQr(documentType) && qrValue && (
                 <div className="p-1 border border-slate-200 bg-white">
                   <QRCodeSVG value={qrValue} size={90} bgColor="#ffffff" fgColor={primaryColor} />
                 </div>
