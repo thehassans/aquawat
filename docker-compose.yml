@@ -291,6 +291,12 @@ services:
       - "8080:80"
     # Plesk Docker proxy will forward host port 8080 to this container
     # /api is proxied internally to the backend container via upstream pool
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
     # ── Resource limits ────────────────────────────────────────────────────────
     deploy:

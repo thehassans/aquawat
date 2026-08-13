@@ -24,6 +24,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy Nginx config + Cloudflare visitor-IP restore (no-op unless CF is in front)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY cloudflare-realip.conf /etc/nginx/cloudflare-realip.conf
+RUN nginx -t
 
 EXPOSE 80
 
