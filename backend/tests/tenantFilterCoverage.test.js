@@ -33,8 +33,10 @@ test('req.user.tenantId without requireTenantFilter stays on the known allowlist
   for (const file of walk(routesDir)) {
     const rel = path.relative(routesDir, file).replaceAll('\\', '/');
     const src = fs.readFileSync(file, 'utf8');
-    if (!src.includes('req.user.tenantId')) continue;
-    if (src.includes('requireTenantFilter')) continue;
+    const usesCallerTenant =
+      src.includes('req.user.tenantId') || src.includes('req.user?.tenantId');
+    if (!usesCallerTenant) continue;
+    if (src.includes('requireTenantFilter') || src.includes('resolveTenantId')) continue;
     if (!allowed.has(rel)) unexpected.push(rel);
   }
   assert.deepEqual(unexpected, []);

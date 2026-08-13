@@ -10,6 +10,8 @@ powershell -File ops/run-local-checks.ps1
 
 CI: `.github/workflows/deploy.yml` runs `npm test` in `backend/` and **blocks Plesk deploy** if those tests fail.
 
+GitHub Actions is currently **not starting jobs** (`account is locked due to a billing issue`). Unlock billing on the GitHub org/user or Plesk will not receive this workflow’s deploys. Local checks still run with the PowerShell command above.
+
 ---
 
 ## 1. Tenant isolation & CSRF (Newman)

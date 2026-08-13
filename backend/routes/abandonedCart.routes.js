@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { resolveTenantByHost } from '../middleware/resolveTenantByHost.js';
 import { protect } from '../middleware/auth.js';
+import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import AbandonedCart from '../models/AbandonedCart.js';
 import EcommerceOrder from '../models/EcommerceOrder.js';
 import Tenant from '../models/Tenant.js';
@@ -70,8 +71,7 @@ router.post('/recover/:cartId', resolveTenantByHost, async (req, res) => {
 // Admin: list abandoned carts
 router.get('/', protect, async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
+    const tenantId = resolveTenantId(req.user, req);
     const { status, page = 1, limit = 20 } = req.query;
     const filter = { tenantId };
     if (status) filter.status = status;
@@ -84,6 +84,7 @@ router.get('/', protect, async (req, res) => {
 
     res.json({ carts, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
@@ -91,8 +92,7 @@ router.get('/', protect, async (req, res) => {
 // Admin: abandoned cart stats
 router.get('/stats', protect, async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) return res.status(400).json({ error: 'No tenant found' });
+    const tenantId = resolveTenantId(req.user, req);
     const [abandoned, recovered, emailed] = await Promise.all([
       AbandonedCart.countDocuments({ tenantId, status: 'abandoned' }),
       AbandonedCart.countDocuments({ tenantId, status: 'recovered' }),
@@ -114,6 +114,7 @@ router.get('/stats', protect, async (req, res) => {
       recoveredRevenue: recoveredRevenueResult[0]?.total || 0,
     });
   } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
     res.status(500).json({ error: error.message });
   }
 });
