@@ -173,6 +173,7 @@ import { initErrorTracking } from './utils/errorTracking.js';
 import { getRateLimitConfig, loadRateLimitConfig } from './utils/rateLimitConfig.js';
 import { startInvoicePdfWorker } from './services/invoicePdfQueue.js';
 import { ensureAtlasSearchIndex } from './utils/invoiceSearch.js';
+import { backfillMissingTrackTokens } from './models/khayyat/KhayyatStitching.js';
 
 dotenv.config();
 validateProductionEnv({ logger });
@@ -420,6 +421,19 @@ const connectToDatabase = async () => {
         await ensureAtlasSearchIndex();
       } catch (searchErr) {
         logger.warn(`[invoiceSearch] init failed: ${searchErr.message}`);
+      }
+      try {
+        let filled = 0;
+        for (let i = 0; i < 20; i += 1) {
+          const batch = await backfillMissingTrackTokens(2000);
+          filled += batch;
+          if (batch < 2000) break;
+        }
+        if (filled > 0) {
+          logger.info(`[khayyat] backfilled trackToken on ${filled} orders`);
+        }
+      } catch (tokenErr) {
+        logger.warn(`[khayyat] trackToken backfill failed: ${tokenErr.message}`);
       }
       startJobs();
     })

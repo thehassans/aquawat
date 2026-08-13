@@ -28,7 +28,7 @@ router.get('/dashboard', async (req, res) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(days));
 
-    const salesData = await Invoice.aggregate([
+    const salesData = await Invoice.statsAggregate([
       {
         $match: {
           ...tenantFilter,

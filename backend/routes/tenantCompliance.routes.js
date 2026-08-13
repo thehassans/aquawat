@@ -780,7 +780,7 @@ router.get('/zatca-health', async (req, res) => {
       return res.status(404).json({ error: 'Tenant not found' });
     }
 
-    const invoiceStats = await Invoice.aggregate([
+    const invoiceStats = await Invoice.statsAggregate([
       { $match: { tenantId: tenant._id, 'zatca.qrCodeData': { $exists: true, $ne: '' } } },
       { $group: { _id: '$zatca.submissionStatus', count: { $sum: 1 } } },
     ]);
@@ -975,7 +975,7 @@ router.get('/zatca-report', async (req, res) => {
     const tenant = await Tenant.findById(tenantId).select('name business vatCertificate').lean();
 
     const [invoiceStats, queueStats, auditStats] = await Promise.all([
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         {
           $match: {
             tenantId,

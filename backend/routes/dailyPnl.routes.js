@@ -32,7 +32,7 @@ router.get('/daily', async (req, res) => {
     let pnl = await DailyPnL.findOne({ ...tenantFilter, date });
 
     // Aggregate sales from invoices for this day
-    const salesAgg = await Invoice.aggregate([
+    const salesAgg = await Invoice.statsAggregate([
       {
         $match: {
           ...tenantFilter,
@@ -56,7 +56,7 @@ router.get('/daily', async (req, res) => {
     ]);
 
     // Get sales returns
-    const returnsAgg = await Invoice.aggregate([
+    const returnsAgg = await Invoice.statsAggregate([
       {
         $match: {
           ...tenantFilter,
@@ -70,7 +70,7 @@ router.get('/daily', async (req, res) => {
     ]);
 
     // Calculate COGS from line items
-    const lineItems = await Invoice.aggregate([
+    const lineItems = await Invoice.statsAggregate([
       {
         $match: {
           ...tenantFilter,
@@ -174,7 +174,7 @@ router.get('/monthly', async (req, res) => {
     const tenantFilter = getTenantFilter(req);
 
     // Daily breakdown
-    const dailySales = await Invoice.aggregate([
+    const dailySales = await Invoice.statsAggregate([
       {
         $match: {
           ...tenantFilter,
@@ -198,7 +198,7 @@ router.get('/monthly', async (req, res) => {
     ]);
 
     // Monthly COGS
-    const monthlyCogs = await Invoice.aggregate([
+    const monthlyCogs = await Invoice.statsAggregate([
       {
         $match: {
           ...tenantFilter,
@@ -249,7 +249,7 @@ router.get('/monthly', async (req, res) => {
     const netProfit = grossProfit - totalExpenses;
 
     // Top products by profit
-    const topProducts = await Invoice.aggregate([
+    const topProducts = await Invoice.statsAggregate([
       {
         $match: {
           ...tenantFilter,
@@ -375,7 +375,7 @@ router.get('/cash-flow', async (req, res) => {
     startDate.setDate(startDate.getDate() - parseInt(days));
 
     // Daily cash flow from sales + manual movements
-    const dailyData = await Invoice.aggregate([
+    const dailyData = await Invoice.statsAggregate([
       {
         $match: {
           ...tenantFilter,

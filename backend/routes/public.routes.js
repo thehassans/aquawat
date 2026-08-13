@@ -716,7 +716,7 @@ router.get('/tenant/:id/services', async (req, res) => {
   }
 })
 
-import KhayyatStitching from '../models/khayyat/KhayyatStitching.js'
+import KhayyatStitching, { createTrackToken } from '../models/khayyat/KhayyatStitching.js'
 
 router.get('/track/khayyat/:id', async (req, res) => {
   try {
@@ -741,7 +741,12 @@ router.get('/track/khayyat/:id', async (req, res) => {
           .lean()
       )
       if (byId && !byId.trackToken) {
-        order = byId
+        const token = createTrackToken()
+        await KhayyatStitching.updateOne(
+          { _id: byId._id, $or: [{ trackToken: { $exists: false } }, { trackToken: null }, { trackToken: '' }] },
+          { $set: { trackToken: token } }
+        )
+        order = { ...byId, trackToken: token }
       }
     }
 

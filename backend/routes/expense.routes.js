@@ -7,6 +7,7 @@ import Employee from '../models/Employee.js';
 import Customer from '../models/Customer.js';
 import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
+import { statsRead } from '../utils/mongoReadPreference.js';
 
 const router = express.Router();
 
@@ -148,7 +149,7 @@ router.get('/stats', checkPermission('finance', 'read'), async (req, res) => {
       match.isActive = true;
     }
 
-    const [result] = await Expense.aggregate([
+    const [result] = await statsRead(Expense.aggregate([
       { $match: match },
       {
         $facet: {
@@ -207,7 +208,7 @@ router.get('/stats', checkPermission('finance', 'read'), async (req, res) => {
           ]
         }
       }
-    ]);
+    ]));
 
     const totals = result?.totals?.[0] || { total: 0, grossTotal: 0, paidTotal: 0, approvedTotal: 0 };
 

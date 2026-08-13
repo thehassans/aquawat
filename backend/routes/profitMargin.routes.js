@@ -75,7 +75,7 @@ router.get('/overview', async (req, res) => {
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - parseInt(months));
 
-    const salesProfit = await Invoice.aggregate([
+    const salesProfit = await Invoice.statsAggregate([
       {
         $match: {
           ...tenantFilter,

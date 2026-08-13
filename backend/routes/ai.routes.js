@@ -200,7 +200,7 @@ router.post('/predict-inventory', checkAI, checkPermission('inventory', 'read'),
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
     
-    const salesData = await Invoice.aggregate([
+    const salesData = await Invoice.statsAggregate([
       {
         $match: {
           tenantId: req.user.tenantId,

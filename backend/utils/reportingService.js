@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Invoice from '../models/Invoice.js';
 import Expense from '../models/Expense.js';
 import VatReturn from '../models/VatReturn.js';
+import { statsAggregate } from './mongoReadPreference.js';
 
 const TRAVEL_MARGIN_VAT_RATE = 15;
 
@@ -196,7 +197,7 @@ const buildVatReturnPayload = async ({ tenantId, startDate, endDate }) => {
 
   const [savedReturn, invoiceLines, expenseAggregation] = await Promise.all([
     tenantId ? VatReturn.findOne({ tenantId: resolveTenantMatch(tenantId).tenantId, periodKey }) : null,
-    Invoice.aggregate([
+    Invoice.statsAggregate([
       { $match: invoiceMatch },
       { $unwind: '$lineItems' },
       {
@@ -210,7 +211,7 @@ const buildVatReturnPayload = async ({ tenantId, startDate, endDate }) => {
         },
       },
     ]),
-    Expense.aggregate([
+    statsAggregate(Expense, [
       { $match: expenseMatch },
       {
         $group: {
@@ -270,7 +271,7 @@ export const buildVatReturnReport = async ({ tenantId, startDate, endDate }) => 
     status: { $nin: ['draft', 'cancelled', 'credited'] },
   };
 
-  const [result] = await Invoice.aggregate([
+  const [result] = await Invoice.statsAggregate([
     { $match: match },
     {
       $facet: {
@@ -446,7 +447,7 @@ export const buildBusinessSummaryReport = async ({ tenantId, startDate, endDate 
   };
 
   const [invoiceAgg, expenseAgg] = await Promise.all([
-    Invoice.aggregate([
+    Invoice.statsAggregate([
       { $match: invoiceMatch },
       {
         $facet: {
@@ -490,7 +491,7 @@ export const buildBusinessSummaryReport = async ({ tenantId, startDate, endDate 
         },
       },
     ]),
-    Expense.aggregate([
+    statsAggregate(Expense, [
       { $match: expenseMatch },
       {
         $facet: {

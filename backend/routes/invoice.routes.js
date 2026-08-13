@@ -29,10 +29,10 @@ import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js
 import { clampTemplateId } from '../utils/premiumTemplates.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 import { ensureInvoiceDueDate } from '../utils/invoicePaymentTerms.js';
-import { isPastDueInRiyadh } from '../utils/riyadhTime.js';
 import { cacheAside } from '../lib/redis.js';
 import { applyInvoiceListSearch } from '../utils/invoiceSearch.js';
 import { statsRead } from '../utils/mongoReadPreference.js';
+import { resolvePaymentStatus, applyPaidAmountStatus, isOverpay } from '../utils/invoicePaymentStatus.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -62,41 +62,8 @@ function resolvePdfTemplateId(requestedTemplateId, tenant, businessContext = 'tr
   return clampTemplateId(tenant, value);
 }
 
-function resolvePaymentStatus(invoiceData) {
-  const method = invoiceData.paymentMethod || 'cash';
-  const grandTotal = Number(invoiceData.grandTotal) || 0;
-  
-  if (method === 'cash' || method === 'card' || method === 'bank_transfer') {
-    invoiceData.paidAmount = grandTotal;
-    invoiceData.paymentStatus = 'paid';
-  } else if (method === 'credit' || method === 'split' || method === 'khata') {
-    applyPaidAmountStatus(invoiceData);
-  } else {
-    invoiceData.paidAmount = grandTotal;
-    invoiceData.paymentStatus = 'paid';
-  }
-}
-
-function applyPaidAmountStatus(invoiceData) {
-  const grandTotal = Number(invoiceData.grandTotal) || 0;
-  const paid = Math.min(Math.max(0, Number(invoiceData.paidAmount) || 0), grandTotal);
-  invoiceData.paidAmount = Math.round(paid * 100) / 100;
-  if (grandTotal > 0 && invoiceData.paidAmount >= grandTotal - 0.005) {
-    invoiceData.paidAmount = grandTotal;
-    invoiceData.paymentStatus = 'paid';
-    return;
-  }
-  if (invoiceData.paidAmount > 0) {
-    invoiceData.paymentStatus = isPastDueInRiyadh(invoiceData.dueDate) ? 'overdue' : 'partial';
-    return;
-  }
-  invoiceData.paymentStatus = isPastDueInRiyadh(invoiceData.dueDate) ? 'overdue' : 'pending';
-}
-
 function rejectOverpay(req, res) {
-  const paid = Number(req.body?.paidAmount);
-  const grand = Number(req.body?.grandTotal);
-  if (Number.isFinite(paid) && Number.isFinite(grand) && paid > grand + 0.005) {
+  if (isOverpay(req.body?.paidAmount, req.body?.grandTotal)) {
     res.status(400).json({ error: 'paidAmount cannot exceed grandTotal' });
     return true;
   }

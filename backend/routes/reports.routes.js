@@ -359,7 +359,7 @@ async function buildVatReturnPayload({ tenantId, tenantFilterValue, startDate, e
         }
       }
     ]),
-    Expense.aggregate([
+    statsAggregate(Expense, [
       { $match: expenseMatch },
       {
         $group: {
@@ -759,7 +759,7 @@ router.get('/business-summary', async (req, res) => {
           }
         }
       ]),
-      Expense.aggregate([
+      statsAggregate(Expense, [
         { $match: expenseMatch },
         {
           $facet: {

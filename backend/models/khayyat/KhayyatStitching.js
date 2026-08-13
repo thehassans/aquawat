@@ -231,12 +231,35 @@ khayyatStitchingSchema.index({ tenantId: 1, status: 1 });
 khayyatStitchingSchema.index({ workerId: 1, status: 1 });
 khayyatStitchingSchema.index({ trackToken: 1 }, { unique: true, sparse: true });
 
+export function createTrackToken() {
+  return crypto.randomBytes(24).toString('base64url');
+}
+
 khayyatStitchingSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   if (!this.trackToken) {
-    this.trackToken = crypto.randomBytes(24).toString('base64url');
+    this.trackToken = createTrackToken();
   }
   next();
 });
 
-export default mongoose.model('KhayyatStitching', khayyatStitchingSchema);
+const KhayyatStitching = mongoose.model('KhayyatStitching', khayyatStitchingSchema);
+
+const MISSING_TOKEN = {
+  $or: [{ trackToken: { $exists: false } }, { trackToken: null }, { trackToken: '' }],
+};
+
+export async function backfillMissingTrackTokens(limit = 2000) {
+  const rows = await KhayyatStitching.find(MISSING_TOKEN).select('_id').limit(limit).lean();
+  if (!rows.length) return 0;
+  const ops = rows.map((row) => ({
+    updateOne: {
+      filter: { _id: row._id, ...MISSING_TOKEN },
+      update: { $set: { trackToken: createTrackToken() } },
+    },
+  }));
+  const result = await KhayyatStitching.bulkWrite(ops, { ordered: false });
+  return result.modifiedCount || result.nModified || ops.length;
+}
+
+export default KhayyatStitching;

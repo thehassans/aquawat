@@ -553,7 +553,7 @@ router.get('/reports/bestsellers', protect, async (req, res) => {
     }
 
     const [byGenre, byAuthor, byProduct] = await Promise.all([
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $unwind: '$lineItems' },
         { $lookup: { from: 'bookstoreproducts', localField: 'lineItems.productId', foreignField: '_id', as: 'product' } },
@@ -567,7 +567,7 @@ router.get('/reports/bestsellers', protect, async (req, res) => {
         { $sort: { totalSold: -1 } },
         { $limit: 20 },
       ]),
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $unwind: '$lineItems' },
         { $lookup: { from: 'bookstoreproducts', localField: 'lineItems.productId', foreignField: '_id', as: 'product' } },
@@ -581,7 +581,7 @@ router.get('/reports/bestsellers', protect, async (req, res) => {
         { $sort: { totalSold: -1 } },
         { $limit: 20 },
       ]),
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $unwind: '$lineItems' },
         { $group: {
@@ -1151,7 +1151,7 @@ router.get('/reports/slow-moving', protect, async (req, res) => {
       .lean();
 
     const productIds = products.map(p => p._id);
-    const salesData = await Invoice.aggregate([
+    const salesData = await Invoice.statsAggregate([
       { $match: { tenantId: new mongoose.Types.ObjectId(tenantId), businessContext: 'bookstore', issueDate: { $gte: cutoff } } },
       { $unwind: '$lineItems' },
       { $match: { 'lineItems.productId': { $in: productIds.map(id => new mongoose.Types.ObjectId(id)) } } },
@@ -1202,7 +1202,7 @@ router.get('/reports/sales-by-category', protect, async (req, res) => {
     }
 
     const [byCategory, byProductType, byGrade] = await Promise.all([
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $unwind: '$lineItems' },
         { $lookup: { from: 'bookstoreproducts', localField: 'lineItems.productId', foreignField: '_id', as: 'product' } },
@@ -1216,7 +1216,7 @@ router.get('/reports/sales-by-category', protect, async (req, res) => {
         }},
         { $sort: { revenue: -1 } },
       ]),
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $unwind: '$lineItems' },
         { $lookup: { from: 'bookstoreproducts', localField: 'lineItems.productId', foreignField: '_id', as: 'product' } },
@@ -1229,7 +1229,7 @@ router.get('/reports/sales-by-category', protect, async (req, res) => {
         }},
         { $sort: { revenue: -1 } },
       ]),
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $unwind: '$lineItems' },
         { $lookup: { from: 'bookstoreproducts', localField: 'lineItems.productId', foreignField: '_id', as: 'product' } },
@@ -1275,7 +1275,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     };
 
     const [summary, dailySales, topProducts, paymentBreakdown] = await Promise.all([
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $group: {
           _id: null,
@@ -1287,7 +1287,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
           avgInvoiceValue: { $avg: { $ifNull: ['$grandTotal', 0] } },
         }},
       ]),
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$issueDate' } },
@@ -1296,7 +1296,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         }},
         { $sort: { _id: 1 } },
       ]),
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $unwind: '$lineItems' },
         { $group: {
@@ -1307,7 +1307,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         { $sort: { totalSold: -1 } },
         { $limit: 10 },
       ]),
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $unwind: { path: '$payments', preserveNullAndEmptyArrays: true } },
         { $group: {
@@ -1351,7 +1351,7 @@ router.get('/reports/vat', protect, async (req, res) => {
     };
 
     const [summary, byTaxRate, invoices] = await Promise.all([
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $group: {
           _id: null,
@@ -1363,7 +1363,7 @@ router.get('/reports/vat', protect, async (req, res) => {
           taxableAmount: { $sum: { $ifNull: ['$subtotal', 0] } },
         }},
       ]),
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $match: matchStage },
         { $unwind: '$lineItems' },
         { $group: {

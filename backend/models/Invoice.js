@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 import momentHijri from 'moment-hijri';
+import { statsRead } from '../utils/mongoReadPreference.js';
+import { roundMoney } from '../utils/money.js';
 
 const travelSegmentSchema = new mongoose.Schema({
   from: { type: String },
@@ -54,7 +56,6 @@ const boutiqueDetailsSchema = new mongoose.Schema({
   transactionType: { type: String, enum: ['rental', 'sale'], default: 'rental' },
 }, { _id: false });
 
-const roundMoney = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 const cleanObjectId = (v) => {
   if (!v || v === '' || v === 'null' || v === 'undefined') return undefined;
@@ -411,6 +412,10 @@ invoiceSchema.pre('validate', function(next) {
   
   next();
 });
+
+invoiceSchema.statics.statsAggregate = function statsAggregate(pipeline, options) {
+  return statsRead(this.aggregate(pipeline, options));
+};
 
 const Invoice = mongoose.model('Invoice', invoiceSchema);
 export default Invoice;

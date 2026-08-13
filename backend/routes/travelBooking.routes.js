@@ -97,7 +97,7 @@ async function ensureCustomerRecord(tenantId, booking = {}) {
 async function syncCustomerStats(tenantId, customerId) {
   try {
     if (!tenantId || !customerId) return;
-    const stats = await Invoice.aggregate([
+    const stats = await Invoice.statsAggregate([
       {
         $match: {
           tenantId,

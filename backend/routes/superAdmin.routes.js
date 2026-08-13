@@ -438,7 +438,7 @@ router.get('/dashboard', async (req, res) => {
       Tenant.countDocuments({ isActive: true }),
       Tenant.countDocuments({ 'subscription.status': 'active' }),
       User.countDocuments({ isActive: true }),
-      Invoice.aggregate([
+      Invoice.statsAggregate([
         { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } }
       ])
     ]);
@@ -941,7 +941,7 @@ router.get('/tenants', async (req, res) => {
     ]).option({ maxTimeMS: databaseQueryTimeoutMs });
     const userCountMap = new Map(userCounts.map((item) => [String(item._id), item.count || 0]));
 
-    const invoiceCounts = await Invoice.aggregate([
+    const invoiceCounts = await Invoice.statsAggregate([
       { $match: { tenantId: { $in: tenantIds } } },
       { $group: { _id: '$tenantId', count: { $sum: 1 } } }
     ]).option({ maxTimeMS: databaseQueryTimeoutMs });
@@ -971,7 +971,7 @@ router.get('/tenants/:id', async (req, res) => {
     }
     
     const users = await User.find({ tenantId: tenant._id }).select('-password');
-    const invoiceStats = await Invoice.aggregate([
+    const invoiceStats = await Invoice.statsAggregate([
       { $match: { tenantId: tenant._id } },
       { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$grandTotal' } } }
     ]);
@@ -1807,7 +1807,7 @@ router.get('/reports/revenue', async (req, res) => {
       if (endDate) match.createdAt.$lte = new Date(endDate);
     }
     
-    const revenue = await Invoice.aggregate([
+    const revenue = await Invoice.statsAggregate([
       { $match: match },
       {
         $group: {
