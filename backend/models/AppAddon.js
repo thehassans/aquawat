@@ -21,7 +21,9 @@ const appAddonSchema = new mongoose.Schema({
       'ai_intelligence',
       'ecommerce_payments',
       'finance_accounting',
-      'hr_manpower'
+      'hr_manpower',
+      'logistics',
+      'delivery_platforms'
     ],
     required: true,
     index: true

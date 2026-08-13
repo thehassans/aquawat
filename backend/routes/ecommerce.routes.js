@@ -8,6 +8,8 @@ import { clearTenantHostCache } from '../middleware/resolveTenantByHost.js';
 import { provisionCloudflareDomain, verifyDomainViaCloudflare, removeCloudflareDomain, getSSLStatus, isCloudflareConfigured, verifyCloudflareCredentials, listZones, isCloudflareOAuthConfigured, buildCloudflareAuthUrl, exchangeCloudflareCodeForToken, createCloudflareDnsRecord, deleteCloudflareDnsRecord, listZonesOAuth, generateCodeVerifier } from '../services/cloudflareService.js';
 import { testWordPressConnection, runWordPressSync } from '../services/wordpressService.js';
 import { sendTenantEmail, buildEmailShell } from '../utils/tenantEmailService.js';
+import { COURIER_PROVIDER_KEYS } from '../utils/appStorePartnerApps.js';
+import { createShipment } from '../services/courierService.js';
 
 const router = express.Router();
 
@@ -81,7 +83,7 @@ const sanitizeEcommerce = (ecom) => {
       p.webhookSecret = p.webhookSecret ? mask(p.webhookSecret) : '';
     }
   }
-  for (const key of ['smsa', 'aramex', 'naqel', 'imile']) {
+  for (const key of COURIER_PROVIDER_KEYS) {
     const c = clone.couriers?.[key];
     if (c) {
       c.apiKey = c.apiKey ? mask(c.apiKey) : '';
@@ -688,7 +690,7 @@ router.put('/couriers', protect, async (req, res) => {
     const body = req.body || {};
     if (body.flatRate) tenant.ecommerce.couriers.flatRate = { ...tenant.ecommerce.couriers.flatRate, ...body.flatRate };
 
-    for (const key of ['smsa', 'aramex', 'naqel', 'imile']) {
+    for (const key of COURIER_PROVIDER_KEYS) {
       if (!body[key]) continue;
       const incoming = body[key];
       const current = tenant.ecommerce.couriers[key] || {};
@@ -702,6 +704,38 @@ router.put('/couriers', protect, async (req, res) => {
 
     await tenant.save();
     res.json(sanitizeEcommerce(tenant.ecommerce).couriers);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/couriers/:provider/test-label', protect, async (req, res) => {
+  try {
+    const tenantId = getTargetTenantId(req.user, req);
+    if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
+    const provider = String(req.params.provider || '').toLowerCase();
+    if (!COURIER_PROVIDER_KEYS.includes(provider)) {
+      return res.status(400).json({ error: 'Unknown courier' });
+    }
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    const config = {
+      ...(tenant.ecommerce?.couriers?.[provider] || {}),
+      enabled: true,
+      environment: tenant.ecommerce?.couriers?.[provider]?.environment || 'sandbox',
+    };
+    const result = await createShipment(provider, {
+      order: { orderNumber: `TEST-${Date.now()}`, payment: { method: 'cod' }, grandTotal: 50 },
+      customer: {
+        name: req.body?.name || 'Test Consignee',
+        phone: req.body?.phone || '0500000000',
+        addressLine1: req.body?.address || 'King Fahd Road',
+        city: req.body?.city || 'Riyadh',
+        country: 'SA',
+      },
+      items: [{ productTitle: 'Test parcel', weight: 1 }],
+    }, config);
+    res.json({ success: true, provider, ...result });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

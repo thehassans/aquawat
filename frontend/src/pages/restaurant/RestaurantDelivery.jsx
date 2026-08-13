@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, X, Loader2, Bike, Store, CheckCircle, XCircle,
@@ -14,6 +15,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
 import PlatformLogo from '../../components/delivery/PlatformLogo'
+import { tenantHasDeliveryAccess } from '../../lib/appStorePartners'
 
 const PLATFORMS = [
   { id: 'jahez', name: 'Jahez', gradient: 'from-orange-400 to-orange-600', ring: 'ring-orange-500/20', text: 'text-orange-600', bg: 'bg-orange-500', bgSoft: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-orange-200 dark:border-orange-900/50', url: 'jahez.net' },
@@ -22,6 +24,7 @@ const PLATFORMS = [
   { id: 'keeta', name: 'Keeta', gradient: 'from-emerald-400 to-emerald-600', ring: 'ring-emerald-500/20', text: 'text-emerald-600', bg: 'bg-emerald-500', bgSoft: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-900/50', url: 'keeta.com' },
   { id: 'mrsool', name: 'Mrsool', gradient: 'from-blue-400 to-blue-600', ring: 'ring-blue-500/20', text: 'text-blue-600', bg: 'bg-blue-500', bgSoft: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-900/50', url: 'mrsool.com' },
   { id: 'jumlaty', name: 'Jumlaty', gradient: 'from-amber-400 to-amber-600', ring: 'ring-amber-500/20', text: 'text-amber-600', bg: 'bg-amber-500', bgSoft: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-900/50', url: 'jumlaty.com' },
+  { id: 'toyou', name: 'ToYou', gradient: 'from-sky-400 to-cyan-600', ring: 'ring-sky-500/20', text: 'text-sky-600', bg: 'bg-sky-500', bgSoft: 'bg-sky-50 dark:bg-sky-950/30', border: 'border-sky-200 dark:border-sky-900/50', url: 'toyou.com' },
   { id: 'direct', name: 'Direct Delivery', gradient: 'from-gray-400 to-gray-600', ring: 'ring-gray-500/20', text: 'text-gray-600', bg: 'bg-gray-500', bgSoft: 'bg-gray-50 dark:bg-gray-950/30', border: 'border-gray-200 dark:border-gray-900/50', url: 'in-house' },
 ]
 
@@ -477,28 +480,37 @@ export default function RestaurantDelivery() {
   const { tenant } = useSelector((state) => state.auth)
   const queryClient = useQueryClient()
   const isRtl = language === 'ar'
+  const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showModal, setShowModal] = useState(false)
   const [editConfig, setEditConfig] = useState(null)
   const [orderFilter, setOrderFilter] = useState({ platform: '', status: '' })
 
-  const hasDeliveryAddon = tenant?.subscription?.hasDeliveryAddon;
+  const hasDeliveryAddon = tenantHasDeliveryAccess(tenant)
+
+  useEffect(() => {
+    const platform = searchParams.get('platform')
+    if (!platform) return
+    setActiveTab('platforms')
+    setOrderFilter((prev) => ({ ...prev, platform }))
+  }, [searchParams])
 
   const { data: dashData, isLoading: dashLoading } = useQuery({
     queryKey: ['delivery-dashboard'],
     queryFn: () => api.get('/restaurant/delivery/dashboard').then(res => res.data),
-    enabled: activeTab === 'dashboard',
+    enabled: hasDeliveryAddon && activeTab === 'dashboard',
   })
 
   const { data: platforms = [] } = useQuery({
     queryKey: ['delivery-platforms'],
     queryFn: () => api.get('/restaurant/delivery/platforms').then(res => res.data),
+    enabled: hasDeliveryAddon,
   })
 
   const { data: ordersData, isLoading: ordersLoading } = useQuery({
     queryKey: ['delivery-orders', orderFilter],
     queryFn: () => api.get('/restaurant/delivery/orders', { params: { ...orderFilter, limit: 100 } }).then(res => res.data),
-    enabled: activeTab === 'orders',
+    enabled: hasDeliveryAddon && activeTab === 'orders',
     refetchInterval: 10000,
   })
 
@@ -557,18 +569,18 @@ export default function RestaurantDelivery() {
         </div>
         
         <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-3">
-          {isRtl ? 'إضافة منصات التوصيل' : 'Delivery Platforms Add-on'}
+          {isRtl ? 'منصات التوصيل' : 'Delivery platforms'}
         </h2>
         <p className="text-gray-500 dark:text-gray-400 max-w-md mb-8 leading-relaxed">
-          {isRtl 
-            ? 'احصل على تكامل سلس مع جاهز، هنقرستيشن، نينجا، كيتا والمزيد. أدر جميع طلبات التوصيل من لوحة تحكم واحدة مركزية.' 
-            : 'Unlock seamless integration with Jahez, HungerStation, Ninja, Keeta, and more. Manage all your delivery orders from one centralized dashboard.'}
+          {isRtl
+            ? 'فعّل هنقرستيشن أو جاهز أو كيتا أو مرسول من متجر التطبيقات. الطلبات الواردة تدخل المطبخ وطلبات المطعم تلقائياً.'
+            : 'Activate HungerStation, Jahez, Keeta, or Mrsool from the App Store. Incoming orders land in kitchen tickets and restaurant orders automatically.'}
         </p>
         
-        <a href="mailto:support@maqder.com" className="btn btn-primary bg-primary-600 hover:bg-primary-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-primary-500/30 flex items-center gap-2 transition-all hover:scale-105">
+        <Link to="/app/dashboard/app-store" className="btn btn-primary bg-primary-600 hover:bg-primary-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-primary-500/30 flex items-center gap-2 transition-all hover:scale-105">
            <Sparkles className="w-5 h-5" />
-           {isRtl ? 'تواصل معنا للتفعيل' : 'Contact Sales to Enable'}
-        </a>
+           {isRtl ? 'فتح متجر التطبيقات' : 'Open App Store'}
+        </Link>
       </div>
     )
   }

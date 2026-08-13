@@ -7,7 +7,7 @@ const deliveryPlatformConfigSchema = new mongoose.Schema({
 
   platform: {
     type: String,
-    enum: ['jahez', 'hungerstation', 'ninja', 'keeta', 'mrsool', 'jumlaty', 'direct'],
+    enum: ['jahez', 'hungerstation', 'ninja', 'keeta', 'mrsool', 'jumlaty', 'toyou', 'direct'],
     required: true,
     index: true,
   },
@@ -68,7 +68,7 @@ const deliveryOrderSchema = new mongoose.Schema({
   // Platform info
   platform: {
     type: String,
-    enum: ['jahez', 'hungerstation', 'ninja', 'keeta', 'mrsool', 'jumlaty', 'direct'],
+    enum: ['jahez', 'hungerstation', 'ninja', 'keeta', 'mrsool', 'jumlaty', 'toyou', 'direct'],
     required: true,
     index: true,
   },

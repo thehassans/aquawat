@@ -45,6 +45,13 @@ const logos = {
       <path d="M18 22l4 4 8-8" stroke="#D97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  toyou: ({ className = 'w-8 h-8' }) => (
+    <svg viewBox="0 0 48 48" className={className} fill="none">
+      <rect width="48" height="48" rx="12" fill="#0284C7" />
+      <circle cx="24" cy="24" r="10" fill="white" />
+      <path d="M18 25l4 4 8-9" stroke="#0284C7" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   direct: ({ className = 'w-8 h-8' }) => (
     <svg viewBox="0 0 48 48" className={className} fill="none">
       <rect width="48" height="48" rx="12" fill="#4B5563" />

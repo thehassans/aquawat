@@ -1,4 +1,5 @@
 import React from 'react'
+import { resolveAppStoreBrandIcon } from './AppStoreBrandIcons'
 
 /**
  * Ultra-premium 3D Glowing SVG app icons.
@@ -22,6 +23,15 @@ export function App3DIcon({
   const last = segments[segments.length - 1] || ''
   const second = segments[segments.length - 2] || ''
   const third = segments[segments.length - 3] || ''
+
+  const brandIcon = resolveAppStoreBrandIcon({
+    appId: cleanAppId,
+    icon: cleanIcon,
+    label: cleanLabel,
+    uid,
+    className,
+  })
+  if (brandIcon) return brandIcon
 
   // ═══════════════════════════════════════════════════════════════════════════════
   // ─── 0. DYNAMIC LIVE 3D APPLE / MAQDER CALENDAR (DATE SYNCED TO REAL TIME) ─────

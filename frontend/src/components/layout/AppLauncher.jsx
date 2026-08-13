@@ -11,6 +11,7 @@ import { setAppLauncherOpen, setLanguage, setTheme, setNavigationStyle, setHideS
 import { logout } from '../../store/slices/authSlice'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getNavSections } from '../../lib/sidebarConfig'
+import { isAppGateOpen } from '../../lib/appStorePartners'
 import { useTranslation } from '../../lib/translations'
 import App3DIcon from '../ui/App3DIcon'
 import useMaqderWebAppInstall from '../../lib/useMaqderWebAppInstall'
@@ -272,9 +273,8 @@ export default function AppLauncher() {
       }
 
       // App Store gating: skip sections requiring an installed app
-      if (section.requireApp) {
-        const appStatus = tenant?.settings?.installedApps?.[section.requireApp]
-        if (!appStatus?.isInstalled || !appStatus?.isEnabled) {
+      if (section.requireApp || section.requireAnyApp) {
+        if (!isAppGateOpen(tenant, section)) {
           return
         }
       }
@@ -293,9 +293,8 @@ export default function AppLauncher() {
           return false
         }
         // Per-item App Store gating
-        if (item.requireApp) {
-          const appStatus = tenant?.settings?.installedApps?.[item.requireApp]
-          if (!appStatus?.isInstalled || !appStatus?.isEnabled) return false
+        if (item.requireApp || item.requireAnyApp) {
+          if (!isAppGateOpen(tenant, item)) return false
         }
         if (!item?.perm) return true
         return hasAccess(item.perm.module, item.perm.action)

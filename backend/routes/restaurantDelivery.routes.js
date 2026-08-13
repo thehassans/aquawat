@@ -6,9 +6,13 @@ import {
   MenuSyncLog,
 } from '../models/RestaurantDelivery.js';
 import RestaurantMenuItem from '../models/RestaurantMenuItem.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import RestaurantOrder from '../models/RestaurantOrder.js';
+import { protect, tenantFilter, requireTenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // Webhook routes don't need auth - they use webhook secret
 const webhookRouter = express.Router();
@@ -17,10 +21,76 @@ function getTenantFilter(req) {
   return { tenantId: new mongoose.Types.ObjectId(req.user.tenantId) };
 }
 
+function kitchenStatusFromDelivery(status) {
+  if (['cancelled', 'rejected'].includes(status)) return 'cancelled';
+  if (['ready'].includes(status)) return 'ready';
+  if (['preparing'].includes(status)) return 'preparing';
+  if (['picked_up', 'delivering', 'delivered'].includes(status)) return 'served';
+  return 'new';
+}
+
+function formatDeliveryAddress(addr) {
+  if (!addr) return '';
+  if (typeof addr === 'string') return addr;
+  return [addr.street, addr.building, addr.floor, addr.apartment, addr.district, addr.city]
+    .filter(Boolean)
+    .join(', ');
+}
+
+async function createRestaurantOrderFromDelivery(config, parsed, deliveryOrder) {
+  const lineItems = (parsed.items || []).map((i) => {
+    const quantity = Number(i.quantity || 1);
+    const unitPrice = Number(i.unitPrice || i.price || 0);
+    const lineSubtotal = quantity * unitPrice;
+    return {
+      name: i.name || i.itemName || 'Item',
+      nameAr: i.nameAr || '',
+      quantity,
+      unitPrice,
+      taxRate: 15,
+      lineSubtotal,
+      lineTax: 0,
+      lineTotal: i.lineTotal || lineSubtotal,
+    };
+  });
+  const orderNumber = `DLV-${String(deliveryOrder.platform).slice(0, 3).toUpperCase()}-${parsed.platformOrderNumber || parsed.platformOrderId}-${Date.now().toString().slice(-4)}`;
+  const restOrder = await RestaurantOrder.create({
+    tenantId: config.tenantId,
+    branchId: config.branchId,
+    orderNumber,
+    orderType: 'delivery',
+    status: 'open',
+    kitchenStatus: kitchenStatusFromDelivery(deliveryOrder.status),
+    customerName: parsed.customerName,
+    customerPhone: parsed.customerPhone,
+    deliveryAddress: formatDeliveryAddress(parsed.deliveryAddress),
+    lineItems,
+    subtotal: parsed.subtotal || 0,
+    totalTax: parsed.vatAmount || 0,
+    grandTotal: parsed.total || 0,
+    paymentMethod: parsed.paymentMethod === 'cash' ? 'cash' : 'card',
+    notes: `Imported from ${deliveryOrder.platform} #${parsed.platformOrderNumber || parsed.platformOrderId}`,
+  });
+  deliveryOrder.restaurantOrderId = restOrder._id;
+  await deliveryOrder.save();
+  return restOrder;
+}
+
+async function syncRestaurantKitchen(deliveryOrder, status) {
+  if (!deliveryOrder?.restaurantOrderId) return;
+  const patch = {
+    kitchenStatus: kitchenStatusFromDelivery(status),
+    kitchenStatusUpdatedAt: new Date(),
+  };
+  if (['cancelled', 'rejected'].includes(status)) patch.status = 'cancelled';
+  if (status === 'delivered') patch.status = 'paid';
+  await RestaurantOrder.updateOne({ _id: deliveryOrder.restaurantOrderId }, { $set: patch });
+}
+
 // =================== Platform Config ===================
 
 // GET /api/restaurant/delivery/platforms
-router.get('/platforms', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'read'), async (req, res) => {
+router.get('/platforms', requireBusinessType('restaurant'), checkPermission('restaurant', 'read'), async (req, res) => {
   try {
     const configs = await DeliveryPlatformConfig.find({ ...getTenantFilter(req), isActive: true })
       .sort({ platform: 1 });
@@ -31,7 +101,7 @@ router.get('/platforms', protect, tenantFilter, requireBusinessType('restaurant'
 });
 
 // POST /api/restaurant/delivery/platforms
-router.post('/platforms', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'create'), async (req, res) => {
+router.post('/platforms', requireBusinessType('restaurant'), checkPermission('restaurant', 'create'), async (req, res) => {
   try {
     const existing = await DeliveryPlatformConfig.findOne({
       ...getTenantFilter(req),
@@ -55,7 +125,7 @@ router.post('/platforms', protect, tenantFilter, requireBusinessType('restaurant
 });
 
 // PUT /api/restaurant/delivery/platforms/:id
-router.put('/platforms/:id', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'update'), async (req, res) => {
+router.put('/platforms/:id', requireBusinessType('restaurant'), checkPermission('restaurant', 'update'), async (req, res) => {
   try {
     const config = await DeliveryPlatformConfig.findOneAndUpdate(
       { _id: req.params.id, ...getTenantFilter(req) },
@@ -70,7 +140,7 @@ router.put('/platforms/:id', protect, tenantFilter, requireBusinessType('restaur
 });
 
 // DELETE /api/restaurant/delivery/platforms/:id
-router.delete('/platforms/:id', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'delete'), async (req, res) => {
+router.delete('/platforms/:id', requireBusinessType('restaurant'), checkPermission('restaurant', 'delete'), async (req, res) => {
   try {
     const config = await DeliveryPlatformConfig.findOneAndUpdate(
       { _id: req.params.id, ...getTenantFilter(req) },
@@ -85,7 +155,7 @@ router.delete('/platforms/:id', protect, tenantFilter, requireBusinessType('rest
 });
 
 // POST /api/restaurant/delivery/platforms/:id/test-connection
-router.post('/platforms/:id/test-connection', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'update'), async (req, res) => {
+router.post('/platforms/:id/test-connection', requireBusinessType('restaurant'), checkPermission('restaurant', 'update'), async (req, res) => {
   try {
     const config = await DeliveryPlatformConfig.findOne({ _id: req.params.id, ...getTenantFilter(req) });
     if (!config) return res.status(404).json({ error: 'Platform config not found' });
@@ -110,7 +180,7 @@ router.post('/platforms/:id/test-connection', protect, tenantFilter, requireBusi
 // =================== Delivery Orders ===================
 
 // GET /api/restaurant/delivery/orders
-router.get('/orders', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'read'), async (req, res) => {
+router.get('/orders', requireBusinessType('restaurant'), checkPermission('restaurant', 'read'), async (req, res) => {
   try {
     const { platform, status, page = 1, limit = 50, startDate, endDate } = req.query;
     const query = { ...getTenantFilter(req), isActive: true };
@@ -140,7 +210,7 @@ router.get('/orders', protect, tenantFilter, requireBusinessType('restaurant'), 
 });
 
 // PUT /api/restaurant/delivery/orders/:id/status
-router.put('/orders/:id/status', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'update'), async (req, res) => {
+router.put('/orders/:id/status', requireBusinessType('restaurant'), checkPermission('restaurant', 'update'), async (req, res) => {
   try {
     const { status } = req.body;
     const order = await DeliveryOrder.findOne({ _id: req.params.id, ...getTenantFilter(req) });
@@ -160,6 +230,8 @@ router.put('/orders/:id/status', protect, tenantFilter, requireBusinessType('res
 
     await order.save();
 
+    await syncRestaurantKitchen(order, status);
+
     // In production, push status update to platform API
     // await pushStatusToPlatform(order.platform, order.platformOrderId, status, order.platformConfigId);
 
@@ -170,7 +242,7 @@ router.put('/orders/:id/status', protect, tenantFilter, requireBusinessType('res
 });
 
 // POST /api/restaurant/delivery/orders/:id/accept
-router.post('/orders/:id/accept', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'update'), async (req, res) => {
+router.post('/orders/:id/accept', requireBusinessType('restaurant'), checkPermission('restaurant', 'update'), async (req, res) => {
   try {
     const order = await DeliveryOrder.findOne({ _id: req.params.id, ...getTenantFilter(req) });
     if (!order) return res.status(404).json({ error: 'Delivery order not found' });
@@ -181,6 +253,8 @@ router.post('/orders/:id/accept', protect, tenantFilter, requireBusinessType('re
     order.lastSyncedAt = new Date();
     await order.save();
 
+    await syncRestaurantKitchen(order, 'accepted');
+
     res.json(order);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -188,7 +262,7 @@ router.post('/orders/:id/accept', protect, tenantFilter, requireBusinessType('re
 });
 
 // POST /api/restaurant/delivery/orders/:id/reject
-router.post('/orders/:id/reject', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'update'), async (req, res) => {
+router.post('/orders/:id/reject', requireBusinessType('restaurant'), checkPermission('restaurant', 'update'), async (req, res) => {
   try {
     const { reason } = req.body;
     const order = await DeliveryOrder.findOne({ _id: req.params.id, ...getTenantFilter(req) });
@@ -200,6 +274,8 @@ router.post('/orders/:id/reject', protect, tenantFilter, requireBusinessType('re
     order.cancelledBy = 'restaurant';
     order.lastSyncedAt = new Date();
     await order.save();
+
+    await syncRestaurantKitchen(order, 'rejected');
 
     res.json(order);
   } catch (error) {
@@ -291,7 +367,13 @@ webhookRouter.post('/webhook/:platform/:tenantId', async (req, res) => {
       config.lastOrderAt = new Date();
       await config.save();
 
-      return res.status(201).json({ message: 'Order received', orderId: order._id });
+      try {
+        await createRestaurantOrderFromDelivery(config, parsed, order);
+      } catch (kitchenErr) {
+        console.error('Failed to create restaurant order from delivery webhook', kitchenErr);
+      }
+
+      return res.status(201).json({ message: 'Order received', orderId: order._id, restaurantOrderId: order.restaurantOrderId });
     }
 
     if (parsed.eventType === 'order_status_update' || parsed.eventType === 'status_update') {
@@ -315,6 +397,7 @@ webhookRouter.post('/webhook/:platform/:tenantId', async (req, res) => {
         }
 
         await order.save();
+        await syncRestaurantKitchen(order, order.status);
         return res.json({ message: 'Status updated', orderId: order._id });
       }
 
@@ -347,7 +430,7 @@ webhookRouter.post('/webhook/:platform/:tenantId', async (req, res) => {
 // =================== Menu Sync ===================
 
 // POST /api/restaurant/delivery/platforms/:id/sync-menu
-router.post('/platforms/:id/sync-menu', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'create'), async (req, res) => {
+router.post('/platforms/:id/sync-menu', requireBusinessType('restaurant'), checkPermission('restaurant', 'create'), async (req, res) => {
   try {
     const config = await DeliveryPlatformConfig.findOne({ _id: req.params.id, ...getTenantFilter(req) });
     if (!config) return res.status(404).json({ error: 'Platform config not found' });
@@ -409,7 +492,7 @@ router.post('/platforms/:id/sync-menu', protect, tenantFilter, requireBusinessTy
 });
 
 // GET /api/restaurant/delivery/platforms/:id/sync-logs
-router.get('/platforms/:id/sync-logs', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'read'), async (req, res) => {
+router.get('/platforms/:id/sync-logs', requireBusinessType('restaurant'), checkPermission('restaurant', 'read'), async (req, res) => {
   try {
     const logs = await MenuSyncLog.find({
       ...getTenantFilter(req),
@@ -424,7 +507,7 @@ router.get('/platforms/:id/sync-logs', protect, tenantFilter, requireBusinessTyp
 // =================== Dashboard ===================
 
 // GET /api/restaurant/delivery/dashboard
-router.get('/dashboard', protect, tenantFilter, requireBusinessType('restaurant'), checkPermission('restaurant', 'read'), async (req, res) => {
+router.get('/dashboard', requireBusinessType('restaurant'), checkPermission('restaurant', 'read'), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     const dateFilter = {};

@@ -836,6 +836,7 @@ function App() {
         <Route path="mrp" element={<BusinessTypeRoute allowedTypes={['trading', 'manufacturing']}><MRP /></BusinessTypeRoute>} />
         <Route path="manufacturing" element={<BusinessTypeRoute allowedTypes={['manufacturing', 'trading']}><Manufacturing /></BusinessTypeRoute>} />
         <Route path="app-store" element={<AppStore />} />
+        <Route path="logistics" element={<EcommerceCouriers />} />
         <Route path="whatsapp" element={<WhatsApp />} />
         <Route path="reports" element={<Reports />} />
         <Route path="vat-returns" element={<VatReturns />} />

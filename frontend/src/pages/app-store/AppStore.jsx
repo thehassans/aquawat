@@ -58,6 +58,8 @@ const CATEGORIES = [
   { id: 'pos_retail', en: 'Point of Sale', ar: 'نقاط البيع' },
   { id: 'hr_manpower', en: 'Human Resources', ar: 'الموارد البشرية' },
   { id: 'hardware_iot', en: 'Hardware', ar: 'الأجهزة' },
+  { id: 'logistics', en: 'Logistics', ar: 'الشحن' },
+  { id: 'delivery_platforms', en: 'Delivery Platforms', ar: 'منصات التوصيل' },
   { id: 'finance_accounting', en: 'Finance', ar: 'المالية' },
   { id: 'automation_comm', en: 'Marketing', ar: 'التسويق' },
 ];
@@ -88,7 +90,14 @@ function appMatchesCategory(app, categoryId) {
     return app.category === 'hardware_iot' || app.appType === 'hardware_integration' || app.appId.includes('iot') || app.appId.includes('terminal') || app.appId.includes('printer') || app.appId.includes('scale');
   }
   if (categoryId === 'pos_retail') {
-    return app.category === 'pos_retail' || app.appId.includes('delivery') || app.appId.includes('retail') || app.appId.includes('restaurant') || app.appId.includes('bakala');
+    if (app.category === 'delivery_platforms' || app.category === 'logistics') return false
+    return app.category === 'pos_retail' || app.appId.includes('retail') || app.appId.includes('restaurant') || app.appId.includes('bakala')
+  }
+  if (categoryId === 'logistics') {
+    return app.category === 'logistics' || app.appId.includes('shipping') || app.appId.includes('smsa') || app.appId.includes('aramex') || app.appId.includes('jnt') || app.appId.includes('naqel') || app.appId.includes('imile') || app.appId.includes('spl')
+  }
+  if (categoryId === 'delivery_platforms') {
+    return app.category === 'delivery_platforms' || app.appId.includes('_delivery') || app.appId === 'delivery_platforms'
   }
   if (categoryId === 'saudi_compliance') {
     return (
@@ -112,7 +121,8 @@ function appMatchesCategory(app, categoryId) {
     );
   }
   if (categoryId === 'automation_comm') {
-    return app.category === 'automation_comm' || app.category === 'ai_intelligence' || app.appId.includes('whatsapp') || app.appId.includes('ai') || app.appId.includes('shipping') || app.appId.includes('email');
+    if (app.category === 'logistics' || app.category === 'delivery_platforms') return false
+    return app.category === 'automation_comm' || app.category === 'ai_intelligence' || app.appId.includes('whatsapp') || app.appId.includes('ai') || app.appId.includes('email')
   }
   return false;
 }

@@ -157,6 +157,36 @@ export default function GovernmentIntegrationDetail() {
           endpoint: 'mudad.com.sa/api',
           protocol: 'mTLS + Client Cert',
         }
+      case 'balady':
+        return {
+          title: t('Balady Municipal Licensing', 'بلدي — الترخيص والصحة البلدية'),
+          subtitle: t('Health certificates, shop licenses, and municipal renewal alerts.', 'شهادات الصحة وتراخيص المحلات وتنبيهات التجديد البلدية.'),
+          icon: Shield,
+          gradient: 'from-pink-500 to-rose-600',
+          accent: 'pink',
+          endpoint: 'balady.gov.sa',
+          protocol: 'API Key',
+        }
+      case 'saber':
+        return {
+          title: t('Saber Product Conformity', 'سابر — شهادات المطابقة'),
+          subtitle: t('SASO certificates, shipment release, and regulated product vault.', 'شهادات ساسو وإفراج الشحنات وخزنة المنتجات الخاضعة للتنظيم.'),
+          icon: CheckCircle,
+          gradient: 'from-sky-500 to-cyan-600',
+          accent: 'sky',
+          endpoint: 'saber.sa',
+          protocol: 'Bearer Token',
+        }
+      case 'etimad':
+        return {
+          title: t('Etimad Government Procurement', 'اعتماد — المشتريات الحكومية'),
+          subtitle: t('Tenders, vendor credentials, and government contract tracking.', 'المناقصات وبيانات المورد وتتبع العقود الحكومية.'),
+          icon: FileText,
+          gradient: 'from-cyan-500 to-teal-600',
+          accent: 'cyan',
+          endpoint: 'etimad.sa',
+          protocol: 'Portal Credentials',
+        }
       default:
         return null
     }
@@ -225,6 +255,18 @@ export default function GovernmentIntegrationDetail() {
     statCards[0] = { label: t('GOSI Reg #', 'رقم التأمينات'), value: stats.gosiRegistrationNumber || 'N/A', icon: Key }
     statCards[1] = { label: t('GOSI Status', 'حالة التأمينات'), value: stats.gosiEnabled ? t('Active', 'نشط') : t('Inactive', 'غير نشط'), icon: CheckCircle }
     statCards[2] = { label: t('Auto SIF Upload', 'رفع تلقائي SIF'), value: stats.autoSifUploadEnabled ? t('On', 'مفعّل') : t('Off', 'معطل'), icon: FileText }
+  } else if (service === 'balady') {
+    statCards[0] = { label: t('API Key', 'مفتاح API'), value: stats.hasApiKey ? t('Saved', 'محفوظ') : t('Missing', 'غير موجود'), icon: Key }
+    statCards[1] = { label: t('Vault', 'الخزنة'), value: t('Licenses', 'التراخيص'), icon: Shield }
+    statCards[2] = { label: t('Success Rate', 'معدل النجاح'), value: `${stats.successRate || 0}%`, icon: TrendingUp }
+  } else if (service === 'saber') {
+    statCards[0] = { label: t('Token', 'الرمز'), value: stats.hasToken ? t('Saved', 'محفوظ') : t('Missing', 'غير موجود'), icon: Key }
+    statCards[1] = { label: t('Vault', 'الخزنة'), value: t('Certificates', 'الشهادات'), icon: CheckCircle }
+    statCards[2] = { label: t('Success Rate', 'معدل النجاح'), value: `${stats.successRate || 0}%`, icon: TrendingUp }
+  } else if (service === 'etimad') {
+    statCards[0] = { label: t('Username', 'المستخدم'), value: stats.hasUser ? t('Saved', 'محفوظ') : t('Missing', 'غير موجود'), icon: Key }
+    statCards[1] = { label: t('Password', 'كلمة المرور'), value: stats.hasPassword ? t('Saved', 'محفوظ') : t('Missing', 'غير موجود'), icon: Shield }
+    statCards[2] = { label: t('Success Rate', 'معدل النجاح'), value: `${stats.successRate || 0}%`, icon: TrendingUp }
   }
 
   return (

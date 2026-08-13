@@ -8,6 +8,7 @@ import { toggleSidebarCollapse, setMobileMenuOpen, setHideSidebar } from '../../
 import { useTranslation } from '../../lib/translations'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getNavSections } from '../../lib/sidebarConfig'
+import { isAppGateOpen } from '../../lib/appStorePartners'
 
 export default function Sidebar() {
   const dispatch = useDispatch()
@@ -80,9 +81,8 @@ export default function Sidebar() {
       }
 
       // App Store gating: hide sections requiring an installed app
-      if (section.requireApp) {
-        const appStatus = tenant?.settings?.installedApps?.[section.requireApp]
-        if (!appStatus?.isInstalled || !appStatus?.isEnabled) {
+      if (section.requireApp || section.requireAnyApp) {
+        if (!isAppGateOpen(tenant, section)) {
           return { ...section, items: [] }
         }
       }
@@ -101,9 +101,8 @@ export default function Sidebar() {
           return false
         }
         // Per-item App Store gating
-        if (item.requireApp) {
-          const appStatus = tenant?.settings?.installedApps?.[item.requireApp]
-          if (!appStatus?.isInstalled || !appStatus?.isEnabled) return false
+        if (item.requireApp || item.requireAnyApp) {
+          if (!isAppGateOpen(tenant, item)) return false
         }
         if (!item?.perm) return true
         return hasAccess(item.perm.module, item.perm.action)

@@ -1,13 +1,25 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import { AppAddon } from '../models/AppAddon.js';
 import { normalizeBusinessTypes } from '../utils/businessTypes.js';
 import { PREMIUM_TEMPLATE_APP_ID as PREMIUM_INVOICE_TEMPLATES_APP_ID, hasPremiumTemplateAccess, ESSENTIAL_TEMPLATE_ID } from '../utils/premiumTemplates.js';
 import { createStripeCheckoutSession, getStripeConfig, retrieveStripeCheckoutSession } from '../services/platformStripe.js';
 import { serializeAuthTenant } from '../utils/authSerialize.js';
+import {
+  DELIVERY_PARTNER_APPS,
+  LOGISTICS_PARTNER_APPS,
+  DELIVERY_PLATFORM_APP_MAP,
+  COURIER_APP_MAP,
+  ALL_DELIVERY_APP_IDS,
+  isDeliveryPartnerApp,
+} from '../utils/appStorePartnerApps.js';
+import { DeliveryPlatformConfig } from '../models/RestaurantDelivery.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 const getAppPrice = (appDef, billingCycle = 'monthly') => {
   const cycle = billingCycle === 'yearly' ? 'yearly' : 'monthly';
@@ -93,6 +105,28 @@ const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}, payme
     tenant.markModified('nbr');
   }
 
+  if (isDeliveryPartnerApp(appId)) {
+    if (!tenant.subscription) tenant.subscription = {};
+    tenant.subscription.hasDeliveryAddon = true;
+    tenant.markModified('subscription');
+  }
+
+  const courierKey = COURIER_APP_MAP[appId];
+  if (courierKey) {
+    if (!tenant.ecommerce) tenant.ecommerce = {};
+    if (!tenant.ecommerce.couriers) tenant.ecommerce.couriers = {};
+    const current = tenant.ecommerce.couriers[courierKey] || {};
+    tenant.ecommerce.couriers[courierKey] = {
+      ...current,
+      enabled: true,
+      environment: appConfig.config?.environment || current.environment || 'sandbox',
+      accountNumber: appConfig.config?.accountNumber || current.accountNumber || '',
+      apiKey: appConfig.config?.apiKey || current.apiKey || '',
+      apiSecret: appConfig.config?.apiSecret || current.apiSecret || '',
+    };
+    tenant.markModified('ecommerce');
+  }
+
   let currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
   if (appDef.businessTypeGrant && !currentTypes.includes(appDef.businessTypeGrant)) {
     currentTypes.push(appDef.businessTypeGrant);
@@ -103,6 +137,24 @@ const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}, payme
   tenant.markModified('settings');
   tenant.markModified('businessTypes');
   await tenant.save();
+
+  const deliveryPlatform = DELIVERY_PLATFORM_APP_MAP[appId];
+  if (deliveryPlatform) {
+    await DeliveryPlatformConfig.findOneAndUpdate(
+      { tenantId: tenant._id, platform: deliveryPlatform },
+      {
+        $set: { isActive: true, webhookActive: true },
+        $setOnInsert: {
+          tenantId: tenant._id,
+          platform: deliveryPlatform,
+          displayName: appDef.nameEn,
+          webhookUrl: `/api/restaurant/delivery/webhook/${deliveryPlatform}/${tenant._id}`,
+        },
+      },
+      { upsert: true }
+    );
+  }
+
   return tenant;
 };
 
@@ -918,8 +970,8 @@ export const DEFAULT_APP_CATALOG = [
     taglineAr: 'ربط منصات التوصيل وإدارة إرسال السائقين لطلبات المطعم.',
     descriptionEn: 'Restaurant delivery management: connect with HungerStation, Jahez, Marsool, and ToYou. Manage driver dispatch, track delivery status in real-time, and reconcile delivery platform settlements.',
     descriptionAr: 'إدارة توصيل المطاعم: ربط مع هنقرستيشن وجاهز ومرسول وتويو. إدارة إرسال السائقين، تتبع حالة التوصيل لحظياً، ومطابقة تسويات منصات التوصيل.',
-    category: 'pos_retail',
-    appType: 'core_vertical',
+    category: 'delivery_platforms',
+    appType: 'premium_addon',
     icon: 'bike',
     version: '2.4.0',
     downloadSize: '7.1 MB',
@@ -929,6 +981,7 @@ export const DEFAULT_APP_CATALOG = [
     pricingTier: 'free',
     badge: 'Restaurant',
     defaultRoute: '/app/dashboard/restaurant/delivery',
+    businessTypeGrant: 'restaurant',
     featuresEn: [
       'Multi-Platform Integration (HungerStation, Jahez, Marsool)',
       'Real-Time Order & Driver Tracking',
@@ -989,7 +1042,7 @@ export const DEFAULT_APP_CATALOG = [
     descriptionAr: 'تكامل معتمد مع منصة فاتورة للربط والتكامل والتخليص اللحظي للفواتير الضريبية والمبسطة.',
     category: 'saudi_compliance',
     appType: 'saudi_compliance',
-    icon: 'shield',
+    icon: 'zatca',
     version: '4.1.0',
     downloadSize: '9.2 MB',
     author: 'Maqder Saudi Gov Suite',
@@ -1207,7 +1260,7 @@ export const DEFAULT_APP_CATALOG = [
     descriptionAr: 'توافق كامل مع متطلبات نظام حماية الأجور، وتوليد ملفات الرواتب المعتمدة للبنوك ووزارة الموارد البشرية.',
     category: 'saudi_compliance',
     appType: 'saudi_compliance',
-    icon: 'briefcase',
+    icon: 'gosi',
     version: '2.0.0',
     downloadSize: '4.1 MB',
     author: 'Maqder Saudi Gov Suite',
@@ -1240,7 +1293,7 @@ export const DEFAULT_APP_CATALOG = [
     taglineAr: 'توليد بوالص الشحن التلقائية مع سمسا، أرامكس، سبل، وطرود بضغطة زر.',
     descriptionEn: 'Integrated logistics engine connecting e-commerce, wholesale deliveries, and manufacturing fulfillment to leading Saudi couriers with live tracking webhook updates.',
     descriptionAr: 'ربط مباشر لطباعة بوالص الشحن وتتبع الشحنات مع كبرى شركات النقل في المملكة.',
-    category: 'ecommerce_payments',
+    category: 'logistics',
     appType: 'automation_comm',
     icon: 'truck',
     version: '2.3.1',
@@ -1250,7 +1303,7 @@ export const DEFAULT_APP_CATALOG = [
     reviewsCount: 160,
     pricingTier: 'free',
     badge: 'Logistics Ready',
-    defaultRoute: '/app/dashboard/shipments',
+    defaultRoute: '/app/dashboard/logistics',
     featuresEn: [
       'Instant AWB Shipping Label PDF Printing',
       'Live Tracking Updates & SMS Delivery Notifications',
@@ -1278,7 +1331,7 @@ export const DEFAULT_APP_CATALOG = [
     descriptionAr: 'ربط شامل مع بوابة علم للمطورين: التحقق من الهوية الوطنية والإقامة، تسجيل المركبات، الاستعلام عن تاريخ الحوادث، التحقق من السجل التجاري، والمصادقة عبر نفاذ.',
     category: 'saudi_compliance',
     appType: 'saudi_compliance',
-    icon: 'shield-check',
+    icon: 'elm',
     version: '2.1.0',
     downloadSize: '3.2 MB',
     author: 'Maqder Saudi Gov Suite',
@@ -1318,7 +1371,7 @@ export const DEFAULT_APP_CATALOG = [
     descriptionAr: 'ربط مباشر مع منصة قوى لوزارة الموارد البشرية: توثيق عقود الموظفين إلكترونياً، ومراقبة نسب التوطين، وأتمتة تقارير الامتثال.',
     category: 'saudi_compliance',
     appType: 'saudi_compliance',
-    icon: 'users-round',
+    icon: 'qiwa',
     version: '1.8.0',
     downloadSize: '2.8 MB',
     author: 'Maqder Saudi Gov Suite',
@@ -1356,7 +1409,7 @@ export const DEFAULT_APP_CATALOG = [
     descriptionAr: 'إدارة شهادات الصحة البلدية، ومتطلبات السلامة الغذائية والتراخيص التجارية عبر منصة بلدي، مع تتبع تواريخ الانتهاء وتنبيهات التجديد.',
     category: 'saudi_compliance',
     appType: 'saudi_compliance',
-    icon: 'building',
+    icon: 'balady',
     version: '1.4.0',
     downloadSize: '1.9 MB',
     author: 'Maqder Saudi Gov Suite',
@@ -1392,7 +1445,7 @@ export const DEFAULT_APP_CATALOG = [
     descriptionAr: 'إدارة شهادات المطابقة السعودية عبر منصة سابر: تخزين شهادات SASO للمنتجات الخاضعة للتنظيم، وربطها بالمخزون وأوامر الشراء.',
     category: 'saudi_compliance',
     appType: 'saudi_compliance',
-    icon: 'badge-check',
+    icon: 'saber',
     version: '1.2.0',
     downloadSize: '1.6 MB',
     author: 'Maqder Saudi Gov Suite',
@@ -1427,7 +1480,7 @@ export const DEFAULT_APP_CATALOG = [
     descriptionAr: 'ربط منشأتك ببوابة اعتماد للمشتريات الحكومية السعودية: إدارة بيانات المورد، تتبع المناقصات وتقديم العروض، وتخزين وثائق العقود.',
     category: 'saudi_compliance',
     appType: 'saudi_compliance',
-    icon: 'landmark',
+    icon: 'etimad',
     version: '1.1.0',
     downloadSize: '2.1 MB',
     author: 'Maqder Saudi Gov Suite',
@@ -1531,7 +1584,9 @@ export const DEFAULT_APP_CATALOG = [
       'يحافظ على شعارك وختمك وتوقيعك وألوان علامتك التجارية'
     ],
     configSchema: []
-  }
+  },
+  ...DELIVERY_PARTNER_APPS,
+  ...LOGISTICS_PARTNER_APPS,
 ];
 
 // Helper: Ensure default apps catalog is in DB on demand
@@ -1868,11 +1923,19 @@ router.post('/apps/:appId/uninstall', protect, async (req, res) => {
 
     const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find(a => a.appId === appId);
     if (appDef && appDef.businessTypeGrant) {
+      const stillGranted = DEFAULT_APP_CATALOG.some((a) =>
+        a.businessTypeGrant === appDef.businessTypeGrant &&
+        a.appId !== appId &&
+        installedApps[a.appId]?.isInstalled &&
+        installedApps[a.appId]?.isEnabled !== false
+      );
       const currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
-      tenant.businessTypes = currentTypes.filter(t => t !== appDef.businessTypeGrant);
-      if (tenant.businessTypes.length === 0) tenant.businessTypes = ['trading'];
-      tenant.businessType = tenant.businessTypes[0];
-      tenant.markModified('businessTypes');
+      if (!stillGranted && currentTypes.length > 1) {
+        tenant.businessTypes = currentTypes.filter(t => t !== appDef.businessTypeGrant);
+        if (tenant.businessTypes.length === 0) tenant.businessTypes = ['trading'];
+        tenant.businessType = tenant.businessTypes[0];
+        tenant.markModified('businessTypes');
+      }
     }
 
     if (!tenant.settings) tenant.settings = {};
@@ -1886,6 +1949,30 @@ router.post('/apps/:appId/uninstall', protect, async (req, res) => {
       const features = Array.isArray(tenant.subscription.features) ? tenant.subscription.features : [];
       tenant.subscription.features = features.filter((feature) => feature !== 'email_automation');
       tenant.markModified('subscription');
+    }
+
+    if (isDeliveryPartnerApp(appId)) {
+      const platform = DELIVERY_PLATFORM_APP_MAP[appId];
+      if (platform) {
+        await DeliveryPlatformConfig.updateMany(
+          { tenantId: tenant._id, platform },
+          { $set: { isActive: false, webhookActive: false } }
+        );
+      }
+      const remaining = ALL_DELIVERY_APP_IDS.some((id) =>
+        id !== appId && installedApps[id]?.isInstalled && installedApps[id]?.isEnabled !== false
+      );
+      if (!remaining) {
+        if (!tenant.subscription) tenant.subscription = {};
+        tenant.subscription.hasDeliveryAddon = false;
+        tenant.markModified('subscription');
+      }
+    }
+
+    const courierKey = COURIER_APP_MAP[appId];
+    if (courierKey && tenant.ecommerce?.couriers?.[courierKey]) {
+      tenant.ecommerce.couriers[courierKey].enabled = false;
+      tenant.markModified('ecommerce');
     }
 
     await tenant.save();

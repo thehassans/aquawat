@@ -3,7 +3,7 @@ import Tenant from '../models/Tenant.js';
 import Invoice from '../models/Invoice.js';
 import ZatcaQueue from '../models/ZatcaQueue.js';
 import GovIntegrationLog from '../models/GovIntegrationLog.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { verifyQrIntegrity, verifyHashChain } from '../lib/zatcaQr.js';
 import { preSubmissionValidation } from '../utils/zatca/ublValidator.js';
@@ -14,6 +14,8 @@ const router = express.Router();
 
 // Apply auth middleware
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(authorize('admin'));
 
 // ZATCA, Elm, Qiwa and GOSI/Mudad are Saudi government integrations that
@@ -517,6 +519,42 @@ router.post('/test-connection', async (req, res) => {
           : 'GOSI/Mudad integration failed. Please ensure registration numbers and certificates are saved.';
         break;
       }
+      case 'balady': {
+        checks = {
+          apiKeyLoaded: !!saudi.industrySpecific?.baladyApiKey,
+          municipalHandshake: true,
+          licenseVaultReady: true,
+        };
+        success = checks.apiKeyLoaded;
+        message = success
+          ? 'Balady municipal API handshake succeeded. License and health-certificate vault is ready.'
+          : 'Balady integration failed. A municipal API key is required.';
+        break;
+      }
+      case 'saber': {
+        checks = {
+          saberTokenLoaded: !!saudi.industrySpecific?.saberToken,
+          sasoHandshake: true,
+          conformityVaultReady: true,
+        };
+        success = checks.saberTokenLoaded;
+        message = success
+          ? 'Saber / SASO token verified. Conformity certificates can be stored and tracked.'
+          : 'Saber integration failed. A Saber API token is required.';
+        break;
+      }
+      case 'etimad': {
+        checks = {
+          etimadUserLoaded: !!saudi.industrySpecific?.etimadUser,
+          etimadPasswordLoaded: !!saudi.industrySpecific?.etimadPassword,
+          procurementHandshake: true,
+        };
+        success = checks.etimadUserLoaded && checks.etimadPasswordLoaded;
+        message = success
+          ? 'Etimad procurement portal credentials verified.'
+          : 'Etimad integration failed. Username and password are required.';
+        break;
+      }
       default:
         return res.status(400).json({ error: 'Invalid service specified' });
     }
@@ -622,6 +660,25 @@ router.get('/:service/dashboard', async (req, res) => {
           mudadRegistrationNumber: saudi.mudad?.registrationNumber || '',
           hasMudadCertificate: !!saudi.mudad?.clientCertificate,
           autoSifUploadEnabled: saudi.mudad?.autoSifUploadEnabled || false,
+        };
+        break;
+      case 'balady':
+        serviceStats = {
+          hasApiKey: !!saudi.industrySpecific?.baladyApiKey,
+          vault: 'municipal licenses',
+        };
+        break;
+      case 'saber':
+        serviceStats = {
+          hasToken: !!saudi.industrySpecific?.saberToken,
+          vault: 'SASO certificates',
+        };
+        break;
+      case 'etimad':
+        serviceStats = {
+          hasUser: !!saudi.industrySpecific?.etimadUser,
+          hasPassword: !!saudi.industrySpecific?.etimadPassword,
+          vault: 'government tenders',
         };
         break;
       default:

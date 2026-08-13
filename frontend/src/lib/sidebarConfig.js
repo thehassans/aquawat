@@ -183,7 +183,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/restaurant/combos', icon: Tag, label: language === 'ar' ? 'العروض والباقات' : 'Combos & Deals', perm: { module: 'restaurant', action: 'read' } },
         { path: '/app/dashboard/restaurant/analytics', icon: TrendingUp, label: language === 'ar' ? 'تحليلات المبيعات' : 'Analytics', perm: { module: 'restaurant', action: 'read' } },
         { path: '/app/dashboard/restaurant/mess', icon: UtensilsCrossed, label: language === 'ar' ? 'المطعم الجماعي' : 'Mess / Cafeteria', perm: { module: 'restaurant', action: 'read' } },
-        { path: '/app/dashboard/restaurant/delivery', icon: Bike, label: language === 'ar' ? 'منصات التوصيل' : 'Delivery Platforms', perm: { module: 'restaurant', action: 'read' }, requireApp: 'delivery_platforms' },
+        { path: '/app/dashboard/restaurant/delivery', icon: Bike, label: language === 'ar' ? 'منصات التوصيل' : 'Delivery Platforms', perm: { module: 'restaurant', action: 'read' }, requireAnyApp: ['delivery_platforms', 'hungerstation_delivery', 'jahez_delivery', 'keeta_delivery', 'mrsool_delivery', 'ninja_delivery', 'toyou_delivery', 'jumlaty_delivery'] },
       ]
     },
     {
@@ -379,6 +379,13 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/manufacturing', icon: Factory, label: language === 'ar' ? 'نظام التصنيع والإنتاج (MES)' : 'Manufacturing MES', perm: { module: 'mrp', action: 'read' } },
         { path: '/app/dashboard/mrp', icon: Cpu, label: language === 'ar' ? 'تخطيط الاحتياجات (MRP)' : 'MRP II Planning', perm: { module: 'mrp', action: 'read' } },
         { path: '/app/dashboard/job-costing', icon: Briefcase, label: language === 'ar' ? 'تكلفة الأعمال' : 'Job Costing', perm: { module: 'job_costing', action: 'read' } },
+      ]
+    },
+    {
+      title: language === 'ar' ? 'الشحن واللوجستيات' : 'Shipping & Logistics',
+      requireAnyApp: ['multicourier_shipping', 'smsa_express', 'aramex_shipping', 'jnt_express', 'naqel_express', 'imile_courier', 'spl_saudi_post'],
+      items: [
+        { path: '/app/dashboard/logistics', icon: Truck, label: language === 'ar' ? 'شركات الشحن' : 'Couriers & Labels', perm: { module: 'settings', action: 'read' } },
       ]
     },
     {
