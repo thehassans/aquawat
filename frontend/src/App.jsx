@@ -254,6 +254,7 @@ const LeadsGeneration = lazy(() => import('./pages/super-admin/LeadsGeneration')
 const LeadSetup = lazy(() => import('./pages/super-admin/LeadSetup'))
 const AppCatalogManagement = lazy(() => import('./pages/super-admin/AppCatalogManagement'))
 const EmailCommunication = lazy(() => import('./pages/EmailCommunication'))
+const SmsMarketing = lazy(() => import('./pages/SmsMarketing'))
 const FleetAssets = lazy(() => import('./pages/fleet/FleetAssets'))
 const FleetAssetForm = lazy(() => import('./pages/fleet/FleetAssetForm'))
 const MaintenanceAlerts = lazy(() => import('./pages/fleet/MaintenanceAlerts'))
@@ -843,6 +844,7 @@ function App() {
         <Route path="reports" element={<Reports />} />
         <Route path="vat-returns" element={<VatReturns />} />
         <Route path="email" element={<EmailCommunication />} />
+        <Route path="sms" element={<SmsMarketing />} />
         <Route path="communicate" element={<ErrorBoundary><Communicate /></ErrorBoundary>} />
         <Route path="saudi-compliance" element={<ErrorBoundary><SaudiCompliance /></ErrorBoundary>} />
         <Route path="users" element={<Users />} />

@@ -12,6 +12,7 @@ import {
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
+import { tenantHasEntitlement } from '../lib/appEntitlements'
 
 const iotFeatures = [
   {
@@ -103,7 +104,7 @@ export default function IoT() {
   const [filters, setFilters] = useState({ status: '', type: '' })
   const [viewMode, setViewMode] = useState('grid') // 'grid' | 'table'
 
-  const hasIotAddon = tenant?.subscription?.hasIotAddon === true
+  const hasIotAddon = tenantHasEntitlement(tenant, { appId: 'iot_devices', flag: 'hasIotAddon' })
   const isSuperAdmin = user?.role === 'super_admin'
 
   const exportColumns = [

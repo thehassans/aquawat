@@ -165,6 +165,20 @@ const ICONS = {
       <circle cx="40" cy="40" r="4" fill="#0B8A3C" />
     </Tile>
   ),
+  email: (uid, className) => (
+    <Tile uid={uid} className={className} from="#0F766E" to="#14B8A6" glow="#0D9488" stroke="#99F6E4">
+      <rect x="18" y="22" width="28" height="20" rx="4" fill="#FFFFFF" />
+      <path d="M18 24l14 10 14-10" stroke="#0D9488" strokeWidth="2.2" fill="none" />
+    </Tile>
+  ),
+  sms: (uid, className) => (
+    <Tile uid={uid} className={className} from="#6D28D9" to="#D946EF" glow="#7C3AED" stroke="#E9D5FF">
+      <rect x="18" y="18" width="22" height="22" rx="6" fill="#FFFFFF" />
+      <path d="M24 26h10M24 31h7" stroke="#7C3AED" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M28 40l6 6v-10" fill="#FFFFFF" />
+      <circle cx="44" cy="42" r="6" fill="#A855F7" />
+    </Tile>
+  ),
 }
 
 const APP_ID_MAP = {
@@ -193,6 +207,8 @@ const APP_ID_MAP = {
   toyou_delivery: 'toyou',
   jumlaty_delivery: 'jumlaty',
   delivery_platforms: 'hungerstation',
+  email_suite: 'email',
+  sms_marketing: 'sms',
 }
 
 export function resolveAppStoreBrandIcon({ appId = '', icon = '', label = '', uid, className }) {

@@ -10,10 +10,12 @@ import CardPaymentModal from '../../components/pos/CardPaymentModal'
 import Money from '../../components/ui/Money'
 import { CURRENCY_CODE } from '../../lib/currency'
 import { getThermalPrinterSettings, printThermalElement } from '../../lib/thermalPrinter'
+import { tenantHasEntitlement } from '../../lib/appEntitlements'
 
 export default function RestaurantPOS() {
   const { language } = useSelector(state => state.ui)
   const { tenant } = useSelector(state => state.auth)
+  const hasCombosAddon = tenantHasEntitlement(tenant, { appId: 'restaurant_combos', flag: 'hasCombosAddon' })
   const isRtl = language === 'ar'
   const currency = String(tenant?.settings?.currency || CURRENCY_CODE).toUpperCase()
   const thermalSettings = getThermalPrinterSettings(tenant)
@@ -83,7 +85,7 @@ export default function RestaurantPOS() {
       const [menuRes, tablesRes, combosRes] = await Promise.all([
         api.get('/restaurant/menu-items?limit=200'),
         api.get('/restaurant/tables?isActive=true'),
-        tenant?.subscription?.hasCombosAddon ? api.get('/restaurant/combos?isActive=true') : Promise.resolve({ data: { combos: [] } })
+        hasCombosAddon ? api.get('/restaurant/combos?isActive=true') : Promise.resolve({ data: { combos: [] } })
       ])
       const loadedMenuItems = menuRes.data.items || []
       setMenuItems(loadedMenuItems)
@@ -134,7 +136,7 @@ export default function RestaurantPOS() {
   }
 
   const categories = ['all', ...new Set(menuItems.map(m => m.category).filter(Boolean))]
-  if (tenant?.subscription?.hasCombosAddon && combos.length > 0) {
+  if (hasCombosAddon && combos.length > 0) {
     categories.push('combos')
   }
 
@@ -144,7 +146,7 @@ export default function RestaurantPOS() {
     return matchesSearch && matchesCat
   })
   
-  const displayCombos = (tenant?.subscription?.hasCombosAddon && (activeCategory === 'all' || activeCategory === 'combos'))
+  const displayCombos = (hasCombosAddon && (activeCategory === 'all' || activeCategory === 'combos'))
     ? combos.filter(c => c.name?.toLowerCase().includes(searchQuery.toLowerCase()) || c.nameAr?.includes(searchQuery))
     : []
 

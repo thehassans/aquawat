@@ -2,8 +2,8 @@ import express from 'express';
 import mongoose from 'mongoose';
 import Tenant from '../models/Tenant.js';
 import EmailMessage from '../models/EmailMessage.js';
-import { protect, tenantFilter, authorize, checkEmailAddon } from '../middleware/auth.js';
-import { listEmailMessages, createDraftMessage, sendTenantEmail, serializeTenantEmailSettings } from '../utils/tenantEmailService.js';
+import { protect, tenantFilter, authorize, checkEmailAddon, requireTenantFilter } from '../middleware/auth.js';
+import { listEmailMessages, createDraftMessage, sendTenantEmail, serializeTenantEmailSettings, verifyTenantEmailConnection } from '../utils/tenantEmailService.js';
 
 const router = express.Router();
 
@@ -14,6 +14,7 @@ const normalizeTenantEmailSettings = (tenant, incomingEmail = {}) => {
     ...incomingEmail,
     enabled: incomingEmail?.enabled === true,
     autoSendInvoices: incomingEmail?.autoSendInvoices === true,
+    autoSendQuotations: incomingEmail?.autoSendQuotations === true,
     smtpSecure: incomingEmail?.smtpSecure === true,
     smtpPort: Number(incomingEmail?.smtpPort || currentEmail?.smtpPort || 587),
     inboundAddress: String(incomingEmail?.inboundAddress || currentEmail?.inboundAddress || `${tenant?.slug || 'tenant'}@inbound.maqder.local`).trim().toLowerCase(),
@@ -51,6 +52,7 @@ const normalizeTenantEmailSettings = (tenant, incomingEmail = {}) => {
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(checkEmailAddon);
 
 router.get('/settings', async (req, res) => {
@@ -92,6 +94,19 @@ router.put('/settings', authorize('admin'), async (req, res) => {
     return res.json({ email: serializeTenantEmailSettings(tenant) });
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/settings/test', authorize('admin'), async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.user.tenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+    const result = await verifyTenantEmailConnection(tenant);
+    return res.json({ success: true, result });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
 });
 

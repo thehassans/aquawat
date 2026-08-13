@@ -15,6 +15,7 @@ import {
   isDeliveryPartnerApp,
 } from '../utils/appStorePartnerApps.js';
 import { DeliveryPlatformConfig } from '../models/RestaurantDelivery.js';
+import { applyAppEntitlements, revokeAppEntitlements } from '../utils/appStoreEntitlements.js';
 
 const router = express.Router();
 router.use(protect);
@@ -50,7 +51,7 @@ const isPaidApp = (appDef, billingCycle = 'monthly', tenantPlan = null) => {
   return getAppPrice(appDef, billingCycle) > 0;
 };
 
-const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}, paymentMeta = null }) => {
+export const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}, paymentMeta = null }) => {
   if (!tenant.settings) tenant.settings = {};
   if (!tenant.settings.installedApps) tenant.settings.installedApps = {};
 
@@ -85,13 +86,7 @@ const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}, payme
 
   tenant.settings.installedApps[appId] = appConfig;
 
-  if (appId === 'email_suite') {
-    if (!tenant.subscription) tenant.subscription = {};
-    tenant.subscription.hasEmailAddon = true;
-    const features = Array.isArray(tenant.subscription.features) ? tenant.subscription.features.filter(Boolean) : [];
-    tenant.subscription.features = [...new Set([...features, 'email_automation'])];
-    tenant.markModified('subscription');
-  }
+  applyAppEntitlements(tenant, appId);
 
   if (appId === 'bangladesh_nbr_einvoicing') {
     if (!tenant.nbr) tenant.nbr = {};
@@ -1159,39 +1154,201 @@ export const DEFAULT_APP_CATALOG = [
   },
   {
     appId: 'email_suite',
-    nameEn: 'Email Suite & Automation',
-    nameAr: 'منظومة البريد الإلكتروني والأتمتة',
-    taglineEn: 'Unified IMAP/SMTP inbox, auto-fetch, HTML templates, and transaction notifications.',
-    taglineAr: 'صندوق بريد متكامل، جلب تلقائي للرسائل، قوالب الفواتير، وإشعارات العمليات.',
-    descriptionEn: 'Full-featured email communications engine: connect enterprise IMAP/SMTP inboxes, auto-sync incoming emails, design custom brand templates, and dispatch quotation and invoice PDF notifications automatically.',
-    descriptionAr: 'منظومة مراسلات بريدية متقدمة: ربط خوادم IMAP/SMTP، مزامنة تلقائية للبريد الوارد، وتصميم قوالب إرسال الفواتير والعروض للعملاء.',
+    nameEn: 'Email Marketing',
+    nameAr: 'التسويق عبر البريد الإلكتروني',
+    taglineEn: 'Compose, SMTP identity, bilingual templates, and automatic invoice & quotation delivery.',
+    taglineAr: 'إنشاء الرسائل، هوية SMTP، قوالب ثنائية اللغة، وإرسال الفواتير والعروض تلقائياً.',
+    descriptionEn: 'Enterprise email marketing for ERP: branded compose, inbox, Gmail / Microsoft 365 / custom SMTP wizard, auto-send invoices and quotations as PDF, and bilingual templates with delivery tracking.',
+    descriptionAr: 'منظومة تسويق بريدي للمؤسسات: إنشاء رسائل بهوية الشركة، معالج SMTP لجيميل ومايكروسوفت 365، وإرسال الفواتير والعروض تلقائياً بقوالب ثنائية اللغة.',
     category: 'automation_comm',
     appType: 'automation_comm',
     icon: 'mail',
-    version: '2.8.0',
-    downloadSize: '5.2 MB',
+    version: '3.0.0',
+    downloadSize: '6.4 MB',
     author: 'Maqder Connect',
-    rating: 4.92,
-    reviewsCount: 310,
+    rating: 4.97,
+    reviewsCount: 418,
     pricingTier: 'free',
-    badge: 'Popular',
+    badge: 'Email Marketing',
     defaultRoute: '/app/dashboard/email',
     featuresEn: [
-      'IMAP/SMTP Mailbox Integration & Auto-Sync',
-      'Direct Email Dispatch for Invoices & Quotes',
-      'Rich HTML Email Templates & Signature Builder',
-      'Delivery Tracking & Unread Notifications'
+      'Premium compose workspace with drafts, CC/BCC, and attachments',
+      'Gmail, Microsoft 365, and custom SMTP setup wizard',
+      'Auto-send signed invoices and approved quotations as PDF',
+      'Bilingual HTML templates, signatures, and delivery history'
     ],
     featuresAr: [
-      'ربط صناديق البريد IMAP/SMTP ومزامنة الرسائل الواردة',
-      'إرسال الفواتير وعروض الأسعار مباشرة للعملاء عبر البريد',
-      'قوالب بريد HTML متجاوبة وتوقيع رقمي مخصص',
-      'تتبع التسليم وإشعارات الرسائل غير المقروءة'
+      'مساحة إنشاء رسائل مع المسودات والنسخ والمرفقات',
+      'معالج إعداد SMTP لجيميل ومايكروسوفت 365 والخادم الخاص',
+      'إرسال الفواتير الموقعة والعروض المعتمدة تلقائياً بصيغة PDF',
+      'قوالب HTML ثنائية اللغة وتوقيع وتتبع التسليم'
     ],
     configSchema: [
       { key: 'autoEmailInvoices', labelEn: 'Auto-email PDF copy on invoice issuance', labelAr: 'إرسال نسخة الفاتورة PDF تلقائياً عند الإصدار', type: 'boolean', defaultValue: true },
-      { key: 'syncIntervalMinutes', labelEn: 'Inbox Sync Interval (Minutes)', labelAr: 'معدل مزامنة البريد الوارد (دقائق)', type: 'number', defaultValue: 15 }
+      { key: 'autoEmailQuotations', labelEn: 'Auto-email PDF copy when a quotation is approved', labelAr: 'إرسال العرض PDF تلقائياً عند الاعتماد', type: 'boolean', defaultValue: true }
     ]
+  },
+  {
+    appId: 'sms_marketing',
+    nameEn: 'SMS Marketing',
+    nameAr: 'التسويق عبر الرسائل النصية',
+    taglineEn: 'Twilio, Unifonic, or custom gateway — invoice SMS, campaigns, and auto-send.',
+    taglineAr: 'تويليو أو يونيفونك أو بوابة خاصة — رسائل الفواتير والحملات والإرسال التلقائي.',
+    descriptionEn: 'Full SMS marketing suite for ERP: compose campaigns, send invoice notices with public links, auto-dispatch after approval or ZATCA sign, and connect Twilio, Unifonic, or a custom HTTP gateway with delivery history.',
+    descriptionAr: 'منظومة رسائل نصية متكاملة: إنشاء الحملات، إشعار الفواتير مع الرابط، الإرسال التلقائي بعد الاعتماد أو التوقيع، وربط تويليو أو يونيفونك أو بوابة HTTP مع سجل التسليم.',
+    category: 'automation_comm',
+    appType: 'automation_comm',
+    icon: 'sms',
+    version: '1.0.0',
+    downloadSize: '4.1 MB',
+    author: 'Maqder Connect',
+    rating: 4.94,
+    reviewsCount: 126,
+    pricingTier: 'free',
+    badge: 'New',
+    defaultRoute: '/app/dashboard/sms',
+    featuresEn: [
+      'Compose and campaign send to one or many mobiles',
+      'Invoice SMS with amount, number, and workspace link',
+      'Auto-send after invoice approval or signing',
+      'Twilio, Unifonic, and custom HTTP gateway setup'
+    ],
+    featuresAr: [
+      'إنشاء وإرسال حملات إلى رقم واحد أو عدة أرقام',
+      'رسالة فاتورة بالمبلغ والرقم ورابط مساحة العمل',
+      'إرسال تلقائي بعد اعتماد أو توقيع الفاتورة',
+      'إعداد تويليو ويونيفونك وبوابة HTTP مخصصة'
+    ],
+    configSchema: [
+      { key: 'autoSendInvoices', labelEn: 'Auto-send SMS when an invoice is issued or signed', labelAr: 'إرسال رسالة تلقائياً عند إصدار أو توقيع الفاتورة', type: 'boolean', defaultValue: true }
+    ]
+  },
+  {
+    appId: 'multi_branch',
+    nameEn: 'Multi-Branch',
+    nameAr: 'الفروع المتعددة',
+    taglineEn: 'Independent branches with their own users, POS, and reporting.',
+    taglineAr: 'فروع مستقلة بمستخدمين ونقاط بيع وتقارير خاصة بكل فرع.',
+    descriptionEn: 'Create and manage multiple branches with independent users, stock, and restaurant operations per location. Pair with Max Branches on the tenant subscription.',
+    descriptionAr: 'إنشاء وإدارة فروع متعددة مع مستخدمين ومخزون وعمليات مطعم مستقلة لكل موقع.',
+    category: 'industry_verticals',
+    appType: 'premium_addon',
+    icon: 'building',
+    version: '2.1.0',
+    downloadSize: '3.8 MB',
+    author: 'Maqder Core',
+    rating: 4.9,
+    reviewsCount: 210,
+    pricingTier: 'free',
+    badge: 'Operations',
+    defaultRoute: '/app/dashboard/restaurant/branches',
+    featuresEn: [
+      'Independent branch profiles and managers',
+      'Per-branch users and POS sessions',
+      'Location-level reporting'
+    ],
+    featuresAr: [
+      'ملفات فروع مستقلة مع مدراء لكل موقع',
+      'مستخدمون وجلسات كاشير لكل فرع',
+      'تقارير على مستوى الموقع'
+    ],
+    configSchema: []
+  },
+  {
+    appId: 'restaurant_mess',
+    nameEn: 'Mess / Cafeteria',
+    nameAr: 'المطعم الجماعي',
+    taglineEn: 'Meal plans, mess subscriptions, and cafeteria billing.',
+    taglineAr: 'خطط وجبات واشتراكات المطعم الجماعي وفوترة الكافتيريا.',
+    descriptionEn: 'Run mess halls and cafeterias with meal plans, subscriber billing, and kitchen production aligned to restaurant POS.',
+    descriptionAr: 'تشغيل المطابخ الجماعية والكافتيريات مع خطط الوجبات واشتراكات الفوترة المرتبطة بنقطة البيع.',
+    category: 'industry_verticals',
+    appType: 'premium_addon',
+    icon: 'utensils',
+    version: '2.0.0',
+    downloadSize: '3.2 MB',
+    author: 'Maqder Core',
+    rating: 4.86,
+    reviewsCount: 88,
+    pricingTier: 'free',
+    badge: 'F&B',
+    defaultRoute: '/app/dashboard/restaurant/mess',
+    businessTypeGrant: 'restaurant',
+    featuresEn: [
+      'Subscriber meal plans',
+      'Cafeteria billing cycles',
+      'Kitchen production from mess menus'
+    ],
+    featuresAr: [
+      'خطط وجبات للمشتركين',
+      'دورات فوترة الكافتيريا',
+      'إنتاج المطبخ من قوائم المطعم الجماعي'
+    ],
+    configSchema: []
+  },
+  {
+    appId: 'restaurant_combos',
+    nameEn: 'Combos & Deals',
+    nameAr: 'العروض والباقات',
+    taglineEn: 'Bundle menu items into POS combos with recipe depletion.',
+    taglineAr: 'تجميع أصناف القائمة في باقات للكاشير مع خصم المكونات.',
+    descriptionEn: 'Build combos and promotional deals on the restaurant POS with automatic ingredient depletion and combo pricing.',
+    descriptionAr: 'إنشاء الباقات والعروض الترويجية على كاشير المطعم مع خصم المكونات تلقائياً.',
+    category: 'industry_verticals',
+    appType: 'premium_addon',
+    icon: 'tag',
+    version: '2.0.0',
+    downloadSize: '2.6 MB',
+    author: 'Maqder Core',
+    rating: 4.88,
+    reviewsCount: 142,
+    pricingTier: 'free',
+    badge: 'POS',
+    defaultRoute: '/app/dashboard/restaurant/combos',
+    businessTypeGrant: 'restaurant',
+    featuresEn: [
+      'Combo builder on restaurant POS',
+      'Deal pricing and availability windows',
+      'Recipe depletion for bundled items'
+    ],
+    featuresAr: [
+      'منشئ الباقات على كاشير المطعم',
+      'تسعير العروض ونوافذ التوفر',
+      'خصم مكونات الأصناف المجمّعة'
+    ],
+    configSchema: []
+  },
+  {
+    appId: 'qr_menu_ordering',
+    nameEn: 'QR Menu & Online Ordering',
+    nameAr: 'المنيو والطلب عبر QR',
+    taglineEn: 'Contactless QR menu with live stock and table ordering.',
+    taglineAr: 'منيو باركود بدون تلامس مع المخزون اللحظي وطلب الطاولة.',
+    descriptionEn: 'Publish a branded QR digital menu with live availability, table ordering, and kitchen tickets — no extra storefront required.',
+    descriptionAr: 'نشر منيو رقمي بالباركود مع التوفر اللحظي وطلب الطاولة وتذاكر المطبخ.',
+    category: 'industry_verticals',
+    appType: 'premium_addon',
+    icon: 'qr',
+    version: '2.2.0',
+    downloadSize: '4.0 MB',
+    author: 'Maqder Core',
+    rating: 4.91,
+    reviewsCount: 196,
+    pricingTier: 'free',
+    badge: 'Guest Experience',
+    defaultRoute: '/app/dashboard/restaurant/qr-menu',
+    businessTypeGrant: 'restaurant',
+    featuresEn: [
+      'Branded QR digital menu',
+      'Table-side ordering into KDS',
+      'Live stock sync on the guest menu'
+    ],
+    featuresAr: [
+      'منيو رقمي بهوية المنشأة',
+      'طلب من الطاولة إلى شاشة المطبخ',
+      'تزامن المخزون اللحظي على منيو الضيف'
+    ],
+    configSchema: []
   },
   {
     appId: 'ai_copilot_insights',
@@ -1918,6 +2075,79 @@ router.post('/apps/:appId/confirm-payment', protect, async (req, res) => {
   }
 });
 
+export const applyAppUninstall = async ({ tenant, appId }) => {
+  const installedApps = { ...(tenant.settings?.installedApps || {}) };
+  if (installedApps[appId]) {
+    installedApps[appId].isInstalled = false;
+    installedApps[appId].isEnabled = false;
+    installedApps[appId].uninstalledAt = new Date();
+  }
+
+  if (appId === PREMIUM_INVOICE_TEMPLATES_APP_ID) {
+    if (!tenant.settings) tenant.settings = {};
+    if (Number(tenant.settings.invoicePdfTemplate) > ESSENTIAL_TEMPLATE_ID) {
+      tenant.settings.invoicePdfTemplate = ESSENTIAL_TEMPLATE_ID;
+    }
+    const contextProfiles = tenant.settings?.invoiceBranding?.contextProfiles;
+    if (contextProfiles && typeof contextProfiles === 'object') {
+      for (const key of Object.keys(contextProfiles)) {
+        if (Number(contextProfiles[key]?.templateId) > ESSENTIAL_TEMPLATE_ID) {
+          contextProfiles[key].templateId = ESSENTIAL_TEMPLATE_ID;
+        }
+      }
+    }
+  }
+
+  const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find(a => a.appId === appId);
+  if (appDef && appDef.businessTypeGrant) {
+    const stillGranted = DEFAULT_APP_CATALOG.some((a) =>
+      a.businessTypeGrant === appDef.businessTypeGrant &&
+      a.appId !== appId &&
+      installedApps[a.appId]?.isInstalled &&
+      installedApps[a.appId]?.isEnabled !== false
+    );
+    const currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
+    if (!stillGranted && currentTypes.length > 1) {
+      tenant.businessTypes = currentTypes.filter(t => t !== appDef.businessTypeGrant);
+      if (tenant.businessTypes.length === 0) tenant.businessTypes = ['trading'];
+      tenant.businessType = tenant.businessTypes[0];
+      tenant.markModified('businessTypes');
+    }
+  }
+
+  if (!tenant.settings) tenant.settings = {};
+  tenant.settings.installedApps = installedApps;
+  tenant.markModified('settings');
+  tenant.markModified('settings.installedApps');
+
+  if (isDeliveryPartnerApp(appId)) {
+    const platform = DELIVERY_PLATFORM_APP_MAP[appId];
+    if (platform) {
+      await DeliveryPlatformConfig.updateMany(
+        { tenantId: tenant._id, platform },
+        { $set: { isActive: false, webhookActive: false } }
+      );
+    }
+    const remaining = ALL_DELIVERY_APP_IDS.some((id) =>
+      id !== appId && installedApps[id]?.isInstalled && installedApps[id]?.isEnabled !== false
+    );
+    if (!remaining) {
+      revokeAppEntitlements(tenant, 'delivery_platforms');
+    }
+  } else {
+    revokeAppEntitlements(tenant, appId);
+  }
+
+  const courierKey = COURIER_APP_MAP[appId];
+  if (courierKey && tenant.ecommerce?.couriers?.[courierKey]) {
+    tenant.ecommerce.couriers[courierKey].enabled = false;
+    tenant.markModified('ecommerce');
+  }
+
+  await tenant.save();
+  return tenant;
+};
+
 // ─── 3. Uninstall App / Add-on ───
 router.post('/apps/:appId/uninstall', protect, async (req, res) => {
   try {
@@ -1926,85 +2156,7 @@ router.post('/apps/:appId/uninstall', protect, async (req, res) => {
     const tenant = await getTenantForUser(req);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-    const installedApps = { ...(tenant.settings?.installedApps || {}) };
-    if (installedApps[appId]) {
-      installedApps[appId].isInstalled = false;
-      installedApps[appId].isEnabled = false;
-      installedApps[appId].uninstalledAt = new Date();
-    }
-
-    // Revoke premium PDF templates on uninstall so tenants actually lose
-    // access instead of staying grandfathered in via their prior default.
-    if (appId === PREMIUM_INVOICE_TEMPLATES_APP_ID) {
-      if (!tenant.settings) tenant.settings = {};
-      if (Number(tenant.settings.invoicePdfTemplate) > ESSENTIAL_TEMPLATE_ID) {
-        tenant.settings.invoicePdfTemplate = ESSENTIAL_TEMPLATE_ID;
-      }
-      const contextProfiles = tenant.settings?.invoiceBranding?.contextProfiles;
-      if (contextProfiles && typeof contextProfiles === 'object') {
-        for (const key of Object.keys(contextProfiles)) {
-          if (Number(contextProfiles[key]?.templateId) > ESSENTIAL_TEMPLATE_ID) {
-            contextProfiles[key].templateId = ESSENTIAL_TEMPLATE_ID;
-          }
-        }
-      }
-    }
-
-    const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find(a => a.appId === appId);
-    if (appDef && appDef.businessTypeGrant) {
-      const stillGranted = DEFAULT_APP_CATALOG.some((a) =>
-        a.businessTypeGrant === appDef.businessTypeGrant &&
-        a.appId !== appId &&
-        installedApps[a.appId]?.isInstalled &&
-        installedApps[a.appId]?.isEnabled !== false
-      );
-      const currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
-      if (!stillGranted && currentTypes.length > 1) {
-        tenant.businessTypes = currentTypes.filter(t => t !== appDef.businessTypeGrant);
-        if (tenant.businessTypes.length === 0) tenant.businessTypes = ['trading'];
-        tenant.businessType = tenant.businessTypes[0];
-        tenant.markModified('businessTypes');
-      }
-    }
-
-    if (!tenant.settings) tenant.settings = {};
-    tenant.settings.installedApps = installedApps;
-    tenant.markModified('settings');
-    tenant.markModified('settings.installedApps');
-
-    if (appId === 'email_suite') {
-      if (!tenant.subscription) tenant.subscription = {};
-      tenant.subscription.hasEmailAddon = false;
-      const features = Array.isArray(tenant.subscription.features) ? tenant.subscription.features : [];
-      tenant.subscription.features = features.filter((feature) => feature !== 'email_automation');
-      tenant.markModified('subscription');
-    }
-
-    if (isDeliveryPartnerApp(appId)) {
-      const platform = DELIVERY_PLATFORM_APP_MAP[appId];
-      if (platform) {
-        await DeliveryPlatformConfig.updateMany(
-          { tenantId: tenant._id, platform },
-          { $set: { isActive: false, webhookActive: false } }
-        );
-      }
-      const remaining = ALL_DELIVERY_APP_IDS.some((id) =>
-        id !== appId && installedApps[id]?.isInstalled && installedApps[id]?.isEnabled !== false
-      );
-      if (!remaining) {
-        if (!tenant.subscription) tenant.subscription = {};
-        tenant.subscription.hasDeliveryAddon = false;
-        tenant.markModified('subscription');
-      }
-    }
-
-    const courierKey = COURIER_APP_MAP[appId];
-    if (courierKey && tenant.ecommerce?.couriers?.[courierKey]) {
-      tenant.ecommerce.couriers[courierKey].enabled = false;
-      tenant.markModified('ecommerce');
-    }
-
-    await tenant.save();
+    await applyAppUninstall({ tenant, appId });
 
     res.json({
       success: true,
@@ -2038,6 +2190,18 @@ router.post('/apps/:appId/toggle', protect, async (req, res) => {
     tenant.settings.installedApps = installedApps;
     tenant.markModified('settings');
     tenant.markModified('settings.installedApps');
+
+    if (installedApps[appId].isEnabled) {
+      applyAppEntitlements(tenant, appId);
+    } else if (isDeliveryPartnerApp(appId)) {
+      const remaining = ALL_DELIVERY_APP_IDS.some((id) =>
+        id !== appId && installedApps[id]?.isInstalled && installedApps[id]?.isEnabled !== false
+      );
+      if (!remaining) revokeAppEntitlements(tenant, 'delivery_platforms');
+    } else {
+      revokeAppEntitlements(tenant, appId);
+    }
+
     await tenant.save();
 
     res.json({

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote } from 'lucide-react'
+import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote, Smartphone } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -16,6 +16,8 @@ import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/trav
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
+import { tenantHasEmailAddon } from '../../lib/emailAddon'
+import { tenantHasSmsAddon } from '../../lib/smsAddon'
 import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
 
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {
@@ -78,7 +80,8 @@ export default function InvoiceView() {
   const isBilingualInvoiceContext = invoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
   const isBilingualInvoice = resolveInvoiceBilingual(tenant, isBilingualInvoiceContext)
   const invoiceSecondaryLanguage = getInvoiceSecondaryLanguage(tenant) || undefined
-  const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
+  const hasEmailAddon = tenantHasEmailAddon(tenant)
+  const hasSmsAddon = tenantHasSmsAddon(tenant)
   
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const posTenants = ['bakala', 'super market', 'khayyat', 'saloon', 'laundry', 'restaurant']
@@ -201,6 +204,16 @@ export default function InvoiceView() {
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to send invoice email')
+    }
+  })
+
+  const sendSmsMutation = useMutation({
+    mutationFn: () => api.post(`/sms/invoices/${id}/send`, { language }),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم إرسال الفاتورة عبر الرسائل' : 'Invoice SMS sent successfully')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || (language === 'ar' ? 'فشل إرسال الرسالة' : 'Failed to send invoice SMS'))
     }
   })
 
@@ -379,6 +392,21 @@ export default function InvoiceView() {
                 <Mail className="w-4 h-4" />
               )}
               {language === 'ar' ? 'إرسال بالبريد' : 'Send Email'}
+            </button>
+          )}
+          {invoice?.flow !== 'purchase' && hasSmsAddon && (
+            <button
+              type="button"
+              onClick={() => sendSmsMutation.mutate()}
+              disabled={sendSmsMutation.isPending}
+              className="btn btn-secondary"
+            >
+              {sendSmsMutation.isPending ? (
+                <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Smartphone className="w-4 h-4" />
+              )}
+              {language === 'ar' ? 'إرسال برسالة' : 'Send SMS'}
             </button>
           )}
           {String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR' && ['draft', 'pending'].includes(invoice?.status) && !invoice?.zatca?.signedXml && invoice?.flow !== 'purchase' && invoice?.invoiceSubtype !== 'proforma' && (

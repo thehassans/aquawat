@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
 import { getTenantBusinessTypes } from '../utils/businessTypes.js';
+import { tenantHasSmsAddon as tenantHasSmsAddonCheck } from '../utils/appStoreEntitlements.js';
 import { cacheGet, cacheSet, cacheDel, isRedisReady } from '../lib/redis.js';
 
 // ─── L1: In-process memory cache (microsecond hits, private per worker) ────────
@@ -200,7 +201,21 @@ export const checkEmailAddon = (req, res, next) => {
   }
 
   if (!tenantHasEmailAddon(req.tenant)) {
-    return res.status(403).json({ error: 'Email add-on is not enabled for this tenant' });
+    return res.status(403).json({ error: 'Email Marketing is not installed for this tenant' });
+  }
+
+  next();
+};
+
+export const tenantHasSmsAddon = tenantHasSmsAddonCheck;
+
+export const checkSmsAddon = (req, res, next) => {
+  if (req.user.role === 'super_admin') {
+    return next();
+  }
+
+  if (!tenantHasSmsAddon(req.tenant)) {
+    return res.status(403).json({ error: 'SMS Marketing is not installed for this tenant' });
   }
 
   next();
@@ -277,4 +292,4 @@ export const requireTenantFilter = (req, res, next) => {
 
 export const authenticate = protect;
 
-export default { protect, authenticate, authorize, checkPermission, userHasPermission, tenantFilter, requireTenantFilter, requireBusinessType, checkEmailAddon, tenantHasEmailAddon, invalidateAuthCache };
+export default { protect, authenticate, authorize, checkPermission, userHasPermission, tenantFilter, requireTenantFilter, requireBusinessType, checkEmailAddon, tenantHasEmailAddon, checkSmsAddon, tenantHasSmsAddon, invalidateAuthCache };

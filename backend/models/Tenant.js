@@ -25,6 +25,7 @@ const subscriptionSchema = new mongoose.Schema({
   hasMessAddon: { type: Boolean, default: false },
   hasCombosAddon: { type: Boolean, default: false },
   hasQrOrderingAddon: { type: Boolean, default: false },
+  hasSmsAddon: { type: Boolean, default: false },
   maxBranches: { type: Number, default: 0 },
   features: [{
     type: String,
@@ -506,6 +507,7 @@ const tenantSchema = new mongoose.Schema({
       email: {
         enabled: { type: Boolean, default: false },
         autoSendInvoices: { type: Boolean, default: false },
+        autoSendQuotations: { type: Boolean, default: false },
         identityType: { type: String, enum: ['platform', 'custom_smtp'], default: 'platform' },
         identityStatus: { type: String, enum: ['not_requested', 'requested', 'configured', 'verified'], default: 'not_requested' },
         platformProvider: { type: String, enum: ['platform', 'brevo'], default: 'platform' },
@@ -528,6 +530,22 @@ const tenantSchema = new mongoose.Schema({
         bodyAr: { type: String, default: '' },
         signatureEn: { type: String, default: '' },
         signatureAr: { type: String, default: '' }
+      },
+      sms: {
+        enabled: { type: Boolean, default: false },
+        autoSendInvoices: { type: Boolean, default: false },
+        provider: { type: String, enum: ['twilio', 'unifonic', 'custom'], default: 'twilio' },
+        fromNumber: { type: String, default: '' },
+        twilioAccountSid: { type: String, default: '' },
+        twilioAuthToken: { type: String, default: '' },
+        unifonicAppSid: { type: String, default: '' },
+        unifonicSenderId: { type: String, default: '' },
+        unifonicToken: { type: String, default: '' },
+        customUrl: { type: String, default: '' },
+        customApiKey: { type: String, default: '' },
+        customAuthHeader: { type: String, default: '' },
+        invoiceTemplateEn: { type: String, default: '' },
+        invoiceTemplateAr: { type: String, default: '' },
       }
     },
     posTerminal: {

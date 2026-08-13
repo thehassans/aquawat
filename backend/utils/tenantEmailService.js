@@ -5,7 +5,7 @@ import EmailMessage from '../models/EmailMessage.js';
 import SystemSettings from '../models/SystemSettings.js';
 import logger from './logger.js';
 import { getOrBuildInvoicePdfAttachment } from '../services/invoicePdfQueue.js';
-import { ensureEmailDeliveryConfig, sendEmailWithConfig } from './emailProviderService.js';
+import { ensureEmailDeliveryConfig, sendEmailWithConfig, verifyEmailDeliveryConnection } from './emailProviderService.js';
 import {
   buildPremiumEmailShell,
   buildPremiumBilingualEmailShell,
@@ -113,6 +113,12 @@ const resolveTenantEmailConfig = ({ tenant, settings }) => {
 
 const ensureConfigReady = (config) => {
   ensureEmailDeliveryConfig(config, { context: 'Tenant email delivery' });
+};
+
+export const verifyTenantEmailConnection = async (tenant) => {
+  const settings = await SystemSettings.findOne({ key: 'global' });
+  const config = resolveTenantEmailConfig({ tenant, settings });
+  return verifyEmailDeliveryConnection({ ...config, enabled: true });
 };
 
 export const buildEmailShell = (options = {}) => buildPremiumEmailShell(options);

@@ -11,6 +11,7 @@ import { useTranslation } from '../../lib/translations'
 import SarIcon from '../../components/ui/SarIcon'
 import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes, normalizeBusinessTypes } from '../../lib/businessTypes'
 import { CURRENCIES, CURRENCY_CODE } from '../../lib/currency'
+import TenantAppStorePanel from '../../components/super-admin/TenantAppStorePanel'
 
 export default function TenantForm() {
   const { id } = useParams()
@@ -203,6 +204,11 @@ export default function TenantForm() {
       settings: nextSettings,
       businessTypes: watchedBusinessTypes,
       businessType: watchedBusinessTypes.includes(watchedPrimaryBusinessType) ? watchedPrimaryBusinessType : watchedBusinessTypes[0],
+    }
+
+    if (nextPayload.subscription) {
+      const { hasEmailAddon, hasIotAddon, hasWeightScaleAddon, hasBranchAddon, hasDeliveryAddon, hasMessAddon, hasCombosAddon, hasQrOrderingAddon, hasSmsAddon, ...subscriptionRest } = nextPayload.subscription
+      nextPayload.subscription = subscriptionRest
     }
 
     mutation.mutate(nextPayload)
@@ -702,59 +708,7 @@ export default function TenantForm() {
                   </label>
                   <input type="number" {...register('subscription.price', { valueAsNumber: true })} className="input" />
                 </div>
-                <label className="md:col-span-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'إضافة البريد الإلكتروني' : 'Email Add-on'}</p>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'يمنح المستأجر صندوق البريد، الإرسال التلقائي للفواتير، وربط هوية SMTP خاصة.' : 'Grants the tenant inbox access, automated invoice delivery, and custom SMTP identity support.'}</p>
-                  </div>
-                  <input type="checkbox" {...register('subscription.hasEmailAddon')} className="h-4 w-4" />
-                </label>
-                <label className="md:col-span-3 rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4 dark:border-cyan-900/40 dark:bg-cyan-950/20 flex items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'إضافة إنترنت الأشياء (IoT)' : 'IoT Add-on'}</p>
-                      <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white text-[10px] font-bold uppercase">Smart Corp</span>
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'يمكّن المستأجر من دمج وإدارة بنيته التحتية الكاملة عبر شبكة إنترنت الأشياء — مستشعرات، بوابات، عدادات، وأنظمة مؤسسية ذكية.' : 'Enables the tenant to integrate and manage their complete corporate infrastructure through a unified IoT network — sensors, gateways, meters, and smart enterprise systems.'}</p>
-                  </div>
-                  <input type="checkbox" {...register('subscription.hasIotAddon')} className="h-4 w-4 accent-cyan-500" />
-                </label>
-                <label className="md:col-span-3 rounded-2xl border border-teal-200 bg-teal-50/70 p-4 dark:border-teal-900/40 dark:bg-teal-950/20 flex items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'إضافة الميزان الذكي (Bakala)' : 'Weight Scale Add-on (Bakala)'}</p>
-                      <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[10px] font-bold uppercase">Premium</span>
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'يمكّن المستأجر من استخدام الميزان لطباعة ملصقات الباركود للمنتجات الموزونة (خاص بالسوبرماركت).' : 'Enables the smart weight scale feature to print and read weight barcodes for supermarket items.'}</p>
-                  </div>
-                  <input type="checkbox" {...register('subscription.hasWeightScaleAddon')} className="h-4 w-4 accent-teal-500" />
-                </label>
-                <label className="md:col-span-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/40 dark:bg-amber-950/20 flex items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'إضافة الفروع المتعددة' : 'Multi-Branch Add-on'}</p>
-                      <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold uppercase">Restaurant</span>
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'يمكّن المستأجر من إنشاء وإدارة فروع متعددة مع مستخدمين مستقلين لكل فرع.' : 'Enables the tenant to create and manage multiple branches with independent users per branch.'}</p>
-                  </div>
-                  <input type="checkbox" {...register('subscription.hasBranchAddon')} className="h-4 w-4 accent-amber-500" />
-                </label>
-                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input type="checkbox" {...register('subscription.hasDeliveryAddon')} className="h-4 w-4 accent-teal-500" />
-                  {language === 'ar' ? 'إضافة منصات التوصيل' : 'Delivery Platforms Add-on'}
-                </label>
-                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input type="checkbox" {...register('subscription.hasMessAddon')} className="h-4 w-4 accent-indigo-500" />
-                  {language === 'ar' ? 'إضافة المطعم الجماعي' : 'Mess / Cafeteria Add-on'}
-                </label>
-                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input type="checkbox" {...register('subscription.hasCombosAddon')} className="h-4 w-4 accent-purple-500" />
-                  {language === 'ar' ? 'إضافة العروض والباقات' : 'Combos & Deals Add-on'}
-                </label>
-                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input type="checkbox" {...register('subscription.hasQrOrderingAddon')} className="h-4 w-4 accent-amber-500" />
-                  {language === 'ar' ? 'إضافة خدمة المنيو والطلب عبر QR' : 'QR Menu & Online Ordering Add-on'}
-                </label>
+                {isEdit ? <TenantAppStorePanel tenantId={id} language={language} /> : null}
                 <div>
                   <label className="label">{language === 'ar' ? 'الحد الأقصى للفروع' : 'Max Branches'}</label>
                   <input type="number" {...register('subscription.maxBranches', { valueAsNumber: true })} className="input" />

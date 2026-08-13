@@ -10,6 +10,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { autoTranslateText } from '../../lib/builtInTranslator'
 import { useTranslation } from '../../lib/translations'
+import { tenantHasEntitlement } from '../../lib/appEntitlements'
 
 const tCache = new Map()
 function useAutoTranslate({ source, sourceLang, targetLang, enabled = true, debounceMs = 120, minLength = 2 }) {
@@ -46,7 +47,7 @@ export default function RestaurantBranches() {
   const qc = useQueryClient()
   const { t } = useTranslation(language)
 
-  const hasAddon = tenant?.subscription?.hasBranchAddon === true
+  const hasAddon = tenantHasEntitlement(tenant, { appId: 'multi_branch', flag: 'hasBranchAddon' })
   const maxB = tenant?.subscription?.maxBranches || 0
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
 

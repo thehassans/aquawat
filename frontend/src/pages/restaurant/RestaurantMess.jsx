@@ -10,6 +10,7 @@ import {
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
+import { tenantHasEntitlement } from '../../lib/appEntitlements'
 
 const MEAL_LABELS = {
   breakfast: { en: 'Breakfast', ar: 'فطور' },
@@ -297,7 +298,7 @@ export default function RestaurantMess() {
   const queryClient = useQueryClient()
   const isRtl = language === 'ar'
   
-  const hasMessAddon = tenant?.subscription?.hasMessAddon;
+  const hasMessAddon = tenantHasEntitlement(tenant, { appId: 'restaurant_mess', flag: 'hasMessAddon' })
   
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showPlanModal, setShowPlanModal] = useState(false)

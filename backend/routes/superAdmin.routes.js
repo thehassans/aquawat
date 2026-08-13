@@ -8,7 +8,7 @@ import Tenant from '../models/Tenant.js';
 import User from '../models/User.js';
 import Invoice from '../models/Invoice.js';
 import { AppAddon } from '../models/AppAddon.js';
-import { DEFAULT_APP_CATALOG, ensureCatalogInitialized } from './appStore.routes.js';
+import { DEFAULT_APP_CATALOG, ensureCatalogInitialized, applyAppInstall, applyAppUninstall } from './appStore.routes.js';
 import Customer from '../models/Customer.js';
 import TravelBooking from '../models/TravelBooking.js';
 import RestaurantOrder from '../models/RestaurantOrder.js';
@@ -403,6 +403,7 @@ const mergeTenantEmailSettings = ({ existingTenant, incomingSettings }) => {
       ...incomingEmail,
       enabled: incomingEmail?.enabled !== undefined ? incomingEmail.enabled === true : currentEmail.enabled,
       autoSendInvoices: incomingEmail?.autoSendInvoices !== undefined ? incomingEmail.autoSendInvoices === true : currentEmail.autoSendInvoices,
+      autoSendQuotations: incomingEmail?.autoSendQuotations !== undefined ? incomingEmail.autoSendQuotations === true : currentEmail.autoSendQuotations,
       smtpSecure: incomingEmail?.smtpSecure !== undefined ? incomingEmail.smtpSecure === true : currentEmail.smtpSecure,
       smtpPort: incomingEmail?.smtpPort !== undefined ? Number(incomingEmail.smtpPort || 587) : currentEmail.smtpPort,
       platformProvider: normalizeTenantPlatformProvider(incomingEmail?.platformProvider ?? currentEmail?.platformProvider),
@@ -3524,6 +3525,66 @@ router.get('/tenants/:id/khayyat-customers/stats', async (req, res) => {
     const total = await Customer.countDocuments({ tenantId, isActive: true });
     const withReceipts = await Customer.countDocuments({ tenantId, isActive: true, khayyatReceiptNumbers: { $ne: '', $exists: true } });
     res.json({ total, withReceipts });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/tenants/:id/apps', async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.params.id);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    await ensureCatalogInitialized();
+    const apps = await AppAddon.find({ isActive: { $ne: false } }).sort({ category: 1, nameEn: 1 }).lean();
+    const catalog = (apps && apps.length > 0) ? apps : DEFAULT_APP_CATALOG;
+    const installedApps = tenant.settings?.installedApps || {};
+    const withStatus = catalog.map((app) => {
+      const record = installedApps[app.appId] || {};
+      const flagged = app.appId === 'email_suite' ? tenant.subscription?.hasEmailAddon === true
+        : app.appId === 'sms_marketing' ? tenant.subscription?.hasSmsAddon === true
+        : app.appId === 'iot_devices' ? tenant.subscription?.hasIotAddon === true
+        : app.appId === 'weight_scale_driver' ? tenant.subscription?.hasWeightScaleAddon === true
+        : app.appId === 'multi_branch' ? tenant.subscription?.hasBranchAddon === true
+        : app.appId === 'delivery_platforms' ? tenant.subscription?.hasDeliveryAddon === true
+        : app.appId === 'restaurant_mess' ? tenant.subscription?.hasMessAddon === true
+        : app.appId === 'restaurant_combos' ? tenant.subscription?.hasCombosAddon === true
+        : app.appId === 'qr_menu_ordering' ? tenant.subscription?.hasQrOrderingAddon === true
+        : false;
+      const isInstalled = (record.isInstalled === true && record.isEnabled !== false) || flagged;
+      return { ...app, isInstalled, installedAt: record.installedAt || null };
+    });
+    res.json({ success: true, apps: withStatus });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/tenants/:id/apps/:appId', async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.params.id);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const { appId } = req.params;
+    const action = String(req.body?.action || 'install').toLowerCase();
+    await ensureCatalogInitialized();
+    const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find((a) => a.appId === appId);
+    if (!appDef) return res.status(404).json({ error: 'App not found in catalog' });
+
+    if (action === 'uninstall') {
+      await applyAppUninstall({ tenant, appId });
+    } else {
+      await applyAppInstall({ tenant, appDef, appId, customConfig: req.body?.config || {} });
+    }
+
+    await invalidateAuthCache(null, tenant._id);
+    res.json({
+      success: true,
+      appId,
+      action: action === 'uninstall' ? 'uninstall' : 'install',
+      installedApps: tenant.settings?.installedApps,
+      subscription: tenant.subscription,
+      tenant: serializeTenantForSuperAdmin(tenant),
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -11,6 +11,7 @@ import { resolveQuotationTemplateId } from '../../lib/invoiceTemplates'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { buildQuotationPdfBlob, downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoicePdf'
 import { exportToExcel } from '../../lib/export'
+import { tenantHasEmailAddon } from '../../lib/emailAddon'
 
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -51,7 +52,7 @@ export default function QuotationView() {
     queryFn: () => api.get(`/quotations/${id}`).then((res) => res.data),
   })
 
-  const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
+  const hasEmailAddon = tenantHasEmailAddon(tenant)
   const convertedInvoiceId = quotation?.convertedInvoiceId?._id || quotation?.convertedInvoiceId || ''
   const convertedInvoiceNumber = quotation?.convertedInvoiceId?.invoiceNumber || ''
   const templateId = resolveQuotationTemplateId(quotation?.pdfTemplateId)

@@ -8,10 +8,12 @@ import {
   Sparkles, X, ChevronDown, AtSign, Clock, Download,
   AlertCircle, Zap, Users
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { usePublicWebsiteSettings } from '../../lib/website'
 import { updateTenant } from '../../store/slices/authSlice'
+import { tenantHasEmailAddon } from '../../lib/emailAddon'
 import EmailSettingsModal from './EmailSettingsModal'
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -106,10 +108,7 @@ export default function EmailWorkspace() {
   const isArabic = language === 'ar'
   const { data: websiteSettings } = usePublicWebsiteSettings()
 
-  const hasEmailAddon =
-    tenant?.subscription?.hasEmailAddon === true ||
-    (Array.isArray(tenant?.subscription?.features) &&
-      tenant.subscription.features.includes('email_automation'))
+  const hasEmailAddon = tenantHasEmailAddon(tenant)
 
   const [activeFolder, setActiveFolder] = useState('all')
   const [search, setSearch] = useState('')
@@ -126,9 +125,8 @@ export default function EmailWorkspace() {
     return () => clearTimeout(h)
   }, [search])
 
-  const salesPhone = websiteSettings?.contactPhone || '+966596775485'
   const salesEmail = websiteSettings?.contactEmail || 'info@maqder.com'
-  const contactSalesSubject = encodeURIComponent('Email Automation Add-on')
+  const contactSalesSubject = encodeURIComponent('Email Marketing')
 
   const emailSettingsQuery = useQuery({
     queryKey: ['tenant-email-settings'],
@@ -308,7 +306,7 @@ export default function EmailWorkspace() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {isArabic ? 'صندوق البريد' : 'Mailbox'}
+                {isArabic ? 'التسويق عبر البريد' : 'Email Marketing'}
               </h1>
               <p className="text-sm text-gray-400 dark:text-gray-500">
                 {isArabic ? 'إدارة الوارد والمرسل وإرسال الفواتير تلقائياً' : 'Inbox, sent mail, and automated invoice delivery'}
@@ -345,15 +343,15 @@ export default function EmailWorkspace() {
             <div className="flex-1 text-center lg:text-start">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-500/15 border border-primary-500/25 text-primary-300 text-xs font-semibold mb-5 uppercase tracking-wider">
                 <Zap className="w-3.5 h-3.5" />
-                {isArabic ? 'إضافة مطلوبة' : 'Add-on Required'}
+                {isArabic ? 'ثبّت من المتجر' : 'Install from App Store'}
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight mb-4">
-                {isArabic ? 'البريد الإلكتروني للأعمال' : 'Business Email'}
+                {isArabic ? 'التسويق عبر البريد الإلكتروني' : 'Email Marketing'}
               </h2>
               <p className="text-gray-400 mb-8 max-w-xl text-sm leading-7">
                 {isArabic
-                  ? 'فعّل الإضافة لإتاحة صندوق البريد، استقبال الرسائل، والإرسال التلقائي للفواتير بقوالب ثنائية اللغة.'
-                  : 'Activate the add-on to unlock a full mailbox, inbound message parsing, and automatic invoice delivery with bilingual templates.'}
+                  ? 'ثبّت تطبيق التسويق عبر البريد من متجر التطبيقات لإنشاء الرسائل، وضبط SMTP، والإرسال التلقائي للفواتير والعروض.'
+                  : 'Install Email Marketing from the App Store to compose, configure SMTP, and auto-send invoices and quotations.'}
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
@@ -373,14 +371,17 @@ export default function EmailWorkspace() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 items-center lg:items-start">
+                <Link
+                  to="/app/dashboard/app-store"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary-500 to-teal-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-500/30"
+                >
+                  {isArabic ? 'فتح متجر التطبيقات' : 'Open App Store'}
+                </Link>
                 <div className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 flex items-center gap-2">
                   <AtSign className="w-4 h-4 text-primary-400" />
                   <a href={`mailto:${salesEmail}?subject=${contactSalesSubject}`} className="text-primary-300 hover:text-primary-200 transition-colors">
                     {salesEmail}
                   </a>
-                </div>
-                <div className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300">
-                  {salesPhone}
                 </div>
               </div>
             </div>
@@ -404,7 +405,7 @@ export default function EmailWorkspace() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-none">
-              {isArabic ? 'صندوق البريد' : 'Mailbox'}
+              {isArabic ? 'التسويق عبر البريد' : 'Email Marketing'}
             </h1>
             <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[220px]">{senderEmail || senderName}</p>
           </div>

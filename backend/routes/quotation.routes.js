@@ -5,7 +5,7 @@ import Quotation from '../models/Quotation.js';
 import Tenant from '../models/Tenant.js';
 import Customer from '../models/Customer.js';
 import Product from '../models/Product.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../utils/businessTypes.js';
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
@@ -18,6 +18,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
@@ -531,7 +532,36 @@ router.post('/:id/approve', checkPermission('invoicing', 'update'), async (req, 
     quotation.rejectedByNameAr = undefined;
     await quotation.save();
 
-    res.json({ success: true, quotation });
+    let emailDelivery = { sent: false, reason: 'disabled' };
+    try {
+      const tenant = await Tenant.findById(req.user.tenantId);
+      const emailSettings = tenant?.settings?.communication?.email || {};
+      if (tenant && tenantHasEmailAddon(tenant) && emailSettings.enabled && emailSettings.autoSendQuotations) {
+        const customer = quotation.customerId
+          ? await Customer.findOne({ _id: quotation.customerId, tenantId: quotation.tenantId }).select('name nameAr email contactPerson')
+          : null;
+        const recipient = resolveRecipient(customer, quotation);
+        if (recipient) {
+          emailDelivery = await sendTenantEmail({
+            tenant,
+            to: recipient,
+            subject: `${quotation.quotationNumber} Quotation | عرض سعر ${quotation.quotationNumber}`,
+            html: buildQuotationEmailHtml({
+              quotation,
+              tenant,
+              customerName: customer?.name || customer?.nameAr || quotation?.buyer?.name || quotation?.buyer?.nameAr,
+            }),
+            metadata: { purpose: 'auto_quotation', quotationNumber: quotation.quotationNumber },
+          });
+        } else {
+          emailDelivery = { sent: false, reason: 'missing_recipient' };
+        }
+      }
+    } catch (emailError) {
+      emailDelivery = { sent: false, reason: emailError.message };
+    }
+
+    res.json({ success: true, quotation, emailDelivery });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -622,7 +652,7 @@ router.post('/:id/send-email', checkPermission('invoicing', 'update'), async (re
 
     const hasEmailAddon = tenantHasEmailAddon(tenant);
     if (!hasEmailAddon) {
-      return res.status(403).json({ error: 'Email automation add-on is not enabled for this tenant' });
+      return res.status(403).json({ error: 'Email Marketing is not installed for this tenant' });
     }
 
     const customer = quotation.customerId

@@ -1,5 +1,5 @@
 /**
- * Whether the tenant may use Email Suite / email automation APIs.
+ * Whether the tenant may use Email Marketing APIs.
  * Mirrors backend middleware tenantHasEmailAddon.
  */
 export function tenantHasEmailAddon(tenant) {

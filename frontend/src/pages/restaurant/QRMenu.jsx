@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import api, { getImageUrl } from '../../lib/api'
 import { getMe } from '../../store/slices/authSlice'
 import toast from 'react-hot-toast'
+import { tenantHasEntitlement } from '../../lib/appEntitlements'
 
 export default function QRMenu() {
   const dispatch = useDispatch()
@@ -485,7 +486,7 @@ export default function QRMenu() {
                 </div>
 
                 {/* Online Ordering Settings (Add-on feature) */}
-                {tenant?.subscription?.hasQrOrderingAddon && (
+                {tenantHasEntitlement(tenant, { appId: 'qr_menu_ordering', flag: 'hasQrOrderingAddon' }) && (
                   <div className="space-y-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                     <div>
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">

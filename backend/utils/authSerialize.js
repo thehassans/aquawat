@@ -3,7 +3,7 @@
  * Never include private keys, CSIDs, SMTP passwords, or integration secrets.
  */
 
-const SENSITIVE_KEY_RE = /^(password|secret|token|apiKey|apiSecret|privateKey|clientSecret|accessToken|refreshToken|smtpPass|brevoApiKey|webhookSecret|notificationToken|secretKey|complianceCsid|productionCsid)$/i;
+const SENSITIVE_KEY_RE = /^(password|secret|token|apiKey|apiSecret|privateKey|clientSecret|accessToken|refreshToken|smtpPass|brevoApiKey|webhookSecret|notificationToken|secretKey|complianceCsid|productionCsid|twilioAuthToken|unifonicToken|customApiKey)$/i;
 
 const deepSanitize = (value) => {
   if (Array.isArray(value)) return value.map(deepSanitize);

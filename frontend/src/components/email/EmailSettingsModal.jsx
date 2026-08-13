@@ -1,16 +1,26 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Mail, Save, Settings2 } from 'lucide-react'
+import { Mail, Save, Settings2, ShieldCheck, Sparkles } from 'lucide-react'
+import api from '../../lib/api'
+import toast from 'react-hot-toast'
 
 const templateVariables = ['{{invoiceNumber}}', '{{companyName}}', '{{customerName}}', '{{invoiceDate}}', '{{invoiceTotal}}']
 
+const SMTP_PRESETS = [
+  { id: 'gmail', label: 'Gmail', host: 'smtp.gmail.com', port: 587, smtpSecure: false, hintEn: 'Use an App Password (Google Account → Security → 2-Step Verification → App passwords). Port 587 STARTTLS.', hintAr: 'استخدم كلمة مرور التطبيق من حساب Google. المنفذ 587.' },
+  { id: 'microsoft', label: 'Microsoft 365', host: 'smtp.office365.com', port: 587, smtpSecure: false, hintEn: 'Enable Authenticated SMTP for the mailbox in Exchange admin. Port 587 STARTTLS.', hintAr: 'فعّل SMTP المصادق عليه لصندوق البريد في Exchange. المنفذ 587.' },
+  { id: 'yahoo', label: 'Yahoo', host: 'smtp.mail.yahoo.com', port: 465, smtpSecure: true, hintEn: 'Generate an app password, then use port 465 SSL.', hintAr: 'أنشئ كلمة مرور للتطبيق واستخدم المنفذ 465.' },
+  { id: 'custom', label: 'Custom', host: '', port: 587, smtpSecure: false, hintEn: 'Use your provider’s SMTP host. 587 = STARTTLS, 465 = implicit SSL.', hintAr: 'استخدم مضيف SMTP الخاص بك. 587 لـ STARTTLS و 465 لـ SSL.' },
+]
+
 export default function EmailSettingsModal({ open, onClose, onSave, isSaving, language, initialSettings, tenant }) {
   const isArabic = language === 'ar'
-  const { register, handleSubmit, reset, watch } = useForm({
+  const { register, handleSubmit, reset, watch, setValue } = useForm({
     defaultValues: {
       enabled: false,
       autoSendInvoices: false,
+      autoSendQuotations: false,
       identityType: 'platform',
       identityStatus: 'not_requested',
       requestedSenderName: '',
@@ -37,6 +47,7 @@ export default function EmailSettingsModal({ open, onClose, onSave, isSaving, la
     reset({
       enabled: !!initialSettings?.enabled,
       autoSendInvoices: !!initialSettings?.autoSendInvoices,
+      autoSendQuotations: !!initialSettings?.autoSendQuotations,
       identityType: initialSettings?.identityType || 'platform',
       identityStatus: initialSettings?.identityStatus || 'not_requested',
       requestedSenderName: initialSettings?.requestedSenderName || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || '',
@@ -61,6 +72,26 @@ export default function EmailSettingsModal({ open, onClose, onSave, isSaving, la
 
   const identityType = watch('identityType')
   const hasStoredPassword = initialSettings?.hasSmtpPass
+  const [testing, setTesting] = useState(false)
+
+  const applyPreset = (preset) => {
+    setValue('identityType', 'custom_smtp', { shouldDirty: true })
+    if (preset.host) setValue('smtpHost', preset.host, { shouldDirty: true })
+    setValue('smtpPort', preset.port, { shouldDirty: true })
+    setValue('smtpSecure', preset.smtpSecure, { shouldDirty: true })
+  }
+
+  const handleTest = async () => {
+    setTesting(true)
+    try {
+      await api.post('/email/settings/test')
+      toast.success(isArabic ? 'تم التحقق من اتصال SMTP' : 'SMTP connection verified')
+    } catch (err) {
+      toast.error(err.response?.data?.error || (isArabic ? 'فشل اختبار SMTP' : 'SMTP test failed'))
+    } finally {
+      setTesting(false)
+    }
+  }
 
   return (
     <AnimatePresence>
@@ -87,8 +118,8 @@ export default function EmailSettingsModal({ open, onClose, onSave, isSaving, la
                     <Settings2 className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{isArabic ? 'إعدادات البريد والهوية' : 'Email Identity & Settings'}</h2>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{isArabic ? 'قم بتحديد عنوان المرسل، صندوق الوارد، وإعدادات SMTP الخاصة بالشركة.' : 'Configure the sender identity, inbox address, and tenant-specific SMTP settings.'}</p>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{isArabic ? 'التسويق عبر البريد وSMTP' : 'Email Marketing & SMTP'}</h2>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{isArabic ? 'فعّل الإرسال التلقائي، واضبط هوية المرسل، واتبع دليل SMTP لجيميل أو مايكروسوفت 365.' : 'Enable auto-send, set your sender identity, and follow the SMTP guide for Gmail or Microsoft 365.'}</p>
                   </div>
                 </div>
                 <button type="button" onClick={onClose} className="btn btn-secondary">{isArabic ? 'إغلاق' : 'Close'}</button>
@@ -110,6 +141,13 @@ export default function EmailSettingsModal({ open, onClose, onSave, isSaving, la
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{isArabic ? 'إرسال الفاتورة مباشرة بعد اعتمادها أو توقيعها.' : 'Send invoices automatically after approval or signing.'}</p>
                       </div>
                       <input type="checkbox" {...register('autoSendInvoices')} className="h-4 w-4" />
+                    </label>
+                    <label className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4 dark:border-dark-700 dark:bg-dark-800/60 flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-white">{isArabic ? 'إرسال تلقائي لعروض الأسعار' : 'Automatic Quotation Delivery'}</p>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{isArabic ? 'إرسال العرض للعميل مباشرة بعد اعتماده.' : 'Email the quotation as soon as it is approved.'}</p>
+                      </div>
+                      <input type="checkbox" {...register('autoSendQuotations')} className="h-4 w-4" />
                     </label>
                   </div>
 
@@ -158,9 +196,33 @@ export default function EmailSettingsModal({ open, onClose, onSave, isSaving, la
 
                   {identityType === 'custom_smtp' ? (
                     <div className="rounded-3xl border border-gray-200 bg-gray-50/70 p-5 dark:border-dark-700 dark:bg-dark-800/50">
-                      <div className="mb-4 flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-primary-600" />
-                        <h3 className="text-base font-semibold text-gray-900 dark:text-white">{isArabic ? 'إعدادات SMTP الخاصة بالشركة' : 'Tenant SMTP Settings'}</h3>
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="h-4 w-4 text-primary-600" />
+                          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{isArabic ? 'معالج SMTP' : 'SMTP wizard'}</h3>
+                        </div>
+                        <button type="button" onClick={handleTest} disabled={testing} className="btn btn-secondary btn-sm">
+                          {testing ? (isArabic ? 'جاري الاختبار...' : 'Testing...') : (isArabic ? 'اختبار الاتصال' : 'Test connection')}
+                        </button>
+                      </div>
+                      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+                        {SMTP_PRESETS.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => applyPreset(preset)}
+                            className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-left text-sm font-semibold text-gray-800 hover:border-primary-400 dark:border-dark-600 dark:bg-dark-900 dark:text-white"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mb-4 rounded-2xl border border-primary-200/70 bg-primary-50/60 p-4 text-sm leading-6 text-gray-600 dark:border-primary-900/40 dark:bg-primary-950/20 dark:text-gray-300">
+                        <p className="mb-1 inline-flex items-center gap-1 font-semibold text-primary-700 dark:text-primary-300">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          {isArabic ? 'دليل الإعداد' : 'Setup guide'}
+                        </p>
+                        <p>{isArabic ? 'جيميل: فعّل التحقق بخطوتين ثم أنشئ كلمة مرور للتطبيق. مايكروسوفت 365: فعّل SMTP المصادق عليه للبريد. المنفذ 587 لـ STARTTLS و 465 لـ SSL.' : 'Gmail: turn on 2-Step Verification, then create an App Password. Microsoft 365: enable Authenticated SMTP on the mailbox. Use port 587 for STARTTLS or 465 for SSL.'}</p>
                       </div>
                       <div className="grid gap-4 md:grid-cols-2">
                         <div>

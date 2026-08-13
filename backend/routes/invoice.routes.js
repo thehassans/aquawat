@@ -14,13 +14,14 @@ import Warehouse from '../models/Warehouse.js';
 import RestaurantOrder from '../models/RestaurantOrder.js';
 import TravelBooking from '../models/TravelBooking.js';
 import EmailMessage from '../models/EmailMessage.js';
-import { protect, tenantFilter, requireTenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter, checkPermission, requireBusinessType, tenantHasEmailAddon } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../utils/businessTypes.js';
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 import { buildDraftInvoiceQr } from '../utils/zatca/draftInvoiceQr.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { autoSendInvoice, sendInvoiceToRecipient } from '../utils/tenantEmailService.js';
+import { autoSmsInvoiceIfEnabled } from './sms.routes.js';
 import { getOrBuildInvoicePdfAttachment, getCachedInvoicePdfAttachment, enqueueInvoicePdf } from '../services/invoicePdfQueue.js';
 import { afterInvoiceWrite } from '../utils/invoiceLifecycle.js';
 import { emitPlatformEvent } from '../utils/platformEvents.js';
@@ -452,8 +453,7 @@ function resolveInvoiceRecipient(customer, invoice, fallbackRecipient = '') {
 
 async function autoEmailInvoiceIfEnabled({ tenant, invoice, customer = null, fallbackRecipient = '', language }) {
   const emailSettings = tenant?.settings?.communication?.email || {};
-  const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true
-    || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'));
+  const hasEmailAddon = tenantHasEmailAddon(tenant);
   if (!hasEmailAddon || !emailSettings.enabled || !emailSettings.autoSendInvoices || invoice?.flow === 'purchase') {
     return { sent: false, reason: 'disabled' };
   }
@@ -1573,7 +1573,7 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
     afterInvoiceWrite(invoice, { userId: req.user._id, created: true, previousPaymentStatus: 'pending' });
 
     const invoiceCustomer = invoice.customerId
-      ? await Customer.findOne({ _id: invoice.customerId, tenantId: invoice.tenantId }).select('name nameAr email contactPerson')
+      ? await Customer.findOne({ _id: invoice.customerId, tenantId: invoice.tenantId }).select('name nameAr email phone mobile contactPerson')
       : customer;
 
     let emailDelivery = { sent: false, reason: 'disabled' };
@@ -1599,6 +1599,17 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
         });
       } catch (waError) {
         whatsappDelivery = { sent: false, reason: waError.message };
+      }
+
+      try {
+        await autoSmsInvoiceIfEnabled({
+          tenant,
+          invoice,
+          customer: invoiceCustomer,
+          language: tenant?.settings?.language,
+        });
+      } catch {
+        // SMS failure must not block invoice issuance
       }
     }
 
@@ -1999,7 +2010,7 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
     });
 
     const customer = invoice.customerId
-      ? await Customer.findOne({ _id: invoice.customerId, tenantId: invoice.tenantId }).select('name nameAr email contactPerson')
+      ? await Customer.findOne({ _id: invoice.customerId, tenantId: invoice.tenantId }).select('name nameAr email phone mobile contactPerson')
       : null;
 
     let emailDelivery = { sent: false, reason: 'disabled' };
@@ -2012,6 +2023,17 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
       });
     } catch (emailError) {
       emailDelivery = { sent: false, reason: emailError.message };
+    }
+
+    try {
+      await autoSmsInvoiceIfEnabled({
+        tenant,
+        invoice,
+        customer,
+        language: tenant?.settings?.language,
+      });
+    } catch {
+      // SMS failure must not block signing
     }
     
     res.json({ ...invoice.toObject(), emailDelivery });
@@ -2036,14 +2058,13 @@ router.post('/:id/send-email', checkPermission('invoicing', 'update'), async (re
       return res.status(404).json({ error: 'Tenant not found' });
     }
 
-    const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true
-      || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'));
+    const hasEmailAddon = tenantHasEmailAddon(tenant);
     if (!hasEmailAddon) {
-      return res.status(403).json({ error: 'Email automation add-on is not enabled for this tenant' });
+      return res.status(403).json({ error: 'Email Marketing is not installed for this tenant' });
     }
 
     const customer = invoice.customerId
-      ? await Customer.findOne({ _id: invoice.customerId, tenantId: invoice.tenantId }).select('name nameAr email contactPerson')
+      ? await Customer.findOne({ _id: invoice.customerId, tenantId: invoice.tenantId }).select('name nameAr email phone mobile contactPerson')
       : null;
     const recipient = resolveInvoiceRecipient(customer, invoice, req.body?.to);
     if (!recipient) {
