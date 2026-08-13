@@ -1,0 +1,369 @@
+{
+  "info": {
+    "name": "Maqder — tenant isolation & CSRF (negative tests)",
+    "description": "Defensive live checks. Every mutating cross-tenant or cross-origin probe MUST fail. Do not treat 200 as success on these folders.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://allied-power.maqder.com" },
+    { "key": "tokenA", "value": "" },
+    { "key": "tokenB", "value": "" },
+    { "key": "tenantAId", "value": "" },
+    { "key": "tenantBId", "value": "" },
+    { "key": "invoiceBId", "value": "" },
+    { "key": "paymentBId", "value": "" },
+    { "key": "stripeSessionBId", "value": "" },
+    { "key": "superAdminToken", "value": "" },
+    { "key": "cookieA", "value": "maqder_token=REPLACE_WITH_SESSION_COOKIE" }
+  ],
+  "item": [
+    {
+      "name": "1. CSRF origin guard (cookie session only)",
+      "item": [
+        {
+          "name": "Cookie POST from foreign Origin must 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Origin", "value": "https://evil.example" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Cookie", "value": "{{cookieA}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"draft\",\"paymentMethod\":\"credit\",\"lineItems\":[{\"productName\":\"csrf-probe\",\"quantity\":1,\"unitPrice\":1,\"taxRate\":15}]}"
+            },
+            "url": "{{baseUrl}}/api/invoices"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CSRF cookie+foreign Origin is 403', function () {",
+                  "  pm.expect(pm.response.code).to.eql(403);",
+                  "});",
+                  "pm.test('body is CSRF origin check failed', function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(String(j.error || '')).to.match(/CSRF/i);",
+                  "});",
+                  "pm.test('did not create an invoice', function () {",
+                  "  pm.expect(pm.response.code).to.not.eql(201);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cookie PUT from foreign Origin must 403",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Origin", "value": "https://evil.example" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Cookie", "value": "{{cookieA}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"notes\":\"csrf-probe\"}" },
+            "url": "{{baseUrl}}/api/invoices/{{invoiceBId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CSRF PUT is 403', function () {",
+                  "  pm.expect(pm.response.code).to.eql(403);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bearer from foreign Origin is allowed past CSRF (then tenant filter applies)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenA}}" }] },
+            "method": "GET",
+            "header": [{ "key": "Origin", "value": "https://evil.example" }],
+            "url": "{{baseUrl}}/api/invoices?limit=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Bearer skips CSRF (200 or 403 permission, never CSRF 403 body)', function () {",
+                  "  pm.expect([200, 401, 403]).to.include(pm.response.code);",
+                  "  if (pm.response.code === 403) {",
+                  "    const j = pm.response.json();",
+                  "    pm.expect(String(j.error || '')).to.not.match(/CSRF/i);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. IDOR — Tenant A must not read Tenant B",
+      "item": [
+        {
+          "name": "A GET /uploads/hr/{B}/ is 401/403/404",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenA}}" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/uploads/hr/{{tenantBId}}/cv.pdf"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cross-tenant HR upload is denied', function () {",
+                  "  pm.expect([401, 403, 404]).to.include(pm.response.code);",
+                  "  pm.expect(pm.response.code).to.not.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A GET /api/uploads/hr/{B}/ is 401/403/404",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenA}}" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/uploads/hr/{{tenantBId}}/cv.pdf"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Nginx /api/uploads sibling is also denied', function () {",
+                  "  pm.expect([401, 403, 404]).to.include(pm.response.code);",
+                  "  pm.expect(pm.response.code).to.not.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A GET Tenant B invoice is 404",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenA}}" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/invoices/{{invoiceBId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('IDOR invoice GET is 404 (filter hides the row)', function () {",
+                  "  pm.expect([404, 400, 403]).to.include(pm.response.code);",
+                  "  pm.expect(pm.response.code).to.not.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A GET payment tenant-status of B is 403",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenA}}" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/payments/tenant-status/{{tenantBId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('payment poll for another tenant is 403', function () {",
+                  "  pm.expect(pm.response.code).to.eql(403);",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(String(j.error || '')).to.match(/not authorized/i);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A GET Moyasar invoice belonging to B must not return 200 status",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenA}}" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/payments/invoice/{{paymentBId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('foreign Moyasar invoice poll is 400/403, not 200 with status', function () {",
+                  "  pm.expect([400, 403, 404]).to.include(pm.response.code);",
+                  "  pm.expect(pm.response.code).to.not.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A GET Moyasar payment belonging to B is 403",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenA}}" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/payments/{{paymentBId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('foreign Moyasar payment poll is 400/403, never 200', function () {",
+                  "  pm.expect([400, 403, 404]).to.include(pm.response.code);",
+                  "  pm.expect(pm.response.code).to.not.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A GET stripe-session belonging to B is 403",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenA}}" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/payments/stripe-session/{{stripeSessionBId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('foreign Stripe session is 403 or 400 (not fulfilled)', function () {",
+                  "  pm.expect([400, 403]).to.include(pm.response.code);",
+                  "  pm.expect(pm.response.code).to.not.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A spoofs x-tenant-id of B — still scoped to A",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenA}}" }] },
+            "method": "GET",
+            "header": [{ "key": "x-tenant-id", "value": "{{tenantBId}}" }],
+            "url": "{{baseUrl}}/api/invoices/{{invoiceBId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('tenant JWT ignores x-tenant-id spoof — 404 not 200', function () {",
+                  "  pm.expect(pm.response.code).to.eql(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Super-admin x-tenant-id requirement",
+      "item": [
+        {
+          "name": "Super-admin GET invoices without x-tenant-id is 400",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/invoices?limit=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('requireTenantFilter returns 400 without x-tenant-id', function () {",
+                  "  pm.expect(pm.response.code).to.eql(400);",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(String(j.error || '')).to.match(/x-tenant-id/i);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tenant user cannot use super-admin routes",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenA}}" }] },
+            "method": "GET",
+            "header": [{ "key": "x-tenant-id", "value": "{{tenantBId}}" }],
+            "url": "{{baseUrl}}/api/super-admin/tenants?limit=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('tenant JWT on super-admin is 401 or 403', function () {",
+                  "  pm.expect([401, 403]).to.include(pm.response.code);",
+                  "  pm.expect(pm.response.code).to.not.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super-admin with x-tenant-id of A can list that tenant only",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{superAdminToken}}" }] },
+            "method": "GET",
+            "header": [{ "key": "x-tenant-id", "value": "{{tenantAId}}" }],
+            "url": "{{baseUrl}}/api/invoices?limit=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('impersonation with x-tenant-id succeeds for super_admin', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

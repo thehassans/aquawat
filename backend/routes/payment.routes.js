@@ -8,6 +8,10 @@ import { protect } from '../middleware/auth.js'
 import { sendUpgradeWelcomeEmail, sendPaymentFailedEmail } from '../utils/emailService.js'
 import { emitPlatformEvent } from '../utils/platformEvents.js'
 import {
+  canFulfillPaymentForTenant,
+  rejectUnauthorizedPaymentPoll,
+} from '../utils/paymentTenantGuard.js'
+import {
   getStripeConfig,
   createStripeCheckoutSession,
   retrieveStripeCheckoutSession,
@@ -159,17 +163,6 @@ const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amo
       paymentId,
     })
   }
-}
-
-/** Poll endpoints are JWT-gated. Never apply an upgrade unless metadata.tenantId is the caller. */
-const canFulfillPaymentForTenant = (req, metadata = {}) => {
-  const targetTenantId = metadata?.tenantId
-  if (!targetTenantId) return false
-  if (req.user?.role === 'super_admin') return true
-  if (req.user?.tenantId && String(req.user.tenantId) === String(targetTenantId)) return true
-  const demoEmail = String(metadata.demoEmail || '').trim().toLowerCase()
-  const userEmail = String(req.user?.email || '').trim().toLowerCase()
-  return Boolean(demoEmail && userEmail && demoEmail === userEmail)
 }
 
 const applyTenantUpgradeIfAuthorized = async (req, metadata, args) => {
@@ -622,6 +615,7 @@ router.get('/tabby/:id', protect, async (req, res) => {
 
     const status = checkout?.payment?.status || checkout?.status
     const meta = checkout?.metadata || checkout?.payment?.metadata || {}
+    if (rejectUnauthorizedPaymentPoll(req, res, meta)) return
 
     if (status === 'authorized' || status === 'captured' || status === 'closed') {
       await applyTenantUpgradeIfAuthorized(req, meta, {
@@ -662,6 +656,7 @@ router.get('/tamara/:id', protect, async (req, res) => {
 
     const status = order?.status
     const meta = order?.metadata || {}
+    if (rejectUnauthorizedPaymentPoll(req, res, meta)) return
 
     if (status === 'approved' || status === 'fully_captured') {
       const totalAmount = order?.total_amount || {}
@@ -756,8 +751,11 @@ router.get('/invoice/:id', protect, async (req, res) => {
       return res.status(400).json({ error: invoice?.message || 'Failed to fetch invoice' })
     }
 
+    const invoiceMeta = invoice?.metadata || {}
+    if (rejectUnauthorizedPaymentPoll(req, res, invoiceMeta)) return
+
     if (invoice.status === 'paid') {
-      await applyTenantUpgradeIfAuthorized(req, invoice?.metadata || {}, {
+      await applyTenantUpgradeIfAuthorized(req, invoiceMeta, {
         tenantId: invoice?.metadata?.tenantId,
         demoEmail: invoice?.metadata?.demoEmail,
         plan: invoice?.metadata?.plan || 'professional',
@@ -859,12 +857,10 @@ const handleStripePaymentFailed = async (event) => {
 router.get('/stripe-session/:id', protect, async (req, res) => {
   try {
     const session = await retrieveStripeCheckoutSession(req.params.id)
+    const meta = session?.metadata || {}
+    if (rejectUnauthorizedPaymentPoll(req, res, meta)) return
     if (session.payment_status !== 'paid' && session.status !== 'complete') {
       return res.json({ paid: false, status: session.payment_status || session.status, sessionId: session.id })
-    }
-    const meta = session?.metadata || {}
-    if (!canFulfillPaymentForTenant(req, meta)) {
-      return res.status(403).json({ error: 'Not authorized to apply this payment' })
     }
     const result = await handleStripeCheckoutCompleted(session)
     res.json({ paid: true, sessionId: session.id, ...result })
@@ -935,8 +931,10 @@ router.get('/:id', protect, async (req, res) => {
       return res.status(400).json({ error: paymentData?.message || 'Failed to fetch payment' })
     }
 
+    const meta = paymentData?.metadata || {}
+    if (rejectUnauthorizedPaymentPoll(req, res, meta)) return
+
     if (paymentData.status === 'paid') {
-      const meta = paymentData?.metadata || {}
       await applyTenantUpgradeIfAuthorized(req, meta, {
         tenantId: meta.tenantId,
         demoEmail: meta.demoEmail,
