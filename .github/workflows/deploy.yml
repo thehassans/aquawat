@@ -37,17 +37,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Configure SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.PLESK_SSH_KEY }}
-          log-public-key: false
-
-      - name: Add Plesk host key
+      - name: Write SSH key and known_hosts
+        env:
+          PLESK_SSH_KEY: ${{ secrets.PLESK_SSH_KEY }}
+          PLESK_SSH_HOST_KEY: ${{ secrets.PLESK_SSH_HOST_KEY }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.PLESK_SSH_HOST_KEY }}" >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
+          python3 << 'PY'
+          import os
+          import pathlib
+
+          home = pathlib.Path.home() / ".ssh"
+          home.mkdir(mode=0o700, exist_ok=True)
+
+          def normalize(raw: str) -> str:
+              s = (raw or "").strip().strip('"').strip("'")
+              s = s.replace("\r\n", "\n").replace("\r", "\n")
+              if s.count("\n") < 2 and "\\n" in s:
+                  s = s.replace("\\n", "\n")
+              if s and not s.endswith("\n"):
+                  s += "\n"
+              return s
+
+          key = normalize(os.environ.get("PLESK_SSH_KEY", ""))
+          if "BEGIN" not in key or "PRIVATE KEY" not in key:
+              raise SystemExit(
+                  "PLESK_SSH_KEY must be a PEM/OpenSSH private key "
+                  "(-----BEGIN OPENSSH PRIVATE KEY-----), not a .pub or PuTTY .ppk. "
+                  "Paste the full private key into GitHub → Settings → Secrets → PLESK_SSH_KEY."
+              )
+          key_path = home / "plesk_deploy"
+          key_path.write_text(key)
+          key_path.chmod(0o600)
+
+          host = normalize(os.environ.get("PLESK_SSH_HOST_KEY", ""))
+          if host:
+              known = home / "known_hosts"
+              known.write_text(host)
+              known.chmod(0o600)
+          PY
 
       - name: Deploy to Plesk server
         env:
@@ -55,8 +82,21 @@ jobs:
           SSH_HOST: ${{ secrets.PLESK_SSH_HOST || 'maqder.com' }}
           SSH_PORT: ${{ secrets.PLESK_SSH_PORT || '22' }}
         run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          if [ ! -s "$HOME/.ssh/known_hosts" ]; then
+            echo "PLESK_SSH_HOST_KEY is empty; pinning host key via ssh-keyscan."
+            ssh-keyscan -p "${SSH_PORT}" "${SSH_HOST}" >> "$HOME/.ssh/known_hosts"
+          fi
+          chmod 600 "$HOME/.ssh/known_hosts" "$HOME/.ssh/plesk_deploy"
           echo "Deploying to ${SSH_USER}@${SSH_HOST}:${SSH_PORT}"
-          ssh -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" << 'EOF'
+          ssh -i "$HOME/.ssh/plesk_deploy" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -p "${SSH_PORT}" \
+            "${SSH_USER}@${SSH_HOST}" << 'EOF'
             set -e
             chmod +x /var/www/vhosts/maqder.com/httpdocs/deploy.sh
             /var/www/vhosts/maqder.com/httpdocs/deploy.sh
