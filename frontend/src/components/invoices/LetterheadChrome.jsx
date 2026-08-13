@@ -29,7 +29,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
 
       <header className="relative z-10 border-b-2 border-primary-500/20 bg-gradient-to-r from-white to-gray-50/80 p-8 print:bg-none print:p-4">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-x-4">
-          <div className="min-w-0 text-start">
+          <div className="min-w-0 w-full text-left">
             {showEn ? (
               <>
                 <h1 className="min-h-16 text-2xl font-bold leading-8 print:text-black">
@@ -55,15 +55,15 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
             )}
           </div>
 
-          <div className="min-w-0 text-end font-['Almarai']" dir="rtl">
+          <div className="min-w-0 w-full text-right font-['Almarai']" dir="rtl">
             {showAr ? (
               <>
-                <h1 className="min-h-16 text-2xl font-bold leading-8 print:text-black">
+                <h1 className="min-h-16 w-full text-2xl font-bold leading-8 print:text-black">
                   {nameArLines.map((line) => (
                     <span key={line} className="block">{line}</span>
                   ))}
                 </h1>
-                <div className="mt-1 space-y-1 text-sm font-bold leading-5">
+                <div className="mt-1 w-full space-y-1 text-sm font-bold leading-5">
                   {contact.crNumber ? <p>س.ت : {crAr}</p> : null}
                   {contact.vatNumber ? <p>الرقم الضريبي : {vatAr}</p> : null}
                 </div>
