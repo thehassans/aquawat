@@ -30,7 +30,7 @@ router.get('/active', resolveTenantByHost, async (req, res) => {
 
     // Populate product details
     const productIds = [...new Set(bundles.flatMap(b => b.items.map(i => i.productId)))];
-    const products = await EcommerceProduct.find({ _id: { $in: productIds } })
+    const products = await EcommerceProduct.find({ tenantId, _id: { $in: productIds } })
       .select('title basePrice images seo.slug')
       .lean();
     const productMap = {};
@@ -61,7 +61,7 @@ router.get('/slug/:slug', resolveTenantByHost, async (req, res) => {
     EcommerceBundle.updateOne({ _id: bundle._id }, { $inc: { viewsCount: 1 } }).exec();
 
     const productIds = bundle.items.map(i => i.productId);
-    const products = await EcommerceProduct.find({ _id: { $in: productIds } })
+    const products = await EcommerceProduct.find({ tenantId, _id: { $in: productIds } })
       .select('title basePrice images seo.slug')
       .lean();
     const productMap = {};
@@ -110,7 +110,7 @@ router.get('/frequently-bought/:productId', resolveTenantByHost, async (req, res
 
     if (sortedIds.length === 0) {
       // Fallback: return products from same category
-      const currentProduct = await EcommerceProduct.findById(productId).select('category').lean();
+      const currentProduct = await EcommerceProduct.findOne({ _id: productId, tenantId }).select('category').lean();
       if (currentProduct) {
         const related = await EcommerceProduct.find({
           tenantId, status: 'active', category: currentProduct.category, _id: { $ne: productId },
@@ -122,6 +122,7 @@ router.get('/frequently-bought/:productId', resolveTenantByHost, async (req, res
 
     const products = await EcommerceProduct.find({
       _id: { $in: sortedIds.map(id => new mongoose.Types.ObjectId(id)) },
+      tenantId,
       status: 'active',
     }).select('title basePrice images seo.slug').lean();
 

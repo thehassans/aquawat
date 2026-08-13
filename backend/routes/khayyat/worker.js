@@ -205,12 +205,12 @@ router.delete('/:id([0-9a-fA-F]{24})', protect, tenantFilter, requireTenantFilte
     }
     
     await KhayyatStitching.updateMany(
-      { workerId: worker._id },
+      { workerId: worker._id, tenantId: req.user.tenantId },
       { $set: { workerId: null, status: 'pending' } }
     );
     
-    await KhayyatPayment.deleteMany({ workerId: worker._id });
-    await KhayyatWorker.findByIdAndDelete(req.params.id);
+    await KhayyatPayment.deleteMany({ workerId: worker._id, tenantId: req.user.tenantId });
+    await KhayyatWorker.deleteOne({ _id: worker._id, tenantId: req.user.tenantId });
     
     res.json({ message: 'Worker deleted successfully' });
   } catch (error) {

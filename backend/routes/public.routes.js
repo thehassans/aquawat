@@ -533,7 +533,7 @@ router.post('/demo-signup', async (req, res) => {
 router.get('/tenant/:id/menu', async (req, res) => {
   try {
     const tenant = await withQueryTimeout(
-      Tenant.findById(req.params.id).select('name slug business branding settings isActive subscription')
+      Tenant.findById(req.params.id).select('name slug business branding settings isActive subscription.hasQrOrderingAddon')
     )
 
     if (!tenant || !tenant.isActive) {
@@ -554,7 +554,9 @@ router.get('/tenant/:id/menu', async (req, res) => {
             qrMenu: tenant.settings?.restaurant?.qrMenu || { defaultLanguage: 'ar' }
           }
         },
-        subscription: tenant.subscription
+        subscription: {
+          hasQrOrderingAddon: tenant.subscription?.hasQrOrderingAddon === true,
+        }
       },
       items
     })

@@ -149,14 +149,14 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Payment not found' });
     }
     
-    const worker = await KhayyatWorker.findById(payment.workerId);
+    const worker = await KhayyatWorker.findOne({ _id: payment.workerId, tenantId: req.user.tenantId });
     if (worker) {
       worker.totalPaid -= payment.amount;
       worker.pendingAmount = worker.totalEarnings - worker.totalPaid;
       await worker.save();
     }
     
-    await KhayyatPayment.findByIdAndDelete(req.params.id);
+    await KhayyatPayment.deleteOne({ _id: payment._id, tenantId: req.user.tenantId });
     
     res.json({ message: 'Payment deleted successfully' });
   } catch (error) {
