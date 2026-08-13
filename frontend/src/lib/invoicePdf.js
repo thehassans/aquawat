@@ -6,7 +6,7 @@ import ThermalReceipt from '../components/ui/ThermalReceipt'
 import api from './api'
 import { formatCurrency, isSarCurrency } from './currency'
 import { calculateInvoiceSummary, normalizeTravelDetails } from './invoiceDocument'
-import { getInvoiceBranding, getInvoiceTemplateId, splitBrandingText, getLetterheadContact } from './invoiceBranding'
+import { getInvoiceBranding, getInvoiceTemplateId, splitBrandingText, getLetterheadContact, splitCompanyNameLines } from './invoiceBranding'
 import { getAmountInWords } from './amountInWords'
 import { resolveTaxInvoiceQr } from './taxInvoiceQr'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from './invoiceLanguage'
@@ -922,8 +922,8 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   const templateId = resolveDocumentPdfTemplateId(tenant, invoice, documentType)
   const letterheadMode = Number(templateId) === LETTERHEAD_TEMPLATE_ID
-  const footerH = letterheadMode ? 72 : 76
-  const headerH = letterheadMode ? 96 : 132
+  const footerH = letterheadMode ? 78 : 76
+  const headerH = letterheadMode ? 104 : 132
   const topMargin = headerH + 14
 
   const isRtl = language === 'ar'
@@ -1168,16 +1168,20 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       }
 
       const nameY = 28
-      const crY = 52
-      const vatY = 66
+      const crY = 60
+      const vatY = 74
       const nameMaxW = (contentW / 2) - 52
 
       setHeadingFont(13, 'bold')
       doc.setTextColor(15, 23, 42)
-      const leftName = contact.companyEn || companyName
-      const rightName = contact.companyAr
-      if (leftName) doc.text(shape(leftName), contentLeft, nameY, { align: 'left', maxWidth: nameMaxW })
-      if (rightName) doc.text(shape(rightName), contentRightEdge, nameY, { align: 'right', maxWidth: nameMaxW })
+      const leftNameLines = splitCompanyNameLines(contact.companyEn || companyName)
+      const rightNameLines = splitCompanyNameLines(contact.companyAr)
+      leftNameLines.forEach((line, index) => {
+        doc.text(shape(line), contentLeft, nameY + index * 14, { align: 'left', maxWidth: nameMaxW })
+      })
+      rightNameLines.forEach((line, index) => {
+        doc.text(shape(line), contentRightEdge, nameY + index * 14, { align: 'right', maxWidth: nameMaxW })
+      })
 
       setBodyFont(9, 'bold')
       doc.setTextColor(15, 23, 42)
@@ -1192,7 +1196,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
 
       doc.setDrawColor(teal.r, teal.g, teal.b)
       doc.setLineWidth(0.9)
-      doc.line(contentLeft, 82, contentRightEdge, 82)
+      doc.line(contentLeft, 88, contentRightEdge, 88)
       doc.setLineWidth(0.2)
       return
     }
@@ -1724,24 +1728,24 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
 
       setBodyFont(8, 'bold')
       doc.setTextColor(15, 23, 42)
-      const addressMaxW = contentW * 0.46
+      let footerY = footerTop + 16
       if (letterheadContact.addressLine) {
-        doc.text(shape(letterheadContact.addressLine), contentLeft, footerTop + 16, {
-          align: 'left',
-          maxWidth: addressMaxW,
+        doc.text(shape(letterheadContact.addressLine), pageW / 2, footerY, {
+          align: 'center',
+          maxWidth: contentW,
         })
+        footerY += 12
       }
       if (letterheadContact.addressAr) {
-        doc.text(shape(letterheadContact.addressAr), contentRightEdge, footerTop + 16, {
-          align: 'right',
-          maxWidth: addressMaxW,
+        doc.text(shape(letterheadContact.addressAr), pageW / 2, footerY, {
+          align: 'center',
+          maxWidth: contentW,
         })
+        footerY += 12
       }
-      if (letterheadContact.phone) {
-        doc.text(shape(letterheadContact.phone), contentLeft, footerTop + 36, { align: 'left' })
-      }
-      if (letterheadContact.email) {
-        doc.text(shape(letterheadContact.email), contentRightEdge, footerTop + 36, { align: 'right' })
+      const phoneEmail = [letterheadContact.phone, letterheadContact.email].filter(Boolean).join('     ')
+      if (phoneEmail) {
+        doc.text(shape(phoneEmail), pageW / 2, footerY, { align: 'center', maxWidth: contentW })
       }
 
       setBodyFont(8, 'normal')

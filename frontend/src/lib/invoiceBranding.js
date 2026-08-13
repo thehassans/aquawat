@@ -215,3 +215,10 @@ export const getLetterheadContact = (tenant, invoice) => {
     companyAr: business.legalNameAr || seller.nameAr || '',
   }
 }
+
+export const splitCompanyNameLines = (name) => {
+  const words = String(name || '').trim().split(/\s+/).filter(Boolean)
+  if (words.length <= 1) return words
+  if (words.length === 2) return [words[0], words[1]]
+  return [words.slice(0, -1).join(' '), words[words.length - 1]]
+}
