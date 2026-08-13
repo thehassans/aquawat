@@ -14,7 +14,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
   const showAr = lang !== 'en' && Boolean(contact.companyAr)
 
   return (
-    <div className={`relative mx-auto flex min-h-[1050px] w-full max-w-4xl flex-col overflow-hidden bg-white text-gray-900 ${className}`}>
+    <div data-letterhead-root className={`relative mx-auto flex min-h-[297mm] w-full max-w-4xl flex-col overflow-hidden bg-white text-gray-900 ${className}`}>
       {logoSrc ? (
         <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center select-none">
           <img src={logoSrc} alt="" className="h-72 w-72 object-contain opacity-[0.06] sm:h-96 sm:w-96" />

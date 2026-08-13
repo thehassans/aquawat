@@ -280,11 +280,15 @@ const captureElementSnapshotCanvas = async (sourceElement) => {
 
     const html2canvasModule = await import('html2canvas')
     const html2canvas = html2canvasModule?.default || html2canvasModule
-    return await html2canvas(sourceElement, {
+    const target = sourceElement.querySelector?.('[data-letterhead-root]') || sourceElement
+    const width = Math.max(target.scrollWidth || 0, target.clientWidth || 0, 794)
+    return await html2canvas(target, {
       backgroundColor: '#ffffff',
-      scale: Math.max(2, window.devicePixelRatio || 1),
+      scale: 2,
       useCORS: true,
       logging: false,
+      width,
+      windowWidth: width,
     })
   } catch (error) {
     console.warn('[invoicePdf] html2canvas snapshot failed', error)
@@ -292,7 +296,7 @@ const captureElementSnapshotCanvas = async (sourceElement) => {
   }
 }
 
-const renderElementSnapshotPdf = async ({ doc, sourceElement }) => {
+const renderElementSnapshotPdf = async ({ doc, sourceElement, fullBleed = false }) => {
   if (!doc || !sourceElement || typeof window === 'undefined') return false
 
   const canvas = await captureElementSnapshotCanvas(sourceElement)
@@ -301,7 +305,7 @@ const renderElementSnapshotPdf = async ({ doc, sourceElement }) => {
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
   const isThermal = pageW < 300
-  const margin = isThermal ? 8 : 18
+  const margin = isThermal ? 8 : (fullBleed ? 0 : 18)
   const usableW = pageW - margin * 2
   const usableH = pageH - margin * 2
   const scale = usableW / canvas.width
@@ -321,7 +325,27 @@ const renderElementSnapshotPdf = async ({ doc, sourceElement }) => {
     return true
   }
 
-  const pageCanvasHeight = Math.max(1, Math.floor(usableH / scale))
+  const fittedScale = canvas.height * scale <= usableH + 1.5
+    ? scale
+    : Math.min(scale, usableH / canvas.height)
+  const drawW = canvas.width * fittedScale
+  const drawX = margin + (usableW - drawW) / 2
+
+  if (canvas.height * fittedScale <= usableH + 1.5) {
+    doc.addImage(
+      canvas.toDataURL('image/png'),
+      'PNG',
+      drawX,
+      margin,
+      drawW,
+      canvas.height * fittedScale,
+      undefined,
+      'FAST'
+    )
+    return true
+  }
+
+  const pageCanvasHeight = Math.max(1, Math.floor(usableH / fittedScale))
 
   let offsetY = 0
   let pageIndex = 0
@@ -355,10 +379,10 @@ const renderElementSnapshotPdf = async ({ doc, sourceElement }) => {
     doc.addImage(
       pageCanvas.toDataURL('image/png'),
       'PNG',
+      drawX,
       margin,
-      margin,
-      usableW,
-      sliceHeight * scale,
+      drawW,
+      sliceHeight * fittedScale,
       undefined,
       'FAST'
     )
@@ -387,8 +411,8 @@ const pdfDocumentToBlob = (doc) => {
   }
 }
 
-const saveElementSnapshotPdf = async ({ doc, sourceElement, fileName }) => {
-  const rendered = await renderElementSnapshotPdf({ doc, sourceElement })
+const saveElementSnapshotPdf = async ({ doc, sourceElement, fileName, fullBleed = false }) => {
+  const rendered = await renderElementSnapshotPdf({ doc, sourceElement, fullBleed })
   if (!rendered) return false
 
   doc.save(`${fileName}.pdf`)
@@ -515,17 +539,19 @@ const waitForElementImages = async (element) => {
 const buildSnapshotElement = async ({ invoice, tenant, language, documentType = 'invoice' }) => {
   if (typeof document === 'undefined') return null
 
+  const templateId = resolveDocumentPdfTemplateId(tenant, invoice, documentType)
+  const isLetterheadSnapshot = Number(templateId) === LETTERHEAD_TEMPLATE_ID
+
   const host = document.createElement('div')
   host.style.position = 'fixed'
   host.style.left = '-20000px'
   host.style.top = '0'
-  host.style.width = '1120px'
-  host.style.padding = '24px'
+  host.style.width = isLetterheadSnapshot ? '794px' : '1120px'
+  host.style.padding = isLetterheadSnapshot ? '0' : '24px'
   host.style.background = '#ffffff'
   host.style.zIndex = '-1'
   host.style.pointerEvents = 'none'
 
-  const templateId = resolveDocumentPdfTemplateId(tenant, invoice, documentType)
   const previewElement = createElement(InvoiceLivePreview, {
     invoice,
     tenant,
@@ -554,6 +580,18 @@ const buildSnapshotElement = async ({ invoice, tenant, language, documentType = 
         font-weight: 700;
         font-style: normal;
       }
+      ${isLetterheadSnapshot ? `
+        [data-letterhead-root] {
+          max-width: none !important;
+          width: 100% !important;
+          margin-left: 0 !important;
+          margin-right: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          border-width: 0 !important;
+          min-height: 297mm !important;
+        }
+      ` : ''}
     </style>
     ${snapshotMarkup}
   `
@@ -864,8 +902,8 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
 
   if (snapshotElement) {
     const saved = output === 'blob'
-      ? await renderElementSnapshotPdf({ doc, sourceElement: snapshotElement })
-      : await saveElementSnapshotPdf({ doc, sourceElement: snapshotElement, fileName: name })
+      ? await renderElementSnapshotPdf({ doc, sourceElement: snapshotElement, fullBleed: isLetterhead })
+      : await saveElementSnapshotPdf({ doc, sourceElement: snapshotElement, fileName: name, fullBleed: isLetterhead })
     if (generatedSnapshotHost?.parentNode) {
       generatedSnapshotHost.parentNode.removeChild(generatedSnapshotHost)
     }
