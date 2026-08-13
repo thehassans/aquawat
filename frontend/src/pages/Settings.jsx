@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector, useDispatch } from 'react-redux'
 import { useForm } from 'react-hook-form'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Building2, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -16,7 +17,6 @@ import { INVOICE_LANGUAGE_OPTIONS, isGccArabicMarket } from '../lib/invoiceLangu
 import { getTenantAliasUrl } from '../lib/tenantHost'
 import { showArabicFields, isBangladeshTenant, isSaudiTenant, showArabicUi } from '../lib/saudiTenant'
 import { COUNTRY_OPTIONS } from '../lib/countryCurrency'
-import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
 import { getNavSections } from '../lib/sidebarConfig'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
 import PosTerminalSettings from '../components/settings/PosTerminalSettings'
@@ -258,7 +258,6 @@ export default function Settings() {
   const [invoiceLogoDataUrl, setInvoiceLogoDataUrl] = useState(null)
   const [stampDataUrl, setStampDataUrl] = useState(null)
   const [signatureDataUrl, setSignatureDataUrl] = useState(null)
-  const [hiddenUoms, setHiddenUoms] = useState([])
   const [invoiceHeaderTextEn, setInvoiceHeaderTextEn] = useState('')
   const [invoiceHeaderTextAr, setInvoiceHeaderTextAr] = useState('')
   const [invoiceFooterTextEn, setInvoiceFooterTextEn] = useState('')
@@ -329,7 +328,6 @@ export default function Settings() {
     setInvoiceLogoDataUrl(tenant.settings?.invoiceBranding?.logo || tenant.branding?.logo || null)
     setStampDataUrl(tenant.settings?.invoiceBranding?.presetStamp || tenant.settings?.invoiceBranding?.stampImage || null)
     setSignatureDataUrl(tenant.settings?.invoiceBranding?.presetSignature || tenant.settings?.invoiceBranding?.signatureImage || null)
-    setHiddenUoms(tenant.settings?.hiddenUoms || [])
     setInvoiceHeaderTextEn(tenant.settings?.invoiceBranding?.headerTextEn || '')
     setInvoiceHeaderTextAr(tenant.settings?.invoiceBranding?.headerTextAr || '')
     setInvoiceFooterTextEn(tenant.settings?.invoiceBranding?.footerTextEn || '')
@@ -1044,55 +1042,15 @@ export default function Settings() {
 
           {activeTab === 'uom' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6">
-              <h3 className="text-lg font-semibold mb-6 flex items-center gap-2"><FileText className="w-5 h-5 text-primary-500" />{language === 'ar' ? 'وحدات القياس' : 'UOM Configuration'}</h3>
-              
-              <div className="space-y-6">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {language === 'ar' ? 'حدد وحدات القياس التي ترغب في استخدامها في نظامك. الوحدات غير المحددة سيتم إخفاؤها من القوائم المنسدلة.' : 'Select the Units of Measure you want to use in your system. Unselected units will be hidden from dropdown menus.'}
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {ZATCA_UOM_OPTIONS.map((uom) => {
-                    const isHidden = hiddenUoms.includes(uom.code);
-                    return (
-                      <label key={uom.code} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${!isHidden ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-600 hover:bg-gray-50 dark:hover:bg-dark-700/50'}`}>
-                        <input
-                          type="checkbox"
-                          checked={!isHidden}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setHiddenUoms(prev => prev.filter(c => c !== uom.code));
-                            } else {
-                              setHiddenUoms(prev => [...prev, uom.code]);
-                            }
-                          }}
-                          className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500 dark:bg-dark-700"
-                        />
-                        <div>
-                          <div className="font-semibold text-sm text-gray-900 dark:text-white">{uom.code}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">{language === 'ar' ? uom.labelAr : uom.labelEn}</div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-
-                <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-dark-700">
-                  <button
-                    type="button"
-                    disabled={updateMutation.isPending}
-                    onClick={() => updateMutation.mutate({
-                      settings: {
-                        ...(tenant?.settings || {}),
-                        hiddenUoms
-                      }
-                    })}
-                    className="btn btn-primary"
-                  >
-                    {updateMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Save className="w-4 h-4" />{t('save')}</>}
-                  </button>
-                </div>
-              </div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2"><FileText className="w-5 h-5 text-primary-500" />{language === 'ar' ? 'وحدات القياس' : 'Units of Measure'}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                {language === 'ar'
+                  ? 'وحدات القياس أصبحت وحدة مستقلة في القائمة. افتحها لإظهار أو إخفاء الوحدات بما فيها الطن المتري (MT).'
+                  : 'Units of measure now have their own module in the navbar. Open it to show or hide units, including Metric Ton (MT).'}
+              </p>
+              <Link to="/app/dashboard/uom" className="btn btn-primary">
+                {language === 'ar' ? 'فتح وحدات القياس' : 'Open Units of Measure'}
+              </Link>
             </motion.div>
           )}
 

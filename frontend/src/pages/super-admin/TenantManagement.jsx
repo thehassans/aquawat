@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, Building2, Edit, Users, LogIn, AlertCircle, RefreshCw, Trash2, RotateCcw, Send, X, XCircle, FileSpreadsheet, FileText, Eraser, Sliders, Ban, Play, Activity, Server, Database, Cpu } from 'lucide-react'
+import { Plus, Search, Building2, Edit, Users, LogIn, AlertCircle, RefreshCw, Trash2, RotateCcw, Send, X, XCircle, FileSpreadsheet, FileText, Eraser, Sliders, Ban, Play, Activity, Server, Database, Cpu, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -142,6 +142,27 @@ export default function TenantManagement() {
       }
     }
   })
+
+  const downloadTenantBackup = async (tenant) => {
+    const toastId = toast.loading(language === 'ar' ? 'جاري تجهيز النسخة…' : 'Preparing backup…')
+    try {
+      const res = await api.get(`/super-admin/tenants/${tenant._id}/backup/download`, { responseType: 'blob', timeout: 600000 })
+      const cd = res.headers['content-disposition'] || ''
+      const match = /filename="?([^";]+)"?/i.exec(cd)
+      const filename = match ? match[1] : `backup_${tenant.slug || tenant._id}.jsonl.gz`
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/gzip' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast.success(language === 'ar' ? 'بدأ التنزيل' : 'Download started', { id: toastId })
+    } catch (err) {
+      toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل التنزيل' : 'Download failed'), { id: toastId })
+    }
+  }
 
   const terminationMutation = useMutation({
     mutationFn: ({ tenantId, payload }) => api.put(`/super-admin/tenants/${tenantId}/termination`, payload).then(res => res.data),
@@ -500,6 +521,14 @@ export default function TenantManagement() {
                             title={language === 'ar' ? 'حذف المستأجر بالكامل' : 'Delete entire tenant'}
                           >
                             <Trash2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadTenantBackup(tenant)}
+                            className="p-2 hover:bg-slate-50 dark:hover:bg-white/5 rounded-lg text-slate-600 disabled:opacity-50"
+                            title={language === 'ar' ? 'تنزيل نسخة احتياطية' : 'Download backup'}
+                          >
+                            <Download className="w-4 h-4" />
                           </button>
                           <button
                             type="button"

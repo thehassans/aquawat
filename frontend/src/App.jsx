@@ -78,6 +78,7 @@ const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
 const WarehouseForm = lazy(() => import('./pages/inventory/WarehouseForm'))
 const Settings = lazy(() => import('./pages/Settings'))
+const Uom = lazy(() => import('./pages/Uom'))
 const Profile = lazy(() => import('./pages/Profile'))
 const HiddenNavbars = lazy(() => import('./pages/HiddenNavbars'))
 const Reports = lazy(() => import('./pages/Reports'))
@@ -231,6 +232,7 @@ const GeminiSettings = lazy(() => import('./pages/super-admin/GeminiSettings'))
 const EmailSettings = lazy(() => import('./pages/super-admin/EmailSettings'))
 const SuperAdminMailbox = lazy(() => import('./pages/super-admin/SuperAdminMailbox'))
 const SuperAdminWhatsApp = lazy(() => import('./pages/super-admin/SuperAdminWhatsApp'))
+const SuperAdminBackups = lazy(() => import('./pages/super-admin/SuperAdminBackups'))
 const WebsiteSettings = lazy(() => import('./pages/super-admin/WebsiteSettings'))
 const DemoUsers = lazy(() => import('./pages/super-admin/DemoUsers'))
 const PaymentSettings = lazy(() => import('./pages/super-admin/PaymentSettings'))
@@ -576,6 +578,7 @@ function App() {
         <Route path="system-settings" element={<SystemSettings />} />
         <Route path="app-catalog" element={<AppCatalogManagement />} />
         <Route path="zatca" element={<ZatcaManagement />} />
+        <Route path="backups" element={<SuperAdminBackups />} />
       </Route>
 
       {/* Reseller Panel Routes */}
@@ -820,6 +823,7 @@ function App() {
         <Route path="users" element={<Users />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="uom" element={<Uom />} />
         <Route path="hidden-navbars" element={<HiddenNavbars />} />
         <Route path="settings/government-integrations" element={<GovernmentIntegrations />} />
         <Route path="settings/government-integrations/:service" element={<GovernmentIntegrationDetail />} />

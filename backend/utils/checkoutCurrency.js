@@ -1,11 +1,18 @@
 /**
- * Platform subscription checkout settles in USD.
- * Local Saudi gateways (Moyasar / Tabby / Tamara) typically require SAR —
- * convert using the official SAR peg (1 USD = 3.75 SAR).
+ * Platform subscription list prices are USD and SAR (set independently — no FX).
+ * Stripe charges the tenant's list-price lane. Local Saudi gateways require SAR.
+ * usdToSarMajor is only a fallback when an explicit SAR list price is missing.
  */
 
 export const CHECKOUT_CURRENCY = 'USD'
 export const SAR_PER_USD = 3.75
+
+export function resolveCheckoutLane(tenant) {
+  const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
+  const country = String(tenant?.business?.address?.country || '').trim().toUpperCase()
+  if (currency === 'SAR' || country === 'SA' || country === 'SAUDI ARABIA') return 'SAR'
+  return 'USD'
+}
 
 export function toUsdMajor(amount, fromCurrency = 'USD') {
   const n = Number(amount)

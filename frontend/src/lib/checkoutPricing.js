@@ -3,12 +3,20 @@
  * in Super Admin (e.g. 29.99 USD and 49.99 SAR) — never derive one from the other via FX.
  */
 
+import { getTenantCurrency } from './saudiTenant'
+
+/** Default display currency when the tenant is not SAR. */
 export const CHECKOUT_CURRENCY = 'USD'
 
 /** ZATCA Phase 2 addon — clean dual list prices */
 export const ZATCA_ADDON = {
   USD: { monthly: 14.99, yearly: 149.99 },
   SAR: { monthly: 49.99, yearly: 499.99 },
+}
+
+/** List-price lane: SAR for SAR tenants, USD otherwise. No FX between the two. */
+export function resolveCheckoutLane(tenant) {
+  return getTenantCurrency(tenant) === 'SAR' ? 'SAR' : 'USD'
 }
 
 export function resolvePlanPrice(plan, billingCycle = 'monthly', currency = 'USD') {
@@ -38,7 +46,7 @@ export function isZatcaFeatureText(text = '') {
 }
 
 /** Normalize CMS / fallback plan into dual-currency list prices. */
-export function normalizeCheckoutPlan(plan, fallback = {}) {
+export function normalizeCheckoutPlan(plan, fallback = {}, displayCurrency = 'USD') {
   const merged = { ...fallback, ...plan }
   const id = merged.id || fallback.id || 'starter'
   const monthlyUsd = Number(merged.priceMonthlyUsd ?? fallback.priceMonthlyUsd)
@@ -56,18 +64,21 @@ export function normalizeCheckoutPlan(plan, fallback = {}) {
   const hasUsd = Number.isFinite(monthlyUsd) && (merged.priceMonthlyUsd != null || fallback.priceMonthlyUsd != null)
   const hasSar = Number.isFinite(monthlySar)
 
+  const priceMonthlyUsd = hasUsd ? monthlyUsd : defaults.monthlyUsd
+  const priceYearlyUsd = Number.isFinite(yearlyUsd) && (merged.priceYearlyUsd != null || fallback.priceYearlyUsd != null)
+    ? yearlyUsd
+    : defaults.yearlyUsd
+  const priceMonthlySar = hasSar ? monthlySar : defaults.monthlySar
+  const priceYearlySar = Number.isFinite(yearlySar) ? yearlySar : defaults.yearlySar
+  const lane = String(displayCurrency || 'USD').toUpperCase() === 'SAR' ? 'SAR' : 'USD'
+
   return {
     ...merged,
-    priceMonthlyUsd: hasUsd ? monthlyUsd : defaults.monthlyUsd,
-    priceYearlyUsd: Number.isFinite(yearlyUsd) && (merged.priceYearlyUsd != null || fallback.priceYearlyUsd != null)
-      ? yearlyUsd
-      : defaults.yearlyUsd,
-    priceMonthlySar: hasSar ? monthlySar : defaults.monthlySar,
-    priceYearlySar: Number.isFinite(yearlySar) ? yearlySar : defaults.yearlySar,
-    // Checkout display uses USD list price
-    priceMonthly: hasUsd ? monthlyUsd : defaults.monthlyUsd,
-    priceYearly: Number.isFinite(yearlyUsd) && (merged.priceYearlyUsd != null || fallback.priceYearlyUsd != null)
-      ? yearlyUsd
-      : defaults.yearlyUsd,
+    priceMonthlyUsd,
+    priceYearlyUsd,
+    priceMonthlySar,
+    priceYearlySar,
+    priceMonthly: lane === 'SAR' ? priceMonthlySar : priceMonthlyUsd,
+    priceYearly: lane === 'SAR' ? priceYearlySar : priceYearlyUsd,
   }
 }

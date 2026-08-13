@@ -49,6 +49,7 @@ import { getPrimaryBusinessType, normalizeBusinessTypes, BUSINESS_TYPES } from '
 import { sendTenantWelcomeEmail } from '../utils/emailService.js';
 import { verifyEmailDeliveryConnection, sendEmailWithConfig } from '../utils/emailProviderService.js';
 import { resolvePeriodDates, buildTenantBackup } from '../utils/tenantBackupService.js';
+import { streamAllTenantsBackup, streamSingleTenantBackup } from '../utils/tenantBackupStream.js';
 import { sendTenantOnboardingEmail } from '../utils/emailService.js';
 import { buildEmailShell } from '../utils/tenantEmailService.js';
 import whatsappService from '../services/whatsappService.js';
@@ -1958,6 +1959,30 @@ router.post('/tenants/:id/send-backup', async (req, res) => {
     });
   } catch (error) {
     sendRouteError(res, error);
+  }
+});
+
+// @route   GET /api/super-admin/tenants/:id/backup/download
+// @desc    Download a gzip jsonl backup for one tenant
+router.get('/tenants/:id/backup/download', async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.params.id).lean();
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    await streamSingleTenantBackup(req, res, tenant);
+  } catch (error) {
+    if (!res.headersSent) sendRouteError(res, error);
+    else res.end();
+  }
+});
+
+// @route   GET /api/super-admin/backups/download-all
+// @desc    Download a gzip jsonl backup for every tenant
+router.get('/backups/download-all', async (req, res) => {
+  try {
+    await streamAllTenantsBackup(req, res);
+  } catch (error) {
+    if (!res.headersSent) sendRouteError(res, error);
+    else res.end();
   }
 });
 

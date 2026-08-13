@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -25,12 +25,9 @@ import api from '../lib/api'
 import { autoTranslateText } from '../lib/builtInTranslator'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
-import { downloadPurchaseOrderPdf, printPurchaseOrderPdf, mapPurchaseOrderForPdf } from '../lib/invoicePdf'
-import InvoiceLivePreview from '../components/invoices/InvoiceLivePreview'
-import { getInvoiceTemplateId } from '../lib/invoiceBranding'
-import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../lib/invoiceLanguage'
+import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
 import Select from 'react-select'
-import { ZATCA_UOM_OPTIONS } from '../lib/uomOptions'
+import { getAvailableUomOptions } from '../lib/uomOptions'
 
 const STATUS_PILL = {
   received: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
@@ -58,7 +55,6 @@ export default function PurchaseOrderForm() {
   const [manualModes, setManualModes] = useState([])
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(null)
-  const previewRef = useRef(null)
   const [supplierForm, setSupplierForm] = useState({
     code: '',
     nameEn: '',
@@ -235,41 +231,7 @@ export default function PurchaseOrderForm() {
     return { subtotal, totalTax, grandTotal: subtotal + totalTax }
   }, [lineItems])
 
-  const watched = watch()
-
-  const previewInvoice = useMemo(() => {
-    try {
-      const supplier =
-        (suppliers || []).find((s) => String(s._id) === String(watched.supplierId)) || order?.supplierId || {}
-      const items = Array.isArray(watched.lineItems) ? watched.lineItems : []
-      return mapPurchaseOrderForPdf(
-        {
-          poNumber: watched.poNumber || order?.poNumber || 'PO-DRAFT',
-          status: order?.status || 'draft',
-          orderDate: watched.orderDate,
-          expectedDate: watched.expectedDate,
-          currency: watched.currency,
-          notes: watched.notes,
-          supplierId: supplier,
-          lineItems: items.map((li) => {
-            const product = (products || []).find((p) => String(p._id) === String(li.productId))
-            return {
-              ...li,
-              productId: product || li.productId,
-              productName: li.manualName || product?.nameEn || product?.nameAr,
-              productNameAr: product?.nameAr || li.manualName,
-            }
-          }),
-          subtotal: totals.subtotal,
-          totalTax: totals.totalTax,
-          grandTotal: totals.grandTotal,
-        },
-        tenant
-      )
-    } catch {
-      return null
-    }
-  }, [watched, suppliers, products, order, totals, tenant])
+  const uomOptions = useMemo(() => getAvailableUomOptions(tenant), [tenant])
 
   const saveMutation = useMutation({
     mutationFn: (data) => (isEdit ? api.put(`/purchase-orders/${id}`, data) : api.post('/purchase-orders', data)),
@@ -399,7 +361,6 @@ export default function PurchaseOrderForm() {
         purchaseOrder: full,
         language,
         tenant,
-        sourceElement: previewRef.current,
       })
       toast.success(language === 'ar' ? 'جاهز للطباعة' : 'Ready to print', { id: toastId })
     } catch (e) {
@@ -611,7 +572,6 @@ export default function PurchaseOrderForm() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
       <form id="po-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`${shell} p-5 sm:p-6`}>
           <div className="mb-5 border-b border-slate-100 pb-4 dark:border-white/[0.08]">
@@ -777,19 +737,19 @@ export default function PurchaseOrderForm() {
                           <div className="w-48">
                             <Select
                               inputId={`uom-${index}`}
-                              options={ZATCA_UOM_OPTIONS.map((u) => ({
+                              options={uomOptions.map((u) => ({
                                 value: u.code,
                                 label: language === 'ar' ? u.labelAr : u.labelEn,
                               }))}
                               value={
-                                ZATCA_UOM_OPTIONS.find((u) => u.code === watch(`lineItems.${index}.uom`))
+                                uomOptions.find((u) => u.code === watch(`lineItems.${index}.uom`))
                                   ? {
                                       value: watch(`lineItems.${index}.uom`),
                                       label:
                                         language === 'ar'
-                                          ? ZATCA_UOM_OPTIONS.find((u) => u.code === watch(`lineItems.${index}.uom`))
+                                          ? uomOptions.find((u) => u.code === watch(`lineItems.${index}.uom`))
                                               ?.labelAr
-                                          : ZATCA_UOM_OPTIONS.find((u) => u.code === watch(`lineItems.${index}.uom`))
+                                          : uomOptions.find((u) => u.code === watch(`lineItems.${index}.uom`))
                                               ?.labelEn,
                                     }
                                   : null
@@ -952,31 +912,6 @@ export default function PurchaseOrderForm() {
           </div>
         </motion.div>
       </form>
-
-      {previewInvoice && (
-        <div className="hidden xl:block">
-          <div className="sticky top-20">
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-              {language === 'ar' ? 'معاينة الطباعة' : 'Print preview'}
-            </p>
-            <div
-              ref={previewRef}
-              className="origin-top overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_48px_-28px_rgba(15,23,42,0.5)] dark:border-white/10"
-            >
-              <InvoiceLivePreview
-                invoice={previewInvoice}
-                tenant={tenant}
-                language={language}
-                templateId={getInvoiceTemplateId(tenant, previewInvoice?.businessContext, previewInvoice?.pdfTemplateId)}
-                bilingual={resolveInvoiceBilingual(tenant, true)}
-                secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
-                documentType="purchase_order"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-      </div>
 
       {/* Sticky primary save */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/80 bg-white/90 px-4 py-3 backdrop-blur-md dark:border-white/10 dark:bg-[#0c111a]/90 md:hidden">

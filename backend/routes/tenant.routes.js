@@ -3,7 +3,7 @@ import Tenant from '../models/Tenant.js';
 import { protect, authorize, invalidateAuthCache } from '../middleware/auth.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
 import { hasPremiumTemplateAccess, ESSENTIAL_TEMPLATE_ID, MAX_TEMPLATE_ID } from '../utils/premiumTemplates.js';
-import zlib from 'zlib';
+import { streamSingleTenantBackup } from '../utils/tenantBackupStream.js';
 import multer from 'multer';
 import sharp from 'sharp';
 import Customer from '../models/Customer.js';
@@ -589,57 +589,7 @@ router.get('/backup', authorize('admin'), async (req, res) => {
       return res.status(404).json({ error: 'Tenant not found' });
     }
 
-    const dateStr = new Date().toISOString().slice(0, 10);
-    const filename = `backup_${tenant.slug || tenant._id}_${dateStr}.jsonl.gz`;
-
-    res.setHeader('Content-Type', 'application/gzip');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-    const gzip = zlib.createGzip({ level: zlib.constants.Z_BEST_SPEED });
-    gzip.pipe(res);
-
-    const writeLine = (obj) => gzip.write(`${JSON.stringify(obj)}\n`);
-
-    writeLine({
-      type: 'meta',
-      version: 1,
-      generatedAt: new Date().toISOString(),
-      tenantId: String(req.user.tenantId),
-    });
-
-    writeLine({ type: 'tenant', doc: tenant });
-
-    const collections = [
-      { name: 'customers', model: Customer },
-      { name: 'suppliers', model: Supplier },
-      { name: 'employees', model: Employee },
-      { name: 'payrolls', model: Payroll },
-      { name: 'expenses', model: Expense },
-      { name: 'invoices', model: Invoice },
-      { name: 'products', model: Product },
-      { name: 'warehouses', model: Warehouse },
-      { name: 'projects', model: Project },
-      { name: 'tasks', model: Task },
-      { name: 'purchaseOrders', model: PurchaseOrder },
-      { name: 'shipments', model: Shipment },
-      { name: 'iotDevices', model: IoTDevice },
-      { name: 'iotReadings', model: IoTReading },
-      { name: 'whatsAppConfig', model: WhatsAppConfig },
-      { name: 'whatsAppContacts', model: WhatsAppContact },
-      { name: 'whatsAppMessages', model: WhatsAppMessage },
-      { name: 'whatsAppTemplates', model: WhatsAppTemplate },
-      { name: 'quickReplies', model: QuickReply },
-      { name: 'broadcasts', model: Broadcast },
-    ];
-
-    for (const c of collections) {
-      const cursor = c.model.find({ tenantId: req.user.tenantId }).lean().cursor();
-      for await (const doc of cursor) {
-        writeLine({ type: 'doc', collection: c.name, doc });
-      }
-    }
-
-    gzip.end();
+    await streamSingleTenantBackup(req, res, tenant);
   } catch (error) {
     if (!res.headersSent) {
       return res.status(500).json({ error: error.message });

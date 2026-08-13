@@ -18,6 +18,7 @@ import {
 import {
   CHECKOUT_CURRENCY,
   gatewayNeedsSar,
+  resolveCheckoutLane,
   toUsdMajor,
   usdToSarMajor,
 } from '../utils/checkoutCurrency.js'
@@ -195,12 +196,14 @@ router.post('/create-payment', protect, async (req, res) => {
       return res.status(403).json({ error: 'Tenant account is inactive' })
     }
 
-    // Dual list prices: USD for Stripe, explicit SAR for local gateways (no FX from USD).
-    const amountUsd = toUsdMajor(rawAmount, rawCurrency)
-    const useSarGateway = gatewayNeedsSar(paymentMethod)
+    // Dual list prices: `amount` is always the USD list; `amountSar` is the SAR list. No FX.
+    const amountUsd = toUsdMajor(rawAmount, 'USD')
     const listedSar = Number(rawAmountSar)
-    const currency = useSarGateway ? 'SAR' : CHECKOUT_CURRENCY
-    const amount = useSarGateway
+    const lane = resolveCheckoutLane(tenant)
+    const useSarGateway = gatewayNeedsSar(paymentMethod)
+    const chargeSar = useSarGateway || lane === 'SAR'
+    const currency = chargeSar ? 'SAR' : 'USD'
+    const amount = chargeSar
       ? (Number.isFinite(listedSar) && listedSar > 0 ? Math.round(listedSar * 100) / 100 : usdToSarMajor(amountUsd))
       : amountUsd
     const finalAmount = Math.round(Number(amount) * 100)
@@ -221,8 +224,8 @@ router.post('/create-payment', protect, async (req, res) => {
       demoEmail: tenant.demoEmail || '',
       plan,
       billingCycle,
-      amountMajor: String(amountUsd),
-      currency: CHECKOUT_CURRENCY,
+      amountMajor: String(amount),
+      currency,
       chargeCurrency: currency,
       zatcaPhase2: zatcaPhase2 ? '1' : '0',
     }
@@ -231,9 +234,9 @@ router.post('/create-payment', protect, async (req, res) => {
     if (paymentMethod === 'stripe') {
       try {
         const session = await createStripeCheckoutSession({
-          amountMajor: amountUsd,
-          currency: CHECKOUT_CURRENCY,
-          adaptivePricing: true,
+          amountMajor: amount,
+          currency,
+          adaptivePricing: currency === 'USD',
           productName: `Maqder ERP — ${plan} (${billingCycle})`,
           productDescription: `Upgrade demo tenant to ${plan} plan`,
           customerEmail: tenant.demoEmail || tenant.business?.contactEmail || '',
@@ -254,9 +257,9 @@ router.post('/create-payment', protect, async (req, res) => {
       if (stripeCfg.enabled && stripeCfg.secretKey) {
         try {
           const session = await createStripeCheckoutSession({
-            amountMajor: amountUsd,
-            currency: CHECKOUT_CURRENCY,
-            adaptivePricing: true,
+            amountMajor: amount,
+            currency,
+            adaptivePricing: currency === 'USD',
             productName: `Maqder ERP — ${plan} (${billingCycle})`,
             productDescription: `Upgrade demo tenant to ${plan} plan`,
             customerEmail: tenant.demoEmail || tenant.business?.contactEmail || '',

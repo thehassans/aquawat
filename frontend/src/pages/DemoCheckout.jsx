@@ -25,9 +25,9 @@ import api from '../lib/api'
 import { getPrimaryBusinessType } from '../lib/businessTypes'
 import { isSaudiTenant, showArabicUi } from '../lib/saudiTenant'
 import {
-  CHECKOUT_CURRENCY,
   isZatcaFeatureText,
   normalizeCheckoutPlan,
+  resolveCheckoutLane,
   resolvePlanPrice,
   zatcaAddonAmount,
 } from '../lib/checkoutPricing'
@@ -171,6 +171,8 @@ export default function DemoCheckout() {
     if (firstAvailable) setPaymentMethod(firstAvailable.id)
   }, [websiteSettings, paymentMethod])
 
+  const checkoutCurrency = resolveCheckoutLane(tenant)
+
   const plans = useMemo(() => {
     const filterFeatures = (list = []) =>
       (saudiTenant ? list : list.filter((f) => !isZatcaFeatureText(f)))
@@ -180,7 +182,7 @@ export default function DemoCheckout() {
     if (Array.isArray(configured) && configured.length > 0) {
       return configured.map((p) => {
         const fallback = fallbackPricingPlans.find((f) => f.id === p.id)
-        const normalized = normalizeCheckoutPlan(p, fallback)
+        const normalized = normalizeCheckoutPlan(p, fallback, checkoutCurrency)
         return {
           ...normalized,
           featuresEn: filterFeatures(normalized.featuresEn?.length ? normalized.featuresEn : fallback?.featuresEn),
@@ -189,19 +191,22 @@ export default function DemoCheckout() {
       })
     }
     return fallbackPricingPlans.map((p) => ({
-      ...normalizeCheckoutPlan(p),
+      ...normalizeCheckoutPlan(p, {}, checkoutCurrency),
       featuresEn: filterFeatures(p.featuresEn),
       featuresAr: filterFeatures(p.featuresAr),
     }))
-  }, [websiteSettings, saudiTenant])
+  }, [websiteSettings, saudiTenant, checkoutCurrency])
 
   const selectedPlanObj = plans.find((p) => p.id === selectedPlan) || plans[1]
-  const amount = resolvePlanPrice(selectedPlanObj, selectedBilling, 'USD')
+  const amountUsd = resolvePlanPrice(selectedPlanObj, selectedBilling, 'USD')
   const amountSar = resolvePlanPrice(selectedPlanObj, selectedBilling, 'SAR')
-  const currency = CHECKOUT_CURRENCY
-  const zatcaAddon = saudiTenant && zatcaPhase2Enabled ? zatcaAddonAmount(selectedBilling, 'USD') : 0
+  const currency = checkoutCurrency
+  const amount = currency === 'SAR' ? amountSar : amountUsd
+  const zatcaAddonUsd = saudiTenant && zatcaPhase2Enabled ? zatcaAddonAmount(selectedBilling, 'USD') : 0
   const zatcaAddonSar = saudiTenant && zatcaPhase2Enabled ? zatcaAddonAmount(selectedBilling, 'SAR') : 0
+  const zatcaAddon = currency === 'SAR' ? zatcaAddonSar : zatcaAddonUsd
   const totalAmount = Math.round((Number(amount) + Number(zatcaAddon)) * 100) / 100
+  const totalAmountUsd = Math.round((Number(amountUsd) + Number(zatcaAddonUsd)) * 100) / 100
   const totalAmountSar = Math.round((Number(amountSar) + Number(zatcaAddonSar)) * 100) / 100
 
   const handleUpgrade = async () => {
@@ -215,9 +220,9 @@ export default function DemoCheckout() {
 
     try {
       const { data } = await api.post('/payments/create-payment', {
-        amount: totalAmount,
+        amount: totalAmountUsd,
         amountSar: totalAmountSar,
-        currency: CHECKOUT_CURRENCY,
+        currency,
         plan: selectedPlan,
         billingCycle: selectedBilling,
         paymentMethod,
@@ -521,9 +526,9 @@ export default function DemoCheckout() {
                   </div>
                 </div>
                 <p className="mt-2 text-center text-[11px] text-gray-400 dark:text-gray-500">
-                  {isArabic
-                    ? 'أسعار قائمة بالدولار — قد يعرض Stripe عملتك المحلية تلقائياً'
-                    : 'Listed in USD — Stripe may auto-convert to your local currency at checkout'}
+                  {currency === 'SAR'
+                    ? (isArabic ? 'الأسعار بالريال السعودي حسب عملة المنشأة.' : 'Priced in SAR for this tenant’s currency.')
+                    : (isArabic ? 'الأسعار بالدولار الأمريكي حسب عملة المنشأة.' : 'Priced in USD for this tenant’s currency.')}
                 </p>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex items-center justify-between text-gray-600 dark:text-gray-300">

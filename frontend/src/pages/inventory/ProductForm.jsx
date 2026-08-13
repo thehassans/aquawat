@@ -11,12 +11,13 @@ import { useTranslation } from '../../lib/translations'
 import SarIcon from '../../components/ui/SarIcon'
 import { useLiveTranslation } from '../../lib/liveTranslation'
 import Select from 'react-select'
-import { ZATCA_UOM_OPTIONS } from '../../lib/uomOptions'
+import { getAvailableUomOptions } from '../../lib/uomOptions'
 export default function ProductForm() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const isEdit = Boolean(id)
 
@@ -28,6 +29,7 @@ export default function ProductForm() {
   const [savingStock, setSavingStock] = useState(false)
   const [isManufactured, setIsManufactured] = useState(false)
   const [bomComponents, setBomComponents] = useState([])
+  const uomOptions = getAvailableUomOptions(tenant)
 
   const buildPayload = (data) => {
     const payload = { ...data }
@@ -317,8 +319,8 @@ export default function ProductForm() {
               <label className="label">{language === 'ar' ? 'وحدة القياس' : 'Unit of Measure'}</label>
               <Select
                 inputId="unitOfMeasure"
-                options={ZATCA_UOM_OPTIONS.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
-                value={ZATCA_UOM_OPTIONS.find(u => u.code === watch('unitOfMeasure')) ? { value: watch('unitOfMeasure'), label: language === 'ar' ? ZATCA_UOM_OPTIONS.find(u => u.code === watch('unitOfMeasure'))?.labelAr : ZATCA_UOM_OPTIONS.find(u => u.code === watch('unitOfMeasure'))?.labelEn } : null}
+                options={uomOptions.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
+                value={uomOptions.find(u => u.code === watch('unitOfMeasure')) ? { value: watch('unitOfMeasure'), label: language === 'ar' ? uomOptions.find(u => u.code === watch('unitOfMeasure'))?.labelAr : uomOptions.find(u => u.code === watch('unitOfMeasure'))?.labelEn } : null}
                 onChange={(selected) => setValue('unitOfMeasure', selected?.value || 'PCE')}
                 isSearchable
                 styles={{

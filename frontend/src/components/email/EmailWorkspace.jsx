@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { usePublicWebsiteSettings } from '../../lib/website'
 import { updateTenant } from '../../store/slices/authSlice'
-import { tenantHasEmailAddon } from '../../lib/emailAddon'
+import { isEmailMarketingConfigured, tenantHasEmailAddon } from '../../lib/emailAddon'
 import EmailSettingsModal from './EmailSettingsModal'
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -292,7 +292,14 @@ export default function EmailWorkspace() {
   }
 
   const currentEmailSettings = emailSettingsQuery.data?.email || tenant?.settings?.communication?.email || {}
+  const emailConfigured = isEmailMarketingConfigured(currentEmailSettings)
+  const emailSettingsLoaded = emailSettingsQuery.isSuccess || emailSettingsQuery.isError
   const folders = useMemo(() => folderOptions(language), [language])
+
+  useEffect(() => {
+    if (!hasEmailAddon || !emailSettingsLoaded) return
+    if (!emailConfigured) setShowSettings(true)
+  }, [hasEmailAddon, emailSettingsLoaded, emailConfigured])
 
   /* ── UPSELL (no addon) ────────────────────────────────────── */
   if (!hasEmailAddon) {
@@ -387,6 +394,32 @@ export default function EmailWorkspace() {
             </div>
           </div>
         </motion.div>
+      </div>
+    )
+  }
+
+  if (hasEmailAddon && emailSettingsQuery.isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-800" />
+      </div>
+    )
+  }
+
+  if (hasEmailAddon && emailSettingsLoaded && !emailConfigured) {
+    return (
+      <div className="flex min-h-[70vh] items-center px-4 py-10">
+        <EmailSettingsModal
+          open
+          variant="page"
+          required
+          onClose={() => {}}
+          onSave={(values) => settingsMutation.mutate(values)}
+          isSaving={settingsMutation.isPending}
+          language={language}
+          initialSettings={currentEmailSettings}
+          tenant={tenant}
+        />
       </div>
     )
   }
