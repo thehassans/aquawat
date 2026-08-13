@@ -2,6 +2,7 @@ import express from 'express'
 import SystemSettings from '../models/SystemSettings.js'
 import Tenant from '../models/Tenant.js'
 import { getPlanEntitlements } from '../utils/planEntitlements.js'
+import { isPaidPlanId, nextSubscriptionEndDate } from '../utils/subscriptionPeriod.js'
 import DemoUser from '../models/DemoUser.js'
 import { protect } from '../middleware/auth.js'
 import { sendUpgradeWelcomeEmail, sendPaymentFailedEmail } from '../utils/emailService.js'
@@ -80,9 +81,13 @@ const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amo
   const prior = await Tenant.findById(tenantId).select('subscription demoUpgraded isDemo createdAt').lean()
   const wasActive = prior?.subscription?.status === 'active' && prior?.demoUpgraded === true
   const wasTrial = String(prior?.subscription?.plan || '').toLowerCase() === 'trial' || prior?.isDemo === true
+  const paidPrior = isPaidPlanId(prior?.subscription?.plan)
 
   const now = new Date()
-  const endDate = new Date(now.getTime() + (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000)
+  const endDate = nextSubscriptionEndDate(prior?.subscription?.endDate, billingCycle, now)
+  const startDate = paidPrior && prior?.subscription?.startDate
+    ? new Date(prior.subscription.startDate)
+    : now
 
   const entitlements = getPlanEntitlements(plan, billingCycle)
   const update = {
@@ -90,7 +95,7 @@ const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amo
     demoUpgraded: true,
     'subscription.plan': plan,
     'subscription.status': 'active',
-    'subscription.startDate': now,
+    'subscription.startDate': startDate,
     'subscription.endDate': endDate,
     'subscription.billingCycle': billingCycle,
     'subscription.price': Number(amountHalalas) / 100,
@@ -121,16 +126,18 @@ const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amo
   }
 
   const upgradedTenant = await Tenant.findById(tenantId).lean()
-  sendUpgradeWelcomeEmail({
-    email: demoEmail || upgradedTenant?.demoEmail || '',
-    tenant: upgradedTenant,
-    plan,
-    billingCycle,
-    amount: Number(amountHalalas) / 100,
-    currency,
-  }).catch(() => {})
+  if (!paidPrior) {
+    sendUpgradeWelcomeEmail({
+      email: demoEmail || upgradedTenant?.demoEmail || '',
+      tenant: upgradedTenant,
+      plan,
+      billingCycle,
+      amount: Number(amountHalalas) / 100,
+      currency,
+    }).catch(() => {})
+  }
 
-  emitPlatformEvent(wasActive ? 'subscription_renewed' : 'subscription_started', {
+  emitPlatformEvent(paidPrior || wasActive ? 'subscription_renewed' : 'subscription_started', {
     tenantId: String(tenantId),
     plan,
     billingCycle,
@@ -184,6 +191,7 @@ router.post('/create-payment', protect, async (req, res) => {
       billingCycle = 'monthly',
       paymentMethod = 'creditcard',
       zatcaPhase2 = false,
+      intent = 'subscribe',
     } = req.body
 
     const tenant = await Tenant.findById(req.user.tenantId)
@@ -228,6 +236,7 @@ router.post('/create-payment', protect, async (req, res) => {
       currency,
       chargeCurrency: currency,
       zatcaPhase2: zatcaPhase2 ? '1' : '0',
+      intent: intent === 'renew' ? 'renew' : 'subscribe',
     }
 
     // --- Stripe checkout (platform SaaS upgrade) ---

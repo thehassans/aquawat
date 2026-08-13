@@ -33,6 +33,12 @@ import {
 } from '../lib/checkoutPricing'
 import { setLanguage } from '../store/slices/uiSlice'
 import DailyAyat from '../components/ui/DailyAyat'
+import {
+  formatSubscriptionDate,
+  getSubscriptionState,
+  isPaidPlanId,
+  previewRenewedEndDate,
+} from '../lib/subscriptionState'
 
 const fallbackPricingPlans = [
   {
@@ -98,8 +104,6 @@ export default function DemoCheckout() {
   const { language } = useSelector((state) => state.ui)
   const isArabic = language === 'ar'
 
-  const [selectedPlan, setSelectedPlan] = useState('professional')
-  const [selectedBilling, setSelectedBilling] = useState('monthly')
   const [paymentMethod, setPaymentMethod] = useState('creditcard')
   const [paymentLoading, setPaymentLoading] = useState(false)
   const [paymentError, setPaymentError] = useState('')
@@ -108,6 +112,16 @@ export default function DemoCheckout() {
   const [settingsLoading, setSettingsLoading] = useState(true)
   const saudiTenant = isSaudiTenant(tenant)
   const arabicUi = showArabicUi(tenant)
+  const subState = getSubscriptionState(tenant)
+  const isRenewal = Boolean(tenant && isPaidPlanId(subState.plan) && !subState.isTrialPlan)
+
+  const [selectedPlan, setSelectedPlan] = useState(() => {
+    if (isPaidPlanId(subState.plan) && subState.plan !== 'enterprise') return subState.plan
+    return 'professional'
+  })
+  const [selectedBilling, setSelectedBilling] = useState(() =>
+    subState.billingCycle === 'yearly' ? 'yearly' : 'monthly'
+  )
   const [zatcaPhase2Enabled, setZatcaPhase2Enabled] = useState(
     () => saudiTenant && (tenant?.zatca?.phase === 2 || false)
   )
@@ -208,6 +222,7 @@ export default function DemoCheckout() {
   const totalAmount = Math.round((Number(amount) + Number(zatcaAddon)) * 100) / 100
   const totalAmountUsd = Math.round((Number(amountUsd) + Number(zatcaAddonUsd)) * 100) / 100
   const totalAmountSar = Math.round((Number(amountSar) + Number(zatcaAddonSar)) * 100) / 100
+  const renewedUntil = previewRenewedEndDate(subState.endDate, selectedBilling)
 
   const handleUpgrade = async () => {
     if (selectedPlan === 'enterprise') {
@@ -227,6 +242,7 @@ export default function DemoCheckout() {
         billingCycle: selectedBilling,
         paymentMethod,
         zatcaPhase2: saudiTenant && zatcaPhase2Enabled,
+        intent: isRenewal ? 'renew' : 'subscribe',
       })
 
       if (data?.url) {
@@ -266,12 +282,18 @@ export default function DemoCheckout() {
           <div className="space-y-8">
             <div>
               <h1 className="text-4xl lg:text-5xl font-bold leading-tight mb-4">
-                {isArabic ? 'الترقية إلى النسخة الكاملة' : 'Upgrade to Full Version'}
+                {isRenewal
+                  ? (isArabic ? 'تجديد الباقة' : 'Renew your plan')
+                  : (isArabic ? 'الترقية إلى النسخة الكاملة' : 'Upgrade to Full Version')}
               </h1>
               <p className="text-lg lg:text-xl text-white/70 max-w-md">
-                {isArabic
-                  ? 'افتح كل الميزات — الفوترة، الموارد البشرية، المخزون، التقارير والمزيد.'
-                  : 'Unlock all features — invoicing, HR, inventory, reports, and more.'}
+                {isRenewal
+                  ? (isArabic
+                    ? 'ادفع دورة جديدة — المدة المتبقية تُضاف إلى تاريخ الانتهاء الحالي.'
+                    : 'Pay for another cycle — remaining time is added to your current end date.')
+                  : (isArabic
+                    ? 'افتح كل الميزات — الفوترة، الموارد البشرية، المخزون، التقارير والمزيد.'
+                    : 'Unlock all features — invoicing, HR, inventory, reports, and more.')}
               </p>
             </div>
 
@@ -359,10 +381,14 @@ export default function DemoCheckout() {
           {/* Header */}
           <div className="text-center mb-6">
             <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">
-              {isArabic ? 'اختر خطتك' : 'Choose Your Plan'}
+              {isRenewal
+                ? (isArabic ? 'تجديد الباقة' : 'Renew Your Plan')
+                : (isArabic ? 'اختر خطتك' : 'Choose Your Plan')}
             </h1>
             <p className="text-gray-500 dark:text-gray-400 text-base md:text-lg">
-              {isArabic ? 'خطوة واحدة تفصلك عن النسخة الكاملة' : 'One step away from the full version'}
+              {isRenewal
+                ? (isArabic ? 'مدد اشتراكك مع الإبقاء على المدة المتبقية.' : 'Extend your subscription and keep unused time.')
+                : (isArabic ? 'خطوة واحدة تفصلك عن النسخة الكاملة' : 'One step away from the full version')}
             </p>
           </div>
 
@@ -544,6 +570,12 @@ export default function DemoCheckout() {
                       <span className="font-medium">+{zatcaAddon} {currency}</span>
                     </div>
                   )}
+                  {isRenewal && (
+                    <div className="flex items-center justify-between text-gray-600 dark:text-gray-300">
+                      <span>{isArabic ? 'يمتد حتى' : 'Extends until'}</span>
+                      <span className="font-medium">{formatSubscriptionDate(renewedUntil, language)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -691,7 +723,9 @@ export default function DemoCheckout() {
               ) : (
                 <>
                   <Lock className="h-5 w-5" />
-                  {isArabic ? 'ادفع الآن' : 'Pay Now'}
+                  {isRenewal
+                    ? (isArabic ? 'تجديد الآن' : 'Renew Now')
+                    : (isArabic ? 'ادفع الآن' : 'Pay Now')}
                   <ArrowRight className="h-5 w-5" />
                 </>
               )}

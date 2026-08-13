@@ -52,10 +52,8 @@ export default function SubscriptionBadge({ tenant, language }) {
 
   const ctaLabel = () => {
     if (isTrialEnded) return isAr ? 'اشترك الآن' : 'Subscribe';
-    if (isExpired) return isAr ? 'تجديد' : 'Renew';
     if (isTrialPlan || isDemoPending) return isAr ? 'اشترك' : 'Subscribe';
-    if (isExpiringSoon) return isAr ? 'تجديد' : 'Renew';
-    return isAr ? 'تغيير الباقة' : 'Change Plan';
+    return isAr ? 'تجديد الباقة' : 'Renew Plan';
   };
 
   const formatDate = (dateString) => formatSubscriptionDate(dateString, language);
@@ -209,7 +207,9 @@ export default function SubscriptionBadge({ tenant, language }) {
                   <ArrowUpRight className="h-3.5 w-3.5 opacity-70 transition-transform group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5" />
                 </button>
                 <p className="mt-2.5 text-center text-[10px] tracking-wide text-slate-400 dark:text-slate-500">
-                  {isAr ? 'يمكنك تغيير باقتك في أي وقت' : 'Change your plan anytime'}
+                  {isTrialPlan || isDemoPending
+                    ? (isAr ? 'اشترك لتفعيل النسخة الكاملة' : 'Subscribe to unlock the full version')
+                    : (isAr ? 'التجديد يمدد مدة اشتراكك الحالي' : 'Renewal extends your current subscription')}
                 </p>
               </div>
             </div>

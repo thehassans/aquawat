@@ -1358,9 +1358,7 @@ export default function Profile() {
                   >
                     {isTrialEnded
                       ? (language === 'ar' ? 'اشترك الآن' : 'Subscribe')
-                      : isSubExpired
-                        ? (language === 'ar' ? 'تجديد' : 'Renew')
-                        : (language === 'ar' ? 'تغيير الباقة' : 'Change Plan')}
+                      : (language === 'ar' ? 'تجديد الباقة' : 'Renew Plan')}
                     <ArrowRight className={`h-3.5 w-3.5 opacity-70 ${language === 'ar' ? 'rotate-180' : ''}`} />
                   </button>
                 </div>
