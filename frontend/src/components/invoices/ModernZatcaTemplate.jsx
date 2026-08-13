@@ -618,7 +618,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         )}
 
         {/* Document Extras & Unified Signatory */}
-        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} />
+        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} signatoryFromDocumentOnly={isQuotation} />
       </div>
       {isQuotation ? (
         <footer className="border-t border-gray-200 px-6 py-4">

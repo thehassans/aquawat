@@ -191,12 +191,15 @@ export const getLetterheadContact = (tenant, invoice) => {
     address.postalCode,
     address.country,
   ].filter(Boolean).join(', ')
-  const addressAr = [
-    address.buildingNumber,
-    address.streetAr || address.street,
-    address.districtAr || address.district,
-    address.cityAr || address.city,
-  ].filter(Boolean).join('، ')
+  const hasArabicAddress = Boolean(address.streetAr || address.districtAr || address.cityAr)
+  const addressAr = hasArabicAddress
+    ? [
+      address.buildingNumber,
+      address.streetAr || address.street,
+      address.districtAr || address.district,
+      address.cityAr || address.city,
+    ].filter(Boolean).join('، ')
+    : ''
 
   const website = String(business.website || '').trim().replace(/^https?:\/\//i, '')
 

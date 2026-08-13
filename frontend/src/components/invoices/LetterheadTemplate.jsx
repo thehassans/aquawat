@@ -123,7 +123,13 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
                   <td className="px-3 py-2">{index + 1}</td>
                   <td className="px-3 py-2">
                     <p className="font-semibold">{line.raw?.productName || line.productName || '—'}</p>
+                    {bilingual && (line.raw?.productNameAr || line.productNameAr) && (line.raw?.productNameAr || line.productNameAr) !== (line.raw?.productName || line.productName) ? (
+                      <p className="text-xs text-slate-600" dir="rtl">{line.raw?.productNameAr || line.productNameAr}</p>
+                    ) : null}
                     {line.raw?.description ? <p className="text-xs text-slate-500">{line.raw.description}</p> : null}
+                    {bilingual && line.raw?.descriptionAr && line.raw.descriptionAr !== line.raw.description ? (
+                      <p className="text-xs text-slate-500" dir="rtl">{line.raw.descriptionAr}</p>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2">{line.quantity}</td>
                   <td className="px-3 py-2">{getUomLabel(line.raw?.unitCode || 'PCE', language)}</td>
@@ -152,7 +158,7 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
           </div>
         </div>
 
-        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} hideSubject />
+        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} hideSubject signatoryFromDocumentOnly={isQuotation} />
       </div>
     </LetterheadChrome>
   )

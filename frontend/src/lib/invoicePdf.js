@@ -834,13 +834,13 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const snapshotCurrency = invoice.currency || tenant?.settings?.currency || 'SAR'
   const requestedTemplateId = resolveDocumentPdfTemplateId(tenant, invoice, documentType)
   const isLetterhead = Number(requestedTemplateId) === LETTERHEAD_TEMPLATE_ID
-  // Raster snapshots are not text-editable in Foxit/Adobe. Letterhead and
-  // explicit "editable PDF" downloads use native jsPDF text instead.
+  // Raster snapshots are not text-editable in Foxit/Adobe. Explicit "editable
+  // PDF" downloads use native jsPDF text instead. Letterhead quotations use a
+  // snapshot so the file matches the on-screen letterhead.
   const shouldUseSnapshotRenderer =
     !editable &&
-    !isLetterhead &&
     documentType !== 'purchase_order' &&
-    (Boolean(sourceElement) || shouldRenderBilingualInvoice(invoice, documentType, tenant) || isSarCurrency(snapshotCurrency))
+    (Boolean(sourceElement) || isLetterhead || shouldRenderBilingualInvoice(invoice, documentType, tenant) || isSarCurrency(snapshotCurrency))
 
   const jspdfModule = await import('jspdf')
   const jsPDF = jspdfModule?.jsPDF || jspdfModule?.default || jspdfModule
@@ -884,8 +884,8 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   const templateId = resolveDocumentPdfTemplateId(tenant, invoice, documentType)
   const letterheadMode = Number(templateId) === LETTERHEAD_TEMPLATE_ID
-  const footerH = letterheadMode ? 78 : 76
-  const headerH = letterheadMode ? 118 : 132
+  const footerH = letterheadMode ? 72 : 76
+  const headerH = letterheadMode ? 96 : 132
   const topMargin = headerH + 14
 
   const isRtl = language === 'ar'
@@ -1002,6 +1002,10 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     letterheadMode ? String(tenant?.branding?.logo || '').trim() : invoiceBranding.logoSrc
   )
   const logoFormat = detectImageFormat(logo)
+  const signatureImage = await resolveImageSource(invoice?.authorizedPersonSignature)
+  const signatureFormat = detectImageFormat(signatureImage)
+  const stampImage = await resolveImageSource(invoice?.stampImage)
+  const stampFormat = detectImageFormat(stampImage)
   const visionLogo = invoiceBranding.showVision2030 ? await resolveImageSource(invoiceBranding.vision2030LogoSrc) : null
   const visionLogoFormat = detectImageFormat(visionLogo)
 
@@ -1118,44 +1122,39 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       doc.setFillColor(255, 255, 255)
       doc.rect(0, 0, pageW, headerH, 'F')
 
-      const logoW = 56
-      const logoH = 44
+      const logoW = 64
+      const logoH = 52
       const logoX = (pageW - logoW) / 2
       if (logo && logoFormat) {
-        doc.addImage(logo, logoFormat, logoX, 16, logoW, logoH)
+        doc.addImage(logo, logoFormat, logoX, 18, logoW, logoH)
       }
+
+      const nameY = 28
+      const crY = 52
+      const vatY = 66
+      const nameMaxW = (contentW / 2) - 52
 
       setHeadingFont(13, 'bold')
       doc.setTextColor(15, 23, 42)
       const leftName = contact.companyEn || companyName
       const rightName = contact.companyAr
-      const nameMaxW = (contentW / 2) - 48
-      if (leftName) doc.text(shape(leftName), contentLeft, 28, { align: 'left', maxWidth: nameMaxW })
-      if (rightName) doc.text(shape(rightName), contentRightEdge, 28, { align: 'right', maxWidth: nameMaxW })
+      if (leftName) doc.text(shape(leftName), contentLeft, nameY, { align: 'left', maxWidth: nameMaxW })
+      if (rightName) doc.text(shape(rightName), contentRightEdge, nameY, { align: 'right', maxWidth: nameMaxW })
 
       setBodyFont(9, 'bold')
       doc.setTextColor(15, 23, 42)
-      let leftY = 46
       if (contact.crNumber) {
-        doc.text(shape(`C.R # : ${contact.crNumber}`), contentLeft, leftY, { align: 'left' })
-        leftY += 12
+        doc.text(shape(`C.R # : ${contact.crNumber}`), contentLeft, crY, { align: 'left' })
+        doc.text(shape(`س.ت : ${contact.crNumber}`), contentRightEdge, crY, { align: 'right' })
       }
       if (contact.vatNumber) {
-        doc.text(shape(`VAT # : ${contact.vatNumber}`), contentLeft, leftY, { align: 'left' })
-      }
-
-      let rightY = 46
-      if (contact.crNumber) {
-        doc.text(shape(`س.ت : ${contact.crNumber}`), contentRightEdge, rightY, { align: 'right' })
-        rightY += 12
-      }
-      if (contact.vatNumber) {
-        doc.text(shape(`الرقم الضريبي : ${contact.vatNumber}`), contentRightEdge, rightY, { align: 'right' })
+        doc.text(shape(`VAT # : ${contact.vatNumber}`), contentLeft, vatY, { align: 'left' })
+        doc.text(shape(`الرقم الضريبي : ${contact.vatNumber}`), contentRightEdge, vatY, { align: 'right' })
       }
 
       doc.setDrawColor(teal.r, teal.g, teal.b)
       doc.setLineWidth(0.9)
-      doc.line(contentLeft, 78, contentRightEdge, 78)
+      doc.line(contentLeft, 82, contentRightEdge, 82)
       doc.setLineWidth(0.2)
       return
     }
@@ -1646,6 +1645,26 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     doc.text(tcLines, isRtl ? contentRightEdge - 12 : contentLeft + 12, tcY + 30, { align, maxWidth: tcW - 24 })
   }
 
+  if (signatureImage && signatureFormat) {
+    const sigW = 130
+    const sigH = 52
+    const sigX = isRtl ? contentLeft : contentRightEdge - sigW
+    const sigY = (invoice?.termsAndConditions ? totalsTop + totalsH + 70 : totalsTop + totalsH) + 18
+    if (stampImage && stampFormat) {
+      doc.addImage(stampImage, stampFormat, sigX - 90, sigY, 70, 70)
+    }
+    doc.addImage(signatureImage, signatureFormat, sigX, sigY, sigW, sigH)
+    doc.setDrawColor(148, 163, 184)
+    doc.setLineWidth(0.6)
+    doc.line(sigX, sigY + sigH + 6, sigX + sigW, sigY + sigH + 6)
+    setBodyFont(8, 'bold')
+    doc.setTextColor(15, 23, 42)
+    const signLabel = invoice?.authorizedPersonName
+      ? toBilingualText(invoice.authorizedPersonName, invoice.authorizedPersonNameAr)
+      : toBilingualText('Authorized Signature', 'المفوض بالتوقيع')
+    doc.text(shape(signLabel), sigX + sigW / 2, sigY + sigH + 18, { align: 'center', maxWidth: sigW + 24 })
+  }
+
   const pageCount = doc.getNumberOfPages()
   const generatedAt = `${isRtl ? 'تاريخ الإنشاء' : 'Generated'}: ${formatDateTime(new Date(), language)}`
   const footerTextLines = footerLines.length > 0 ? footerLines : []
@@ -1667,22 +1686,24 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
 
       setBodyFont(8, 'bold')
       doc.setTextColor(15, 23, 42)
-      const contactParts = [
-        letterheadContact.addressLine,
-        letterheadContact.phone,
-        letterheadContact.email,
-      ].filter(Boolean)
-      if (contactParts.length > 0) {
-        doc.text(shape(contactParts.join('     ')), pageW / 2, footerTop + 18, {
-          align: 'center',
-          maxWidth: contentW,
+      const addressMaxW = contentW * 0.46
+      if (letterheadContact.addressLine) {
+        doc.text(shape(letterheadContact.addressLine), contentLeft, footerTop + 16, {
+          align: 'left',
+          maxWidth: addressMaxW,
         })
       }
-      if (letterheadContact.addressAr && letterheadContact.addressAr !== letterheadContact.addressLine) {
-        doc.text(shape(letterheadContact.addressAr), pageW / 2, footerTop + 32, {
-          align: 'center',
-          maxWidth: contentW,
+      if (letterheadContact.addressAr) {
+        doc.text(shape(letterheadContact.addressAr), contentRightEdge, footerTop + 16, {
+          align: 'right',
+          maxWidth: addressMaxW,
         })
+      }
+      if (letterheadContact.phone) {
+        doc.text(shape(letterheadContact.phone), contentLeft, footerTop + 36, { align: 'left' })
+      }
+      if (letterheadContact.email) {
+        doc.text(shape(letterheadContact.email), contentRightEdge, footerTop + 36, { align: 'right' })
       }
 
       setBodyFont(8, 'normal')

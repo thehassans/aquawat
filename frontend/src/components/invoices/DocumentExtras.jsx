@@ -2,7 +2,7 @@ import React from 'react'
 import NaturalStamp from './NaturalStamp'
 import { localizeSecondaryText } from '../../lib/invoiceLanguage'
 
-export default function DocumentExtras({ invoice, invoiceBranding = {}, language = 'en', bilingual = false, hideSubject = false }) {
+export default function DocumentExtras({ invoice, invoiceBranding = {}, language = 'en', bilingual = false, hideSubject = false, signatoryFromDocumentOnly = false }) {
   const isAr = language === 'ar'
   const sectionTitle = (english, arabic) => (bilingual ? `${english} / ${localizeSecondaryText(arabic)}` : (isAr ? arabic : english))
   const signatoryLabel = (arabic) => localizeSecondaryText(arabic)
@@ -15,8 +15,8 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
     bank && (bank.bankName || bank.accountName || bank.accountNumber || bank.iban)
   )
   
-  const stampImage = invoiceBranding?.stampImage || invoice?.stampImage
-  const signatureImage = invoice?.authorizedPersonSignature || invoiceBranding?.signatureImage
+  const stampImage = invoice?.stampImage || (signatoryFromDocumentOnly ? '' : invoiceBranding?.stampImage)
+  const signatureImage = invoice?.authorizedPersonSignature || (signatoryFromDocumentOnly ? '' : invoiceBranding?.signatureImage)
   const authorizedName = invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr
   const authorizedTitle = invoice?.authorizedPersonDesignation || invoice?.authorizedPersonDesignationAr
   
