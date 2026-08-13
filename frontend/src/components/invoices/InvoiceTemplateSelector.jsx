@@ -1,12 +1,12 @@
 import { Lock } from 'lucide-react'
-import { invoiceTemplateOptions } from '../../lib/invoiceTemplates'
+import { invoiceTemplateOptions, FREE_TEMPLATE_IDS } from '../../lib/invoiceTemplates'
 
 export default function InvoiceTemplateSelector({ language = 'en', value = 1, onChange, hasPremiumAccess = true, onLockedClick }) {
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
       {invoiceTemplateOptions.map((template) => {
         const isActive = Number(value) === template.id
-        const isLocked = template.id > 1 && !hasPremiumAccess
+        const isLocked = !FREE_TEMPLATE_IDS.includes(template.id) && !hasPremiumAccess
         return (
           <button
             key={template.id}

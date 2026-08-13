@@ -3,10 +3,65 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Save, FileText, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Save, FileText, CheckCircle2, ShoppingCart } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
+
+function DeliveryNoteOrderPicker({ language, navigate }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['purchase-orders-for-dn'],
+    queryFn: () => api.get('/purchase-orders', { params: { limit: 50 } }).then((res) => res.data),
+  })
+  const orders = (data?.purchaseOrders || []).filter((po) => ['approved', 'sent', 'partially_received'].includes(String(po.status || '')))
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6 py-8">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          {language === 'ar' ? 'سند تسليم جديد' : 'New Delivery Note'}
+        </h1>
+        <p className="mt-2 text-sm text-gray-500">
+          {language === 'ar'
+            ? 'سند التسليم يُنشأ من طلب بيع أو شراء معتمد — اختر الطلب أدناه.'
+            : 'A delivery note is created from an approved sales / purchase order. Choose an order below to continue.'}
+        </p>
+      </div>
+      {isLoading ? (
+        <div className="flex justify-center p-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center dark:border-white/10 dark:bg-dark-800">
+          <p className="text-slate-600 dark:text-slate-300">
+            {language === 'ar' ? 'لا توجد طلبات معتمدة لإنشاء سند تسليم.' : 'No approved orders are ready for a delivery note.'}
+          </p>
+          <button type="button" className="btn btn-primary mt-4" onClick={() => navigate('/app/dashboard/purchase-orders')}>
+            <ShoppingCart className="h-4 w-4" />
+            {language === 'ar' ? 'فتح طلبات الشراء' : 'Open Purchase Orders'}
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {orders.map((po) => (
+            <button
+              key={po._id}
+              type="button"
+              onClick={() => navigate(`/app/dashboard/delivery-notes/new?poId=${po._id}`)}
+              className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-start transition hover:border-emerald-400 dark:border-white/10 dark:bg-dark-800"
+            >
+              <span>
+                <span className="block font-semibold text-slate-900 dark:text-white">{po.poNumber}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">{po.supplierId?.nameEn || po.supplierId?.nameAr || po.status}</span>
+              </span>
+              <span className="text-xs font-semibold uppercase text-emerald-600">{po.status}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function DeliveryNoteForm() {
   const { id } = useParams()
@@ -142,11 +197,7 @@ export default function DeliveryNoteForm() {
   }
 
   if (!poId && !isEdit) {
-    return (
-      <div className="p-12 text-center text-gray-500">
-        {language === 'ar' ? 'يجب إنشاء سند التسليم من خلال طلب بيع معتمد.' : 'A Delivery Note must be generated from an approved Sales Order.'}
-      </div>
-    )
+    return <DeliveryNoteOrderPicker language={language} navigate={navigate} />
   }
 
   return (

@@ -1,3 +1,6 @@
+export const LETTERHEAD_TEMPLATE_ID = 9
+export const FREE_TEMPLATE_IDS = [1, LETTERHEAD_TEMPLATE_ID]
+
 export const invoiceTemplateOptions = [
   {
     id: 1,
@@ -54,6 +57,13 @@ export const invoiceTemplateOptions = [
     nameAr: 'حديث منقسم',
     descriptionEn: 'Two-column modern structure with distinctive colors',
     descriptionAr: 'هيكل حديث بعمودين مع ألوان مميزة',
+  },
+  {
+    id: 9,
+    nameEn: 'Letterhead',
+    nameAr: 'ورق رسمي',
+    descriptionEn: 'Formal letterhead: C.R. & VAT on top, contact details in the footer',
+    descriptionAr: 'ورق رسمي: السجل التجاري والضريبة أعلى الصفحة، وبيانات التواصل في التذييل',
   },
 ]
 

@@ -18,6 +18,7 @@ import MonoTemplate from './MonoTemplate'
 import AirTemplate from './AirTemplate'
 import LedgerTemplate from './LedgerTemplate'
 import SignatureTemplate from './SignatureTemplate'
+import LetterheadTemplate from './LetterheadTemplate'
 import DocumentExtras from './DocumentExtras'
 import {
   resolveCommercialDocumentNumber,
@@ -624,6 +625,10 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
       className: options.className || '',
       position: effectiveCurrencyPosition,
     })
+  }
+
+  if (Number(templateId) === 9) {
+    return <LetterheadTemplate invoice={invoice} tenant={tenant} language={language} bilingual={bilingual} documentType={documentType} />
   }
 
   if (Number(templateId) === 7) {

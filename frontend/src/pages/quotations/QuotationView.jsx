@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { ArrowLeft, Download, Mail, Printer, Edit, FileSpreadsheet, FileText, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, Download, Mail, Printer, Edit, FileSpreadsheet, FileText, CheckCircle, XCircle, PenLine } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -269,6 +269,25 @@ export default function QuotationView() {
               <Download className="w-4 h-4" />
             )}
             PDF
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                setDownloadingPdf(true)
+                await downloadQuotationPdf({ quotation, language, tenant, editable: true })
+                toast.success(language === 'ar' ? 'تم تنزيل PDF قابل للتعديل' : 'Editable PDF downloaded — open in Foxit or Adobe to edit text')
+              } catch {
+                toast.error(language === 'ar' ? 'فشل تحميل PDF' : 'Failed to download PDF')
+              } finally {
+                setDownloadingPdf(false)
+              }
+            }}
+            className="btn btn-secondary"
+            disabled={downloadingPdf}
+          >
+            <PenLine className="w-4 h-4" />
+            {language === 'ar' ? 'PDF للتعديل' : 'Editable PDF'}
           </button>
           <button
             type="button"

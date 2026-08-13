@@ -1,10 +1,11 @@
 // Gating logic for invoice/quotation PDF templates. Template 1 ("Essential")
-// is always available to every tenant. Templates 2-8 are bundled behind the
-// `premium_invoice_templates` App Store add-on so they can be marketed,
-// installed and toggled like any other Maqder module.
+// and template 9 ("Letterhead") are always available. Templates 2-8 are
+// bundled behind the `premium_invoice_templates` App Store add-on.
 export const PREMIUM_TEMPLATE_APP_ID = 'premium_invoice_templates';
 export const ESSENTIAL_TEMPLATE_ID = 1;
-export const MAX_TEMPLATE_ID = 8;
+export const LETTERHEAD_TEMPLATE_ID = 9;
+export const MAX_TEMPLATE_ID = 9;
+export const FREE_TEMPLATE_IDS = [ESSENTIAL_TEMPLATE_ID, LETTERHEAD_TEMPLATE_ID];
 
 /**
  * Whether a tenant is allowed to use templates 2-8.
@@ -36,6 +37,6 @@ export function hasPremiumTemplateAccess(tenant) {
 export function clampTemplateId(tenant, requestedTemplateId) {
   const value = Number(requestedTemplateId);
   const safeValue = Number.isFinite(value) ? Math.min(MAX_TEMPLATE_ID, Math.max(1, value)) : ESSENTIAL_TEMPLATE_ID;
-  if (safeValue === ESSENTIAL_TEMPLATE_ID) return safeValue;
+  if (FREE_TEMPLATE_IDS.includes(safeValue)) return safeValue;
   return hasPremiumTemplateAccess(tenant) ? safeValue : ESSENTIAL_TEMPLATE_ID;
 }

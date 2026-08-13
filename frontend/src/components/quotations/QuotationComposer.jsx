@@ -10,6 +10,7 @@ import { useTranslation } from '../../lib/translations'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
+import { LETTERHEAD_TEMPLATE_ID } from '../../lib/invoiceTemplates'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
@@ -50,7 +51,7 @@ const formatDateForInput = (value) => {
 
 const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext }) => ({
   businessContext: quotation?.businessContext || defaultBusinessContext,
-  pdfTemplateId: quotation?.pdfTemplateId || getInvoiceTemplateId(tenant, quotation?.businessContext || defaultBusinessContext),
+  pdfTemplateId: quotation?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID,
   issueDate: formatDateForInput(quotation?.issueDate) || formatDateForInput(new Date()),
   validUntil: formatDateForInput(quotation?.validUntil),
   transactionType: quotation?.transactionType || 'B2B',
@@ -410,6 +411,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       name: tenant?.business?.legalNameEn,
       nameAr: tenant?.business?.legalNameAr,
       vatNumber: tenant?.business?.vatNumber,
+      crNumber: tenant?.business?.crNumber,
       address: tenant?.business?.address,
       contactPhone: tenant?.business?.contactPhone,
       contactEmail: tenant?.business?.contactEmail,
@@ -442,8 +444,8 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
           </h1>
           <p className="mt-1.5 max-w-xl text-sm text-slate-500 dark:text-slate-400">
             {language === 'ar'
-              ? 'أنشئ عرض سعر مبسط بسرعة مع نموذج واحد ثابت للبنود والتسعير.'
-              : 'Create a streamlined quotation quickly with one fixed template for pricing and line items.'}
+              ? 'عرض السعر على ورق رسمي: السجل التجاري والضريبة أعلى الصفحة، والعنوان والبريد والهاتف في التذييل. نزّل PDF قابلاً للتعديل في Foxit.'
+              : 'Create a quotation on formal letterhead — C.R. and VAT on top, address, email and phone in the footer. Download an editable PDF for Foxit or Word.'}
           </p>
         </div>
       </div>
@@ -591,6 +593,30 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
               })}
             </div>
             <input type="hidden" {...register('businessContext')} />
+          </div>
+
+          <div className={sectionShell}>
+            <div className="mb-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                {language === 'ar' ? 'القالب' : 'Template'}
+              </p>
+              <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'تنسيق عرض السعر' : 'Quotation layout'}
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                {language === 'ar'
+                  ? 'ورق رسمي يضع السجل التجاري والضريبة أعلى الصفحة وبيانات التواصل في التذييل.'
+                  : 'Letterhead puts C.R. # and VAT # at the top, and address, email and phone in the footer.'}
+              </p>
+            </div>
+            <InvoiceTemplateSelector
+              language={language}
+              value={selectedTemplateId}
+              hasPremiumAccess={Boolean(tenant?.settings?.installedApps?.premium_invoice_templates?.isInstalled && tenant?.settings?.installedApps?.premium_invoice_templates?.isEnabled !== false) || Number(tenant?.settings?.invoicePdfTemplate) > 1}
+              onChange={(id) => setValue('pdfTemplateId', id)}
+              onLockedClick={() => navigate('/app/dashboard/app-store')}
+            />
+            <input type="hidden" {...register('pdfTemplateId')} />
           </div>
 
           <div className={sectionShell}>

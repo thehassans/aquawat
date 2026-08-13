@@ -178,3 +178,30 @@ export const getInvoiceBranding = (tenant, language = 'en', businessContext = 't
 }
 
 export const splitBrandingText = (value) => String(value || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+
+export const getLetterheadContact = (tenant, invoice) => {
+  const business = tenant?.business || {}
+  const seller = invoice?.seller || {}
+  const address = seller.address || business.address || {}
+  const addressLine = [
+    address.buildingNumber,
+    address.street,
+    address.district,
+    address.city,
+    address.postalCode,
+    address.country,
+  ].filter(Boolean).join(', ')
+
+  const website = String(business.website || '').trim().replace(/^https?:\/\//i, '')
+
+  return {
+    vatNumber: seller.vatNumber || business.vatNumber || '',
+    crNumber: seller.crNumber || business.crNumber || '',
+    phone: seller.contactPhone || business.contactPhone || '',
+    email: seller.contactEmail || business.contactEmail || '',
+    website,
+    addressLine,
+    companyEn: business.legalNameEn || seller.name || tenant?.name || '',
+    companyAr: business.legalNameAr || seller.nameAr || '',
+  }
+}

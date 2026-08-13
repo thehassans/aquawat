@@ -173,7 +173,7 @@ const fbrConfigSchema = new mongoose.Schema({
 });
 
 const invoiceBrandingProfileSchema = new mongoose.Schema({
-  templateId: { type: Number, min: 1, max: 8 },
+  templateId: { type: Number, min: 1, max: 9 },
   logo: { type: String },
   stampImage: { type: String },
   letterheadImage: { type: String },
@@ -402,7 +402,7 @@ const tenantSchema = new mongoose.Schema({
     khayyat: {
       whatsappLanguage: { type: String, enum: ['ar', 'en', 'both'], default: 'both' }
     },
-    invoicePdfTemplate: { type: Number, default: 1, min: 1, max: 8 },
+    invoicePdfTemplate: { type: Number, default: 1, min: 1, max: 9 },
     invoicePdfPageSize: { type: String, enum: ['a4', 'letter', 'a5'], default: 'a4' },
     invoicePdfOrientation: { type: String, enum: ['portrait', 'landscape'], default: 'portrait' },
     // How SAR is rendered next to amounts on invoices and PDFs.

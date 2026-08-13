@@ -6,10 +6,11 @@ import ThermalReceipt from '../components/ui/ThermalReceipt'
 import api from './api'
 import { formatCurrency, isSarCurrency } from './currency'
 import { calculateInvoiceSummary, normalizeTravelDetails } from './invoiceDocument'
-import { getInvoiceBranding, getInvoiceTemplateId, splitBrandingText } from './invoiceBranding'
+import { getInvoiceBranding, getInvoiceTemplateId, splitBrandingText, getLetterheadContact } from './invoiceBranding'
 import { getAmountInWords } from './amountInWords'
 import { resolveTaxInvoiceQr } from './taxInvoiceQr'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from './invoiceLanguage'
+import { LETTERHEAD_TEMPLATE_ID } from './invoiceTemplates'
 
 const sanitizeFileName = (value) => {
   return String(value || 'invoice')
@@ -819,12 +820,17 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
   return language === 'ar' ? 'فاتورة ضريبية' : 'Tax Invoice'
 }
 
-const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElement = null, output = 'save', documentType = 'invoice' }) => {
+const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElement = null, output = 'save', documentType = 'invoice', editable = false }) => {
   if (!invoice) return
 
   const snapshotCurrency = invoice.currency || tenant?.settings?.currency || 'SAR'
-  // Purchase orders use the reliable jsPDF path — SAR snapshot/html2canvas often fails for PO shapes.
+  const requestedTemplateId = getInvoiceTemplateId(tenant, invoice?.businessContext, invoice?.pdfTemplateId)
+  const isLetterhead = Number(requestedTemplateId) === LETTERHEAD_TEMPLATE_ID
+  // Raster snapshots are not text-editable in Foxit/Adobe. Letterhead and
+  // explicit "editable PDF" downloads use native jsPDF text instead.
   const shouldUseSnapshotRenderer =
+    !editable &&
+    !isLetterhead &&
     documentType !== 'purchase_order' &&
     (Boolean(sourceElement) || shouldRenderBilingualInvoice(invoice, documentType, tenant) || isSarCurrency(snapshotCurrency))
 
@@ -867,14 +873,16 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
   const margin = 40
-  const footerH = 76
-  const headerH = 132
+  const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
+  const templateId = getInvoiceTemplateId(tenant, invoice?.businessContext, invoice?.pdfTemplateId)
+  const letterheadMode = Number(templateId) === LETTERHEAD_TEMPLATE_ID
+  const footerH = letterheadMode ? 96 : 76
+  const headerH = letterheadMode ? 126 : 132
   const topMargin = headerH + 14
 
   const isRtl = language === 'ar'
   const align = isRtl ? 'right' : 'left'
   const oppositeAlign = isRtl ? 'left' : 'right'
-  const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
 
   const arabicFontReady = await ensureAlmaraiFont(doc)
 
@@ -889,8 +897,6 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const primaryRgb = hexToRgb(invoiceBranding.primaryColor) || { r: 15, g: 23, b: 42 }
   const secondaryRgb = hexToRgb(invoiceBranding.secondaryColor) || { r: 203, g: 213, b: 225 }
   const lightRgb = mixRgb(primaryRgb, { r: 255, g: 255, b: 255 }, 0.94)
-
-  const templateId = getInvoiceTemplateId(tenant, invoice?.businessContext, invoice?.pdfTemplateId)
 
   const theme = (() => {
     const base = {
@@ -1093,6 +1099,45 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   }
 
   const drawHeader = ({ pageNumber }) => {
+    if (letterheadMode) {
+      const contact = getLetterheadContact(tenant, invoice)
+      const green = { r: 22, g: 163, b: 74 }
+      doc.setFillColor(255, 255, 255)
+      doc.rect(0, 0, pageW, headerH, 'F')
+
+      setBodyFont(8, 'bold')
+      doc.setTextColor(30, 41, 59)
+      const crVat = [
+        contact.crNumber ? `C.R # : ${contact.crNumber}` : '',
+        contact.vatNumber ? `VAT # : ${contact.vatNumber}` : '',
+      ].filter(Boolean).join('     ')
+      if (crVat) doc.text(shape(crVat), pageW / 2, 18, { align: 'center' })
+
+      const logoW = 72
+      const logoH = 56
+      const logoX = (pageW - logoW) / 2
+      if (logo && logoFormat) {
+        doc.addImage(logo, logoFormat, logoX, 28, logoW, logoH)
+      }
+
+      setHeadingFont(13, 'bold')
+      doc.setTextColor(15, 23, 42)
+      const leftName = contact.companyEn || companyName
+      const rightName = contact.companyAr
+      if (leftName) doc.text(shape(leftName), contentLeft, 52, { align: 'left', maxWidth: (contentW / 2) - 50 })
+      if (rightName) doc.text(shape(rightName), contentRightEdge, 52, { align: 'right', maxWidth: (contentW / 2) - 50 })
+
+      doc.setFillColor(green.r, green.g, green.b)
+      doc.rect(contentLeft, 94, contentW, 2.4, 'F')
+
+      if (title) {
+        setHeadingFont(16, 'bold')
+        doc.setTextColor(15, 23, 42)
+        doc.text(shape(title), pageW / 2, 114, { align: 'center' })
+      }
+      return
+    }
+
     theme.drawFrame({ pageNumber })
 
     const y = 20
@@ -1586,9 +1631,47 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const footerVisionH = 30
   const footerVisionX = contentLeft
   const footerVisionY = pageH - footerH + 20
+  const letterheadContact = getLetterheadContact(tenant, invoice)
 
   for (let i = 1; i <= pageCount; i += 1) {
     doc.setPage(i)
+
+    if (letterheadMode) {
+      const green = { r: 22, g: 163, b: 74 }
+      const red = { r: 220, g: 38, b: 38 }
+      const footerTop = pageH - footerH + 8
+      doc.setFillColor(green.r, green.g, green.b)
+      doc.rect(contentLeft, footerTop, contentW, 2.2, 'F')
+
+      setBodyFont(8, 'normal')
+      doc.setTextColor(51, 65, 85)
+      if (letterheadContact.addressLine) {
+        doc.text(shape(letterheadContact.addressLine), contentLeft, footerTop + 18, { align: 'left', maxWidth: contentW * 0.55 })
+      }
+      if (letterheadContact.email) {
+        doc.text(shape(letterheadContact.email), contentRightEdge, footerTop + 18, { align: 'right', maxWidth: contentW * 0.4 })
+      }
+      if (letterheadContact.phone) {
+        doc.text(shape(letterheadContact.phone), contentLeft, footerTop + 32, { align: 'left' })
+      }
+
+      if (letterheadContact.website) {
+        const pillW = Math.min(280, Math.max(140, letterheadContact.website.length * 6.2 + 28))
+        const pillX = (pageW - pillW) / 2
+        const pillY = footerTop + 42
+        doc.setFillColor(red.r, red.g, red.b)
+        doc.roundedRect(pillX, pillY, pillW, 18, 9, 9, 'F')
+        setBodyFont(8, 'bold')
+        doc.setTextColor(255, 255, 255)
+        doc.text(shape(letterheadContact.website), pageW / 2, pillY + 12, { align: 'center' })
+      }
+
+      setBodyFont(8, 'normal')
+      doc.setTextColor(148, 163, 184)
+      doc.text(`${i} / ${pageCount}`, contentRightEdge, pageH - 10, { align: 'right' })
+      continue
+    }
+
     setBodyFont(9, 'normal')
     doc.setTextColor(100)
 
@@ -1646,12 +1729,12 @@ export const downloadInvoicePdf = async ({ invoice, language = 'en', tenant, sou
   return await generateInvoicePdf({ invoice, language, tenant, sourceElement, output: 'save', documentType: 'invoice' })
 }
 
-export const buildQuotationPdfBlob = async ({ quotation, language = 'en', tenant, sourceElement = null }) => {
-  return await generateInvoicePdf({ invoice: quotation, language, tenant, sourceElement, output: 'blob', documentType: 'quotation' })
+export const buildQuotationPdfBlob = async ({ quotation, language = 'en', tenant, sourceElement = null, editable = false }) => {
+  return await generateInvoicePdf({ invoice: quotation, language, tenant, sourceElement: editable ? null : sourceElement, output: 'blob', documentType: 'quotation', editable })
 }
 
-export const downloadQuotationPdf = async ({ quotation, language = 'en', tenant, sourceElement = null }) => {
-  return await generateInvoicePdf({ invoice: quotation, language, tenant, sourceElement, output: 'save', documentType: 'quotation' })
+export const downloadQuotationPdf = async ({ quotation, language = 'en', tenant, sourceElement = null, editable = false }) => {
+  return await generateInvoicePdf({ invoice: quotation, language, tenant, sourceElement: editable ? null : sourceElement, output: 'save', documentType: 'quotation', editable })
 }
 
 export const printQuotationSnapshot = async ({ quotation, language = 'en', tenant, sourceElement = null }) => {
