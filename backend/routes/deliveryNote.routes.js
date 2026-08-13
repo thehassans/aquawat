@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { createDeliveryNoteFromPO } from '../controllers/deliveryNoteController.js';
 import DeliveryNote from '../models/DeliveryNote.js';
 
@@ -7,6 +7,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // @route   POST /api/delivery-notes
 router.post('/', checkPermission('invoicing', 'create'), createDeliveryNoteFromPO);

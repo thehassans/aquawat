@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import Employee from '../models/Employee.js';
 import Tenant from '../models/Tenant.js';
 import SystemSettings from '../models/SystemSettings.js';
-import { protect, tenantFilter, checkPermission, checkEmailAddon } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, checkEmailAddon, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { sendTenantEmail } from '../utils/tenantEmailService.js';
 import { describeSaudiId, normalizeSaudiId } from '../utils/saudiId.js';
@@ -12,6 +12,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function getSaudiIdentityDocument(documents) {
   if (!Array.isArray(documents)) return null;

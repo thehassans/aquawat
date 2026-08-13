@@ -2,12 +2,13 @@ import express from 'express';
 import FleetAsset from '../models/FleetAsset.js';
 import FuelLog from '../models/FuelLog.js';
 import MaintenanceRecord from '../models/MaintenanceRecord.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('construction', 'trading'));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

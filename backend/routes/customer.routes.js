@@ -1,13 +1,14 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import Customer from '../models/Customer.js';
-import { protect, tenantFilter, checkPermission, authorize } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, authorize, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // @route   GET /api/customers/apply-csv-vat
 // @desc    Apply VAT numbers extracted directly from Customer.csv

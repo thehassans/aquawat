@@ -1,10 +1,13 @@
 import express from 'express';
 import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import EcommerceGiftCard from '../models/EcommerceGiftCard.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 

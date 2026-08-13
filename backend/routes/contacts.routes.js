@@ -3,12 +3,13 @@ import Customer from '../models/Customer.js';
 import Supplier from '../models/Supplier.js';
 import Employee from '../models/Employee.js';
 import { WhatsAppContact } from '../models/WhatsApp.js';
-import { protect, tenantFilter } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 const getIsActiveMatch = (isActive) => {
   if (isActive === 'false') return { isActive: false };

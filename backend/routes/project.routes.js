@@ -1,12 +1,13 @@
 import express from 'express';
 import Project from '../models/Project.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 async function generateProjectCode(tenantFilterValue) {
   const today = new Date();

@@ -6,7 +6,7 @@ import PurchaseOrder from '../models/PurchaseOrder.js';
 import DeliveryNote from '../models/DeliveryNote.js';
 import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { sendTenantEmail } from '../utils/tenantEmailService.js';
 import { buildPremiumEmailShell, getTenantLoginUrl, getTenantWorkspaceHost, getTenantWorkspaceUrl } from '../utils/premiumEmailShell.js';
@@ -15,6 +15,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('trading', 'bakala', 'furniture_shop'));
 
 function toNumber(value, fallback = 0) {

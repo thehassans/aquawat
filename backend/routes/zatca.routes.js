@@ -1,11 +1,12 @@
 import express from 'express';
 import ZatcaLog from '../models/ZatcaLog.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // @route   GET /api/zatca/logs
 router.get('/logs', checkPermission('finance', 'read'), async (req, res) => {

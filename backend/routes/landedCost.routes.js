@@ -3,12 +3,13 @@ import mongoose from 'mongoose';
 import LandedCost from '../models/LandedCost.js';
 import Shipment from '../models/Shipment.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('trading', 'bakala', 'furniture_shop'));
 
 function asObjectId(value) {

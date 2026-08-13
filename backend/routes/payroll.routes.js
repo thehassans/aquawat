@@ -1,13 +1,14 @@
 import express from 'express';
 import Employee from '../models/Employee.js';
 import Payroll from '../models/Payroll.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { calculateGOSI, calculateEOSB, generateWPSSIFFile, convertToHijri } from '../utils/hr/payrollCalculations.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // @route   GET /api/payroll
 router.get('/', checkPermission('payroll', 'read'), async (req, res) => {

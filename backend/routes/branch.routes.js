@@ -4,12 +4,13 @@ import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
 import RestaurantMenuItem from '../models/RestaurantMenuItem.js';
 import RestaurantTable from '../models/RestaurantTable.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType, authorize } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, authorize, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('restaurant'));
 
 // Check branch add-on is enabled

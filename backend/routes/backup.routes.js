@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import Expense from '../models/Expense.js';
@@ -7,8 +7,10 @@ import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js
 import { clampLimit } from '../utils/pagination.js';
 
 const router = express.Router();
-
-router.use(protect, authorize('admin'));
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
+router.use(authorize('admin'));
 
 /** Streamed/chunked export — never load unbounded tenant datasets into memory. */
 router.get('/export', async (req, res) => {

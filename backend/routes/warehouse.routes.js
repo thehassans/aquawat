@@ -1,13 +1,14 @@
 import express from 'express';
 import Warehouse from '../models/Warehouse.js';
 import Product from '../models/Product.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('trading'));
 
 // @route   GET /api/warehouses

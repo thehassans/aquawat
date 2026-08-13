@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, authorize, requireBusinessType, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, authorize, requireBusinessType, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import ManpowerWorker from '../models/ManpowerWorker.js';
 import ManpowerAssignment from '../models/ManpowerAssignment.js';
 import Customer from '../models/Customer.js';
@@ -9,6 +9,7 @@ const router = express.Router();
 // Apply middleware to all routes
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType(['manpower', 'construction', 'trading']));
 
 // --- WORKERS ---

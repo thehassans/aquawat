@@ -1,14 +1,15 @@
 import express from 'express';
 import PosTerminalSession from '../models/PosTerminalSession.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
+router.use(protect);
 
 // Heartbeat from an active POS terminal. Upserts a session row for this tenant/user/tab.
 // POST /api/pos-terminal/heartbeat
-router.post('/heartbeat', protect, async (req, res) => {
+router.post('/heartbeat', tenantFilter, requireTenantFilter, async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId || req.body?.tenantId;
+    const tenantId = req.user.tenantId;
     if (!tenantId) {
       return res.status(400).json({ error: 'tenantId is required' });
     }
@@ -44,9 +45,9 @@ router.post('/heartbeat', protect, async (req, res) => {
 
 // Close a POS terminal session when the tab unmounts / closes.
 // POST /api/pos-terminal/close
-router.post('/close', protect, async (req, res) => {
+router.post('/close', tenantFilter, requireTenantFilter, async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId || req.body?.tenantId;
+    const tenantId = req.user.tenantId;
     if (!tenantId) {
       return res.status(400).json({ error: 'tenantId is required' });
     }

@@ -1,13 +1,16 @@
 import express from 'express';
 import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
 import sharp from 'sharp';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import EcommerceProduct from '../models/EcommerceProduct.js';
 import { imageUpload } from '../utils/uploadMime.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 const upload = imageUpload;
 
 const getTargetTenantId = (user, req) => resolveTenantId(user, req);

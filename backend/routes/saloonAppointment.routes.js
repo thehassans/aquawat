@@ -3,10 +3,12 @@ import mongoose from 'mongoose';
 import SaloonAppointment from '../models/SaloonAppointment.js';
 import SaloonService from '../models/SaloonService.js';
 import SaloonOrder from '../models/SaloonOrder.js';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function getTenantFilter(req) {
   return { tenantId: new mongoose.Types.ObjectId(req.user.tenantId) };

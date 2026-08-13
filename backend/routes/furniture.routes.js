@@ -9,7 +9,7 @@ import { generateBoutiqueThermalInvoice, queueZatcaReporting } from '../services
 import { sendPaymentConfirmation } from '../services/boutiqueWhatsAppService.js';
 import { generateZatcaQr } from '../lib/zatcaQr.js';
 import QRCode from 'qrcode';
-import { protect, checkPermission } from '../middleware/auth.js';
+import { protect, checkPermission, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
@@ -23,6 +23,8 @@ const upload = multer({
 });
 
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 router.use((req, res, next) => {
   if (req.user?.tenantId) {

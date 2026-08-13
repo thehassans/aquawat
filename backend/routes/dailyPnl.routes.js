@@ -3,10 +3,12 @@ import mongoose from 'mongoose';
 import DailyPnL from '../models/DailyPnL.js';
 import Invoice from '../models/Invoice.js';
 import BakalaProduct from '../models/BakalaProduct.js';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function getTenantFilter(req) {
   return { tenantId: new mongoose.Types.ObjectId(req.user.tenantId) };

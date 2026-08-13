@@ -1,8 +1,11 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import PosSession from '../models/PosSession.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // Get the currently open session for the logged-in user
 router.get('/current', protect, async (req, res) => {

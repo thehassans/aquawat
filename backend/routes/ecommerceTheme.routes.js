@@ -2,11 +2,14 @@ import express from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
 import { resolveTenantId, handleTenantScopeError } from '../utils/tenantScope.js';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },

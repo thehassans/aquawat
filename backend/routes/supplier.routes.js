@@ -2,13 +2,14 @@ import express from 'express';
 import Supplier from '../models/Supplier.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import PurchaseReturn from '../models/PurchaseReturn.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // @route   GET /api/suppliers
 router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {

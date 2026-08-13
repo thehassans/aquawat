@@ -1,13 +1,14 @@
 import express from 'express';
 import Employee from '../models/Employee.js';
 import Invoice from '../models/Invoice.js';
-import { protect, tenantFilter } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // Iqama/Saudization/ZATCA compliance tracking only applies to Saudi
 // (SAR-denominated) tenants.

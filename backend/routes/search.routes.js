@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, tenantFilter } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import Supplier from '../models/Supplier.js';
@@ -8,6 +8,7 @@ import PurchaseOrder from '../models/PurchaseOrder.js';
 const router = express.Router();
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 router.get('/', async (req, res) => {
   try {

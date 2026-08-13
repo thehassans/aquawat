@@ -1,10 +1,13 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import GRN from '../models/GRN.js';
 import BakalaProduct from '../models/BakalaProduct.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // Generate GRN Number
 const generateGrnNumber = async (tenantId) => {
@@ -13,7 +16,7 @@ const generateGrnNumber = async (tenantId) => {
 };
 
 // Get all GRNs
-router.get('/', protect, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const grns = await GRN.find({ tenantId: req.user.tenantId })
       .populate('supplierId', 'nameEn nameAr')
@@ -26,7 +29,7 @@ router.get('/', protect, async (req, res) => {
 });
 
 // Create GRN and update stock
-router.post('/', protect, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { supplierId, purchaseOrderId, referenceNumber, lines, notes } = req.body;
 
@@ -84,7 +87,7 @@ router.post('/', protect, async (req, res) => {
 });
 
 // Get Single GRN
-router.get('/:id', protect, async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const grn = await GRN.findOne({ _id: req.params.id, tenantId: req.user.tenantId })
       .populate('supplierId', 'nameEn nameAr email phone')

@@ -3,10 +3,12 @@ import mongoose from 'mongoose';
 import KhayyatMeasurementProfile from '../models/khayyat/KhayyatMeasurementProfile.js';
 import KhayyatDelivery from '../models/khayyat/KhayyatDelivery.js';
 import KhayyatStitching from '../models/khayyat/KhayyatStitching.js';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function getTenantFilter(req) {
   return { tenantId: new mongoose.Types.ObjectId(req.user.tenantId) };

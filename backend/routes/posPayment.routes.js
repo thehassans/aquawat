@@ -1,7 +1,7 @@
 import express from 'express';
 import Tenant from '../models/Tenant.js';
 import PosPayment from '../models/PosPayment.js';
-import { protect, tenantFilter, authorize } from '../middleware/auth.js';
+import { protect, tenantFilter, authorize, requireTenantFilter } from '../middleware/auth.js';
 import {
   createTerminalPayment,
   getTerminalPaymentStatus,
@@ -14,6 +14,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 const getPosConfig = (tenant) => {
   const settings = tenant?.settings?.toObject?.() || tenant?.settings || {};

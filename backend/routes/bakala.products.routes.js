@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, checkPermission } from '../middleware/auth.js';
+import { protect, checkPermission, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import BakalaProduct from '../models/BakalaProduct.js';
 import BakalaCategory from '../models/BakalaCategory.js';
 import BakalaBrand from '../models/BakalaBrand.js';
@@ -15,6 +15,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // --- PRODUCTS ---
 

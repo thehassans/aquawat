@@ -1,10 +1,13 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import InventoryAdjustment from '../models/InventoryAdjustment.js';
 import BakalaProduct from '../models/BakalaProduct.js';
 import { resolveTenantId, withTenant, handleTenantScopeError } from '../utils/tenantScope.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 const getTargetTenantId = (user, req) => resolveTenantId(user, req);
 

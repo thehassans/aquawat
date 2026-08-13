@@ -1,12 +1,15 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import Product from '../models/Product.js';
 import Tenant from '../models/Tenant.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function requireSyncTenant(req, res) {
   if (!req.user?.tenantId) {

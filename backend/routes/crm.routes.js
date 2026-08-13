@@ -7,7 +7,7 @@ import CRMCampaign from '../models/CRMCampaign.js';
 import Customer from '../models/Customer.js';
 import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import whatsappService from '../services/whatsappService.js';
 import { sendTenantEmail } from '../utils/tenantEmailService.js';
 
@@ -15,6 +15,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function cleanBody(body) {
   const cleaned = {};

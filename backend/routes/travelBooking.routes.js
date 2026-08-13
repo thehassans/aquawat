@@ -3,7 +3,7 @@ import TravelBooking from '../models/TravelBooking.js';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import Tenant from '../models/Tenant.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 import { buildDraftInvoiceQr } from '../utils/zatca/draftInvoiceQr.js';
@@ -13,6 +13,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('travel_agency'));
 
 async function generateBookingNumber(tenantFilterValue) {

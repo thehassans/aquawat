@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import SaloonService from '../models/SaloonService.js';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -17,6 +17,7 @@ const upload = multer({
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('saloon'));
 
 // @route   POST /api/saloon/services/upload-image

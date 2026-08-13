@@ -5,7 +5,7 @@ import Project from '../models/Project.js';
 import Supplier from '../models/Supplier.js';
 import Employee from '../models/Employee.js';
 import Customer from '../models/Customer.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { statsRead } from '../utils/mongoReadPreference.js';
 
@@ -13,6 +13,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);

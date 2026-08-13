@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import Voucher from '../models/Voucher.js';
 import Customer from '../models/Customer.js';
@@ -9,6 +9,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // Get all vouchers
 router.get('/', checkPermission('finance', 'read'), async (req, res) => {

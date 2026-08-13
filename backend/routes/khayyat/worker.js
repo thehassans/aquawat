@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import KhayyatWorker from '../../models/khayyat/KhayyatWorker.js';
 import KhayyatStitching from '../../models/khayyat/KhayyatStitching.js';
 import KhayyatPayment from '../../models/khayyat/KhayyatPayment.js';
-import { protect } from '../../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../../middleware/auth.js';
 
 const router = express.Router();
 
@@ -29,7 +29,7 @@ const protectWorker = async (req, res, next) => {
 };
 
 // User routes for managing workers
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, tenantFilter, requireTenantFilter, async (req, res) => {
   try {
     const workers = await KhayyatWorker.find({ tenantId: req.user.tenantId })
       .sort({ createdAt: -1 })
@@ -40,7 +40,7 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-router.post('/login-as/:id', protect, async (req, res) => {
+router.post('/login-as/:id', protect, tenantFilter, requireTenantFilter, async (req, res) => {
   try {
     const worker = await KhayyatWorker.findOne({ _id: req.params.id, tenantId: req.user.tenantId })
       .populate('tenantId', 'name logo')
@@ -69,7 +69,7 @@ router.post('/login-as/:id', protect, async (req, res) => {
   }
 });
 
-router.get('/profile/:id', protect, async (req, res) => {
+router.get('/profile/:id', protect, tenantFilter, requireTenantFilter, async (req, res) => {
   try {
     const worker = await KhayyatWorker.findOne({
       _id: req.params.id,
@@ -112,7 +112,7 @@ router.get('/profile/:id', protect, async (req, res) => {
   }
 });
 
-router.get('/:id([0-9a-fA-F]{24})', protect, async (req, res) => {
+router.get('/:id([0-9a-fA-F]{24})', protect, tenantFilter, requireTenantFilter, async (req, res) => {
   try {
     const worker = await KhayyatWorker.findOne({ 
       _id: req.params.id, 
@@ -138,7 +138,7 @@ router.get('/:id([0-9a-fA-F]{24})', protect, async (req, res) => {
   }
 });
 
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, tenantFilter, requireTenantFilter, async (req, res) => {
   try {
     const { name, phone, password, paymentType, paymentAmount } = req.body;
     
@@ -173,7 +173,7 @@ router.post('/', protect, async (req, res) => {
   }
 });
 
-router.put('/:id([0-9a-fA-F]{24})', protect, async (req, res) => {
+router.put('/:id([0-9a-fA-F]{24})', protect, tenantFilter, requireTenantFilter, async (req, res) => {
   try {
     const { name, phone, password, paymentType, paymentAmount, isActive } = req.body;
     
@@ -197,7 +197,7 @@ router.put('/:id([0-9a-fA-F]{24})', protect, async (req, res) => {
   }
 });
 
-router.delete('/:id([0-9a-fA-F]{24})', protect, async (req, res) => {
+router.delete('/:id([0-9a-fA-F]{24})', protect, tenantFilter, requireTenantFilter, async (req, res) => {
   try {
     const worker = await KhayyatWorker.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
     if (!worker) {

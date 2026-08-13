@@ -1,10 +1,13 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import PurchaseReturn from '../models/PurchaseReturn.js';
 import BakalaProduct from '../models/BakalaProduct.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // Generate Return Number
 const generateReturnNumber = async (tenantId) => {

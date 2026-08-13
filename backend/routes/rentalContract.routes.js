@@ -3,7 +3,7 @@ import RentalContract from '../models/RentalContract.js';
 import RentalCar from '../models/RentalCar.js';
 import RentalCustomer from '../models/RentalCustomer.js';
 import RentalInvoice from '../models/RentalInvoice.js';
-import { protect, tenantFilter, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { generateContractZatcaQr } from '../lib/zatcaQr.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 
@@ -11,6 +11,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('car_rental'));
 
 // ─── Fuel level numeric values for penalty calculation ──────────────────────

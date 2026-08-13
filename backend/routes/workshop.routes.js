@@ -6,11 +6,12 @@ import WorkshopInventoryItem from '../models/WorkshopInventoryItem.js';
 import WorkshopPurchaseOrder from '../models/WorkshopPurchaseOrder.js';
 import Customer from '../models/Customer.js';
 import Invoice from '../models/Invoice.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 /* ═════════════════════════════════════════════════════════════
    HELPERS

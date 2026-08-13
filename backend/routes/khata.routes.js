@@ -1,12 +1,15 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import KhataAccount from '../models/KhataAccount.js';
 import KhataTransaction from '../models/KhataTransaction.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // Get all Khata accounts
-router.get('/', protect, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const accounts = await KhataAccount.find({ tenantId: req.user.tenantId })
       .populate('customerId', 'name phone email')
@@ -18,7 +21,7 @@ router.get('/', protect, async (req, res) => {
 });
 
 // Create new Khata account
-router.post('/', protect, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { customerId, creditLimit } = req.body;
     
@@ -44,7 +47,7 @@ router.post('/', protect, async (req, res) => {
 });
 
 // Get transactions for an account
-router.get('/:id/transactions', protect, async (req, res) => {
+router.get('/:id/transactions', async (req, res) => {
   try {
     const transactions = await KhataTransaction.find({ 
       tenantId: req.user.tenantId, 
@@ -59,7 +62,7 @@ router.get('/:id/transactions', protect, async (req, res) => {
 });
 
 // Record a transaction (Credit or Payment)
-router.post('/:id/transactions', protect, async (req, res) => {
+router.post('/:id/transactions', async (req, res) => {
   try {
     const { type, amount, reference, notes } = req.body;
     
@@ -95,7 +98,7 @@ router.post('/:id/transactions', protect, async (req, res) => {
 import User from '../models/User.js';
 
 // Delete a Khata account (requires password)
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const { password } = req.body;
     

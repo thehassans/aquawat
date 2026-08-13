@@ -2,11 +2,12 @@ import express from 'express';
 import mongoose from 'mongoose';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
-import { protect, tenantFilter } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // GET /api/communicate/users — list all users in tenant for @mention
 router.get('/users', async (req, res) => {

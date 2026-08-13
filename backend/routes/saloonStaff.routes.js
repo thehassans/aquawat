@@ -1,11 +1,12 @@
 import express from 'express';
 import SaloonStaff from '../models/SaloonStaff.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('saloon'));
 
 // @route   GET /api/saloon/staff

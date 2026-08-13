@@ -1,7 +1,7 @@
 import express from 'express';
 import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { getTenantBusinessTypes } from '../utils/businessTypes.js';
 import { sendUserWelcomeEmail } from '../utils/tenantEmailService.js';
@@ -11,6 +11,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 const sanitizeUserForClient = (u) => {
   if (!u) return null;

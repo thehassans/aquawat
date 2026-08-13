@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../middleware/auth.js';
 import ChartOfAccount from '../models/ChartOfAccount.js';
 import JournalEntry from '../models/JournalEntry.js';
 import {
@@ -18,6 +18,8 @@ import {
 
 const router = express.Router();
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 const tenantIdOf = (req) => req.user.tenantId || req.tenantFilter?.tenantId;
 

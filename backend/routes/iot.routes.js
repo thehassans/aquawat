@@ -1,12 +1,13 @@
 import express from 'express';
 import IoTDevice from '../models/IoTDevice.js';
 import IoTReading from '../models/IoTReading.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('trading'));
 
 router.get('/devices', checkPermission('iot', 'read'), async (req, res) => {

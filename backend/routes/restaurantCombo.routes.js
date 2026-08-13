@@ -3,12 +3,13 @@ import mongoose from 'mongoose';
 import RestaurantCombo from '../models/RestaurantCombo.js';
 import RestaurantMenuItem from '../models/RestaurantMenuItem.js';
 import RestaurantOrder from '../models/RestaurantOrder.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('restaurant'));
 
 function getTenantFilter(req) {

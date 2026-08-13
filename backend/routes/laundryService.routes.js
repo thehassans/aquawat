@@ -1,6 +1,6 @@
 import express from 'express';
 import LaundryService from '../models/LaundryService.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import sharp from 'sharp';
 import { imageUpload } from '../utils/uploadMime.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
@@ -10,6 +10,7 @@ const upload = imageUpload;
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('laundry'));
 
 // POST /api/laundry/services/upload-image

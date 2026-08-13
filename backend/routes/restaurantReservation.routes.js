@@ -2,10 +2,12 @@ import express from 'express';
 import mongoose from 'mongoose';
 import RestaurantReservation from '../models/RestaurantReservation.js';
 import RestaurantTable from '../models/RestaurantTable.js';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function getTenantFilter(req) {
   return { tenantId: new mongoose.Types.ObjectId(req.user.tenantId) };

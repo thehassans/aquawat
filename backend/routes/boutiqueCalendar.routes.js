@@ -3,10 +3,12 @@ import mongoose from 'mongoose';
 import BoutiqueRental from '../models/BoutiqueRental.js';
 import BoutiqueProduct from '../models/BoutiqueProduct.js';
 import BoutiqueAlteration from '../models/BoutiqueAlteration.js';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 function getTenantFilter(req) {
   return { tenantId: new mongoose.Types.ObjectId(req.user.tenantId) };

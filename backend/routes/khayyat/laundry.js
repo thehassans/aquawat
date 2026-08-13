@@ -1,11 +1,13 @@
 import express from 'express';
 import KhayyatLaundry from '../../models/khayyat/KhayyatLaundry.js';
 import KhayyatLaundryPayment from '../../models/khayyat/KhayyatLaundryPayment.js';
-import { protect } from '../../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 router.get('/', async (req, res) => {
   try {

@@ -5,7 +5,7 @@ import KhayyatWorker from '../../models/khayyat/KhayyatWorker.js';
 import User from '../../models/User.js';
 import KhayyatEmbroideryDesign from '../../models/khayyat/KhayyatEmbroideryDesign.js';
 import KhayyatFabric from '../../models/khayyat/KhayyatFabric.js';
-import { protect } from '../../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../../middleware/auth.js';
 import { checkTrialLimits } from '../../middleware/trialLimits.js';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -19,6 +19,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 const router = express.Router();
 
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 async function saveMeasurementImage(tenantId, buffer) {
   const tenantIdStr = String(tenantId);

@@ -5,7 +5,7 @@ import LeaveRequest from '../models/LeaveRequest.js';
 import PerformanceReview from '../models/PerformanceReview.js';
 import Employee from '../models/Employee.js';
 import Payroll from '../models/Payroll.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import multer from 'multer';
 import path from 'path';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
@@ -21,6 +21,7 @@ const upload = multer({
 });
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 /* ───────────────── JOB REQUISITIONS ───────────────── */
 

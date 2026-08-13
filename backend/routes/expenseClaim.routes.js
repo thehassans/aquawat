@@ -2,7 +2,7 @@ import express from 'express';
 import sharp from 'sharp';
 import ExpenseClaim from '../models/ExpenseClaim.js';
 import Employee from '../models/Employee.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { imageUpload } from '../utils/uploadMime.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 
@@ -11,6 +11,7 @@ const upload = imageUpload;
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 const PER_DIEM_RATES = { domestic: 200, gulf: 350, international: 500 };
 const MILEAGE_RATE = 2.5;

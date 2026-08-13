@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import {
   ManufacturingWorkCenter,
   ManufacturingRouting,
@@ -15,6 +15,9 @@ import Warehouse from '../models/Warehouse.js';
 import Invoice from '../models/Invoice.js';
 
 const router = express.Router();
+router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. BILL OF MATERIALS (BOM) & ENGINEERING

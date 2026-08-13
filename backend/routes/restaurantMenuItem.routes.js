@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
 import RestaurantMenuItem from '../models/RestaurantMenuItem.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 
@@ -20,6 +20,7 @@ const upload = multer({
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('restaurant'));
 
 async function copyDefaultMenuImage(tenantIdStr, defaultsDir, localImage) {

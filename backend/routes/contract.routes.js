@@ -1,11 +1,12 @@
 import express from 'express';
 import Contract from '../models/Contract.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('construction'));
 
 // ─── Helper ────────────────────────────────────────────────────────────────────

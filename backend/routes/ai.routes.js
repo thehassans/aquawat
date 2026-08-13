@@ -3,7 +3,7 @@ import multer from 'multer';
 import OpenAI from 'openai';
 import Product from '../models/Product.js';
 import Invoice from '../models/Invoice.js';
-import { protect, tenantFilter, checkPermission } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { translateWithFallback, extractKhayyatMeasurements, extractRestaurantMenu, extractSmartInvoice } from '../utils/aiService.js';
 import { autoTranslateText } from '../utils/builtInTranslator.js';
 
@@ -12,6 +12,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 // OpenAI is optional - AI features will be disabled if key not provided
 const openai = process.env.OPENAI_API_KEY 

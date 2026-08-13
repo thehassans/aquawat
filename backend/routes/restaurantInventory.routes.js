@@ -1,11 +1,12 @@
 import express from 'express';
 import RestaurantInventory from '../models/RestaurantInventory.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
+router.use(requireTenantFilter);
 router.use(requireBusinessType('restaurant'));
 
 // Get all inventory items

@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import CalendarEvent from '../models/CalendarEvent.js';
 import logger from '../utils/logger.js';
 
@@ -7,6 +7,8 @@ const router = express.Router();
 
 // Apply auth middleware to all calendar routes
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 /**
  * Helper to get tenant ID from authenticated request

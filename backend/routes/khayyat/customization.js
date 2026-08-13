@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
 import KhayyatCustomization from '../../models/khayyat/KhayyatCustomization.js';
-import { protect } from '../../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter } from '../../middleware/auth.js';
 import { saveUploadBuffer } from '../../utils/objectStorage.js';
 
 const router = express.Router();
@@ -13,6 +13,8 @@ const upload = multer({
 });
 
 router.use(protect);
+router.use(tenantFilter);
+router.use(requireTenantFilter);
 
 async function saveCustomizationImage(tenantId, category, buffer) {
   const tenantIdStr = String(tenantId);
