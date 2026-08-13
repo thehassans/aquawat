@@ -2,12 +2,12 @@ import React from 'react'
 import NaturalStamp from './NaturalStamp'
 import { localizeSecondaryText } from '../../lib/invoiceLanguage'
 
-export default function DocumentExtras({ invoice, invoiceBranding = {}, language = 'en', bilingual = false }) {
+export default function DocumentExtras({ invoice, invoiceBranding = {}, language = 'en', bilingual = false, hideSubject = false }) {
   const isAr = language === 'ar'
   const sectionTitle = (english, arabic) => (bilingual ? `${english} / ${localizeSecondaryText(arabic)}` : (isAr ? arabic : english))
   const signatoryLabel = (arabic) => localizeSecondaryText(arabic)
   
-  const hasSubject = Boolean(invoice?.subject || invoice?.subjectAr)
+  const hasSubject = !hideSubject && Boolean(invoice?.subject || invoice?.subjectAr)
   const hasNotes = Boolean(invoice?.notes || invoice?.notesAr)
   const hasTerms = Boolean(invoice?.termsAndConditions || invoice?.termsAndConditionsAr)
   const bank = invoice?.includeBankDetails ? (invoice?.bankDetails || {}) : null

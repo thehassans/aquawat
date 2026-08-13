@@ -62,10 +62,7 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
     >
       <div className="px-8 py-6" style={{ fontFamily: 'Arial, Helvetica, "Almarai", sans-serif' }}>
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">{isQuotation ? 'Quotation' : 'Document'}</p>
-            <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900">{invoiceTitle}</h1>
-          </div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">{invoiceTitle}</h1>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
             <p><span className="font-semibold text-slate-500">No.</span> {documentNumber}</p>
             <p className="mt-1"><span className="font-semibold text-slate-500">Date:</span> {formatDate(invoice?.issueDate || new Date())}</p>
@@ -74,6 +71,20 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
             ) : null}
           </div>
         </div>
+
+        {(invoice?.subject || invoice?.subjectAr) ? (
+          <div className="mt-4">
+            <p className="text-base">
+              <span className="font-bold">Subject:</span>{' '}
+              <span>{language === 'ar' ? (invoice.subjectAr || invoice.subject) : (invoice.subject || invoice.subjectAr)}</span>
+            </p>
+            {bilingual && invoice?.subjectAr && invoice.subjectAr !== invoice.subject ? (
+              <p className="mt-1 text-base" dir="rtl">
+                <span className="font-bold">الموضوع:</span> {invoice.subjectAr}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="rounded-xl border border-slate-200 p-4">
@@ -89,8 +100,7 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
           </div>
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Details / التفاصيل</p>
-            {invoice?.subject ? <p className="mt-2 text-sm"><span className="font-semibold">Subject:</span> {invoice.subject}</p> : null}
-            {invoice?.transactionType ? <p className="mt-1 text-sm"><span className="font-semibold">Type:</span> {invoice.transactionType}</p> : null}
+            {invoice?.transactionType ? <p className="mt-2 text-sm"><span className="font-semibold">Type:</span> {invoice.transactionType}</p> : null}
           </div>
         </div>
 
@@ -142,7 +152,7 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
           </div>
         </div>
 
-        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} />
+        <DocumentExtras invoice={invoice} invoiceBranding={invoiceBranding} language={language} bilingual={bilingual} hideSubject />
       </div>
     </LetterheadChrome>
   )
