@@ -247,7 +247,7 @@
   }
   
   .sidebar-link.active {
-    @apply bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400;
+    @apply bg-slate-100 text-slate-900 dark:bg-dark-700 dark:text-white;
   }
   
   .stat-card {

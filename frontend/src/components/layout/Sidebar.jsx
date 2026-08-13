@@ -116,29 +116,33 @@ export default function Sidebar() {
   const SidebarContent = () => (
     <>
       {/* Logo */}
-      <div className="flex items-center justify-center px-4 h-16 bg-[#1a3d28] relative overflow-hidden">
-        <div className="w-full h-12 flex items-center justify-center flex-shrink-0">
-          <img src={`${import.meta.env.BASE_URL}maqdernewlogo.webp`} alt="Maqder" className="h-full w-auto object-contain scale-[2] origin-center" />
+      <div className="relative flex h-16 items-center justify-center border-b border-slate-200/80 bg-white px-4 dark:border-dark-700 dark:bg-dark-800">
+        <div className="flex h-10 w-full items-center justify-center">
+          <img
+            src={`${import.meta.env.BASE_URL}maqderlogolandingpage.webp`}
+            alt="Maqder"
+            className="h-full w-auto max-h-10 object-contain dark:brightness-0 dark:invert"
+          />
         </div>
         
         {/* Mobile close button */}
         <button
           onClick={() => dispatch(setMobileMenuOpen(false))}
-          className="lg:hidden absolute right-4 p-2 rounded-lg hover:bg-white/10 text-white"
+          className="absolute right-3 rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden dark:text-slate-300 dark:hover:bg-dark-700"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Tenant Info */}
-      {!sidebarCollapsed && tenant && (
-        <div className="px-6 py-6 border-b border-gray-100 dark:border-dark-700 flex flex-col items-center text-center">
+        {!sidebarCollapsed && tenant && (
+        <div className="flex flex-col items-center border-b border-slate-100 px-5 py-4 text-center dark:border-dark-700">
           {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
-            <div className="w-full h-20 mb-5 flex items-center justify-center">
-              <img src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo} alt="Company Logo" className="max-h-full max-w-[85%] object-contain dark:mix-blend-normal" />
+            <div className="mb-3 flex h-14 w-full items-center justify-center">
+              <img src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo} alt="Company Logo" className="max-h-full max-w-[80%] object-contain" />
             </div>
           ) : (
-            <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-white flex items-center justify-center font-light text-2xl mb-4">
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-sm font-semibold text-slate-800 dark:bg-dark-700 dark:text-white">
               {(tenant.business?.legalNameEn || tenant.name || tenant.business?.legalNameAr || 'M').charAt(0).toUpperCase()}
             </div>
           )}
@@ -211,7 +215,7 @@ export default function Sidebar() {
                             className={({ isActive }) =>
                               `block py-1.5 px-3 rounded-lg text-[11px] font-medium transition-all ${
                                 isActive
-                                  ? 'bg-primary-50 text-primary-600 dark:bg-primary-950/20 dark:text-primary-400 font-semibold'
+                                  ? 'bg-slate-100 text-slate-900 dark:bg-dark-700 dark:text-white font-semibold'
                                   : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-dark-700/50'
                               }`
                             }
@@ -250,7 +254,7 @@ export default function Sidebar() {
             className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-1 text-xs text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
           >
             <PanelLeftClose className="w-4 h-4" />
-            <span>{language === 'ar' ? 'إخÙاء الشريط' : 'Hide sidebar'}</span>
+            <span>{language === 'ar' ? 'إخفاء الشريط' : 'Hide sidebar'}</span>
           </button>
         )}
       </div>

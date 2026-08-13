@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRight, BarChart3, FileText, Sparkles, Users } from 'lucide-react'
+import { ArrowRight, BarChart3, FileText, Users } from 'lucide-react'
 import { getBusinessTypeOptions, getPrimaryBusinessType } from '../../lib/businessTypes'
 import { markDemoWelcomeSeen, shouldShowDemoWelcome } from '../../lib/demoWelcome'
 
@@ -76,64 +76,46 @@ export default function DemoWelcome() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto px-4 py-8 print:hidden"
+          className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-[#f7f7f5] px-4 py-8 print:hidden"
           role="dialog"
           aria-modal="true"
           aria-labelledby="demo-welcome-title"
         >
-          <div className="absolute inset-0 bg-[#06140f]" />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-[0.07]"
-            style={{
-              backgroundImage: 'linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)',
-              backgroundSize: '56px 56px',
-            }}
-          />
-          <div aria-hidden className="pointer-events-none absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-emerald-500/25 blur-[140px]" />
-          <div aria-hidden className="pointer-events-none absolute bottom-0 right-0 h-[360px] w-[360px] rounded-full bg-teal-400/15 blur-[120px]" />
-
           <motion.div
-            initial={{ opacity: 0, y: 28, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.98 }}
-            transition={{ type: 'spring', stiffness: 280, damping: 30 }}
-            className="relative w-full max-w-3xl text-center"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="relative w-full max-w-2xl text-center"
           >
-            <motion.div
-              initial={{ scale: 0.7, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.12, type: 'spring', stiffness: 260, damping: 18 }}
-              className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-white/15 bg-white/10 shadow-[0_20px_60px_-20px_rgba(16,185,129,0.55)] backdrop-blur-xl"
-            >
+            <div className="mx-auto mb-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
               {logo ? (
-                <img src={logo} alt="" className="h-16 w-16 rounded-2xl object-contain bg-white p-1.5" />
+                <img src={logo} alt="" className="h-12 w-12 object-contain p-1" />
               ) : (
-                <span className="font-display text-4xl font-bold text-white">{monogram}</span>
+                <span className="font-display text-2xl font-semibold tracking-tight text-slate-900">{monogram}</span>
               )}
-            </motion.div>
+            </div>
 
-            <p className="mb-3 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.32em] text-emerald-300/90">
-              <Sparkles className="h-3.5 w-3.5" />
+            <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.22em] text-slate-400">
               {isArabic ? 'مساحتك أصبحت جاهزة' : 'Your workspace is live'}
             </p>
 
-            <h1 id="demo-welcome-title" className="font-display text-[2.15rem] font-bold leading-[1.1] tracking-[-0.03em] text-white sm:text-5xl">
+            <h1 id="demo-welcome-title" className="font-display text-[2rem] font-semibold leading-[1.15] tracking-[-0.03em] text-slate-950 sm:text-[2.75rem]">
               {isArabic ? (
-                <>مرحباً بك في <span className="text-emerald-300">{company}</span></>
+                <>مرحباً بك في {company}</>
               ) : (
-                <>Welcome to <span className="text-emerald-300">{company}</span></>
+                <>Welcome to {company}</>
               )}
             </h1>
 
-            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-white/60 sm:text-lg">
+            <p className="mx-auto mt-4 max-w-lg text-[15px] leading-relaxed text-slate-500">
               {isArabic
-                ? 'تجربة مباشرة لسبعة أيام — الفوترة، العملاء، والتقارير في مكان واحد. بلا بطاقة ائتمان.'
-                : 'A live 7-day workspace — invoicing, customers, and reporting in one place. No credit card.'}
+                ? 'تجربة مباشرة لسبعة أيام — الفوترة، العملاء، والتقارير في مكان واحد.'
+                : 'A live 7-day workspace — invoicing, customers, and reporting in one place.'}
             </p>
 
             {(user?.email || businessLabel) && (
-              <p className="mt-3 text-sm text-white/40">
+              <p className="mt-3 text-sm text-slate-400">
                 {[user?.email, businessLabel, tenant?.settings?.currency].filter(Boolean).join('  ·  ')}
               </p>
             )}
@@ -145,17 +127,17 @@ export default function DemoWelcome() {
                   <motion.button
                     key={item.to}
                     type="button"
-                    initial={{ opacity: 0, y: 16 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.28 + i * 0.08 }}
+                    transition={{ delay: 0.12 + i * 0.05, duration: 0.3 }}
                     onClick={() => dismiss(item.to)}
-                    className="group rounded-2xl border border-white/10 bg-white/[0.05] p-5 text-left backdrop-blur-md transition hover:-translate-y-0.5 hover:border-emerald-400/40 hover:bg-white/[0.09]"
+                    className="rounded-2xl border border-slate-200 bg-white p-5 text-left transition hover:border-slate-300 hover:bg-slate-50"
                   >
-                    <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-300">
-                      <Icon className="h-5 w-5" />
+                    <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                      <Icon className="h-4 w-4" />
                     </span>
-                    <p className="font-display text-sm font-bold text-white">{item.title}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-white/45">{item.body}</p>
+                    <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500">{item.body}</p>
                   </motion.button>
                 )
               })}
@@ -163,17 +145,17 @@ export default function DemoWelcome() {
 
             <motion.button
               type="button"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.55 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.28 }}
               onClick={() => dismiss()}
-              className="group mt-10 inline-flex items-center gap-2.5 rounded-full bg-emerald-500 px-8 py-4 text-base font-bold text-white shadow-[0_12px_40px_-12px_rgba(16,185,129,0.7)] transition hover:-translate-y-0.5 hover:bg-emerald-400"
+              className="group mt-10 inline-flex items-center gap-2 rounded-full bg-slate-900 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               {isArabic ? 'ادخل لوحة التحكم' : 'Enter dashboard'}
-              <ArrowRight className={`h-5 w-5 transition-transform group-hover:translate-x-0.5 ${isArabic ? 'rotate-180' : ''}`} />
+              <ArrowRight className={`h-4 w-4 transition-transform group-hover:translate-x-0.5 ${isArabic ? 'rotate-180' : ''}`} />
             </motion.button>
 
-            <p className="mt-4 text-xs text-white/30">
+            <p className="mt-4 text-xs text-slate-400">
               {isArabic ? 'اضغط Enter للمتابعة' : 'Press Enter to continue'}
             </p>
           </motion.div>

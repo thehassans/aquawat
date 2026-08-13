@@ -149,20 +149,20 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
     ? 'mb-2 block text-[11px] font-bold text-white/55 uppercase tracking-[0.18em]'
     : 'mb-2 block text-[11px] font-bold text-slate-500 uppercase tracking-[0.18em]'
   const inputCls = isDark
-    ? 'w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-sm text-white outline-none placeholder:text-white/30 focus:border-emerald-400/60 focus:ring-4 focus:ring-emerald-400/10 transition-all'
-    : 'w-full appearance-none rounded-2xl border border-slate-200/90 bg-white px-4 py-3.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] focus:border-emerald-500/70 focus:ring-4 focus:ring-emerald-500/10 transition-all'
+    ? 'w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/30 focus:ring-4 focus:ring-white/5 transition-all'
+    : 'w-full appearance-none rounded-2xl border border-slate-200/90 bg-white px-4 py-3.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5 transition-all'
   const btnPrimary = isDark
-    ? 'inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3.5 text-sm font-bold text-white shadow-[0_8px_24px_-8px_rgba(16,185,129,0.65)] transition-all hover:-translate-y-0.5 hover:bg-emerald-400 disabled:opacity-60'
-    : 'inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-3.5 text-sm font-bold text-white shadow-[0_10px_28px_-10px_rgba(5,150,105,0.65)] transition-all hover:-translate-y-0.5 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-60'
+    ? 'inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-100 disabled:opacity-60'
+    : 'inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60'
   const btnGhost = isDark
     ? 'rounded-2xl border border-white/15 px-5 py-3.5 text-sm font-semibold text-white/80 transition-all hover:bg-white/5'
     : 'rounded-2xl border border-slate-200 px-5 py-3.5 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50'
   const chipActive = isDark
-    ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200 shadow-[0_0_0_3px_rgba(52,211,153,0.12)]'
-    : 'border-emerald-500 bg-emerald-50/90 text-emerald-950 shadow-[0_0_0_3px_rgba(16,185,129,0.12)]'
+    ? 'border-white/40 bg-white/10 text-white'
+    : 'border-slate-900 bg-slate-50 text-slate-900'
   const chipIdle = isDark
     ? 'border-white/10 hover:border-white/25 text-white/70'
-    : 'border-slate-200/90 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/40'
+    : 'border-slate-200/90 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
 
   const steps = [
     { n: 1, en: 'Workspace', ar: 'المساحة' },
@@ -189,9 +189,9 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
             const done = step > s.n
             return (
               <div key={s.n} className="flex min-w-0 flex-1 items-center gap-2">
-                <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all ${
+                <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition-colors ${
                   done || active
-                    ? 'bg-emerald-600 text-white shadow-[0_4px_12px_-4px_rgba(5,150,105,0.8)]'
+                    ? 'bg-slate-900 text-white'
                     : isDark ? 'bg-white/10 text-white/40' : 'bg-slate-100 text-slate-400'
                 }`}>
                   {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : s.n}
@@ -202,7 +202,7 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
                   {isArabic ? s.ar : s.en}
                 </span>
                 {i < steps.length - 1 && (
-                  <div className={`h-px min-w-[8px] flex-1 ${done ? 'bg-emerald-500' : isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
+                  <div className={`h-px min-w-[8px] flex-1 ${done ? 'bg-slate-900' : isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
                 )}
               </div>
             )
@@ -221,9 +221,8 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
               className="flex flex-col items-center py-10 text-center"
             >
               <div className="relative mb-6">
-                <div className="h-16 w-16 rounded-full border-2 border-emerald-100" />
-                <div className="absolute inset-0 h-16 w-16 animate-spin rounded-full border-2 border-transparent border-t-emerald-600" />
-                <SparklesMark />
+                <div className="h-12 w-12 rounded-full border border-slate-200" />
+                <div className="absolute inset-0 h-12 w-12 animate-spin rounded-full border border-transparent border-t-slate-900" />
               </div>
               <p className="font-display text-lg font-bold text-slate-900">
                 {isArabic ? 'جاري تجهيز مساحتك' : 'Assembling your workspace'}
@@ -312,13 +311,13 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
                         }}
                         className={`flex w-full items-center gap-4 rounded-2xl border border-dashed px-4 py-5 text-sm transition ${
                           logoHover
-                            ? 'border-emerald-400 bg-emerald-50/70'
+                            ? 'border-slate-400 bg-slate-50'
                             : isDark
-                              ? 'border-white/20 bg-white/[0.04] text-white/70 hover:border-emerald-400/50'
-                              : 'border-slate-300 bg-slate-50/70 text-slate-600 hover:border-emerald-400 hover:bg-emerald-50/50'
+                              ? 'border-white/20 bg-white/[0.04] text-white/70 hover:border-white/40'
+                              : 'border-slate-300 bg-slate-50/70 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
                         }`}
                       >
-                        <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isDark ? 'bg-white/10 text-emerald-300' : 'bg-white text-emerald-600 shadow-sm ring-1 ring-emerald-100'}`}>
+                        <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isDark ? 'bg-white/10 text-white' : 'bg-white text-slate-600 shadow-sm ring-1 ring-slate-200'}`}>
                           <ImagePlus className="h-5 w-5" />
                         </span>
                         <span className="text-left">
@@ -474,15 +473,5 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
         {formInner}
       </motion.div>
     </div>
-  )
-}
-
-function SparklesMark() {
-  return (
-    <span className="absolute inset-0 flex items-center justify-center text-emerald-600">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path d="M12 3l1.2 4.8L18 9l-4.8 1.2L12 15l-1.2-4.8L6 9l4.8-1.2L12 3z" fill="currentColor" />
-      </svg>
-    </span>
   )
 }

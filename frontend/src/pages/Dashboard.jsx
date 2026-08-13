@@ -396,7 +396,7 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white tracking-tight">
               {tenant?.isDemo && !tenant?.demoUpgraded
                 ? (isAr
                     ? `مرحباً بك في ${tenant?.business?.legalNameAr || tenant?.name || 'مساحتك'}`
@@ -419,7 +419,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-2.5">
           <Link
             to="/invoices/new"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 rounded-xl shadow-md shadow-primary-500/20 transition-all hover:scale-105 active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors"
           >
             <Plus className="w-4 h-4" />
             <span>{isAr ? 'فاتورة جديدة' : 'New Invoice'}</span>
@@ -449,19 +449,18 @@ export default function Dashboard() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="card p-6 bg-gradient-to-r from-[#143120] via-[#1b432c] to-[#26593b] text-white shadow-xl relative overflow-hidden"
+              className="card relative overflow-hidden border border-slate-200/80 bg-white p-6 dark:border-dark-700 dark:bg-dark-800"
             >
-              <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/5 rounded-full blur-2xl pointer-events-none" />
               <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                 <div className="flex items-center gap-4">
-                  <div className="p-3.5 bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 shadow-inner">
-                    <Calendar className="w-7 h-7 text-emerald-300" />
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-dark-600 dark:bg-dark-700">
+                    <Calendar className="w-6 h-6 text-slate-600 dark:text-slate-300" />
                   </div>
                   <div>
-                    <p className="text-emerald-200/80 text-xs font-semibold uppercase tracking-wider">
-                      {isAr ? 'ملخص العمليات الفورية' : "Today's Live Summary"}
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">
+                      {isAr ? 'ملخص اليوم' : "Today's summary"}
                     </p>
-                    <p className="text-lg font-bold text-white mt-0.5">
+                    <p className="mt-0.5 text-lg font-semibold text-slate-900 dark:text-white">
                       {new Date().toLocaleDateString(isAr ? 'ar-SA' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                     </p>
                   </div>
@@ -469,24 +468,24 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-8">
                   <div className="text-center md:text-end">
-                    <p className="text-white/70 text-xs font-medium">{isAr ? 'فواتير اليوم' : "Today's Invoices"}</p>
-                    <p className="text-2xl font-black mt-0.5">{dashboard?.todayStats?.count || 0}</p>
+                    <p className="text-xs font-medium text-slate-400">{isAr ? 'فواتير اليوم' : "Today's invoices"}</p>
+                    <p className="mt-0.5 text-2xl font-semibold text-slate-900 dark:text-white">{dashboard?.todayStats?.count || 0}</p>
                   </div>
                   <div className="text-center md:text-end">
-                    <p className="text-white/70 text-xs font-medium">{isAr ? 'إيرادات اليوم' : "Today's Revenue"}</p>
-                    <p className="text-2xl font-black mt-0.5">
+                    <p className="text-xs font-medium text-slate-400">{isAr ? 'إيرادات اليوم' : "Today's revenue"}</p>
+                    <p className="mt-0.5 text-2xl font-semibold text-slate-900 dark:text-white">
                       <Money value={dashboard?.todayStats?.revenue || 0} minimumFractionDigits={0} maximumFractionDigits={0} />
                     </p>
                   </div>
                   <div className="text-center md:text-end">
-                    <p className="text-white/70 text-xs font-medium">{isAr ? 'إيرادات الشهر' : 'Monthly Revenue'}</p>
-                    <p className="text-2xl font-black mt-0.5">
+                    <p className="text-xs font-medium text-slate-400">{isAr ? 'إيرادات الشهر' : 'Monthly revenue'}</p>
+                    <p className="mt-0.5 text-2xl font-semibold text-slate-900 dark:text-white">
                       <Money value={dashboard?.invoices?.thisMonth?.revenue || 0} minimumFractionDigits={0} maximumFractionDigits={0} />
                     </p>
                   </div>
                   <div className="text-center md:text-end">
-                    <p className="text-white/70 text-xs font-medium">{isAr ? 'قيمة المخزون' : 'Inventory Value'}</p>
-                    <p className="text-2xl font-black mt-0.5">
+                    <p className="text-xs font-medium text-slate-400">{isAr ? 'قيمة المخزون' : 'Inventory value'}</p>
+                    <p className="mt-0.5 text-2xl font-semibold text-slate-900 dark:text-white">
                       <Money value={dashboard?.products?.totalValue || 0} minimumFractionDigits={0} maximumFractionDigits={0} />
                     </p>
                   </div>

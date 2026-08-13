@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useInView } from 'framer-motion'
 import { useRef } from 'react'
 import TrialSignup from '../../components/marketing/TrialSignup'
 import PremiumAppIcon, { PREMIUM_APP_CATALOG } from '../../components/marketing/PremiumAppIcon'
-import { ArrowRight, Star, TrendingUp, X, Wallet, FileText, ShieldCheck, Building2, Store, Users, Utensils, Truck, Briefcase, Sparkles, Check } from 'lucide-react'
+import { ArrowRight, Star, TrendingUp, X, Wallet, FileText, ShieldCheck, Building2, Store, Users, Utensils, Truck, Briefcase, Check } from 'lucide-react'
 
 const TENANT_STORY_ICONS = [Building2, Store, Users, Utensils, Truck, Briefcase]
 
@@ -456,62 +456,51 @@ export default function MarketingHome() {
         {trialOpen && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[80] flex items-end justify-center bg-[#06140f]/70 p-3 backdrop-blur-xl sm:items-center sm:p-6"
+            className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/25 p-3 backdrop-blur-sm sm:items-center sm:p-6"
             onClick={() => setTrialOpen(false)}
           >
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 opacity-[0.06]"
-              style={{
-                backgroundImage: 'linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)',
-                backgroundSize: '48px 48px',
-              }}
-            />
             <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 24, scale: 0.97 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-              className="relative flex w-full max-w-[980px] overflow-hidden rounded-[2rem] border border-white/20 bg-white shadow-[0_50px_140px_-24px_rgba(0,0,0,0.65)]"
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="relative flex w-full max-w-[960px] overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_24px_80px_-24px_rgba(15,23,42,0.28)]"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="relative hidden w-[38%] shrink-0 flex-col justify-between overflow-hidden bg-[#0b1f16] px-8 py-10 text-white lg:flex">
-                <div aria-hidden className="pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-emerald-500/30 blur-[90px]" />
-                <div aria-hidden className="pointer-events-none absolute bottom-0 right-0 h-48 w-48 rounded-full bg-teal-400/20 blur-[80px]" />
-                <div className="relative">
-                  <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-300">
-                    <Sparkles className="h-3.5 w-3.5" />
+              <div className="relative hidden w-[36%] shrink-0 flex-col justify-between border-r border-slate-100 bg-[#f7f7f5] px-8 py-10 lg:flex">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-slate-400">
                     {isArabic ? 'تجربة مجانية' : 'Free trial'}
                   </p>
-                  <h3 className="mt-5 font-display text-[1.85rem] font-bold leading-[1.15] tracking-[-0.03em]">
+                  <h3 className="mt-5 font-display text-[1.65rem] font-semibold leading-[1.2] tracking-[-0.03em] text-slate-950">
                     {isArabic ? 'مساحتك جاهزة في أقل من دقيقة' : 'Your workspace in under a minute'}
                   </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-white/55">
+                  <p className="mt-3 text-sm leading-relaxed text-slate-500">
                     {isArabic
                       ? 'اختر الدولة والشركة والعملة — ثم ادخل لوحة التحكم مباشرة.'
                       : 'Pick country, company, and currency — then land in a live dashboard.'}
                   </p>
                 </div>
-                <ul className="relative mt-10 space-y-4 text-sm">
+                <ul className="mt-10 space-y-3.5 text-sm text-slate-600">
                   {[
                     isArabic ? 'سبعة أيام كاملة — كل التطبيقات' : '7 full days — every app included',
                     isArabic ? 'بلا بطاقة ائتمان' : 'No credit card required',
                     isArabic ? 'فواتير وعملاء وتقارير من أول دخول' : 'Invoices, customers, and reports from first login',
                   ].map((line) => (
-                    <li key={line} className="flex items-start gap-3 text-white/80">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/20 text-emerald-300">
-                        <Check className="h-3 w-3" strokeWidth={3} />
+                    <li key={line} className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700">
+                        <Check className="h-3 w-3" strokeWidth={2.5} />
                       </span>
                       {line}
                     </li>
                   ))}
                 </ul>
-                <p className="relative mt-10 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/30">
-                  Maqder · Live ERP
+                <p className="mt-10 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">
+                  Maqder
                 </p>
               </div>
 
-              <div className="relative min-w-0 flex-1 bg-gradient-to-b from-[#f7faf8] to-white">
+              <div className="relative min-w-0 flex-1 bg-white">
                 <button
                   type="button"
                   onClick={() => setTrialOpen(false)}
@@ -521,10 +510,10 @@ export default function MarketingHome() {
                   <X className="h-5 w-5" />
                 </button>
                 <div className="border-b border-slate-100 px-6 pb-4 pt-7 lg:hidden">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-600">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-slate-400">
                     {isArabic ? 'تجربة مجانية' : 'Free trial'}
                   </p>
-                  <h3 className="mt-1 font-display text-xl font-bold tracking-tight text-slate-950">
+                  <h3 className="mt-1 font-display text-xl font-semibold tracking-tight text-slate-950">
                     {isArabic ? 'مساحتك جاهزة في أقل من دقيقة' : 'Your workspace in under a minute'}
                   </h3>
                 </div>
