@@ -2,14 +2,13 @@
 
 Run against **staging** first. Production only with an approved window.
 
-Unit tests already on `main`:
+```powershell
+powershell -File ops/run-local-checks.ps1
+# or: cd backend; npm test
+# isolation-only: cd backend; npm run test:isolation
+```
 
-- `backend/tests/idor.tenantIsolation.test.js`
-- `backend/tests/paymentPollIsolation.test.js` — Tenant A cannot read Tenant B payment status
-- `backend/tests/csrfAndStripeEvents.test.js`
-- `backend/tests/invoiceMoney.test.js` — `vatHalala(10.01, 15) === 1.50`
-- `backend/tests/k6/invoiceCreateRateLimit.js` — 100 rps vs 40 invoice creates / minute
-- `npm test` in `backend/`
+CI: `.github/workflows/deploy.yml` runs `npm test` in `backend/` and **blocks Plesk deploy** if those tests fail.
 
 ---
 
