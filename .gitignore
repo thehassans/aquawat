@@ -28,8 +28,10 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Playwright auth state
+# Playwright
 frontend/e2e/.auth/
+frontend/test-results/
+frontend/playwright-report/
 
 # WhatsApp session data
 .wwebjs_auth/

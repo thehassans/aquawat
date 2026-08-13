@@ -184,7 +184,7 @@ export default function Header() {
           {((tenant?.isDemo === true && tenant?.demoUpgraded !== true) || tenant?.subscription?.plan === 'trial' || tenant?.subscription?.status === 'expired') && (
             <button
               onClick={() => navigate('/demo-checkout')}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-slate-50"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:shadow-md"
             >
               <Crown className="h-3.5 w-3.5" />
               {language === 'ar' ? 'اشترك الآن' : 'Subscribe'}

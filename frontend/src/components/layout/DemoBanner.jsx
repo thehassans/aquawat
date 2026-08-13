@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Clock, X, AlertTriangle } from 'lucide-react'
+import { Clock, Crown, X, AlertTriangle } from 'lucide-react'
 import { getSubscriptionState } from '../../lib/subscriptionState'
 
 function formatTimeRemaining(ms) {
@@ -49,28 +49,22 @@ export default function DemoBanner() {
   const urgent = timeLeft && !expired && timeLeft.days === 0
 
   return (
-    <div className={`relative border-b px-4 py-2 text-sm ${
-      expired
-        ? 'border-rose-200 bg-rose-50 text-rose-900'
-        : urgent
-          ? 'border-amber-200 bg-amber-50 text-amber-950'
-          : 'border-slate-200 bg-white text-slate-600'
-    }`}>
+    <div className={`relative px-4 py-2 text-sm ${expired ? 'bg-red-600' : urgent ? 'bg-amber-500' : 'bg-gradient-to-r from-[#0f3d2e] to-[#1a5d44]'} text-white`}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           {expired ? (
             <AlertTriangle className="h-4 w-4 shrink-0" />
           ) : (
-            <Clock className="h-4 w-4 shrink-0 text-slate-400" />
+            <Clock className="h-4 w-4 shrink-0" />
           )}
-          <span className="truncate">
+          <span className="truncate font-medium">
             {expired
-              ? (isArabic ? 'انتهت التجربة — النظام مفتوح، اشترك للمتابعة' : 'Trial ended — subscribe to continue')
+              ? (isArabic ? 'انتهت التجربة — النظام مفتوح، اشترك للمتابعة' : 'Trial Ended — workspace is open; subscribe to continue')
               : (
                 <>
-                  {isArabic ? 'تجربة — متبقي: ' : 'Trial — '}
+                  {isArabic ? 'وضع تجريبي — متبقي: ' : 'Demo mode — Time left: '}
                   {timeLeft && (
-                    <span className="font-medium tabular-nums text-slate-900">
+                    <span className="font-bold tabular-nums">
                       {timeLeft.days > 0 && `${timeLeft.days}d `}
                       {String(timeLeft.hours).padStart(2, '0')}:{String(timeLeft.minutes).padStart(2, '0')}:{String(timeLeft.seconds).padStart(2, '0')}
                     </span>
@@ -84,16 +78,17 @@ export default function DemoBanner() {
           <button
             type="button"
             onClick={() => navigate('/demo-checkout')}
-            className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-800 transition hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-bold backdrop-blur-sm transition hover:bg-white/25"
           >
+            <Crown className="h-3.5 w-3.5" />
             {expired
-              ? (isArabic ? 'تغيير الباقة' : 'Change plan')
-              : (isArabic ? 'اشترك' : 'Subscribe')}
+              ? (isArabic ? 'تغيير الباقة' : 'Change Plan')
+              : (isArabic ? 'احصل على النسخة الكاملة' : 'Get Full Version')}
           </button>
           <button
             type="button"
             onClick={() => setShowBanner(false)}
-            className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-lg p-1 transition hover:bg-white/20"
           >
             <X className="h-3.5 w-3.5" />
           </button>
