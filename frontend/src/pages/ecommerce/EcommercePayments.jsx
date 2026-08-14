@@ -43,6 +43,34 @@ const PROVIDERS = [
     methods: ['Cards', 'Apple Pay', 'Google Pay'],
     region: 'Global',
   },
+  {
+    key: 'tabby',
+    label: 'Tabby',
+    tagline: 'Pay in 4',
+    desc: 'Customer splits the bill — Tabby pays you',
+    brand: '#0F766E',
+    brandLight: '#CCFBF1',
+    methods: ['Pay in 4', 'Pay later'],
+    region: 'Saudi / UAE',
+    publicKeyLabel: 'Public key',
+    secretKeyLabel: 'Secret key',
+    merchantLabel: 'Merchant code *',
+    webhookLabel: 'Webhook uses secret key',
+  },
+  {
+    key: 'tamara',
+    label: 'Tamara',
+    tagline: 'Pay later',
+    desc: 'Installments at checkout — Tamara pays you',
+    brand: '#E11D48',
+    brandLight: '#FFE4E6',
+    methods: ['Pay in 3', 'Pay later'],
+    region: 'Saudi / UAE',
+    publicKeyLabel: 'Not required',
+    secretKeyLabel: 'API token',
+    merchantLabel: 'Merchant ID (optional)',
+    webhookLabel: 'Notification token',
+  },
 ];
 
 function Toggle({ checked, onChange, brandColor = '#6366F1' }) {
@@ -267,16 +295,16 @@ export default function EcommercePayments() {
                       <label className={labelCls}>Environment</label>
                       <select
                         className={inputCls}
-                        value={pConfig.environment || 'sandbox'}
+                        value={pConfig.environment === 'production' || pConfig.environment === 'live' ? 'live' : 'test'}
                         onChange={e => updateProvider(provider.key, 'environment', e.target.value)}
                       >
-                        <option value="sandbox">Sandbox / Test</option>
-                        <option value="production">Production / Live</option>
+                        <option value="test">Sandbox / Test</option>
+                        <option value="live">Production / Live</option>
                       </select>
                     </div>
                     <div>
                       <label className={labelCls}>
-                        Merchant ID {provider.key === 'paytabs' ? '*' : '(optional)'}
+                        {provider.merchantLabel || (provider.key === 'paytabs' ? 'Merchant ID *' : 'Merchant ID (optional)')}
                       </label>
                       <input
                         className={inputCls}
@@ -287,8 +315,9 @@ export default function EcommercePayments() {
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {provider.key !== 'tamara' && (
                     <div>
-                      <label className={labelCls}>Publishable Key</label>
+                      <label className={labelCls}>{provider.publicKeyLabel || 'Publishable Key'}</label>
                       <input
                         className={inputCls}
                         value={pConfig.publishableKey || ''}
@@ -296,8 +325,9 @@ export default function EcommercePayments() {
                         placeholder="pk_••••••••"
                       />
                     </div>
+                    )}
                     <div>
-                      <label className={labelCls}>Secret Key</label>
+                      <label className={labelCls}>{provider.secretKeyLabel || 'Secret Key'}</label>
                       <input
                         className={inputCls}
                         type="password"
@@ -308,7 +338,7 @@ export default function EcommercePayments() {
                     </div>
                   </div>
                   <div>
-                    <label className={labelCls}>Webhook Secret</label>
+                    <label className={labelCls}>{provider.webhookLabel || 'Webhook Secret'}</label>
                     <input
                       className={inputCls}
                       type="password"

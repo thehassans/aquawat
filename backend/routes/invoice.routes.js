@@ -27,6 +27,7 @@ import { afterInvoiceWrite } from '../utils/invoiceLifecycle.js';
 import { emitPlatformEvent } from '../utils/platformEvents.js';
 import { createInvoiceFromMultipleDNs } from '../controllers/invoiceController.js';
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
+import { sendInvoiceOnWhatsApp, getWhatsAppConfig } from '../services/whatsappCloudService.js';
 import { clampTemplateId } from '../utils/premiumTemplates.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 import { isFbrCurrency } from '../utils/fbrCurrency.js';
@@ -470,12 +471,27 @@ async function autoEmailInvoiceIfEnabled({ tenant, invoice, customer = null, fal
 }
 
 async function autoWhatsAppInvoiceIfEnabled({ tenant, invoice, customer = null, language }) {
-  if (!tenant?.settings?.invoiceWhatsappAutoSend) {
+  const app = tenant?.settings?.installedApps?.whatsapp_cloud_auto;
+  const appOn = Boolean(app?.isInstalled && app?.isEnabled !== false);
+  const config = await getWhatsAppConfig(tenant?._id);
+  const cloudReady = Boolean(config?.isActive && config?.accessToken && config?.phoneNumberId);
+  const autoFromCloud = cloudReady && config?.autoSendInvoices !== false && (appOn ? app?.config?.autoSendInvoices !== false : true);
+  const autoFromLegacy = Boolean(tenant?.settings?.invoiceWhatsappAutoSend);
+
+  if (!autoFromCloud && !autoFromLegacy) {
     return { sent: false, reason: 'disabled' };
   }
-  
+
   const phone = customer?.phone || customer?.mobile || invoice?.buyer?.phone;
   if (!phone) return { sent: false, reason: 'no_customer_phone' };
+
+  if (cloudReady) {
+    try {
+      return await sendInvoiceOnWhatsApp({ tenant, invoice, customer, language });
+    } catch (error) {
+      if (!autoFromLegacy) return { sent: false, reason: error.message };
+    }
+  }
 
   try {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
@@ -492,14 +508,13 @@ async function autoWhatsAppInvoiceIfEnabled({ tenant, invoice, customer = null, 
     const messageEn = tenant.settings.invoiceWhatsappMessageEn || 'Dear customer, your invoice {{invoiceNumber}} is ready. Amount: {{total}} SAR. Link: {{link}}';
     const messageAr = tenant.settings.invoiceWhatsappMessageAr || 'عزيزي العميل، فاتورتك رقم {{invoiceNumber}} جاهزة. المبلغ: {{total}} ريال. الرابط: {{link}}';
 
-    const waRes = await sendRestaurantWhatsApp({
+    return await sendRestaurantWhatsApp({
       tenantId: tenant._id,
       phone,
       messageEn,
       messageAr,
       replacements
     });
-    return waRes;
   } catch (error) {
     return { sent: false, reason: error.message };
   }
@@ -2035,8 +2050,20 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
     } catch {
       // SMS failure must not block signing
     }
+
+    let whatsappDelivery = { sent: false, reason: 'disabled' };
+    try {
+      whatsappDelivery = await autoWhatsAppInvoiceIfEnabled({
+        tenant,
+        invoice,
+        customer,
+        language: tenant?.settings?.language,
+      });
+    } catch (waError) {
+      whatsappDelivery = { sent: false, reason: waError.message };
+    }
     
-    res.json({ ...invoice.toObject(), emailDelivery });
+    res.json({ ...invoice.toObject(), emailDelivery, whatsappDelivery });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

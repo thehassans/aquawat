@@ -85,7 +85,7 @@ function appMatchesCategory(app, categoryId) {
     return app.category === 'manufacturing' || app.appId.includes('manufacturing');
   }
   if (categoryId === 'finance_accounting') {
-    return app.category === 'finance_accounting' || app.appId.includes('vat');
+    return app.category === 'finance_accounting' || app.appId.includes('vat') || app.appId.includes('tabby') || app.appId.includes('tamara') || app.appId.includes('bnpl');
   }
   if (categoryId === 'hardware_iot') {
     return app.category === 'hardware_iot' || app.appType === 'hardware_integration' || app.appId.includes('iot') || app.appId.includes('terminal') || app.appId.includes('printer') || app.appId.includes('scale');
@@ -95,7 +95,7 @@ function appMatchesCategory(app, categoryId) {
     return app.category === 'pos_retail' || app.appId.includes('retail') || app.appId.includes('restaurant') || app.appId.includes('bakala')
   }
   if (categoryId === 'logistics') {
-    return app.category === 'logistics' || app.appId.includes('shipping') || app.appId.includes('smsa') || app.appId.includes('aramex') || app.appId.includes('jnt') || app.appId.includes('naqel') || app.appId.includes('imile') || app.appId.includes('spl')
+    return app.category === 'logistics' || app.appId.includes('shipping') || app.appId.includes('smsa') || app.appId.includes('aramex') || app.appId.includes('jnt') || app.appId.includes('naqel') || app.appId.includes('imile') || app.appId.includes('spl') || app.appId.includes('fedex') || app.appId.includes('dhl') || app.appId.includes('ups') || app.appId.includes('tnt')
   }
   if (categoryId === 'delivery_platforms') {
     return app.category === 'delivery_platforms' || app.appId.includes('_delivery') || app.appId === 'delivery_platforms'

@@ -2,6 +2,8 @@ import express from 'express';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import { AppAddon } from '../models/AppAddon.js';
+import { WhatsAppConfig } from '../models/WhatsApp.js';
+import crypto from 'crypto';
 import { normalizeBusinessTypes } from '../utils/businessTypes.js';
 import { PREMIUM_TEMPLATE_APP_ID as PREMIUM_INVOICE_TEMPLATES_APP_ID, hasPremiumTemplateAccess, ESSENTIAL_TEMPLATE_ID } from '../utils/premiumTemplates.js';
 import { createStripeCheckoutSession, getStripeConfig, retrieveStripeCheckoutSession } from '../services/platformStripe.js';
@@ -9,8 +11,10 @@ import { serializeAuthTenant } from '../utils/authSerialize.js';
 import {
   DELIVERY_PARTNER_APPS,
   LOGISTICS_PARTNER_APPS,
+  BNPL_PARTNER_APPS,
   DELIVERY_PLATFORM_APP_MAP,
   COURIER_APP_MAP,
+  BNPL_APP_MAP,
   ALL_DELIVERY_APP_IDS,
   isDeliveryPartnerApp,
 } from '../utils/appStorePartnerApps.js';
@@ -21,6 +25,95 @@ const router = express.Router();
 router.use(protect);
 router.use(tenantFilter);
 router.use(requireTenantFilter);
+
+function syncCourierFromApp(tenant, appId, config = {}, enabled = true) {
+  const courierKey = COURIER_APP_MAP[appId];
+  if (!courierKey) return false;
+  if (!tenant.ecommerce) tenant.ecommerce = {};
+  if (!tenant.ecommerce.couriers) tenant.ecommerce.couriers = {};
+  const current = tenant.ecommerce.couriers[courierKey] || {};
+  tenant.ecommerce.couriers[courierKey] = {
+    ...current,
+    enabled,
+    environment: config.environment || current.environment || 'sandbox',
+    accountNumber: config.accountNumber || current.accountNumber || '',
+    apiKey: config.apiKey || current.apiKey || '',
+    apiSecret: config.apiSecret || current.apiSecret || '',
+  };
+  tenant.markModified('ecommerce');
+  return true;
+}
+
+function syncBnplFromApp(tenant, appId, config = {}, enabled = true) {
+  const provider = BNPL_APP_MAP[appId];
+  if (!provider) return false;
+  if (!tenant.ecommerce) tenant.ecommerce = {};
+  if (!tenant.ecommerce.payments) tenant.ecommerce.payments = {};
+  const current = tenant.ecommerce.payments[provider] || {};
+  const environment = config.environment === 'production' || config.environment === 'live' ? 'live' : (config.environment || current.environment || 'test');
+  tenant.ecommerce.payments[provider] = {
+    ...current,
+    enabled,
+    environment,
+    publishableKey: config.publicKey || config.publishableKey || current.publishableKey || '',
+    secretKey: config.secretKey || config.apiToken || current.secretKey || '',
+    merchantId: config.merchantCode || config.merchantId || current.merchantId || '',
+    webhookSecret: config.notificationToken || config.webhookSecret || current.webhookSecret || '',
+  };
+  tenant.markModified('ecommerce');
+
+  if (!tenant.settings) tenant.settings = {};
+  if (!tenant.settings.restaurant) tenant.settings.restaurant = {};
+  if (!tenant.settings.restaurant.qrMenu) tenant.settings.restaurant.qrMenu = {};
+  const qr = tenant.settings.restaurant.qrMenu;
+  const accepted = new Set(qr.acceptedPayments || ['cash']);
+  if (provider === 'tabby') {
+    qr.tabbyMerchantCode = tenant.ecommerce.payments.tabby.merchantId || qr.tabbyMerchantCode || '';
+    qr.tabbyApiKey = tenant.ecommerce.payments.tabby.secretKey || qr.tabbyApiKey || '';
+    if (enabled) accepted.add('tabby');
+    else accepted.delete('tabby');
+  }
+  if (provider === 'tamara') {
+    qr.tamaraMerchantToken = tenant.ecommerce.payments.tamara.secretKey || qr.tamaraMerchantToken || '';
+    qr.tamaraNotificationToken = tenant.ecommerce.payments.tamara.webhookSecret || qr.tamaraNotificationToken || '';
+    if (enabled) accepted.add('tamara');
+    else accepted.delete('tamara');
+  }
+  qr.acceptedPayments = [...accepted];
+  tenant.markModified('settings');
+  tenant.markModified('settings.restaurant');
+  return true;
+}
+
+async function syncWhatsAppFromApp(tenant, appId, config = {}, enabled = true) {
+  if (appId !== 'whatsapp_cloud_auto') return false;
+  const autoSendInvoices = enabled && config.autoSendInvoices !== false;
+  const autoNotifyOrderStatus = enabled && config.autoNotifyOrderStatus !== false;
+
+  let existing = await WhatsAppConfig.findOne({ tenantId: tenant._id });
+  if (!existing) {
+    existing = new WhatsAppConfig({
+      tenantId: tenant._id,
+      webhookVerifyToken: crypto.randomBytes(24).toString('hex'),
+      connectionStatus: 'action_required',
+      isActive: false,
+    });
+  }
+  existing.autoSendInvoices = autoSendInvoices;
+  existing.autoNotifyOrderStatus = autoNotifyOrderStatus;
+  if (!existing.webhookVerifyToken) {
+    existing.webhookVerifyToken = crypto.randomBytes(24).toString('hex');
+  }
+  if (!existing.accessToken || !existing.phoneNumberId) {
+    existing.connectionStatus = enabled ? 'action_required' : existing.connectionStatus;
+  }
+  await existing.save();
+
+  if (!tenant.settings) tenant.settings = {};
+  tenant.settings.invoiceWhatsappAutoSend = autoSendInvoices;
+  tenant.markModified('settings');
+  return true;
+}
 
 const getAppPrice = (appDef, billingCycle = 'monthly') => {
   const cycle = billingCycle === 'yearly' ? 'yearly' : 'monthly';
@@ -118,21 +211,9 @@ export const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}
     tenant.markModified('subscription');
   }
 
-  const courierKey = COURIER_APP_MAP[appId];
-  if (courierKey) {
-    if (!tenant.ecommerce) tenant.ecommerce = {};
-    if (!tenant.ecommerce.couriers) tenant.ecommerce.couriers = {};
-    const current = tenant.ecommerce.couriers[courierKey] || {};
-    tenant.ecommerce.couriers[courierKey] = {
-      ...current,
-      enabled: true,
-      environment: appConfig.config?.environment || current.environment || 'sandbox',
-      accountNumber: appConfig.config?.accountNumber || current.accountNumber || '',
-      apiKey: appConfig.config?.apiKey || current.apiKey || '',
-      apiSecret: appConfig.config?.apiSecret || current.apiSecret || '',
-    };
-    tenant.markModified('ecommerce');
-  }
+  syncCourierFromApp(tenant, appId, appConfig.config || {}, true);
+  syncBnplFromApp(tenant, appId, appConfig.config || {}, true);
+  await syncWhatsAppFromApp(tenant, appId, appConfig.config || {}, true);
 
   let currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
   if (appDef.businessTypeGrant && !currentTypes.includes(appDef.businessTypeGrant)) {
@@ -1118,38 +1199,42 @@ export const DEFAULT_APP_CATALOG = [
   },
   {
     appId: 'whatsapp_cloud_auto',
-    nameEn: 'WhatsApp Cloud Business Automation',
-    nameAr: 'أتمتة رسائل واتساب السحابية الذكية',
-    taglineEn: 'Auto-dispatch e-invoices, job card updates, order tracking, and marketing notifications.',
-    taglineAr: 'إرسال الفواتير الإلكترونية، إشعارات أوامر الإنتاج، والتتبع التلقائي للعملاء.',
-    descriptionEn: 'Official Meta WhatsApp Cloud API integration: send PDF invoice links, instant payment receipts, order preparation updates, and automated reminders with zero risk of phone number bans.',
-    descriptionAr: 'ربط سحابي رسمي لإرسال روابط الفواتير وإشعارات الجاهزية للعملاء وحالة الإنتاج بضغطة واحدة.',
+    nameEn: 'WhatsApp Business Cloud API',
+    nameAr: 'واتساب للأعمال — واجهة Meta الرسمية',
+    taglineEn: 'Official Meta Cloud API: connect your WABA, auto-send signed invoices as PDF, and run a business inbox.',
+    taglineAr: 'واجهة ميتا الرسمية: اربط حساب واتساب للأعمال، وأرسل الفواتير PDF تلقائياً، وأدر صندوق المحادثات.',
+    descriptionEn: 'Connect WhatsApp using Meta’s official Cloud API — not QR or unofficial clients. Create a Meta app, add a WhatsApp Business phone, generate a permanent system-user token, subscribe webhooks, and approve UTILITY invoice templates. Maqder then sends the invoice PDF automatically after approval or ZATCA signing (session document inside 24 hours, approved template outside the window).',
+    descriptionAr: 'اربط واتساب عبر واجهة Cloud API الرسمية من ميتا وليس عبر رمز QR. أنشئ تطبيقاً في ميتا، أضف رقم واتساب للأعمال، وأنشئ رمز نظام دائم، ثم اشترك في الويب هوك واعتمد قوالب الفواتير. بعدها يرسل مقدر ملف PDF تلقائياً بعد الاعتماد أو التوقيع.',
     category: 'automation_comm',
     appType: 'automation_comm',
     icon: 'whatsapp',
-    version: '3.0.1',
-    downloadSize: '6.8 MB',
+    version: '4.0.0',
+    downloadSize: '7.2 MB',
     author: 'Maqder Connect',
-    rating: 4.96,
-    reviewsCount: 520,
+    rating: 4.98,
+    reviewsCount: 612,
     pricingTier: 'free',
-    badge: 'Meta Verified',
+    badge: 'Official Meta',
     defaultRoute: '/app/dashboard/whatsapp',
     featuresEn: [
-      'Official Meta WhatsApp Cloud API Webhooks',
-      'Dynamic Template Variables & Auto-PDF Attachment',
-      'Interactive Reply Buttons & List Messages',
-      'Multi-Agent Customer Inbox with Delivery Status'
+      'Official Cloud API setup wizard with Meta documentation links',
+      'Permanent system-user token, Phone Number ID, and WABA ID',
+      'Webhook URL + verify token with HMAC (App Secret) support',
+      'Auto-send invoice PDF: 24h session document or approved UTILITY template',
+      'Bilingual maqder_invoice / maqder_invoice_ar templates with DOCUMENT header',
+      'Order-status notifications, quality rating, and business inbox'
     ],
     featuresAr: [
-      'ربط رسمي مع واجهة WhatsApp Cloud API',
-      'قوالب رسائل ديناميكية مع إرفاق روابط PDF للفواتير',
-      'أزرار تفاعلية وقوائم استجابة سريعة',
-      'صندوق محادثات موحد مع مؤشرات وصول الرسائل'
+      'معالج إعداد رسمي مع روابط وثائق ميتا',
+      'رمز نظام دائم ومعرّف الرقم ومعرّف حساب واتساب للأعمال',
+      'رابط ويب هوك ورمز تحقق مع دعم توقيع HMAC',
+      'إرسال فاتورة PDF تلقائياً داخل نافذة 24 ساعة أو عبر قالب معتمد',
+      'قوالب ثنائية اللغة مع رأس مستند PDF',
+      'إشعارات حالة الطلب وصندوق محادثات ومؤشر الجودة'
     ],
     configSchema: [
-      { key: 'autoSendInvoices', labelEn: 'Auto-send WhatsApp message on invoice completion', labelAr: 'إرسال رسالة واتساب تلقائياً عند إصدار الفاتورة', type: 'boolean', defaultValue: true },
-      { key: 'autoNotifyOrderStatus', labelEn: 'Auto-notify on order ready or dispatch', labelAr: 'إشعار العميل عند جاهزية الطلب أو الإنتاج', type: 'boolean', defaultValue: true }
+      { key: 'autoSendInvoices', labelEn: 'Auto-send invoice PDF on approval or ZATCA sign', labelAr: 'إرسال فاتورة PDF تلقائياً عند الاعتماد أو التوقيع', type: 'boolean', defaultValue: true },
+      { key: 'autoNotifyOrderStatus', labelEn: 'Auto-notify customers when an order is ready or dispatched', labelAr: 'إشعار العميل عند جاهزية الطلب أو الشحن', type: 'boolean', defaultValue: true }
     ]
   },
   {
@@ -1425,8 +1510,8 @@ export const DEFAULT_APP_CATALOG = [
     appId: 'multicourier_shipping',
     nameEn: 'Multi-Courier Saudi Shipping Gateway',
     nameAr: 'بوابة الشحن والربط مع شركات النقل والتوصيل',
-    taglineEn: 'One-click AWB shipping label generation with SMSA, Aramex, Torod, and SPL.',
-    taglineAr: 'توليد بوالص الشحن التلقائية مع سمسا، أرامكس، سبل، وطرود بضغطة زر.',
+    taglineEn: 'One-click AWB shipping labels with SMSA, Aramex, SPL, FedEx, DHL, UPS, and TNT.',
+    taglineAr: 'توليد بوالص الشحن التلقائية مع سمسا وأرامكس وسبل وفيديكس ودي إتش إل ويو بي إس وتي إن تي.',
     descriptionEn: 'Integrated logistics engine connecting e-commerce, wholesale deliveries, and manufacturing fulfillment to leading Saudi couriers with live tracking webhook updates.',
     descriptionAr: 'ربط مباشر لطباعة بوالص الشحن وتتبع الشحنات مع كبرى شركات النقل في المملكة.',
     category: 'logistics',
@@ -1453,7 +1538,7 @@ export const DEFAULT_APP_CATALOG = [
       'مطابقة وتسوية مبالغ الدفع عند الاستلام (COD)'
     ],
     configSchema: [
-      { key: 'defaultCourier', labelEn: 'Default Primary Courier', labelAr: 'شركة الشحن الافتراضية', type: 'select', defaultValue: 'smsa', options: [{ value: 'smsa', labelEn: 'SMSA Express', labelAr: 'سمسا إكسبريس' }, { value: 'aramex', labelEn: 'Aramex', labelAr: 'أرامكس' }, { value: 'spl', labelEn: 'Saudi Post (SPL)', labelAr: 'البريد السعودي (سبل)' }] }
+      { key: 'defaultCourier', labelEn: 'Default Primary Courier', labelAr: 'شركة الشحن الافتراضية', type: 'select', defaultValue: 'smsa', options: [{ value: 'smsa', labelEn: 'SMSA Express', labelAr: 'سمسا إكسبريس' }, { value: 'aramex', labelEn: 'Aramex', labelAr: 'أرامكس' }, { value: 'spl', labelEn: 'Saudi Post (SPL)', labelAr: 'البريد السعودي (سبل)' }, { value: 'fedex', labelEn: 'FedEx', labelAr: 'فيديكس' }, { value: 'dhl', labelEn: 'DHL Express', labelAr: 'دي إتش إل' }, { value: 'ups', labelEn: 'UPS', labelAr: 'يو بي إس' }, { value: 'tnt', labelEn: 'TNT Express', labelAr: 'تي إن تي' }] }
     ]
   },
   // ── Government Integration Apps ────────────────────────────────────────────────
@@ -1766,6 +1851,7 @@ export const DEFAULT_APP_CATALOG = [
   },
   ...DELIVERY_PARTNER_APPS,
   ...LOGISTICS_PARTNER_APPS,
+  ...BNPL_PARTNER_APPS,
 ];
 
 // Helper: Ensure default apps catalog is in DB on demand
@@ -2143,6 +2229,8 @@ export const applyAppUninstall = async ({ tenant, appId }) => {
     tenant.ecommerce.couriers[courierKey].enabled = false;
     tenant.markModified('ecommerce');
   }
+  syncBnplFromApp(tenant, appId, {}, false);
+  await syncWhatsAppFromApp(tenant, appId, {}, false);
 
   await tenant.save();
   return tenant;
@@ -2193,6 +2281,9 @@ router.post('/apps/:appId/toggle', protect, async (req, res) => {
 
     if (installedApps[appId].isEnabled) {
       applyAppEntitlements(tenant, appId);
+      syncCourierFromApp(tenant, appId, installedApps[appId].config || {}, true);
+      syncBnplFromApp(tenant, appId, installedApps[appId].config || {}, true);
+      await syncWhatsAppFromApp(tenant, appId, installedApps[appId].config || {}, true);
     } else if (isDeliveryPartnerApp(appId)) {
       const remaining = ALL_DELIVERY_APP_IDS.some((id) =>
         id !== appId && installedApps[id]?.isInstalled && installedApps[id]?.isEnabled !== false
@@ -2200,6 +2291,9 @@ router.post('/apps/:appId/toggle', protect, async (req, res) => {
       if (!remaining) revokeAppEntitlements(tenant, 'delivery_platforms');
     } else {
       revokeAppEntitlements(tenant, appId);
+      syncCourierFromApp(tenant, appId, installedApps[appId].config || {}, false);
+      syncBnplFromApp(tenant, appId, installedApps[appId].config || {}, false);
+      await syncWhatsAppFromApp(tenant, appId, installedApps[appId].config || {}, false);
     }
 
     await tenant.save();
@@ -2234,6 +2328,9 @@ router.put('/apps/:appId/settings', protect, async (req, res) => {
     tenant.settings.installedApps = installedApps;
     tenant.markModified('settings');
     tenant.markModified('settings.installedApps');
+    syncCourierFromApp(tenant, appId, installedApps[appId].config || {}, installedApps[appId].isEnabled !== false);
+    syncBnplFromApp(tenant, appId, installedApps[appId].config || {}, installedApps[appId].isEnabled !== false);
+    await syncWhatsAppFromApp(tenant, appId, installedApps[appId].config || {}, installedApps[appId].isEnabled !== false);
     await tenant.save();
 
     res.json({

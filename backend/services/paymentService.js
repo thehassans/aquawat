@@ -7,6 +7,7 @@
  *   - refund(paymentId, amount)
  */
 import crypto from 'crypto';
+import { verifyTabbyWebhook, verifyTamaraWebhook } from '../utils/webhookAuth.js';
 
 // --- Moyasar ---
 const moyasarAdapter = {
@@ -315,11 +316,262 @@ const stripeAdapter = {
   },
 };
 
+function ksaPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '966500000000';
+  if (digits.startsWith('966')) return digits;
+  if (digits.startsWith('0')) return `966${digits.slice(1)}`;
+  if (digits.length === 9) return `966${digits}`;
+  return digits;
+}
+
+function ksaCountry(value) {
+  const raw = String(value || 'SA').trim();
+  if (raw.length === 2) return raw.toUpperCase();
+  if (/saudi/i.test(raw)) return 'SA';
+  return 'SA';
+}
+
+function tamaraBase(config) {
+  return config.environment === 'live' ? 'https://api.tamara.co' : 'https://api-sandbox.tamara.co';
+}
+
+function mapBnplStatus(status) {
+  const s = String(status || '').toLowerCase();
+  if (['captured', 'closed', 'fully_captured', 'approved', 'paid'].includes(s)) return 'paid';
+  if (['authorized', 'authorised', 'order_approved'].includes(s)) return 'authorized';
+  if (['rejected', 'expired', 'canceled', 'cancelled', 'declined', 'failed'].includes(s)) return 'failed';
+  if (['refunded', 'fully_refunded'].includes(s)) return 'refunded';
+  return 'pending';
+}
+
+async function readPaymentJson(res, label) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data.message || data.errors?.[0]?.message || data.error || res.status;
+    throw new Error(`${label} error: ${msg}`);
+  }
+  return data;
+}
+
+const tabbyAdapter = {
+  async createCheckoutSession({ amount, currency, orderId, orderNumber, customer, items, successUrl, cancelUrl, config }) {
+    const origin = (() => {
+      try { return new URL(successUrl).origin; } catch { return ''; }
+    })();
+    const lineItems = (items || []).map((item) => ({
+      title: item.productTitle || item.name || 'Item',
+      description: item.variantLabel || '',
+      quantity: item.quantity || 1,
+      unit_price: String(item.price || item.unitPrice || amount),
+      category: 'general',
+    }));
+    const body = {
+      payment: {
+        amount: String(Number(amount).toFixed(2)),
+        currency: (currency || 'SAR').toUpperCase(),
+        description: `Order ${orderNumber}`,
+        buyer: {
+          phone: ksaPhone(customer?.phone),
+          email: customer?.email || '',
+          name: customer?.name || '',
+        },
+        buyer_history: { registered_since: new Date().toISOString().slice(0, 10), loyalty_level: 0 },
+        order: {
+          reference_id: orderNumber,
+          items: lineItems.length ? lineItems : [{ title: `Order ${orderNumber}`, quantity: 1, unit_price: String(Number(amount).toFixed(2)), category: 'general' }],
+        },
+        shipping_address: {
+          city: customer?.city || 'Riyadh',
+          address: customer?.addressLine1 || 'KSA',
+          zip: customer?.postalCode || '',
+        },
+      },
+      lang: 'ar',
+      merchant_code: config.merchantId || '',
+      merchant_urls: {
+        success: successUrl,
+        cancel: cancelUrl,
+        failure: cancelUrl,
+        notification: origin ? `${origin}/api/ecommerce/fulfillment/webhook/tabby` : '',
+      },
+    };
+    const res = await fetch('https://api.tabby.ai/api/v2/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.secretKey}` },
+      body: JSON.stringify(body),
+    });
+    const data = await readPaymentJson(res, 'Tabby');
+    if (String(data.status || '').toLowerCase() === 'rejected') {
+      throw new Error('Tabby declined this order. Try another payment method.');
+    }
+    const url = data.configuration?.available_products?.installments?.[0]?.web_url
+      || data.configuration?.available_products?.pay_later?.[0]?.web_url
+      || data.payment_url
+      || data.url;
+    if (!url) throw new Error('Tabby is not available for this customer or amount.');
+    return {
+      providerPaymentId: data.payment?.id || data.id,
+      checkoutUrl: url,
+      status: 'pending',
+      raw: data,
+    };
+  },
+
+  verifyWebhook({ headers, rawBody, config }) {
+    return verifyTabbyWebhook({ headers, rawBody, body: {} }, config.secretKey);
+  },
+
+  async getPaymentStatus(paymentId, config) {
+    const res = await fetch(`https://api.tabby.ai/api/v2/payments/${encodeURIComponent(paymentId)}`, {
+      headers: { Authorization: `Bearer ${config.secretKey}` },
+    });
+    const data = await readPaymentJson(res, 'Tabby status');
+    return { status: mapBnplStatus(data.status), raw: data };
+  },
+
+  async capture(paymentId, amount, config) {
+    const res = await fetch(`https://api.tabby.ai/api/v2/payments/${encodeURIComponent(paymentId)}/captures`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.secretKey}` },
+      body: JSON.stringify({ amount: String(Number(amount).toFixed(2)) }),
+    });
+    const data = await readPaymentJson(res, 'Tabby capture');
+    return { status: mapBnplStatus(data.status || 'captured'), raw: data };
+  },
+
+  async refund(paymentId, amount, config) {
+    const res = await fetch(`https://api.tabby.ai/api/v2/payments/${encodeURIComponent(paymentId)}/refunds`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.secretKey}` },
+      body: JSON.stringify({ amount: String(Number(amount).toFixed(2)) }),
+    });
+    const data = await readPaymentJson(res, 'Tabby refund');
+    return { status: mapBnplStatus(data.status || 'refunded'), raw: data };
+  },
+};
+
+const tamaraAdapter = {
+  async createCheckoutSession({ amount, currency, orderId, orderNumber, customer, items, successUrl, cancelUrl, config }) {
+    const origin = (() => {
+      try { return new URL(successUrl).origin; } catch { return ''; }
+    })();
+    const cur = (currency || 'SAR').toUpperCase();
+    const money = (value) => ({ amount: Number(Number(value).toFixed(2)), currency: cur });
+    const lineItems = (items || []).map((item, idx) => ({
+      name: item.productTitle || item.name || 'Item',
+      type: 'Physical',
+      reference_id: String(item.sku || item.productId || idx),
+      sku: item.sku || String(item.productId || idx),
+      quantity: item.quantity || 1,
+      unit_price: money(item.price || item.unitPrice || amount),
+      total_amount: money((item.price || item.unitPrice || amount) * (item.quantity || 1)),
+      tax_amount: money(item.taxAmount || 0),
+      discount_amount: money(0),
+    }));
+    const body = {
+      order_reference_id: orderNumber,
+      total_amount: money(amount),
+      description: `Order ${orderNumber}`,
+      country_code: ksaCountry(customer?.country),
+      payment_type: 'PAY_BY_INSTALMENTS',
+      locale: 'ar_SA',
+      items: lineItems.length ? lineItems : [{
+        name: `Order ${orderNumber}`,
+        type: 'Physical',
+        reference_id: orderId,
+        sku: orderNumber,
+        quantity: 1,
+        unit_price: money(amount),
+        total_amount: money(amount),
+        tax_amount: money(0),
+        discount_amount: money(0),
+      }],
+      consumer: {
+        first_name: customer?.name || 'Customer',
+        last_name: '',
+        phone_number: ksaPhone(customer?.phone),
+        email: customer?.email || '',
+      },
+      billing_address: {
+        first_name: customer?.name || 'Customer',
+        last_name: '',
+        line1: customer?.addressLine1 || 'KSA',
+        city: customer?.city || 'Riyadh',
+        country_code: ksaCountry(customer?.country),
+        phone_number: ksaPhone(customer?.phone),
+      },
+      shipping_address: {
+        first_name: customer?.name || 'Customer',
+        last_name: '',
+        line1: customer?.addressLine1 || 'KSA',
+        city: customer?.city || 'Riyadh',
+        country_code: ksaCountry(customer?.country),
+        phone_number: ksaPhone(customer?.phone),
+      },
+      merchant_url: {
+        success: successUrl,
+        failure: cancelUrl,
+        cancel: cancelUrl,
+        notification: origin ? `${origin}/api/ecommerce/fulfillment/webhook/tamara` : '',
+      },
+    };
+    const res = await fetch(`${tamaraBase(config)}/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.secretKey}` },
+      body: JSON.stringify(body),
+    });
+    const data = await readPaymentJson(res, 'Tamara');
+    const url = data.checkout_url || data.url;
+    if (!url) throw new Error('Tamara is not available for this customer or amount.');
+    return {
+      providerPaymentId: data.order_id || data.checkout_id,
+      checkoutUrl: url,
+      status: 'pending',
+      raw: data,
+    };
+  },
+
+  verifyWebhook({ headers, rawBody, config }) {
+    return verifyTamaraWebhook({ headers, rawBody, body: {} }, config.webhookSecret || config.secretKey);
+  },
+
+  async getPaymentStatus(orderId, config) {
+    const res = await fetch(`${tamaraBase(config)}/orders/${encodeURIComponent(orderId)}`, {
+      headers: { Authorization: `Bearer ${config.secretKey}` },
+    });
+    const data = await readPaymentJson(res, 'Tamara status');
+    return { status: mapBnplStatus(data.status), raw: data };
+  },
+
+  async capture(orderId, amount, config) {
+    const res = await fetch(`${tamaraBase(config)}/orders/${encodeURIComponent(orderId)}/capture`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.secretKey}` },
+      body: JSON.stringify({ total_amount: { amount: Number(Number(amount).toFixed(2)), currency: 'SAR' } }),
+    });
+    const data = await readPaymentJson(res, 'Tamara capture');
+    return { status: mapBnplStatus(data.status || 'fully_captured'), raw: data };
+  },
+
+  async refund(orderId, amount, config) {
+    const res = await fetch(`${tamaraBase(config)}/orders/${encodeURIComponent(orderId)}/refund`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.secretKey}` },
+      body: JSON.stringify({ total_amount: { amount: Number(Number(amount).toFixed(2)), currency: 'SAR' } }),
+    });
+    const data = await readPaymentJson(res, 'Tamara refund');
+    return { status: mapBnplStatus(data.status || 'refunded'), raw: data };
+  },
+};
+
 export const paymentAdapters = {
   moyasar: moyasarAdapter,
   tap: tapAdapter,
   paytabs: paytabsAdapter,
   stripe: stripeAdapter,
+  tabby: tabbyAdapter,
+  tamara: tamaraAdapter,
 };
 
 export function getPaymentAdapter(provider) {
@@ -328,7 +580,7 @@ export function getPaymentAdapter(provider) {
 
 /**
  * Create a checkout session with the tenant's configured payment provider.
- * @param {string} provider - 'moyasar' | 'tap' | 'paytabs' | 'stripe'
+ * @param {string} provider - 'moyasar' | 'tap' | 'paytabs' | 'stripe' | 'tabby' | 'tamara'
  * @param {object} params - Checkout parameters
  * @param {object} config - Provider config from tenant.ecommerce.payments[provider]
  */
@@ -338,6 +590,13 @@ export async function createCheckoutSession(provider, params, config) {
   if (!config?.enabled) throw new Error(`${provider} is not enabled`);
   if (!config?.secretKey) throw new Error(`${provider} secret key not configured`);
   return adapter.createCheckoutSession({ ...params, config });
+}
+
+export async function capturePayment(provider, paymentId, amount, config) {
+  const adapter = getPaymentAdapter(provider);
+  if (!adapter) throw new Error(`Unknown payment provider: ${provider}`);
+  if (typeof adapter.capture !== 'function') return { status: 'paid' };
+  return adapter.capture(paymentId, amount, config);
 }
 
 /**

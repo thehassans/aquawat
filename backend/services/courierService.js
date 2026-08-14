@@ -417,6 +417,338 @@ const splAdapter = {
   },
 };
 
+function parcelWeight(items) {
+  const kg = (items || []).reduce((sum, i) => sum + (Number(i.weight) || 0.5), 0);
+  return Math.max(0.5, Number(kg.toFixed(2)));
+}
+
+function countryCode(value) {
+  if (!value) return 'SA';
+  const raw = String(value).trim();
+  if (raw.length === 2) return raw.toUpperCase();
+  if (/saudi/i.test(raw)) return 'SA';
+  return raw.slice(0, 2).toUpperCase() || 'SA';
+}
+
+async function readJson(res, label) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`${label} error: ${res.status} ${data.message || data.errors || ''}`.trim());
+  return data;
+}
+
+async function fedexAccessToken(config) {
+  const base = config.environment === 'production' ? 'https://apis.fedex.com' : 'https://apis-sandbox.fedex.com';
+  const res = await fetch(`${base}/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: config.apiKey || '',
+      client_secret: config.apiSecret || '',
+    }),
+  });
+  const data = await readJson(res, 'FedEx auth');
+  if (!data.access_token) throw new Error('FedEx auth: missing access_token');
+  return { token: data.access_token, base };
+}
+
+const fedexAdapter = {
+  async createShipment({ order, customer, items, config }) {
+    const { token, base } = await fedexAccessToken(config);
+    const weight = parcelWeight(items);
+    const body = {
+      labelResponseOptions: 'URL_ONLY',
+      requestedShipment: {
+        shipDatestamp: new Date().toISOString().slice(0, 10),
+        pickupType: 'USE_SCHEDULED_PICKUP',
+        serviceType: countryCode(customer.country) === 'SA' ? 'FEDEX_EXPRESS_SAVER' : 'INTERNATIONAL_PRIORITY',
+        packagingType: 'YOUR_PACKAGING',
+        shipper: {
+          contact: { personName: config.accountNumber || 'Store', phoneNumber: '0500000000', companyName: 'Store' },
+          address: { streetLines: ['KSA'], city: 'Riyadh', countryCode: 'SA' },
+        },
+        recipients: [{
+          contact: { personName: customer.name, phoneNumber: customer.phone || '0500000000' },
+          address: {
+            streetLines: [customer.addressLine1 || 'Address'],
+            city: customer.city || 'Riyadh',
+            postalCode: customer.postalCode || '',
+            countryCode: countryCode(customer.country),
+          },
+        }],
+        shippingChargesPayment: {
+          paymentType: 'SENDER',
+          payor: { responsibleParty: { accountNumber: { value: config.accountNumber || '' } } },
+        },
+        labelSpecification: { imageType: 'PDF', labelStockType: 'STOCK_4X6' },
+        requestedPackageLineItems: [{ weight: { units: 'KG', value: weight } }],
+      },
+      accountNumber: { value: config.accountNumber || '' },
+    };
+    const res = await fetch(`${base}/ship/v1/shipments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const data = await readJson(res, 'FedEx');
+    const shipment = data.output?.transactionShipments?.[0] || {};
+    const piece = shipment.pieceResponses?.[0] || {};
+    return {
+      trackingNumber: piece.trackingNumber || shipment.masterTrackingNumber || '',
+      shipmentId: shipment.masterTrackingNumber || piece.trackingNumber || '',
+      labelUrl: piece.packageDocuments?.[0]?.url || shipment.shipmentDocuments?.[0]?.url || null,
+      raw: data,
+    };
+  },
+
+  async trackShipment(trackingNumber, config) {
+    const { token, base } = await fedexAccessToken(config);
+    const res = await fetch(`${base}/track/v1/trackingnumbers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ trackingInfo: [{ trackingNumberInfo: { trackingNumber } }] }),
+    });
+    const data = await readJson(res, 'FedEx track');
+    const complete = data.output?.completeTrackResults?.[0]?.trackResults?.[0] || {};
+    return {
+      status: complete.latestStatusDetail?.description || 'unknown',
+      events: complete.scanEvents || [],
+      raw: data,
+    };
+  },
+
+  async cancelShipment(shipmentId, config) {
+    const { token, base } = await fedexAccessToken(config);
+    const res = await fetch(`${base}/ship/v1/shipments/cancel`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ accountNumber: { value: config.accountNumber || '' }, trackingNumber: shipmentId }),
+    });
+    await readJson(res, 'FedEx cancel');
+    return { success: true };
+  },
+};
+
+function dhlBase(config) {
+  return config.environment === 'production'
+    ? 'https://express.api.dhl.com/mydhlapi'
+    : 'https://express.api.dhl.com/mydhlapi/test';
+}
+
+function dhlHeaders(config) {
+  const token = Buffer.from(`${config.apiKey || ''}:${config.apiSecret || ''}`).toString('base64');
+  return { 'Content-Type': 'application/json', Authorization: `Basic ${token}` };
+}
+
+const dhlAdapter = {
+  async createShipment({ order, customer, items, config }) {
+    const weight = parcelWeight(items);
+    const when = new Date(Date.now() + 36e5).toISOString().replace(/\.\d{3}Z$/, ' GMT+03:00');
+    const body = {
+      plannedShippingDateAndTime: when,
+      pickup: { isRequested: false },
+      productCode: countryCode(customer.country) === 'SA' ? 'N' : 'P',
+      accounts: [{ typeCode: 'shipper', number: config.accountNumber || '' }],
+      customerDetails: {
+        shipperDetails: {
+          postalAddress: { cityName: 'Riyadh', countryCode: 'SA', postalCode: '11564', addressLine1: 'KSA' },
+          contactInformation: { phone: '0500000000', companyName: 'Store', fullName: 'Store' },
+        },
+        receiverDetails: {
+          postalAddress: {
+            cityName: customer.city || 'Riyadh',
+            countryCode: countryCode(customer.country),
+            postalCode: customer.postalCode || '11564',
+            addressLine1: customer.addressLine1 || 'Address',
+          },
+          contactInformation: { phone: customer.phone || '0500000000', companyName: customer.name, fullName: customer.name },
+        },
+      },
+      content: {
+        packages: [{ weight, dimensions: { length: 10, width: 10, height: 10 } }],
+        isCustomsDeclarable: false,
+        description: items.map((i) => i.productTitle).filter(Boolean).join(', ').slice(0, 70) || order.orderNumber,
+        incoterm: 'DAP',
+        unitOfMeasurement: 'metric',
+      },
+      outputImageProperties: { encodingFormat: 'pdf', imageOptions: [{ typeCode: 'label', templateName: 'ECOM26_84_001' }] },
+    };
+    const res = await fetch(`${dhlBase(config)}/shipments`, {
+      method: 'POST',
+      headers: dhlHeaders(config),
+      body: JSON.stringify(body),
+    });
+    const data = await readJson(res, 'DHL');
+    return {
+      trackingNumber: data.shipmentTrackingNumber || data.packages?.[0]?.trackingNumber || '',
+      shipmentId: data.shipmentTrackingNumber || '',
+      labelUrl: data.documents?.[0]?.url || data.documents?.[0]?.content || null,
+      raw: data,
+    };
+  },
+
+  async trackShipment(trackingNumber, config) {
+    const res = await fetch(`${dhlBase(config)}/shipments/${encodeURIComponent(trackingNumber)}/tracking`, {
+      headers: dhlHeaders(config),
+    });
+    const data = await readJson(res, 'DHL track');
+    const shipment = data.shipments?.[0] || data;
+    return {
+      status: shipment.status || shipment.events?.[0]?.description || 'unknown',
+      events: shipment.events || [],
+      raw: data,
+    };
+  },
+
+  async cancelShipment(shipmentId, config) {
+    const res = await fetch(`${dhlBase(config)}/shipments/${encodeURIComponent(shipmentId)}`, {
+      method: 'DELETE',
+      headers: dhlHeaders(config),
+    });
+    if (!res.ok && res.status !== 204) await readJson(res, 'DHL cancel');
+    return { success: true };
+  },
+};
+
+async function upsAccessToken(config) {
+  const base = config.environment === 'production' ? 'https://onlinetools.ups.com' : 'https://wwwcie.ups.com';
+  const token = Buffer.from(`${config.apiKey || ''}:${config.apiSecret || ''}`).toString('base64');
+  const res = await fetch(`${base}/security/v1/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${token}` },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+  const data = await readJson(res, 'UPS auth');
+  if (!data.access_token) throw new Error('UPS auth: missing access_token');
+  return { token: data.access_token, base };
+}
+
+const upsAdapter = {
+  async createShipment({ order, customer, items, config }) {
+    const { token, base } = await upsAccessToken(config);
+    const weight = parcelWeight(items);
+    const body = {
+      ShipmentRequest: {
+        Request: { RequestOption: 'nonvalidate', SubVersion: '1801', TransactionReference: { CustomerContext: order.orderNumber } },
+        Shipment: {
+          Description: items.map((i) => i.productTitle).filter(Boolean).join(', ').slice(0, 50) || order.orderNumber,
+          Shipper: {
+            Name: 'Store',
+            ShipperNumber: config.accountNumber || '',
+            Address: { AddressLine: ['KSA'], City: 'Riyadh', CountryCode: 'SA' },
+            Phone: { Number: '0500000000' },
+          },
+          ShipTo: {
+            Name: customer.name,
+            Address: { AddressLine: [customer.addressLine1 || 'Address'], City: customer.city || 'Riyadh', CountryCode: countryCode(customer.country) },
+            Phone: { Number: customer.phone || '0500000000' },
+          },
+          PaymentInformation: { ShipmentCharge: { Type: '01', BillShipper: { AccountNumber: config.accountNumber || '' } } },
+          Service: { Code: '65', Description: 'UPS Saver' },
+          Package: {
+            Packaging: { Code: '02' },
+            PackageWeight: { UnitOfMeasurement: { Code: 'KGS' }, Weight: String(weight) },
+          },
+        },
+        LabelSpecification: { LabelImageFormat: { Code: 'PDF' }, LabelStockSize: { Height: '6', Width: '4' } },
+      },
+    };
+    const res = await fetch(`${base}/api/shipments/v2403/ship`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, transId: order.orderNumber, transactionSrc: 'maqder' },
+      body: JSON.stringify(body),
+    });
+    const data = await readJson(res, 'UPS');
+    const result = data.ShipmentResponse?.ShipmentResults || {};
+    const pkg = result.PackageResults || {};
+    return {
+      trackingNumber: pkg.TrackingNumber || result.ShipmentIdentificationNumber || '',
+      shipmentId: result.ShipmentIdentificationNumber || pkg.TrackingNumber || '',
+      labelUrl: pkg.ShippingLabel?.GraphicImage || null,
+      raw: data,
+    };
+  },
+
+  async trackShipment(trackingNumber, config) {
+    const { token, base } = await upsAccessToken(config);
+    const res = await fetch(`${base}/api/track/v1/details/${encodeURIComponent(trackingNumber)}`, {
+      headers: { Authorization: `Bearer ${token}`, transId: trackingNumber, transactionSrc: 'maqder' },
+    });
+    const data = await readJson(res, 'UPS track');
+    const shipment = data.trackResponse?.shipment?.[0] || {};
+    const pkg = shipment.package?.[0] || {};
+    return {
+      status: pkg.currentStatus?.description || 'unknown',
+      events: pkg.activity || [],
+      raw: data,
+    };
+  },
+
+  async cancelShipment(shipmentId, config) {
+    const { token, base } = await upsAccessToken(config);
+    const res = await fetch(`${base}/api/shipments/v2403/void/cancel/${encodeURIComponent(shipmentId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}`, transId: shipmentId, transactionSrc: 'maqder' },
+    });
+    if (!res.ok && res.status !== 204) await readJson(res, 'UPS cancel');
+    return { success: true };
+  },
+};
+
+const tntAdapter = {
+  async createShipment({ order, customer, items, config }) {
+    const body = {
+      consignment: {
+        sender: { name: 'Store', country: 'SA', city: 'Riyadh' },
+        receiver: {
+          name: customer.name,
+          phone: customer.phone,
+          address: customer.addressLine1,
+          city: customer.city || 'Riyadh',
+          country: countryCode(customer.country),
+        },
+        reference: order.orderNumber,
+        pieces: items.length || 1,
+        weight: parcelWeight(items),
+        collectionDate: new Date().toISOString().slice(0, 10),
+        account: config.accountNumber || '',
+      },
+    };
+    const token = Buffer.from(`${config.apiKey || ''}:${config.apiSecret || ''}`).toString('base64');
+    const res = await fetch('https://express.tnt.com/expressconnect/shipping/ship', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${token}` },
+      body: JSON.stringify(body),
+    });
+    const data = await readJson(res, 'TNT');
+    return {
+      trackingNumber: data.consignmentNumber || data.trackingNumber || '',
+      shipmentId: data.consignmentNumber || '',
+      labelUrl: data.labelUrl || null,
+      raw: data,
+    };
+  },
+
+  async trackShipment(trackingNumber, config) {
+    const token = Buffer.from(`${config.apiKey || ''}:${config.apiSecret || ''}`).toString('base64');
+    const res = await fetch(`https://express.tnt.com/expressconnect/track.do?cons=${encodeURIComponent(trackingNumber)}`, {
+      headers: { Authorization: `Basic ${token}`, Accept: 'application/json' },
+    });
+    const data = await readJson(res, 'TNT track');
+    return { status: data.status || data.consignment?.status || 'unknown', events: data.events || [], raw: data };
+  },
+
+  async cancelShipment(shipmentId, config) {
+    const token = Buffer.from(`${config.apiKey || ''}:${config.apiSecret || ''}`).toString('base64');
+    const res = await fetch(`https://express.tnt.com/expressconnect/shipping/void/${encodeURIComponent(shipmentId)}`, {
+      method: 'POST',
+      headers: { Authorization: `Basic ${token}` },
+    });
+    if (!res.ok && res.status !== 204) await readJson(res, 'TNT cancel');
+    return { success: true };
+  },
+};
+
 export const courierAdapters = {
   smsa: smsaAdapter,
   aramex: aramexAdapter,
@@ -424,6 +756,10 @@ export const courierAdapters = {
   imile: imileAdapter,
   jnt: jntAdapter,
   spl: splAdapter,
+  fedex: fedexAdapter,
+  dhl: dhlAdapter,
+  ups: upsAdapter,
+  tnt: tntAdapter,
 };
 
 export function getCourierAdapter(provider) {

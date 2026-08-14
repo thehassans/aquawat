@@ -362,7 +362,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       title: language === 'ar' ? 'التواصل' : 'Communication',
       items: [
         { path: '/app/dashboard/communicate', icon: MessageSquare, label: language === 'ar' ? 'الرسائل' : 'Communicate', perm: { module: 'settings', action: 'read' } },
-        { path: '/app/dashboard/whatsapp', icon: MessageCircle, label: 'WhatsApp', perm: { module: 'settings', action: 'read' } },
+        { path: '/app/dashboard/whatsapp', icon: MessageCircle, label: 'WhatsApp', perm: { module: 'settings', action: 'read' }, requireApp: 'whatsapp_cloud_auto' },
         { path: '/app/dashboard/email', icon: Mail, label: language === 'ar' ? 'التسويق عبر البريد' : 'Email Marketing', perm: { module: 'settings', action: 'read' }, requireApp: 'email_suite' },
         { path: '/app/dashboard/sms', icon: Smartphone, label: language === 'ar' ? 'التسويق عبر الرسائل' : 'SMS Marketing', perm: { module: 'settings', action: 'read' }, requireApp: 'sms_marketing' },
       ]
@@ -385,7 +385,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'الشحن واللوجستيات' : 'Shipping & Logistics',
-      requireAnyApp: ['multicourier_shipping', 'smsa_express', 'aramex_shipping', 'jnt_express', 'naqel_express', 'imile_courier', 'spl_saudi_post'],
+      requireAnyApp: ['multicourier_shipping', 'smsa_express', 'aramex_shipping', 'jnt_express', 'naqel_express', 'imile_courier', 'spl_saudi_post', 'fedex_shipping', 'dhl_express', 'ups_shipping', 'tnt_express'],
       items: [
         { path: '/app/dashboard/logistics', icon: Truck, label: language === 'ar' ? 'شركات الشحن' : 'Couriers & Labels', perm: { module: 'settings', action: 'read' } },
       ]

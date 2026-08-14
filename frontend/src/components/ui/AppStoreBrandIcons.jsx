@@ -158,6 +158,31 @@ const ICONS = {
       <path d="M24 31l4.5 4.5L40 24" stroke="#B45309" strokeWidth="2.6" strokeLinecap="round" />
     </Tile>
   ),
+  fedex: (uid, className) => (
+    <Tile uid={uid} className={className} from="#4D148C" to="#7C3AED" glow="#4D148C" stroke="#DDD6FE">
+      <path d="M16 34h32" stroke="#FF6600" strokeWidth="5" strokeLinecap="round" />
+      <path d="M36 24l12 10-12 10" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 24h14" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round" />
+    </Tile>
+  ),
+  dhl: (uid, className) => (
+    <Tile uid={uid} className={className} from="#FFCC00" to="#F59E0B" glow="#D40511" stroke="#FEF08A">
+      <path d="M14 28h36M14 36h36" stroke="#D40511" strokeWidth="5" strokeLinecap="round" />
+      <path d="M22 22l8 20M34 22l8 20" stroke="#4A1C14" strokeWidth="2.4" strokeLinecap="round" />
+    </Tile>
+  ),
+  ups: (uid, className) => (
+    <Tile uid={uid} className={className} from="#351C15" to="#8B5A2B" glow="#351C15" stroke="#FDE68A">
+      <path d="M32 14l16 8v16c0 8-7 14-16 18-9-4-16-10-16-18V22l16-8z" fill="#FFB500" />
+      <path d="M32 24v16M26 30h12" stroke="#351C15" strokeWidth="2.8" strokeLinecap="round" />
+    </Tile>
+  ),
+  tnt: (uid, className) => (
+    <Tile uid={uid} className={className} from="#FF6600" to="#F97316" glow="#C2410C" stroke="#FED7AA">
+      <rect x="16" y="22" width="32" height="20" rx="4" fill="#FFFFFF" />
+      <path d="M22 32h6M32 26v12M42 26v12" stroke="#FF6600" strokeWidth="2.8" strokeLinecap="round" />
+    </Tile>
+  ),
   fbr: (uid, className) => (
     <Tile uid={uid} className={className} from="#01411C" to="#0B8A3C" glow="#016630" stroke="#86EFAC">
       <rect x="18" y="16" width="28" height="32" rx="4" fill="#FFFFFF" />
@@ -179,6 +204,25 @@ const ICONS = {
       <circle cx="44" cy="42" r="6" fill="#A855F7" />
     </Tile>
   ),
+  whatsapp: (uid, className) => (
+    <Tile uid={uid} className={className} from="#075E54" to="#25D366" glow="#128C7E" stroke="#A7F3D0">
+      <circle cx="32" cy="31" r="14" fill="#FFFFFF" />
+      <path d="M26.2 36.8l.7-2.5c-.5-.8-.8-1.8-.8-2.8 0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6c-1 0-2-.3-2.8-.8l-2.5.7.4-1.4z" fill="#25D366" />
+      <path d="M29.2 29.2c.2-.4.4-.4.6-.4h.5c.2 0 .4 0 .5.3l.7 1.7c.1.2 0 .4-.1.5l-.4.5c.6 1.1 1.6 2 2.8 2.6l.5-.4c.2-.1.4-.2.5-.1l1.7.7c.3.1.3.3.3.5v.5c0 .2 0 .4-.4.6-1.9.9-4.2.4-5.7-1.1-1.5-1.5-2-3.8-1.1-5.7z" fill="#075E54" />
+    </Tile>
+  ),
+  tabby: (uid, className) => (
+    <Tile uid={uid} className={className} from="#3EEDBF" to="#10B981" glow="#14B8A6" stroke="#A7F3D0">
+      <rect x="16" y="22" width="32" height="20" rx="6" fill="#111827" />
+      <path d="M22 32h8M34 28v8M42 32h-4" stroke="#3EEDBF" strokeWidth="2.6" strokeLinecap="round" />
+    </Tile>
+  ),
+  tamara: (uid, className) => (
+    <Tile uid={uid} className={className} from="#F0A985" to="#E11D48" glow="#F43F5E" stroke="#FECDD3">
+      <circle cx="32" cy="32" r="14" fill="#FFFFFF" />
+      <path d="M26 34c2 4 10 4 12 0M26 27h2M36 27h2" stroke="#E11D48" strokeWidth="2.4" strokeLinecap="round" />
+    </Tile>
+  ),
 }
 
 const APP_ID_MAP = {
@@ -198,6 +242,12 @@ const APP_ID_MAP = {
   naqel_express: 'naqel',
   imile_courier: 'imile',
   spl_saudi_post: 'spl',
+  fedex_shipping: 'fedex',
+  dhl_express: 'dhl',
+  ups_shipping: 'ups',
+  tnt_express: 'tnt',
+  tabby_bnpl: 'tabby',
+  tamara_bnpl: 'tamara',
   multicourier_shipping: 'smsa',
   hungerstation_delivery: 'hungerstation',
   jahez_delivery: 'jahez',
@@ -209,6 +259,7 @@ const APP_ID_MAP = {
   delivery_platforms: 'hungerstation',
   email_suite: 'email',
   sms_marketing: 'sms',
+  whatsapp_cloud_auto: 'whatsapp',
 }
 
 export function resolveAppStoreBrandIcon({ appId = '', icon = '', label = '', uid, className }) {

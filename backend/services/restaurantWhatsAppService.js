@@ -56,7 +56,7 @@ export async function sendRestaurantWhatsApp({ tenantId, phone, messageEn, messa
     return { sent: false, reason: 'No message content' };
   }
 
-  const url = `https://graph.facebook.com/v18.0/${config.phoneNumberId}/messages`;
+  const url = `https://graph.facebook.com/v21.0/${config.phoneNumberId}/messages`;
   const payload = {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',

@@ -13,6 +13,16 @@ import {
 } from '../models/WhatsApp.js';
 import whatsappService from '../services/whatsappService.js';
 import { verifyMetaHubSignature } from '../utils/webhookAuth.js';
+import {
+  testCloudConnection,
+  syncCloudTemplates,
+  createInvoiceTemplates,
+  serializeWhatsAppConfig,
+  sendInvoiceOnWhatsApp,
+  graphErrorMessage,
+  uploadMedia,
+  sendSessionDocument,
+} from '../services/whatsappCloudService.js';
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -25,7 +35,18 @@ const upload = multer({
 const router = express.Router();
 
 // Meta WhatsApp API base URL
-const WHATSAPP_API_URL = 'https://graph.facebook.com/v18.0';
+const WHATSAPP_API_URL = 'https://graph.facebook.com/v21.0';
+
+async function verifyIncomingWhatsAppWebhook(req) {
+  const platformSecret = process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET || '';
+  if (platformSecret && verifyMetaHubSignature(req, platformSecret)) return true;
+
+  const phoneNumberId = req.body?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
+  if (!phoneNumberId) return false;
+  const config = await WhatsAppConfig.findOne({ phoneNumberId }).select('appSecret');
+  if (config?.appSecret && verifyMetaHubSignature(req, config.appSecret)) return true;
+  return false;
+}
 
 // Helper: Get WhatsApp config for tenant
 async function getConfig(tenantId) {
@@ -62,9 +83,10 @@ router.get('/webhook', async (req, res) => {
   const challenge = req.query['hub.challenge'];
 
   // Find config with matching verify token
+  const platformToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || '';
   const config = await WhatsAppConfig.findOne({ webhookVerifyToken: token });
 
-  if (mode === 'subscribe' && config) {
+  if (mode === 'subscribe' && (config || (platformToken && token === platformToken))) {
     console.log('WhatsApp webhook verified');
     res.status(200).send(challenge);
   } else {
@@ -75,13 +97,16 @@ router.get('/webhook', async (req, res) => {
 // Webhook for incoming messages (POST)
 router.post('/webhook', async (req, res) => {
   try {
-    const appSecret = process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET || '';
-    if (!appSecret) {
-      console.error('WhatsApp webhook rejected: WHATSAPP_APP_SECRET not configured');
-      return res.sendStatus(503);
-    }
-    if (!verifyMetaHubSignature(req, appSecret)) {
-      return res.sendStatus(401);
+    const platformSecret = process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET || '';
+    const verified = await verifyIncomingWhatsAppWebhook(req);
+    if (!verified) {
+      if (!platformSecret) {
+        const phoneNumberId = req.body?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
+        const config = phoneNumberId ? await WhatsAppConfig.findOne({ phoneNumberId }).select('_id appSecret') : null;
+        if (!config) return res.sendStatus(401);
+      } else {
+        return res.sendStatus(401);
+      }
     }
 
     const body = req.body;
@@ -105,6 +130,25 @@ router.post('/webhook', async (req, res) => {
             // Process status updates
             for (const status of value.statuses || []) {
               await processStatusUpdate(config.tenantId, status);
+            }
+          }
+
+          if (change.field === 'message_template_status_update') {
+            const wabaId = String(entry.id || '');
+            const tenantConfig = wabaId
+              ? await WhatsAppConfig.findOne({ businessAccountId: wabaId })
+              : null;
+            if (tenantConfig) {
+              const name = change.value?.message_template_name || change.value?.name;
+              const language = change.value?.message_template_language || change.value?.language;
+              const rawStatus = String(change.value?.event || change.value?.message_template_status || '').toLowerCase();
+              const status = rawStatus.includes('approv') ? 'approved' : (rawStatus || 'pending');
+              if (name) {
+                await WhatsAppTemplate.findOneAndUpdate(
+                  { tenantId: tenantConfig.tenantId, name, ...(language ? { language } : {}) },
+                  { status, isActive: status === 'approved' }
+                );
+              }
             }
           }
         }
@@ -279,6 +323,54 @@ router.post('/client/send-pdf', upload.single('pdf'), async (req, res) => {
       cleanPhone = '966' + cleanPhone.substring(1);
     }
 
+    const cloud = await WhatsAppConfig.findOne({ tenantId: req.user.tenantId, isActive: true });
+    if (cloud?.accessToken && cloud?.phoneNumberId) {
+      try {
+        const mediaId = await uploadMedia(cloud, {
+          buffer: req.file.buffer,
+          filename: fileName || 'Invoice.pdf',
+          mimeType: req.file.mimetype || 'application/pdf',
+        });
+        const result = await sendSessionDocument(cloud, cleanPhone, {
+          mediaId,
+          filename: fileName || 'Invoice.pdf',
+          caption: caption || 'Here is your invoice.',
+        });
+
+        let contact = await WhatsAppContact.findOne({ tenantId: req.user.tenantId, phoneNumber: cleanPhone });
+        if (!contact) {
+          contact = await WhatsAppContact.create({
+            tenantId: req.user.tenantId,
+            phoneNumber: cleanPhone,
+            formattedPhone: `+${cleanPhone}`,
+            name: `+${cleanPhone}`
+          });
+        }
+
+        await WhatsAppMessage.create({
+          tenantId: req.user.tenantId,
+          contactId: contact._id,
+          waMessageId: result.messageId || Date.now().toString(),
+          direction: 'outbound',
+          type: 'document',
+          caption: caption || 'Here is your invoice.',
+          fileName: fileName || 'Invoice.pdf',
+          status: 'sent',
+          sentBy: req.user._id,
+          timestamp: new Date()
+        });
+
+        await WhatsAppContact.findByIdAndUpdate(contact._id, {
+          lastMessageAt: new Date(),
+          $inc: { totalMessages: 1 }
+        });
+
+        return res.json({ success: true, messageId: result.messageId, channel: 'cloud' });
+      } catch (cloudError) {
+        return res.status(400).json({ error: graphErrorMessage(cloudError) });
+      }
+    }
+
     const response = await whatsappService.sendPdf(
       req.user.tenantId,
       cleanPhone,
@@ -325,63 +417,140 @@ router.post('/client/send-pdf', upload.single('pdf'), async (req, res) => {
 router.get('/config', checkPermission('settings', 'read'), async (req, res) => {
   try {
     let config = await WhatsAppConfig.findOne({ tenantId: req.user.tenantId });
-    
     if (!config) {
-      config = await WhatsAppConfig.create({ tenantId: req.user.tenantId });
+      config = await WhatsAppConfig.create({
+        tenantId: req.user.tenantId,
+        webhookVerifyToken: crypto.randomBytes(24).toString('hex'),
+      });
     }
-
-    // Mask sensitive data
-    const maskedConfig = config.toObject();
-    if (maskedConfig.accessToken) {
-      maskedConfig.accessToken = '••••••••' + maskedConfig.accessToken.slice(-8);
+    if (!config.webhookVerifyToken) {
+      config.webhookVerifyToken = crypto.randomBytes(24).toString('hex');
+      await config.save();
     }
-
-    res.json(maskedConfig);
+    res.json(serializeWhatsAppConfig(config));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Update WhatsApp config
 router.put('/config', checkPermission('settings', 'update'), async (req, res) => {
   try {
-    const updateData = { ...req.body };
-    
-    // Generate webhook verify token if not provided
-    if (!updateData.webhookVerifyToken) {
-      updateData.webhookVerifyToken = crypto.randomBytes(32).toString('hex');
+    const incoming = req.body || {};
+    let config = await WhatsAppConfig.findOne({ tenantId: req.user.tenantId });
+    if (!config) {
+      config = new WhatsAppConfig({ tenantId: req.user.tenantId });
     }
 
-    const config = await WhatsAppConfig.findOneAndUpdate(
-      { tenantId: req.user.tenantId },
-      updateData,
-      { new: true, upsert: true, runValidators: true }
-    );
+    const assignIf = (key) => {
+      if (incoming[key] !== undefined) config[key] = incoming[key];
+    };
+    assignIf('provider');
+    assignIf('phoneNumberId');
+    assignIf('businessAccountId');
+    assignIf('businessName');
+    assignIf('businessDescription');
+    assignIf('autoReply');
+    assignIf('autoReplyMessage');
+    assignIf('autoReplyMessageAr');
+    assignIf('businessHoursOnly');
+    assignIf('autoSendInvoices');
+    assignIf('autoNotifyOrderStatus');
+    assignIf('invoiceTemplateName');
+    assignIf('invoiceTemplateLanguage');
+    assignIf('invoiceTemplateNameAr');
+    assignIf('invoiceTemplateLanguageAr');
+    assignIf('metaAppId');
+    assignIf('isActive');
 
-    res.json(config);
+    const token = String(incoming.accessToken || '').trim();
+    if (token && !token.startsWith('•')) config.accessToken = token;
+    const secret = String(incoming.appSecret || '').trim();
+    if (secret && !secret.startsWith('•')) config.appSecret = secret;
+    if (!config.webhookVerifyToken) {
+      config.webhookVerifyToken = crypto.randomBytes(24).toString('hex');
+    }
+    if (incoming.rotateVerifyToken === true) {
+      config.webhookVerifyToken = crypto.randomBytes(24).toString('hex');
+    }
+
+    await config.save();
+    res.json(serializeWhatsAppConfig(config));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Test WhatsApp connection
 router.post('/config/test', checkPermission('settings', 'update'), async (req, res) => {
   try {
     const config = await WhatsAppConfig.findOne({ tenantId: req.user.tenantId });
-    
     if (!config?.accessToken || !config?.phoneNumberId) {
-      return res.status(400).json({ error: 'WhatsApp not configured' });
+      return res.status(400).json({ error: 'Add Phone Number ID and a permanent access token first.' });
     }
-
-    // Test API connection
-    const response = await axios.get(
-      `${WHATSAPP_API_URL}/${config.phoneNumberId}`,
-      { headers: { 'Authorization': `Bearer ${config.accessToken}` } }
-    );
-
-    res.json({ success: true, phoneNumber: response.data.display_phone_number });
+    const result = await testCloudConnection(config);
+    config.displayPhoneNumber = result.displayPhone;
+    config.verifiedName = result.verifiedName;
+    config.qualityRating = result.qualityRating;
+    config.businessName = config.businessName || result.verifiedName;
+    config.connectionStatus = 'connected';
+    config.isActive = true;
+    config.lastHealthCheckAt = new Date();
+    config.lastHealthError = '';
+    await config.save();
+    res.json({ success: true, ...result, config: serializeWhatsAppConfig(config) });
   } catch (error) {
-    res.status(400).json({ error: error.response?.data?.error?.message || error.message });
+    await WhatsAppConfig.updateOne(
+      { tenantId: req.user.tenantId },
+      { connectionStatus: 'error', lastHealthError: graphErrorMessage(error), lastHealthCheckAt: new Date() }
+    );
+    res.status(400).json({ error: graphErrorMessage(error) });
+  }
+});
+
+router.post('/cloud/sync-templates', checkPermission('settings', 'update'), async (req, res) => {
+  try {
+    const config = await WhatsAppConfig.findOne({ tenantId: req.user.tenantId });
+    if (!config?.accessToken || !config?.businessAccountId) {
+      return res.status(400).json({ error: 'WhatsApp Business Account ID and token are required to sync templates.' });
+    }
+    const result = await syncCloudTemplates(req.user.tenantId, config);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: graphErrorMessage(error) });
+  }
+});
+
+router.post('/cloud/create-invoice-templates', checkPermission('settings', 'update'), async (req, res) => {
+  try {
+    const config = await WhatsAppConfig.findOne({ tenantId: req.user.tenantId });
+    if (!config?.accessToken || !config?.businessAccountId) {
+      return res.status(400).json({ error: 'Connect Cloud API first, including WABA ID.' });
+    }
+    const result = await createInvoiceTemplates(config);
+    try { await syncCloudTemplates(req.user.tenantId, config); } catch { /* ignore */ }
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: graphErrorMessage(error) });
+  }
+});
+
+router.post('/cloud/send-test-invoice', checkPermission('settings', 'update'), async (req, res) => {
+  try {
+    const phone = req.body?.phone;
+    if (!phone) return res.status(400).json({ error: 'Enter a test mobile number' });
+    const Invoice = (await import('../models/Invoice.js')).default;
+    const Tenant = (await import('../models/Tenant.js')).default;
+    const tenant = await Tenant.findById(req.user.tenantId);
+    const invoice = await Invoice.findOne({ tenantId: req.user.tenantId, flow: { $ne: 'purchase' } }).sort({ createdAt: -1 });
+    if (!invoice) return res.status(400).json({ error: 'Create an invoice first, then send a test.' });
+    const result = await sendInvoiceOnWhatsApp({
+      tenant,
+      invoice,
+      customer: { name: 'Test', phone },
+      language: req.body?.language || 'en',
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: graphErrorMessage(error) });
   }
 });
 
@@ -716,7 +885,7 @@ router.get('/messages/:contactId', async (req, res) => {
 // Get templates
 router.get('/templates', async (req, res) => {
   try {
-    const templates = await WhatsAppTemplate.find({ ...req.tenantFilter, isActive: true })
+    const templates = await WhatsAppTemplate.find({ ...req.tenantFilter })
       .sort({ createdAt: -1 });
     res.json(templates);
   } catch (error) {

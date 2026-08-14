@@ -32,6 +32,15 @@ router.get('/info', async (req, res) => {
       logo: theme.header?.logoImageUrl || '',
       logoText: theme.header?.logoText || ecommerce.storeName || tenant.name,
       pixels: getPublicPixelConfig(ecommerce.pixels),
+      paymentMethods: [
+        ecommerce.payments?.codEnabled !== false ? 'cod' : null,
+        ecommerce.payments?.moyasar?.enabled ? 'moyasar' : null,
+        ecommerce.payments?.tap?.enabled ? 'tap' : null,
+        ecommerce.payments?.paytabs?.enabled ? 'paytabs' : null,
+        ecommerce.payments?.stripe?.enabled ? 'stripe' : null,
+        ecommerce.payments?.tabby?.enabled ? 'tabby' : null,
+        ecommerce.payments?.tamara?.enabled ? 'tamara' : null,
+      ].filter(Boolean),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -423,6 +432,13 @@ router.post('/orders', async (req, res) => {
     if (!customer || !customer.name) return res.status(400).json({ error: 'Customer name is required' });
     if (!items || !items.length) return res.status(400).json({ error: 'Cart is empty' });
 
+    const method = paymentMethod || 'cod';
+    const payments = ecommerce.payments || {};
+    const methodOk = method === 'cod'
+      ? payments.codEnabled !== false
+      : Boolean(payments[method]?.enabled);
+    if (!methodOk) return res.status(400).json({ error: 'That payment method is not enabled' });
+
     // Validate products and compute totals with atomic stock deduction
     let subtotal = 0;
     let taxTotal = 0;
@@ -598,6 +614,7 @@ router.post('/checkout/:orderId', async (req, res) => {
       orderId: order._id.toString(),
       orderNumber: order.orderNumber,
       customer: order.customer,
+      items: order.lineItems,
       successUrl: `${origin}/checkout/success?order=${order.orderNumber}`,
       cancelUrl: `${origin}/checkout/cancel?order=${order.orderNumber}`,
     }, config);

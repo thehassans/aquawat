@@ -34,11 +34,31 @@ export default function StorefrontCheckout() {
   const [appliedGiftCard, setAppliedGiftCard] = useState(null);
   const [giftCardError, setGiftCardError] = useState('');
   const [giftCardLoading, setGiftCardLoading] = useState(false);
+  const [storeInfo, setStoreInfo] = useState(null);
   const [form, setForm] = useState({
     name: '', email: '', phone: '',
     addressLine1: '', addressLine2: '', city: '', region: '', postalCode: '', country: 'Saudi Arabia', notes: '',
   });
   const [fieldErrors, setFieldErrors] = useState({});
+
+  useEffect(() => {
+    storeApi.get('/info').then((res) => setStoreInfo(res.data)).catch(() => {});
+  }, []);
+
+  const paymentMethods = storeInfo?.paymentMethods?.length ? storeInfo.paymentMethods : ['cod', 'moyasar'];
+  const paymentLabel = (method) => {
+    if (method === 'cod') return t('cashOnDelivery');
+    if (method === 'tabby') return 'Tabby';
+    if (method === 'tamara') return 'Tamara';
+    if (method === 'moyasar' || method === 'tap' || method === 'paytabs' || method === 'stripe') return t('creditCard');
+    return method;
+  };
+
+  useEffect(() => {
+    if (paymentMethods.length && !paymentMethods.includes(paymentMethod)) {
+      setPaymentMethod(paymentMethods[0]);
+    }
+  }, [storeInfo]);
 
   const update = (key, value) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -332,14 +352,16 @@ export default function StorefrontCheckout() {
             <div>
               <h2 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '20px', letterSpacing: '-0.3px' }}>{t('paymentMethod')}</h2>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 20px', border: paymentMethod === 'cod' ? '2px solid #4f46e5' : '1px solid #e5e7eb', borderRadius: '14px', cursor: 'pointer', transition: 'all 0.2s', background: paymentMethod === 'cod' ? '#eef2ff' : '#fff' }}>
-                  <input type="radio" checked={paymentMethod === 'cod'} onChange={() => { setPaymentMethod('cod'); firePixelEvent('AddPaymentInfo', { value: finalTotal, currency: 'SAR', payment_method: 'cod' }); }} />
-                  <span style={{ fontWeight: 700, fontSize: '14px' }}>{t('cashOnDelivery')}</span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 20px', border: paymentMethod === 'moyasar' ? '2px solid #4f46e5' : '1px solid #e5e7eb', borderRadius: '14px', cursor: 'pointer', transition: 'all 0.2s', background: paymentMethod === 'moyasar' ? '#eef2ff' : '#fff' }}>
-                  <input type="radio" checked={paymentMethod === 'moyasar'} onChange={() => { setPaymentMethod('moyasar'); firePixelEvent('AddPaymentInfo', { value: finalTotal, currency: 'SAR', payment_method: 'moyasar' }); }} />
-                  <span style={{ fontWeight: 700, fontSize: '14px' }}>{t('creditCard')}</span>
-                </label>
+                {paymentMethods.map((method) => (
+                  <label key={method} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 20px', border: paymentMethod === method ? '2px solid #4f46e5' : '1px solid #e5e7eb', borderRadius: '14px', cursor: 'pointer', transition: 'all 0.2s', background: paymentMethod === method ? '#eef2ff' : '#fff' }}>
+                    <input type="radio" checked={paymentMethod === method} onChange={() => { setPaymentMethod(method); firePixelEvent('AddPaymentInfo', { value: finalTotal, currency: 'SAR', payment_method: method }); }} />
+                    {(method === 'tabby' || method === 'tamara') ? (
+                      <img src={method === 'tabby' ? '/tabby.png' : '/tamara.webp'} alt={method} style={{ height: method === 'tabby' ? 22 : 18, width: 'auto' }} />
+                    ) : (
+                      <span style={{ fontWeight: 700, fontSize: '14px' }}>{paymentLabel(method)}</span>
+                    )}
+                  </label>
+                ))}
               </div>
 
               {/* Shipping info summary */}
@@ -399,7 +421,7 @@ export default function StorefrontCheckout() {
                   <button type="button" onClick={() => setStep(1)} style={{ fontSize: '13px', color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>{t('edit')}</button>
                 </div>
                 <p style={{ fontSize: '14px', fontWeight: 600, color: '#111', margin: 0 }}>
-                  {paymentMethod === 'cod' ? t('cashOnDelivery') : t('creditCard')}
+                  {paymentLabel(paymentMethod)}
                 </p>
               </div>
 

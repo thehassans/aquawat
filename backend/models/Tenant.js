@@ -294,12 +294,14 @@ const ecommerceSchema = new mongoose.Schema({
   },
   // Plug-and-play payment providers
   payments: {
-    defaultProvider: { type: String, enum: ['', 'moyasar', 'tap', 'paytabs', 'stripe', 'cod'], default: '' },
+    defaultProvider: { type: String, enum: ['', 'moyasar', 'tap', 'paytabs', 'stripe', 'tabby', 'tamara', 'cod'], default: '' },
     codEnabled: { type: Boolean, default: true },
     moyasar: { type: ecommercePaymentProviderSchema, default: () => ({}) },
     tap: { type: ecommercePaymentProviderSchema, default: () => ({}) },
     paytabs: { type: ecommercePaymentProviderSchema, default: () => ({}) },
     stripe: { type: ecommercePaymentProviderSchema, default: () => ({}) },
+    tabby: { type: ecommercePaymentProviderSchema, default: () => ({}) },
+    tamara: { type: ecommercePaymentProviderSchema, default: () => ({}) },
   },
   // Courier integrations
   couriers: {
@@ -309,6 +311,10 @@ const ecommerceSchema = new mongoose.Schema({
     imile: { type: ecommerceCourierProviderSchema, default: () => ({}) },
     jnt: { type: ecommerceCourierProviderSchema, default: () => ({}) },
     spl: { type: ecommerceCourierProviderSchema, default: () => ({}) },
+    fedex: { type: ecommerceCourierProviderSchema, default: () => ({}) },
+    dhl: { type: ecommerceCourierProviderSchema, default: () => ({}) },
+    ups: { type: ecommerceCourierProviderSchema, default: () => ({}) },
+    tnt: { type: ecommerceCourierProviderSchema, default: () => ({}) },
     flatRate: {
       enabled: { type: Boolean, default: true },
       price: { type: Number, default: 25 },

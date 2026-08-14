@@ -4,6 +4,13 @@ import { Truck, Save, Loader2, AlertCircle, CheckCircle, Printer } from 'lucide-
 import api from '../../lib/api';
 import { App3DIcon } from '../../components/ui/App3DIcon';
 
+const CREDENTIAL_HINTS = {
+  fedex: { accountNumber: 'FedEx account number', apiKey: 'API Key (Client ID)', apiSecret: 'Secret Key' },
+  dhl: { accountNumber: 'DHL account number', apiKey: 'API site ID / username', apiSecret: 'API password' },
+  ups: { accountNumber: 'UPS shipper number', apiKey: 'Client ID', apiSecret: 'Client secret' },
+  tnt: { accountNumber: 'TNT account number', apiKey: 'TNT username', apiSecret: 'TNT password' },
+};
+
 const COURIERS = [
   { key: 'smsa', label: 'SMSA Express', desc: 'Saudi domestic and international express — AWB + COD', icon: 'smsa', appId: 'smsa_express' },
   { key: 'aramex', label: 'Aramex', desc: 'Regional and global logistics — express, freight, labels', icon: 'aramex', appId: 'aramex_shipping' },
@@ -11,6 +18,10 @@ const COURIERS = [
   { key: 'naqel', label: 'Naqel Express', desc: 'Saudi-based domestic and GCC shipping', icon: 'naqel', appId: 'naqel_express' },
   { key: 'imile', label: 'iMile', desc: 'Cross-border e-commerce delivery — MENA focus', icon: 'imile', appId: 'imile_courier' },
   { key: 'spl', label: 'Saudi Post (SPL)', desc: 'Nationwide SPL labels and barcode tracking', icon: 'spl', appId: 'spl_saudi_post' },
+  { key: 'fedex', label: 'FedEx', desc: 'FedEx Express / International Priority — OAuth ship + tracking', icon: 'fedex', appId: 'fedex_shipping' },
+  { key: 'dhl', label: 'DHL Express', desc: 'MyDHL API — 4×6 labels, checkpoints, worldwide express', icon: 'dhl', appId: 'dhl_express' },
+  { key: 'ups', label: 'UPS', desc: 'UPS Shipments API — Saver/Expedited, labels, Quantum View', icon: 'ups', appId: 'ups_shipping' },
+  { key: 'tnt', label: 'TNT Express', desc: 'TNT Express Connect — consignment booking and tracking', icon: 'tnt', appId: 'tnt_express' },
 ];
 
 export default function EcommerceCouriers() {
@@ -104,7 +115,7 @@ export default function EcommerceCouriers() {
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300">Logistics hub</p>
               <h1 className="text-3xl font-black tracking-tight">Couriers & shipping labels</h1>
-              <p className="text-sm text-white/60 mt-1">SMSA, Aramex, J&T, Naqel, iMile, and Saudi Post — AWB, COD, tracking.</p>
+              <p className="text-sm text-white/60 mt-1">SMSA, Aramex, J&T, Naqel, iMile, SPL, FedEx, DHL, UPS, and TNT — AWB, COD, tracking.</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -186,17 +197,17 @@ export default function EcommerceCouriers() {
                       </select>
                     </div>
                     <div>
-                      <label className={labelCls}>Account number</label>
+                      <label className={labelCls}>{CREDENTIAL_HINTS[courier.key]?.accountNumber || 'Account number'}</label>
                       <input className={inputCls} value={cConfig.accountNumber || ''} onChange={(e) => updateCourier(courier.key, 'accountNumber', e.target.value)} placeholder="Account / customer number" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={labelCls}>API key</label>
+                      <label className={labelCls}>{CREDENTIAL_HINTS[courier.key]?.apiKey || 'API key'}</label>
                       <input className={inputCls} type="password" value={cConfig.apiKey || ''} onChange={(e) => updateCourier(courier.key, 'apiKey', e.target.value)} placeholder="••••••••" />
                     </div>
                     <div>
-                      <label className={labelCls}>API secret</label>
+                      <label className={labelCls}>{CREDENTIAL_HINTS[courier.key]?.apiSecret || 'API secret'}</label>
                       <input className={inputCls} type="password" value={cConfig.apiSecret || ''} onChange={(e) => updateCourier(courier.key, 'apiSecret', e.target.value)} placeholder="••••••••" />
                     </div>
                   </div>

@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
+import { Link } from 'react-router-dom'
 import { useTranslation } from '../lib/translations'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Popover, Transition } from '@headlessui/react'
-import { usePublicWebsiteSettings } from '../lib/website'
 import {
   MessageCircle, Search, Send, Paperclip, Smile, MoreVertical,
   Phone, Video, Star, Archive, Trash2, Users, Settings, Plus,
@@ -12,19 +12,21 @@ import {
   Image, File, MapPin, X, RefreshCw, Copy, Edit2, AlertCircle, Download
 } from 'lucide-react'
 import api from '../lib/api'
-import WhatsAppConnect from './components/WhatsAppConnect'
+import WhatsAppCloudSetup from './components/WhatsAppCloudSetup'
+import { isAppGateOpen } from '../lib/appStorePartners'
 
 export default function WhatsApp() {
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const queryClient = useQueryClient()
-  const { data: websiteSettings } = usePublicWebsiteSettings()
   
   const [activeTab, setActiveTab] = useState('chats')
   const [selectedContact, setSelectedContact] = useState(null)
   const [messageText, setMessageText] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [showCloudSetup, setShowCloudSetup] = useState(false)
   const [showTemplateModal, setShowTemplateModal] = useState(false)
   const [showQuickReplyModal, setShowQuickReplyModal] = useState(false)
   const [showBroadcastModal, setShowBroadcastModal] = useState(false)
@@ -60,7 +62,7 @@ export default function WhatsApp() {
   })
 
   // Fetch config
-  const { data: config } = useQuery({
+  const { data: config, isLoading: loadingConfig } = useQuery({
     queryKey: ['whatsapp-config'],
     queryFn: () => api.get('/whatsapp/config').then(r => r.data)
   })
@@ -148,14 +150,46 @@ export default function WhatsApp() {
     { id: 'broadcasts', label: language === 'ar' ? 'البث' : 'Broadcasts', icon: Radio }
   ]
 
-  const hasAutoInvoicingAddon = Boolean(
-    config?.autoInvoiceEnabled ||
-    config?.features?.autoInvoicing ||
-    config?.addons?.autoInvoicing
-  )
-  const salesPhone = websiteSettings?.contactPhone || '+966596775485'
-  const salesEmail = websiteSettings?.contactEmail || 'info@maqder.com'
-  const contactSalesSubject = encodeURIComponent('WhatsApp Auto Invoicing Add-on')
+  if (!isAppGateOpen(tenant, { requireApp: 'whatsapp_cloud_auto' })) {
+    return (
+      <div className="relative overflow-hidden rounded-[28px] bg-[#06140f] px-8 py-16 text-center text-white ring-1 ring-emerald-500/15">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#25D366] to-[#075E54]">
+          <MessageCircle className="h-8 w-8" />
+        </div>
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight">
+          {language === 'ar' ? 'واتساب للأعمال — Cloud API' : 'WhatsApp Business Cloud API'}
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-sm text-white/55">
+          {language === 'ar'
+            ? 'ثبّت تطبيق واتساب من متجر التطبيقات لربط الرقم الرسمي وإرسال الفواتير تلقائياً.'
+            : 'Install WhatsApp Business from the App Store to connect the official Cloud API and auto-send invoices.'}
+        </p>
+        <Link
+          to="/app/dashboard/app-store"
+          className="mt-8 inline-flex rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-emerald-950"
+        >
+          {language === 'ar' ? 'فتح متجر التطبيقات' : 'Open App Store'}
+        </Link>
+      </div>
+    )
+  }
+
+  if (loadingConfig) {
+    return (
+      <div className="flex h-[calc(100vh-8rem)] items-center justify-center rounded-3xl bg-[#06140f]">
+        <RefreshCw className="h-7 w-7 animate-spin text-emerald-300" />
+      </div>
+    )
+  }
+
+  if (!config?.connected || showCloudSetup) {
+    return (
+      <WhatsAppCloudSetup
+        language={language}
+        onOpenInbox={config?.connected ? () => setShowCloudSetup(false) : undefined}
+      />
+    )
+  }
 
   return (
     <div className="h-[calc(100vh-8rem)] flex bg-gray-100 dark:bg-dark-900 rounded-2xl overflow-hidden">
@@ -279,12 +313,23 @@ export default function WhatsApp() {
                             type="button"
                             onClick={() => {
                               close()
-                              setShowSettings(true)
+                              setShowCloudSetup(true)
                             }}
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors text-sm text-gray-800 dark:text-gray-200"
                           >
                             <Settings className="w-4 h-4 text-green-600" />
-                            {language === 'ar' ? 'فتح إعدادات واتساب' : 'Open WhatsApp Settings'}
+                            {language === 'ar' ? 'إعداد Cloud API' : 'Cloud API setup'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              close()
+                              setShowSettings(true)
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors text-sm text-gray-800 dark:text-gray-200"
+                          >
+                            <Settings className="w-4 h-4 text-emerald-600" />
+                            {language === 'ar' ? 'الرد التلقائي' : 'Inbox auto-reply'}
                           </button>
                           <button
                             type="button"
@@ -342,7 +387,25 @@ export default function WhatsApp() {
             </div>
           </div>
 
-          <WhatsAppConnect />
+          {config?.connected ? (
+            <button
+              type="button"
+              onClick={() => setShowCloudSetup(true)}
+              className="mb-3 w-full rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left dark:border-emerald-800 dark:bg-emerald-950/40"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                {language === 'ar' ? 'Cloud API متصل' : 'Cloud API connected'}
+              </p>
+              <p className="truncate text-sm font-medium text-emerald-950 dark:text-emerald-50">
+                {config.displayPhoneNumber || config.verifiedName || 'WhatsApp Business'}
+              </p>
+              {config.autoSendInvoices !== false ? (
+                <p className="mt-0.5 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
+                  {language === 'ar' ? 'إرسال الفواتير التلقائي مفعّل' : 'Auto invoice send is on'}
+                </p>
+              ) : null}
+            </button>
+          ) : null}
 
           {/* Search */}
           <div className="relative">

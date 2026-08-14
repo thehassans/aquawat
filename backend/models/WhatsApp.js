@@ -10,6 +10,23 @@ const whatsappConfigSchema = new mongoose.Schema({
   businessAccountId: { type: String },
   accessToken: { type: String },
   webhookVerifyToken: { type: String },
+  appSecret: { type: String, default: '' },
+  graphApiVersion: { type: String, default: 'v21.0' },
+
+  displayPhoneNumber: { type: String, default: '' },
+  verifiedName: { type: String, default: '' },
+  qualityRating: { type: String, default: '' },
+  connectionStatus: { type: String, enum: ['disconnected', 'action_required', 'connected', 'error'], default: 'disconnected' },
+  lastHealthCheckAt: { type: Date },
+  lastHealthError: { type: String, default: '' },
+
+  autoSendInvoices: { type: Boolean, default: true },
+  autoNotifyOrderStatus: { type: Boolean, default: true },
+  invoiceTemplateName: { type: String, default: 'maqder_invoice' },
+  invoiceTemplateLanguage: { type: String, default: 'en_US' },
+  invoiceTemplateNameAr: { type: String, default: 'maqder_invoice_ar' },
+  invoiceTemplateLanguageAr: { type: String, default: 'ar' },
+  metaAppId: { type: String, default: '' },
   
   // Display settings
   businessName: { type: String },
@@ -34,6 +51,9 @@ const whatsappConfigSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: false },
   lastSyncedAt: { type: Date }
 }, { timestamps: true });
+
+whatsappConfigSchema.index({ phoneNumberId: 1 });
+whatsappConfigSchema.index({ businessAccountId: 1 });
 
 // WhatsApp Contact Schema
 const whatsappContactSchema = new mongoose.Schema({

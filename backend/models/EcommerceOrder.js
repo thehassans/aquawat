@@ -29,17 +29,17 @@ const orderCustomerSchema = new mongoose.Schema({
 }, { _id: false });
 
 const orderPaymentSchema = new mongoose.Schema({
-  method: { type: String, enum: ['cod', 'moyasar', 'tap', 'paytabs', 'stripe', 'manual'], default: 'cod' },
+  method: { type: String, enum: ['cod', 'moyasar', 'tap', 'paytabs', 'stripe', 'tabby', 'tamara', 'manual'], default: 'cod' },
   provider: { type: String, default: '' },
   providerTransactionId: { type: String, default: '' },
-  status: { type: String, enum: ['pending', 'paid', 'failed', 'refunded', 'partially_refunded'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'authorized', 'paid', 'failed', 'refunded', 'partially_refunded'], default: 'pending' },
   paidAt: { type: Date, default: null },
   amount: { type: Number, default: 0 },
   currency: { type: String, default: 'SAR' },
 }, { _id: false });
 
 const orderShippingSchema = new mongoose.Schema({
-  method: { type: String, enum: ['flat_rate', 'smsa', 'aramex', 'naqel', 'imile', 'pickup', 'manual'], default: 'flat_rate' },
+  method: { type: String, enum: ['flat_rate', 'smsa', 'aramex', 'naqel', 'imile', 'jnt', 'spl', 'fedex', 'dhl', 'ups', 'tnt', 'pickup', 'manual'], default: 'flat_rate' },
   courier: { type: String, default: '' },
   trackingNumber: { type: String, default: '' },
   cost: { type: Number, default: 0 },

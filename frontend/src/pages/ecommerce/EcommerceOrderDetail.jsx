@@ -43,6 +43,21 @@ export default function EcommerceOrderDetail() {
   const [refundAmount, setRefundAmount] = useState(0);
   const [refundPartial, setRefundPartial] = useState(false);
   const [refundLoading, setRefundLoading] = useState(false);
+  const [shipProvider, setShipProvider] = useState('');
+  const [awbResult, setAwbResult] = useState(null);
+
+  const COURIER_OPTIONS = [
+    { key: 'smsa', label: 'SMSA Express' },
+    { key: 'aramex', label: 'Aramex' },
+    { key: 'jnt', label: 'J&T Express' },
+    { key: 'naqel', label: 'Naqel Express' },
+    { key: 'imile', label: 'iMile' },
+    { key: 'spl', label: 'Saudi Post (SPL)' },
+    { key: 'fedex', label: 'FedEx' },
+    { key: 'dhl', label: 'DHL Express' },
+    { key: 'ups', label: 'UPS' },
+    { key: 'tnt', label: 'TNT Express' },
+  ];
 
   useEffect(() => {
     api.get(`/ecommerce/orders/${id}`)
@@ -87,6 +102,25 @@ export default function EcommerceOrderDetail() {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update payment');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCreateAwb = async () => {
+    setActionLoading(true);
+    setError('');
+    setAwbResult(null);
+    try {
+      const res = await api.post(`/ecommerce/fulfillment/ship/${id}`, shipProvider ? { provider: shipProvider } : {});
+      setAwbResult(res.data);
+      if (res.data?.trackingNumber) setTrackingInput(res.data.trackingNumber);
+      const refreshed = await api.get(`/ecommerce/orders/${id}`);
+      setOrder(refreshed.data);
+      setSuccess(`Waybill ${res.data.trackingNumber || ''} created`);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create waybill');
     } finally {
       setActionLoading(false);
     }
@@ -350,10 +384,29 @@ export default function EcommerceOrderDetail() {
               {order.shipping?.deliveredAt && <div className="flex justify-between"><span className="text-gray-500">Delivered</span><span className="text-gray-400 text-xs">{fmtDate(order.shipping.deliveredAt)}</span></div>}
             </div>
             <div className="mt-3 space-y-2">
+              <select
+                value={shipProvider}
+                onChange={e => setShipProvider(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Auto — first connected courier</option>
+                {COURIER_OPTIONS.map((c) => (
+                  <option key={c.key} value={c.key}>{c.label}</option>
+                ))}
+              </select>
+              <button onClick={handleCreateAwb} disabled={actionLoading} className="w-full py-2 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 disabled:opacity-50">
+                {actionLoading ? 'Creating...' : 'Create AWB & label'}
+              </button>
+              {awbResult?.trackingNumber && (
+                <p className="text-xs text-emerald-700">
+                  {awbResult.trackingNumber}
+                  {awbResult.labelUrl ? ` · label ready` : ''}
+                </p>
+              )}
               <input
                 value={courierInput}
                 onChange={e => setCourierInput(e.target.value)}
-                placeholder="Courier (e.g. SMSA, Aramex)"
+                placeholder="Courier (e.g. SMSA, FedEx, DHL)"
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <input

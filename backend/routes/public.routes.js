@@ -11,6 +11,7 @@ import DemoUser from '../models/DemoUser.js'
 import { sendDemoWelcomeEmail } from '../utils/emailService.js'
 import { normalizeBusinessTypes, BUSINESS_TYPES } from '../utils/businessTypes.js'
 import { provisionTenantApps } from '../utils/appProvisioning.js'
+import { createCheckoutSession } from '../services/paymentService.js'
 
 const router = express.Router()
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000)
@@ -533,7 +534,7 @@ router.post('/demo-signup', async (req, res) => {
 router.get('/tenant/:id/menu', async (req, res) => {
   try {
     const tenant = await withQueryTimeout(
-      Tenant.findById(req.params.id).select('name slug business branding settings isActive subscription.hasQrOrderingAddon')
+      Tenant.findById(req.params.id).select('name slug business branding settings isActive subscription.hasQrOrderingAddon ecommerce.payments')
     )
 
     if (!tenant || !tenant.isActive) {
@@ -544,6 +545,12 @@ router.get('/tenant/:id/menu', async (req, res) => {
       RestaurantMenuItem.find({ tenantId: tenant._id, isActive: true }).select('-costPrice -supplier -supplierId').sort({ category: 1, nameEn: 1 })
     )
 
+    const qrMenu = { ...(tenant.settings?.restaurant?.qrMenu || { defaultLanguage: 'ar' }) }
+    const accepted = new Set(qrMenu.acceptedPayments || ['cash'])
+    if (!tenant.ecommerce?.payments?.tabby?.enabled) accepted.delete('tabby')
+    if (!tenant.ecommerce?.payments?.tamara?.enabled) accepted.delete('tamara')
+    qrMenu.acceptedPayments = [...accepted]
+
     res.json({
       tenant: {
         name: tenant.name,
@@ -551,7 +558,7 @@ router.get('/tenant/:id/menu', async (req, res) => {
         branding: tenant.branding,
         settings: {
           restaurant: {
-            qrMenu: tenant.settings?.restaurant?.qrMenu || { defaultLanguage: 'ar' }
+            qrMenu
           }
         },
         subscription: {
@@ -570,7 +577,7 @@ router.get('/tenant/:id/menu', async (req, res) => {
 router.post('/tenant/:id/order', async (req, res) => {
   try {
     const tenant = await withQueryTimeout(
-      Tenant.findById(req.params.id).select('name subscription settings isActive')
+      Tenant.findById(req.params.id).select('name subscription settings isActive ecommerce.payments')
     )
 
     if (!tenant || !tenant.isActive) {
@@ -680,10 +687,38 @@ router.post('/tenant/:id/order', async (req, res) => {
 
     await newOrder.save()
 
+    let checkoutUrl = null
+    if (paymentMethod === 'tabby' || paymentMethod === 'tamara') {
+      const config = tenant.ecommerce?.payments?.[paymentMethod]
+      if (!config?.enabled || !config?.secretKey) {
+        return res.status(400).json({ error: `${paymentMethod} is not enabled for this restaurant` })
+      }
+      const origin = `${req.protocol}://${req.get('host')}`
+      const result = await createCheckoutSession(paymentMethod, {
+        amount: grandTotal,
+        currency: 'SAR',
+        orderId: newOrder._id.toString(),
+        orderNumber: newOrder.orderNumber,
+        customer: { name: newOrder.customerName, phone: newOrder.customerPhone, email: '', addressLine1: newOrder.deliveryAddress || 'KSA', city: 'Riyadh', country: 'SA' },
+        items: processedLineItems.map((item) => ({
+          productTitle: item.name,
+          quantity: item.quantity,
+          price: item.unitPrice,
+          taxAmount: item.lineTax,
+        })),
+        successUrl: `${origin}/public/menu?tenant=${tenant._id}&paid=1&order=${newOrder.orderNumber}`,
+        cancelUrl: `${origin}/public/menu?tenant=${tenant._id}&paid=0&order=${newOrder.orderNumber}`,
+      }, config)
+      newOrder.providerTransactionId = result.providerPaymentId
+      await newOrder.save()
+      checkoutUrl = result.checkoutUrl
+    }
+
     res.status(201).json({
       success: true,
       message: 'Order placed successfully',
-      order: newOrder
+      order: newOrder,
+      checkoutUrl,
     })
   } catch (error) {
     sendRouteError(res, error)

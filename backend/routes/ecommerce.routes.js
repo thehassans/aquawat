@@ -8,7 +8,7 @@ import { clearTenantHostCache } from '../middleware/resolveTenantByHost.js';
 import { provisionCloudflareDomain, verifyDomainViaCloudflare, removeCloudflareDomain, getSSLStatus, isCloudflareConfigured, verifyCloudflareCredentials, listZones, isCloudflareOAuthConfigured, buildCloudflareAuthUrl, exchangeCloudflareCodeForToken, createCloudflareDnsRecord, deleteCloudflareDnsRecord, listZonesOAuth, generateCodeVerifier } from '../services/cloudflareService.js';
 import { testWordPressConnection, runWordPressSync } from '../services/wordpressService.js';
 import { sendTenantEmail, buildEmailShell } from '../utils/tenantEmailService.js';
-import { COURIER_PROVIDER_KEYS } from '../utils/appStorePartnerApps.js';
+import { COURIER_PROVIDER_KEYS, PAYMENT_PROVIDER_KEYS } from '../utils/appStorePartnerApps.js';
 import { createShipment } from '../services/courierService.js';
 
 const router = express.Router();
@@ -76,7 +76,7 @@ const mask = (val) => {
 const sanitizeEcommerce = (ecom) => {
   if (!ecom) return ecom;
   const clone = JSON.parse(JSON.stringify(ecom));
-  for (const key of ['moyasar', 'tap', 'paytabs', 'stripe']) {
+  for (const key of PAYMENT_PROVIDER_KEYS) {
     const p = clone.payments?.[key];
     if (p) {
       p.secretKey = p.secretKey ? mask(p.secretKey) : '';
@@ -656,12 +656,13 @@ router.put('/payments', protect, async (req, res) => {
     if (body.defaultProvider !== undefined) tenant.ecommerce.payments.defaultProvider = body.defaultProvider;
     if (body.codEnabled !== undefined) tenant.ecommerce.payments.codEnabled = body.codEnabled;
 
-    for (const key of ['moyasar', 'tap', 'paytabs', 'stripe']) {
+    for (const key of PAYMENT_PROVIDER_KEYS) {
       if (!body[key]) continue;
       const incoming = body[key];
       const current = tenant.ecommerce.payments[key] || {};
       current.enabled = incoming.enabled ?? current.enabled;
-      current.environment = incoming.environment ?? current.environment;
+      const env = incoming.environment ?? current.environment;
+      current.environment = env === 'production' || env === 'live' ? 'live' : 'test';
       current.publishableKey = incoming.publishableKey ?? current.publishableKey;
       current.merchantId = incoming.merchantId ?? current.merchantId;
       // Only overwrite secrets if a fresh (non-masked) value was provided

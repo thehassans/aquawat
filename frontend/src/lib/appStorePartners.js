@@ -17,6 +17,15 @@ export const COURIER_APP_IDS = [
   'naqel_express',
   'imile_courier',
   'spl_saudi_post',
+  'fedex_shipping',
+  'dhl_express',
+  'ups_shipping',
+  'tnt_express',
+]
+
+export const BNPL_APP_IDS = [
+  'tabby_bnpl',
+  'tamara_bnpl',
 ]
 
 export function tenantHasInstalledApp(tenant, appIds = []) {

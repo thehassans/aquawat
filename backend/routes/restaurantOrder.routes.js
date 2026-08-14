@@ -8,6 +8,7 @@ import { emitToTenant } from '../lib/socket.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { sendRestaurantWhatsApp, sendRestaurantOpenNotification } from '../services/restaurantWhatsAppService.js';
+import { WhatsAppConfig } from '../models/WhatsApp.js';
 import { isFbrCurrency } from '../utils/fbrCurrency.js';
 import { applyFbrToInvoice } from '../utils/fbr/FbrService.js';
 
@@ -405,21 +406,23 @@ router.put('/:id/kitchen-status', checkPermission('restaurant', 'update'), async
     try {
       const tenant = await Tenant.findById(req.user.tenantId).select('settings.restaurant.whatsapp');
       const wa = tenant?.settings?.restaurant?.whatsapp;
-      if (wa?.autoSendEnabled) {
-        if (nextStatus === 'ready' && wa.autoSendOnOrderReady) {
+      const cloud = await WhatsAppConfig.findOne({ tenantId: req.user.tenantId, isActive: true }).select('autoNotifyOrderStatus accessToken');
+      const notifyFromCloud = Boolean(cloud?.accessToken && cloud?.autoNotifyOrderStatus !== false);
+      if (wa?.autoSendEnabled || notifyFromCloud) {
+        if (nextStatus === 'ready' && (wa?.autoSendOnOrderReady || notifyFromCloud)) {
           await sendRestaurantWhatsApp({
             tenantId: req.user.tenantId,
             phone: updated.customerPhone,
-            messageEn: wa.orderReadyMessageEn,
-            messageAr: wa.orderReadyMessageAr,
+            messageEn: wa?.orderReadyMessageEn || 'Your order {{orderNumber}} is ready.',
+            messageAr: wa?.orderReadyMessageAr || 'طلبك رقم {{orderNumber}} جاهز.',
             replacements: { orderNumber: updated.orderNumber },
           });
-        } else if (nextStatus === 'served' && wa.autoSendOnOrderServed) {
+        } else if (nextStatus === 'served' && (wa?.autoSendOnOrderServed || notifyFromCloud)) {
           await sendRestaurantWhatsApp({
             tenantId: req.user.tenantId,
             phone: updated.customerPhone,
-            messageEn: wa.orderServedMessageEn,
-            messageAr: wa.orderServedMessageAr,
+            messageEn: wa?.orderServedMessageEn || 'Your order {{orderNumber}} has been served. Thank you.',
+            messageAr: wa?.orderServedMessageAr || 'تم تقديم طلبك رقم {{orderNumber}}. شكراً لك.',
             replacements: { orderNumber: updated.orderNumber },
           });
         }
@@ -494,12 +497,14 @@ router.post('/', checkTrialLimits('restaurantOrders'), checkPermission('restaura
     try {
       const tenant = await Tenant.findById(req.user.tenantId).select('settings.restaurant.whatsapp');
       const wa = tenant?.settings?.restaurant?.whatsapp;
-      if (wa?.autoSendEnabled && wa?.autoSendOnOrderPlaced) {
+      const cloud = await WhatsAppConfig.findOne({ tenantId: req.user.tenantId, isActive: true }).select('autoNotifyOrderStatus accessToken');
+      const notifyFromCloud = Boolean(cloud?.accessToken && cloud?.autoNotifyOrderStatus !== false);
+      if ((wa?.autoSendEnabled && wa?.autoSendOnOrderPlaced) || notifyFromCloud) {
         await sendRestaurantWhatsApp({
           tenantId: req.user.tenantId,
           phone: order.customerPhone,
-          messageEn: wa.orderPlacedMessageEn,
-          messageAr: wa.orderPlacedMessageAr,
+          messageEn: wa?.orderPlacedMessageEn || 'We received your order {{orderNumber}}. Thank you.',
+          messageAr: wa?.orderPlacedMessageAr || 'استلمنا طلبك رقم {{orderNumber}}. شكراً لك.',
           replacements: { orderNumber: order.orderNumber },
         });
       }

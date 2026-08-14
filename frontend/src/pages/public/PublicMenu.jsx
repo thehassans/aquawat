@@ -31,6 +31,8 @@ import toast from 'react-hot-toast'
 export default function PublicMenu() {
   const [searchParams] = useSearchParams()
   const tenantId = searchParams.get('tenant')
+  const paidReturn = searchParams.get('paid')
+  const paidOrder = searchParams.get('order')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState(null)
@@ -125,6 +127,12 @@ export default function PublicMenu() {
       setPaymentMethod(acceptedPayments[0])
     }
   }, [data, paymentMethod])
+
+  useEffect(() => {
+    if (paidReturn === '1' && paidOrder) {
+      toast.success(isRtl ? `تم الدفع للطلب ${paidOrder}` : `Payment received for ${paidOrder}`)
+    }
+  }, [paidReturn, paidOrder, isRtl])
 
   // Cart operations
   const addToCart = (item) => {
@@ -229,6 +237,11 @@ export default function PublicMenu() {
       }
 
       const res = await api.post(`/public/tenant/${tenantId}/order`, payload)
+
+      if (res.data?.checkoutUrl) {
+        window.location.href = res.data.checkoutUrl
+        return
+      }
 
       if (res.data?.success) {
         setPlacedOrder(res.data.order)
