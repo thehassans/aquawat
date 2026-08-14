@@ -9,6 +9,7 @@ import User from '../models/User.js';
 import Invoice from '../models/Invoice.js';
 import { AppAddon } from '../models/AppAddon.js';
 import { DEFAULT_APP_CATALOG, ensureCatalogInitialized, applyAppInstall, applyAppUninstall } from './appStore.routes.js';
+import { describeAppTrial, isAppAccessValid, normalizeTrialDays } from '../utils/appTrial.js';
 import Customer from '../models/Customer.js';
 import TravelBooking from '../models/TravelBooking.js';
 import RestaurantOrder from '../models/RestaurantOrder.js';
@@ -3575,8 +3576,25 @@ router.get('/tenants/:id/apps', async (req, res) => {
         : app.appId === 'restaurant_combos' ? tenant.subscription?.hasCombosAddon === true
         : app.appId === 'qr_menu_ordering' ? tenant.subscription?.hasQrOrderingAddon === true
         : false;
-      const isInstalled = (record.isInstalled === true && record.isEnabled !== false) || flagged;
-      return { ...app, isInstalled, installedAt: record.installedAt || null };
+      const accessValid = isAppAccessValid(record);
+      const isInstalled = accessValid || flagged;
+      const trial = describeAppTrial({
+        appDef: app,
+        record,
+        isPaid: String(app.pricingTier || 'free') !== 'free',
+        includedInPlan: false,
+      });
+      return {
+        ...app,
+        isInstalled,
+        installedAt: record.installedAt || null,
+        trialDays: trial.trialDays,
+        trialActive: trial.trialActive,
+        trialExpired: trial.trialExpired,
+        trialEndsAt: trial.trialEndsAt,
+        trialDaysRemaining: trial.trialDaysRemaining,
+        billing: record.billing || null,
+      };
     });
     res.json({ success: true, apps: withStatus });
   } catch (error) {
@@ -3598,7 +3616,7 @@ router.put('/tenants/:id/apps/:appId', async (req, res) => {
     if (action === 'uninstall') {
       await applyAppUninstall({ tenant, appId });
     } else {
-      await applyAppInstall({ tenant, appDef, appId, customConfig: req.body?.config || {} });
+      await applyAppInstall({ tenant, appDef, appId, customConfig: req.body?.config || {}, granted: true });
     }
 
     await invalidateAuthCache(null, tenant._id);
@@ -3638,10 +3656,14 @@ router.put('/app-catalog/:appId', protect, authorize('super_admin'), async (req,
     const updates = req.body;
     
     // Allow updating pricing, details, features, and active status
-    const allowedFields = ['nameEn', 'nameAr', 'taglineEn', 'taglineAr', 'descriptionEn', 'descriptionAr', 'pricingTier', 'monthlyPrice', 'yearlyPrice', 'includedInPlans', 'isActive', 'badge', 'featuresEn', 'featuresAr'];
+    const allowedFields = ['nameEn', 'nameAr', 'taglineEn', 'taglineAr', 'descriptionEn', 'descriptionAr', 'pricingTier', 'monthlyPrice', 'yearlyPrice', 'trialDays', 'includedInPlans', 'isActive', 'badge', 'featuresEn', 'featuresAr'];
     const sanitized = {};
     for (const key of allowedFields) {
       if (updates[key] !== undefined) sanitized[key] = updates[key];
+    }
+    if (sanitized.trialDays !== undefined) {
+      const raw = updates.trialDays;
+      sanitized.trialDays = raw === 0 || raw === '0' ? 0 : normalizeTrialDays(raw);
     }
     
     const app = await AppAddon.findOneAndUpdate(

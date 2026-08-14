@@ -58,6 +58,8 @@ const appAddonSchema = new mongoose.Schema({
   },
   monthlyPrice: { type: Number, default: 0 },
   yearlyPrice: { type: Number, default: 0 },
+  /** Free trial length for paid apps. 0 = no trial. One trial per tenant; uninstall does not reset it. */
+  trialDays: { type: Number, default: 7, min: 0, max: 90 },
   /** SaaS plans where this app installs free (e.g. ['professional','enterprise']). Paid for other plans when pricingTier is paid. */
   includedInPlans: { type: [String], default: [] },
   downloadSize: { type: String, default: '3.2 MB' },

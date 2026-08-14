@@ -17,6 +17,7 @@ import {
   Globe2,
   Lock,
   Sparkles,
+  Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -229,6 +230,8 @@ export default function AppStore() {
   const appNeedsPayment = useCallback((app) => {
     if (!app || app.isInstalled) return false;
     if (app.includedInCurrentPlan) return false;
+    if (app.trialEligible) return false;
+    if (app.trialActive) return false;
     if (app.requiresPayment === false) return false;
     if (app.requiresPayment) return true;
     const tier = String(app.pricingTier || 'free').toLowerCase();
@@ -360,7 +363,9 @@ export default function AppStore() {
       name: isAr ? app.nameAr : app.nameEn,
       size: app.downloadSize || '5.2 MB',
       progress: 15,
-      stage: appNeedsPayment(app)
+      stage: app.trialEligible
+        ? (isAr ? 'جاري بدء الفترة التجريبية…' : 'Starting your free trial…')
+        : appNeedsPayment(app)
         ? (isAr ? 'جاري فتح بوابة Stripe…' : 'Opening Stripe checkout…')
         : (isAr ? 'جاري الاتصال بالسحابة وتحميل الحزمة...' : 'Initiating secure package download...')
     });
@@ -570,6 +575,12 @@ export default function AppStore() {
                 <Check className="h-3 w-3" />
                 {isAr ? 'مثبت' : 'Installed'}
               </span>
+              {app.trialActive && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                  <Clock className="h-3 w-3" />
+                  {isAr ? `تجربة · ${app.trialDaysRemaining} يوم` : `Trial · ${app.trialDaysRemaining}d left`}
+                </span>
+              )}
               {app.defaultRoute && (
                 <button
                   type="button"
@@ -623,6 +634,15 @@ export default function AppStore() {
                         {isAr ? `أو ${formatMoneyAmount(yearly, storeCurrency)}/سنة` : `or ${formatMoneyAmount(yearly, storeCurrency)}/yr`}
                       </p>
                     ) : null}
+                    {app.trialEligible ? (
+                      <p className="mt-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                        {isAr ? `تجربة مجانية ${app.trialDays || 7} أيام` : `${app.trialDays || 7}-day free trial`}
+                      </p>
+                    ) : (app.trialUsed || app.trialExpired) ? (
+                      <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                        {isAr ? 'التجربة مستخدمة — يلزم التفعيل' : 'Trial used — payment required'}
+                      </p>
+                    ) : null}
                   </>
                 ) : (
                   <p className="text-[12px] font-semibold text-emerald-700 dark:text-emerald-300">
@@ -644,7 +664,7 @@ export default function AppStore() {
                   disabled={isCurrentlyInstalling || installMutation.isPending}
                   className="inline-flex items-center rounded-xl bg-slate-900 px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-emerald-300"
                 >
-                  {isCurrentlyInstalling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (isAr ? 'تفعيل' : 'Activate')}
+                  {isCurrentlyInstalling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : app.trialEligible ? (isAr ? 'بدء التجربة' : 'Start trial') : (isAr ? 'تفعيل' : 'Activate')}
                 </button>
               </div>
             </div>
@@ -975,8 +995,9 @@ export default function AppStore() {
                 {(() => {
                   const { monthly, yearly } = resolveAppPrices(detailApp);
                   const savings = yearlySavingsPercent(monthly, yearly);
-                  const paid = appNeedsPayment(detailApp) && !detailApp.isInstalled && !detailApp.includedInCurrentPlan;
-                  if (!paid || !(monthly > 0 || yearly > 0)) return null;
+                  const hasPrice = monthly > 0 || yearly > 0;
+                  const showPricing = hasPrice && !detailApp.isInstalled && !detailApp.includedInCurrentPlan;
+                  if (!showPricing) return null;
                   return (
                     <div>
                       <h4 className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-400">
@@ -1024,6 +1045,18 @@ export default function AppStore() {
                           );
                         })}
                       </div>
+                      {detailApp.trialEligible && (
+                        <p className="mt-2 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                          {isAr
+                            ? `يشمل تجربة مجانية ${detailApp.trialDays || 7} أيام. تجربة واحدة لكل منشأة — إلغاء التثبيت لا يعيدها.`
+                            : `Includes a ${detailApp.trialDays || 7}-day free trial. One trial per business — uninstalling does not reset it.`}
+                        </p>
+                      )}
+                      {(detailApp.trialUsed || detailApp.trialExpired) && !detailApp.isInstalled && (
+                        <p className="mt-2 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                          {isAr ? 'تم استخدام التجربة المجانية. التفعيل يتطلب الدفع.' : 'The free trial was already used. Activate with payment to continue.'}
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
@@ -1214,7 +1247,9 @@ export default function AppStore() {
                           ? (isAr
                             ? `تفعيل ${formatAppPrice(detailApp) ? `— ${formatAppPrice(detailApp)}` : ''}`
                             : `Activate ${formatAppPrice(detailApp) ? `— ${formatAppPrice(detailApp)}` : ''}`)
-                          : (isAr ? 'تفعيل' : 'Activate')}
+                          : detailApp.trialEligible
+                            ? (isAr ? `بدء تجربة ${detailApp.trialDays || 7} أيام` : `Start ${detailApp.trialDays || 7}-day trial`)
+                            : (isAr ? 'تفعيل' : 'Activate')}
                       </span>
                     </button>
                     {appNeedsPayment(detailApp) && billingCycle === 'yearly' && (

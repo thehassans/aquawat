@@ -105,10 +105,16 @@ export default function TenantAppStorePanel({ tenantId, language = 'en' }) {
           {app.isInstalled ? (
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
               <Check className="h-3.5 w-3.5" />
-              {isAr ? 'مثبت' : 'Installed'}
+              {app.trialActive
+                ? (isAr ? `تجربة · ${app.trialDaysRemaining} يوم` : `Trial · ${app.trialDaysRemaining}d left`)
+                : (isAr ? 'مثبت' : 'Installed')}
             </span>
           ) : (
-            <span className="text-xs text-gray-400">{isAr ? 'غير مثبت' : 'Not installed'}</span>
+            <span className="text-xs text-gray-400">
+              {app.trialExpired || app.trialUsed
+                ? (isAr ? 'التجربة مستخدمة' : 'Trial used')
+                : (isAr ? 'غير مثبت' : 'Not installed')}
+            </span>
           )}
           <button
             type="button"

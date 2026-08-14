@@ -3,7 +3,7 @@ import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import EmailMessage from '../models/EmailMessage.js';
 import SystemSettings from '../models/SystemSettings.js';
-import logger from './logger.js';
+import { isAppInstalled } from './appStoreEntitlements.js';
 import { getOrBuildInvoicePdfAttachment } from '../services/invoicePdfQueue.js';
 import { ensureEmailDeliveryConfig, sendEmailWithConfig, verifyEmailDeliveryConnection } from './emailProviderService.js';
 import {
@@ -54,8 +54,7 @@ const tenantHasEmailAddon = (tenant) => {
   if (tenant?.subscription?.hasEmailAddon === true) return true;
   const features = Array.isArray(tenant?.subscription?.features) ? tenant.subscription.features : [];
   if (features.includes('email_automation')) return true;
-  const emailApp = tenant?.settings?.installedApps?.email_suite;
-  return emailApp?.isInstalled === true && emailApp?.isEnabled !== false;
+  return isAppInstalled(tenant, 'email_suite');
 };
 
 const resolveGlobalEmailConfig = (settings) => {

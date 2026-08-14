@@ -121,6 +121,7 @@ export default function AppCatalogManagement() {
       pricingTier: app.pricingTier || 'free',
       monthlyPrice: app.monthlyPrice || 0,
       yearlyPrice: app.yearlyPrice || 0,
+      trialDays: app.trialDays ?? 7,
       includedInPlans: Array.isArray(app.includedInPlans) ? [...app.includedInPlans] : [],
       badge: app.badge || '',
       isActive: app.isActive !== false
@@ -297,6 +298,16 @@ export default function AppCatalogManagement() {
                         <span className="font-semibold text-gray-900 dark:text-white">{app.yearlyPrice || 0} SAR / yr</span>
                       </div>
                     )}
+                    {app.pricingTier !== 'free' && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500 dark:text-gray-400">{isAr ? 'تجربة مجانية' : 'Free trial'}</span>
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                          {Number(app.trialDays ?? 7) > 0
+                            ? (isAr ? `${app.trialDays ?? 7} أيام` : `${app.trialDays ?? 7} days`)
+                            : (isAr ? 'بدون تجربة' : 'No trial')}
+                        </span>
+                      </div>
+                    )}
                     {Array.isArray(app.includedInPlans) && app.includedInPlans.length > 0 && (
                       <div className="flex items-start justify-between text-xs gap-2 pt-1 border-t border-gray-100 dark:border-dark-600">
                         <span className="text-gray-500 dark:text-gray-400 shrink-0">{isAr ? 'مجاني في' : 'Free on'}</span>
@@ -435,6 +446,23 @@ export default function AppCatalogManagement() {
                       <p className="mt-1 text-[10px] text-gray-400">
                         {isAr ? 'اترك 0 ليُحسب تلقائياً = 10 أشهر (شهرين مجاناً).' : 'Leave 0 to auto-bill 10 months (2 months free).'}
                       </p>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="label mb-1 block text-xs">{isAr ? 'أيام التجربة المجانية' : 'Free trial days'}</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="90"
+                        value={formState.trialDays ?? 7}
+                        onChange={(e) => setFormState((s) => ({ ...s, trialDays: Number(e.target.value) }))}
+                        className="input w-full text-sm"
+                      />
+                      <p className="mt-1 text-[10px] text-gray-400">
+                        {isAr
+                          ? 'افتراضي 7 أيام. مرة واحدة لكل منشأة — إلغاء التثبيت لا يعيد التجربة. 0 = بدون تجربة.'
+                          : 'Default 7 days. One trial per tenant — uninstalling does not reset it. 0 = no trial.'}
+                      </p>
+                    </div>
                     </div>
                   </div>
                 )}

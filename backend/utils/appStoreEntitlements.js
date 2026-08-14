@@ -3,6 +3,8 @@
  * requireAddon / legacy page gates. Install and uninstall are the source of truth.
  */
 
+import { isAppAccessValid } from './appTrial.js';
+
 export const APP_ENTITLEMENTS = {
   email_suite: { flags: { hasEmailAddon: true }, feature: 'email_automation' },
   sms_marketing: { flags: { hasSmsAddon: true } },
@@ -24,8 +26,7 @@ const FLAG_TO_APP = Object.fromEntries(
 );
 
 export function isAppInstalled(tenant, appId) {
-  const app = tenant?.settings?.installedApps?.[appId];
-  return app?.isInstalled === true && app?.isEnabled !== false;
+  return isAppAccessValid(tenant?.settings?.installedApps?.[appId]);
 }
 
 export function tenantHasSmsAddon(tenant) {

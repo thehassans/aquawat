@@ -1,9 +1,10 @@
 /**
  * App Store entitlement checks shared by Email Marketing, SMS, IoT, and restaurant apps.
  */
+import { isAppAccessValid } from './appStoreTrial'
+
 export function tenantHasInstalledApp(tenant, appId) {
-  const app = tenant?.settings?.installedApps?.[appId]
-  return app?.isInstalled === true && app?.isEnabled !== false
+  return isAppAccessValid(tenant?.settings?.installedApps?.[appId])
 }
 
 export function tenantHasEntitlement(tenant, { appId, flag } = {}) {

@@ -16,6 +16,7 @@ import { useTranslation } from '../../lib/translations'
 import App3DIcon from '../ui/App3DIcon'
 import useMaqderWebAppInstall from '../../lib/useMaqderWebAppInstall'
 import { tenantHasEmailAddon } from '../../lib/emailAddon'
+import { isAppAccessValid } from '../../lib/appStoreTrial'
 
 // Pre-defined mapping for standard paths to specific gradients and icons to match Odoo-style uniqueness
 const APP_STYLE_MAP = {
@@ -239,8 +240,8 @@ export default function AppLauncher() {
   const hasGosi = isSarCurrencyTenant && si.gosiConnectionStatus === 'connected';
 
   const installedApps = tenant?.settings?.installedApps || {}
-  const isAppActive = (appId) => isSarCurrencyTenant && installedApps[appId]?.isInstalled && installedApps[appId]?.isEnabled
-  const isBdAppActive = (appId) => isBdtCurrencyTenant && installedApps[appId]?.isInstalled && installedApps[appId]?.isEnabled !== false
+  const isAppActive = (appId) => isSarCurrencyTenant && isAppAccessValid(installedApps[appId])
+  const isBdAppActive = (appId) => isBdtCurrencyTenant && isAppAccessValid(installedApps[appId])
 
   const govChildren = [];
   if (hasZatca) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/zatca', label: language === 'ar' ? `بوابة زاتكا ${isZatcaPhase1 ? '(المرحلة 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal` });

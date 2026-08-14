@@ -20,6 +20,14 @@ import {
 } from '../utils/appStorePartnerApps.js';
 import { DeliveryPlatformConfig } from '../models/RestaurantDelivery.js';
 import { applyAppEntitlements, revokeAppEntitlements } from '../utils/appStoreEntitlements.js';
+import {
+  canStartAppTrial,
+  describeAppTrial,
+  expireStaleAppTrials,
+  isAppAccessValid,
+  isPaidOrGranted,
+  normalizeTrialDays,
+} from '../utils/appTrial.js';
 
 const router = express.Router();
 router.use(protect);
@@ -152,7 +160,7 @@ const isPaidApp = (appDef, billingCycle = 'monthly', tenantPlan = null) => {
   return getAppPrice(appDef, billingCycle) > 0;
 };
 
-export const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}, paymentMeta = null }) => {
+export const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}, paymentMeta = null, trial = false, granted = false }) => {
   if (!tenant.settings) tenant.settings = {};
   if (!tenant.settings.installedApps) tenant.settings.installedApps = {};
 
@@ -172,6 +180,10 @@ export const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}
     installedAt: existing.installedAt || new Date(),
     version: appDef.version,
     config: { ...defaultCfg, ...(existing.config || {}), ...(customConfig || {}) },
+    trialUsed: existing.trialUsed === true,
+    trialStartedAt: existing.trialStartedAt,
+    trialEndsAt: existing.trialEndsAt,
+    billing: existing.billing,
   };
 
   if (paymentMeta) {
@@ -182,7 +194,22 @@ export const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}
       currency: String(paymentMeta.currency || 'SAR').toUpperCase(),
       paymentId: paymentMeta.paymentId || '',
       paidAt: new Date(),
+      status: 'paid',
     };
+    appConfig.trialUsed = true;
+  } else if (granted) {
+    appConfig.billing = {
+      ...(existing.billing || {}),
+      status: 'granted',
+      grantedAt: new Date(),
+    };
+  } else if (trial) {
+    const days = normalizeTrialDays(appDef?.trialDays);
+    const started = new Date();
+    appConfig.trialUsed = true;
+    appConfig.trialStartedAt = existing.trialStartedAt || started;
+    appConfig.trialEndsAt = new Date(started.getTime() + days * 24 * 60 * 60 * 1000);
+    appConfig.billing = { status: 'trial', billingCycle: 'monthly' };
   }
 
   tenant.settings.installedApps[appId] = appConfig;
@@ -272,7 +299,7 @@ export async function fulfillAppStorePurchase({
   const appDef = (await AppAddon.findOne({ appId }).lean()) || DEFAULT_APP_CATALOG.find((a) => a.appId === appId);
   if (!appDef) throw new Error('App not found in catalog');
 
-  if (tenant.settings?.installedApps?.[appId]?.isInstalled) {
+  if (tenant.settings?.installedApps?.[appId] && isAppAccessValid(tenant.settings.installedApps[appId]) && isPaidOrGranted(tenant.settings.installedApps[appId])) {
     return { alreadyInstalled: true, tenant };
   }
 
@@ -1897,6 +1924,7 @@ export const ensureCatalogInitialized = async () => {
             pricingTier: app.pricingTier || 'free',
             monthlyPrice: app.monthlyPrice || 0,
             yearlyPrice: app.yearlyPrice || 0,
+            trialDays: normalizeTrialDays(app.trialDays),
             isActive: true
           }
         },
@@ -1927,6 +1955,10 @@ router.get('/apps', protect, async (req, res) => {
     const tenantCurrency = String(tenant.settings?.currency || 'SAR').trim().toUpperCase();
     const tenantPlan = tenant.subscription?.plan || 'trial';
 
+    if (expireStaleAppTrials(tenant)) {
+      await tenant.save();
+    }
+
     const isAppVisibleForCurrency = (app) => {
       const required = String(app.requiredCurrency || defaultCatalogMap.get(app.appId)?.requiredCurrency || '').trim().toUpperCase();
       if (required) return tenantCurrency === required;
@@ -1944,14 +1976,16 @@ router.get('/apps', protect, async (req, res) => {
 
     const appsWithStatus = finalApps.filter(isAppVisibleForCurrency).map((app) => {
       const defApp = defaultCatalogMap.get(app.appId);
-      const isExplicitlyInstalled = !!tenantInstalled[app.appId]?.isInstalled;
+      const record = tenantInstalled[app.appId] || {};
+      const isExplicitlyInstalled = !!record.isInstalled;
       // Grandfather tenants who already had premium invoice templates
       // configured before this app-store gating existed, so nothing breaks
       // retroactively for existing customers.
       const isGrandfatheredPremiumTemplates = app.appId === PREMIUM_INVOICE_TEMPLATES_APP_ID && !isExplicitlyInstalled && hasPremiumTemplateAccess(tenant);
-      const isInstalled = isExplicitlyInstalled || isGrandfatheredPremiumTemplates;
-      const isEnabled = tenantInstalled[app.appId]?.isEnabled !== false;
-      const config = tenantInstalled[app.appId]?.config || {};
+      const accessValid = isAppAccessValid(record);
+      const isInstalled = accessValid || isGrandfatheredPremiumTemplates;
+      const isEnabled = record.isEnabled !== false && accessValid;
+      const config = record.config || {};
       const includedInPlans = Array.isArray(app.includedInPlans)
         ? app.includedInPlans
         : (defApp?.includedInPlans || []);
@@ -1960,26 +1994,36 @@ router.get('/apps', protect, async (req, res) => {
         monthlyPrice: app.monthlyPrice ?? defApp?.monthlyPrice,
         yearlyPrice: app.yearlyPrice ?? defApp?.yearlyPrice,
         pricingTier: app.pricingTier || defApp?.pricingTier,
+        trialDays: app.trialDays ?? defApp?.trialDays,
         includedInPlans,
       };
       const { monthlyPrice, yearlyPrice } = resolveCatalogPrices(appForPrice);
       const includedInCurrentPlan = isAppIncludedInTenantPlan(appForPrice, tenantPlan);
-      const requiresPayment = isPaidApp({ ...appForPrice, monthlyPrice, yearlyPrice }, 'monthly', tenantPlan);
+      const paidApp = isPaidApp({ ...appForPrice, monthlyPrice, yearlyPrice }, 'monthly', tenantPlan);
+      const trial = describeAppTrial({
+        appDef: appForPrice,
+        record,
+        isPaid: paidApp,
+        includedInPlan: includedInCurrentPlan,
+      });
+      const requiresPayment = paidApp && !trial.trialEligible && !trial.trialActive;
 
       return {
         ...app,
         downloadSize: app.downloadSize || defApp?.downloadSize || '4.5 MB',
         monthlyPrice,
         yearlyPrice,
+        trialDays: trial.trialDays,
         pricingTier: app.pricingTier || defApp?.pricingTier || 'free',
         includedInPlans,
         includedInCurrentPlan,
         isInstalled,
         isEnabled,
-        installedAt: tenantInstalled[app.appId]?.installedAt || (isInstalled ? tenant.createdAt : null),
+        installedAt: record.installedAt || (isInstalled ? tenant.createdAt : null),
         config,
         requiresPayment,
-        billing: tenantInstalled[app.appId]?.billing || null,
+        billing: record.billing || null,
+        ...trial,
       };
     });
 
@@ -2029,12 +2073,35 @@ router.post('/apps/:appId/install', protect, async (req, res) => {
       return res.status(400).json({ error: 'Pakistan FBR apps require PKR as the tenant default currency.' });
     }
 
-    // Paid apps must go through Stripe unless included free in the tenant's SaaS plan.
+    const existing = tenant.settings?.installedApps?.[appId] || {};
+    if (isAppAccessValid(existing)) {
+      return res.status(400).json({ error: 'App is already installed' });
+    }
+
     const tenantPlan = tenant.subscription?.plan || 'trial';
-    if (isPaidApp(appDef, billingCycle, tenantPlan) && skipPayment !== true) {
+    const paidApp = isPaidApp(appDef, billingCycle, tenantPlan);
+    const allowSkip = skipPayment === true && req.user?.role === 'super_admin';
+
+    if (paidApp && !allowSkip && !isPaidOrGranted(existing)) {
+      if (canStartAppTrial(appDef, existing)) {
+        await applyAppInstall({ tenant, appDef, appId, customConfig, trial: true });
+        const installed = tenant.settings.installedApps[appId];
+        return res.json({
+          success: true,
+          trial: true,
+          trialEndsAt: installed?.trialEndsAt,
+          message: `App ${appDef.nameEn} installed on a ${normalizeTrialDays(appDef.trialDays)}-day trial`,
+          appId,
+          installedApps: tenant.settings.installedApps,
+          businessTypes: tenant.businessTypes,
+          tenant: serializeAuthTenant(tenant),
+        });
+      }
+
       return res.status(402).json({
         error: 'Payment required',
         requiresPayment: true,
+        trialUsed: true,
         appId,
         pricingTier: appDef.pricingTier,
         monthlyPrice: Number(appDef.monthlyPrice || 0),
@@ -2044,7 +2111,22 @@ router.post('/apps/:appId/install', protect, async (req, res) => {
       });
     }
 
-    await applyAppInstall({ tenant, appDef, appId, customConfig });
+    await applyAppInstall({
+      tenant,
+      appDef,
+      appId,
+      customConfig,
+      granted: allowSkip || existing.billing?.status === 'granted',
+      paymentMeta: isPaidOrGranted(existing) && existing.billing?.paidAt
+        ? {
+            provider: existing.billing.provider,
+            billingCycle: existing.billing.billingCycle || billingCycle,
+            amountMajor: existing.billing.amount,
+            currency: existing.billing.currency || tenantCurrency,
+            paymentId: existing.billing.paymentId,
+          }
+        : null,
+    });
 
     res.json({
       success: true,
@@ -2071,7 +2153,8 @@ router.post('/apps/:appId/checkout', protect, async (req, res) => {
     const tenant = await getTenantForUser(req);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-    if (tenant.settings?.installedApps?.[appId]?.isInstalled) {
+    const existing = tenant.settings?.installedApps?.[appId];
+    if (existing && isAppAccessValid(existing) && isPaidOrGranted(existing)) {
       return res.status(400).json({ error: 'App is already installed' });
     }
 

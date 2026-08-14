@@ -1,3 +1,5 @@
+import { isAppAccessValid } from './appTrial.js'
+
 export const DELIVERY_PLATFORM_APP_MAP = {
   hungerstation_delivery: 'hungerstation',
   jahez_delivery: 'jahez',
@@ -366,7 +368,7 @@ export function isBnplPartnerApp(appId) {
 export function tenantHasBnpl(tenant, provider) {
   const appId = provider === 'tamara' ? 'tamara_bnpl' : 'tabby_bnpl'
   const apps = tenant?.settings?.installedApps || {}
-  const installed = Boolean(apps[appId]?.isInstalled && apps[appId]?.isEnabled !== false)
+  const installed = isAppAccessValid(apps[appId])
   const payEnabled = Boolean(tenant?.ecommerce?.payments?.[provider]?.enabled)
   return installed && payEnabled
 }
@@ -374,10 +376,10 @@ export function tenantHasBnpl(tenant, provider) {
 export function tenantHasDeliveryAccess(tenant) {
   if (tenant?.subscription?.hasDeliveryAddon) return true
   const apps = tenant?.settings?.installedApps || {}
-  return ALL_DELIVERY_APP_IDS.some((id) => apps[id]?.isInstalled && apps[id]?.isEnabled !== false)
+  return ALL_DELIVERY_APP_IDS.some((id) => isAppAccessValid(apps[id]))
 }
 
 export function tenantHasAnyDeliveryAppInstalled(tenant) {
   const apps = tenant?.settings?.installedApps || {}
-  return ALL_DELIVERY_APP_IDS.some((id) => apps[id]?.isInstalled && apps[id]?.isEnabled !== false)
+  return ALL_DELIVERY_APP_IDS.some((id) => isAppAccessValid(apps[id]))
 }

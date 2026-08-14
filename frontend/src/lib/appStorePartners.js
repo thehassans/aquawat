@@ -1,3 +1,5 @@
+import { isAppAccessValid } from './appStoreTrial'
+
 export const DELIVERY_APP_IDS = [
   'delivery_platforms',
   'hungerstation_delivery',
@@ -30,7 +32,7 @@ export const BNPL_APP_IDS = [
 
 export function tenantHasInstalledApp(tenant, appIds = []) {
   const apps = tenant?.settings?.installedApps || {}
-  return appIds.some((id) => apps[id]?.isInstalled && apps[id]?.isEnabled !== false)
+  return appIds.some((id) => isAppAccessValid(apps[id]))
 }
 
 export function tenantHasDeliveryAccess(tenant) {
