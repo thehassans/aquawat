@@ -55,6 +55,8 @@ export function validateProductionEnv({ logger = console } = {}) {
         errors.push(
           'S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY required when REQUIRE_OBJECT_STORAGE=true'
         );
+      } else if (process.env.ALLOW_LOCAL_UPLOADS === 'true') {
+        // Explicit single-node uploads — do not warn on every boot.
       } else {
         warnings.push(
           'Object storage (S3/R2) not configured — local uploads block horizontal scaling. Set S3_* or ALLOW_LOCAL_UPLOADS=true explicitly'

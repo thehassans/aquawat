@@ -58,3 +58,21 @@ test('SENTRY_TRACES_SAMPLE_RATE env overrides default', () => {
     assert.equal(sentryTracesSampleRate(), 0.2);
   });
 });
+
+test('ALLOW_LOCAL_UPLOADS=true does not warn about missing S3', () => {
+  withEnv({
+    NODE_ENV: 'production',
+    JWT_SECRET: 'a-unique-production-jwt-secret-value-ok',
+    MONGODB_URI: 'mongodb://localhost/maqder',
+    SUPER_ADMIN_PASSWORD: 'Mqd#NotADefault-Pass9',
+    ZATCA_KEY_ENCRYPTION_KEY: 'dedicated-zatca-key-material-32chars',
+    ALLOW_LOCAL_UPLOADS: 'true',
+    S3_BUCKET: undefined,
+    S3_ACCESS_KEY: undefined,
+    S3_SECRET_KEY: undefined,
+  }, () => {
+    const result = validateProductionEnv({ logger: silent });
+    assert.equal(result.ok, true);
+    assert.equal(result.warnings.some((w) => /Object storage/i.test(w)), false);
+  });
+});
