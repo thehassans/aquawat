@@ -4,20 +4,34 @@ import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Search, Package, AlertTriangle, Eye, Edit, QrCode } from 'lucide-react'
+import { Plus, Search, Package, AlertTriangle, Eye, Edit, QrCode, Boxes, Warehouse, CircleOff } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
-
 import { getUomLabel } from '../../lib/uomOptions'
+
+const healthMeta = {
+  in_stock: { en: 'In stock', ar: 'متوفر', className: 'bg-emerald-50 text-emerald-800' },
+  low_stock: { en: 'Low', ar: 'منخفض', className: 'bg-amber-50 text-amber-800' },
+  out_of_stock: { en: 'Out', ar: 'نفد', className: 'bg-rose-50 text-rose-800' },
+  backorder: { en: 'Backorder', ar: 'طلب مفتوح', className: 'bg-violet-50 text-violet-800' },
+}
+
+function qtyClass(health) {
+  if (health === 'out_of_stock') return 'text-rose-600'
+  if (health === 'low_stock') return 'text-amber-700'
+  if (health === 'backorder') return 'text-violet-700'
+  return 'text-slate-900 dark:text-white'
+}
 
 export default function Products() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
+  const isAr = language === 'ar'
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({ category: '', status: '' })
+  const [filters, setFilters] = useState({ status: '', stockHealth: '' })
   const [page, setPage] = useState(1)
 
   const queryClient = useQueryClient()
@@ -27,7 +41,7 @@ export default function Products() {
 
   const { data: warehouses } = useQuery({
     queryKey: ['warehouses'],
-    queryFn: () => api.get('/warehouses').then(res => res.data)
+    queryFn: () => api.get('/warehouses').then((res) => res.data)
   })
   const warehouseOptions = Array.isArray(warehouses) ? warehouses : []
 
@@ -38,13 +52,13 @@ export default function Products() {
       type: 'add'
     }),
     onSuccess: () => {
-      toast.success(language === 'ar' ? 'تمت إضافة المخزون' : 'Stock added successfully')
+      toast.success(isAr ? 'تمت إضافة المخزون' : 'Stock received')
       queryClient.invalidateQueries(['products'])
       queryClient.invalidateQueries(['products-stats'])
       setStockModal({ isOpen: false, productId: null, productName: '' })
     },
     onError: (err) => {
-      toast.error(err.response?.data?.error || (language === 'ar' ? 'حدث خطأ' : 'Failed to add stock'))
+      toast.error(err.response?.data?.error || (isAr ? 'حدث خطأ' : 'Failed to add stock'))
     }
   })
 
@@ -52,12 +66,10 @@ export default function Products() {
     setStockModal({
       isOpen: true,
       productId: product._id,
-      productName: language === 'ar' ? product.nameAr || product.nameEn : product.nameEn
+      productName: isAr ? product.nameAr || product.nameEn : product.nameEn
     })
     setStockQuantity(1)
-    if (warehouseOptions.length > 0) {
-      setStockWarehouseId(warehouseOptions[0]._id)
-    }
+    if (warehouseOptions.length > 0) setStockWarehouseId(warehouseOptions[0]._id)
   }
 
   const handleAddStock = (e) => {
@@ -71,306 +83,268 @@ export default function Products() {
   }
 
   const exportColumns = [
-    {
-      key: 'name',
-      label: t('productName'),
-      value: (r) => (language === 'ar' ? r?.nameAr || r?.nameEn : r?.nameEn || r?.nameAr) || ''
-    },
-    {
-      key: 'sku',
-      label: t('sku'),
-      value: (r) => r?.sku || ''
-    },
-    {
-      key: 'barcode',
-      label: t('barcode'),
-      value: (r) => r?.barcode || ''
-    },
-    {
-      key: 'category',
-      label: t('category'),
-      value: (r) => r?.category || ''
-    },
-    {
-      key: 'unitOfMeasure',
-      label: language === 'ar' ? 'وحدة القياس (UOM)' : 'UOM',
-      value: (r) => getUomLabel(r?.unitOfMeasure, language) || r?.unitOfMeasure || 'EA'
-    },
-    {
-      key: 'costPrice',
-      label: t('costPrice'),
-      value: (r) => r?.costPrice ?? ''
-    },
-    {
-      key: 'sellingPrice',
-      label: t('sellingPrice'),
-      value: (r) => r?.sellingPrice ?? ''
-    },
-    {
-      key: 'totalStock',
-      label: t('quantity'),
-      value: (r) => r?.totalStock ?? ''
-    },
-    {
-      key: 'status',
-      label: t('status'),
-      value: (r) => r?.status || ''
-    },
+    { key: 'name', label: t('productName'), value: (r) => (isAr ? r?.nameAr || r?.nameEn : r?.nameEn || r?.nameAr) || '' },
+    { key: 'sku', label: t('sku'), value: (r) => r?.sku || '' },
+    { key: 'barcode', label: t('barcode'), value: (r) => r?.barcode || '' },
+    { key: 'category', label: t('category'), value: (r) => r?.category || '' },
+    { key: 'unitOfMeasure', label: isAr ? 'وحدة القياس' : 'UOM', value: (r) => getUomLabel(r?.unitOfMeasure, language) || r?.unitOfMeasure || 'EA' },
+    { key: 'onHand', label: isAr ? 'الرصيد' : 'On hand', value: (r) => r?.inventory?.onHand ?? r?.totalStock ?? '' },
+    { key: 'available', label: isAr ? 'المتاح' : 'Available', value: (r) => r?.inventory?.available ?? '' },
+    { key: 'reorderPoint', label: isAr ? 'حد الطلب' : 'Reorder at', value: (r) => r?.inventory?.reorderPoint ?? '' },
+    { key: 'health', label: isAr ? 'المخزون' : 'Stock', value: (r) => r?.inventory?.health || '' },
+    { key: 'costPrice', label: t('costPrice'), value: (r) => r?.costPrice ?? '' },
+    { key: 'sellingPrice', label: t('sellingPrice'), value: (r) => r?.sellingPrice ?? '' },
+    { key: 'status', label: t('status'), value: (r) => r?.status || '' },
   ]
 
   const { data, isLoading } = useQuery({
     queryKey: ['products', page, search, filters],
-    queryFn: () => api.get('/products', { params: { page, search, ...filters } }).then(res => res.data)
+    queryFn: () => api.get('/products', { params: { page, limit: 25, search, ...filters } }).then((res) => res.data)
   })
 
   const getExportRows = async () => {
     const limit = 200
     let currentPage = 1
     let all = []
-
     while (true) {
-      const res = await api.get('/products', {
-        params: { page: currentPage, limit, search, ...filters }
-      })
+      const res = await api.get('/products', { params: { page: currentPage, limit, search, ...filters } })
       const batch = res.data?.products || []
       all = all.concat(batch)
-
-      const pages = res.data?.pagination?.pages || 1
-      if (currentPage >= pages) break
+      if (currentPage >= (res.data?.pagination?.pages || 1) || all.length >= 10000) break
       currentPage += 1
-
-      if (all.length >= 10000) break
     }
-
     return all
   }
 
   const { data: stats } = useQuery({
     queryKey: ['products-stats'],
-    queryFn: () => api.get('/products/stats').then(res => res.data)
+    queryFn: () => api.get('/products/stats').then((res) => res.data)
   })
+
+  const totals = stats?.totals?.[0] || {}
+  const products = data?.products || []
+  const pagination = data?.pagination
+
+  const setHealth = (health) => {
+    setFilters((f) => ({ ...f, stockHealth: f.stockHealth === health ? '' : health }))
+    setPage(1)
+  }
+
+  const tiles = [
+    { key: '', label: isAr ? 'الأصناف' : 'SKUs', value: totals.totalProducts || 0, icon: Package, hint: isAr ? 'في الكتالوج' : 'In catalogue' },
+    { key: 'in_stock', label: isAr ? 'متوفر' : 'In stock', value: totals.inStock || 0, icon: Boxes, hint: isAr ? 'فوق حد الطلب' : 'Above reorder' },
+    { key: 'low_stock', label: isAr ? 'منخفض' : 'Low stock', value: totals.lowStock || stats?.lowStock?.[0]?.count || 0, icon: AlertTriangle, hint: isAr ? 'عند أو تحت حد الطلب' : 'At or below reorder' },
+    { key: 'out_of_stock', label: isAr ? 'نفد' : 'Out of stock', value: totals.outOfStock || 0, icon: CircleOff, hint: isAr ? 'لا رصيد متاح' : 'No available qty' },
+  ]
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('products')}</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            {language === 'ar' ? 'إدارة المنتجات والمخزون' : 'Manage products and inventory'}
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700">{isAr ? 'المخزون' : 'Inventory'}</p>
+          <h1 className="mt-1 font-[Outfit,sans-serif] text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+            {isAr ? 'المخزون والمنتجات' : 'Inventory'}
+          </h1>
+          <p className="mt-1 max-w-xl text-sm text-slate-500">
+            {isAr
+              ? 'الرصيد المتاح، حد إعادة الطلب، والقيمة — وليس مجرد قائمة منتجات.'
+              : 'On-hand, available, and reorder levels — not just a product list.'}
           </p>
         </div>
         <div className="flex gap-2">
           <ExportMenu
             language={language}
             t={t}
-            rows={data?.products || []}
+            rows={products}
             getRows={getExportRows}
             columns={exportColumns}
-            fileBaseName={language === 'ar' ? 'المنتجات' : 'Products'}
-            title={language === 'ar' ? 'المنتجات' : 'Products'}
-            disabled={isLoading || (data?.products || []).length === 0}
+            fileBaseName={isAr ? 'المخزون' : 'Inventory'}
+            title={isAr ? 'المخزون' : 'Inventory'}
+            disabled={isLoading || products.length === 0}
           />
-          <Link to="/products/new" className="btn btn-action-dark">
-            <Plus className="w-4 h-4" />
-            {language === 'ar' ? 'إضافة منتج' : 'Add Product'}
+          <Link to="/products/new" className="inline-flex items-center gap-2 rounded-xl bg-[#1a3d28] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#244d33]">
+            <Plus className="h-4 w-4" />
+            {isAr ? 'إضافة صنف' : 'Add SKU'}
           </Link>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-xl">
-            <Package className="w-5 h-5 text-primary-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'إجمالي المنتجات' : 'Total Products'}</p>
-            <p className="text-2xl font-bold">{stats?.totals?.[0]?.totalProducts || 0}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-            <Package className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'إجمالي المخزون' : 'Total Stock'}</p>
-            <p className="text-2xl font-bold">{stats?.totals?.[0]?.totalStock?.toLocaleString() || 0}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
-            <Package className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'سماح بالسالب' : 'Negative Stock OK'}</p>
-            <p className="text-2xl font-bold text-purple-600">{stats?.allowNegativeStock?.[0]?.count || 0}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
-            <AlertTriangle className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{t('lowStock')}</p>
-            <p className="text-2xl font-bold text-amber-600">{stats?.lowStock?.[0]?.count || 0}</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {tiles.map((tile) => {
+          const Icon = tile.icon
+          const active = (tile.key && filters.stockHealth === tile.key) || (!tile.key && !filters.stockHealth)
+          return (
+            <button
+              key={tile.key || 'all'}
+              type="button"
+              onClick={() => (tile.key ? setHealth(tile.key) : (setFilters((f) => ({ ...f, stockHealth: '' })), setPage(1)))}
+              className={`rounded-2xl border p-4 text-start transition ${
+                active
+                  ? 'border-emerald-200 bg-white shadow-[0_16px_40px_-24px_rgba(16,185,129,.45)] ring-1 ring-emerald-100'
+                  : 'border-slate-100 bg-white/70 hover:border-slate-200 hover:bg-white'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="font-[Outfit,sans-serif] text-2xl font-semibold tabular-nums text-slate-900">{Number(tile.value).toLocaleString()}</span>
+              </div>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{tile.label}</p>
+              <p className="mt-0.5 text-xs text-slate-400">{tile.hint}</p>
+            </button>
+          )
+        })}
       </div>
 
-      {/* Filters */}
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder={`${t('search')} / ${t('barcode')}...`} value={search} onChange={(e) => setSearch(e.target.value)} className="input ps-10" />
+      <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-slate-600">
+        <span className="font-semibold text-slate-900"><Money value={totals.totalValue || 0} /></span>
+        {' '}{isAr ? 'قيمة المخزون بسعر التكلفة' : 'inventory value at cost'}
+        <span className="mx-2 text-slate-300">·</span>
+        {(totals.totalStock || 0).toLocaleString()} {isAr ? 'وحدة في اليد' : 'units on hand'}
+      </div>
+
+      <div className="rounded-2xl border border-slate-100 bg-white p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder={isAr ? 'بحث بالاسم أو الباركود أو SKU' : 'Search name, barcode, or SKU'}
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2.5 ps-10 pe-3 text-sm outline-none transition focus:border-emerald-600/40 focus:bg-white focus:ring-2 focus:ring-emerald-700/10"
+            />
           </div>
-          <select value={filters.allowNegativeStock || ''} onChange={(e) => setFilters({ ...filters, allowNegativeStock: e.target.value })} className="select w-full sm:w-48">
-            <option value="">{language === 'ar' ? 'كل أنواع المخزون' : 'All Stock Types'}</option>
-            <option value="true">{language === 'ar' ? 'سماح بالسالب فقط' : 'Negative Allowed Only'}</option>
-            <option value="false">{language === 'ar' ? 'مخزون عادي فقط' : 'Standard Stock Only'}</option>
-          </select>
-          <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="select w-full sm:w-40">
-            <option value="">{language === 'ar' ? 'كل الحالات' : 'All Status'}</option>
-            <option value="active">{language === 'ar' ? 'نشط' : 'Active'}</option>
-            <option value="inactive">{language === 'ar' ? 'غير نشط' : 'Inactive'}</option>
-            <option value="out_of_stock">{t('outOfStock')}</option>
+          <select
+            value={filters.status}
+            onChange={(e) => { setFilters({ ...filters, status: e.target.value }); setPage(1) }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm sm:w-40"
+          >
+            <option value="">{isAr ? 'كل الحالات' : 'All statuses'}</option>
+            <option value="active">{isAr ? 'نشط' : 'Active'}</option>
+            <option value="inactive">{isAr ? 'غير نشط' : 'Inactive'}</option>
           </select>
         </div>
       </div>
 
-      {/* Table */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-[0_24px_60px_-32px_rgba(15,23,42,.18)]">
         {isLoading ? (
-          <div className="p-8 text-center"><div className="inline-block w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>
+          <div className="flex justify-center p-16">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+          </div>
         ) : (
           <ResponsiveDataList
-            items={data?.products || []}
-            empty={<p className="p-6 text-center text-sm text-gray-500">{language === 'ar' ? 'لا توجد منتجات' : 'No products'}</p>}
-            className="p-4 md:p-0"
-            renderCard={(product) => (
-              <div key={product._id} className="rounded-xl border border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 shrink-0 bg-gray-100 dark:bg-dark-700 rounded-lg flex items-center justify-center">
-                      {product.images?.[0] ? (
-                        <img src={product.images[0].url} alt="" className="w-full h-full object-cover rounded-lg" />
-                      ) : (
-                        <Package className="w-5 h-5 text-gray-400" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-gray-900 dark:text-white truncate">
-                        {language === 'ar' ? product.nameAr || product.nameEn : product.nameEn}
-                      </p>
-                      <p className="text-xs text-gray-500 font-mono">{product.sku}</p>
-                    </div>
-                  </div>
-                  <span className={`badge shrink-0 ${product.status === 'active' ? 'badge-success' : product.status === 'out_of_stock' ? 'badge-danger' : 'badge-neutral'}`}>
-                    {product.status}
-                  </span>
+            items={products}
+            empty={
+              <div className="px-6 py-16 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <Warehouse className="h-6 w-6" />
                 </div>
-                <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-                  <div className="flex items-center gap-3">
-                    <span className={product.totalStock <= 10 ? 'text-red-600 font-semibold' : ''}>
-                      {product.totalStock} {product.unitOfMeasure || 'EA'}
-                    </span>
-                    <span className="font-semibold text-gray-900 dark:text-white"><Money value={product.sellingPrice} /></span>
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => openStockModal(product)}
-                      className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg text-emerald-600"
-                      title={language === 'ar' ? 'إضافة مخزون' : 'Add Stock'}
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                    <Link to={`/products/${product._id}`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
-                      <Eye className="w-4 h-4 text-gray-600" />
-                    </Link>
-                    <Link to={`/products/${product._id}`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
-                      <Edit className="w-4 h-4 text-gray-600" />
-                    </Link>
-                  </div>
-                </div>
+                <p className="mt-4 font-[Outfit,sans-serif] text-lg font-semibold text-slate-900">{isAr ? 'لا توجد أصناف' : 'No inventory in this view'}</p>
               </div>
-            )}
+            }
+            className="p-4 md:p-0"
+            renderCard={(product) => {
+              const inv = product.inventory || {}
+              const health = inv.health || 'in_stock'
+              const hm = healthMeta[health] || healthMeta.in_stock
+              return (
+                <div key={product._id} className="rounded-2xl border border-slate-100 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">{isAr ? product.nameAr || product.nameEn : product.nameEn}</p>
+                      <p className="font-mono text-xs text-slate-400">{product.sku}</p>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>{isAr ? hm.ar : hm.en}</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-sm">
+                    <span className={`font-semibold ${qtyClass(health)}`}>
+                      {(inv.available ?? product.totalStock) || 0} {product.unitOfMeasure || 'EA'}
+                    </span>
+                    <Money value={product.sellingPrice} />
+                  </div>
+                </div>
+              )
+            }}
           >
-            <div className="table-container">
-              <table className="table">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[880px] text-sm">
                 <thead>
-                  <tr>
-                    <th>{t('productName')}</th>
-                    <th>{t('sku')}</th>
-                    <th>{t('category')}</th>
-                    <th>{language === 'ar' ? 'الوحدة (UOM)' : 'UOM'}</th>
-                    <th>{t('costPrice')}</th>
-                    <th>{t('sellingPrice')}</th>
-                    <th>{t('quantity')}</th>
-                    <th>{t('status')}</th>
-                    <th>{t('actions')}</th>
+                  <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    <th className="px-5 py-3 font-semibold">{t('productName')}</th>
+                    <th className="px-3 py-3 font-semibold">{t('sku')}</th>
+                    <th className="px-3 py-3 font-semibold">{isAr ? 'الوحدة' : 'UOM'}</th>
+                    <th className="px-3 py-3 font-semibold">{isAr ? 'المتاح' : 'Available'}</th>
+                    <th className="px-3 py-3 font-semibold">{isAr ? 'حد الطلب' : 'Reorder'}</th>
+                    <th className="px-3 py-3 font-semibold">{t('sellingPrice')}</th>
+                    <th className="px-3 py-3 font-semibold">{isAr ? 'المخزون' : 'Stock'}</th>
+                    <th className="px-5 py-3 font-semibold" />
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.products?.map((product) => (
-                    <tr key={product._id}>
-                      <td>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gray-100 dark:bg-dark-700 rounded-lg flex items-center justify-center">
-                            {product.images?.[0] ? (
-                              <img src={product.images[0].url} alt="" className="w-full h-full object-cover rounded-lg" />
-                            ) : (
-                              <Package className="w-5 h-5 text-gray-400" />
-                            )}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-gray-900 dark:text-white">{language === 'ar' ? product.nameAr || product.nameEn : product.nameEn}</p>
-                              {product.allowNegativeStock && (
-                                <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 rounded border border-purple-200 dark:border-purple-800">
-                                  {language === 'ar' ? 'سماح بالسالب' : 'Negative OK'}
-                                </span>
+                  {products.map((product) => {
+                    const inv = product.inventory || {}
+                    const health = inv.health || 'in_stock'
+                    const hm = healthMeta[health] || healthMeta.in_stock
+                    return (
+                      <tr key={product._id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+                              {product.images?.[0] ? (
+                                <img src={product.images[0].url} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <Package className="h-5 w-5 text-slate-400" />
                               )}
                             </div>
-                            {product.barcode && <p className="text-xs text-gray-500 flex items-center gap-1"><QrCode className="w-3 h-3" />{product.barcode}</p>}
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-slate-900">{isAr ? product.nameAr || product.nameEn : product.nameEn}</p>
+                              {product.barcode && (
+                                <p className="flex items-center gap-1 font-mono text-[11px] text-slate-400">
+                                  <QrCode className="h-3 w-3" />{product.barcode}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="font-mono text-sm">{product.sku}</td>
-                      <td>{product.category || '-'}</td>
-                      <td>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 dark:bg-dark-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-dark-600 shadow-2xs">
-                          {getUomLabel(product.unitOfMeasure, language) || product.unitOfMeasure || 'EA'}
-                        </span>
-                      </td>
-                      <td><Money value={product.costPrice} /></td>
-                      <td className="font-semibold"><Money value={product.sellingPrice} /></td>
-                      <td>
-                        <div className="flex items-baseline gap-1">
-                          <span className={`font-semibold ${product.totalStock <= 10 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
-                            {product.totalStock}
+                        </td>
+                        <td className="px-3 py-3.5 font-mono text-xs text-slate-500">{product.sku}</td>
+                        <td className="px-3 py-3.5">
+                          <span className="rounded-lg bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                            {getUomLabel(product.unitOfMeasure, language) || product.unitOfMeasure || 'EA'}
                           </span>
-                          <span className="text-xs text-gray-400">
-                            {product.unitOfMeasure || 'EA'}
+                        </td>
+                        <td className="px-3 py-3.5">
+                          <p className={`font-semibold tabular-nums ${qtyClass(health)}`}>
+                            {inv.available ?? product.totalStock ?? 0}
+                          </p>
+                          {inv.reserved > 0 && (
+                            <p className="text-[11px] text-slate-400">{inv.onHand} {isAr ? 'في اليد' : 'on hand'} · {inv.reserved} {isAr ? 'محجوز' : 'reserved'}</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-3.5 tabular-nums text-slate-500">{inv.reorderPoint ?? '—'}</td>
+                        <td className="px-3 py-3.5 font-semibold"><Money value={product.sellingPrice} /></td>
+                        <td className="px-3 py-3.5">
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>
+                            {isAr ? hm.ar : hm.en}
                           </span>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`badge ${product.status === 'active' ? 'badge-success' : product.status === 'out_of_stock' ? 'badge-danger' : 'badge-neutral'}`}>
-                          {product.status}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => openStockModal(product)} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg text-emerald-600" title={language === 'ar' ? 'إضافة مخزون' : 'Add Stock'}>
-                            <Plus className="w-4 h-4" />
-                          </button>
-                          <Link to={`/products/${product._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"><Eye className="w-4 h-4 text-gray-600" /></Link>
-                          <Link to={`/products/${product._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"><Edit className="w-4 h-4 text-gray-600" /></Link>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex justify-end gap-1">
+                            <button type="button" onClick={() => openStockModal(product)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50" title={isAr ? 'استلام مخزون' : 'Receive stock'}>
+                              <Plus className="h-4 w-4" />
+                            </button>
+                            <Link to={`/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                            <Link to={`/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                              <Edit className="h-4 w-4" />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -378,49 +352,47 @@ export default function Products() {
         )}
       </motion.div>
 
-      {/* Add Stock Modal */}
+      {pagination?.pages > 1 && (
+        <div className="flex items-center justify-between text-sm text-slate-500">
+          <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            {isAr ? 'السابق' : 'Previous'}
+          </button>
+          <span>{isAr ? 'صفحة' : 'Page'} {page} / {pagination.pages} · {pagination.total} {isAr ? 'صنف' : 'SKUs'}</span>
+          <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 disabled:opacity-40" disabled={page >= pagination.pages} onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}>
+            {isAr ? 'التالي' : 'Next'}
+          </button>
+        </div>
+      )}
+
       {stockModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-dark-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
             <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-                {language === 'ar' ? 'إضافة مخزون' : 'Add Stock'} - {stockModal.productName}
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">{isAr ? 'حركة مخزون' : 'Stock movement'}</p>
+              <h3 className="mt-1 font-[Outfit,sans-serif] text-xl font-semibold text-slate-900">
+                {isAr ? 'استلام مخزون' : 'Receive stock'}
               </h3>
-              <form onSubmit={handleAddStock} className="space-y-4">
+              <p className="mt-1 text-sm text-slate-500">{stockModal.productName}</p>
+              <form onSubmit={handleAddStock} className="mt-5 space-y-4">
                 <div>
-                  <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
-                  <select
-                    className="select"
-                    value={stockWarehouseId}
-                    onChange={(e) => setStockWarehouseId(e.target.value)}
-                    required
-                  >
-                    <option value="">{language === 'ar' ? 'اختر المستودع' : 'Select warehouse'}</option>
-                    {warehouseOptions.map(w => (
-                      <option key={w._id} value={w._id}>
-                        {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
-                      </option>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{isAr ? 'المستودع' : 'Warehouse'}</label>
+                  <select className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" value={stockWarehouseId} onChange={(e) => setStockWarehouseId(e.target.value)} required>
+                    <option value="">{isAr ? 'اختر المستودع' : 'Select warehouse'}</option>
+                    {warehouseOptions.map((w) => (
+                      <option key={w._id} value={w._id}>{isAr ? w.nameAr || w.nameEn : w.nameEn}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="label">{language === 'ar' ? 'الكمية المراد إضافتها' : 'Quantity to Add'}</label>
-                  <input
-                    type="number"
-                    min="0.0001"
-                    step="0.0001"
-                    className="input"
-                    value={stockQuantity}
-                    onChange={(e) => setStockQuantity(e.target.value)}
-                    required
-                  />
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{isAr ? 'الكمية المستلمة' : 'Quantity received'}</label>
+                  <input type="number" min="0.0001" step="0.0001" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" value={stockQuantity} onChange={(e) => setStockQuantity(e.target.value)} required />
                 </div>
-                <div className="flex justify-end gap-3 mt-6">
-                  <button type="button" onClick={() => setStockModal({ isOpen: false, productId: null, productName: '' })} className="btn btn-secondary">
-                    {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setStockModal({ isOpen: false, productId: null, productName: '' })} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">
+                    {isAr ? 'إلغاء' : 'Cancel'}
                   </button>
-                  <button type="submit" disabled={addStockMutation.isPending} className="btn btn-primary bg-emerald-600 hover:bg-emerald-700 border-none text-white">
-                    {addStockMutation.isPending ? '...' : (language === 'ar' ? 'إضافة' : 'Add')}
+                  <button type="submit" disabled={addStockMutation.isPending} className="rounded-xl bg-[#1a3d28] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+                    {addStockMutation.isPending ? '…' : (isAr ? 'استلام' : 'Receive')}
                   </button>
                 </div>
               </form>

@@ -3,17 +3,17 @@ import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, Users, Building2, Briefcase, Edit, Phone, Mail, Hash, MessageCircle, MessageSquare } from 'lucide-react'
+import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound } from 'lucide-react'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
 
 const typeMeta = {
-  customer: { badge: 'badge-info', en: 'Customer', ar: 'عميل', icon: Building2 },
-  supplier: { badge: 'badge-warning', en: 'Supplier', ar: 'مورد', icon: Briefcase },
-  employee: { badge: 'badge-success', en: 'Employee', ar: 'موظف', icon: Users },
-  whatsapp: { badge: 'badge-success', en: 'WhatsApp', ar: 'واتساب', icon: MessageCircle, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30' },
-  whatsapp_group: { badge: 'badge-info', en: 'Group', ar: 'مجموعة', icon: MessageSquare, color: 'text-purple-600', bg: 'bg-purple-100 dark:bg-purple-900/30' },
+  customer: { en: 'Customer', ar: 'عميل', icon: Building2, tint: 'bg-sky-50 text-sky-700', ring: 'ring-sky-100' },
+  supplier: { en: 'Supplier', ar: 'مورد', icon: Briefcase, tint: 'bg-amber-50 text-amber-800', ring: 'ring-amber-100' },
+  employee: { en: 'Employee', ar: 'موظف', icon: Users, tint: 'bg-emerald-50 text-emerald-800', ring: 'ring-emerald-100' },
+  whatsapp: { en: 'WhatsApp', ar: 'واتساب', icon: MessageCircle, tint: 'bg-green-50 text-green-800', ring: 'ring-green-100' },
+  whatsapp_group: { en: 'Group', ar: 'مجموعة', icon: MessageSquare, tint: 'bg-violet-50 text-violet-800', ring: 'ring-violet-100' },
 }
 
 const getEntityRoute = (contact) => {
@@ -23,13 +23,23 @@ const getEntityRoute = (contact) => {
   return null
 }
 
+const initials = (name = '') =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join('')
+    .toUpperCase() || '•'
+
 export default function Contacts() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
+  const isAr = language === 'ar'
 
   const [search, setSearch] = useState('')
   const [type, setType] = useState('')
-  const [isActive, setIsActive] = useState('true')
+  const [isActive, setIsActive] = useState('all')
   const [page, setPage] = useState(1)
 
   const { data, isLoading } = useQuery({
@@ -37,13 +47,7 @@ export default function Contacts() {
     queryFn: () =>
       api
         .get('/contacts', {
-          params: {
-            search,
-            types: type || undefined,
-            isActive,
-            page,
-            limit: 25,
-          },
+          params: { search, types: type || undefined, isActive, page, limit: 25 },
         })
         .then((res) => res.data),
   })
@@ -55,314 +59,218 @@ export default function Contacts() {
 
   const contacts = data?.contacts || []
   const pagination = data?.pagination
-
   const totals = stats?.byType || { customers: 0, suppliers: 0, employees: 0, whatsapp: 0, whatsappGroups: 0 }
-
   const totalContacts = stats?.total || 0
 
   const rows = useMemo(() => {
     return contacts.map((c) => {
-      const meta = typeMeta[c.entityType] || { badge: 'badge-neutral', en: c.entityType, ar: c.entityType, icon: Users }
-      const name = language === 'ar' ? c.displayNameAr || c.displayName : c.displayName
-      const route = getEntityRoute(c)
-      const Icon = meta.icon
-
+      const meta = typeMeta[c.entityType] || { en: c.entityType, ar: c.entityType, icon: UserRound, tint: 'bg-slate-50 text-slate-700' }
       return {
         ...c,
         meta,
-        name,
-        route,
-        Icon,
+        name: isAr ? c.displayNameAr || c.displayName : c.displayName,
+        route: getEntityRoute(c),
+        Icon: meta.icon,
       }
     })
-  }, [contacts, language])
+  }, [contacts, isAr])
 
   const exportColumns = [
-    {
-      key: 'name',
-      label: language === 'ar' ? 'الاسم' : 'Name',
-      value: (r) => r?.name || ''
-    },
-    {
-      key: 'type',
-      label: language === 'ar' ? 'النوع' : 'Type',
-      value: (r) => (language === 'ar' ? r?.meta?.ar : r?.meta?.en) || r?.entityType || ''
-    },
-    {
-      key: 'phone',
-      label: language === 'ar' ? 'الهاتف' : 'Phone',
-      value: (r) => r?.phone || ''
-    },
-    {
-      key: 'email',
-      label: language === 'ar' ? 'البريد' : 'Email',
-      value: (r) => r?.email || ''
-    },
-    {
-      key: 'code',
-      label: language === 'ar' ? 'الرمز' : 'Code',
-      value: (r) => r?.code || ''
-    },
-    {
-      key: 'vatNumber',
-      label: language === 'ar' ? 'الرقم الضريبي' : 'VAT',
-      value: (r) => r?.vatNumber || ''
-    },
-    {
-      key: 'status',
-      label: t('status'),
-      value: (r) => (r?.isActive ? (language === 'ar' ? 'نشط' : 'Active') : (language === 'ar' ? 'غير نشط' : 'Inactive'))
-    },
+    { key: 'name', label: isAr ? 'الاسم' : 'Name', value: (r) => r?.name || '' },
+    { key: 'type', label: isAr ? 'النوع' : 'Type', value: (r) => (isAr ? r?.meta?.ar : r?.meta?.en) || r?.entityType || '' },
+    { key: 'phone', label: isAr ? 'الهاتف' : 'Phone', value: (r) => r?.phone || '' },
+    { key: 'email', label: isAr ? 'البريد' : 'Email', value: (r) => r?.email || '' },
+    { key: 'code', label: isAr ? 'الرمز' : 'Code', value: (r) => r?.code || '' },
+    { key: 'vatNumber', label: isAr ? 'الرقم الضريبي' : 'VAT', value: (r) => r?.vatNumber || '' },
+    { key: 'status', label: t('status'), value: (r) => (r?.isActive ? (isAr ? 'نشط' : 'Active') : (isAr ? 'غير نشط' : 'Inactive')) },
   ]
 
   const getExportRows = async () => {
     const limit = 200
     let currentPage = 1
     let all = []
-
     while (true) {
-      const res = await api.get('/contacts', {
-        params: {
-          search,
-          types: type || undefined,
-          isActive,
-          page: currentPage,
-          limit,
-        },
-      })
+      const res = await api.get('/contacts', { params: { search, types: type || undefined, isActive, page: currentPage, limit } })
       const batch = res.data?.contacts || []
-      const mapped = batch.map((c) => {
-        const meta = typeMeta[c.entityType] || { badge: 'badge-neutral', en: c.entityType, ar: c.entityType, icon: Users }
-        const name = language === 'ar' ? c.displayNameAr || c.displayName : c.displayName
-        const route = getEntityRoute(c)
-        return { ...c, meta, name, route }
-      })
-      all = all.concat(mapped)
-
-      const pages = res.data?.pagination?.pages || 1
-      if (currentPage >= pages) break
+      all = all.concat(batch.map((c) => {
+        const meta = typeMeta[c.entityType] || { en: c.entityType, ar: c.entityType }
+        return { ...c, meta, name: isAr ? c.displayNameAr || c.displayName : c.displayName }
+      }))
+      if (currentPage >= (res.data?.pagination?.pages || 1) || all.length >= 10000) break
       currentPage += 1
-
-      if (all.length >= 10000) break
     }
-
     return all
   }
 
+  const setTypeFilter = (next) => {
+    setType((cur) => (cur === next ? '' : next))
+    setPage(1)
+  }
+
+  const tiles = [
+    { key: '', label: isAr ? 'الكل' : 'All', value: totalContacts, icon: Users, active: type === '' },
+    { key: 'customer', label: isAr ? 'العملاء' : 'Customers', value: totals.customers || 0, icon: Building2, active: type === 'customer' },
+    { key: 'supplier', label: isAr ? 'الموردون' : 'Suppliers', value: totals.suppliers || 0, icon: Briefcase, active: type === 'supplier' },
+    { key: 'employee', label: isAr ? 'الموظفون' : 'Employees', value: totals.employees || 0, icon: Users, active: type === 'employee' },
+    { key: 'whatsapp', label: 'WhatsApp', value: (totals.whatsapp || 0) + (totals.whatsappGroups || 0), icon: MessageCircle, active: type === 'whatsapp' },
+  ]
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{language === 'ar' ? 'جهات الاتصال' : 'Contacts'}</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            {language === 'ar'
-              ? 'دليل موحد للعملاء والموردين والموظفين'
-              : 'Unified directory for customers, suppliers, and employees'}
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700">{isAr ? 'الدليل' : 'Directory'}</p>
+          <h1 className="mt-1 font-[Outfit,sans-serif] text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+            {isAr ? 'جهات الاتصال' : 'Contacts'}
+          </h1>
+          <p className="mt-1 max-w-xl text-sm text-slate-500">
+            {isAr ? 'دليل موحّد للعملاء والموردين والموظفين.' : 'One book for customers, suppliers, employees, and WhatsApp.'}
           </p>
         </div>
-
         <ExportMenu
           language={language}
           t={t}
           rows={rows}
           getRows={getExportRows}
           columns={exportColumns}
-          fileBaseName={language === 'ar' ? 'جهات_الاتصال' : 'Contacts'}
-          title={language === 'ar' ? 'جهات الاتصال' : 'Contacts'}
+          fileBaseName={isAr ? 'جهات_الاتصال' : 'Contacts'}
+          title={isAr ? 'جهات الاتصال' : 'Contacts'}
           disabled={isLoading || rows.length === 0}
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-xl">
-            <Users className="w-5 h-5 text-primary-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'الإجمالي' : 'Total'}</p>
-            <p className="text-2xl font-bold">{totalContacts.toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-            <Building2 className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'العملاء' : 'Customers'}</p>
-            <p className="text-2xl font-bold">{(totals.customers || 0).toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
-            <Briefcase className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'الموردين' : 'Suppliers'}</p>
-            <p className="text-2xl font-bold">{(totals.suppliers || 0).toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
-            <Users className="w-5 h-5 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'الموظفين' : 'Employees'}</p>
-            <p className="text-2xl font-bold">{(totals.employees || 0).toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl">
-            <MessageCircle className="w-5 h-5 text-green-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'واتساب' : 'WhatsApp'}</p>
-            <p className="text-2xl font-bold">{((totals.whatsapp || 0) + (totals.whatsappGroups || 0)).toLocaleString()}</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {tiles.map((tile) => {
+          const Icon = tile.icon
+          return (
+            <button
+              key={tile.key || 'all'}
+              type="button"
+              onClick={() => setTypeFilter(tile.key)}
+              className={`rounded-2xl border p-4 text-start transition ${
+                tile.active
+                  ? 'border-emerald-200 bg-white shadow-[0_16px_40px_-24px_rgba(16,185,129,.45)] ring-1 ring-emerald-100'
+                  : 'border-slate-100 bg-white/70 hover:border-slate-200 hover:bg-white'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="font-[Outfit,sans-serif] text-2xl font-semibold tabular-nums text-slate-900">{Number(tile.value).toLocaleString()}</span>
+              </div>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{tile.label}</p>
+            </button>
+          )
+        })}
       </div>
 
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <div className="rounded-2xl border border-slate-100 bg-white p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder={language === 'ar' ? 'بحث بالاسم / البريد / الهاتف / الرقم الضريبي...' : 'Search by name / email / phone / VAT...'}
+              placeholder={isAr ? 'بحث بالاسم أو الهاتف أو الرقم الضريبي' : 'Search name, phone, email, or VAT'}
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
-                setPage(1)
-              }}
-              className="input ps-10"
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2.5 ps-10 pe-3 text-sm outline-none transition focus:border-emerald-600/40 focus:bg-white focus:ring-2 focus:ring-emerald-700/10"
             />
           </div>
-
-          <select
-            value={type}
-            onChange={(e) => {
-              setType(e.target.value)
-              setPage(1)
-            }}
-            className="select w-full sm:w-44"
-          >
-            <option value="">{language === 'ar' ? 'الكل' : 'All'}</option>
-            <option value="customer">{language === 'ar' ? 'العملاء' : 'Customers'}</option>
-            <option value="supplier">{language === 'ar' ? 'الموردين' : 'Suppliers'}</option>
-            <option value="employee">{language === 'ar' ? 'الموظفين' : 'Employees'}</option>
-            <option value="whatsapp">{language === 'ar' ? 'واتساب' : 'WhatsApp'}</option>
-          </select>
-
           <select
             value={isActive}
-            onChange={(e) => {
-              setIsActive(e.target.value)
-              setPage(1)
-            }}
-            className="select w-full sm:w-44"
+            onChange={(e) => { setIsActive(e.target.value); setPage(1) }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm sm:w-44"
           >
-            <option value="true">{language === 'ar' ? 'نشط فقط' : 'Active only'}</option>
-            <option value="false">{language === 'ar' ? 'غير نشط' : 'Inactive'}</option>
-            <option value="all">{language === 'ar' ? 'الكل' : 'All'}</option>
+            <option value="all">{isAr ? 'كل الحالات' : 'All statuses'}</option>
+            <option value="true">{isAr ? 'نشط فقط' : 'Active only'}</option>
+            <option value="false">{isAr ? 'غير نشط' : 'Inactive'}</option>
           </select>
         </div>
       </div>
 
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-[0_24px_60px_-32px_rgba(15,23,42,.18)]">
         {isLoading ? (
-          <div className="p-8 text-center">
-            <div className="inline-block w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+          <div className="flex justify-center p-16">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
           </div>
         ) : rows.length === 0 ? (
-          <div className="p-10 text-center text-gray-500">{t('noData')}</div>
+          <div className="px-6 py-16 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+              <UserRound className="h-6 w-6" />
+            </div>
+            <p className="mt-4 font-[Outfit,sans-serif] text-lg font-semibold text-slate-900">{isAr ? 'لا توجد جهات في هذا العرض' : 'No contacts in this view'}</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+              {isAr ? 'جرّب تغيير الفلتر أو أضف عميلاً أو مورداً.' : 'Try another filter, or add a customer or supplier from their modules.'}
+            </p>
+          </div>
         ) : (
-          <div className="table-container">
-            <table className="table">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr>
-                  <th>{language === 'ar' ? 'الاسم' : 'Name'}</th>
-                  <th>{language === 'ar' ? 'النوع' : 'Type'}</th>
-                  <th>{language === 'ar' ? 'الهاتف' : 'Phone'}</th>
-                  <th>{language === 'ar' ? 'البريد' : 'Email'}</th>
-                  <th>{language === 'ar' ? 'الرمز' : 'Code'}</th>
-                  <th>{language === 'ar' ? 'الرقم الضريبي' : 'VAT'}</th>
-                  <th>{t('status')}</th>
-                  <th>{t('actions')}</th>
+                <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  <th className="px-5 py-3 font-semibold">{isAr ? 'الاسم' : 'Name'}</th>
+                  <th className="px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>
+                  <th className="px-3 py-3 font-semibold">{isAr ? 'التواصل' : 'Reach'}</th>
+                  <th className="px-3 py-3 font-semibold">{isAr ? 'الرمز / الضريبة' : 'Code / VAT'}</th>
+                  <th className="px-3 py-3 font-semibold">{t('status')}</th>
+                  <th className="px-5 py-3 font-semibold" />
                 </tr>
               </thead>
               <tbody>
                 {rows.map((c) => (
-                  <tr key={`${c.entityType}-${c.entityId}`}>
-                    <td>
+                  <tr key={`${c.entityType}-${c.entityId}`} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
+                    <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.meta.bg || 'bg-gray-100 dark:bg-dark-700'}`}>
-                          <c.Icon className={`w-5 h-5 ${c.meta.color || 'text-gray-600 dark:text-gray-300'}`} />
+                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xs font-bold ${c.meta.tint}`}>
+                          {initials(c.name)}
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{c.name || '-'}</p>
-                          {c.displayNameAr && language !== 'ar' && (
-                            <p className="text-xs text-gray-500" dir="rtl">
-                              {c.displayNameAr}
-                            </p>
-                          )}
-                          {c._wa?.lastMessageAt && (
-                            <p className="text-xs text-gray-400">
-                              {c._wa.totalMessages || 0} {language === 'ar' ? 'رسالة' : 'messages'}
-                            </p>
-                          )}
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-900">{c.name || '—'}</p>
+                          {c.displayNameAr && !isAr && <p className="truncate text-xs text-slate-400" dir="rtl">{c.displayNameAr}</p>}
                         </div>
                       </div>
                     </td>
-                    <td>
-                      <span className={`badge ${c.meta.badge}`}>{language === 'ar' ? c.meta.ar : c.meta.en}</span>
-                    </td>
-                    <td>
-                      {c.phone ? (
-                        <span className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                          <Phone className="w-4 h-4 text-gray-400" />
-                          {c.phone}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td>
-                      {c.email ? (
-                        <span className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                          <Mail className="w-4 h-4 text-gray-400" />
-                          {c.email}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td>
-                      {c.code ? (
-                        <span className="inline-flex items-center gap-2 text-sm">
-                          <Hash className="w-4 h-4 text-gray-400" />
-                          <span className="font-mono">{c.code}</span>
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td className="font-mono text-sm">{c.vatNumber || '-'}</td>
-                    <td>
-                      <span className={`badge ${c.isActive ? 'badge-success' : 'badge-neutral'}`}>
-                        {c.isActive ? (language === 'ar' ? 'نشط' : 'Active') : language === 'ar' ? 'غير نشط' : 'Inactive'}
+                    <td className="px-3 py-3.5">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.meta.tint}`}>
+                        <c.Icon className="h-3.5 w-3.5" />
+                        {isAr ? c.meta.ar : c.meta.en}
                       </span>
                     </td>
-                    <td>
+                    <td className="px-3 py-3.5">
+                      <div className="space-y-0.5">
+                        {c.phone ? (
+                          <a href={`tel:${c.phone}`} className="flex items-center gap-1.5 text-slate-700 hover:text-emerald-700">
+                            <Phone className="h-3.5 w-3.5 text-slate-400" />{c.phone}
+                          </a>
+                        ) : null}
+                        {c.email ? (
+                          <a href={`mailto:${c.email}`} className="flex items-center gap-1.5 text-slate-500 hover:text-emerald-700">
+                            <Mail className="h-3.5 w-3.5 text-slate-400" />{c.email}
+                          </a>
+                        ) : null}
+                        {!c.phone && !c.email && <span className="text-slate-300">—</span>}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3.5 font-mono text-xs text-slate-500">
+                      <div className="flex items-center gap-1">{c.code ? <><Hash className="h-3 w-3" />{c.code}</> : '—'}</div>
+                      <div>{c.vatNumber || ''}</div>
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.isActive ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                        {c.isActive ? (isAr ? 'نشط' : 'Active') : (isAr ? 'غير نشط' : 'Inactive')}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-end">
                       {c.route ? (
-                        <Link to={c.route} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg inline-flex">
-                          <Edit className="w-4 h-4 text-gray-600" />
+                        <Link to={c.route} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-emerald-50 hover:text-emerald-700">
+                          <ArrowUpRight className="h-4 w-4" />
                         </Link>
                       ) : c.entityType?.startsWith('whatsapp') ? (
-                        <Link to={`/whatsapp?contact=${c.entityId}`} className="p-2 hover:bg-green-100 dark:hover:bg-green-900/20 rounded-lg inline-flex">
-                          <MessageCircle className="w-4 h-4 text-green-600" />
+                        <Link to={`/whatsapp?contact=${c.entityId}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-green-600 hover:bg-green-50">
+                          <MessageCircle className="h-4 w-4" />
                         </Link>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -373,19 +281,13 @@ export default function Contacts() {
       </motion.div>
 
       {pagination?.pages > 1 && (
-        <div className="flex items-center justify-between">
-          <button className="btn btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-            {language === 'ar' ? 'السابق' : 'Previous'}
+        <div className="flex items-center justify-between text-sm text-slate-500">
+          <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            {isAr ? 'السابق' : 'Previous'}
           </button>
-          <div className="text-sm text-gray-500">
-            {language === 'ar' ? 'صفحة' : 'Page'} {page} / {pagination.pages}
-          </div>
-          <button
-            className="btn btn-secondary"
-            disabled={page >= pagination.pages}
-            onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
-          >
-            {language === 'ar' ? 'التالي' : 'Next'}
+          <span>{isAr ? 'صفحة' : 'Page'} {page} / {pagination.pages}</span>
+          <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 disabled:opacity-40" disabled={page >= pagination.pages} onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}>
+            {isAr ? 'التالي' : 'Next'}
           </button>
         </div>
       )}

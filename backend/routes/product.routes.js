@@ -17,6 +17,31 @@ const computeTotalStock = (product) => {
   return product;
 };
 
+const enrichInventory = (product) => {
+  computeTotalStock(product);
+  const stocks = Array.isArray(product?.stocks) ? product.stocks : [];
+  const onHand = stocks.reduce((n, s) => n + (Number(s.quantity) || 0), 0);
+  const reserved = stocks.reduce((n, s) => n + (Number(s.reservedQuantity) || 0), 0);
+  const available = onHand - reserved;
+  const reorderPoint = stocks.reduce((n, s) => {
+    const rp = Number(s.reorderPoint);
+    return Number.isFinite(rp) ? Math.max(n, rp) : n;
+  }, 0);
+  const point = reorderPoint > 0 ? reorderPoint : 10;
+  let health = 'in_stock';
+  if (available <= 0) health = product.allowNegativeStock ? 'backorder' : 'out_of_stock';
+  else if (available <= point) health = 'low_stock';
+  product.inventory = {
+    onHand,
+    reserved,
+    available,
+    reorderPoint: point,
+    health,
+    warehouseCount: stocks.length,
+  };
+  return product;
+};
+
 const normalizeProductForClient = (product) => {
   if (!product) return product;
 
@@ -35,8 +60,8 @@ const normalizeProductForClient = (product) => {
 // @route   GET /api/products
 router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 50, category, status, search, lowStock, allowNegativeStock } = req.query;
-    
+    const { page = 1, limit = 50, category, status, search, lowStock, allowNegativeStock, stockHealth } = req.query;
+
     const query = { ...req.tenantFilter };
     if (category) query.category = category;
     if (status) query.status = status;
@@ -53,30 +78,27 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
         { barcode: { $regex: search, $options: 'i' } }
       ];
     }
-    
-    const [products, total] = await Promise.all([
-      Product.find(query)
-        .select('-landedCostHistory')
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit))
-        .lean(),
-      Product.countDocuments(query),
-    ]);
 
-    let filteredProducts = products;
-    filteredProducts.forEach(computeTotalStock);
+    const healthFilter = stockHealth || (lowStock === 'true' ? 'low_stock' : '');
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
 
-    if (lowStock === 'true') {
-      filteredProducts = filteredProducts.filter(p => {
-        const minStock = p.stocks.reduce((min, s) => Math.min(min, s.reorderPoint), Infinity);
-        return p.totalStock <= minStock;
-      });
+    const found = await Product.find(query)
+      .select('-landedCostHistory')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    let filteredProducts = found.map((p) => enrichInventory(normalizeProductForClient(p)));
+    if (healthFilter) {
+      filteredProducts = filteredProducts.filter((p) => p.inventory?.health === healthFilter);
     }
-    
+
+    const total = filteredProducts.length;
+    const paged = filteredProducts.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
     res.json({
-      products: filteredProducts,
-      pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / limit) }
+      products: paged,
+      pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -100,7 +122,7 @@ router.get('/lookup', checkPermission('inventory', 'read'), async (req, res) => 
       return res.status(404).json({ error: 'Product not found' });
     }
     
-    res.json(normalizeProductForClient(computeTotalStock(product)));
+    res.json(normalizeProductForClient(enrichInventory(product.toObject ? product.toObject() : product)));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -109,37 +131,35 @@ router.get('/lookup', checkPermission('inventory', 'read'), async (req, res) => 
 // @route   GET /api/products/stats
 router.get('/stats', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const stats = await Product.aggregate([
-      { $match: { ...req.tenantFilter, isActive: true } },
-      { $addFields: { computedTotalStock: { $sum: '$stocks.quantity' } } },
-      {
-        $facet: {
-          byCategory: [{ $group: { _id: '$category', count: { $sum: 1 }, totalValue: { $sum: { $multiply: ['$costPrice', '$computedTotalStock'] } } } }],
-          byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
-          allowNegativeStock: [
-            { $match: { allowNegativeStock: true } },
-            { $count: 'count' }
-          ],
-          lowStock: [
-            { $unwind: '$stocks' },
-            { $match: { $expr: { $lte: ['$stocks.quantity', '$stocks.reorderPoint'] } } },
-            { $count: 'count' }
-          ],
-          totals: [
-            {
-              $group: {
-                _id: null,
-                totalProducts: { $sum: 1 },
-                totalStock: { $sum: '$computedTotalStock' },
-                totalValue: { $sum: { $multiply: ['$costPrice', '$computedTotalStock'] } }
-              }
-            }
-          ]
-        }
-      }
-    ]);
-    
-    res.json(stats[0]);
+    const products = await Product.find({ ...req.tenantFilter, isActive: { $ne: false } })
+      .select('stocks allowNegativeStock costPrice sellingPrice category status')
+      .lean();
+
+    const rows = products.map((p) => enrichInventory(p));
+    const byHealth = { in_stock: 0, low_stock: 0, out_of_stock: 0, backorder: 0 };
+    let totalStock = 0;
+    let totalValue = 0;
+    for (const p of rows) {
+      const health = p.inventory?.health || 'in_stock';
+      byHealth[health] = (byHealth[health] || 0) + 1;
+      totalStock += p.inventory?.onHand || 0;
+      totalValue += (Number(p.costPrice) || 0) * (p.inventory?.onHand || 0);
+    }
+
+    res.json({
+      byHealth,
+      totals: [{
+        totalProducts: rows.length,
+        totalStock,
+        totalValue,
+        inStock: byHealth.in_stock,
+        lowStock: byHealth.low_stock,
+        outOfStock: byHealth.out_of_stock,
+        backorder: byHealth.backorder,
+      }],
+      lowStock: [{ count: byHealth.low_stock }],
+      allowNegativeStock: [{ count: byHealth.backorder }],
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -158,7 +178,7 @@ router.get('/:id', checkPermission('inventory', 'read'), async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
     
-    res.json(normalizeProductForClient(computeTotalStock(product)));
+    res.json(normalizeProductForClient(enrichInventory(product.toObject ? product.toObject() : product)));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

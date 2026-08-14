@@ -299,7 +299,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     {
       title: language === 'ar' ? 'المخزون' : 'Inventory',
       items: [
-        { path: '/app/dashboard/products', icon: Package, label: t('products'), perm: { module: 'inventory', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
+        { path: '/app/dashboard/products', icon: Package, label: language === 'ar' ? 'المخزون' : 'Inventory', perm: { module: 'inventory', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
         { path: '/app/dashboard/warehouses', icon: Warehouse, label: t('warehouses'), perm: { module: 'inventory', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
         { path: '/app/dashboard/uom', icon: Ruler, label: language === 'ar' ? 'وحدات القياس' : 'Units of Measure', perm: { module: 'inventory', action: 'read' } },
         { path: '/app/dashboard/projects', icon: FolderKanban, label: language === 'ar' ? 'المشاريع' : 'Projects' },

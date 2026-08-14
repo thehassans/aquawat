@@ -113,138 +113,66 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    const customerPipeline = [
-      { $match: customerMatch },
-      {
-        $project: {
-          _id: 0,
-          entityType: { $literal: 'customer' },
-          entityId: '$_id',
-          displayName: '$name',
-          displayNameAr: '$nameAr',
-          email: '$email',
-          phone: { $ifNull: ['$phone', '$mobile'] },
-          vatNumber: '$vatNumber',
-          code: { $literal: null },
-          isActive: '$isActive',
-          createdAt: '$createdAt',
-          updatedAt: '$updatedAt'
-        }
-      }
-    ];
-
-    const supplierPipeline = [
-      { $match: supplierMatch },
-      {
-        $project: {
-          _id: 0,
-          entityType: { $literal: 'supplier' },
-          entityId: '$_id',
-          displayName: '$nameEn',
-          displayNameAr: '$nameAr',
-          email: '$email',
-          phone: '$phone',
-          vatNumber: '$vatNumber',
-          code: '$code',
-          isActive: '$isActive',
-          createdAt: '$createdAt',
-          updatedAt: '$updatedAt'
-        }
-      }
-    ];
-
-    const employeePipeline = [
-      { $match: employeeMatch },
-      {
-        $project: {
-          _id: 0,
-          entityType: { $literal: 'employee' },
-          entityId: '$_id',
-          displayName: {
-            $trim: {
-              input: { $concat: ['$firstNameEn', ' ', '$lastNameEn'] }
-            }
-          },
-          displayNameAr: {
-            $trim: {
-              input: {
-                $concat: [
-                  { $ifNull: ['$firstNameAr', ''] },
-                  ' ',
-                  { $ifNull: ['$lastNameAr', ''] }
-                ]
-              }
-            }
-          },
-          email: '$email',
-          phone: { $ifNull: ['$phone', '$alternatePhone'] },
-          vatNumber: { $literal: null },
-          code: '$employeeId',
-          isActive: '$isActive',
-          createdAt: '$createdAt',
-          updatedAt: '$updatedAt'
-        }
-      }
-    ];
-
-    const sortField = (sortBy || 'displayName').toString();
     const sortDirection = (String(sortDir || 'asc').toLowerCase() === 'desc') ? -1 : 1;
-
-    const sort = {};
-    if (['displayName', 'createdAt', 'updatedAt', 'entityType'].includes(sortField)) {
-      sort[sortField] = sortDirection;
-      if (sortField !== 'displayName') sort.displayName = 1;
-    } else {
-      sort.displayName = 1;
-    }
 
     const pageNum = Math.max(1, toInt(page, 1));
     const limitNum = Math.max(1, Math.min(200, toInt(limit, 50)));
     const skip = (pageNum - 1) * limitNum;
 
-    const pipeline = [{ $match: { _id: null } }];
+    const mapCustomer = (doc) => ({
+      entityType: 'customer',
+      entityId: String(doc._id),
+      displayName: doc.name,
+      displayNameAr: doc.nameAr,
+      email: doc.email,
+      phone: doc.phone || doc.mobile,
+      vatNumber: doc.vatNumber,
+      code: null,
+      isActive: doc.isActive !== false,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt
+    });
 
-    if (wantCustomers) {
-      pipeline.push({
-        $unionWith: {
-          coll: 'customers',
-          pipeline: customerPipeline
-        }
-      });
-    }
+    const mapSupplier = (doc) => ({
+      entityType: 'supplier',
+      entityId: String(doc._id),
+      displayName: doc.nameEn,
+      displayNameAr: doc.nameAr,
+      email: doc.email,
+      phone: doc.phone,
+      vatNumber: doc.vatNumber,
+      code: doc.code,
+      isActive: doc.isActive !== false,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt
+    });
 
-    if (wantSuppliers) {
-      pipeline.push({
-        $unionWith: {
-          coll: 'suppliers',
-          pipeline: supplierPipeline
-        }
-      });
-    }
+    const mapEmployee = (doc) => ({
+      entityType: 'employee',
+      entityId: String(doc._id),
+      displayName: `${doc.firstNameEn || ''} ${doc.lastNameEn || ''}`.trim(),
+      displayNameAr: `${doc.firstNameAr || ''} ${doc.lastNameAr || ''}`.trim(),
+      email: doc.email,
+      phone: doc.phone || doc.alternatePhone,
+      vatNumber: null,
+      code: doc.employeeId,
+      isActive: doc.isActive !== false,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt
+    });
 
-    if (wantEmployees) {
-      pipeline.push({
-        $unionWith: {
-          coll: 'employees',
-          pipeline: employeePipeline
-        }
-      });
-    }
+    const [customerDocs, supplierDocs, employeeDocs] = await Promise.all([
+      wantCustomers ? Customer.find(customerMatch).select('name nameAr email phone mobile vatNumber isActive createdAt updatedAt').lean() : [],
+      wantSuppliers ? Supplier.find(supplierMatch).select('code nameEn nameAr email phone vatNumber isActive createdAt updatedAt').lean() : [],
+      wantEmployees ? Employee.find(employeeMatch).select('employeeId firstNameEn lastNameEn firstNameAr lastNameAr email phone alternatePhone isActive createdAt updatedAt').lean() : []
+    ]);
 
-    pipeline.push(
-      { $sort: sort },
-      {
-        $facet: {
-          contacts: [{ $skip: skip }, { $limit: limitNum }],
-          total: [{ $count: 'count' }]
-        }
-      }
-    );
-
-    const [result] = await Customer.aggregate(pipeline);
-
-    let contacts = result?.contacts || [];
-    let total = result?.total?.[0]?.count || 0;
+    let contacts = [
+      ...customerDocs.map(mapCustomer),
+      ...supplierDocs.map(mapSupplier),
+      ...employeeDocs.map(mapEmployee)
+    ];
+    let total = contacts.length;
 
     // Fetch WhatsApp contacts if requested
     if (wantWhatsApp) {
@@ -278,18 +206,15 @@ router.get('/', async (req, res) => {
 
       contacts = contacts.concat(mappedWa);
       total += mappedWa.length;
-
-      // Re-sort combined results
-      const sortFn = (a, b) => {
-        const aName = (a.displayName || '').toString().toLowerCase();
-        const bName = (b.displayName || '').toString().toLowerCase();
-        return sortDirection * aName.localeCompare(bName);
-      };
-      contacts.sort(sortFn);
-
-      // Re-paginate combined results
-      contacts = contacts.slice(skip, skip + limitNum);
     }
+
+    const sortFn = (a, b) => {
+      const aName = (a.displayName || '').toString().toLowerCase();
+      const bName = (b.displayName || '').toString().toLowerCase();
+      return sortDirection * aName.localeCompare(bName);
+    };
+    contacts.sort(sortFn);
+    contacts = contacts.slice(skip, skip + limitNum);
 
     res.json({
       contacts,
