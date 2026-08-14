@@ -205,11 +205,24 @@ const ICONS = {
     </Tile>
   ),
   whatsapp: (uid, className) => (
-    <Tile uid={uid} className={className} from="#075E54" to="#25D366" glow="#128C7E" stroke="#A7F3D0">
-      <circle cx="32" cy="31" r="14" fill="#FFFFFF" />
-      <path d="M26.2 36.8l.7-2.5c-.5-.8-.8-1.8-.8-2.8 0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6c-1 0-2-.3-2.8-.8l-2.5.7.4-1.4z" fill="#25D366" />
-      <path d="M29.2 29.2c.2-.4.4-.4.6-.4h.5c.2 0 .4 0 .5.3l.7 1.7c.1.2 0 .4-.1.5l-.4.5c.6 1.1 1.6 2 2.8 2.6l.5-.4c.2-.1.4-.2.5-.1l1.7.7c.3.1.3.3.3.5v.5c0 .2 0 .4-.4.6-1.9.9-4.2.4-5.7-1.1-1.5-1.5-2-3.8-1.1-5.7z" fill="#075E54" />
-    </Tile>
+    <svg className={className} viewBox="0 0 64 64" fill="none">
+      <defs>
+        <linearGradient id={`wa_bg_${uid}`} x1="10" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#34D399" />
+          <stop offset="100%" stopColor="#059669" />
+        </linearGradient>
+        <filter id={`wa_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#10B981" floodOpacity="0.35" />
+        </filter>
+      </defs>
+      <rect x="7" y="7" width="50" height="50" rx="14" fill={`url(#wa_bg_${uid})`} filter={`url(#wa_flt_${uid})`} />
+      <circle cx="30" cy="33" r="18" fill="#25D366" />
+      <circle cx="40" cy="24" r="13" fill="#128C7E" opacity="0.88" />
+      <path d="M20 46.5 21.2 40.8A12.2 12.2 0 1 1 37.5 44.8l-5.6 1.35z" fill="#FFFFFF" />
+      <path d="M26.2 33.5h8.2M26.2 37.6h5.6" stroke="#128C7E" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="46" cy="18" r="6.5" fill="#F97316" />
+      <path d="M43.6 18h4.8M46 15.6v4.8" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
   ),
   tabby: (uid, className) => (
     <Tile uid={uid} className={className} from="#3EEDBF" to="#10B981" glow="#14B8A6" stroke="#A7F3D0">
