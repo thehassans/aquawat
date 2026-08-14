@@ -92,6 +92,7 @@ services:
   mongo-secondary:
     image: mongo:7.0
     container_name: maqder_mongo_secondary
+    profiles: ["replica"]
     restart: unless-stopped
     command: >
       mongod
@@ -123,6 +124,7 @@ services:
   mongo-init:
     image: mongo:7.0
     container_name: maqder_mongo_init
+    profiles: ["replica"]
     restart: "no"
     depends_on:
       mongo:
