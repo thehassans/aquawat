@@ -14,6 +14,7 @@ import {
 import api from '../lib/api'
 import WhatsAppCloudSetup from './components/WhatsAppCloudSetup'
 import { isAppGateOpen } from '../lib/appStorePartners'
+import { App3DIcon } from '../components/ui/App3DIcon'
 
 export default function WhatsApp() {
   const { language } = useSelector((state) => state.ui)
@@ -27,6 +28,7 @@ export default function WhatsApp() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [showCloudSetup, setShowCloudSetup] = useState(false)
+  const [forceInbox, setForceInbox] = useState(false)
   const [showTemplateModal, setShowTemplateModal] = useState(false)
   const [showQuickReplyModal, setShowQuickReplyModal] = useState(false)
   const [showBroadcastModal, setShowBroadcastModal] = useState(false)
@@ -152,21 +154,21 @@ export default function WhatsApp() {
 
   if (!isAppGateOpen(tenant, { requireApp: 'whatsapp_cloud_auto' })) {
     return (
-      <div className="relative overflow-hidden rounded-[28px] bg-[#06140f] px-8 py-16 text-center text-white ring-1 ring-emerald-500/15">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#25D366] to-[#075E54]">
-          <MessageCircle className="h-8 w-8" />
+      <div className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-white px-8 py-16 text-center shadow-sm">
+        <div className="mx-auto h-16 w-16">
+          <App3DIcon appId="whatsapp_cloud_auto" icon="whatsapp" label="WhatsApp" className="h-16 w-16" />
         </div>
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight">
-          {language === 'ar' ? 'واتساب للأعمال — Cloud API' : 'WhatsApp Business Cloud API'}
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight text-slate-900">
+          {language === 'ar' ? 'واتساب للأعمال' : 'WhatsApp Business'}
         </h1>
-        <p className="mx-auto mt-3 max-w-md text-sm text-white/55">
+        <p className="mx-auto mt-3 max-w-md text-sm text-slate-500">
           {language === 'ar'
-            ? 'ثبّت تطبيق واتساب من متجر التطبيقات لربط الرقم الرسمي وإرسال الفواتير تلقائياً.'
-            : 'Install WhatsApp Business from the App Store to connect the official Cloud API and auto-send invoices.'}
+            ? 'ثبّت تطبيق واتساب من متجر التطبيقات لربط الرقم وإرسال الفواتير.'
+            : 'Install WhatsApp from the App Store to connect your number and send invoices.'}
         </p>
         <Link
           to="/app/dashboard/app-store"
-          className="mt-8 inline-flex rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-emerald-950"
+          className="mt-8 inline-flex rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white"
         >
           {language === 'ar' ? 'فتح متجر التطبيقات' : 'Open App Store'}
         </Link>
@@ -176,17 +178,20 @@ export default function WhatsApp() {
 
   if (loadingConfig) {
     return (
-      <div className="flex h-[calc(100vh-8rem)] items-center justify-center rounded-3xl bg-[#06140f]">
-        <RefreshCw className="h-7 w-7 animate-spin text-emerald-300" />
+      <div className="flex h-[calc(100vh-8rem)] items-center justify-center rounded-[28px] border border-slate-200/80 bg-white">
+        <RefreshCw className="h-7 w-7 animate-spin text-emerald-700" />
       </div>
     )
   }
 
-  if (!config?.connected || showCloudSetup) {
+  if (showCloudSetup || (!config?.connected && !forceInbox)) {
     return (
       <WhatsAppCloudSetup
         language={language}
-        onOpenInbox={config?.connected ? () => setShowCloudSetup(false) : undefined}
+        onOpenInbox={() => {
+          setShowCloudSetup(false)
+          setForceInbox(true)
+        }}
       />
     )
   }
