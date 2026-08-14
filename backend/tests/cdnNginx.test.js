@@ -52,12 +52,14 @@ test('Nginx auth zone is 10r/m burst 20 (Node Redis limiter is 40/15min)', () =>
   assert.match(conf, /limit_req zone=auth_limit burst=20 nodelay;/);
 });
 
-test('updating.html is a bilingual deploy holding page', () => {
+test('updating.html is an English light deploy holding page with the Maqder mark', () => {
   const html = fs.readFileSync(path.join(frontendDir, 'public/updating.html'), 'utf8');
   assert.match(html, /data-maqder-updating="1"/);
   assert.match(html, /3–5 minutes|3-5 minutes/);
   assert.match(html, /Thank you for your patience/);
-  assert.match(html, /شكراً لصبركم/);
+  assert.match(html, /MaqderFavicon\.png/);
+  assert.match(html, /#f4f6f3/);
+  assert.doesNotMatch(html, /شكراً|مقدر|الرجاء/);
 });
 
 test('edge nginx serves the updating page on 502/503/504', () => {

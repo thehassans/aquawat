@@ -1,166 +1,196 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr" data-maqder-updating="1">
+<html lang="en" data-maqder-updating="1">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
   <meta http-equiv="refresh" content="12" />
-  <meta name="theme-color" content="#050806" />
+  <meta name="theme-color" content="#f4f6f3" />
   <title>Maqder is updating</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231a3d28'/%3E%3Cpath fill='%23fff' d='M14 48V16h8l10 18 10-18h8v32h-8V30l-10 16h-4L22 30v18H14z'/%3E%3Cpath fill='%23c9a227' d='M42 14l12 12-4 4-8-8v18h-6V18l-8 8-4-4 12-12h6z'/%3E%3C/svg%3E" />
+  <link rel="icon" type="image/png" href="/MaqderFavicon.png" />
+  <link rel="apple-touch-icon" href="/MaqderFavicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --ink: #f7f3ea;
-      --muted: rgba(247,243,234,.68);
-      --gold: #c9a227;
-      --gold-soft: #e4c96a;
+      --paper: #f4f6f3;
+      --ink: #12241c;
+      --muted: #5b6b63;
+      --line: rgba(18, 36, 28, .08);
       --green: #1a3d28;
       --emerald: #059669;
+      --gold: #b8860b;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { min-height: 100%; }
     body {
-      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-      background:
-        radial-gradient(900px 480px at 50% -10%, rgba(36, 77, 51, .5), transparent 58%),
-        radial-gradient(700px 400px at 100% 100%, rgba(201, 162, 39, .08), transparent 50%),
-        #050806;
+      font-family: "DM Sans", "Segoe UI", sans-serif;
       color: var(--ink);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 20px;
+      background:
+        radial-gradient(720px 380px at 50% -8%, rgba(5, 150, 105, .09), transparent 58%),
+        linear-gradient(180deg, #fbfcfb 0%, var(--paper) 100%);
+      display: grid;
+      place-items: center;
+      padding: 32px 18px;
     }
-    .stage {
-      width: min(560px, 100%);
+    body::before {
+      content: "";
+      position: fixed; inset: 0; pointer-events: none;
+      background-image:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse at center, #000 30%, transparent 78%);
+    }
+    .card {
+      position: relative;
+      width: min(480px, 100%);
+      background: rgba(255,255,255,.88);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,.9);
+      border-radius: 28px;
+      padding: 44px 36px 36px;
       text-align: center;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,.9) inset,
+        0 24px 60px -28px rgba(18, 36, 28, .28),
+        0 8px 24px -16px rgba(18, 36, 28, .12);
     }
-    .mark {
-      width: 76px; height: 76px; margin: 0 auto 28px;
-      border-radius: 22px;
-      background: linear-gradient(160deg, #244d33, var(--green));
-      box-shadow: 0 18px 40px -18px rgba(201,162,39,.45), inset 0 1px 0 rgba(255,255,255,.12);
-      display: grid; place-items: center;
+    .logo {
+      width: 88px; height: 88px;
+      margin: 0 auto 22px;
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 16px 32px -18px rgba(26, 61, 40, .55);
+      background: var(--green);
+    }
+    .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .wordmark {
+      font-family: Outfit, sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .42em;
+      color: var(--green);
+      margin-bottom: 28px;
     }
     .kicker {
-      color: var(--gold);
+      color: var(--emerald);
       font-size: 11px;
-      letter-spacing: .38em;
+      letter-spacing: .32em;
       text-transform: uppercase;
       font-weight: 700;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
     h1 {
-      font-size: clamp(28px, 5vw, 40px);
+      font-family: Outfit, sans-serif;
+      font-size: clamp(28px, 5vw, 36px);
       font-weight: 700;
-      letter-spacing: -.03em;
-      line-height: 1.15;
-      margin-bottom: 8px;
+      letter-spacing: -.035em;
+      line-height: 1.12;
+      margin-bottom: 12px;
     }
-    .ar {
-      font-family: Tahoma, "Segoe UI", sans-serif;
-      direction: rtl;
-      font-size: clamp(22px, 4vw, 30px);
-      font-weight: 700;
-      margin-bottom: 22px;
-      color: rgba(247,243,234,.92);
-    }
-    p {
+    .lead {
       color: var(--muted);
       font-size: 16px;
-      line-height: 1.7;
-      max-width: 46ch;
-      margin: 0 auto 8px;
+      line-height: 1.65;
+      max-width: 34ch;
+      margin: 0 auto 28px;
     }
-    .ar-body { direction: rtl; font-family: Tahoma, "Segoe UI", sans-serif; margin-bottom: 28px; }
     .bar {
-      height: 4px;
+      height: 5px;
       border-radius: 99px;
-      background: rgba(201,162,39,.16);
+      background: #e7ece8;
       overflow: hidden;
-      margin: 8px auto 22px;
-      width: min(280px, 80%);
+      margin: 0 auto 22px;
+      width: min(260px, 78%);
     }
     .bar span {
-      display: block; height: 100%; width: 40%;
-      background: linear-gradient(90deg, transparent, var(--gold), var(--gold-soft), transparent);
-      animation: sweep 1.8s ease-in-out infinite;
+      display: block; height: 100%; width: 42%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #047857, #10b981, #c9a227);
+      animation: sweep 1.7s ease-in-out infinite;
     }
     @keyframes sweep {
-      0% { transform: translateX(-120%); }
-      100% { transform: translateX(320%); }
+      0% { transform: translateX(-130%); }
+      100% { transform: translateX(280%); }
     }
     .wait {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      border: 1px solid rgba(201,162,39,.28);
-      background: rgba(201,162,39,.08);
-      color: var(--gold-soft);
+      padding: 9px 16px;
+      border-radius: 999px;
+      background: #ecfdf5;
+      color: #047857;
       font-size: 13px;
       font-weight: 700;
-      letter-spacing: .04em;
-      padding: 10px 16px;
-      border-radius: 999px;
-      margin-bottom: 28px;
+      letter-spacing: .02em;
     }
     .dot {
       width: 7px; height: 7px; border-radius: 50%;
-      background: var(--emerald);
-      box-shadow: 0 0 0 0 rgba(5,150,105,.7);
+      background: #10b981;
       animation: pulse 1.6s ease-out infinite;
     }
     @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(5,150,105,.55); }
-      70% { box-shadow: 0 0 0 8px rgba(5,150,105,0); }
-      100% { box-shadow: 0 0 0 0 rgba(5,150,105,0); }
+      0% { box-shadow: 0 0 0 0 rgba(16,185,129,.45); }
+      70% { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
     }
-    .thanks { font-size: 14px; color: rgba(247,243,234,.5); margin-bottom: 6px; }
+    .thanks {
+      margin-top: 22px;
+      font-size: 14.5px;
+      font-weight: 600;
+      color: var(--ink);
+    }
     .contact {
-      margin-top: 28px;
+      margin-top: 26px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
       font-size: 13px;
-      color: rgba(247,243,234,.45);
+      color: var(--muted);
     }
-    .contact a { color: var(--gold); text-decoration: none; font-weight: 600; }
-    .retry { margin-top: 10px; font-size: 12px; color: rgba(247,243,234,.35); }
+    .contact a {
+      color: var(--green);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .contact a:hover { color: var(--emerald); }
+    .retry {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #8a958f;
+    }
   </style>
 </head>
 <body>
-  <main class="stage">
-    <div class="mark" aria-hidden="true">
-      <svg viewBox="0 0 64 64" width="42" height="42" fill="none">
-        <path fill="#fff" d="M12 50V14h8.4L32 34.2 43.6 14H52v36h-8.2V28.4L34.6 46h-5.2L20.2 28.4V50H12z"/>
-        <path fill="#c9a227" d="M40 12l14 14-4.2 4.2-9.8-9.8V42h-6.4V20.4l-9.8 9.8L20 26 34 12h6z"/>
-      </svg>
+  <main class="card">
+    <div class="logo">
+      <img src="/MaqderFavicon.png" alt="Maqder" />
     </div>
+    <p class="wordmark">MAQDER</p>
     <p class="kicker">System update</p>
-    <h1>Maqder is updating.</h1>
-    <p class="ar">مقدر قيد التحديث.</p>
-    <p>The platform is being refreshed. This usually takes 3–5 minutes.</p>
-    <p class="ar-body">يجري تحديث النظام. يستغرق ذلك عادة من 3 إلى 5 دقائق.</p>
+    <h1>We’re refreshing the platform.</h1>
+    <p class="lead">This usually takes 3–5 minutes. Your data is safe. Thank you for your patience.</p>
     <div class="bar" aria-hidden="true"><span></span></div>
-    <div class="wait"><span class="dot"></span> Please wait · الرجاء الانتظار</div>
-    <p class="thanks">Thank you for your patience.</p>
-    <p class="thanks" dir="rtl">شكراً لصبركم.</p>
+    <div class="wait"><span class="dot"></span> Please wait</div>
+    <p class="thanks">We’ll bring you back as soon as Maqder is ready.</p>
     <p class="contact">
       <a href="mailto:sales@maqder.com">sales@maqder.com</a>
-      ·
-      <a href="tel:+966596775485" dir="ltr">+966 59 677 5485</a>
+      &nbsp;·&nbsp;
+      <a href="tel:+966596775485">+966 59 677 5485</a>
     </p>
-    <p class="retry">This page refreshes automatically.</p>
+    <p class="retry">Refreshing automatically</p>
   </main>
   <script>
     (function () {
       var n = 12;
       var el = document.querySelector('.retry');
       function tick() {
-        if (el) el.textContent = 'Refreshing in ' + n + 's · يتحدث تلقائياً';
+        if (el) el.textContent = 'Refreshing in ' + n + 's';
         if (n <= 0) {
-          fetch('/', { cache: 'no-store', redirect: 'follow' }).then(function () {
-            window.location.reload();
-          }).catch(function () {
-            window.location.reload();
-          });
+          window.location.reload();
           return;
         }
         n -= 1;
