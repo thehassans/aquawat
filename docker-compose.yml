@@ -289,10 +289,10 @@ services:
         condition: service_healthy     # Wait for backend healthcheck to pass
     networks:
       - maqder_net
-    ports:
-      - "8080:80"
-    # Plesk Docker proxy will forward host port 8080 to this container
-    # /api is proxied internally to the backend container via upstream pool
+    # Public 8080 is held by `edge` so visitors see the updating page
+    # while this container is rebuilding or waiting on backend health.
+    expose:
+      - "80"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ || exit 1"]
       interval: 15s
@@ -315,6 +315,39 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # Stays up during deploys. Proxies to frontend when it is ready; otherwise
+  # serves the premium updating page instead of Plesk's default Nginx 502.
+  edge:
+    image: nginx:alpine
+    container_name: maqder_edge
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./ops/updating/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/public/updating.html:/usr/share/nginx/html/updating.html:ro
+    networks:
+      - maqder_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/updating.html || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'
+          memory: 48M
+        reservations:
+          cpus: '0.02'
+          memory: 16M
+    logging:
+      driver: json-file
+      options:
+        max-size: "2m"
+        max-file: "2"
 
 volumes:
   mongo_data:

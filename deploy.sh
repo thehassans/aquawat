@@ -26,8 +26,18 @@ fi
 
 if [ -n "$COMPOSE" ]; then
   echo "Deploying with $COMPOSE..."
-  $COMPOSE down || true
-  $COMPOSE up -d --build
+  # Keep the public edge proxy up so visitors see the updating page
+  # instead of Nginx 502 while images rebuild (do not compose down).
+  ERROR_DOCS="/var/www/vhosts/maqder.com/error_docs"
+  if [ -d "$ERROR_DOCS" ] && [ -f "$DEPLOY_PATH/frontend/public/updating.html" ]; then
+    cp -f "$DEPLOY_PATH/frontend/public/updating.html" "$ERROR_DOCS/502.html" || true
+    cp -f "$DEPLOY_PATH/frontend/public/updating.html" "$ERROR_DOCS/503.html" || true
+    cp -f "$DEPLOY_PATH/frontend/public/updating.html" "$ERROR_DOCS/504.html" || true
+  fi
+  $COMPOSE stop frontend || true
+  docker rm -f maqder_frontend || true
+  $COMPOSE up -d edge || true
+  $COMPOSE up -d --build --remove-orphans
   echo "Running containers:"
   $COMPOSE ps
 fi

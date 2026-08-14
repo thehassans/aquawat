@@ -51,3 +51,35 @@ test('Nginx auth zone is 10r/m burst 20 (Node Redis limiter is 40/15min)', () =>
   assert.match(conf, /limit_req_zone \$binary_remote_addr zone=auth_limit:10m rate=10r\/m;/);
   assert.match(conf, /limit_req zone=auth_limit burst=20 nodelay;/);
 });
+
+test('updating.html is a bilingual deploy holding page', () => {
+  const html = fs.readFileSync(path.join(frontendDir, 'public/updating.html'), 'utf8');
+  assert.match(html, /data-maqder-updating="1"/);
+  assert.match(html, /3–5 minutes|3-5 minutes/);
+  assert.match(html, /Thank you for your patience/);
+  assert.match(html, /شكراً لصبركم/);
+});
+
+test('edge nginx serves the updating page on 502/503/504', () => {
+  const conf = fs.readFileSync(path.resolve(frontendDir, '../ops/updating/nginx.conf'), 'utf8');
+  assert.match(conf, /error_page 502 503 504 =200 \/updating\.html;/);
+  assert.match(conf, /resolver 127\.0\.0\.11/);
+  let depth = 0;
+  const stripped = conf.replace(/#[^\n]*/g, '');
+  for (const ch of stripped) {
+    if (ch === '{') depth += 1;
+    if (ch === '}') depth -= 1;
+    assert.ok(depth >= 0, 'closing brace without opener');
+  }
+  assert.equal(depth, 0);
+});
+
+test('compose keeps host 8080 on the edge proxy, not the frontend app', () => {
+  const compose = fs.readFileSync(path.resolve(frontendDir, '../docker-compose.yml'), 'utf8');
+  assert.match(compose, /container_name: maqder_edge/);
+  assert.match(compose, /container_name: maqder_edge[\s\S]*?"8080:80"/);
+  const frontendService = compose.match(/\n  frontend:[\s\S]*?\n  [a-z]/);
+  const block = frontendService ? frontendService[0] : '';
+  assert.doesNotMatch(block, /8080:80/);
+  assert.match(block, /expose:/);
+});
