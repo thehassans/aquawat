@@ -463,7 +463,6 @@ export default function AppCatalogManagement() {
                           : 'Default 7 days. One trial per tenant — uninstalling does not reset it. 0 = no trial.'}
                       </p>
                     </div>
-                    </div>
                   </div>
                 )}
 
