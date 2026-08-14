@@ -19,7 +19,11 @@ const purgeAndReload = async () => {
     }
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations()
-      await Promise.all(regs.map((r) => r.unregister()))
+      await Promise.all(regs.map((r) => {
+        const url = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || ''
+        if (url.includes('maqder-install-sw')) return Promise.resolve()
+        return r.unregister()
+      }))
     }
   } catch (err) {
     console.warn('[ErrorBoundary] Cache purge warning:', err)
@@ -27,6 +31,233 @@ const purgeAndReload = async () => {
   const target = new URL(window.location.href)
   target.searchParams.set('_v', Date.now().toString())
   window.location.replace(target.toString())
+}
+
+const refreshPage = () => {
+  window.location.reload()
+}
+
+const isArabicUi = () => {
+  if (typeof document === 'undefined') return false
+  return document.documentElement.dir === 'rtl' || document.documentElement.lang === 'ar'
+}
+
+function PremiumErrorScreen({ recovering = false, error = null }) {
+  const ar = isArabicUi()
+
+  const copy = ar
+    ? {
+        eyebrow: 'ماقْدِر',
+        title: recovering ? 'جاري التحديث' : 'نعتذر عن الخطأ',
+        body: recovering
+          ? 'نحدّث الصفحة الآن لضمان أحدث نسخة.'
+          : 'نعتذر عن هذا الخطأ. يرجى تحديث الصفحة، أو مسح ذاكرة التخزين المؤقت ثم المحاولة مرة أخرى.',
+        refresh: 'تحديث الصفحة',
+        cache: 'مسح التخزين المؤقت',
+        hint: 'بياناتك محفوظة. يحدث هذا عادةً بعد تحديث سريع للتطبيق.',
+        recovering: 'يرجى الانتظار لحظات…',
+      }
+    : {
+        eyebrow: 'Maqder',
+        title: recovering ? 'Refreshing' : 'Sorry for the error',
+        body: recovering
+          ? 'We are updating the page so you have the latest version.'
+          : 'Kindly refresh the page, or clear your cache and try again.',
+        refresh: 'Refresh the page',
+        cache: 'Clear cache',
+        hint: 'Your work is safe. This is usually a brief app update.',
+        recovering: 'Just a moment…',
+      }
+
+  const shell = {
+    minHeight: '100vh',
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '32px 20px',
+    background: '#F7F6F2',
+    color: '#0F172A',
+    fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Tajawal', system-ui, sans-serif",
+    position: 'relative',
+    overflow: 'hidden',
+    direction: ar ? 'rtl' : 'ltr',
+  }
+
+  return (
+    <div style={shell}>
+      <style>{`
+        @keyframes maqder-error-spin { to { transform: rotate(360deg); } }
+        @keyframes maqder-error-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+        .maqder-error-card { animation: maqder-error-rise 0.55s ease both; }
+        .maqder-error-spin { animation: maqder-error-spin 0.9s linear infinite; }
+        .maqder-error-primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+        .maqder-error-ghost:hover { background: #ECFDF5; border-color: #99F6E4; }
+      `}</style>
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          width: 520,
+          height: 520,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(15,118,110,0.14) 0%, rgba(15,118,110,0) 70%)',
+          top: '-160px',
+          [ar ? 'left' : 'right']: '-80px',
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          width: 380,
+          height: 380,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(180,83,9,0.08) 0%, rgba(180,83,9,0) 70%)',
+          bottom: '-120px',
+          [ar ? 'right' : 'left']: '-60px',
+          pointerEvents: 'none',
+        }}
+      />
+
+      <div
+        className="maqder-error-card"
+        style={{
+          width: '100%',
+          maxWidth: 440,
+          position: 'relative',
+          textAlign: 'center',
+          background: 'rgba(255,255,255,0.86)',
+          border: '1px solid rgba(15,23,42,0.06)',
+          borderRadius: 32,
+          padding: '40px 32px 32px',
+          boxShadow: '0 30px 80px -48px rgba(15,23,42,0.45), 0 12px 32px -20px rgba(15,118,110,0.18)',
+          backdropFilter: 'blur(18px)',
+        }}
+      >
+        <img
+          src={`${import.meta.env.BASE_URL}maqdernewlogo.webp`}
+          alt="Maqder"
+          style={{ height: 52, width: 'auto', objectFit: 'contain', margin: '0 auto 22px' }}
+        />
+        <p
+          style={{
+            margin: 0,
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.28em',
+            textTransform: 'uppercase',
+            color: '#0F766E',
+          }}
+        >
+          {copy.eyebrow}
+        </p>
+        <h1
+          style={{
+            margin: '10px 0 0',
+            fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif",
+            fontSize: 'clamp(28px, 5vw, 36px)',
+            fontWeight: 600,
+            letterSpacing: '-0.04em',
+            lineHeight: 1.15,
+            color: '#0B1220',
+          }}
+        >
+          {copy.title}
+        </h1>
+        <p
+          style={{
+            margin: '14px auto 0',
+            maxWidth: 340,
+            fontSize: 15.5,
+            lineHeight: 1.65,
+            color: '#64748B',
+            fontWeight: 500,
+          }}
+        >
+          {copy.body}
+        </p>
+
+        {recovering ? (
+          <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            <div
+              className="maqder-error-spin"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                border: '2px solid rgba(15,118,110,0.18)',
+                borderTopColor: '#0F766E',
+              }}
+            />
+            <p style={{ margin: 0, fontSize: 13, color: '#94A3B8', fontWeight: 500 }}>{copy.recovering}</p>
+          </div>
+        ) : (
+          <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              type="button"
+              className="maqder-error-primary"
+              onClick={refreshPage}
+              style={{
+                height: 50,
+                border: 'none',
+                borderRadius: 16,
+                background: '#0F766E',
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 600,
+                letterSpacing: '-0.01em',
+                cursor: 'pointer',
+                boxShadow: '0 16px 32px -16px rgba(15,118,110,0.7)',
+                transition: 'transform 0.2s ease, filter 0.2s ease',
+              }}
+            >
+              {copy.refresh}
+            </button>
+            <button
+              type="button"
+              className="maqder-error-ghost"
+              onClick={() => purgeAndReload()}
+              style={{
+                height: 50,
+                borderRadius: 16,
+                border: '1px solid #D6E4DF',
+                background: 'transparent',
+                color: '#134E4A',
+                fontSize: 15,
+                fontWeight: 600,
+                letterSpacing: '-0.01em',
+                cursor: 'pointer',
+                transition: 'background 0.2s ease, border-color 0.2s ease',
+              }}
+            >
+              {copy.cache}
+            </button>
+            <p style={{ margin: '8px 0 0', fontSize: 12.5, lineHeight: 1.5, color: '#94A3B8' }}>{copy.hint}</p>
+          </div>
+        )}
+
+        {process.env.NODE_ENV === 'development' && error && (
+          <pre
+            style={{
+              marginTop: 20,
+              textAlign: 'left',
+              fontSize: 11,
+              color: '#BE123C',
+              background: '#FFF1F2',
+              padding: 12,
+              borderRadius: 12,
+              maxWidth: '100%',
+              overflow: 'auto',
+            }}
+          >
+            {error.toString()}
+          </pre>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export class ErrorBoundary extends Component {
@@ -58,47 +289,11 @@ export class ErrorBoundary extends Component {
 
   render() {
     if (this.state.recovering) {
-      return (
-        <div className="min-h-screen bg-[#1a3d28] flex items-center justify-center px-4">
-          <div className="text-center flex flex-col items-center gap-5">
-            <img src="/maqdernewlogo.webp" alt="Maqder" className="h-20 w-auto object-contain" />
-            <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-            <p className="text-white/70 text-sm font-medium">Updating application…</p>
-          </div>
-        </div>
-      )
+      return <PremiumErrorScreen recovering />
     }
 
     if (this.state.hasError) {
-      return (
-        <div className="min-h-[400px] flex flex-col items-center justify-center gap-6 p-8">
-          <div className="w-20 h-20 rounded-3xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-            <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div className="text-center">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Something went wrong</h3>
-            <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-              {this.props.fallbackMessage || 'An unexpected error occurred. The application may have updated in the background.'}
-            </p>
-          </div>
-          <button
-            onClick={() => purgeAndReload()}
-            className="btn btn-primary inline-flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Refresh Application
-          </button>
-          {process.env.NODE_ENV === 'development' && this.state.error && (
-            <pre className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 p-4 rounded-xl max-w-full overflow-auto">
-              {this.state.error.toString()}
-            </pre>
-          )}
-        </div>
-      )
+      return <PremiumErrorScreen error={this.state.error} />
     }
     return this.props.children
   }
