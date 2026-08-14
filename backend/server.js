@@ -548,7 +548,7 @@ app.use(cors({
     if (configuredOrigins.length === 0) {
       if (process.env.NODE_ENV === 'production') {
         console.warn('[CORS] Blocked origin: no FRONTEND_URL configured');
-        return callback(new Error('Not allowed by CORS'));
+        return callback(null, false);
       }
       return callback(null, true);
     }
@@ -556,7 +556,7 @@ app.use(cors({
     if (configuredOrigins.includes('*')) {
       if (process.env.NODE_ENV === 'production') {
         console.warn('[CORS] Wildcard FRONTEND_URL rejected in production');
-        return callback(new Error('Not allowed by CORS'));
+        return callback(null, false);
       }
       return callback(null, true);
     }
@@ -579,7 +579,9 @@ app.use(cors({
     if (isAllowed) return callback(null, true);
 
     console.warn(`[CORS] Blocked origin: ${origin} | Allowed: ${configuredOrigins.join(', ')}`);
-    return callback(new Error('Not allowed by CORS'));
+    // false = no ACAO header, request still continues. Throwing Error here became HTTP 500
+    // and skipped csrfCookieGuard (cookie+evil Origin must be 403 CSRF, not 500).
+    return callback(null, false);
   },
   credentials: true
 }));

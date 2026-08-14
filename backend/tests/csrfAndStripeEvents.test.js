@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { csrfCookieGuard } from '../middleware/csrfOrigin.js';
 import { isAllowedWebOrigin, originFromRequest } from '../utils/allowedOrigins.js';
 import {
@@ -98,4 +101,13 @@ test('stripeFailureContext reads metadata and customer email', () => {
   assert.equal(ctx.tenantId, 'aaaaaaaaaaaaaaaaaaaaaaaa');
   assert.equal(ctx.plan, 'professional');
   assert.equal(ctx.reason, 'card_declined');
+});
+
+test('CORS deny uses callback(null, false) so csrfCookieGuard can still return 403', () => {
+  const src = fs.readFileSync(
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../server.js'),
+    'utf8'
+  );
+  assert.match(src, /callback\(null, false\)/);
+  assert.equal((src.match(/callback\(new Error\('Not allowed by CORS'\)\)/g) || []).length, 0);
 });
