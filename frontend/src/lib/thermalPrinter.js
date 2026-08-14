@@ -260,14 +260,13 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       box-sizing: border-box !important;
       visibility: visible !important;
       opacity: 1 !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
     }
     html, body {
       margin: 0 !important;
       padding: 0 !important;
       background: #ffffff !important;
       color: #000000 !important;
+      -webkit-text-fill-color: #000000 !important;
       width: ${paperWidth} !important;
       max-width: ${paperWidth} !important;
       min-width: ${paperWidth} !important;
@@ -276,18 +275,24 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       line-height: ${lineHeight} !important;
       visibility: visible !important;
     }
-    .print-section {
+    .print-section, .order-receipt, .thermal-receipt, .kitchen-ticket {
       width: 100% !important;
       max-width: ${paperWidth} !important;
       padding: ${padding} !important;
       margin: 0 auto !important;
       background: #ffffff !important;
       color: #000000 !important;
+      -webkit-text-fill-color: #000000 !important;
       border: none !important;
       box-shadow: none !important;
       display: block !important;
       visibility: visible !important;
       position: static !important;
+    }
+    .print-section *, .order-receipt *, .thermal-receipt *, .kitchen-ticket * {
+      color: #000000 !important;
+      -webkit-text-fill-color: #000000 !important;
+      opacity: 1 !important;
     }
     table {
       width: 100% !important;
@@ -362,6 +367,13 @@ export function getPrintCss(className, settings) {
         margin: 0 auto !important;
         box-shadow: none !important;
         border: none !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+      }
+      .${className}, .${className} * {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+        opacity: 1 !important;
       }
       body * { visibility: hidden !important; }
       .${className}, .${className} * { visibility: visible !important; }

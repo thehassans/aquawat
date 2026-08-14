@@ -173,6 +173,11 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
             visibility: visible !important;
           }
           ${printCss}
+          .print-section, .print-section * {
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            opacity: 1 !important;
+          }
           ::-webkit-scrollbar { display: none; }
         `}
       </style>
@@ -194,7 +199,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
 
           {type === 'restaurant' && order.orderNumber && (
             <div className="mt-3 mb-1 w-full flex flex-col items-center">
-              <div className="text-[9px] text-gray-500 uppercase tracking-widest mb-1">{lbl('Order No', 'رقم الطلب')}</div>
+              <div className="text-[9px] text-black font-bold uppercase tracking-widest mb-1">{lbl('Order No', 'رقم الطلب')}</div>
               <div
                 className="w-full text-center font-extrabold text-lg tracking-wide py-1 px-3 rounded"
                 style={{ background: '#fff', color: '#111', border: '2px solid #111', letterSpacing: '0.05em' }}
@@ -206,20 +211,20 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
 
           <div className="border-t border-dashed border-gray-300 w-full my-2"></div>
           
-          <div className="text-[10px] font-bold text-gray-700 tracking-wider">
+          <div className="text-[10px] font-extrabold text-black tracking-wider">
             {bilingualAr
               ? 'SIMPLIFIED TAX INVOICE | فاتورة ضريبية مبسطة'
               : isBangladesh
                 ? `MUSHAK ${mushakForm} — VAT TAX INVOICE`
                 : 'SALES RECEIPT'}
             {isUpdated && (
-              <div className="mt-0.5 text-amber-600 font-extrabold">
+              <div className="mt-0.5 text-black font-extrabold">
                 {bilingualAr ? 'UPDATED | محدثة' : 'UPDATED'}
               </div>
             )}
           </div>
           
-          <div className="text-[9px] mt-1 text-gray-600">
+          <div className="text-[10px] mt-1 text-black font-semibold">
             {isBangladesh && binNumber && (
               <div>BIN: <span className="font-bold">{binNumber}</span></div>
             )}
@@ -248,23 +253,23 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
         </div>
       )}
 
-      <div className="border-t border-b border-dashed border-gray-400 py-2 mb-3 text-[9px] space-y-1">
+      <div className="border-t border-b border-dashed border-black py-2 mb-3 text-[10px] space-y-1">
         <div className="flex justify-between">
-          <span className="text-gray-600">{lbl('Invoice No', 'رقم الفاتورة')}:</span>
+          <span className="text-black font-bold">{lbl('Invoice No', 'رقم الفاتورة')}:</span>
           <span className="font-bold">{orderNumber}</span>
         </div>
 
         <div className="flex justify-between">
-          <span className="text-gray-600">{lbl('Date', 'التاريخ')}:</span>
+          <span className="text-black font-bold">{lbl('Date', 'التاريخ')}:</span>
           <span>{dateStr}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">{lbl('Customer', 'العميل')}:</span>
+          <span className="text-black font-bold">{lbl('Customer', 'العميل')}:</span>
           <span className="font-semibold">{customerName}</span>
         </div>
         {type === 'laundry' && order.deliveryType && (
           <div className="flex justify-between">
-            <span className="text-gray-600">{lbl('Delivery', 'التوصيل')}:</span>
+            <span className="text-black font-bold">{lbl('Delivery', 'التوصيل')}:</span>
             <span className="font-semibold">
               {bilingualAr
                 ? `${deliveryTypeMap[order.deliveryType]?.en} | ${deliveryTypeMap[order.deliveryType]?.ar}`
@@ -274,25 +279,25 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
         )}
         {(order.customerPhone || order.customer?.phone || order.customerId?.phone) && (
           <div className="flex justify-between">
-            <span className="text-gray-600">{lbl('Phone', 'رقم الهاتف')}:</span>
+            <span className="text-black font-bold">{lbl('Phone', 'رقم الهاتف')}:</span>
             <span className="font-semibold">{order.customerPhone || order.customer?.phone || order.customerId?.phone}</span>
           </div>
         )}
         {type === 'restaurant' && order.orderType && (
           <div className="flex justify-between">
-            <span className="text-gray-600">{lbl('Type', 'نوع الطلب')}:</span>
+            <span className="text-black font-bold">{lbl('Type', 'نوع الطلب')}:</span>
             <span className="font-bold">{orderTypeLabel}</span>
           </div>
         )}
         {type === 'restaurant' && order.tableNumber && (
           <div className="flex justify-between">
-            <span className="text-gray-600">{lbl('Table', 'الطاولة')}:</span>
+            <span className="text-black font-bold">{lbl('Table', 'الطاولة')}:</span>
             <span className="font-bold">{order.tableNumber}</span>
           </div>
         )}
         {order.paymentMethod && (
           <div className="flex justify-between">
-            <span className="text-gray-600">{lbl('Payment', 'طريقة الدفع')}:</span>
+            <span className="text-black font-bold">{lbl('Payment', 'طريقة الدفع')}:</span>
             <span className="font-semibold">
               {order.paymentMethod === 'cash'
                 ? (bilingualAr ? (isRtl ? 'نقدي (Cash)' : 'Cash / نقدي') : 'Cash')
@@ -304,33 +309,33 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
         )}
         {order.notes && (
           <div className="flex justify-between">
-            <span className="text-gray-600">{lbl('Notes', 'ملاحظات')}:</span>
-            <span className="font-semibold text-amber-700">{order.notes}</span>
+            <span className="text-black font-bold">{lbl('Notes', 'ملاحظات')}:</span>
+            <span className="font-bold text-black">{order.notes}</span>
           </div>
         )}
         {type === 'khayyat' && (
           <>
             {order.dueDate && (
               <div className="flex justify-between">
-                <span className="text-gray-600">{lbl('Due', 'تاريخ التسليم')}:</span>
+                <span className="text-black font-bold">{lbl('Due', 'تاريخ التسليم')}:</span>
                 <span className="font-bold">{new Date(order.dueDate).toLocaleDateString(isRtl ? 'ar-SA' : 'en-US')}</span>
               </div>
             )}
             <div className="flex justify-between mt-1 pt-1 border-t border-dashed border-gray-300">
-              <span className="text-gray-600">{lbl('Paid', 'المدفوع')}:</span>
+              <span className="text-black font-bold">{lbl('Paid', 'المدفوع')}:</span>
               <span className="font-bold">{money(order.paidAmount || 0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">{lbl('Balance', 'المتبقي')}:</span>
-              <span className="font-bold text-red-600">{money(Math.max(0, Number(order.price || 0) - Number(order.paidAmount || 0)))}</span>
+              <span className="text-black font-bold">{lbl('Balance', 'المتبقي')}:</span>
+              <span className="font-bold text-black">{money(Math.max(0, Number(order.price || 0) - Number(order.paidAmount || 0)))}</span>
             </div>
           </>
         )}
       </div>
 
-      <table className="w-full text-[9px] mb-3 border-collapse">
+      <table className="w-full text-[10px] mb-3 border-collapse">
         <thead>
-          <tr className="border-b border-dashed border-gray-400 text-gray-700">
+          <tr className="border-b border-dashed border-black text-black font-bold">
             <th className={`text-left py-1 ${isKitchen ? 'w-[80%]' : 'w-[55%]'}`}>{lbl('Item', 'الصنف')}</th>
             <th className={`text-center py-1 ${isKitchen ? 'w-[20%]' : 'w-[15%]'}`}>{lbl('Qty', 'الكمية')}</th>
             {!isKitchen && <th className="text-right py-1 w-[30%]">{lbl('Total', 'المجموع')}</th>}
@@ -344,20 +349,20 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
                   {item.nameEn || item.productName || item.name || ''}
                 </div>
                 {bilingualAr && (item.nameAr || item.productNameAr) && (item.nameAr !== item.nameEn || item.productNameAr !== item.productName) && (
-                  <div className={`${isKitchen ? 'text-gray-900 font-bold text-sm mt-1' : 'text-gray-600 mt-0.5'} leading-tight`}>
+                  <div className={`${isKitchen ? 'text-black font-bold text-sm mt-1' : 'text-black font-bold mt-0.5'} leading-tight`}>
                     {item.nameAr || item.productNameAr}
                   </div>
                 )}
                 
                 {type === 'laundry' && item.treatment && (
-                  <div className="text-[8px] text-teal-700 mt-1 font-semibold leading-none flex flex-wrap gap-1">
+                  <div className="text-[9px] text-black mt-1 font-bold leading-none flex flex-wrap gap-1">
                     <span>
                       {bilingualAr
                         ? `[${item.treatment} | ${treatmentMap[item.treatment] || item.treatment}]`
                         : `[${item.treatment}]`}
                     </span>
                     {item.customizations?.length > 0 && (
-                      <span className="text-gray-500 font-normal">
+                      <span className="text-black font-bold">
                         ({item.customizations.map(c => (bilingualAr ? (customizationMap[c] || c) : c)).join(', ')})
                       </span>
                     )}
@@ -365,7 +370,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
                 )}
                 
                 {!isKitchen && (
-                  <div className="text-[8px] text-gray-400 mt-0.5">
+                  <div className="text-[10px] text-black font-bold mt-0.5">
                     {money(item.unitPrice)} x {item.quantity}
                   </div>
                 )}
@@ -383,20 +388,20 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
 
       {!isKitchen && (
         <>
-          <div className="border-t border-dashed border-gray-400 pt-2 text-[9px] space-y-1">
+          <div className="border-t border-dashed border-black pt-2 text-[10px] space-y-1">
             <div className="flex justify-between">
-              <span className="text-gray-600">{lbl('Subtotal', 'المجموع الفرعي')}:</span>
+              <span className="text-black font-bold">{lbl('Subtotal', 'المجموع الفرعي')}:</span>
               <span>{money(order.subtotal || order.price || 0)}</span>
             </div>
             {order.isUrgent && (
-              <div className="flex justify-between font-semibold text-amber-700">
+              <div className="flex justify-between font-bold text-black">
                 <span>{lbl('Urgent Fee', 'رسوم العاجل')}:</span>
                 <span>{money(order.urgentFee || 0)}</span>
               </div>
             )}
             {type !== 'khayyat' && Number(order.totalVat || order.totalTax || 0) > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-600">
+                <span className="text-black font-bold">
                   {lbl(
                     bilingualAr
                       ? 'VAT (15%)'
@@ -407,7 +412,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
                 <span>{money(order.totalVat || order.totalTax || 0)}</span>
               </div>
             )}
-            <div className="flex justify-between mt-2 pt-2 border-t border-dashed border-gray-300 font-extrabold text-sm text-gray-900">
+            <div className="flex justify-between mt-2 pt-2 border-t border-dashed border-black font-extrabold text-sm text-black">
               <span>{lbl('Total', 'الإجمالي النهائي')}:</span>
               <span>{money(order.grandTotal || order.total || order.price || 0)}</span>
             </div>
@@ -416,7 +421,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
           <div className="my-5 flex flex-row items-center justify-center gap-4">
             {thermalSettings.showQrCode && zatcaQrPayload && (
               <div className="flex flex-col items-center justify-center text-center">
-                <div className="text-[7px] text-gray-500 mb-1 font-bold whitespace-nowrap">
+                <div className="text-[8px] text-black mb-1 font-extrabold whitespace-nowrap">
                   ZATCA | هيئة الزكاة
                 </div>
                 <div className="bg-white p-1 border border-gray-200 rounded-lg">
@@ -432,7 +437,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
 
             {thermalSettings.showQrCode && nbrQrPayload && (
               <div className="flex flex-col items-center justify-center text-center">
-                <div className="text-[7px] text-gray-500 mb-1 font-bold whitespace-nowrap">
+                <div className="text-[8px] text-black mb-1 font-extrabold whitespace-nowrap">
                   NBR | MUSHAK {mushakForm}
                 </div>
                 <div className="bg-white p-1 border border-gray-200 rounded-lg">
@@ -448,7 +453,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
 
             {thermalSettings.showQrCode && fbrQrPayload && (
               <div className="flex flex-col items-center justify-center text-center">
-                <div className="text-[7px] text-gray-500 mb-1 font-bold whitespace-nowrap">
+                <div className="text-[8px] text-black mb-1 font-extrabold whitespace-nowrap">
                   FBR | DIGITAL INVOICE
                 </div>
                 <div className="bg-white p-1 border border-gray-200 rounded-lg">
@@ -464,7 +469,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
 
             {type === 'khayyat' && order._id && (
               <div className="flex flex-col items-center justify-center text-center">
-                <div className="text-[7px] text-gray-500 mb-1 font-bold whitespace-nowrap">
+                <div className="text-[8px] text-black mb-1 font-extrabold whitespace-nowrap">
                   {bilingualAr ? 'TRACK | تتبع الطلب' : 'TRACK ORDER'}
                 </div>
                 <div className="bg-white p-1 border border-gray-200 rounded-lg">
@@ -482,10 +487,10 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
       )}
 
       {thermalSettings.showFooter && (
-        <div className="text-center text-[9px] mt-4 pt-3 border-t border-dashed border-gray-400 text-gray-600 space-y-0.5">
-          <p className="font-extrabold text-gray-900 text-[10px]">{isRtl ? thermalSettings.footerTextAr : thermalSettings.footerTextEn}</p>
-          <p>{isRtl ? 'يرجى الاحتفاظ بالإيصال.' : 'Please keep this receipt.'}</p>
-          <p className="text-[8px] text-gray-400 mt-2">Maqder POS powered by Advanced Solutions</p>
+        <div className="text-center text-[10px] mt-4 pt-3 border-t border-dashed border-black text-black space-y-0.5">
+          <p className="font-extrabold text-black text-[11px]">{isRtl ? thermalSettings.footerTextAr : thermalSettings.footerTextEn}</p>
+          <p className="font-bold">{isRtl ? 'يرجى الاحتفاظ بالإيصال.' : 'Please keep this receipt.'}</p>
+          <p className="text-[9px] text-black font-bold mt-2">Maqder POS powered by Advanced Solutions</p>
         </div>
       )}
     </div>
