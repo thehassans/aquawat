@@ -66,6 +66,8 @@ import {
   GraduationCap,
   Recycle,
   BookMarked,
+  Pill,
+  ShieldAlert,
   Palette,
   Boxes,
   RotateCcw,
@@ -117,6 +119,23 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/bakala/returns', icon: FileText, label: language === 'ar' ? 'المرتجعات' : 'Returns' },
         { path: '/app/dashboard/khata', icon: Users, label: language === 'ar' ? 'العملاء (خاتا)' : 'Khata', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/bakala/dashboard', icon: ShieldCheck, label: language === 'ar' ? 'لوحة التحكم' : 'Administration' },
+      ]
+    },
+    {
+      title: language === 'ar' ? 'الصيدلية' : 'Pharmacy',
+      businessTypes: ['pharmacy'],
+      items: [
+        { path: '/app/dashboard/pharmacy/pos', icon: ShoppingCart, label: language === 'ar' ? 'نقطة البيع' : 'POS Checkout' },
+        { path: '/app/dashboard/pharmacy/products', icon: Package, label: language === 'ar' ? 'الأدوية' : 'Medicines' },
+        { path: '/app/dashboard/pharmacy/add-product', icon: PlusCircle, label: language === 'ar' ? 'إضافة دواء' : 'Add medicine' },
+        { path: '/app/dashboard/pharmacy/alerts', icon: AlertTriangle, label: language === 'ar' ? 'تنبيهات المخزون' : 'Stock Alerts' },
+        { path: '/app/dashboard/pharmacy/expiry-waste', icon: CalendarClock, label: language === 'ar' ? 'الصلاحية والهدر' : 'Expiry & Waste' },
+        { path: '/app/dashboard/pharmacy/prescriptions', icon: Pill, label: language === 'ar' ? 'الوصفات' : 'Prescriptions' },
+        { path: '/app/dashboard/pharmacy/controlled', icon: ShieldAlert, label: language === 'ar' ? 'الأدوية الخاضعة للرقابة' : 'Controlled log' },
+        { path: '/app/dashboard/pharmacy/label-printing', icon: Printer, label: language === 'ar' ? 'طباعة الملصقات' : 'Label Printing' },
+        { path: '/app/dashboard/pharmacy/shift', icon: Wallet, label: language === 'ar' ? 'إدارة الوردية' : 'Shift Management' },
+        { path: '/app/dashboard/pharmacy/returns', icon: FileText, label: language === 'ar' ? 'المرتجعات' : 'Returns' },
+        { path: '/app/dashboard/khata', icon: Users, label: language === 'ar' ? 'العملاء (خاتا)' : 'Khata', perm: { module: 'finance', action: 'read' } },
       ]
     },
     {
@@ -214,7 +233,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/letterhead', icon: FileText, label: language === 'ar' ? 'منشئ الخطابات' : 'Letterhead', perm: { module: 'invoicing', action: 'read' } },
         { path: '/app/dashboard/customers', icon: Users, label: language === 'ar' ? 'العملاء' : 'Customers', perm: { module: 'sales', action: 'read' } },
         { path: '/app/dashboard/customers/statement', icon: FileText, label: language === 'ar' ? 'كشف حساب' : 'Customer Statement', perm: { module: 'sales', action: 'read' } },
-        { path: '/app/dashboard/suppliers', icon: Building, label: language === 'ar' ? 'الموردين' : 'Suppliers', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'bakala', 'furniture_shop'] },
+        { path: '/app/dashboard/suppliers', icon: Building, label: language === 'ar' ? 'الموردين' : 'Suppliers', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'bakala', 'pharmacy', 'furniture_shop'] },
         { path: '/app/dashboard/delivery-notes', icon: FileText, label: language === 'ar' ? 'سندات التسليم' : 'Delivery Notes', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
         { path: '/app/dashboard/contacts', icon: Users, label: language === 'ar' ? 'جهات الاتصال' : 'Contacts', perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['bakala'] },
         { path: '/app/dashboard/calendar', icon: Calendar, label: language === 'ar' ? 'التقويم والمواعيد' : 'Calendar', perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['bakala'] },
@@ -253,7 +272,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'سلسلة التوريد' : 'Supply Chain',
-      businessTypes: ['trading', 'bakala', 'furniture_shop'],
+      businessTypes: ['trading', 'bakala', 'pharmacy', 'furniture_shop'],
       items: [
         { path: '/app/dashboard/grn', icon: Truck, label: language === 'ar' ? 'استلام البضائع' : 'Goods Receipt', perm: { module: 'supply_chain', action: 'read' } },
         { path: '/app/dashboard/purchase-returns', icon: PackageMinus, label: language === 'ar' ? 'مرتجعات المشتريات' : 'Purchase Returns', perm: { module: 'supply_chain', action: 'read' } },

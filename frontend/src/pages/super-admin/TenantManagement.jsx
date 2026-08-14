@@ -315,6 +315,7 @@ export default function TenantManagement() {
             <option value="khayyat">{language === 'ar' ? 'خياط' : 'Khayyat'}</option>
             <option value="saloon">{language === 'ar' ? 'صالون' : 'Saloon'}</option>
             <option value="bakala">{language === 'ar' ? 'بقالة' : 'Bakala'}</option>
+            <option value="pharmacy">{language === 'ar' ? 'صيدلية' : 'Pharmacy'}</option>
           </select>
         </div>
       </div>

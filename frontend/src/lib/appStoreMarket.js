@@ -26,6 +26,7 @@ export function getPreferredAppIds(tenant) {
       'email_suite',
       'sms_marketing',
       'thermal_printer_driver',
+      'pharmacy',
       'tabby_bnpl',
       'tamara_bnpl',
       'crm_sales_pipeline',

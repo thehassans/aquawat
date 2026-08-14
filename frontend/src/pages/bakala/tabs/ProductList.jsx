@@ -6,9 +6,14 @@ import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 import { getAllProducts } from '../../../lib/bakalaDb';
 import { useAutoTranslate } from '../../../hooks/useAutoTranslate';
+import { useSelector } from 'react-redux';
+import { hasBusinessType } from '../../../lib/businessTypes';
 
 export default function ProductList() {
   const navigate = useNavigate();
+  const tenant = useSelector((state) => state.auth.tenant);
+  const isPharmacy = hasBusinessType(tenant, 'pharmacy');
+  const catalogBase = isPharmacy ? '/app/dashboard/pharmacy' : '/app/dashboard/bakala';
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -22,7 +27,9 @@ export default function ProductList() {
   const [formData, setFormData] = useState({
     name: '', nameAr: '', primaryBarcode: '', category: '', brand: '', 
     unit: 'PCS', costPrice: 0, retailPrice: 0, minimumStockAlertLevel: 10,
-    stockQuantity: 0, expiryDate: '', batchNumber: '', isActive: true
+    stockQuantity: 0, expiryDate: '', batchNumber: '', isActive: true,
+    genericName: '', sfdaRegisterNumber: '', dosageForm: '', strength: '', manufacturer: '',
+    requiresPrescription: false, isControlled: false,
   });
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -140,7 +147,14 @@ export default function ProductList() {
       stockQuantity: product.stockQuantity || 0,
       expiryDate: product.expiryDate ? product.expiryDate.substring(0, 10) : '',
       batchNumber: product.batchNumber || '',
-      isActive: product.isActive ?? true
+      isActive: product.isActive ?? true,
+      genericName: product.genericName || '',
+      sfdaRegisterNumber: product.sfdaRegisterNumber || '',
+      dosageForm: product.dosageForm || '',
+      strength: product.strength || '',
+      manufacturer: product.manufacturer || '',
+      requiresPrescription: !!product.requiresPrescription,
+      isControlled: !!product.isControlled,
     });
     setEditingId(product._id);
     setIsModalOpen(true);
@@ -204,6 +218,7 @@ export default function ProductList() {
           />
         </div>
         <div className="flex gap-2">
+          {!isPharmacy && (
           <button 
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
             onClick={async () => {
@@ -219,9 +234,10 @@ export default function ProductList() {
           >
             <Download className="w-4 h-4" /> Import CSV
           </button>
+          )}
           <button
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
-            onClick={() => navigate('/app/dashboard/bakala/add-product')}
+            onClick={() => navigate(`${catalogBase}/add-product`)}
           >
             <PackagePlus className="w-4 h-4" /> Add Product
           </button>
@@ -363,6 +379,46 @@ export default function ProductList() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Batch Number</label>
                   <input type="text" value={formData.batchNumber} onChange={e => setFormData({...formData, batchNumber: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 outline-none" />
                 </div>
+                {isPharmacy && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Generic / scientific name</label>
+                      <input type="text" value={formData.genericName || ''} onChange={e => setFormData({...formData, genericName: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">SFDA register #</label>
+                      <input type="text" value={formData.sfdaRegisterNumber || ''} onChange={e => setFormData({...formData, sfdaRegisterNumber: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Dosage form</label>
+                      <select value={formData.dosageForm || ''} onChange={e => setFormData({...formData, dosageForm: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 outline-none">
+                        <option value="">Select</option>
+                        <option value="tablet">Tablet</option>
+                        <option value="capsule">Capsule</option>
+                        <option value="syrup">Syrup</option>
+                        <option value="drops">Drops</option>
+                        <option value="cream">Cream</option>
+                        <option value="injection">Injection</option>
+                        <option value="inhaler">Inhaler</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Strength</label>
+                      <input type="text" value={formData.strength || ''} onChange={e => setFormData({...formData, strength: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-emerald-500 outline-none" />
+                    </div>
+                    <div className="col-span-2 flex items-center gap-6">
+                      <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <input type="checkbox" checked={!!formData.requiresPrescription} onChange={e => setFormData({...formData, requiresPrescription: e.target.checked})} />
+                        Requires prescription
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <input type="checkbox" checked={!!formData.isControlled} onChange={e => setFormData({...formData, isControlled: e.target.checked})} />
+                        Controlled drug
+                      </label>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">Cancel</button>

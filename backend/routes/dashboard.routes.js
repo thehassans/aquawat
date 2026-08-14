@@ -484,7 +484,7 @@ async function buildDashboardPayload(req) {
       ]) : skipAgg,
 
       // 17. Bakala & Supermarket
-      hasBiz('bakala') ? safeAggregate(BakalaProduct, [
+      hasBiz('bakala') || hasBiz('pharmacy') ? safeAggregate(BakalaProduct, [
         { $match: { ...req.tenantFilter, isActive: true } },
         {
           $facet: {
@@ -698,6 +698,7 @@ async function buildDashboardPayload(req) {
       khayyat: khayyatStats[0] || { totals: [{ total: 0, inProgress: 0, readyForFitting: 0, completed: 0 }], recent: [] },
       manpower: manpowerStats[0] || { totals: [{ total: 0, deployed: 0, available: 0 }] },
       bakala: bakalaStats[0] || { totals: [{ total: 0, lowStock: 0, totalStock: 0 }] },
+      pharmacy: bakalaStats[0] || { totals: [{ total: 0, lowStock: 0, totalStock: 0 }] },
       manufacturing: mfgStats[0] || { totals: [{ total: 0, active: 0, completed: 0 }], recent: [] },
       boutique: boutiqueStats[0] || { totals: [{ total: 0, activeRentals: 0, completed: 0 }] },
       car_workshop: workshopStats[0] || { totals: [{ total: 0, openCards: 0, completed: 0, revenue: 0 }], recent: [] },

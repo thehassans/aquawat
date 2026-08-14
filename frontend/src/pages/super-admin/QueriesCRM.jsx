@@ -34,6 +34,7 @@ const TENANT_TYPES = [
   { value: 'restaurant', label: 'Restaurant' },
   { value: 'car_rental', label: 'Car Rental' },
   { value: 'bakala', label: 'Bakala / Supermarket' },
+  { value: 'pharmacy', label: 'Pharmacy' },
   { value: 'saloon', label: 'Saloon / Barber' },
   { value: 'khayyat', label: 'Tailor / Boutique' },
   { value: 'manpower', label: 'Manpower' },

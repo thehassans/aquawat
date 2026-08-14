@@ -3,12 +3,17 @@ import { PackageOpen, Plus, Check, Save, ArrowLeft, Calendar, Trash2 } from 'luc
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import ProductChooser, { loadInventoryProducts } from '../../components/inventory/ProductChooser';
+import { useSelector } from 'react-redux';
+import { hasBusinessType } from '../../lib/businessTypes';
 
 const fontPage = { fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Tajawal', sans-serif" };
 const fontDisplay = { fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" };
 const field = 'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10';
 
 export default function GoodsReceiptNote() {
+  const tenant = useSelector((state) => state.auth.tenant);
+  const isPharmacy = hasBusinessType(tenant, 'pharmacy');
+  const requireBatch = isPharmacy && tenant?.settings?.pharmacy?.requireBatchOnReceive !== false;
   const [grns, setGrns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list');
@@ -76,6 +81,9 @@ export default function GoodsReceiptNote() {
   const handleSaveGRN = async () => {
     if (!selectedSupplier) return toast.error('Please select a supplier');
     if (lines.length === 0) return toast.error('Please add at least one product');
+    if (requireBatch && lines.some((l) => !String(l.batchNumber || '').trim() || !l.expiryDate)) {
+      return toast.error('Pharmacy receipts need a batch number and expiry on every line');
+    }
 
     try {
       await api.post('/grn', {

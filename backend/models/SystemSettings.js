@@ -158,6 +158,12 @@ export const getDefaultPlansByBusinessType = (businessType) => {
         professional(499, 4990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Multi-device POS', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'نقطة بيع متعددة الأجهزة', 'تقارير متقدمة']),
         enterprise()
       ];
+    case 'pharmacy':
+      return [
+        starter(249, 2490, ['1 user', '50 invoices / month', 'Pharmacy POS', 'Barcode & GTIN', 'Batch & expiry', 'Prescription capture', 'ZATCA E-Invoicing'], ['مستخدم واحد', '50 فاتورة / شهر', 'نقطة بيع الصيدلية', 'باركود وGTIN', 'التشغيلة والصلاحية', 'تسجيل الوصفات', 'الفوترة الإلكترونية']),
+        professional(599, 5990, ['3 users', '100 invoices / month', 'Controlled-drug log', 'SFDA register fields', 'WhatsApp integration', 'HR & Payroll', 'Multi-device POS', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', 'سجل الأدوية الخاضعة للرقابة', 'رقم تسجيل هيئة الغذاء والدواء', 'تكامل واتساب', 'الموارد البشرية والرواتب', 'نقطة بيع متعددة الأجهزة', 'تقارير متقدمة']),
+        enterprise()
+      ];
     case 'car_workshop':
       return [
         starter(299, 2990, ['1 user', '50 invoices / month', '50 quotations / month', 'Job cards', 'Taqdeer estimates', 'Parts inventory', 'ZATCA E-Invoicing'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'بطاقات الإصلاح', 'تقديرات تقدير', 'مخزون القطع', 'الفوترة الإلكترونية']),

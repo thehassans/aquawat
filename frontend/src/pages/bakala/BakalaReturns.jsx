@@ -3,9 +3,13 @@ import { Search, RefreshCcw, ArrowLeft, Receipt, Clock, PackageX, CheckCircle } 
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import { useSelector } from 'react-redux';
+import { hasBusinessType } from '../../lib/businessTypes';
 
 export default function BakalaReturns() {
   const navigate = useNavigate();
+  const tenant = useSelector((state) => state.auth.tenant);
+  const posPath = hasBusinessType(tenant, 'pharmacy') ? '/app/dashboard/pharmacy/pos' : '/app/dashboard/bakala/pos';
   const [searchTerm, setSearchTerm] = useState('');
   const [recentInvoices, setRecentInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -128,7 +132,7 @@ export default function BakalaReturns() {
         <div className="px-6 py-5 border-b border-gray-50 flex justify-between items-center bg-white">
           <div className="flex items-center gap-3">
             <button 
-              onClick={() => navigate('/app/dashboard/bakala/pos')}
+              onClick={() => navigate(posPath)}
               className="p-2 -ml-2 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />

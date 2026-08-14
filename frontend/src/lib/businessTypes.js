@@ -1,4 +1,4 @@
-export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing']
+export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing']
 
 export const getBusinessTypeOptions = (language = 'en') => [
   {
@@ -62,6 +62,11 @@ export const getBusinessTypeOptions = (language = 'en') => [
     description: language === 'ar' ? 'نقطة بيع سريعة للمواد الغذائية الاستهلاكية والتجزئة' : 'Fast-paced POS for grocery and retail',
   },
   {
+    id: 'pharmacy',
+    label: language === 'ar' ? 'صيدلية' : 'Pharmacy',
+    description: language === 'ar' ? 'نقطة بيع للأدوية مع الصلاحية، الوصفات، والأدوية الخاضعة للرقابة' : 'Pharmacy POS with expiry, prescriptions, and controlled-drug logs',
+  },
+  {
     id: 'car_workshop',
     label: language === 'ar' ? 'مركز صيانة سيارات' : 'Car Workshop',
     description: language === 'ar' ? 'بطاقات إصلاح، التقدير، والتكامل مع الزكاة والمرور' : 'Job cards, Taqdeer, ZATCA & Absher integration',
@@ -90,6 +95,7 @@ export const normalizeBusinessTypes = (input, fallback = 'trading') => {
       const val = String(value || '').trim().toLowerCase();
       if (val === 'tailoring') return 'khayyat';
       if (val === 'supermarket' || val === 'super market') return 'bakala';
+      if (val === 'صيدلية' || val === 'pharmacies') return 'pharmacy';
       return val;
     })
     .filter((value) => BUSINESS_TYPES.includes(value))

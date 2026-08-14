@@ -122,7 +122,7 @@ function appMatchesCategory(app, categoryId) {
       app.category === 'industry_vertical' ||
       app.appType === 'core_vertical' ||
       app.appType === 'industry_vertical' ||
-      ['manufacturing', 'boutique', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'manpower', 'bakala', 'trading'].some(
+      ['manufacturing', 'boutique', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'manpower', 'bakala', 'pharmacy', 'trading'].some(
         (v) => app.appId.includes(v)
       )
     );
@@ -141,7 +141,7 @@ function appMatchesCategory(app, categoryId) {
   }
   if (categoryId === 'pos_retail') {
     if (app.category === 'delivery_platforms' || app.category === 'logistics') return false
-    return app.category === 'pos_retail' || app.appId.includes('retail') || app.appId.includes('restaurant') || app.appId.includes('bakala')
+    return app.category === 'pos_retail' || app.appId.includes('retail') || app.appId.includes('restaurant') || app.appId.includes('bakala') || app.appId.includes('pharmacy')
   }
   if (categoryId === 'logistics') {
     return app.category === 'logistics' || app.appId.includes('shipping') || app.appId.includes('smsa') || app.appId.includes('aramex') || app.appId.includes('jnt') || app.appId.includes('naqel') || app.appId.includes('imile') || app.appId.includes('spl') || app.appId.includes('fedex') || app.appId.includes('dhl') || app.appId.includes('ups') || app.appId.includes('tnt')

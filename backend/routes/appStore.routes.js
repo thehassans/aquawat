@@ -216,6 +216,15 @@ export const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}
 
   applyAppEntitlements(tenant, appId);
 
+  if (appId === 'pharmacy') {
+    if (!tenant.settings.pharmacy) tenant.settings.pharmacy = {};
+    tenant.settings.pharmacy.requirePrescriptionOnRx = appConfig.config?.requirePrescriptionOnRx !== false;
+    tenant.settings.pharmacy.controlledSaleRequiresNote = appConfig.config?.controlledSaleRequiresNote !== false;
+    tenant.settings.pharmacy.expiryAlertDays = Number(appConfig.config?.expiryAlertDays || 90);
+    tenant.settings.pharmacy.requireBatchOnReceive = appConfig.config?.requireBatchOnReceive !== false;
+    tenant.markModified('settings.pharmacy');
+  }
+
   if (appId === 'bangladesh_nbr_einvoicing') {
     if (!tenant.nbr) tenant.nbr = {};
     tenant.nbr.isEnabled = true;
@@ -749,6 +758,47 @@ export const DEFAULT_APP_CATALOG = [
     ],
     configSchema: [
       { key: 'enableScaleBarcodeParsing', labelEn: 'Auto-Parse Embedded Scale Barcodes (EAN-13 Price/Weight)', labelAr: 'قراءة باركود الميزان المدمج فيه الوزن والسعر تلقائياً', type: 'boolean', defaultValue: true }
+    ]
+  },
+  {
+    appId: 'pharmacy',
+    nameEn: 'Pharmacy POS & Dispensing',
+    nameAr: 'صيدلية ونقطة صرف الأدوية',
+    taglineEn: 'Barcode POS, SFDA fields, batch/expiry, prescription capture, and a controlled-drug register.',
+    taglineAr: 'كاشير باركود، بيانات هيئة الغذاء والدواء، التشغيلة والصلاحية، تسجيل الوصفات، وسجل الأدوية الخاضعة للرقابة.',
+    descriptionEn: 'Saudi pharmacy operations on Maqder: fast barcode checkout, mandatory batch and expiry on medicines, SFDA registration and GTIN on the product card, OTC vs prescription flags, patient and prescription capture at sale, and a controlled-drug dispense log for inspection. Shares inventory, GRN, purchase returns, and ZATCA e-invoicing with the rest of the ERP.',
+    descriptionAr: 'تشغيل الصيدلية السعودية على ماقدر: بيع سريع بالباركود، إلزام التشغيلة وتاريخ الصلاحية، رقم تسجيل هيئة الغذاء والدواء والباركود الدولي على بطاقة الصنف، تمييز بدون وصفة مقابل بوصفة، تسجيل المريض ورقم الوصفة عند الصرف، وسجل صرف للأدوية الخاضعة للرقابة. المخزون واستلام البضائع والمرتجعات والفوترة الإلكترونية مشتركة مع باقي النظام.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'pill',
+    version: '1.0.0',
+    downloadSize: '11.4 MB',
+    author: 'Maqder Core',
+    rating: 4.96,
+    reviewsCount: 128,
+    pricingTier: 'free',
+    badge: 'Pharmacy',
+    defaultRoute: '/app/dashboard/pharmacy/pos',
+    businessTypeGrant: 'pharmacy',
+    featuresEn: [
+      'Pharmacy POS with barcode / GTIN scan and name search',
+      'SFDA register, generic name, strength, and dosage form on each SKU',
+      'OTC vs prescription gate — Rx items require patient and prescription number',
+      'Controlled-drug dispense register with pharmacist note',
+      'Batch, expiry, GRN, and purchase returns tied to the same stock'
+    ],
+    featuresAr: [
+      'نقطة بيع صيدلية بمسح الباركود والبحث بالاسم',
+      'رقم تسجيل هيئة الغذاء والدواء والاسم العلمي والتركيز وشكل الجرعة على كل صنف',
+      'تمييز بدون وصفة مقابل بوصفة — الأصناف بوصفة تتطلب المريض ورقم الوصفة',
+      'سجل صرف للأدوية الخاضعة للرقابة مع ملاحظة الصيدلي',
+      'التشغيلة والصلاحية واستلام البضائع والمرتجعات على نفس المخزون'
+    ],
+    configSchema: [
+      { key: 'requirePrescriptionOnRx', labelEn: 'Require prescription number for Rx items', labelAr: 'إلزام رقم الوصفة لأصناف بوصفة', type: 'boolean', defaultValue: true },
+      { key: 'controlledSaleRequiresNote', labelEn: 'Require pharmacist note on controlled drugs', labelAr: 'إلزام ملاحظة الصيدلي للأدوية الخاضعة للرقابة', type: 'boolean', defaultValue: true },
+      { key: 'expiryAlertDays', labelEn: 'Expiry alert days', labelAr: 'أيام التنبيه قبل انتهاء الصلاحية', type: 'number', defaultValue: 90 },
+      { key: 'requireBatchOnReceive', labelEn: 'Require batch on goods receipt', labelAr: 'إلزام رقم التشغيلة عند الاستلام', type: 'boolean', defaultValue: true }
     ]
   },
   {

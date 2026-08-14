@@ -39,6 +39,14 @@ export function AppWorkspaceDock({
           { label: isAr ? 'مخزون منخفض' : 'Low Stock', value: low, alert: low > 0 },
         ]
       }
+      case 'pharmacy': {
+        const total = data.totals?.[0]?.total || data.totalProducts || 0
+        const low = data.totals?.[0]?.lowStock || 0
+        return [
+          { label: isAr ? 'الأدوية' : 'Medicines', value: total },
+          { label: isAr ? 'مخزون منخفض' : 'Low Stock', value: low, alert: low > 0 },
+        ]
+      }
       case 'restaurant': {
         const open = data.totals?.[0]?.open || 0
         const rev = data.totals?.[0]?.todayRevenue || data.totals?.[0]?.revenue || 0

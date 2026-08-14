@@ -1,5 +1,5 @@
 import { useSelector, useDispatch } from 'react-redux'
-import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown, LayoutGrid, PanelLeft, LayoutList, User, Settings as SettingsIcon, Building2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory } from 'lucide-react'
+import { Menu, Search, Bell, Moon, Sun, Globe, LogOut, X, Mail, Crown, LayoutGrid, PanelLeft, LayoutList, User, Settings as SettingsIcon, Building2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory, Pill } from 'lucide-react'
 import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
 import { Transition, Popover, Menu as HeadlessMenu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -28,6 +28,7 @@ const TENANT_TYPE_META = {
   khayyat: { Icon: Scissors, labelEn: 'Tailor', labelAr: 'خياط' },
   boutique: { Icon: ShoppingBag, labelEn: 'Boutique', labelAr: 'بوتيك' },
   bakala: { Icon: Store, labelEn: 'Retail', labelAr: 'بقالة' },
+  pharmacy: { Icon: Pill, labelEn: 'Pharmacy', labelAr: 'صيدلية' },
   manufacturing: { Icon: Factory, labelEn: 'Manufacturing', labelAr: 'تصنيع' },
   ecommerce: { Icon: ShoppingBag, labelEn: 'eCommerce', labelAr: 'متجر' },
 }

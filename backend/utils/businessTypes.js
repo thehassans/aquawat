@@ -1,4 +1,4 @@
-export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing']
+export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing']
 
 export const normalizeBusinessTypes = (input, fallback = 'trading') => {
   const values = Array.isArray(input) ? input : [input]
@@ -7,6 +7,7 @@ export const normalizeBusinessTypes = (input, fallback = 'trading') => {
       const val = String(value || '').trim().toLowerCase();
       if (val === 'tailoring') return 'khayyat';
       if (val === 'supermarket' || val === 'super market') return 'bakala';
+      if (val === 'صيدلية' || val === 'pharmacies') return 'pharmacy';
       return val;
     })
     .filter((value) => BUSINESS_TYPES.includes(value))

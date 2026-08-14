@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useCartEngine } from '../../hooks/useCartEngine';
 import { useBakalaSync } from '../../hooks/useBakalaSync';
 import { getProductByBarcode, saveOfflineInvoice } from '../../lib/bakalaDb';
+import { hasBusinessType } from '../../lib/businessTypes';
 import { ShoppingCart, CreditCard, Wallet, Send, RefreshCw, Server, WifiOff, ArrowLeft, Search, Plus, Minus, Trash2, LogOut, Smartphone, Keyboard, Users, CheckCircle2, Scale, Plug, Unplug, Printer, Archive } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useNavigate } from 'react-router-dom';
@@ -47,6 +48,8 @@ export default function BakalaPOS() {
   const { tenant, user } = useSelector(state => state.auth);
   const hw = tenant?.settings?.hardwareSettings || {};
   const bakalaSettings = tenant?.settings?.bakala || {};
+  const pharmacySettings = tenant?.settings?.pharmacy || tenant?.settings?.installedApps?.pharmacy?.config || {};
+  const isPharmacy = hasBusinessType(tenant, 'pharmacy');
   const taxEnabled = bakalaSettings.taxEnabled !== false;
   const autoInvoicePrint = bakalaSettings.autoInvoicePrint !== false;
   const scalePrefix = (hw.scaleBarcodePrefix || '21').substring(0, 2).padEnd(2, '0');
@@ -90,6 +93,13 @@ export default function BakalaPOS() {
   const [khataAccounts, setKhataAccounts] = useState([]);
   const [loadingKhata, setLoadingKhata] = useState(false);
   const [khataSearch, setKhataSearch] = useState('');
+  const [pharmacyRx, setPharmacyRx] = useState({
+    patientName: '',
+    patientIdNumber: '',
+    prescriptionNumber: '',
+    prescriberName: '',
+    pharmacistNote: '',
+  });
 
   const heldBills = getHeldBills();
 
@@ -634,6 +644,23 @@ export default function BakalaPOS() {
   const handleCheckout = async (paymentMethod, payments = null, khataAccountId = null) => {
     if (cartItems.length === 0) return;
 
+    if (isPharmacy) {
+      const needsRx = cartItems.some((item) => item.requiresPrescription);
+      const needsControlledNote = cartItems.some((item) => item.isControlled);
+      if (pharmacySettings.requirePrescriptionOnRx !== false && needsRx && !String(pharmacyRx.prescriptionNumber || '').trim()) {
+        toast.error('Enter the prescription number for Rx items');
+        return;
+      }
+      if (needsRx && !String(pharmacyRx.patientName || '').trim()) {
+        toast.error('Enter the patient name for Rx items');
+        return;
+      }
+      if (pharmacySettings.controlledSaleRequiresNote !== false && needsControlledNote && !String(pharmacyRx.pharmacistNote || '').trim()) {
+        toast.error('Enter a pharmacist note for controlled drugs');
+        return;
+      }
+    }
+
     if (paymentMethod === 'khata' && khataAccountId) {
       try {
         await api.post(`/khata/${khataAccountId}/transactions`, {
@@ -669,11 +696,15 @@ export default function BakalaPOS() {
       paymentMethod,
       payments,
       khataAccountId,
-      issueDate: new Date().toISOString()
+      issueDate: new Date().toISOString(),
+      ...(isPharmacy ? { pharmacyDispense: pharmacyRx } : {}),
     };
 
     await saveOfflineInvoice(invoice);
     clearCart();
+    if (isPharmacy) {
+      setPharmacyRx({ patientName: '', patientIdNumber: '', prescriptionNumber: '', prescriberName: '', pharmacistNote: '' });
+    }
 
     // Get hardware + thermal settings
     const thermal = getThermalPrinterSettings(tenant);
@@ -1057,7 +1088,7 @@ export default function BakalaPOS() {
         <div className="px-6 py-5 border-b border-gray-50 flex justify-between items-center bg-white">
           <div className="flex items-center gap-3">
             <button 
-              onClick={() => navigate('/app/dashboard/bakala/dashboard')}
+              onClick={() => navigate(isPharmacy ? '/app/dashboard/pharmacy/products' : '/app/dashboard/bakala/dashboard')}
               className="p-2 -ml-2 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -1374,7 +1405,7 @@ export default function BakalaPOS() {
           <div className="grid grid-cols-3 gap-3 mb-3">
             <button
               onClick={openWeighModal}
-              className="flex items-center justify-center gap-2 p-3 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-xl font-bold transition-colors"
+              className={`flex items-center justify-center gap-2 p-3 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-xl font-bold transition-colors ${isPharmacy ? 'hidden' : ''}`}
             >
               <Scale className="w-4 h-4" /> Weigh
             </button>
@@ -1404,6 +1435,16 @@ export default function BakalaPOS() {
               )}
             </button>
           </div>
+
+          {isPharmacy && (
+            <div className="mb-3 grid grid-cols-1 gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3 sm:grid-cols-2">
+              <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Patient name" value={pharmacyRx.patientName} onChange={(e) => setPharmacyRx((p) => ({ ...p, patientName: e.target.value }))} />
+              <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="National / Iqama ID" value={pharmacyRx.patientIdNumber} onChange={(e) => setPharmacyRx((p) => ({ ...p, patientIdNumber: e.target.value }))} />
+              <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Prescription number" value={pharmacyRx.prescriptionNumber} onChange={(e) => setPharmacyRx((p) => ({ ...p, prescriptionNumber: e.target.value }))} />
+              <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Prescriber" value={pharmacyRx.prescriberName} onChange={(e) => setPharmacyRx((p) => ({ ...p, prescriberName: e.target.value }))} />
+              <input className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm sm:col-span-2" placeholder="Pharmacist note (required for controlled drugs)" value={pharmacyRx.pharmacistNote} onChange={(e) => setPharmacyRx((p) => ({ ...p, pharmacistNote: e.target.value }))} />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             <button onClick={() => handleCheckout('cash')} className="flex flex-col items-center justify-center gap-1 p-3 bg-emerald-500 text-white hover:bg-emerald-600 rounded-2xl font-bold transition-colors active:scale-95 shadow-sm shadow-emerald-200">

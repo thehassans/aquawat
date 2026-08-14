@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import { useSelector } from 'react-redux';
+import { hasBusinessType } from '../../lib/businessTypes';
 
 const FILTERS = [
   { id: 'all', label: 'All Alerts' },
@@ -22,6 +24,8 @@ const daysUntil = (date) => {
 };
 
 export default function InventoryAlerts() {
+  const tenant = useSelector((state) => state.auth.tenant);
+  const catalogBase = hasBusinessType(tenant, 'pharmacy') ? '/app/dashboard/pharmacy' : '/app/dashboard/bakala';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -302,7 +306,7 @@ export default function InventoryAlerts() {
 
       <div className="flex justify-end">
         <Link
-          to="/app/dashboard/bakala/products"
+          to={`${catalogBase}/products`}
           className="inline-flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900 transition-colors"
         >
           Manage products & stock <ArrowRight className="w-4 h-4" />

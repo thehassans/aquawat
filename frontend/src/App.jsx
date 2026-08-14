@@ -148,6 +148,8 @@ const RestaurantMess = lazy(() => import('./pages/restaurant/RestaurantMess'))
 const RestaurantDelivery = lazy(() => import('./pages/restaurant/RestaurantDelivery'))
 const BakalaShiftManagement = lazy(() => import('./pages/bakala/BakalaShiftManagement'))
 const BakalaReturns = lazy(() => import('./pages/bakala/BakalaReturns'))
+const PharmacyPrescriptions = lazy(() => import('./pages/pharmacy/PharmacyPrescriptions'))
+const PharmacyControlledLog = lazy(() => import('./pages/pharmacy/PharmacyControlledLog'))
 const BookStorePOS = lazy(() => import('./pages/bookstore/BookStorePOS'))
 const BookStoreDashboard = lazy(() => import('./pages/bookstore/BookStoreDashboard'))
 const BookStoreProducts = lazy(() => import('./pages/bookstore/BookStoreProducts'))
@@ -723,9 +725,9 @@ function App() {
         <Route path="purchase-orders/:id" element={<PurchaseOrderForm />} />
         <Route path="grn" element={<GoodsReceiptNote />} />
         <Route path="purchase-returns" element={<PurchaseReturns />} />
-        <Route path="shipments" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><Shipments /></BusinessTypeRoute>} />
-        <Route path="shipments/new" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><ShipmentForm /></BusinessTypeRoute>} />
-        <Route path="shipments/:id" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><ShipmentForm /></BusinessTypeRoute>} />
+        <Route path="shipments" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><Shipments /></BusinessTypeRoute>} />
+        <Route path="shipments/new" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><ShipmentForm /></BusinessTypeRoute>} />
+        <Route path="shipments/:id" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><ShipmentForm /></BusinessTypeRoute>} />
         
         <Route path="delivery-notes" element={<BusinessTypeRoute allowedTypes={['trading']}><DeliveryNotes /></BusinessTypeRoute>} />
         <Route path="delivery-notes/new" element={<BusinessTypeRoute allowedTypes={['trading']}><DeliveryNoteForm /></BusinessTypeRoute>} />
@@ -758,6 +760,17 @@ function App() {
         <Route path="bakala/auto-reorder" element={<BusinessTypeRoute allowedTypes={['bakala']}><AutoReorder /></BusinessTypeRoute>} />
         <Route path="bakala/label-printing" element={<BusinessTypeRoute allowedTypes={['bakala']}><BarcodeLabelPrinting /></BusinessTypeRoute>} />
         <Route path="bakala/pnl" element={<BusinessTypeRoute allowedTypes={['bakala']}><DailyPnL /></BusinessTypeRoute>} />
+
+        <Route path="pharmacy/pos" element={<BusinessTypeRoute allowedTypes={['pharmacy']}><BakalaPOS /></BusinessTypeRoute>} />
+        <Route path="pharmacy/shift" element={<BusinessTypeRoute allowedTypes={['pharmacy']}><BakalaShiftManagement /></BusinessTypeRoute>} />
+        <Route path="pharmacy/returns" element={<BusinessTypeRoute allowedTypes={['pharmacy']}><BakalaReturns /></BusinessTypeRoute>} />
+        <Route path="pharmacy/products/*" element={<BusinessTypeRoute allowedTypes={['pharmacy']}><BakalaProducts /></BusinessTypeRoute>} />
+        <Route path="pharmacy/add-product" element={<BusinessTypeRoute allowedTypes={['pharmacy']}><BakalaAddProduct /></BusinessTypeRoute>} />
+        <Route path="pharmacy/alerts" element={<BusinessTypeRoute allowedTypes={['pharmacy']}><InventoryAlerts /></BusinessTypeRoute>} />
+        <Route path="pharmacy/expiry-waste" element={<BusinessTypeRoute allowedTypes={['pharmacy']}><ExpiryWasteManagement /></BusinessTypeRoute>} />
+        <Route path="pharmacy/label-printing" element={<BusinessTypeRoute allowedTypes={['pharmacy']}><BarcodeLabelPrinting /></BusinessTypeRoute>} />
+        <Route path="pharmacy/prescriptions" element={<BusinessTypeRoute allowedTypes={['pharmacy']}><PharmacyPrescriptions /></BusinessTypeRoute>} />
+        <Route path="pharmacy/controlled" element={<BusinessTypeRoute allowedTypes={['pharmacy']}><PharmacyControlledLog /></BusinessTypeRoute>} />
 
         {/* Bookstore Routes */}
         <Route path="bookstore/pos" element={<BusinessTypeRoute allowedTypes={['bookstore']}><BookStorePOS /></BusinessTypeRoute>} />
@@ -865,9 +878,9 @@ function App() {
         <Route path="contracts/new" element={<ContractForm />} />
         <Route path="contracts/:id" element={<ContractForm />} />
         {/* Landed Costs */}
-        <Route path="landed-costs" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><LandedCosts /></BusinessTypeRoute>} />
-        <Route path="landed-costs/new" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><LandedCostForm /></BusinessTypeRoute>} />
-        <Route path="landed-costs/:id" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'furniture_shop']}><LandedCostForm /></BusinessTypeRoute>} />
+        <Route path="landed-costs" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><LandedCosts /></BusinessTypeRoute>} />
+        <Route path="landed-costs/new" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><LandedCostForm /></BusinessTypeRoute>} />
+        <Route path="landed-costs/:id" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><LandedCostForm /></BusinessTypeRoute>} />
         {/* Local Compliance */}
         <Route path="compliance" element={<Compliance />} />
       </Route>

@@ -21,7 +21,9 @@ export const useCartEngine = () => {
         quantity: 1,
         unitPrice: product.retailPrice,
         taxRate: product.taxRate || 15,
-        promo: product.mixAndMatchPromo
+        promo: product.mixAndMatchPromo,
+        requiresPrescription: !!product.requiresPrescription,
+        isControlled: !!product.isControlled,
       }];
     });
   }, []);

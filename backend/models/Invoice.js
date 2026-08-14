@@ -262,6 +262,13 @@ const invoiceSchema = new mongoose.Schema({
   
   // Metadata
   notes: { type: String },
+  pharmacyDispense: {
+    patientName: { type: String, default: '' },
+    patientIdNumber: { type: String, default: '' },
+    prescriptionNumber: { type: String, default: '' },
+    prescriberName: { type: String, default: '' },
+    pharmacistNote: { type: String, default: '' },
+  },
   termsAndConditions: { type: String },
   includeBankDetails: { type: Boolean, default: false },
   bankDetails: {

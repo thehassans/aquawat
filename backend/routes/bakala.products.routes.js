@@ -124,7 +124,7 @@ router.get('/inventory-alerts', protect, async (req, res) => {
     const expiryThreshold = new Date(now.getTime() + expiryWindowDays * 24 * 60 * 60 * 1000);
 
     const products = await BakalaProduct.find({ tenantId, isActive: { $ne: false } })
-      .select('name nameAr primaryBarcode category brand unit stockQuantity minimumStockAlertLevel costPrice retailPrice expiryDate batchNumber')
+      .select('name nameAr primaryBarcode category brand unit stockQuantity minimumStockAlertLevel costPrice retailPrice expiryDate batchNumber genericName sfdaRegisterNumber dosageForm strength manufacturer requiresPrescription isControlled')
       .lean();
 
     const lowStock = [];

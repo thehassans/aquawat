@@ -2588,6 +2588,37 @@ export function App3DIcon({
     )
   }
 
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // ─── APP STORE CATALOG: PHARMACY VERTICAL ROOT ────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════════
+  if (
+    cleanAppId === 'pharmacy' ||
+    last === 'pharmacy' ||
+    cleanIcon === 'pill' ||
+    cleanLabel === 'pharmacy' ||
+    cleanLabel.includes('صيدلية')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`pharm_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0F766E" />
+            <stop offset="100%" stopColor="#115E59" />
+          </linearGradient>
+          <filter id={`pharm_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0F766E" floodOpacity="0.45" />
+          </filter>
+        </defs>
+        <rect x="7" y="7" width="50" height="50" rx="14" fill={`url(#pharm_bg_${uid})`} filter={`url(#pharm_flt_${uid})`} stroke="#5EEAD4" strokeWidth="1.2" strokeOpacity="0.5" />
+        <rect x="29" y="16" width="6" height="32" rx="3" fill="#FFFFFF" />
+        <rect x="16" y="29" width="32" height="6" rx="3" fill="#FFFFFF" />
+        <circle cx="44" cy="20" r="5" fill="#F43F5E" />
+      </svg>
+    )
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════════
   // ─── 65. APP STORE CATALOG: BAKALA & SUPERMARKET VERTICAL ROOT ────────────────
   // ═══════════════════════════════════════════════════════════════════════════════

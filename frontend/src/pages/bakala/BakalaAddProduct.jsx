@@ -12,15 +12,21 @@ import { useBakalaSync } from '../../hooks/useBakalaSync'
 import { savePendingProduct, checkBarcodeExistsOffline, addProductToCache } from '../../lib/bakalaDb'
 import { useAutoTranslate } from '../../hooks/useAutoTranslate'
 import { v4 as uuidv4 } from 'uuid'
+import { useSelector } from 'react-redux'
+import { hasBusinessType } from '../../lib/businessTypes'
 
 const EMPTY_FORM = {
   name: '', nameAr: '', primaryBarcode: '', category: '', brand: '',
   unit: 'PCS', costPrice: '', retailPrice: '', minimumStockAlertLevel: 10,
   stockQuantity: 0, expiryDate: '', batchNumber: '', isActive: true,
+  genericName: '', sfdaRegisterNumber: '', dosageForm: '', strength: '', manufacturer: '',
+  requiresPrescription: false, isControlled: false,
 }
 
 export default function BakalaAddProduct() {
   const navigate = useNavigate()
+  const tenant = useSelector((state) => state.auth.tenant)
+  const isPharmacy = hasBusinessType(tenant, 'pharmacy')
   const { isOnline, pendingProductsCount, syncOfflineData } = useBakalaSync()
   const [form, setForm] = useState(EMPTY_FORM)
   const [categories, setCategories] = useState([])
@@ -395,7 +401,7 @@ export default function BakalaAddProduct() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/app/dashboard/bakala/products')} className="p-2 hover:bg-gray-100 rounded-xl">
+          <button onClick={() => navigate(isPharmacy ? '/app/dashboard/pharmacy/products' : '/app/dashboard/bakala/products')} className="p-2 hover:bg-gray-100 rounded-xl">
             <ArrowLeft className="w-5 h-5 text-gray-500" />
           </button>
           <div>
@@ -421,7 +427,7 @@ export default function BakalaAddProduct() {
             </button>
           )}
           <button
-            onClick={() => navigate('/app/dashboard/bakala/products')}
+            onClick={() => navigate(isPharmacy ? '/app/dashboard/pharmacy/products' : '/app/dashboard/bakala/products')}
             className="text-sm font-semibold text-gray-500 hover:text-gray-900"
           >
             View all products
@@ -481,7 +487,7 @@ export default function BakalaAddProduct() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate('/app/dashboard/bakala/products')}
+                  onClick={() => navigate(isPharmacy ? '/app/dashboard/pharmacy/products' : '/app/dashboard/bakala/products')}
                   className="flex items-center gap-1 text-xs font-bold text-amber-700 hover:text-amber-900 whitespace-nowrap"
                 >
                   <Edit2 className="w-3 h-3" /> Edit it
@@ -504,6 +510,51 @@ export default function BakalaAddProduct() {
                 </label>
                 <input type="text" dir="rtl" value={form.nameAr} onChange={(e) => handleNameChange('ar', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-right" />
               </div>
+
+              {isPharmacy && (
+                <>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Generic / scientific name</label>
+                    <input type="text" value={form.genericName} onChange={(e) => update({ genericName: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">SFDA register #</label>
+                    <input type="text" value={form.sfdaRegisterNumber} onChange={(e) => update({ sfdaRegisterNumber: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Dosage form</label>
+                    <select value={form.dosageForm} onChange={(e) => update({ dosageForm: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+                      <option value="">Select</option>
+                      <option value="tablet">Tablet</option>
+                      <option value="capsule">Capsule</option>
+                      <option value="syrup">Syrup</option>
+                      <option value="drops">Drops</option>
+                      <option value="cream">Cream</option>
+                      <option value="injection">Injection</option>
+                      <option value="inhaler">Inhaler</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Strength</label>
+                    <input type="text" value={form.strength} onChange={(e) => update({ strength: e.target.value })} placeholder="e.g. 500 mg" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Manufacturer</label>
+                    <input type="text" value={form.manufacturer} onChange={(e) => update({ manufacturer: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+                  </div>
+                  <div className="flex items-center gap-6 pt-6">
+                    <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <input type="checkbox" checked={form.requiresPrescription} onChange={(e) => update({ requiresPrescription: e.target.checked })} />
+                      Requires prescription
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <input type="checkbox" checked={form.isControlled} onChange={(e) => update({ isControlled: e.target.checked })} />
+                      Controlled drug
+                    </label>
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">

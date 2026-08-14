@@ -75,6 +75,27 @@ export function AppVerticalView({
         { label: isAr ? 'طباعة الباركود والملصقات' : 'Print Labels', route: '/app/dashboard/bakala/label-printing', icon: Printer },
       ]
     },
+    pharmacy: {
+      nameEn: 'Pharmacy POS & Dispensing',
+      nameAr: 'صيدلية ونقطة صرف الأدوية',
+      category: 'Healthcare & Pharmacy',
+      icon: 'pill',
+      defaultRoute: '/app/dashboard/pharmacy/pos',
+      color: 'from-teal-500 to-emerald-700',
+      kpis: [
+        { label: isAr ? 'إجمالي الأدوية' : 'Medicines', value: data.totals?.[0]?.total || 0, icon: Package },
+        { label: isAr ? 'تنبيهات انخفاض المخزون' : 'Low Stock Alerts', value: data.totals?.[0]?.lowStock || 0, icon: AlertTriangle, alert: (data.totals?.[0]?.lowStock || 0) > 0 },
+        { label: isAr ? 'وحدات المخزون' : 'Units on shelf', value: (data.totals?.[0]?.totalStock || 0).toLocaleString(), icon: Boxes },
+        { label: isAr ? 'الصلاحية' : 'Expiry watch', value: isAr ? 'مفعل' : 'Active', icon: CalendarClock, success: true },
+      ],
+      quickActions: [
+        { label: isAr ? 'نقطة البيع' : 'Launch POS', route: '/app/dashboard/pharmacy/pos', icon: ShoppingCart, primary: true },
+        { label: isAr ? 'إضافة دواء' : 'Add medicine', route: '/app/dashboard/pharmacy/add-product', icon: PlusCircle },
+        { label: isAr ? 'الوصفات' : 'Prescriptions', route: '/app/dashboard/pharmacy/prescriptions', icon: FileText },
+        { label: isAr ? 'الأدوية الخاضعة للرقابة' : 'Controlled log', route: '/app/dashboard/pharmacy/controlled', icon: ShieldCheck },
+        { label: isAr ? 'الصلاحية والهدر' : 'Expiry & Waste', route: '/app/dashboard/pharmacy/expiry-waste', icon: CalendarClock },
+      ]
+    },
     restaurant: {
       nameEn: 'Restaurant, Cafe & Kitchen Management',
       nameAr: 'إدارة المطاعم والمقاهي والمطبخ',

@@ -674,6 +674,12 @@ const tenantSchema = new mongoose.Schema({
     bakala: {
       requireShift: { type: Boolean, default: true }
     },
+    pharmacy: {
+      requirePrescriptionOnRx: { type: Boolean, default: true },
+      controlledSaleRequiresNote: { type: Boolean, default: true },
+      expiryAlertDays: { type: Number, default: 90 },
+      requireBatchOnReceive: { type: Boolean, default: true },
+    },
     carRentalIntegrations: {
       // ── Tamm (Amakin) ─ Saudi rental traffic registry integration
       tamm: {

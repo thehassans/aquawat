@@ -9,6 +9,8 @@ import { applyFbrToInvoice } from '../utils/fbr/FbrService.js';
 import mongoose from 'mongoose';
 import BakalaProduct from '../models/BakalaProduct.js';
 import PosSession from '../models/PosSession.js';
+import PharmacyDispense from '../models/PharmacyDispense.js';
+import { getTenantBusinessTypes } from '../utils/businessTypes.js';
 
 const router = express.Router();
 router.use(protect);
@@ -22,7 +24,7 @@ router.use(requireTenantFilter);
 router.get('/products', protect, async (req, res) => {
   try {
     const products = await BakalaProduct.find({ tenantId: req.user.tenantId, isActive: true })
-      .select('name nameAr primaryBarcode retailPrice taxRate unit')
+      .select('name nameAr primaryBarcode retailPrice taxRate unit requiresPrescription isControlled genericName sfdaRegisterNumber dosageForm strength batchNumber expiryDate')
       .lean();
     res.json({ success: true, products });
   } catch (error) {
@@ -48,6 +50,7 @@ router.post('/sync', protect, async (req, res) => {
     if (!tenant) {
       return res.status(404).json({ success: false, message: 'Tenant not found' });
     }
+    const isPharmacy = getTenantBusinessTypes(tenant).includes('pharmacy');
 
     const zatcaConfig = tenant.zatca || {};
     const zatcaService = new ZatcaService({
@@ -97,7 +100,8 @@ router.post('/sync', protect, async (req, res) => {
 
         // Generate Invoice Number if missing
         if (!newInvoice.invoiceNumber) {
-          const lastInvoice = await Invoice.findOne({ tenantId, invoiceNumber: { $regex: '^BAKALA-' } })
+          const prefix = isPharmacy ? 'PHARM' : 'BAKALA';
+          const lastInvoice = await Invoice.findOne({ tenantId, invoiceNumber: { $regex: `^${prefix}-` } })
             .sort({ createdAt: -1 })
             .select('invoiceNumber');
           
@@ -107,7 +111,7 @@ router.post('/sync', protect, async (req, res) => {
             const lastSeq = parseInt(parts[1], 10);
             if (!isNaN(lastSeq)) seq = lastSeq + 1;
           }
-          newInvoice.invoiceNumber = `BAKALA-${seq}`;
+          newInvoice.invoiceNumber = `${prefix}-${seq}`;
         }
 
         // Apply ZATCA processing (SAR-only)
@@ -159,6 +163,44 @@ router.post('/sync', protect, async (req, res) => {
               bp.stockQuantity = (bp.stockQuantity || 0) - line.quantity;
               await bp.save();
             }
+          }
+        }
+
+        if (isPharmacy) {
+          const rx = offlineInvoice.pharmacyDispense || {};
+          const lineMeta = [];
+          for (const line of newInvoice.lineItems) {
+            const bp = line.productId
+              ? await BakalaProduct.findOne({ tenantId, _id: line.productId }).select('requiresPrescription isControlled sfdaRegisterNumber batchNumber name').lean()
+              : null;
+            lineMeta.push({
+              productId: line.productId,
+              productName: line.productName,
+              quantity: line.quantity,
+              batchNumber: bp?.batchNumber || '',
+              sfdaRegisterNumber: bp?.sfdaRegisterNumber || '',
+              requiresPrescription: !!bp?.requiresPrescription,
+              isControlled: !!bp?.isControlled,
+            });
+          }
+          const hasControlled = lineMeta.some((l) => l.isControlled);
+          const hasPrescription = lineMeta.some((l) => l.requiresPrescription);
+          if (hasPrescription || hasControlled || rx.prescriptionNumber || rx.patientName) {
+            await PharmacyDispense.create({
+              tenantId,
+              invoiceId: newInvoice._id,
+              invoiceNumber: newInvoice.invoiceNumber,
+              dispensedAt: newInvoice.issueDate || new Date(),
+              patientName: rx.patientName || '',
+              patientIdNumber: rx.patientIdNumber || '',
+              prescriptionNumber: rx.prescriptionNumber || '',
+              prescriberName: rx.prescriberName || '',
+              pharmacistNote: rx.pharmacistNote || '',
+              hasControlled,
+              hasPrescription,
+              lines: lineMeta,
+              dispensedBy: req.user._id,
+            });
           }
         }
 

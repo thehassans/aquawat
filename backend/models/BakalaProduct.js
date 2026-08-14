@@ -22,6 +22,13 @@ const bakalaProductSchema = new mongoose.Schema({
   costPrice: { type: Number, default: 0 },
   retailPrice: { type: Number, required: true, default: 0 },
   taxRate: { type: Number, default: 15 },
+  genericName: { type: String, default: '' },
+  sfdaRegisterNumber: { type: String, default: '' },
+  dosageForm: { type: String, default: '' },
+  strength: { type: String, default: '' },
+  manufacturer: { type: String, default: '' },
+  requiresPrescription: { type: Boolean, default: false },
+  isControlled: { type: Boolean, default: false },
   mixAndMatchPromo: {
     isActive: { type: Boolean, default: false },
     buyQty: { type: Number },

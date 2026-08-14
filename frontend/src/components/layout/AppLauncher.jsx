@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory } from 'lucide-react'
+import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory, Pill } from 'lucide-react'
 import { Fragment } from 'react'
 import { Transition, Popover, Menu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -141,6 +141,7 @@ const TENANT_TYPE_META = {
   khayyat: { Icon: Scissors, labelEn: 'Tailor', labelAr: 'خياط' },
   boutique: { Icon: ShoppingBag, labelEn: 'Boutique', labelAr: 'بوتيك' },
   bakala: { Icon: Store, labelEn: 'Retail', labelAr: 'بقالة' },
+  pharmacy: { Icon: Pill, labelEn: 'Pharmacy', labelAr: 'صيدلية' },
   manufacturing: { Icon: Factory, labelEn: 'Manufacturing', labelAr: 'تصنيع' },
   ecommerce: { Icon: ShoppingBag, labelEn: 'eCommerce', labelAr: 'متجر' },
 }

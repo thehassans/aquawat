@@ -299,6 +299,20 @@ const REPORT_TYPE_META = {
     badgeAr: 'البقالة والسوبر ماركت',
     badgeColor: '#10b981',
   },
+  pharmacy: {
+    titleEn: 'Pharmacy Sales & Dispensing Report',
+    titleAr: 'تقرير مبيعات وصرف الصيدلية',
+    badgeEn: 'Pharmacy POS',
+    badgeAr: 'الصيدلية',
+    badgeColor: '#0f766e',
+  },
+  'ops:pharmacy': {
+    titleEn: 'Pharmacy Sales & Dispensing Report',
+    titleAr: 'تقرير مبيعات وصرف الصيدلية',
+    badgeEn: 'Pharmacy POS',
+    badgeAr: 'الصيدلية',
+    badgeColor: '#0f766e',
+  },
   car_workshop: {
     titleEn: 'Car Workshop & Service Garage Report',
     titleAr: 'تقرير مركز صيانة وورشة السيارات',
