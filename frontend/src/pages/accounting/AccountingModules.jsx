@@ -8,7 +8,7 @@ const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString(
 
 function DateRangeBar({ from, to, setFrom, setTo, language, extra }) {
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+    <div className="flex flex-wrap items-end gap-3 rounded-[1.4rem] border border-white/80 bg-white/85 p-4 shadow-[0_14px_36px_-28px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-dark-800">
       <label className="text-xs font-medium text-slate-500">
         {language === 'ar' ? 'من' : 'From'}
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 block rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900" />
@@ -24,12 +24,16 @@ function DateRangeBar({ from, to, setFrom, setTo, language, extra }) {
 
 function JournalCards({ rows, language, empty, onPost, posting }) {
   if (!rows?.length) {
-    return <p className="py-12 text-center text-sm text-slate-400">{empty}</p>
+    return (
+      <div className="rounded-[1.5rem] border border-dashed border-emerald-200/80 bg-white/70 py-14 text-center dark:border-emerald-500/20 dark:bg-dark-800/60">
+        <p className="text-sm font-semibold text-slate-600 dark:text-slate-200">{empty}</p>
+      </div>
+    )
   }
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {rows.map((j) => (
-        <div key={j._id} className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
+        <div key={j._id} className="rounded-[1.4rem] border border-white/80 bg-white/90 p-5 shadow-[0_14px_36px_-28px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-dark-800">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="font-semibold text-slate-900 dark:text-white">{j.entryNumber}</p>
@@ -45,7 +49,7 @@ function JournalCards({ rows, language, empty, onPost, posting }) {
                   type="button"
                   onClick={() => onPost(j._id)}
                   disabled={posting}
-                  className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"
+                  className="rounded-full bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   {language === 'ar' ? 'ترحيل' : 'Post'}
                 </button>
@@ -88,7 +92,7 @@ export function DailyRestrictionPanel({ language, onNew, onPost, posting }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">{language === 'ar' ? `قيود يوم ${day}` : `Entries for ${day}`}</p>
-        <button type="button" onClick={onNew} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-slate-900">
+        <button type="button" onClick={onNew} className="rounded-2xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">
           {language === 'ar' ? 'قيد جديد' : 'New restriction'}
         </button>
       </div>
@@ -112,7 +116,7 @@ export function GeneralVoucherPanel({ language, onNew, onPost, posting }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">{language === 'ar' ? 'سندات القيد العام' : 'Manual general vouchers'}</p>
-        <button type="button" onClick={onNew} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-slate-900">
+        <button type="button" onClick={onNew} className="rounded-2xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">
           {language === 'ar' ? 'سند جديد' : 'New voucher'}
         </button>
       </div>

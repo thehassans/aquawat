@@ -217,7 +217,7 @@ export default function ShipmentForm() {
       queryClient.invalidateQueries(['shipments-stats'])
 
       if (!isEdit) {
-        navigate(`/shipments/${res.data?._id}`)
+        navigate(`/app/dashboard/shipments/${res.data?._id}`)
       } else {
         queryClient.invalidateQueries(['shipment', id])
       }
@@ -377,18 +377,23 @@ export default function ShipmentForm() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="relative -mx-4 -mt-4 min-h-[calc(100vh-4rem)] overflow-hidden px-4 pb-16 pt-6 lg:-mx-6 lg:px-6" style={{ fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Tajawal', sans-serif" }}>
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[-18%] h-[360px] w-[680px] -translate-x-1/2 rounded-full bg-emerald-300/18 blur-[120px]" />
+      </div>
+      <div className="relative mx-auto max-w-6xl space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon">
+          <button type="button" onClick={() => navigate(-1)} className="rounded-2xl border border-slate-200 bg-white p-2.5 text-slate-500 hover:text-emerald-700">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {isEdit ? (language === 'ar' ? 'تعديل شحنة' : 'Edit Shipment') : language === 'ar' ? 'إضافة شحنة' : 'Add Shipment'}
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-700/80">{language === 'ar' ? 'التوريد' : 'Supply chain'}</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950 dark:text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              {isEdit ? (language === 'ar' ? 'تعديل شحنة' : 'Edit shipment') : language === 'ar' ? 'إضافة شحنة' : 'New shipment'}
             </h1>
             {isEdit && (
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-slate-500 mt-1">
                 {language === 'ar' ? 'الحالة:' : 'Status:'} <span className={`badge ${statusBadge}`}>{statusLabel(shipment?.status)}</span>
               </p>
             )}
@@ -396,12 +401,12 @@ export default function ShipmentForm() {
         </div>
 
         {isEdit && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {hasLandedCosts && (shipment?.type === 'inbound' || shipmentType === 'inbound') ? (
               <button
                 type="button"
                 onClick={() => navigate(`/app/dashboard/landed-costs/new?shipment=${id}`)}
-                className="btn btn-secondary"
+                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800 disabled:opacity-40"
               >
                 <Anchor className="w-4 h-4" />
                 {language === 'ar' ? 'تكلفة مرسية' : 'Landed Cost'}
@@ -412,7 +417,7 @@ export default function ShipmentForm() {
                 type="button"
                 onClick={() => sendEmailMutation.mutate()}
                 disabled={sendEmailMutation.isPending || !canPrintDeliveryDocuments}
-                className="btn btn-secondary"
+                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800 disabled:opacity-40"
               >
                 {sendEmailMutation.isPending ? (
                   <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
@@ -434,7 +439,7 @@ export default function ShipmentForm() {
                 }
               }}
               disabled={!canPrintDeliveryDocuments}
-              className="btn btn-secondary"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800 disabled:opacity-40"
             >
               <FileText className="w-4 h-4" />
               {language === 'ar' ? 'إذن تسليم' : 'Delivery Note'}
@@ -451,7 +456,7 @@ export default function ShipmentForm() {
                 }
               }}
               disabled={!canPrintDeliveryDocuments}
-              className="btn btn-secondary"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800 disabled:opacity-40"
             >
               <Printer className="w-4 h-4" />
               {language === 'ar' ? 'طباعة الملصق' : 'Print Label'}
@@ -460,7 +465,7 @@ export default function ShipmentForm() {
               type="button"
               onClick={() => inTransitMutation.mutate()}
               disabled={inTransitMutation.isPending || ['in_transit', 'delivered', 'cancelled'].includes(shipment?.status)}
-              className="btn btn-secondary"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800 disabled:opacity-40"
             >
               {inTransitMutation.isPending ? (
                 <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
@@ -475,7 +480,7 @@ export default function ShipmentForm() {
               type="button"
               onClick={() => deliveredMutation.mutate()}
               disabled={deliveredMutation.isPending || ['delivered', 'cancelled'].includes(shipment?.status)}
-              className="btn btn-secondary"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800 disabled:opacity-40"
             >
               {deliveredMutation.isPending ? (
                 <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
@@ -490,7 +495,7 @@ export default function ShipmentForm() {
               type="button"
               onClick={() => cancelMutation.mutate()}
               disabled={cancelMutation.isPending || ['delivered', 'cancelled'].includes(shipment?.status)}
-              className="btn btn-danger"
+              className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-40"
             >
               {cancelMutation.isPending ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -506,7 +511,7 @@ export default function ShipmentForm() {
       </div>
 
       {isEdit && shipment?.type === 'outbound' ? (
-        <div className="card p-4">
+        <div className="rounded-[1.5rem] border border-white/80 bg-white/90 p-4 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)]">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-base font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'مستندات الشحنة' : 'Shipment Documents'}</h3>
@@ -526,7 +531,7 @@ export default function ShipmentForm() {
       ) : null}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card p-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="rounded-[1.5rem] border border-white/80 bg-white/90 p-6 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)]">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
               <Truck className="w-5 h-5 text-primary-600" />
@@ -638,7 +643,7 @@ export default function ShipmentForm() {
         </motion.div>
 
         {isOutbound && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.025 }} className="card p-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.025 }} className="rounded-[1.5rem] border border-white/80 bg-white/90 p-6 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)]">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
                 <FileText className="w-5 h-5 text-slate-700 dark:text-slate-200" />
@@ -722,7 +727,7 @@ export default function ShipmentForm() {
           </motion.div>
         )}
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="card p-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="rounded-[1.5rem] border border-white/80 bg-white/90 p-6 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)]">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -732,7 +737,7 @@ export default function ShipmentForm() {
             </div>
 
             {!isLocked && (
-              <button type="button" onClick={() => append({ productId: '', description: '', quantity: 1 })} className="btn btn-secondary">
+              <button type="button" onClick={() => append({ productId: '', description: '', quantity: 1 })} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800">
                 <Plus className="w-4 h-4" />
                 {language === 'ar' ? 'إضافة بند' : 'Add item'}
               </button>
@@ -790,10 +795,10 @@ export default function ShipmentForm() {
         </motion.div>
 
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary">
+          <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold">
             {t('cancel')}
           </button>
-          <button type="submit" disabled={saveMutation.isPending || isLocked} className="btn btn-primary">
+          <button type="submit" disabled={saveMutation.isPending || isLocked} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_16px_32px_-16px_rgba(4,120,87,0.8)] hover:bg-emerald-800 disabled:opacity-50">
             {saveMutation.isPending ? (
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
@@ -818,7 +823,7 @@ export default function ShipmentForm() {
       ) : null}
 
       {isEdit && shipment && (
-        <div className="card p-4">
+        <div className="rounded-[1.5rem] border border-white/80 bg-white/90 p-4 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)]">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div className="flex items-center gap-2">
               <Building className="w-4 h-4 text-gray-400" />
@@ -853,6 +858,7 @@ export default function ShipmentForm() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -160,11 +160,16 @@ export default function Shipments() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="relative -mx-4 -mt-4 min-h-[calc(100vh-4rem)] overflow-hidden px-4 pb-16 pt-6 lg:-mx-6 lg:px-6" style={{ fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Tajawal', sans-serif" }}>
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[-18%] h-[360px] w-[680px] -translate-x-1/2 rounded-full bg-emerald-300/18 blur-[120px]" />
+      </div>
+      <div className="relative mx-auto max-w-7xl space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{language === 'ar' ? 'الشحنات' : 'Shipments'}</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">{language === 'ar' ? 'متابعة الشحنات' : 'Track shipments'}</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-700/80">{language === 'ar' ? 'التوريد' : 'Supply chain'}</p>
+          <h1 className="mt-1.5 text-3xl font-semibold tracking-tight text-slate-950 dark:text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>{language === 'ar' ? 'الشحنات' : 'Shipments'}</h1>
+          <p className="mt-2 max-w-xl text-[15px] text-slate-500">{language === 'ar' ? 'متابعة الوارد والصادر مع التتبع والمستودعات.' : 'Track inbound and outbound freight with carriers, warehouses, and landed cost.'}</p>
         </div>
         <div className="flex gap-2">
           <ExportMenu
@@ -177,53 +182,31 @@ export default function Shipments() {
             title={language === 'ar' ? 'الشحنات' : 'Shipments'}
             disabled={isLoading || shipments.length === 0}
           />
-          <Link to="/shipments/new" className="btn btn-primary">
+          <Link to="/app/dashboard/shipments/new" className="inline-flex items-center gap-2 rounded-2xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_16px_32px_-16px_rgba(4,120,87,0.8)] hover:bg-emerald-800">
             <Plus className="w-4 h-4" />
-            {language === 'ar' ? 'إضافة شحنة' : 'Add Shipment'}
+            {language === 'ar' ? 'إضافة شحنة' : 'New shipment'}
           </Link>
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-xl">
-            <Truck className="w-5 h-5 text-primary-600" />
+        {[
+          { label: language === 'ar' ? 'إجمالي الشحنات' : 'Total', value: totalShipments, well: 'bg-emerald-50 text-emerald-700', icon: Truck },
+          { label: language === 'ar' ? 'بالطريق' : 'In transit', value: inTransitCount, well: 'bg-sky-50 text-sky-700', icon: Truck },
+          { label: language === 'ar' ? 'تم التسليم' : 'Delivered', value: deliveredCount, well: 'bg-teal-50 text-teal-800', icon: Truck },
+          { label: language === 'ar' ? 'شحنات واردة' : 'Inbound', value: inboundCount, well: 'bg-amber-50 text-amber-800', icon: Truck },
+        ].map((card) => (
+          <div key={card.label} className="rounded-[1.4rem] border border-white/80 bg-white/85 p-5 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)] backdrop-blur dark:border-white/10 dark:bg-dark-800/80">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">{card.label}</p>
+              <span className={`inline-flex h-9 w-9 items-center justify-center rounded-2xl ${card.well}`}><Truck className="w-4 h-4" /></span>
+            </div>
+            <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>{card.value}</p>
           </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'إجمالي الشحنات' : 'Total Shipments'}</p>
-            <p className="text-2xl font-bold">{totalShipments}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-            <Truck className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'بالطريق' : 'In Transit'}</p>
-            <p className="text-2xl font-bold text-blue-600">{inTransitCount}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
-            <Truck className="w-5 h-5 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'تم التسليم' : 'Delivered'}</p>
-            <p className="text-2xl font-bold text-emerald-600">{deliveredCount}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
-            <Truck className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'شحنات واردة' : 'Inbound'}</p>
-            <p className="text-2xl font-bold">{inboundCount}</p>
-          </div>
-        </div>
+        ))}
       </div>
 
-      <div className="card p-4">
+      <div className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)] backdrop-blur dark:border-white/10 dark:bg-dark-800/80">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -235,7 +218,7 @@ export default function Shipments() {
                 setSearch(e.target.value)
                 setPage(1)
               }}
-              className="input ps-10"
+              className="w-full rounded-2xl border border-slate-200 bg-white py-2.5 ps-10 pe-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-dark-900"
             />
           </div>
 
@@ -245,7 +228,7 @@ export default function Shipments() {
               setFilters((f) => ({ ...f, type: e.target.value }))
               setPage(1)
             }}
-            className="select w-full lg:w-40"
+            className="w-full lg:w-40 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-white/10 dark:bg-dark-900"
           >
             <option value="">{language === 'ar' ? 'كل الأنواع' : 'All Types'}</option>
             <option value="inbound">{language === 'ar' ? 'وارد' : 'Inbound'}</option>
@@ -258,7 +241,7 @@ export default function Shipments() {
               setFilters((f) => ({ ...f, status: e.target.value }))
               setPage(1)
             }}
-            className="select w-full lg:w-44"
+            className="w-full lg:w-44 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-white/10 dark:bg-dark-900"
           >
             <option value="">{language === 'ar' ? 'كل الحالات' : 'All Status'}</option>
             <option value="draft">{language === 'ar' ? 'مسودة' : 'Draft'}</option>
@@ -273,7 +256,7 @@ export default function Shipments() {
               setFilters((f) => ({ ...f, supplierId: e.target.value }))
               setPage(1)
             }}
-            className="select w-full lg:w-60"
+            className="w-full lg:w-60 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-white/10 dark:bg-dark-900"
           >
             <option value="">{language === 'ar' ? 'كل الموردين' : 'All Suppliers'}</option>
             {(suppliers || []).map((s) => (
@@ -289,7 +272,7 @@ export default function Shipments() {
               setFilters((f) => ({ ...f, warehouseId: e.target.value }))
               setPage(1)
             }}
-            className="select w-full lg:w-56"
+            className="w-full lg:w-56 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-white/10 dark:bg-dark-900"
           >
             <option value="">{language === 'ar' ? 'كل المستودعات' : 'All Warehouses'}</option>
             {(warehouses || []).map((w) => (
@@ -301,82 +284,90 @@ export default function Shipments() {
         </div>
       </div>
 
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-hidden rounded-[1.5rem] border border-white/80 bg-white/90 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] dark:border-white/10 dark:bg-dark-800">
         {isLoading ? (
-          <div className="p-8 text-center"><div className="inline-block w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>
+          <div className="p-8 text-center"><div className="inline-block w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" /></div>
+        ) : shipments.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+              <Truck className="h-5 w-5" />
+            </div>
+            <p className="text-sm font-semibold text-slate-700">{language === 'ar' ? 'لا توجد شحنات' : 'No shipments yet'}</p>
+            <p className="mt-1 text-xs text-slate-400">{language === 'ar' ? 'أضف شحنة واردة أو صادرة للبدء.' : 'Add an inbound or outbound shipment to begin.'}</p>
+          </div>
         ) : (
-          <div className="table-container">
-            <table className="table">
-              <thead>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50/80 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900">
                 <tr>
-                  <th>{language === 'ar' ? 'رقم الشحنة' : 'Shipment #'}</th>
-                  <th>{language === 'ar' ? 'النوع' : 'Type'}</th>
-                  <th>{language === 'ar' ? 'المورد' : 'Supplier'}</th>
-                  <th>{language === 'ar' ? 'المستودع' : 'Warehouse'}</th>
-                  <th>{language === 'ar' ? 'الشحن' : 'Carrier / Tracking'}</th>
-                  <th>{t('status')}</th>
-                  <th>{t('actions')}</th>
+                  <th className="px-5 py-3.5 text-start">{language === 'ar' ? 'رقم الشحنة' : 'Shipment #'}</th>
+                  <th className="px-5 py-3.5 text-start">{language === 'ar' ? 'النوع' : 'Type'}</th>
+                  <th className="px-5 py-3.5 text-start">{language === 'ar' ? 'المورد' : 'Supplier'}</th>
+                  <th className="px-5 py-3.5 text-start">{language === 'ar' ? 'المستودع' : 'Warehouse'}</th>
+                  <th className="px-5 py-3.5 text-start">{language === 'ar' ? 'الشحن' : 'Carrier / Tracking'}</th>
+                  <th className="px-5 py-3.5 text-start">{t('status')}</th>
+                  <th className="px-5 py-3.5 text-start">{t('actions')}</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                 {shipments.map((s) => (
-                  <tr key={s._id}>
-                    <td className="font-mono text-sm">{s.shipmentNumber}</td>
-                    <td>
+                  <tr key={s._id} className="hover:bg-emerald-50/40 dark:hover:bg-white/[0.03]">
+                    <td className="px-5 py-3.5 font-mono text-sm font-semibold text-slate-900 dark:text-white">{s.shipmentNumber}</td>
+                    <td className="px-5 py-3.5">
                       <span className="inline-flex items-center gap-2">
-                        <Truck className="w-4 h-4 text-gray-400" />
+                        <Truck className="w-4 h-4 text-slate-400" />
                         {typeLabel(s.type)}
                       </span>
                     </td>
-                    <td>
+                    <td className="px-5 py-3.5">
                       {s.supplierId ? (
                         <span className="inline-flex items-center gap-2">
-                          <Building className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium text-gray-900 dark:text-white">
+                          <Building className="w-4 h-4 text-slate-400" />
+                          <span className="font-medium text-slate-900 dark:text-white">
                             {language === 'ar'
                               ? s.supplierId?.nameAr || s.supplierId?.nameEn
                               : s.supplierId?.nameEn || s.supplierId?.nameAr}
                           </span>
                         </span>
                       ) : (
-                        '-'
+                        '—'
                       )}
                     </td>
-                    <td>
+                    <td className="px-5 py-3.5">
                       {s.warehouseId ? (
                         <span className="inline-flex items-center gap-2">
-                          <WarehouseIcon className="w-4 h-4 text-gray-400" />
+                          <WarehouseIcon className="w-4 h-4 text-slate-400" />
                           {language === 'ar' ? s.warehouseId?.nameAr || s.warehouseId?.nameEn : s.warehouseId?.nameEn}
                         </span>
                       ) : (
-                        '-'
+                        '—'
                       )}
                     </td>
-                    <td>
+                    <td className="px-5 py-3.5">
                       {s.carrier || s.trackingNumber ? (
-                        <span className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          {(s.carrier || '-') + (s.trackingNumber ? ` · ${s.trackingNumber}` : '')}
+                        <span className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                          <Calendar className="w-4 h-4 text-slate-400" />
+                          {(s.carrier || '—') + (s.trackingNumber ? ` · ${s.trackingNumber}` : '')}
                         </span>
                       ) : (
-                        '-'
+                        '—'
                       )}
                     </td>
-                    <td>
+                    <td className="px-5 py-3.5">
                       <span className={`badge ${statusBadge(s.status)}`}>{statusLabel(s.status)}</span>
                     </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <Link to={`/app/dashboard/shipments/${s._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
-                          <Edit className="w-4 h-4 text-gray-600" />
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1">
+                        <Link to={`/app/dashboard/shipments/${s._id}`} className="rounded-xl p-2 text-slate-500 hover:bg-slate-50 hover:text-emerald-700">
+                          <Edit className="w-4 h-4" />
                         </Link>
                         {hasLandedCosts && s.type === 'inbound' && (
                           <Link
                             to={`/app/dashboard/landed-costs/new?shipment=${s._id}`}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"
+                            className="rounded-xl p-2 text-slate-500 hover:bg-slate-50 hover:text-emerald-700"
                             title={language === 'ar' ? 'تكلفة مرسية' : 'Landed cost'}
                           >
-                            <Anchor className="w-4 h-4 text-gray-600" />
+                            <Anchor className="w-4 h-4" />
                           </Link>
                         )}
                       </div>
@@ -391,14 +382,14 @@ export default function Shipments() {
 
       {pagination?.pages > 1 && (
         <div className="flex items-center justify-between">
-          <button className="btn btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+          <button className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
             {language === 'ar' ? 'السابق' : 'Previous'}
           </button>
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-slate-500">
             {language === 'ar' ? 'صفحة' : 'Page'} {page} / {pagination.pages}
           </div>
           <button
-            className="btn btn-secondary"
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40"
             disabled={page >= pagination.pages}
             onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
           >
@@ -406,6 +397,7 @@ export default function Shipments() {
           </button>
         </div>
       )}
+      </div>
     </div>
   )
 }

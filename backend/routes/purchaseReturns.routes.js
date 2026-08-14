@@ -2,7 +2,7 @@ import express from 'express';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import PurchaseReturn from '../models/PurchaseReturn.js';
-import BakalaProduct from '../models/BakalaProduct.js';
+import { adjustProductStock, findCatalogProduct } from '../services/inventoryAdjust.js';
 
 const router = express.Router();
 router.use(protect);
@@ -32,6 +32,14 @@ router.post('/', checkTrialLimits('purchaseReturns'), protect, async (req, res) 
   try {
     const { supplierId, referenceNumber, lines, notes } = req.body;
 
+    for (const line of lines || []) {
+      if (!line.productId) continue;
+      const found = await findCatalogProduct(req.user.tenantId, line.productId);
+      if (!found) {
+        return res.status(400).json({ error: `Product not found: ${line.productName || line.productId}` });
+      }
+    }
+
     const returnNumber = await generateReturnNumber(req.user.tenantId);
 
     const purchaseReturn = new PurchaseReturn({
@@ -46,13 +54,15 @@ router.post('/', checkTrialLimits('purchaseReturns'), protect, async (req, res) 
 
     await purchaseReturn.save();
 
-    // Update Inventory (Decrease Stock)
     for (const line of purchaseReturn.lines) {
-      if (line.productId) {
-        await BakalaProduct.findOneAndUpdate(
-          { _id: line.productId, tenantId: req.user.tenantId },
-          { $inc: { stockQuantity: -line.quantityReturned } }
-        );
+      if (!line.productId) continue;
+      const updated = await adjustProductStock({
+        tenantId: req.user.tenantId,
+        productId: line.productId,
+        delta: -line.quantityReturned,
+      });
+      if (!updated) {
+        throw new Error(`Product not found: ${line.productName || line.productId}`);
       }
     }
 

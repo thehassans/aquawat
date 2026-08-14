@@ -1,8 +1,8 @@
 import express from 'express';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import GRN from '../models/GRN.js';
-import BakalaProduct from '../models/BakalaProduct.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
+import { adjustProductStock, findCatalogProduct } from '../services/inventoryAdjust.js';
 
 const router = express.Router();
 router.use(protect);
@@ -33,6 +33,14 @@ router.post('/', async (req, res) => {
   try {
     const { supplierId, purchaseOrderId, referenceNumber, lines, notes } = req.body;
 
+    for (const line of lines || []) {
+      if (!line.productId) continue;
+      const found = await findCatalogProduct(req.user.tenantId, line.productId);
+      if (!found) {
+        return res.status(400).json({ error: `Product not found: ${line.productName || line.productId}` });
+      }
+    }
+
     const grnNumber = await generateGrnNumber(req.user.tenantId);
 
     const grn = new GRN({
@@ -48,30 +56,20 @@ router.post('/', async (req, res) => {
 
     await grn.save();
 
-    // Update Inventory
     for (const line of grn.lines) {
-      if (line.productId) {
-        const updateData = {
-          $inc: { stockQuantity: line.quantityReceived }
-        };
-        // Update cost price and expiry if provided
-        if (line.costPrice) {
-          updateData.$set = updateData.$set || {};
-          updateData.$set.costPrice = line.costPrice;
-        }
-        if (line.expiryDate) {
-          updateData.$set = updateData.$set || {};
-          updateData.$set.expiryDate = line.expiryDate;
-        }
-        if (line.batchNumber) {
-          updateData.$set = updateData.$set || {};
-          updateData.$set.batchNumber = line.batchNumber;
-        }
-
-        await BakalaProduct.findOneAndUpdate(
-          { _id: line.productId, tenantId: req.user.tenantId },
-          updateData
-        );
+      if (!line.productId) continue;
+      const updated = await adjustProductStock({
+        tenantId: req.user.tenantId,
+        productId: line.productId,
+        delta: line.quantityReceived,
+        setFields: {
+          costPrice: line.costPrice,
+          expiryDate: line.expiryDate,
+          batchNumber: line.batchNumber,
+        },
+      });
+      if (!updated) {
+        throw new Error(`Product not found: ${line.productName || line.productId}`);
       }
     }
 
