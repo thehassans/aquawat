@@ -93,6 +93,11 @@ jobs:
               ;;
           esac
           echo "Deploying to ${SSH_USER}@${SSH_HOST}:${SSH_PORT}"
+          # Cloudflare (orange cloud) does not proxy SSH. Use the Plesk origin IP.
+          if [ "$SSH_HOST" = "maqder.com" ] || [ "$SSH_HOST" = "www.maqder.com" ]; then
+            SSH_HOST="87.237.228.159"
+            echo "Rewrote host to origin IP ${SSH_HOST} (SSH cannot go through Cloudflare)."
+          fi
           ssh-keyscan -p "${SSH_PORT}" "${SSH_HOST}" > "$HOME/.ssh/known_hosts" 2>/tmp/keyscan.err || true
           if [ ! -s "$HOME/.ssh/known_hosts" ]; then
             echo "ssh-keyscan failed:"
