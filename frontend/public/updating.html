@@ -59,22 +59,14 @@
         0 8px 24px -16px rgba(18, 36, 28, .12);
     }
     .logo {
-      width: 88px; height: 88px;
-      margin: 0 auto 22px;
-      border-radius: 24px;
+      width: min(280px, 78%);
+      margin: 0 auto 28px;
+      border-radius: 18px;
       overflow: hidden;
-      box-shadow: 0 16px 32px -18px rgba(26, 61, 40, .55);
-      background: var(--green);
+      background: #000;
+      box-shadow: 0 16px 32px -18px rgba(18, 36, 28, .45);
     }
-    .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .wordmark {
-      font-family: Outfit, sans-serif;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: .42em;
-      color: var(--green);
-      margin-bottom: 28px;
-    }
+    .logo img { width: 100%; height: auto; display: block; }
     .kicker {
       color: var(--emerald);
       font-size: 11px;
@@ -167,9 +159,8 @@
 <body>
   <main class="card">
     <div class="logo">
-      <img src="/MaqderFavicon.png" alt="Maqder" />
+      <img src="/maqderbestlogo.png" alt="Maqder" />
     </div>
-    <p class="wordmark">MAQDER</p>
     <p class="kicker">System update</p>
     <h1>We’re refreshing the platform.</h1>
     <p class="lead">This usually takes 3–5 minutes. Your data is safe. Thank you for your patience.</p>

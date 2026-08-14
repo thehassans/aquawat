@@ -328,6 +328,7 @@ services:
       - ./ops/updating/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./frontend/public/updating.html:/usr/share/nginx/html/updating.html:ro
       - ./frontend/public/MaqderFavicon.png:/usr/share/nginx/html/MaqderFavicon.png:ro
+      - ./frontend/public/maqderbestlogo.png:/usr/share/nginx/html/maqderbestlogo.png:ro
     networks:
       - maqder_net
     healthcheck:
