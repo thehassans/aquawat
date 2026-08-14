@@ -205,32 +205,11 @@ const ICONS = {
     </Tile>
   ),
   whatsapp: (uid, className) => (
-    <svg className={className} viewBox="0 0 64 64" fill="none">
-      <defs>
-        <linearGradient id={`wa_tile_${uid}`} x1="8" y1="8" x2="56" y2="58" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FFFFFF" />
-          <stop offset="70%" stopColor="#F8FAFC" />
-          <stop offset="100%" stopColor="#EEF2F6" />
-        </linearGradient>
-        <radialGradient id={`wa_badge_${uid}`} cx="36%" cy="30%" r="72%">
-          <stop offset="0%" stopColor="#4ADE80" />
-          <stop offset="48%" stopColor="#25D366" />
-          <stop offset="100%" stopColor="#128C7E" />
-        </radialGradient>
-        <linearGradient id={`wa_sheen_${uid}`} x1="18" y1="12" x2="44" y2="40" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.45" />
-          <stop offset="60%" stopColor="#FFFFFF" stopOpacity="0" />
-        </linearGradient>
-        <filter id={`wa_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#10B981" floodOpacity="0.28" />
-        </filter>
-      </defs>
-      <rect x="7" y="7" width="50" height="50" rx="16" fill={`url(#wa_tile_${uid})`} filter={`url(#wa_flt_${uid})`} stroke="#E2E8F0" strokeWidth="1" />
-      <circle cx="32" cy="32" r="16.5" fill={`url(#wa_badge_${uid})`} />
-      <path d="M22 16C28 14 36 16 44 22C34 22 24 30 20 42C19 32 19 22 22 16Z" fill={`url(#wa_sheen_${uid})`} />
-      <circle cx="32" cy="32" r="12.6" fill="#FFFFFF" />
-      <path fill="#25D366" d="M32 21.2c-5.96 0-10.8 4.84-10.8 10.8 0 1.9.5 3.76 1.44 5.38l-1.53 5.59 5.72-1.5A10.77 10.77 0 0 0 32 42.8c5.96 0 10.8-4.84 10.8-10.8S37.96 21.2 32 21.2zm6.28 15.34c-.26.76-1.58 1.4-2.2 1.49-.56.08-1.28.11-2.06-.13-.47-.14-1.07-.35-1.84-.67-3.24-1.4-5.35-4.67-5.5-4.88-.16-.22-1.36-1.8-1.36-3.44 0-1.63.86-2.44 1.16-2.77.29-.33.64-.41.85-.41h.61c.2 0 .46-.07.72.55.26.66.89 2.27.97 2.43.08.17.13.36.03.58-.1.22-.16.36-.32.55l-.47.56c-.15.16-.32.33-.14.62.18.3.79 1.31 1.7 2.12.93.83 1.71 1.1 2.05 1.22.34.12.54.1.74-.06.21-.16.88-1.03 1.12-1.38.23-.35.46-.29.77-.17.32.11 2 .94 2.35 1.12.34.17.57.26.65.4.09.15.09.88-.2 1.64z" />
-    </svg>
+    <Tile uid={uid} className={className} from="#075E54" to="#25D366" glow="#128C7E" stroke="#A7F3D0">
+      <circle cx="32" cy="31" r="14" fill="#FFFFFF" />
+      <path d="M26.2 36.8l.7-2.5c-.5-.8-.8-1.8-.8-2.8 0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6c-1 0-2-.3-2.8-.8l-2.5.7.4-1.4z" fill="#25D366" />
+      <path d="M29.2 29.2c.2-.4.4-.4.6-.4h.5c.2 0 .4 0 .5.3l.7 1.7c.1.2 0 .4-.1.5l-.4.5c.6 1.1 1.6 2 2.8 2.6l.5-.4c.2-.1.4-.2.5-.1l1.7.7c.3.1.3.3.3.5v.5c0 .2 0 .4-.4.6-1.9.9-4.2.4-5.7-1.1-1.5-1.5-2-3.8-1.1-5.7z" fill="#075E54" />
+    </Tile>
   ),
   tabby: (uid, className) => (
     <Tile uid={uid} className={className} from="#3EEDBF" to="#10B981" glow="#14B8A6" stroke="#A7F3D0">

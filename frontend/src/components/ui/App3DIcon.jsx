@@ -2337,24 +2337,21 @@ export function App3DIcon({
     return (
       <svg className={className} viewBox="0 0 64 64" fill="none">
         <defs>
-          <linearGradient id={`wa_tile_${uid}`} x1="8" y1="8" x2="56" y2="58" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FFFFFF" />
-            <stop offset="70%" stopColor="#F8FAFC" />
-            <stop offset="100%" stopColor="#EEF2F6" />
+          <linearGradient id={`wa_bg_${uid}`} x1="10" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#34D399" />
+            <stop offset="100%" stopColor="#059669" />
           </linearGradient>
-          <radialGradient id={`wa_badge_${uid}`} cx="36%" cy="30%" r="72%">
-            <stop offset="0%" stopColor="#4ADE80" />
-            <stop offset="48%" stopColor="#25D366" />
-            <stop offset="100%" stopColor="#128C7E" />
-          </radialGradient>
           <filter id={`wa_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#10B981" floodOpacity="0.28" />
+            <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#10B981" floodOpacity="0.35" />
           </filter>
         </defs>
-        <rect x="7" y="7" width="50" height="50" rx="16" fill={`url(#wa_tile_${uid})`} filter={`url(#wa_flt_${uid})`} stroke="#E2E8F0" strokeWidth="1" />
-        <circle cx="32" cy="32" r="16.5" fill={`url(#wa_badge_${uid})`} />
-        <circle cx="32" cy="32" r="12.6" fill="#FFFFFF" />
-        <path fill="#25D366" d="M32 21.2c-5.96 0-10.8 4.84-10.8 10.8 0 1.9.5 3.76 1.44 5.38l-1.53 5.59 5.72-1.5A10.77 10.77 0 0 0 32 42.8c5.96 0 10.8-4.84 10.8-10.8S37.96 21.2 32 21.2zm6.28 15.34c-.26.76-1.58 1.4-2.2 1.49-.56.08-1.28.11-2.06-.13-.47-.14-1.07-.35-1.84-.67-3.24-1.4-5.35-4.67-5.5-4.88-.16-.22-1.36-1.8-1.36-3.44 0-1.63.86-2.44 1.16-2.77.29-.33.64-.41.85-.41h.61c.2 0 .46-.07.72.55.26.66.89 2.27.97 2.43.08.17.13.36.03.58-.1.22-.16.36-.32.55l-.47.56c-.15.16-.32.33-.14.62.18.3.79 1.31 1.7 2.12.93.83 1.71 1.1 2.05 1.22.34.12.54.1.74-.06.21-.16.88-1.03 1.12-1.38.23-.35.46-.29.77-.17.32.11 2 .94 2.35 1.12.34.17.57.26.65.4.09.15.09.88-.2 1.64z" />
+        <rect x="7" y="7" width="50" height="50" rx="14" fill={`url(#wa_bg_${uid})`} filter={`url(#wa_flt_${uid})`} />
+        <circle cx="30" cy="33" r="18" fill="#25D366" />
+        <circle cx="40" cy="24" r="13" fill="#128C7E" opacity="0.88" />
+        <path d="M20 46.5 21.2 40.8A12.2 12.2 0 1 1 37.5 44.8l-5.6 1.35z" fill="#FFFFFF" />
+        <path d="M26.2 33.5h8.2M26.2 37.6h5.6" stroke="#128C7E" strokeWidth="2.4" strokeLinecap="round" />
+        <circle cx="46" cy="18" r="6.5" fill="#F97316" />
+        <path d="M43.6 18h4.8M46 15.6v4.8" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     )
   }
