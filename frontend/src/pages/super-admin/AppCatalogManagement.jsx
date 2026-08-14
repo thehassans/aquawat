@@ -412,7 +412,14 @@ export default function AppCatalogManagement() {
                         type="number"
                         min="0"
                         value={formState.monthlyPrice}
-                        onChange={(e) => setFormState(s => ({ ...s, monthlyPrice: Number(e.target.value) }))}
+                        onChange={(e) => {
+                          const monthlyPrice = Number(e.target.value);
+                          setFormState((s) => ({
+                            ...s,
+                            monthlyPrice,
+                            yearlyPrice: Number(s.yearlyPrice) > 0 ? s.yearlyPrice : monthlyPrice * 10,
+                          }));
+                        }}
                         className="input w-full text-sm"
                       />
                     </div>
@@ -425,6 +432,9 @@ export default function AppCatalogManagement() {
                         onChange={(e) => setFormState(s => ({ ...s, yearlyPrice: Number(e.target.value) }))}
                         className="input w-full text-sm"
                       />
+                      <p className="mt-1 text-[10px] text-gray-400">
+                        {isAr ? 'اترك 0 ليُحسب تلقائياً = 10 أشهر (شهرين مجاناً).' : 'Leave 0 to auto-bill 10 months (2 months free).'}
+                      </p>
                     </div>
                   </div>
                 )}

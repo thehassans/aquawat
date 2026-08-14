@@ -16,6 +16,7 @@ import {
   ArrowRight,
   Globe2,
   Lock,
+  Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -28,6 +29,11 @@ import {
   pickRecommendedApps,
   sortAppsForMarket,
 } from '../../lib/appStoreMarket';
+import {
+  formatMoneyAmount,
+  resolveAppPrices,
+  yearlySavingsPercent,
+} from '../../lib/appStorePricing';
 
 const PREMIUM_INVOICE_TEMPLATES_APP_ID = 'premium_invoice_templates';
 
@@ -48,6 +54,48 @@ const PRICING_LABELS = {
     color: 'text-slate-700 dark:text-slate-300 bg-slate-500/10 border-slate-500/20'
   },
 };
+
+function BillingCycleToggle({ value, onChange, isAr, size = 'md' }) {
+  const compact = size === 'sm';
+  return (
+    <div
+      className={`inline-flex items-center rounded-2xl border border-slate-200/90 bg-white/90 shadow-[0_10px_32px_-20px_rgba(15,23,42,0.55)] dark:border-white/10 dark:bg-dark-800 ${
+        compact ? 'p-0.5' : 'p-1'
+      }`}
+    >
+      {['monthly', 'yearly'].map((cycle) => {
+        const active = value === cycle;
+        return (
+          <button
+            key={cycle}
+            type="button"
+            onClick={() => onChange(cycle)}
+            className={`relative inline-flex items-center gap-1.5 rounded-xl font-bold tracking-wide transition ${
+              compact ? 'px-3 py-1.5 text-[11px]' : 'px-4 py-2 text-xs'
+            } ${
+              active
+                ? 'bg-slate-900 text-white shadow-md dark:bg-white dark:text-slate-900'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
+            }`}
+          >
+            {cycle === 'monthly' ? (isAr ? 'شهري' : 'Monthly') : (isAr ? 'سنوي' : 'Yearly')}
+            {cycle === 'yearly' && (
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${
+                  active
+                    ? 'bg-emerald-400/20 text-emerald-100 dark:bg-emerald-500/20 dark:text-emerald-800'
+                    : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                }`}
+              >
+                {isAr ? 'شهرين مجاناً' : '2 mo free'}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 const CATEGORIES = [
   { id: 'all', en: 'All', ar: 'الكل' },
@@ -171,9 +219,11 @@ export default function AppStore() {
   const storeCurrency = String(paymentsMeta.currency || tenantCurrency || 'SAR').toUpperCase();
 
   const formatAppPrice = useCallback((app, cycle = billingCycle) => {
-    const amount = cycle === 'yearly' ? Number(app?.yearlyPrice || 0) : Number(app?.monthlyPrice || 0);
-    if (!amount) return null;
-    return `${storeCurrency} ${amount.toFixed(amount % 1 ? 2 : 0)}${cycle === 'yearly' ? (isAr ? '/سنة' : '/yr') : (isAr ? '/شهر' : '/mo')}`;
+    const { monthly, yearly } = resolveAppPrices(app);
+    const amount = cycle === 'yearly' ? yearly : monthly;
+    const money = formatMoneyAmount(amount, storeCurrency);
+    if (!money) return null;
+    return `${money}${cycle === 'yearly' ? (isAr ? '/سنة' : '/yr') : (isAr ? '/شهر' : '/mo')}`;
   }, [billingCycle, storeCurrency, isAr]);
 
   const appNeedsPayment = useCallback((app) => {
@@ -183,8 +233,8 @@ export default function AppStore() {
     if (app.requiresPayment) return true;
     const tier = String(app.pricingTier || 'free').toLowerCase();
     if (tier === 'free') return false;
-    const amount = billingCycle === 'yearly' ? Number(app.yearlyPrice || 0) : Number(app.monthlyPrice || 0);
-    return amount > 0;
+    const { monthly, yearly } = resolveAppPrices(app);
+    return (billingCycle === 'yearly' ? yearly : monthly) > 0;
   }, [billingCycle]);
 
   const apps = useMemo(() => data?.apps || [], [data?.apps]);
@@ -467,7 +517,12 @@ export default function AppStore() {
   const renderAppCard = (app, { featured = false } = {}) => {
     const isInstalled = app.isInstalled;
     const isCurrentlyInstalling = installingState?.appId === app.appId;
-    const priceHint = formatAppPrice(app);
+    const { monthly, yearly } = resolveAppPrices(app);
+    const paid = appNeedsPayment(app);
+    const activeAmount = billingCycle === 'yearly' ? yearly : monthly;
+    const money = formatMoneyAmount(activeAmount, storeCurrency);
+    const savings = yearlySavingsPercent(monthly, yearly);
+    const yearlyMonthly = yearly > 0 ? yearly / 12 : 0;
 
     return (
       <motion.div
@@ -475,10 +530,10 @@ export default function AppStore() {
         layout
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`group flex flex-col gap-4 rounded-2xl border bg-white/90 p-4 backdrop-blur-sm transition-all dark:bg-dark-800/90 ${
+        className={`group flex flex-col gap-4 rounded-[1.35rem] border bg-white/90 p-4 backdrop-blur-sm transition-all duration-300 dark:bg-dark-800/90 ${
           featured
-            ? 'border-emerald-200/80 shadow-[0_18px_40px_-28px_rgba(5,150,105,0.45)] dark:border-emerald-500/25'
-            : 'border-slate-200/80 hover:border-slate-300 dark:border-white/10 dark:hover:border-white/20'
+            ? 'border-emerald-200/80 shadow-[0_22px_50px_-28px_rgba(5,150,105,0.5)] dark:border-emerald-500/25'
+            : 'border-slate-200/80 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)] dark:border-white/10 dark:hover:border-white/20'
         }`}
       >
         <div className="flex items-start gap-3">
@@ -508,9 +563,9 @@ export default function AppStore() {
           </div>
         </div>
 
-        <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
+        <div className="mt-auto border-t border-slate-100 pt-3 dark:border-white/5">
           {isInstalled ? (
-            <>
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                 <Check className="h-3 w-3" />
                 {isAr ? 'مثبت' : 'Installed'}
@@ -534,35 +589,66 @@ export default function AppStore() {
                 <Trash2 className="h-3 w-3" />
                 {isAr ? 'إلغاء' : 'Remove'}
               </button>
-            </>
-          ) : (
-            <>
-              {app.includedInCurrentPlan ? (
-                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                  {isAr ? 'مشمول في باقتك' : 'Included in plan'}
-                </span>
-              ) : (
-                priceHint && appNeedsPayment(app) && (
-                  <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{priceHint}</span>
-                )
-              )}
               <button
                 type="button"
-                onClick={() => handleStartInstall(app)}
-                disabled={isCurrentlyInstalling || installMutation.isPending}
-                className="inline-flex items-center rounded-xl bg-slate-900 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-emerald-300"
+                onClick={() => setSelectedAppId(app.appId)}
+                className="ms-auto text-[12px] text-slate-400 transition hover:text-emerald-700 dark:hover:text-emerald-300"
               >
-                {isCurrentlyInstalling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (isAr ? 'تفعيل' : 'Activate')}
+                {isAr ? 'التفاصيل' : 'Details'}
               </button>
-            </>
+            </div>
+          ) : (
+            <div className="flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                {app.includedInCurrentPlan ? (
+                  <p className="text-[12px] font-semibold text-emerald-700 dark:text-emerald-300">
+                    {isAr ? 'مشمول في باقتك' : 'Included in plan'}
+                  </p>
+                ) : paid && money ? (
+                  <>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-[22px] font-semibold leading-none tracking-tight text-slate-900 tabular-nums dark:text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                        {money}
+                      </span>
+                      <span className="text-[11px] font-semibold text-slate-400">
+                        {billingCycle === 'yearly' ? (isAr ? '/سنة' : '/yr') : (isAr ? '/شهر' : '/mo')}
+                      </span>
+                    </div>
+                    {billingCycle === 'yearly' && savings > 0 ? (
+                      <p className="mt-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                        {formatMoneyAmount(yearlyMonthly, storeCurrency)}{isAr ? '/شهر' : '/mo'} · {isAr ? `وفّر ${savings}%` : `Save ${savings}%`}
+                      </p>
+                    ) : billingCycle === 'monthly' && yearly > 0 ? (
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        {isAr ? `أو ${formatMoneyAmount(yearly, storeCurrency)}/سنة` : `or ${formatMoneyAmount(yearly, storeCurrency)}/yr`}
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-[12px] font-semibold text-emerald-700 dark:text-emerald-300">
+                    {isAr ? 'مشمول' : 'Included'}
+                  </p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAppId(app.appId)}
+                  className="text-[12px] text-slate-400 transition hover:text-emerald-700 dark:hover:text-emerald-300"
+                >
+                  {isAr ? 'التفاصيل' : 'Details'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStartInstall(app)}
+                  disabled={isCurrentlyInstalling || installMutation.isPending}
+                  className="inline-flex items-center rounded-xl bg-slate-900 px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-emerald-300"
+                >
+                  {isCurrentlyInstalling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (isAr ? 'تفعيل' : 'Activate')}
+                </button>
+              </div>
+            </div>
           )}
-          <button
-            type="button"
-            onClick={() => setSelectedAppId(app.appId)}
-            className="ms-auto text-[12px] text-slate-400 transition hover:text-emerald-700 dark:hover:text-emerald-300"
-          >
-            {isAr ? 'التفاصيل' : 'Details'}
-          </button>
         </div>
       </motion.div>
     );
@@ -629,14 +715,6 @@ export default function AppStore() {
                 <span className="rounded-full border border-emerald-200/80 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
                   {marketCopy.badge}
                 </span>
-                <div className="inline-flex overflow-hidden rounded-xl border border-slate-200/90 bg-white/80 text-xs font-semibold dark:border-white/10 dark:bg-dark-800">
-                  <button type="button" onClick={() => setBillingCycle('monthly')} className={`px-3 py-1.5 ${billingCycle === 'monthly' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {isAr ? 'شهري' : 'Monthly'}
-                  </button>
-                  <button type="button" onClick={() => setBillingCycle('yearly')} className={`px-3 py-1.5 ${billingCycle === 'yearly' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {isAr ? 'سنوي' : 'Yearly'}
-                  </button>
-                </div>
                 <button
                   type="button"
                   onClick={() => setShowInstalledOnly(!showInstalledOnly)}
@@ -668,6 +746,14 @@ export default function AppStore() {
                     <X className="h-3.5 w-3.5" />
                   </button>
                 )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <BillingCycleToggle value={billingCycle} onChange={setBillingCycle} isAr={isAr} />
+                <p className="hidden text-[11px] font-medium text-slate-400 sm:block">
+                  {billingCycle === 'yearly'
+                    ? (isAr ? 'ادفع سنوياً واحصل على شهرين مجاناً.' : 'Pay yearly and get 2 months free.')
+                    : (isAr ? 'بدّل إلى السنوي لتوفير 17%.' : 'Switch to yearly to save 17%.')}
+                </p>
               </div>
               <select
                 value={sortBy}
@@ -886,6 +972,62 @@ export default function AppStore() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
+                {(() => {
+                  const { monthly, yearly } = resolveAppPrices(detailApp);
+                  const savings = yearlySavingsPercent(monthly, yearly);
+                  const paid = appNeedsPayment(detailApp) && !detailApp.isInstalled && !detailApp.includedInCurrentPlan;
+                  if (!paid || !(monthly > 0 || yearly > 0)) return null;
+                  return (
+                    <div>
+                      <h4 className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-400">
+                        <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                        {isAr ? 'خطط الأسعار' : 'Pricing plans'}
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { id: 'monthly', amount: monthly, label: isAr ? 'شهري' : 'Monthly', period: isAr ? 'تُفوتر كل شهر' : 'Billed every month' },
+                          { id: 'yearly', amount: yearly, label: isAr ? 'سنوي' : 'Yearly', period: isAr ? 'تُفوتر مرة في السنة' : 'Billed once a year' },
+                        ].map((plan) => {
+                          const active = billingCycle === plan.id;
+                          const money = formatMoneyAmount(plan.amount, storeCurrency);
+                          if (!money) return null;
+                          return (
+                            <button
+                              key={plan.id}
+                              type="button"
+                              onClick={() => setBillingCycle(plan.id)}
+                              className={`relative rounded-2xl border p-3.5 text-start transition ${
+                                active
+                                  ? 'border-emerald-400 bg-emerald-50/80 shadow-[0_12px_28px_-18px_rgba(5,150,105,0.65)] dark:border-emerald-500/40 dark:bg-emerald-500/10'
+                                  : 'border-gray-200 bg-white hover:border-gray-300 dark:border-white/10 dark:bg-dark-900/40'
+                              }`}
+                            >
+                              {plan.id === 'yearly' && savings > 0 && (
+                                <span className="absolute -top-2 end-3 rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                                  {isAr ? `وفّر ${savings}%` : `Save ${savings}%`}
+                                </span>
+                              )}
+                              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{plan.label}</p>
+                              <p className="mt-1 text-xl font-semibold tracking-tight text-slate-900 tabular-nums dark:text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                                {money}
+                                <span className="ms-1 text-[11px] font-semibold text-slate-400">
+                                  {plan.id === 'yearly' ? (isAr ? '/سنة' : '/yr') : (isAr ? '/شهر' : '/mo')}
+                                </span>
+                              </p>
+                              <p className="mt-1 text-[11px] text-slate-500">{plan.period}</p>
+                              {plan.id === 'yearly' && monthly > 0 && (
+                                <p className="mt-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                                  {formatMoneyAmount(yearly / 12, storeCurrency)}{isAr ? '/شهر' : '/mo'} · {isAr ? 'شهرين مجاناً' : '2 months free'}
+                                </p>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div>
                   <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">
                     {isAr ? 'نظرة عامة والوصف' : 'Overview & Architecture'}
@@ -1058,22 +1200,29 @@ export default function AppStore() {
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={() => {
-                      handleStartInstall(detailApp);
-                      setSelectedAppId(null);
-                    }}
-                    disabled={installMutation.isPending || installingState?.appId === detailApp.appId}
-                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-primary-600 hover:bg-primary-500 text-white font-black text-sm shadow-lg shadow-primary-500/25 transition-all active:scale-95 disabled:opacity-50"
-                  >
-                    <span>
-                      {appNeedsPayment(detailApp)
-                        ? (isAr
-                          ? `تفعيل ${formatAppPrice(detailApp) ? `(${formatAppPrice(detailApp)})` : ''}`
-                          : `Activate ${formatAppPrice(detailApp) ? `(${formatAppPrice(detailApp)})` : ''}`)
-                        : (isAr ? 'تفعيل' : 'Activate')}
-                    </span>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        handleStartInstall(detailApp);
+                        setSelectedAppId(null);
+                      }}
+                      disabled={installMutation.isPending || installingState?.appId === detailApp.appId}
+                      className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-primary-600 hover:bg-primary-500 text-white font-black text-sm shadow-lg shadow-primary-500/25 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      <span>
+                        {appNeedsPayment(detailApp)
+                          ? (isAr
+                            ? `تفعيل ${formatAppPrice(detailApp) ? `— ${formatAppPrice(detailApp)}` : ''}`
+                            : `Activate ${formatAppPrice(detailApp) ? `— ${formatAppPrice(detailApp)}` : ''}`)
+                          : (isAr ? 'تفعيل' : 'Activate')}
+                      </span>
+                    </button>
+                    {appNeedsPayment(detailApp) && billingCycle === 'yearly' && (
+                      <p className="text-center text-[11px] text-slate-400">
+                        {isAr ? 'إلغاء في أي وقت. التوفير يُطبَّق عند الدفع السنوي.' : 'Cancel anytime. Savings apply when billed yearly.'}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </motion.div>

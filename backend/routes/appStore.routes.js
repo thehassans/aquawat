@@ -115,11 +115,19 @@ async function syncWhatsAppFromApp(tenant, appId, config = {}, enabled = true) {
   return true;
 }
 
+/** Yearly bills 10 months (2 months complimentary) when yearlyPrice is unset. */
+const YEARLY_BILLED_MONTHS = 10;
+
+const resolveCatalogPrices = (appDef) => {
+  const monthly = Number(appDef?.monthlyPrice || 0) || 0;
+  let yearly = Number(appDef?.yearlyPrice || 0) || 0;
+  if (yearly <= 0 && monthly > 0) yearly = monthly * YEARLY_BILLED_MONTHS;
+  return { monthlyPrice: monthly, yearlyPrice: yearly };
+};
+
 const getAppPrice = (appDef, billingCycle = 'monthly') => {
-  const cycle = billingCycle === 'yearly' ? 'yearly' : 'monthly';
-  const price = cycle === 'yearly'
-    ? Number(appDef?.yearlyPrice || 0)
-    : Number(appDef?.monthlyPrice || 0);
+  const { monthlyPrice, yearlyPrice } = resolveCatalogPrices(appDef);
+  const price = billingCycle === 'yearly' ? yearlyPrice : monthlyPrice;
   return Number.isFinite(price) ? price : 0;
 };
 
@@ -1954,14 +1962,15 @@ router.get('/apps', protect, async (req, res) => {
         pricingTier: app.pricingTier || defApp?.pricingTier,
         includedInPlans,
       };
+      const { monthlyPrice, yearlyPrice } = resolveCatalogPrices(appForPrice);
       const includedInCurrentPlan = isAppIncludedInTenantPlan(appForPrice, tenantPlan);
-      const requiresPayment = isPaidApp(appForPrice, 'monthly', tenantPlan);
+      const requiresPayment = isPaidApp({ ...appForPrice, monthlyPrice, yearlyPrice }, 'monthly', tenantPlan);
 
       return {
         ...app,
         downloadSize: app.downloadSize || defApp?.downloadSize || '4.5 MB',
-        monthlyPrice: Number(app.monthlyPrice ?? defApp?.monthlyPrice ?? 0) || 0,
-        yearlyPrice: Number(app.yearlyPrice ?? defApp?.yearlyPrice ?? 0) || 0,
+        monthlyPrice,
+        yearlyPrice,
         pricingTier: app.pricingTier || defApp?.pricingTier || 'free',
         includedInPlans,
         includedInCurrentPlan,
