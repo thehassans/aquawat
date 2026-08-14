@@ -46,9 +46,13 @@ export const removeOfflineInvoice = async (offlineId) => {
 export const saveProductsCache = async (products) => {
   const db = await initBakalaDB();
   const tx = db.transaction('products_cache', 'readwrite');
+  const valid = (products || []).filter((product) => product && (product.primaryBarcode || product._id));
   await Promise.all([
-    ...products.map(product => tx.store.put(product)),
-    tx.done
+    ...valid.map((product) => tx.store.put({
+      ...product,
+      primaryBarcode: String(product.primaryBarcode || product._id),
+    })),
+    tx.done,
   ]);
 };
 

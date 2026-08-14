@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { List as VirtualList } from 'react-window';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useCartEngine } from '../../hooks/useCartEngine';
 import { useBakalaSync } from '../../hooks/useBakalaSync';
 import { getProductByBarcode, saveOfflineInvoice } from '../../lib/bakalaDb';
@@ -17,65 +16,27 @@ import { getThermalPrinterSettings, getBodyWidthCss, getPageCss } from '../../li
 import { isAndroidPos, isAndroidDevice, detectBridge, isWebUsbSupported, isWebSerialSupported, printText as androidPrintText, openCashDrawer as androidOpenCashDrawer, openCashDrawerViaRaw, openCashDrawerViaWebUSB, openCashDrawerViaSerial, openCashDrawerViaSystemPrint, printViaSystemPrint, buildReceiptHtml } from '../../lib/androidPosPrinter';
 
 // ─── Memoized single product card — only re-renders if this specific product changes ───
-const ProductCard = React.memo(function ProductCard({ item, onAddItem, style }) {
+const ProductCard = React.memo(function ProductCard({ item, onAddItem }) {
   return (
-    <div style={style} className="px-1">
-      <button
-        onClick={() => onAddItem(item)}
-        className="w-full h-full p-3 rounded-2xl border border-gray-100 bg-white hover:border-emerald-400 hover:shadow-md transition-all text-left active:scale-95 flex flex-col justify-between"
-      >
-        <span className="font-semibold text-gray-700 line-clamp-2 leading-snug text-sm">{item.name}</span>
-        <span className="text-sm font-bold text-emerald-600 mt-1">SAR {(item.retailPrice || 0).toFixed(2)}</span>
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={() => onAddItem(item)}
+      className="w-full min-h-[108px] p-3 rounded-2xl border border-gray-100 bg-white hover:border-emerald-400 hover:shadow-md transition-all text-left active:scale-95 flex flex-col justify-between"
+    >
+      <span className="font-semibold text-gray-700 line-clamp-2 leading-snug text-sm">{item.name}</span>
+      <span className="text-sm font-bold text-emerald-600 mt-1">SAR {(item.retailPrice || 0).toFixed(2)}</span>
+    </button>
   );
 }, (prev, next) => prev.item._id === next.item._id && prev.item.retailPrice === next.item.retailPrice);
 
-const COLS = 3;
-const ROW_HEIGHT = 120;
-
-// ─── Virtualized grid — only visible rows are in the DOM ───────────────────────
-function VirtualProductGrid({ items, onAddItem }) {
-  const containerRef = useRef(null);
-  const [containerHeight, setContainerHeight] = useState(400);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const ro = new ResizeObserver(entries => {
-      setContainerHeight(entries[0].contentRect.height || 400);
-    });
-    ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, []);
-
-  // Group flat items into rows of COLS
-  const rows = useMemo(() => {
-    const r = [];
-    for (let i = 0; i < items.length; i += COLS) {
-      r.push(items.slice(i, i + COLS));
-    }
-    return r;
-  }, [items]);
-
-  const Row = useCallback(({ index, style }) => (
-    <div style={{ ...style, display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: '8px', padding: '4px 0' }}>
-      {rows[index].map(item => (
-        <ProductCard key={item._id} item={item} onAddItem={onAddItem} />
-      ))}
-    </div>
-  ), [rows, onAddItem]);
-
+function ProductGrid({ items, onAddItem }) {
   return (
-    <div ref={containerRef} className="flex-1 min-h-0">
-      <VirtualList
-        height={containerHeight}
-        itemCount={rows.length}
-        itemSize={ROW_HEIGHT}
-        width="100%"
-        overscanCount={3}
-      >
-        {Row}
-      </VirtualList>
+    <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {items.map((item) => (
+          <ProductCard key={item._id || item.primaryBarcode} item={item} onAddItem={onAddItem} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -144,14 +105,12 @@ export default function BakalaPOS() {
   // Focus search input automatically if typing letters/numbers outside of an input
   useEffect(() => {
     const handleGlobalKeydown = (e) => {
-      // If pressing a printable character and not currently focused on an input
+      if (e.target?.closest('input, textarea, select, [contenteditable="true"]')) return;
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
-          barcodeInputRef.current?.focus();
-        }
+        barcodeInputRef.current?.focus();
       }
     };
-    
+
     document.addEventListener('keydown', handleGlobalKeydown);
     return () => document.removeEventListener('keydown', handleGlobalKeydown);
   }, []);
@@ -179,14 +138,27 @@ export default function BakalaPOS() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [cartItems.length, autoHoldBill]);
 
-  // Load products from IndexedDB
+  // Load products from IndexedDB, with a live API fallback if the cache is empty.
   useEffect(() => {
     const loadProducts = async () => {
       await syncOfflineData();
       const { getAllProducts } = await import('../../lib/bakalaDb');
-      const products = await getAllProducts();
-      setAllProducts(products);
-      setFastItems([]); // Empty by default per user request
+      let products = [];
+      try {
+        products = await getAllProducts();
+      } catch (err) {
+        console.error('Failed to read POS product cache', err);
+      }
+      if (!products?.length) {
+        try {
+          const prodRes = await api.get('/bakala/products');
+          products = prodRes.data?.products || [];
+        } catch (err) {
+          console.error('Failed to load POS products', err);
+        }
+      }
+      setAllProducts(Array.isArray(products) ? products : []);
+      setFastItems([]);
     };
     loadProducts();
   }, [syncOfflineData]);
@@ -198,11 +170,12 @@ export default function BakalaPOS() {
       return;
     }
     const lower = searchTerm.toLowerCase();
-    const filtered = allProducts.filter(p => 
-      p.name.toLowerCase().includes(lower) || 
-      p.primaryBarcode?.includes(lower) ||
-      p.barcodes?.some(b => b.includes(lower))
-    );
+    const filtered = allProducts.filter((p) => {
+      const name = String(p?.name || p?.nameAr || '').toLowerCase();
+      const barcode = String(p?.primaryBarcode || '').toLowerCase();
+      const extra = Array.isArray(p?.barcodes) ? p.barcodes : [];
+      return name.includes(lower) || barcode.includes(lower) || extra.some((b) => String(b).toLowerCase().includes(lower));
+    });
     setFastItems(filtered.slice(0, 24));
   }, [searchTerm, allProducts]);
 
@@ -1079,7 +1052,7 @@ export default function BakalaPOS() {
       {tenant?.settings?.bakala?.requireShift !== false && !activeSession && <PosSessions onSessionVerified={setActiveSession} />}
 
       {/* LEFT PANEL: Cart View (60%) */}
-      <div className="order-2 lg:order-1 w-full lg:w-[60%] flex flex-col border-r border-gray-100 bg-white shadow-[2px_0_10px_rgba(0,0,0,0.02)] z-10 relative min-h-[40vh] lg:min-h-0">
+      <div className="order-2 lg:order-1 w-full lg:w-[60%] min-w-0 flex flex-col border-r border-gray-100 bg-white shadow-[2px_0_10px_rgba(0,0,0,0.02)] relative min-h-[40vh] lg:min-h-0">
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-50 flex justify-between items-center bg-white">
           <div className="flex items-center gap-3">
@@ -1167,7 +1140,7 @@ export default function BakalaPOS() {
       </div>
 
       {/* RIGHT PANEL: Actions & Fast Menu (40%) */}
-      <div className="order-1 lg:order-2 w-full lg:w-[40%] flex flex-col bg-[#F8F9FA] flex-1 min-h-[45vh] lg:min-h-0 overflow-hidden">
+      <div className="order-1 lg:order-2 w-full lg:w-[40%] min-w-0 flex flex-col bg-[#F8F9FA] flex-1 min-h-[45vh] lg:min-h-0 overflow-hidden relative z-20">
         
         {/* Search Bar & Device Connection Status */}
         <div className="px-6 pt-6 pb-2">
@@ -1338,15 +1311,20 @@ export default function BakalaPOS() {
             </div>
           )}
 
-          <form onSubmit={handleScannerSubmit} className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input 
+          <form onSubmit={handleScannerSubmit} className="relative z-20">
+            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
               ref={barcodeInputRef}
-              type="text" 
+              type="text"
+              inputMode="search"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
               placeholder="Search by name or scan barcode..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-base font-medium transition-all"
+              onKeyDown={(e) => e.stopPropagation()}
+              className="relative z-20 w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-base font-medium text-gray-900 caret-emerald-600 transition-all"
               autoFocus
             />
           </form>
@@ -1359,7 +1337,7 @@ export default function BakalaPOS() {
               {searchTerm ? 'No products found matching your search.' : 'Type or scan a barcode to search for products.'}
             </div>
           ) : (
-            <VirtualProductGrid
+            <ProductGrid
               items={fastItems}
               onAddItem={(item) => {
                 addItem(item);

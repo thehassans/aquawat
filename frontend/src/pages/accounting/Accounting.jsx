@@ -1,22 +1,39 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
+import { useNavigate, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BookOpen, Plus, RefreshCw, Scale, TrendingUp, Landmark,
-  FileSpreadsheet, CheckCircle2, XCircle, ArrowUpRight
+  FileSpreadsheet, CheckCircle2, XCircle, ArrowUpRight, Receipt, Wallet, Users, Truck
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
+import Vouchers from '../finance/Vouchers'
+import {
+  AccountReportPanel,
+  CustomerAccountPanel,
+  CustomerSummaryPanel,
+  DailyRestrictionPanel,
+  GeneralVoucherPanel,
+  SupplierSummaryPanel,
+} from './AccountingModules'
 
 const TABS = [
-  { id: 'overview', labelEn: 'Overview', labelAr: 'نظرة عامة', icon: Landmark },
-  { id: 'accounts', labelEn: 'Chart of Accounts', labelAr: 'دليل الحسابات', icon: BookOpen },
-  { id: 'journals', labelEn: 'Journals', labelAr: 'القيود', icon: FileSpreadsheet },
+  { id: 'overview', labelEn: 'Accounting', labelAr: 'المحاسبة', icon: Landmark },
+  { id: 'chart-of-accounts', labelEn: 'Chart of Accounts', labelAr: 'دليل الحسابات', icon: BookOpen },
+  { id: 'daily-restriction', labelEn: 'Daily Restriction', labelAr: 'القيود اليومية', icon: FileSpreadsheet },
+  { id: 'general-voucher', labelEn: 'General Voucher', labelAr: 'سند قيد عام', icon: FileSpreadsheet },
+  { id: 'receipt-voucher', labelEn: 'Receipt Voucher', labelAr: 'سند قبض', icon: Receipt },
+  { id: 'payment-voucher', labelEn: 'Payment Voucher', labelAr: 'سند صرف', icon: Wallet },
+  { id: 'account-report', labelEn: 'Account of Report', labelAr: 'تقرير الحساب', icon: BookOpen },
+  { id: 'balance-sheet', labelEn: 'Account Balance Sheet', labelAr: 'الميزانية العمومية', icon: Scale },
+  { id: 'customer-account', labelEn: 'Customer Account Report', labelAr: 'كشف حساب العميل', icon: Users },
+  { id: 'customer-summary', labelEn: 'Customer Summary Report', labelAr: 'ملخص العملاء', icon: Users },
+  { id: 'supplier-summary', labelEn: 'Supplier Summary Report', labelAr: 'ملخص الموردين', icon: Truck },
   { id: 'trial', labelEn: 'Trial Balance', labelAr: 'ميزان المراجعة', icon: Scale },
   { id: 'pnl', labelEn: 'Profit & Loss', labelAr: 'الأرباح والخسائر', icon: TrendingUp },
-  { id: 'balance', labelEn: 'Balance Sheet', labelAr: 'الميزانية', icon: Scale },
 ]
 
 const emptyLine = () => ({ accountId: '', debit: '', credit: '', description: '' })
@@ -24,7 +41,10 @@ const emptyLine = () => ({ accountId: '', debit: '', credit: '', description: ''
 export default function Accounting() {
   const { language } = useSelector((s) => s.ui)
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState('overview')
+  const navigate = useNavigate()
+  const { section } = useParams()
+  const tab = TABS.some((item) => item.id === section) ? section : 'overview'
+  const setTab = (id) => navigate(id === 'overview' ? '/app/dashboard/accounting' : `/app/dashboard/accounting/${id}`)
   const [showJournalForm, setShowJournalForm] = useState(false)
   const [journalForm, setJournalForm] = useState({
     memo: '',
@@ -40,13 +60,13 @@ export default function Accounting() {
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts'],
     queryFn: () => api.get('/accounting/accounts').then((r) => r.data),
-    enabled: ['accounts', 'journals', 'overview'].includes(tab) || showJournalForm,
+    enabled: ['chart-of-accounts', 'daily-restriction', 'general-voucher', 'overview'].includes(tab) || showJournalForm,
   })
 
   const { data: journalsData, refetch: refetchJournals } = useQuery({
     queryKey: ['accounting-journals'],
     queryFn: () => api.get('/accounting/journals', { params: { limit: 50 } }).then((r) => r.data),
-    enabled: tab === 'journals' || tab === 'overview',
+    enabled: tab === 'daily-restriction' || tab === 'general-voucher' || tab === 'overview',
   })
 
   const { data: trial } = useQuery({
@@ -64,7 +84,7 @@ export default function Accounting() {
   const { data: balance } = useQuery({
     queryKey: ['accounting-balance'],
     queryFn: () => api.get('/accounting/reports/balance-sheet').then((r) => r.data),
-    enabled: tab === 'balance',
+    enabled: tab === 'balance-sheet',
   })
 
   const seedMutation = useMutation({
@@ -85,6 +105,8 @@ export default function Accounting() {
       setJournalForm({ memo: '', entryDate: new Date().toISOString().slice(0, 10), lines: [emptyLine(), emptyLine()] })
       refetchJournals()
       queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-daily'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-general-vouchers'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
   })
@@ -102,6 +124,8 @@ export default function Accounting() {
       refetchJournals()
       queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-daily'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-general-vouchers'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || 'Failed to post'),
   })
@@ -116,6 +140,7 @@ export default function Accounting() {
     createJournalMutation.mutate({
       memo: journalForm.memo,
       entryDate: journalForm.entryDate,
+      type: 'manual',
       status: 'draft',
       lines: journalForm.lines
         .filter((l) => l.accountId && (Number(l.debit) > 0 || Number(l.credit) > 0))
@@ -258,7 +283,7 @@ export default function Accounting() {
           </motion.div>
         )}
 
-        {tab === 'accounts' && (
+        {tab === 'chart-of-accounts' && (
           <motion.div key="accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -288,7 +313,55 @@ export default function Accounting() {
           </motion.div>
         )}
 
-        {tab === 'journals' && (
+        {tab === 'daily-restriction' && (
+          <motion.div key="daily-restriction" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <DailyRestrictionPanel language={language} onNew={() => setShowJournalForm(true)} onPost={(id) => postJournalMutation.mutate(id)} posting={postJournalMutation.isPending} />
+          </motion.div>
+        )}
+
+        {tab === 'general-voucher' && (
+          <motion.div key="general-voucher" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <GeneralVoucherPanel language={language} onNew={() => setShowJournalForm(true)} onPost={(id) => postJournalMutation.mutate(id)} posting={postJournalMutation.isPending} />
+          </motion.div>
+        )}
+
+        {tab === 'receipt-voucher' && (
+          <motion.div key="receipt-voucher" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <Vouchers forcedType="receive" embedded />
+          </motion.div>
+        )}
+
+        {tab === 'payment-voucher' && (
+          <motion.div key="payment-voucher" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <Vouchers forcedType="payment" embedded />
+          </motion.div>
+        )}
+
+        {tab === 'account-report' && (
+          <motion.div key="account-report" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <AccountReportPanel language={language} />
+          </motion.div>
+        )}
+
+        {tab === 'customer-account' && (
+          <motion.div key="customer-account" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <CustomerAccountPanel language={language} />
+          </motion.div>
+        )}
+
+        {tab === 'customer-summary' && (
+          <motion.div key="customer-summary" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <CustomerSummaryPanel language={language} />
+          </motion.div>
+        )}
+
+        {tab === 'supplier-summary' && (
+          <motion.div key="supplier-summary" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <SupplierSummaryPanel language={language} />
+          </motion.div>
+        )}
+
+        {tab === 'legacy-journals' && (
           <motion.div key="journals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
             {(journalsData?.rows || []).map((j) => (
               <div key={j._id} className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
@@ -422,7 +495,7 @@ export default function Accounting() {
           </motion.div>
         )}
 
-        {tab === 'balance' && balance && (
+        {tab === 'balance-sheet' && balance && (
           <motion.div key="balance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {[
               { titleEn: 'Assets', titleAr: 'الأصول', rows: balance.assets, total: balance.totalAssets },

@@ -818,6 +818,7 @@ function App() {
         <Route path="iot/devices/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><IoTDeviceForm /></BusinessTypeRoute>} />
         <Route path="finance" element={<Finance />} />
         <Route path="accounting" element={<Accounting />} />
+        <Route path="accounting/:section" element={<Accounting />} />
         <Route path="vouchers" element={<Vouchers />} />
         <Route path="khata" element={<Khata />} />
         <Route path="users" element={<Users />} />

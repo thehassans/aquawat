@@ -8,24 +8,25 @@ import { Plus, Search, Filter, Receipt, FileText, ArrowUpRight, ArrowDownRight, 
 import Money from '../../components/ui/Money';
 import toast from 'react-hot-toast';
 
-export default function Vouchers() {
+export default function Vouchers({ forcedType, embedded = false }) {
   const queryClient = useQueryClient();
   const { language } = useSelector((state) => state.ui);
   const { t } = useTranslation(language);
 
-  const [activeTab, setActiveTab] = useState('receive'); // 'receive' or 'payment'
+  const [activeTab, setActiveTab] = useState(forcedType || 'receive'); // 'receive' or 'payment'
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState(null);
+  const voucherType = forcedType || activeTab;
 
   const { data: vouchers = [], isLoading } = useQuery({
-    queryKey: ['vouchers', activeTab],
-    queryFn: () => api.get('/vouchers', { params: { type: activeTab } }).then(res => res.data)
+    queryKey: ['vouchers', voucherType],
+    queryFn: () => api.get('/vouchers', { params: { type: voucherType } }).then(res => res.data)
   });
 
   const filteredVouchers = useMemo(() => {
     return vouchers.filter(v => 
-      v.voucherNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (v.voucherNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (v.partyName && v.partyName.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [vouchers, searchTerm]);
@@ -40,6 +41,7 @@ export default function Vouchers() {
 
   return (
     <div className="space-y-6" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+      {!embedded && (
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -57,8 +59,10 @@ export default function Vouchers() {
           {language === 'ar' ? 'سند جديد' : 'New Voucher'}
         </button>
       </div>
+      )}
 
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-dark-800 p-4 rounded-xl border border-gray-100 dark:border-dark-700">
+        {!forcedType ? (
         <div className="flex items-center gap-2 bg-gray-100 dark:bg-dark-700 p-1 rounded-lg w-full sm:w-auto">
           <button
             onClick={() => setActiveTab('receive')}
@@ -75,6 +79,15 @@ export default function Vouchers() {
             {language === 'ar' ? 'سندات الصرف' : 'Payment Vouchers'}
           </button>
         </div>
+        ) : (
+          <button
+            onClick={() => { setEditingVoucher(null); setShowForm(true); }}
+            className="btn btn-primary gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            {language === 'ar' ? 'سند جديد' : 'New Voucher'}
+          </button>
+        )}
         
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -164,7 +177,7 @@ export default function Vouchers() {
         {showForm && (
           <VoucherFormModal
             voucher={editingVoucher}
-            defaultType={activeTab}
+            defaultType={voucherType}
             onClose={() => { setShowForm(false); setEditingVoucher(null); }}
             language={language}
           />

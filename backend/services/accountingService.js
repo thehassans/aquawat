@@ -1,5 +1,9 @@
 import ChartOfAccount from '../models/ChartOfAccount.js';
 import JournalEntry from '../models/JournalEntry.js';
+import Invoice from '../models/Invoice.js';
+import Customer from '../models/Customer.js';
+import Supplier from '../models/Supplier.js';
+import Voucher from '../models/Voucher.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -796,6 +800,230 @@ export async function getAccountingDashboard(tenantId) {
   };
 }
 
+function periodRange({ from, to } = {}) {
+  const start = from ? new Date(from) : new Date(new Date().getFullYear(), 0, 1);
+  start.setHours(0, 0, 0, 0);
+  const end = to ? new Date(to) : new Date();
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+export async function buildCustomerAccountReport(tenantId, customerId, { from, to } = {}) {
+  if (!customerId) throw new Error('customerId is required');
+  const customer = await Customer.findOne({ _id: customerId, tenantId }).lean();
+  if (!customer) throw new Error('Customer not found');
+
+  const { start, end } = periodRange({ from, to });
+  const invoices = await Invoice.find({
+    tenantId,
+    customerId,
+    flow: 'sell',
+    status: { $nin: ['draft', 'cancelled'] },
+    issueDate: { $lte: end },
+  }).select('invoiceNumber issueDate grandTotal paidAmount').lean();
+
+  let receipts = [];
+  try {
+    receipts = await Voucher.find({
+      tenantId,
+      partyId: customerId,
+      type: 'receive',
+      date: { $lte: end },
+    }).select('voucherNumber date amount description').lean();
+  } catch {
+    receipts = [];
+  }
+
+  const events = [];
+  for (const invoice of invoices) {
+    events.push({
+      date: invoice.issueDate,
+      type: 'invoice',
+      ref: invoice.invoiceNumber,
+      debit: round2(invoice.grandTotal),
+      credit: 0,
+      memo: 'Invoice',
+    });
+    if (Number(invoice.paidAmount) > 0) {
+      events.push({
+        date: invoice.issueDate,
+        type: 'payment',
+        ref: invoice.invoiceNumber,
+        debit: 0,
+        credit: round2(invoice.paidAmount),
+        memo: 'Invoice payment',
+      });
+    }
+  }
+  for (const receipt of receipts) {
+    events.push({
+      date: receipt.date,
+      type: 'receipt',
+      ref: receipt.voucherNumber,
+      debit: 0,
+      credit: round2(receipt.amount),
+      memo: receipt.description || 'Receipt voucher',
+    });
+  }
+  events.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  let running = 0;
+  let openingBalance = 0;
+  const lines = [];
+  for (const event of events) {
+    running = round2(running + event.debit - event.credit);
+    if (new Date(event.date) < start) {
+      openingBalance = running;
+      continue;
+    }
+    lines.push({ ...event, balance: running });
+  }
+
+  return {
+    customer,
+    from: start,
+    to: end,
+    openingBalance,
+    closingBalance: lines.length ? lines[lines.length - 1].balance : openingBalance,
+    lines,
+  };
+}
+
+export async function buildCustomerSummaryReport(tenantId, { from, to } = {}) {
+  const { start, end } = periodRange({ from, to });
+  const [invoices, receipts] = await Promise.all([
+    Invoice.find({
+      tenantId,
+      flow: 'sell',
+      status: { $nin: ['draft', 'cancelled'] },
+      issueDate: { $gte: start, $lte: end },
+    }).select('customerId buyer.name grandTotal paidAmount').lean(),
+    Voucher.find({
+      tenantId,
+      type: 'receive',
+      partyType: 'customer',
+      date: { $gte: start, $lte: end },
+    }).select('partyId partyName amount').lean().catch(() => []),
+  ]);
+
+  const map = new Map();
+  const bump = (id, name, patch) => {
+    const key = String(id || name || 'unknown');
+    if (!map.has(key)) {
+      map.set(key, {
+        partyId: id || null,
+        name: name || 'Unknown',
+        invoices: 0,
+        invoiced: 0,
+        paid: 0,
+        receipts: 0,
+        outstanding: 0,
+      });
+    }
+    const row = map.get(key);
+    if (name && row.name === 'Unknown') row.name = name;
+    row.invoices += patch.invoices || 0;
+    row.invoiced = round2(row.invoiced + (patch.invoiced || 0));
+    row.paid = round2(row.paid + (patch.paid || 0));
+    row.receipts = round2(row.receipts + (patch.receipts || 0));
+    row.outstanding = round2(row.invoiced - row.paid);
+  };
+
+  for (const invoice of invoices) {
+    bump(invoice.customerId, invoice.buyer?.name, {
+      invoices: 1,
+      invoiced: Number(invoice.grandTotal) || 0,
+      paid: Number(invoice.paidAmount) || 0,
+    });
+  }
+  for (const receipt of receipts) {
+    bump(receipt.partyId, receipt.partyName, { receipts: Number(receipt.amount) || 0 });
+  }
+
+  const rows = [...map.values()].sort((a, b) => b.outstanding - a.outstanding);
+  return {
+    from: start,
+    to: end,
+    rows,
+    totals: rows.reduce((sum, row) => ({
+      invoices: sum.invoices + row.invoices,
+      invoiced: round2(sum.invoiced + row.invoiced),
+      paid: round2(sum.paid + row.paid),
+      receipts: round2(sum.receipts + row.receipts),
+      outstanding: round2(sum.outstanding + row.outstanding),
+    }), { invoices: 0, invoiced: 0, paid: 0, receipts: 0, outstanding: 0 }),
+  };
+}
+
+export async function buildSupplierSummaryReport(tenantId, { from, to } = {}) {
+  const { start, end } = periodRange({ from, to });
+  const [invoices, payments, suppliers] = await Promise.all([
+    Invoice.find({
+      tenantId,
+      flow: 'purchase',
+      status: { $nin: ['draft', 'cancelled'] },
+      issueDate: { $gte: start, $lte: end },
+    }).select('supplierId seller.name buyer.name grandTotal paidAmount').lean(),
+    Voucher.find({
+      tenantId,
+      type: 'payment',
+      partyType: 'supplier',
+      date: { $gte: start, $lte: end },
+    }).select('partyId partyName amount').lean().catch(() => []),
+    Supplier.find({ tenantId }).select('nameEn nameAr code').lean(),
+  ]);
+
+  const supplierNames = new Map(suppliers.map((s) => [String(s._id), s.nameEn || s.nameAr || s.code]));
+  const map = new Map();
+  const bump = (id, name, patch) => {
+    const key = String(id || name || 'unknown');
+    if (!map.has(key)) {
+      map.set(key, {
+        partyId: id || null,
+        name: name || 'Unknown',
+        invoices: 0,
+        invoiced: 0,
+        paid: 0,
+        payments: 0,
+        outstanding: 0,
+      });
+    }
+    const row = map.get(key);
+    if (name && row.name === 'Unknown') row.name = name;
+    row.invoices += patch.invoices || 0;
+    row.invoiced = round2(row.invoiced + (patch.invoiced || 0));
+    row.paid = round2(row.paid + (patch.paid || 0));
+    row.payments = round2(row.payments + (patch.payments || 0));
+    row.outstanding = round2(row.invoiced - row.paid);
+  };
+
+  for (const invoice of invoices) {
+    const name = supplierNames.get(String(invoice.supplierId)) || invoice.seller?.name || invoice.buyer?.name;
+    bump(invoice.supplierId, name, {
+      invoices: 1,
+      invoiced: Number(invoice.grandTotal) || 0,
+      paid: Number(invoice.paidAmount) || 0,
+    });
+  }
+  for (const payment of payments) {
+    bump(payment.partyId, payment.partyName, { payments: Number(payment.amount) || 0 });
+  }
+
+  const rows = [...map.values()].sort((a, b) => b.outstanding - a.outstanding);
+  return {
+    from: start,
+    to: end,
+    rows,
+    totals: rows.reduce((sum, row) => ({
+      invoices: sum.invoices + row.invoices,
+      invoiced: round2(sum.invoiced + row.invoiced),
+      paid: round2(sum.paid + row.paid),
+      payments: round2(sum.payments + row.payments),
+      outstanding: round2(sum.outstanding + row.outstanding),
+    }), { invoices: 0, invoiced: 0, paid: 0, payments: 0, outstanding: 0 }),
+  };
+}
+
 export default {
   ensureDefaultChartOfAccounts,
   createJournalEntry,
@@ -811,4 +1039,7 @@ export default {
   buildBalanceSheet,
   buildGeneralLedger,
   getAccountingDashboard,
+  buildCustomerAccountReport,
+  buildCustomerSummaryReport,
+  buildSupplierSummaryReport,
 };

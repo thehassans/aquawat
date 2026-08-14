@@ -2,6 +2,7 @@ import express from 'express';
 import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../middleware/auth.js';
 import ChartOfAccount from '../models/ChartOfAccount.js';
 import JournalEntry from '../models/JournalEntry.js';
+import Customer from '../models/Customer.js';
 import {
   ensureDefaultChartOfAccounts,
   createJournalEntry,
@@ -12,6 +13,9 @@ import {
   buildBalanceSheet,
   buildGeneralLedger,
   getAccountingDashboard,
+  buildCustomerAccountReport,
+  buildCustomerSummaryReport,
+  buildSupplierSummaryReport,
   normaliseLines,
   assertBalanced,
 } from '../services/accountingService.js';
@@ -275,6 +279,55 @@ router.get('/reports/general-ledger/:accountId', checkPermission('finance', 'rea
     res.json(data);
   } catch (error) {
     res.status(404).json({ error: error.message });
+  }
+});
+
+router.get('/parties/customers', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const rows = await Customer.find({ tenantId: tenantIdOf(req) })
+      .select('name nameAr phone mobile')
+      .sort({ name: 1 })
+      .limit(500)
+      .lean();
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/reports/customer-account', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const data = await buildCustomerAccountReport(tenantIdOf(req), req.query.customerId, {
+      from: req.query.from,
+      to: req.query.to,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/reports/customer-summary', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const data = await buildCustomerSummaryReport(tenantIdOf(req), {
+      from: req.query.from,
+      to: req.query.to,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/reports/supplier-summary', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const data = await buildSupplierSummaryReport(tenantIdOf(req), {
+      from: req.query.from,
+      to: req.query.to,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -27,6 +27,7 @@ const APP_STYLE_MAP = {
   '/app/dashboard/expenses': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   '/app/dashboard/vat-returns': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   '/app/dashboard/vouchers': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
+  '/app/dashboard/accounting': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   
   // HR & Payroll Group (Pink / Magenta)
   '/app/dashboard/employees': { gradient: 'from-[#FF0080] to-[#FF8C00]' },
