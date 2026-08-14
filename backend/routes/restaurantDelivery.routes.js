@@ -475,7 +475,7 @@ router.post('/platforms/:id/sync-menu', requireBusinessType('restaurant'), check
       status: failed > 0 ? 'partial' : 'success',
       itemsSynced: synced,
       itemsFailed: failed,
-      errors,
+      itemErrors: errors,
       triggeredBy: 'manual',
       createdBy: req.user._id,
     });
@@ -497,8 +497,8 @@ router.get('/platforms/:id/sync-logs', requireBusinessType('restaurant'), checkP
     const logs = await MenuSyncLog.find({
       ...getTenantFilter(req),
       platformConfigId: req.params.id,
-    }).sort({ createdAt: -1 }).limit(20);
-    res.json(logs);
+    }).sort({ createdAt: -1 }).limit(20).lean();
+    res.json(logs.map((log) => ({ ...log, errors: log.itemErrors || log.errors || [] })));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

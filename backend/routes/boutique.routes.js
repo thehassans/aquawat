@@ -19,6 +19,7 @@ import { generateZatcaQr } from '../lib/zatcaQr.js';
 import QRCode from 'qrcode';
 import { protect, checkPermission, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
+import { roundMoney } from '../utils/money.js';
 
 const router = express.Router();
 const upload = multer({
@@ -321,12 +322,12 @@ router.post('/rentals', checkPermission('boutique', 'write'), async (req, res) =
     const appliedDiscount = Math.max(0, Math.min(Number(discount) || 0, totals.rentalSubtotal));
     totals.discount = appliedDiscount;
     const taxableBase = Math.max(0, totals.rentalSubtotal - appliedDiscount);
-    totals.totalTax = Math.round(taxableBase * (vatRate / 100) * 100) / 100;
+    totals.totalTax = roundMoney(taxableBase * (vatRate / 100));
     // Allow manual override of security deposit from the POS
     if (securityDeposit !== undefined && securityDeposit !== null) {
       totals.totalDeposit = Math.max(0, Number(securityDeposit) || 0);
     }
-    totals.grandTotal = Math.round((taxableBase + totals.totalTax + totals.totalDeposit) * 100) / 100;
+    totals.grandTotal = roundMoney(taxableBase + totals.totalTax + totals.totalDeposit);
     const paidAmount = Math.max(0, Number(amountPaid) || 0);
     const derivedPaymentStatus = paidAmount >= totals.grandTotal ? 'paid' : 'pending';
 

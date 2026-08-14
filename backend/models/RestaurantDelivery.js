@@ -191,7 +191,7 @@ const menuSyncLogSchema = new mongoose.Schema({
 
   itemsSynced: { type: Number, default: 0 },
   itemsFailed: { type: Number, default: 0 },
-  errors: [{ item: String, error: String }],
+  itemErrors: [{ item: String, error: String }],
 
   duration: { type: Number }, // ms
   triggeredBy: { type: String, enum: ['manual', 'auto', 'webhook'] },

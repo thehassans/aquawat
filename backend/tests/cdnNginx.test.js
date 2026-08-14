@@ -45,3 +45,9 @@ test('Cloudflare real-ip list includes published IPv4 and IPv6 prefixes', () => 
   assert.match(conf, /set_real_ip_from 2400:cb00::\/32;/);
   assert.match(conf, /real_ip_header CF-Connecting-IP;/);
 });
+
+test('Nginx auth zone is 10r/m burst 20 (Node Redis limiter is 40/15min)', () => {
+  const conf = fs.readFileSync(path.join(frontendDir, 'nginx.conf'), 'utf8');
+  assert.match(conf, /limit_req_zone \$binary_remote_addr zone=auth_limit:10m rate=10r\/m;/);
+  assert.match(conf, /limit_req zone=auth_limit burst=20 nodelay;/);
+});

@@ -47,9 +47,8 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-userSchema.index({ email: 1 });
 userSchema.index({ tenantId: 1, email: 1 }, { unique: true });
-userSchema.index({ role: 1 });
+userSchema.index({ email: 1, role: 1 });
 
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();

@@ -4,15 +4,30 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
+const keyMaterial = (raw) => crypto.createHash('sha256').update(String(raw)).digest();
+
+const encryptionKeyCandidates = () => {
+  const keys = [];
+  const seen = new Set();
+  const push = (raw) => {
+    const value = String(raw || '').trim();
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    keys.push(keyMaterial(value));
+  };
+  push(process.env.ZATCA_KEY_ENCRYPTION_KEY);
+  push(process.env.ZATCA_KEY_ENCRYPTION_KEY_PREVIOUS);
+  push(process.env.JWT_SECRET);
+  return keys;
+};
+
 const getEncryptionKey = () => {
-  const rawKey = process.env.ZATCA_KEY_ENCRYPTION_KEY || process.env.JWT_SECRET;
-  if (!rawKey) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('ZATCA_KEY_ENCRYPTION_KEY or JWT_SECRET must be set in production');
-    }
-    return crypto.createHash('sha256').update('maqder-dev-key-change-in-production').digest();
+  const keys = encryptionKeyCandidates();
+  if (keys.length) return keys[0];
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('ZATCA_KEY_ENCRYPTION_KEY or JWT_SECRET must be set in production');
   }
-  return crypto.createHash('sha256').update(rawKey).digest();
+  return keyMaterial('maqder-dev-key-change-in-production');
 };
 
 export function encryptPrivateKey(pemString) {
@@ -42,16 +57,24 @@ export function decryptPrivateKey(storedValue) {
   const iv = Buffer.from(parts[1], 'hex');
   const tag = Buffer.from(parts[2], 'hex');
   const encrypted = Buffer.from(parts[3], 'hex');
+  const keys = encryptionKeyCandidates();
+  if (!keys.length) keys.push(getEncryptionKey());
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
-  decipher.setAuthTag(tag);
-
-  const decrypted = Buffer.concat([
-    decipher.update(encrypted),
-    decipher.final(),
-  ]);
-
-  return decrypted.toString('utf8');
+  let lastError = null;
+  for (const key of keys) {
+    try {
+      const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+      decipher.setAuthTag(tag);
+      const decrypted = Buffer.concat([
+        decipher.update(encrypted),
+        decipher.final(),
+      ]);
+      return decrypted.toString('utf8');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('Unable to decrypt ZATCA key');
 }
 
 export function isKeyEncrypted(storedValue) {

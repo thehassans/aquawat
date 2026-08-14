@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ─────────────────────────────────────────────────────────────────────────────
   # Redis — Shared cache & rate-limit store for all cluster workers.
@@ -13,7 +11,7 @@ services:
     command: >
       redis-server
       --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
+      --maxmemory-policy noeviction
       --save ""
       --appendonly yes
       --appendfsync everysec
@@ -180,7 +178,7 @@ services:
     env_file:
       - .env
     environment:
-      MONGODB_URI: mongodb://mongo:27017,mongo-secondary:27017/maqder?replicaSet=rs0
+      MONGODB_URI: mongodb://mongo:27017/maqder?replicaSet=rs0
       REDIS_URL: redis://redis:6379
       REDIS_ENABLED: "true"
       NODE_ENV: production
@@ -191,9 +189,10 @@ services:
       MONGODB_MAX_POOL_SIZE: "10"      # per-worker pool — 2 workers × 10 = 20 total
       MONGODB_MIN_POOL_SIZE: "2"
       API_REQUEST_TIMEOUT_MS: "30000"
-      AUTH_RATE_LIMIT_MAX: "30"
+      AUTH_RATE_LIMIT_MAX: "40"
       PUBLIC_RATE_LIMIT_MAX: "1000"
       CLUSTER_WORKERS: "2"
+      ALLOW_LOCAL_UPLOADS: "true"
       LOG_CONSOLE: "true"              # Forward logs to Docker log driver
     depends_on:
       mongo:
@@ -241,13 +240,14 @@ services:
     env_file:
       - .env
     environment:
-      MONGODB_URI: mongodb://mongo:27017,mongo-secondary:27017/maqder?replicaSet=rs0
+      MONGODB_URI: mongodb://mongo:27017/maqder?replicaSet=rs0
       REDIS_URL: redis://redis:6379
       REDIS_ENABLED: "true"
       NODE_ENV: production
       PDF_WORKER_CONCURRENCY: "1"
       PDF_WORKER_HEALTH_PORT: "3001"
       MONGODB_MAX_POOL_SIZE: "5"
+      ALLOW_LOCAL_UPLOADS: "true"
     depends_on:
       mongo:
         condition: service_healthy

@@ -40,7 +40,6 @@ const emailMessageSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-emailMessageSchema.index({ tenantId: 1, type: 1, createdAt: -1 });
 emailMessageSchema.index({ tenantId: 1, createdAt: -1 });
 
 emailMessageSchema.pre('validate', function(next) {
