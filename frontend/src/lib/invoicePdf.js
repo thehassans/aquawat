@@ -11,6 +11,7 @@ import { getAmountInWords } from './amountInWords'
 import { resolveTaxInvoiceQr } from './taxInvoiceQr'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, toEasternArabicNumerals } from './invoiceLanguage'
 import { LETTERHEAD_TEMPLATE_ID, resolveQuotationTemplateId } from './invoiceTemplates'
+import { formatProductTypeBilingual } from './productType'
 
 const sanitizeFileName = (value) => {
   return String(value || 'invoice')
@@ -1494,12 +1495,13 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     const descriptionAr = l.raw?.descriptionAr || l.descriptionAr || (hasArabicText(descriptionEn) ? descriptionEn : '')
     const nameText = toBilingualText(productNameEn, productNameAr, '')
     const descText = toBilingualText(descriptionEn, descriptionAr, '')
+    const typeText = formatProductTypeBilingual(l.raw?.productType || l.productType)
 
     rowDescriptions.push(descText)
 
     return [
       String(idx + 1),
-      shape(nameText),
+      shape([nameText, typeText].filter(Boolean).join('\n')),
       l.raw?.unitCode ? `${quantity}\n${l.raw.unitCode}` : String(quantity),
       money(unitPrice),
       money(taxAmount),

@@ -17,11 +17,14 @@ import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
 import InvoiceTemplateSelector from '../invoices/InvoiceTemplateSelector'
 import Select from 'react-select'
 import { useForm, useFieldArray } from 'react-hook-form'
+import { normalizeProductType, productPickerLabel, productTypeOptions } from '../../lib/productType'
+import ProductTypeMark from '../invoices/ProductTypeMark'
 
 const emptyLine = {
   productId: '',
   productName: '',
   productNameAr: '',
+  productType: 'goods',
   description: '',
   descriptionAr: '',
   unitCode: 'PCE',
@@ -81,6 +84,7 @@ const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext })
         productId: line?.productId?._id || line?.productId || '',
         productName: line?.productName || '',
         productNameAr: line?.productNameAr || '',
+        productType: normalizeProductType(line?.productType),
         description: line?.description || '',
         descriptionAr: line?.descriptionAr || '',
         unitCode: line?.unitCode || 'PCE',
@@ -307,6 +311,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE')
     setValue(`lineItems.${index}.taxRate`, typeof product.taxRate === 'number' ? product.taxRate : 15)
     setValue(`lineItems.${index}.unitPrice`, typeof product.sellingPrice === 'number' ? product.sellingPrice : 0)
+    setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType))
   }
 
   const onSelectCustomer = (customerId) => {
@@ -348,6 +353,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
           productId: isTradingContext ? (line.productId || undefined) : undefined,
           productName: line.productName || line.productNameAr || (language === 'ar' ? 'بند' : 'Item'),
           productNameAr: line.productNameAr || line.productName || undefined,
+          productType: normalizeProductType(line.productType),
           quantity: Math.max(1, toNumber(line.quantity, 1)),
           unitPrice: Math.max(0, toNumber(line.unitPrice, 0)),
           taxRate: Math.max(0, toNumber(line.taxRate, 15)),
@@ -846,7 +852,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                           <select className="select" value={values?.lineItems?.[index]?.productId || ''} onChange={(e) => onSelectProduct(index, e.target.value)}>
                             <option value="">{language === 'ar' ? 'اختر منتج' : 'Select product'}</option>
                             {(products || []).map((item) => (
-                              <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>
+                              <option key={item._id} value={item._id}>{productPickerLabel(item, language)}</option>
                             ))}
                           </select>
                         </div>
@@ -863,6 +869,19 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                       ) : (
                         <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                       )}
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-12" dir="ltr">
+                      <div className="md:col-span-4">
+                        <label className="label">{language === 'ar' ? 'نوع المنتج' : 'Product Type'}</label>
+                        <div className="flex items-center gap-2">
+                          <select {...register(`lineItems.${index}.productType`)} className="select">
+                            {productTypeOptions(language).map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.labelEn} / {opt.labelAr}</option>
+                            ))}
+                          </select>
+                          <ProductTypeMark productType={watch(`lineItems.${index}.productType`)} language={language} bilingual />
+                        </div>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-12" dir="ltr">

@@ -11,12 +11,14 @@ import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import { getUomLabel } from '../../lib/uomOptions'
+import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType, productTypeBadgeClass } from '../../lib/productType'
 
 const healthMeta = {
   in_stock: { en: 'In stock', ar: 'متوفر', className: 'bg-emerald-50 text-emerald-800' },
   low_stock: { en: 'Low', ar: 'منخفض', className: 'bg-amber-50 text-amber-800' },
   out_of_stock: { en: 'Out', ar: 'نفد', className: 'bg-rose-50 text-rose-800' },
   backorder: { en: 'Backorder', ar: 'طلب مفتوح', className: 'bg-violet-50 text-violet-800' },
+  not_tracked: { en: 'Service', ar: 'خدمة', className: 'bg-sky-50 text-sky-800' },
 }
 
 function qtyClass(health) {
@@ -31,7 +33,7 @@ export default function Products() {
   const { t } = useTranslation(language)
   const isAr = language === 'ar'
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({ status: '', stockHealth: '' })
+  const [filters, setFilters] = useState({ status: '', stockHealth: '', productType: '' })
   const [page, setPage] = useState(1)
 
   const queryClient = useQueryClient()
@@ -88,6 +90,7 @@ export default function Products() {
     { key: 'barcode', label: t('barcode'), value: (r) => r?.barcode || '' },
     { key: 'category', label: t('category'), value: (r) => r?.category || '' },
     { key: 'unitOfMeasure', label: isAr ? 'وحدة القياس' : 'UOM', value: (r) => getUomLabel(r?.unitOfMeasure, language) || r?.unitOfMeasure || 'EA' },
+    { key: 'productType', label: isAr ? 'النوع' : 'Type', value: (r) => formatProductTypeLabel(r?.productType, language) },
     { key: 'onHand', label: isAr ? 'الرصيد' : 'On hand', value: (r) => r?.inventory?.onHand ?? r?.totalStock ?? '' },
     { key: 'available', label: isAr ? 'المتاح' : 'Available', value: (r) => r?.inventory?.available ?? '' },
     { key: 'reorderPoint', label: isAr ? 'حد الطلب' : 'Reorder at', value: (r) => r?.inventory?.reorderPoint ?? '' },
@@ -225,6 +228,15 @@ export default function Products() {
             <option value="active">{isAr ? 'نشط' : 'Active'}</option>
             <option value="inactive">{isAr ? 'غير نشط' : 'Inactive'}</option>
           </select>
+          <select
+            value={filters.productType}
+            onChange={(e) => { setFilters({ ...filters, productType: e.target.value }); setPage(1) }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm sm:w-40"
+          >
+            <option value="">{isAr ? 'كل الأنواع' : 'All types'}</option>
+            <option value="goods">{isAr ? 'بضاعة' : 'Goods'}</option>
+            <option value="service">{isAr ? 'خدمة' : 'Service'}</option>
+          </select>
         </div>
       </div>
 
@@ -249,6 +261,8 @@ export default function Products() {
               const inv = product.inventory || {}
               const health = inv.health || 'in_stock'
               const hm = healthMeta[health] || healthMeta.in_stock
+              const tracked = isStockTrackedProductType(product.productType)
+              const type = normalizeProductType(product.productType)
               return (
                 <div key={product._id} className="rounded-2xl border border-slate-100 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -256,14 +270,19 @@ export default function Products() {
                       <p className="font-semibold text-slate-900">{isAr ? product.nameAr || product.nameEn : product.nameEn}</p>
                       <p className="font-mono text-xs text-slate-400">{product.sku}</p>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>{isAr ? hm.ar : hm.en}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${productTypeBadgeClass(type)}`}>
+                      {formatProductTypeLabel(type, language)}
+                    </span>
                   </div>
                   <div className="mt-3 flex items-center justify-between text-sm">
-                    <span className={`font-semibold ${qtyClass(health)}`}>
-                      {(inv.available ?? product.totalStock) || 0} {product.unitOfMeasure || 'EA'}
+                    <span className={`font-semibold ${tracked ? qtyClass(health) : 'text-slate-500'}`}>
+                      {tracked ? `${(inv.available ?? product.totalStock) || 0} ${product.unitOfMeasure || 'EA'}` : (isAr ? 'بدون مخزون' : 'No stock')}
                     </span>
                     <Money value={product.sellingPrice} />
                   </div>
+                  {tracked ? (
+                    <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>{isAr ? hm.ar : hm.en}</span>
+                  ) : null}
                 </div>
               )
             }}
@@ -274,6 +293,7 @@ export default function Products() {
                   <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                     <th className="px-5 py-3 font-semibold">{t('productName')}</th>
                     <th className="px-3 py-3 font-semibold">{t('sku')}</th>
+                    <th className="px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>
                     <th className="px-3 py-3 font-semibold">{isAr ? 'الوحدة' : 'UOM'}</th>
                     <th className="px-3 py-3 font-semibold">{isAr ? 'المتاح' : 'Available'}</th>
                     <th className="px-3 py-3 font-semibold">{isAr ? 'حد الطلب' : 'Reorder'}</th>
@@ -287,6 +307,8 @@ export default function Products() {
                     const inv = product.inventory || {}
                     const health = inv.health || 'in_stock'
                     const hm = healthMeta[health] || healthMeta.in_stock
+                    const tracked = isStockTrackedProductType(product.productType)
+                    const type = normalizeProductType(product.productType)
                     return (
                       <tr key={product._id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
                         <td className="px-5 py-3.5">
@@ -310,30 +332,49 @@ export default function Products() {
                         </td>
                         <td className="px-3 py-3.5 font-mono text-xs text-slate-500">{product.sku}</td>
                         <td className="px-3 py-3.5">
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${productTypeBadgeClass(type)}`}>
+                            {formatProductTypeLabel(type, language)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3.5">
                           <span className="rounded-lg bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
                             {getUomLabel(product.unitOfMeasure, language) || product.unitOfMeasure || 'EA'}
                           </span>
                         </td>
                         <td className="px-3 py-3.5">
-                          <p className={`font-semibold tabular-nums ${qtyClass(health)}`}>
-                            {inv.available ?? product.totalStock ?? 0}
-                          </p>
-                          {inv.reserved > 0 && (
-                            <p className="text-[11px] text-slate-400">{inv.onHand} {isAr ? 'في اليد' : 'on hand'} · {inv.reserved} {isAr ? 'محجوز' : 'reserved'}</p>
+                          {tracked ? (
+                            <>
+                              <p className={`font-semibold tabular-nums ${qtyClass(health)}`}>
+                                {inv.available ?? product.totalStock ?? 0}
+                              </p>
+                              {inv.reserved > 0 && (
+                                <p className="text-[11px] text-slate-400">{inv.onHand} {isAr ? 'في اليد' : 'on hand'} · {inv.reserved} {isAr ? 'محجوز' : 'reserved'}</p>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-400">{isAr ? '—' : '—'}</span>
                           )}
                         </td>
-                        <td className="px-3 py-3.5 tabular-nums text-slate-500">{inv.reorderPoint ?? '—'}</td>
+                        <td className="px-3 py-3.5 tabular-nums text-slate-500">{tracked ? (inv.reorderPoint ?? '—') : '—'}</td>
                         <td className="px-3 py-3.5 font-semibold"><Money value={product.sellingPrice} /></td>
                         <td className="px-3 py-3.5">
-                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>
-                            {isAr ? hm.ar : hm.en}
-                          </span>
+                          {tracked ? (
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>
+                              {isAr ? hm.ar : hm.en}
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800">
+                              {isAr ? 'خدمة' : 'Service'}
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-3.5">
                           <div className="flex justify-end gap-1">
-                            <button type="button" onClick={() => openStockModal(product)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50" title={isAr ? 'استلام مخزون' : 'Receive stock'}>
-                              <Plus className="h-4 w-4" />
-                            </button>
+                            {tracked ? (
+                              <button type="button" onClick={() => openStockModal(product)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50" title={isAr ? 'استلام مخزون' : 'Receive stock'}>
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            ) : null}
                             <Link to={`/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                               <Eye className="h-4 w-4" />
                             </Link>

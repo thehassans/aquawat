@@ -60,6 +60,7 @@ export default function QuotationView() {
   const excelRows = useMemo(() => (Array.isArray(quotation?.lineItems) ? quotation.lineItems : []).map((line, index) => ({
     no: index + 1,
     item: language === 'ar' ? (line?.productNameAr || line?.productName || '') : (line?.productName || line?.productNameAr || ''),
+    productType: language === 'ar' ? (line?.productType === 'service' ? 'خدمة' : 'بضاعة') : (line?.productType === 'service' ? 'Service' : 'Goods'),
     description: language === 'ar' ? (line?.descriptionAr || line?.description || '') : (line?.description || line?.descriptionAr || ''),
     quantity: Number(line?.quantity || 0),
     unitPrice: Number(line?.unitPrice || 0),
@@ -302,6 +303,7 @@ export default function QuotationView() {
                   columns: [
                     { key: 'no', label: '#' },
                     { key: 'item', label: language === 'ar' ? 'البند' : 'Item' },
+                    { key: 'productType', label: language === 'ar' ? 'النوع' : 'Type' },
                     { key: 'description', label: language === 'ar' ? 'الوصف' : 'Description' },
                     { key: 'quantity', label: language === 'ar' ? 'الكمية' : 'Qty' },
                     { key: 'unitPrice', label: language === 'ar' ? 'سعر الوحدة' : 'Unit Price' },

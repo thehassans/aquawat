@@ -15,6 +15,7 @@ import {
   resolveCommercialDocumentNumber,
   shouldShowZatcaQr,
 } from '../../lib/commercialDocumentLabels'
+import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 const toEasternArabicNumerals = (str) => String(str || '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d])
@@ -441,6 +442,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                             {productNameAr}
                           </p>
                         )}
+                        <ProductTypeMark line={item} language={language} bilingual={bilingual} />
                       </div>
                     </td>
                     {isBoutiqueRental ? (

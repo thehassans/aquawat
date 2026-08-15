@@ -9,6 +9,7 @@ import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { Building2 } from 'lucide-react'
+import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
@@ -133,6 +134,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
               <td className="py-4 px-2">
                 <p className="font-bold text-gray-900">{item.productName || item.raw?.productName}</p>
                 {bilingual && <p className="text-sm text-gray-600 mt-1" dir="rtl">{item.productNameAr || item.raw?.productNameAr}</p>}
+                <ProductTypeMark line={item} language={language} bilingual={bilingual} />
               </td>
               <td className="py-4 px-2 text-center text-sm">
                 <div>{item.quantity}</div>

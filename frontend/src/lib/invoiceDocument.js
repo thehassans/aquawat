@@ -121,6 +121,7 @@ export const calculateInvoiceSummary = (invoice = {}) => {
 
     return {
       raw: line,
+      productType: line?.productType || line?.raw?.productType || 'goods',
       quantity,
       unitPrice,
       customerPrice: customerPriceEff,

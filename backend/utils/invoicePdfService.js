@@ -4,6 +4,7 @@ import { createRequire } from 'module';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import logger from './logger.js';
+import { formatProductTypeBilingual } from './productType.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -138,10 +139,11 @@ const buildFallbackInvoiceLines = ({ invoice, tenant, customerName }) => {
   const invoiceLines = Array.isArray(invoice?.lineItems) ? invoice.lineItems : [];
   invoiceLines.slice(0, 18).forEach((line, index) => {
     const name = normalizeText(line?.productName || line?.productNameAr || `Item ${index + 1}`);
+    const typeLabel = formatProductTypeBilingual(line?.productType);
     const qty = Number(line?.quantity || 0);
     const price = toMoney(resolveLineDisplayPrice(invoice, line), invoice?.currency);
     const total = toMoney(line?.lineTotalWithTax || line?.lineTotal, invoice?.currency);
-    lines.push(`${index + 1}. ${name} | Qty: ${Number.isFinite(qty) ? qty : 0} | Price: ${price} | Total: ${total}`);
+    lines.push(`${index + 1}. ${name} (${typeLabel}) | Qty: ${Number.isFinite(qty) ? qty : 0} | Price: ${price} | Total: ${total}`);
   });
 
   const travelRows = buildTravelRows(invoice);
@@ -597,6 +599,8 @@ export const buildInvoicePdfBuffer = async ({ invoice, tenant, customerName, lan
 
   lineItems.forEach((line, index) => {
     const nameText = mergeUniqueLines(normalizeText(line?.productName), normalizeText(line?.productNameAr)).join('\n') || `Item ${index + 1}`;
+    const typeLabel = formatProductTypeBilingual(line?.productType);
+    const nameWithType = `${nameText}\n${typeLabel}`;
     const descRaw = mergeUniqueLines(normalizeText(line?.description), normalizeText(line?.descriptionAr)).join('\n');
     const descText = descRaw
       .replace(/\b(exclusions?|excl)\b/gi, '\n$1')
@@ -605,14 +609,14 @@ export const buildInvoicePdfBuffer = async ({ invoice, tenant, customerName, lan
     const rowValues = isTravelPdf
       ? [
           String(index + 1),
-          nameText,
+          nameWithType,
           toMoney(resolveLineDisplayPrice(invoice, line), invoice?.currency),
           toMoney(line?.lineTotalWithTax || line?.lineTotal, invoice?.currency),
           '',
         ]
       : [
           String(index + 1),
-          nameText,
+          nameWithType,
           String(Number(line?.quantity || 0)),
           toMoney(resolveLineDisplayPrice(invoice, line), invoice?.currency),
           `${Number(line?.taxRate || 0).toFixed(2)}%`,

@@ -42,6 +42,7 @@ const quotationLineSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
   productName: { type: String, required: true },
   productNameAr: { type: String },
+  productType: { type: String, enum: ['goods', 'service'], default: 'goods' },
   description: { type: String },
   descriptionAr: { type: String },
   quantity: { type: Number, required: true },

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
+import { formatProductTypeLabel, normalizeProductType } from '../../lib/productType'
 
 export function normalizeCatalogProduct(p, source = 'bakala') {
   if (!p) return null
@@ -11,6 +12,7 @@ export function normalizeCatalogProduct(p, source = 'bakala') {
     barcode: String(p.primaryBarcode || p.barcode || p.sku || ''),
     barcodes: Array.isArray(p.barcodes) ? p.barcodes.map(String) : [],
     sku: String(p.sku || ''),
+    productType: normalizeProductType(p.productType),
     costPrice: Number(p.costPrice || 0),
     source,
     raw: p,
@@ -146,7 +148,7 @@ export default function ProductChooser({
                   <span>
                     <span className="block text-sm font-semibold text-slate-900">{p.name}</span>
                     <span className="block text-[11px] text-slate-400">
-                      {[p.sku && `SKU ${p.sku}`, p.barcode].filter(Boolean).join(' · ') || 'No barcode'}
+                      {[formatProductTypeLabel(p.productType), p.sku && `SKU ${p.sku}`, p.barcode].filter(Boolean).join(' · ') || 'No barcode'}
                     </span>
                   </span>
                   <span className={`text-[11px] font-semibold ${addTone}`}>Add</span>

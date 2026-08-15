@@ -49,6 +49,7 @@ const productSchema = new mongoose.Schema({
   descriptionAr: { type: String },
   
   // Categorization
+  productType: { type: String, enum: ['goods', 'service'], default: 'goods', index: true },
   category: { type: String },
   subcategory: { type: String },
   brand: { type: String },
@@ -136,6 +137,7 @@ const productSchema = new mongoose.Schema({
 productSchema.index({ tenantId: 1, sku: 1 }, { unique: true });
 productSchema.index({ tenantId: 1, barcode: 1 });
 productSchema.index({ tenantId: 1, category: 1 });
+productSchema.index({ tenantId: 1, productType: 1 });
 productSchema.index({ tenantId: 1, status: 1 });
 productSchema.index({ tenantId: 1, allowNegativeStock: 1 });
 productSchema.index({ tenantId: 1, nameEn: 'text', nameAr: 'text', sku: 'text', barcode: 'text' });

@@ -22,8 +22,10 @@ import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
+import { normalizeProductType, productPickerLabel, productTypeOptions } from '../../lib/productType'
+import ProductTypeMark from './ProductTypeMark'
 
-const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
+const emptyLine = { productId: '', productName: '', productNameAr: '', productType: 'goods', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
 
 const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, hasTravel }) => ({
@@ -56,6 +58,7 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
         productId: line?.productId || '',
         productName: line?.productName || '',
         productNameAr: line?.productNameAr || '',
+        productType: normalizeProductType(line?.productType),
         unitCode: line?.unitCode || 'PCE',
         quantity: Math.max(0.0001, toNumber(line?.quantity, 1)),
         unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
@@ -291,6 +294,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue(`lineItems.${index}.productNameAr`, product.nameAr || product.nameEn)
     setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE')
     setValue(`lineItems.${index}.taxRate`, typeof product.taxRate === 'number' ? product.taxRate : 15)
+    setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType))
     if (typeof product.costPrice === 'number' && product.costPrice > 0) {
       setValue(`lineItems.${index}.unitPrice`, product.costPrice)
     }
@@ -346,6 +350,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           lineNumber: index + 1,
           taxCategory: 'S',
           productId: isTradingContext ? line.productId || undefined : undefined,
+          productType: normalizeProductType(line.productType),
           lineTotal: calc.lineTotal,
           taxAmount: calc.taxAmount,
           lineTotalWithTax: calc.lineTotalWithTax,
@@ -628,19 +633,21 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                           <CreatableSelect
                             inputId={`product-select-${index}`}
                             name={`react-select-product-${index}`}
-                            options={(products || []).map(p => ({ value: p._id, label: language === 'ar' ? (p.nameAr || p.nameEn) : p.nameEn }))}
-                            value={((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: language === 'ar' ? ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameAr || (products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) : ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) } : null}
+                            options={(products || []).map(p => ({ value: p._id, label: productPickerLabel(p, language) }))}
+                            value={((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: productPickerLabel((products || []).find(p => p._id === watch(`lineItems.${index}.productId`)), language) } : null}
                             onChange={(selected) => {
                               if (selected) {
                                 if (selected.__isNew__) {
                                   setValue(`lineItems.${index}.productId`, '')
                                   setValue(`lineItems.${index}.productName`, selected.value)
+                                  setValue(`lineItems.${index}.productType`, 'goods')
                                 } else {
                                   onSelectProduct(index, selected.value)
                                 }
                               } else {
                                 setValue(`lineItems.${index}.productId`, '')
                                 setValue(`lineItems.${index}.productName`, '')
+                                setValue(`lineItems.${index}.productType`, 'goods')
                               }
                             }}
                             formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}" كمنتج جديد` : `Add "${inputValue}" as new product`}
@@ -657,6 +664,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                       ) : (
                         <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
+                      <div className="mt-2 flex items-center gap-2">
+                        <select {...register(`lineItems.${index}.productType`)} className="select">
+                          {productTypeOptions(language).map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.labelEn} / {opt.labelAr}</option>
+                          ))}
+                        </select>
+                        <ProductTypeMark productType={watch(`lineItems.${index}.productType`)} language={language} bilingual />
+                      </div>
                     </div>
                     {showArabicFields ? (
                       <div className="md:col-span-3">

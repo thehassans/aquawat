@@ -9,6 +9,7 @@ import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { Building2, MapPin, Phone, Mail } from 'lucide-react'
 import DocumentExtras from './DocumentExtras'
+import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
@@ -158,6 +159,7 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
                     <td className="px-6 py-5">
                       <p className="text-sm font-bold text-slate-900">{productNameEn}</p>
                       {bilingual && productNameAr && <p className="text-xs font-medium text-slate-500 mt-1" dir="rtl">{productNameAr}</p>}
+                      <ProductTypeMark line={line} language={language} bilingual={bilingual} />
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-center text-slate-700 font-semibold">
                       <div>{toNumber(line?.quantity) || '—'}</div>

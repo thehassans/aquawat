@@ -13,6 +13,7 @@ import { sendTenantEmail } from '../utils/tenantEmailService.js';
 import { clampTemplateId } from '../utils/premiumTemplates.js';
 import { buildPremiumEmailShell, getTenantLoginUrl, getTenantWorkspaceHost, getTenantWorkspaceUrl } from '../utils/premiumEmailShell.js';
 import { tenantHasEmailAddon } from '../middleware/auth.js';
+import { normalizeProductType, stampLineProductTypes } from '../utils/productType.js';
 
 const router = express.Router();
 
@@ -388,6 +389,7 @@ async function resolveQuotationPayload(req, existingQuotation = null) {
     ...line,
     lineNumber: line.lineNumber || index + 1,
     taxCategory: line.taxCategory || 'S',
+    productType: normalizeProductType(line.productType),
   }));
 
   const productIds = lineItems
@@ -395,11 +397,13 @@ async function resolveQuotationPayload(req, existingQuotation = null) {
     .filter(Boolean)
     .map((id) => id.toString());
   const uniqueProductIds = [...new Set(productIds)];
+  let productById = new Map();
   if (businessContext === 'trading' && uniqueProductIds.length > 0) {
-    const existingCount = await Product.countDocuments({ _id: { $in: uniqueProductIds }, ...req.tenantFilter });
-    if (existingCount !== uniqueProductIds.length) {
+    const existing = await Product.find({ _id: { $in: uniqueProductIds }, ...req.tenantFilter }).select('_id productType').lean();
+    if (existing.length !== uniqueProductIds.length) {
       throw new Error('Invalid product in line items');
     }
+    productById = new Map(existing.map((p) => [String(p._id), p]));
   }
 
   const pdfTemplateId = resolvePdfTemplateId(req.body?.pdfTemplateId, tenant, businessContext);
@@ -431,7 +435,7 @@ async function resolveQuotationPayload(req, existingQuotation = null) {
       },
       transactionType: req.body.transactionType === 'B2B' ? 'B2B' : 'B2C',
       invoiceDiscount: Math.max(0, toNumber(req.body?.invoiceDiscount, 0)),
-      lineItems,
+      lineItems: stampLineProductTypes(lineItems, productById),
       status: editableStatus,
       ...getUserDisplayNames(req.user),
     },

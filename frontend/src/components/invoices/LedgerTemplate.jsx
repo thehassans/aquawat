@@ -8,6 +8,7 @@ import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
+import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
@@ -162,6 +163,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
                   <td className="px-4 py-3 border-r border-slate-200">
                     <p className="text-sm font-semibold text-slate-900">{productNameEn}</p>
                     {bilingual && productNameAr && <p className="text-xs text-slate-600 mt-1" dir="rtl">{productNameAr}</p>}
+                    <ProductTypeMark line={line} language={language} bilingual={bilingual} />
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-slate-700 border-r border-slate-200">
                     <div>{toNumber(line?.quantity) || '—'}</div>

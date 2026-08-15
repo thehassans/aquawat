@@ -38,6 +38,7 @@ import { applyInvoiceListSearch } from '../utils/invoiceSearch.js';
 import { statsRead } from '../utils/mongoReadPreference.js';
 import { resolvePaymentStatus, applyPaidAmountStatus, isOverpay, paymentExceedsRemaining, canRecordPayment } from '../utils/invoicePaymentStatus.js';
 import { makeRateLimitStore } from '../utils/hybridRateLimitStore.js';
+import { isStockTrackedProductType, normalizeProductType, stampLineProductTypes } from '../utils/productType.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -555,6 +556,11 @@ async function postInventoryForInvoice(invoice, tenantFilterValue) {
       throw new Error('Product not found');
     }
 
+    const lineType = normalizeProductType(line.productType || product.productType);
+    if (!isStockTrackedProductType(lineType)) {
+      continue;
+    }
+
     const qty = toNumber(line.quantity, 0);
     const sign = invoice.flow === 'sell' ? -1 : 1;
     if (sign < 0) {
@@ -621,6 +627,9 @@ async function reverseInventoryForDeletedInvoice(invoice, tenantFilterValue) {
   for (const line of lines) {
     const product = productById.get(String(line.productId));
     if (!product) continue;
+
+    const lineType = normalizeProductType(line.productType || product.productType);
+    if (!isStockTrackedProductType(lineType)) continue;
 
     const qty = toNumber(line.quantity, 0);
     const reverseSign = invoice.flow === 'sell' ? 1 : -1;
@@ -698,10 +707,12 @@ async function syncCustomerStats(tenantId, customerId) {
 async function ensureProductsExist(tenantId, userId, lineItems, flow) {
   if (!Array.isArray(lineItems)) return [];
   const processedLines = [];
+  const catalogIds = [];
   
   for (let i = 0; i < lineItems.length; i++) {
     const line = lineItems[i];
     let productId = line.productId;
+    const productType = normalizeProductType(line.productType);
     
     if (!productId && line.productName) {
       const sku = `SKU-${Date.now()}-${i}-${Math.floor(Math.random()*1000)}`;
@@ -712,6 +723,7 @@ async function ensureProductsExist(tenantId, userId, lineItems, flow) {
         sku,
         nameEn: line.productName,
         nameAr: line.productNameAr || line.productName,
+        productType,
         sellingPrice: flow === 'sell' ? unitPrice : unitPrice * 1.2,
         costPrice: flow === 'purchase' ? unitPrice : 0,
         taxRate: toNumber(line.taxRate, 15),
@@ -723,16 +735,24 @@ async function ensureProductsExist(tenantId, userId, lineItems, flow) {
       await newProduct.save();
       productId = newProduct._id.toString();
     }
+
+    if (productId) catalogIds.push(String(productId));
     
     processedLines.push({
       ...line,
       productId: productId || undefined,
+      productType,
       lineNumber: line.lineNumber || i + 1,
       taxCategory: line.taxCategory || 'S'
     });
   }
-  
-  return processedLines;
+
+  const uniqueIds = [...new Set(catalogIds)];
+  const catalog = uniqueIds.length
+    ? await Product.find({ _id: { $in: uniqueIds }, tenantId }).select('_id productType').lean()
+    : [];
+  const productById = new Map(catalog.map((p) => [String(p._id), p]));
+  return stampLineProductTypes(processedLines, productById);
 }
 
 // @route   GET /api/invoices

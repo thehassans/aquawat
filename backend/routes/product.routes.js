@@ -2,6 +2,7 @@ import express from 'express';
 import Product from '../models/Product.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
+import { isStockTrackedProductType, normalizeProductType } from '../utils/productType.js';
 
 const router = express.Router();
 
@@ -28,15 +29,18 @@ const enrichInventory = (product) => {
     return Number.isFinite(rp) ? Math.max(n, rp) : n;
   }, 0);
   const point = reorderPoint > 0 ? reorderPoint : 10;
+  const tracked = isStockTrackedProductType(product.productType);
   let health = 'in_stock';
-  if (available <= 0) health = product.allowNegativeStock ? 'backorder' : 'out_of_stock';
+  if (!tracked) health = 'not_tracked';
+  else if (available <= 0) health = product.allowNegativeStock ? 'backorder' : 'out_of_stock';
   else if (available <= point) health = 'low_stock';
   product.inventory = {
-    onHand,
-    reserved,
-    available,
-    reorderPoint: point,
+    onHand: tracked ? onHand : 0,
+    reserved: tracked ? reserved : 0,
+    available: tracked ? available : 0,
+    reorderPoint: tracked ? point : 0,
     health,
+    tracked,
     warehouseCount: stocks.length,
   };
   return product;
@@ -54,17 +58,25 @@ const normalizeProductForClient = (product) => {
   p.sellingPrice = p.sellingPrice ?? p.price ?? 0;
   p.taxRate = p.taxRate ?? 15;
   p.unitOfMeasure = p.unitOfMeasure ?? 'PCE';
+  p.productType = normalizeProductType(p.productType);
   return p;
 };
 
 // @route   GET /api/products
 router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 50, category, status, search, lowStock, allowNegativeStock, stockHealth } = req.query;
+    const { page = 1, limit = 50, category, status, search, lowStock, allowNegativeStock, stockHealth, productType } = req.query;
 
     const query = { ...req.tenantFilter };
     if (category) query.category = category;
     if (status) query.status = status;
+    if (productType === 'service') {
+      query.productType = 'service';
+    } else if (productType === 'goods') {
+      query.$and = (query.$and || []).concat([{
+        $or: [{ productType: 'goods' }, { productType: { $exists: false } }, { productType: null }]
+      }]);
+    }
     if (allowNegativeStock === 'true') {
       query.allowNegativeStock = true;
     } else if (allowNegativeStock === 'false') {
@@ -132,22 +144,28 @@ router.get('/lookup', checkPermission('inventory', 'read'), async (req, res) => 
 router.get('/stats', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const products = await Product.find({ ...req.tenantFilter, isActive: { $ne: false } })
-      .select('stocks allowNegativeStock costPrice sellingPrice category status')
+      .select('stocks allowNegativeStock costPrice sellingPrice category status productType')
       .lean();
 
     const rows = products.map((p) => enrichInventory(p));
-    const byHealth = { in_stock: 0, low_stock: 0, out_of_stock: 0, backorder: 0 };
+    const byHealth = { in_stock: 0, low_stock: 0, out_of_stock: 0, backorder: 0, not_tracked: 0 };
+    const byType = { goods: 0, service: 0 };
     let totalStock = 0;
     let totalValue = 0;
     for (const p of rows) {
       const health = p.inventory?.health || 'in_stock';
       byHealth[health] = (byHealth[health] || 0) + 1;
-      totalStock += p.inventory?.onHand || 0;
-      totalValue += (Number(p.costPrice) || 0) * (p.inventory?.onHand || 0);
+      const type = normalizeProductType(p.productType);
+      byType[type] = (byType[type] || 0) + 1;
+      if (p.inventory?.tracked !== false) {
+        totalStock += p.inventory?.onHand || 0;
+        totalValue += (Number(p.costPrice) || 0) * (p.inventory?.onHand || 0);
+      }
     }
 
     res.json({
       byHealth,
+      byType,
       totals: [{
         totalProducts: rows.length,
         totalStock,
@@ -156,6 +174,8 @@ router.get('/stats', checkPermission('inventory', 'read'), async (req, res) => {
         lowStock: byHealth.low_stock,
         outOfStock: byHealth.out_of_stock,
         backorder: byHealth.backorder,
+        services: byType.service,
+        goods: byType.goods,
       }],
       lowStock: [{ count: byHealth.low_stock }],
       allowNegativeStock: [{ count: byHealth.backorder }],
@@ -189,6 +209,7 @@ router.post('/', checkTrialLimits('products'), checkPermission('inventory', 'cre
   try {
     const productData = {
       ...req.body,
+      productType: normalizeProductType(req.body?.productType),
       tenantId: req.user.tenantId,
       createdBy: req.user._id
     };
@@ -210,6 +231,7 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
     }
 
     Object.assign(product, req.body);
+    product.productType = normalizeProductType(product.productType);
     await product.save();
     
     res.json(computeTotalStock(product));

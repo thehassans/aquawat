@@ -9,6 +9,7 @@ import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { Building2 } from 'lucide-react'
+import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
@@ -150,6 +151,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
                   <td className="py-4 px-4">
                     <p className="font-bold text-slate-900">{item.productName || item.raw?.productName}</p>
                     {bilingual && <p className="text-sm text-slate-500 mt-1" dir="rtl">{item.productNameAr || item.raw?.productNameAr}</p>}
+                    <ProductTypeMark line={item} language={language} bilingual={bilingual} />
                   </td>
                   <td className="py-4 px-4 text-center text-sm font-medium">
                     <div>{item.quantity}</div>

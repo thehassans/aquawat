@@ -23,8 +23,10 @@ import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
+import { normalizeProductType, productPickerLabel, productTypeOptions } from '../../lib/productType'
+import ProductTypeMark from './ProductTypeMark'
 
-const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', customerPrice: '', taxRate: 15, agencyPrice: '', isTravelMargin: false }
+const emptyLine = { productId: '', productName: '', productNameAr: '', productType: 'goods', unitCode: 'PCE', quantity: 1, unitPrice: '', customerPrice: '', taxRate: 15, agencyPrice: '', isTravelMargin: false }
 
 const idOf = (value) => {
   if (!value) return ''
@@ -57,6 +59,7 @@ const mapSellLineItems = (invoice) => {
       taxRate: Math.max(0, toNumber(plain?.taxRate, 15)),
       agencyPrice: Math.max(0, toNumber(plain?.agencyPrice, 0)),
       isTravelMargin: Boolean(plain?.isTravelMargin),
+      productType: normalizeProductType(plain?.productType),
     }
   }).filter((line) => line.productName || line.unitPrice > 0 || line.productId)
   return mapped.length ? mapped : [{ ...emptyLine }]
@@ -464,6 +467,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           quantity: li?.quantity ?? 1,
           unitPrice: li?.unitPrice ?? 0,
           taxRate: li?.taxRate ?? 15,
+          productType: 'service',
         }))
         replace(items.length ? items : [emptyLine])
         setValue('buyer.name', data?.customerName || 'Cash Customer')
@@ -487,6 +491,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             quantity: 1,
             unitPrice: Math.max(Number(w.monthlyRate || workerData.monthlyRate || 0), Number(w.dailyRate || workerData.dailyRate || 0)),
             taxRate: 15,
+            productType: 'service',
           }
         })
         replace(items.length ? items : [emptyLine])
@@ -504,7 +509,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       const subtotal = Number(data?.subtotal) || 0
       const totalTax = Number(data?.totalTax) || 0
       const taxableAmount = subtotal > 0 ? subtotal : Math.max(0, (Number(data?.grandTotal) || 0) - totalTax)
-      replace([{ ...emptyLine, productName: `Travel Booking ${data?.bookingNumber || ''}`.trim(), quantity: 1, unitPrice: taxableAmount, taxRate: 15, agencyPrice: 0, isTravelMargin: true }])
+      replace([{ ...emptyLine, productName: `Travel Booking ${data?.bookingNumber || ''}`.trim(), quantity: 1, unitPrice: taxableAmount, taxRate: 15, agencyPrice: 0, isTravelMargin: true, productType: 'service' }])
       setValue('invoiceSubtype', 'travel_ticket')
       setValue('buyer.name', data?.customerName || 'Cash Customer')
       setValue('buyer.contactEmail', data?.customerEmail || '')
@@ -605,6 +610,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     setValue(`lineItems.${index}.productNameAr`, product.nameAr || product.nameEn)
     setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE')
     setValue(`lineItems.${index}.taxRate`, typeof product.taxRate === 'number' ? product.taxRate : 15)
+    setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType))
     if (typeof product.sellingPrice === 'number') {
       setValue(`lineItems.${index}.unitPrice`, product.sellingPrice)
     }
@@ -692,6 +698,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           productId: isTradingContext ? line.productId || undefined : undefined,
           productName: line.productName,
           productNameAr: line.productNameAr || '',
+          productType: normalizeProductType(line.productType),
           description: line.description || '',
           descriptionAr: line.descriptionAr || '',
           unitCode: line.unitCode || 'PCE',
@@ -1291,19 +1298,21 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                           <CreatableSelect
                             inputId={`product-select-${index}`}
                             name={`react-select-product-${index}`}
-                            options={(products || []).map(p => ({ value: p._id, label: language === 'ar' ? (p.nameAr || p.nameEn) : p.nameEn }))}
-                            value={((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: language === 'ar' ? ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameAr || (products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) : ((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))?.nameEn) } : null}
+                            options={(products || []).map(p => ({ value: p._id, label: productPickerLabel(p, language) }))}
+                            value={((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: productPickerLabel((products || []).find(p => p._id === watch(`lineItems.${index}.productId`)), language) } : null}
                             onChange={(selected) => {
                               if (selected) {
                                 if (selected.__isNew__) {
                                   setValue(`lineItems.${index}.productId`, '')
                                   setValue(`lineItems.${index}.productName`, selected.value)
+                                  setValue(`lineItems.${index}.productType`, 'goods')
                                 } else {
                                   onSelectProduct(index, selected.value)
                                 }
                               } else {
                                 setValue(`lineItems.${index}.productId`, '')
                                 setValue(`lineItems.${index}.productName`, '')
+                                setValue(`lineItems.${index}.productType`, 'goods')
                               }
                             }}
                             formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}" كمنتج جديد` : `Add "${inputValue}" as new product`}
@@ -1329,6 +1338,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       ) : (
                         <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className={`mt-1.5 ${fieldControlClass}`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
+                      <div className="mt-2 flex items-center gap-2">
+                        <select {...register(`lineItems.${index}.productType`)} className={fieldControlClass}>
+                          {productTypeOptions(language).map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.labelEn} / {opt.labelAr}</option>
+                          ))}
+                        </select>
+                        <ProductTypeMark productType={watch(`lineItems.${index}.productType`)} language={language} bilingual />
+                      </div>
                     </div>
                     {showArabicFields ? (
                       <div className={isTravelContext ? 'lg:col-span-2' : 'lg:col-span-3'}>

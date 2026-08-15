@@ -9,6 +9,7 @@ import { getAmountInWords } from '../../lib/amountInWords'
 import { Building2 } from 'lucide-react'
 import DocumentExtras from './DocumentExtras'
 import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
@@ -152,6 +153,7 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
                     <td className="px-4 py-3">
                       <p className="text-sm font-bold text-black">{productNameEn}</p>
                       {bilingual && productNameAr && <p className="text-xs font-bold text-black mt-0.5" dir="rtl">{productNameAr}</p>}
+                      <ProductTypeMark line={line} language={language} bilingual={bilingual} />
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-xs font-mono font-bold text-center text-black">
                       <div>{toNumber(line?.quantity) || '—'}</div>

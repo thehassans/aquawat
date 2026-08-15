@@ -12,6 +12,7 @@ import SarIcon from '../../components/ui/SarIcon'
 import { useLiveTranslation } from '../../lib/liveTranslation'
 import Select from 'react-select'
 import { getAvailableUomOptions } from '../../lib/uomOptions'
+import { normalizeProductType, productTypeOptions } from '../../lib/productType'
 export default function ProductForm() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -30,6 +31,8 @@ export default function ProductForm() {
   const [isManufactured, setIsManufactured] = useState(false)
   const [bomComponents, setBomComponents] = useState([])
   const uomOptions = getAvailableUomOptions(tenant)
+  const selectedProductType = normalizeProductType(watch('productType'))
+  const isService = selectedProductType === 'service'
 
   const buildPayload = (data) => {
     const payload = { ...data }
@@ -47,6 +50,7 @@ export default function ProductForm() {
     delete payload.predictedDemand
 
     payload.isManufactured = Boolean(isManufactured)
+    payload.productType = normalizeProductType(payload.productType)
     payload.bomComponents = (Array.isArray(bomComponents) ? bomComponents : [])
       .filter((c) => c?.productId)
       .map((c) => ({
@@ -114,6 +118,7 @@ export default function ProductForm() {
         sellingPrice: data?.sellingPrice ?? data?.price ?? 0,
         taxRate: data?.taxRate ?? 15,
         unitOfMeasure: data?.unitOfMeasure ?? 'PCE',
+        productType: normalizeProductType(data?.productType),
       }
       setProduct(normalized)
       reset(normalized)
@@ -254,6 +259,19 @@ export default function ProductForm() {
               <input {...register('barcode')} className="input" placeholder="1234567890123" />
             </div>
             <div>
+              <label className="label">{language === 'ar' ? 'نوع المنتج' : 'Product Type'}</label>
+              <select {...register('productType')} className="select" defaultValue="goods">
+                {productTypeOptions(language).map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                {isService
+                  ? (language === 'ar' ? 'الخدمات لا تُخصم من المخزون' : 'Services are not stock-tracked')
+                  : (language === 'ar' ? 'البضاعة تُتابع في المخزون' : 'Goods decrement inventory on sale')}
+              </p>
+            </div>
+            <div>
               <label className="label">{t('category')}</label>
               <input {...register('category')} className="input" />
             </div>
@@ -329,6 +347,7 @@ export default function ProductForm() {
               />
               <input type="hidden" {...register('unitOfMeasure')} />
             </div>
+            {!isService && (
             <div className="flex items-center pt-2 md:pt-6">
               <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl border border-gray-200 dark:border-dark-700 hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors w-full">
                 <input
@@ -346,7 +365,8 @@ export default function ProductForm() {
                 </div>
               </label>
             </div>
-            {!isEdit && warehouseOptions.length > 0 && (
+            )}
+            {!isService && !isEdit && warehouseOptions.length > 0 && (
               <>
                 <div>
                   <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
@@ -366,7 +386,14 @@ export default function ProductForm() {
               </>
             )}
 
-            {isEdit && (
+            {isService && (
+              <div className="md:col-span-2 rounded-xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-900">
+                {language === 'ar'
+                  ? 'هذه خدمة — لا يُطلب مخزون ولا يُخصم عند إصدار الفواتير.'
+                  : 'This is a service — stock is not required and invoices will not decrement inventory.'}
+              </div>
+            )}
+            {!isService && isEdit && (
               <div className="md:col-span-3 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>

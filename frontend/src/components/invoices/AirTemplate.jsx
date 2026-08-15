@@ -8,6 +8,7 @@ import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
+import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
@@ -153,6 +154,7 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
                     <td className="py-8 pr-8">
                       <p className="text-lg font-light text-slate-800">{productNameEn}</p>
                       {bilingual && productNameAr && <p className="text-sm font-light text-slate-400 mt-2" dir="rtl">{productNameAr}</p>}
+                      <ProductTypeMark line={line} language={language} bilingual={bilingual} />
                     </td>
                     <td className="py-8 whitespace-nowrap text-base font-light text-center text-slate-500">
                       <div>{toNumber(line?.quantity) || '—'}</div>

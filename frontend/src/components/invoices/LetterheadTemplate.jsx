@@ -6,6 +6,7 @@ import { calculateInvoiceSummary } from '../../lib/invoiceDocument'
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
+import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
@@ -126,6 +127,7 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
                     {bilingual && (line.raw?.productNameAr || line.productNameAr) && (line.raw?.productNameAr || line.productNameAr) !== (line.raw?.productName || line.productName) ? (
                       <p className="text-xs text-slate-600" dir="rtl">{line.raw?.productNameAr || line.productNameAr}</p>
                     ) : null}
+                    <ProductTypeMark line={line} language={language} bilingual={bilingual} />
                     {line.raw?.description ? <p className="text-xs text-slate-500">{line.raw.description}</p> : null}
                     {bilingual && line.raw?.descriptionAr && line.raw.descriptionAr !== line.raw.description ? (
                       <p className="text-xs text-slate-500" dir="rtl">{line.raw.descriptionAr}</p>
