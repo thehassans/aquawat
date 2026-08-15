@@ -23,6 +23,7 @@ import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoiceP
 import toast from 'react-hot-toast'
 
 const STATUS_PILL = {
+  billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
   received: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
   partially_received: 'bg-amber-50 text-amber-800 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
   cancelled: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
@@ -31,7 +32,7 @@ const STATUS_PILL = {
   draft: 'bg-slate-50 text-slate-500 ring-slate-200/70 dark:bg-white/[0.04] dark:text-slate-400 dark:ring-white/10',
 }
 
-const STATUS_KEYS = ['draft', 'sent', 'approved', 'partially_received', 'received', 'cancelled']
+const STATUS_KEYS = ['draft', 'sent', 'approved', 'partially_received', 'received', 'billed', 'cancelled']
 
 export default function PurchaseOrders() {
   const { language } = useSelector((state) => state.ui)
@@ -41,7 +42,7 @@ export default function PurchaseOrders() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [filters, setFilters] = useState({ status: '', supplierId: '' })
+  const [filters, setFilters] = useState({ status: '', supplierId: '', warehouseId: '' })
   const [pdfBusyId, setPdfBusyId] = useState(null)
 
   useEffect(() => {
@@ -56,6 +57,7 @@ export default function PurchaseOrders() {
       approved: 'معتمد',
       partially_received: 'مستلم جزئياً',
       received: 'مستلم',
+      billed: 'مفوتر',
       cancelled: 'ملغي',
     }
     if (language === 'ar') return ar[status] || status
@@ -95,7 +97,7 @@ export default function PurchaseOrders() {
     let all = []
     while (true) {
       const res = await api.get('/purchase-orders', {
-        params: { page: currentPage, limit, search: debouncedSearch, status: filters.status, supplierId: filters.supplierId },
+            params: { page: currentPage, limit, search: debouncedSearch, status: filters.status, supplierId: filters.supplierId, warehouseId: filters.warehouseId },
       })
       const batch = res.data?.purchaseOrders || []
       all = all.concat(batch)
@@ -111,7 +113,7 @@ export default function PurchaseOrders() {
     queryFn: () =>
       api
         .get('/purchase-orders', {
-          params: { page, limit: 25, search: debouncedSearch, status: filters.status, supplierId: filters.supplierId },
+          params: { page, limit: 25, search: debouncedSearch, status: filters.status, supplierId: filters.supplierId, warehouseId: filters.warehouseId },
         })
         .then((res) => res.data),
     placeholderData: (prev) => prev,
@@ -125,6 +127,18 @@ export default function PurchaseOrders() {
   const { data: suppliers } = useQuery({
     queryKey: ['suppliers-lookup'],
     queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers),
+  })
+
+  const { data: warehouses } = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/warehouses')
+        return Array.isArray(res.data) ? res.data : []
+      } catch {
+        return []
+      }
+    },
   })
 
   const totals = stats?.totals?.[0]
@@ -216,7 +230,7 @@ export default function PurchaseOrders() {
             disabled={isLoading || orders.length === 0}
           />
           <Link
-            to="/app/dashboard/purchase-orders/new"
+            to="/app/dashboard/purchases/orders/new"
             className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
           >
             <Plus className="h-4 w-4 opacity-80" />
@@ -341,6 +355,21 @@ export default function PurchaseOrders() {
               </option>
             ))}
           </select>
+          <select
+            value={filters.warehouseId}
+            onChange={(e) => {
+              setFilters((f) => ({ ...f, warehouseId: e.target.value }))
+              setPage(1)
+            }}
+            className="select w-full lg:w-64"
+          >
+            <option value="">{language === 'ar' ? 'كل المستودعات' : 'All warehouses'}</option>
+            {(warehouses || []).map((w) => (
+              <option key={w._id} value={w._id}>
+                {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
+              </option>
+            ))}
+          </select>
           {isFetching && !isLoading && (
             <span className="inline-flex items-center gap-1.5 self-center text-[11px] text-slate-400">
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -369,7 +398,7 @@ export default function PurchaseOrders() {
                 : 'Create the first supplier order and start receiving into stock.'}
             </p>
             <Link
-              to="/app/dashboard/purchase-orders/new"
+              to="/app/dashboard/purchases/orders/new"
               className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white dark:bg-white dark:text-slate-950"
             >
               <Plus className="h-4 w-4" />
@@ -386,6 +415,9 @@ export default function PurchaseOrders() {
                   </th>
                   <th className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                     {language === 'ar' ? 'المورد' : 'Supplier'}
+                  </th>
+                  <th className="hidden text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 lg:table-cell">
+                    {language === 'ar' ? 'المستودع' : 'Warehouse'}
                   </th>
                   <th className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                     {language === 'ar' ? 'تاريخ الطلب' : 'Ordered'}
@@ -406,7 +438,7 @@ export default function PurchaseOrders() {
                   return (
                     <tr
                       key={po._id}
-                      onClick={() => navigate(`/app/dashboard/purchase-orders/${po._id}`)}
+                      onClick={() => navigate(`/app/dashboard/purchases/orders/${po._id}`)}
                       className="cursor-pointer border-b border-slate-50 last:border-0 hover:bg-slate-50/80 dark:border-white/[0.04] dark:hover:bg-white/[0.03]"
                     >
                       <td>
@@ -424,6 +456,13 @@ export default function PurchaseOrders() {
                       <td>
                         <span className="text-[13px] font-medium text-slate-800 dark:text-slate-100">
                           {supplierName(po.supplierId)}
+                        </span>
+                      </td>
+                      <td className="hidden lg:table-cell">
+                        <span className="text-[13px] text-slate-600 dark:text-slate-300">
+                          {language === 'ar'
+                            ? po.warehouseId?.nameAr || po.warehouseId?.nameEn || '—'
+                            : po.warehouseId?.nameEn || po.warehouseId?.nameAr || '—'}
                         </span>
                       </td>
                       <td>
@@ -469,7 +508,7 @@ export default function PurchaseOrders() {
                             {busyDownload ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                           </button>
                           <Link
-                            to={`/app/dashboard/purchase-orders/${po._id}`}
+                            to={`/app/dashboard/purchases/orders/${po._id}`}
                             className={ghostBtn.replace('px-3.5 py-2.5', 'h-8 w-8 justify-center px-0 py-0')}
                             title={language === 'ar' ? 'تعديل' : 'Edit'}
                           >

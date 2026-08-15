@@ -1,10 +1,18 @@
 import express from 'express';
+import multer from 'multer';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
 import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
-import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
+import GRN from '../models/GRN.js';
+import PurchaseReturn from '../models/PurchaseReturn.js';
+import LandedCost from '../models/LandedCost.js';
+import Invoice from '../models/Invoice.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
+import { normalizeProductType } from '../utils/productType.js';
+import { confirmGrnReceive, generateGrnNumber, PurchasesValidationError } from '../services/purchasesWorkflow.js';
 
 const router = express.Router();
 
@@ -16,6 +24,16 @@ function toNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
 }
+
+const vendorBillUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+      .includes(String(file?.mimetype || '').toLowerCase());
+    cb(ok ? null : new Error('Only PDF, JPG, PNG, or WebP files are allowed'), ok);
+  },
+});
 
 function normalizeLineItems(lineItems = []) {
   const normalized = (Array.isArray(lineItems) ? lineItems : []).map((li) => {
@@ -33,8 +51,10 @@ function normalizeLineItems(lineItems = []) {
       manualName: li.manualName || '',
       uom: li.uom || '',
       description: li.description,
+      productType: normalizeProductType(li.productType),
       quantityOrdered,
       quantityReceived,
+      quantityReturned: toNumber(li.quantityReturned, 0),
       unitCost,
       taxRate,
       lineSubtotal,
@@ -76,12 +96,13 @@ async function generatePoNumber(tenantFilterValue) {
 
 router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 25, status, supplierId, search, startDate, endDate } = req.query;
+    const { page = 1, limit = 25, status, supplierId, warehouseId, search, startDate, endDate } = req.query;
 
     const query = { ...req.tenantFilter };
 
     if (status) query.status = status;
     if (supplierId) query.supplierId = supplierId;
+    if (warehouseId) query.warehouseId = warehouseId;
 
     if (startDate || endDate) {
       query.orderDate = {};
@@ -106,6 +127,7 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
 
     const purchaseOrders = await PurchaseOrder.find(query)
       .populate('supplierId', 'code nameEn nameAr')
+      .populate('warehouseId', 'code nameEn nameAr')
       .sort({ orderDate: -1, createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
@@ -170,14 +192,24 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('supplierId', 'code nameEn nameAr phone email vatNumber crNumber address contactPerson')
-      .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure')
+      .populate('warehouseId', 'code nameEn nameAr')
+      .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType')
       .populate('receiving.warehouseId', 'code nameEn nameAr');
 
     if (!order) {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
 
-    res.json(order);
+    const [grns, returns, landedCosts, invoices] = await Promise.all([
+      GRN.find({ ...req.tenantFilter, purchaseOrderId: order._id }).select('grnNumber status dateReceived warehouseId').sort('-createdAt'),
+      PurchaseReturn.find({ ...req.tenantFilter, purchaseOrderId: order._id }).select('returnNumber status dateReturned').sort('-createdAt'),
+      LandedCost.find({ ...req.tenantFilter, purchaseOrder: order._id, isActive: true }).select('lcNumber status totalCost').sort('-createdAt'),
+      Invoice.find({ ...req.tenantFilter, sourcePurchaseOrderId: order._id, flow: 'purchase' }).select('invoiceNumber status grandTotal issueDate').sort('-createdAt'),
+    ]);
+
+    const payload = order.toObject();
+    payload.related = { grns, returns, landedCosts, invoices };
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -192,6 +224,13 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
     const supplier = await Supplier.findOne({ _id: req.body.supplierId, ...req.tenantFilter, isActive: true });
     if (!supplier) {
       return res.status(400).json({ error: 'Invalid supplier' });
+    }
+
+    if (req.body.warehouseId) {
+      const warehouse = await Warehouse.findOne({ _id: req.body.warehouseId, ...req.tenantFilter, isActive: true });
+      if (!warehouse) {
+        return res.status(400).json({ error: 'Invalid warehouse' });
+      }
     }
 
     const poNumber = req.body.poNumber || (await generatePoNumber(req.tenantFilter));
@@ -256,6 +295,13 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
       }
     }
 
+    if (req.body.warehouseId) {
+      const warehouse = await Warehouse.findOne({ _id: req.body.warehouseId, ...req.tenantFilter, isActive: true });
+      if (!warehouse) {
+        return res.status(400).json({ error: 'Invalid warehouse' });
+      }
+    }
+
     const updateData = { ...req.body };
 
     if (Array.isArray(req.body.lineItems)) {
@@ -300,6 +346,23 @@ router.post('/:id/approve', checkPermission('supply_chain', 'approve'), async (r
   }
 });
 
+router.post('/:id/send', checkPermission('supply_chain', 'update'), async (req, res) => {
+  try {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!order) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+    if (!['draft', 'sent'].includes(order.status)) {
+      return res.status(400).json({ error: 'Only draft purchase orders can be sent' });
+    }
+    order.status = 'sent';
+    await order.save();
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/:id/cancel', checkPermission('supply_chain', 'update'), async (req, res) => {
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
@@ -322,88 +385,112 @@ router.post('/:id/cancel', checkPermission('supply_chain', 'update'), async (req
 
 router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (req, res) => {
   try {
-    const { warehouseId, items } = req.body;
-
-    if (!warehouseId) {
-      return res.status(400).json({ error: 'warehouseId is required' });
-    }
+    const { warehouseId, items, notes } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'items is required' });
-    }
-
-    const warehouse = await Warehouse.findOne({ _id: warehouseId, ...req.tenantFilter, isActive: true });
-    if (!warehouse) {
-      return res.status(400).json({ error: 'Warehouse not found' });
     }
 
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!order) {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
-
     if (order.status === 'cancelled') {
       return res.status(400).json({ error: 'Cannot receive against a cancelled order' });
     }
 
-    const receivingItems = [];
+    const resolvedWarehouseId = warehouseId || order.warehouseId;
+    if (resolvedWarehouseId) {
+      const warehouse = await Warehouse.findOne({ _id: resolvedWarehouseId, ...req.tenantFilter, isActive: true });
+      if (!warehouse) {
+        return res.status(400).json({ error: 'Warehouse not found' });
+      }
+    }
 
+    const lines = [];
     for (const item of items) {
       const productId = item.productId;
       const qty = toNumber(item.quantity ?? item.qty, 0);
-
-      if (!productId || !qty || qty <= 0) continue;
-
+      if (!productId || qty <= 0) continue;
       const line = order.lineItems.find((li) => li.productId?.toString() === productId.toString());
       if (!line) {
         return res.status(400).json({ error: 'Invalid item in receive list' });
       }
-
-      const remaining = Math.max(0, toNumber(line.quantityOrdered, 0) - toNumber(line.quantityReceived, 0));
-      if (qty > remaining) {
-        return res.status(400).json({ error: 'Received quantity exceeds remaining quantity' });
-      }
-
-      const product = await Product.findOne({ _id: productId, ...req.tenantFilter });
-      if (!product) {
-        return res.status(400).json({ error: 'Product not found' });
-      }
-
-      product.updateStock(warehouseId, qty);
-      if (toNumber(line.unitCost, 0) > 0) {
-        product.calculateLandedCost({
-          purchasePrice: toNumber(line.unitCost, 0),
-          quantity: qty,
-          purchaseOrderId: order._id
-        });
-      }
-      await product.save();
-
-      line.quantityReceived = toNumber(line.quantityReceived, 0) + qty;
-      receivingItems.push({ productId, quantity: qty });
+      lines.push({
+        productId,
+        productName: line.manualName || '',
+        productType: line.productType || 'goods',
+        uom: line.uom || '',
+        quantityOrdered: line.quantityOrdered,
+        quantityReceived: qty,
+        costPrice: line.unitCost,
+      });
     }
 
-    if (receivingItems.length === 0) {
+    if (!lines.length) {
       return res.status(400).json({ error: 'No valid receiving items' });
     }
 
-    order.receiving.push({
-      receivedAt: new Date(),
-      warehouseId,
+    const grn = new GRN({
+      tenantId: req.user.tenantId,
+      grnNumber: await generateGrnNumber(req.tenantFilter),
+      supplierId: order.supplierId,
+      purchaseOrderId: order._id,
+      warehouseId: resolvedWarehouseId || undefined,
+      notes,
+      createdBy: req.user._id,
       receivedBy: req.user._id,
-      items: receivingItems
+      status: 'draft',
+      lines,
+    });
+    await grn.save();
+    await confirmGrnReceive({
+      tenantFilter: req.tenantFilter,
+      user: req.user,
+      grn,
+      warehouseId: resolvedWarehouseId,
     });
 
-    const fullyReceived = order.lineItems.every(
-      (li) => toNumber(li.quantityReceived, 0) >= toNumber(li.quantityOrdered, 0)
-    );
-    order.status = fullyReceived ? 'received' : 'partially_received';
-
-    await order.save();
-
-    res.json(order);
+    const refreshed = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter });
+    res.json({ ...refreshed.toObject(), grnId: grn._id, grnNumber: grn.grnNumber });
   } catch (error) {
+    if (error instanceof PurchasesValidationError) {
+      return res.status(400).json({ error: error.message, code: error.code });
+    }
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/attachments', checkPermission('supply_chain', 'update'), vendorBillUpload.single('file'), async (req, res) => {
+  try {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!order) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const filename = `vendor-bill-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext || 'bin'}`;
+    const key = `purchase-orders/${req.user.tenantId}/${order._id}/${filename}`;
+    const { url } = await saveUploadBuffer({
+      buffer: req.file.buffer,
+      key,
+      contentType: req.file.mimetype,
+      publicUrlPath: `/uploads/${key}`,
+    });
+    const attachment = {
+      name: req.file.originalname || filename,
+      url,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      uploadedAt: new Date(),
+    };
+    order.attachments = [...(order.attachments || []), attachment];
+    await order.save();
+    res.status(201).json({ attachment, attachments: order.attachments });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 

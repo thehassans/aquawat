@@ -536,6 +536,30 @@ async function postInventoryForInvoice(invoice, tenantFilterValue) {
     return invoice;
   }
 
+  // PO → GRN is the stock-in path. Vendor bills linked to a purchase order must not
+  // increment warehouse qty again (they still record the payable).
+  if (invoice.flow === 'purchase' && invoice.sourcePurchaseOrderId) {
+    invoice.inventory = {
+      ...(invoice.inventory || {}),
+      warehouseId,
+      skippedAt: new Date(),
+      skipReason: 'stock_posted_via_grn',
+    };
+    await invoice.save();
+    try {
+      const PurchaseOrder = mongoose.model('PurchaseOrder');
+      const po = await PurchaseOrder.findOne({ _id: invoice.sourcePurchaseOrderId, ...tenantFilterValue });
+      if (po && ['received', 'partially_received'].includes(po.status)) {
+        po.status = 'billed';
+        po.billedInvoiceId = invoice._id;
+        await po.save();
+      }
+    } catch {
+      /* billing status is best-effort */
+    }
+    return invoice;
+  }
+
   const lines = (invoice.lineItems || []).filter((line) => {
     const productId = line.productId;
     const qty = toNumber(line.quantity, 0);

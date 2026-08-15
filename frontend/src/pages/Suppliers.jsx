@@ -134,7 +134,7 @@ function MinimalPerformanceModal({ supplierId, supplierName, onClose, language }
                 {/* Action footer */}
                 <div className="pt-2">
                   <Link
-                    to={`/purchase-orders/new?supplierId=${supplierId}`}
+                    to={`/app/dashboard/purchases/orders/new?supplierId=${supplierId}`}
                     onClick={onClose}
                     className="w-full py-3 rounded-2xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all"
                   >
@@ -463,7 +463,7 @@ export default function Suppliers() {
                           <Edit className="w-4 h-4 text-gray-600" />
                         </Link>
                         <Link
-                          to={`/purchase-orders/new?supplierId=${s._id}`}
+                          to={`/app/dashboard/purchases/orders/new?supplierId=${s._id}`}
                           className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"
                           title={language === 'ar' ? 'طلب شراء جديد' : 'New Purchase Order'}
                         >

@@ -1900,7 +1900,10 @@ export function App3DIcon({
   // ─── 46. PURCHASE ORDERS / PROCUREMENT ────────────────────────────────────────
   // ═══════════════════════════════════════════════════════════════════════════════
   if (
+    last === 'purchases' ||
     last === 'purchase-orders' ||
+    cleanLabel.includes('purchases') ||
+    cleanLabel.includes('المشتريات') ||
     cleanLabel.includes('purchase orders') ||
     cleanLabel.includes('طلبات الشراء')
   ) {

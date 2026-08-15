@@ -1,5 +1,5 @@
 import { useEffect, lazy, Suspense } from 'react'
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { getMe, setTenantInactive, forceLogout } from './store/slices/authSlice'
 import { setLanguage, setTheme, setDisplayMode, loadThemeForTenant, loadHiddenMenuItemsForTenant, loadDisplayModeForTenant, loadNavigationStyleForTenant } from './store/slices/uiSlice'
@@ -92,8 +92,11 @@ const SupplierForm = lazy(() => import('./pages/SupplierForm'))
 const SupplierPerformance = lazy(() => import('./pages/trading/SupplierPerformance'))
 const PurchaseOrders = lazy(() => import('./pages/PurchaseOrders'))
 const PurchaseOrderForm = lazy(() => import('./pages/PurchaseOrderForm'))
-const GoodsReceiptNote = lazy(() => import('./pages/inventory/GoodsReceiptNote'))
-const PurchaseReturns = lazy(() => import('./pages/inventory/PurchaseReturns'))
+const PurchasesLayout = lazy(() => import('./pages/purchases/PurchasesLayout'))
+const GrnList = lazy(() => import('./pages/purchases/GrnList'))
+const GrnForm = lazy(() => import('./pages/purchases/GrnForm'))
+const PurchaseReturnList = lazy(() => import('./pages/purchases/PurchaseReturnList'))
+const PurchaseReturnForm = lazy(() => import('./pages/purchases/PurchaseReturnForm'))
 const ZatcaLogs = lazy(() => import('./pages/finance/ZatcaLogs'))
 const Shipments = lazy(() => import('./pages/Shipments'))
 const ShipmentForm = lazy(() => import('./pages/ShipmentForm'))
@@ -331,6 +334,12 @@ function LegacyModuleRedirect({ module }) {
   const location = useLocation()
   const nextPath = location.pathname.replace(`/${module}`, `/app/dashboard/${module}`)
   return <Navigate to={`${nextPath}${location.search}${location.hash}`} replace />
+}
+
+function PurchasesIdRedirect({ to }) {
+  const { id } = useParams()
+  const location = useLocation()
+  return <Navigate to={`${to}/${id}${location.search}${location.hash}`} replace />
 }
 
 function ProtectedRoute({ children, allowedRoles, redirectSuperAdmin }) {
@@ -720,11 +729,30 @@ function App() {
         <Route path="suppliers/new" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
         <Route path="suppliers/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
         <Route path="supplier-performance" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierPerformance /></BusinessTypeRoute>} />
-        <Route path="purchase-orders" element={<PurchaseOrders />} />
-        <Route path="purchase-orders/new" element={<PurchaseOrderForm />} />
-        <Route path="purchase-orders/:id" element={<PurchaseOrderForm />} />
-        <Route path="grn" element={<GoodsReceiptNote />} />
-        <Route path="purchase-returns" element={<PurchaseReturns />} />
+        <Route path="purchases" element={<PurchasesLayout />}>
+          <Route index element={<Navigate to="orders" replace />} />
+          <Route path="orders" element={<PurchaseOrders />} />
+          <Route path="orders/new" element={<PurchaseOrderForm />} />
+          <Route path="orders/:id" element={<PurchaseOrderForm />} />
+          <Route path="grn" element={<GrnList />} />
+          <Route path="grn/new" element={<GrnForm />} />
+          <Route path="grn/:id" element={<GrnForm />} />
+          <Route path="returns" element={<PurchaseReturnList />} />
+          <Route path="returns/new" element={<PurchaseReturnForm />} />
+          <Route path="returns/:id" element={<PurchaseReturnForm />} />
+          <Route path="landed-costs" element={<LandedCosts />} />
+          <Route path="landed-costs/new" element={<LandedCostForm />} />
+          <Route path="landed-costs/:id" element={<LandedCostForm />} />
+        </Route>
+        <Route path="purchase-orders" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
+        <Route path="purchase-orders/new" element={<Navigate to="/app/dashboard/purchases/orders/new" replace />} />
+        <Route path="purchase-orders/:id" element={<PurchasesIdRedirect to="/app/dashboard/purchases/orders" />} />
+        <Route path="grn" element={<Navigate to="/app/dashboard/purchases/grn" replace />} />
+        <Route path="grn/new" element={<Navigate to="/app/dashboard/purchases/grn/new" replace />} />
+        <Route path="grn/:id" element={<PurchasesIdRedirect to="/app/dashboard/purchases/grn" />} />
+        <Route path="purchase-returns" element={<Navigate to="/app/dashboard/purchases/returns" replace />} />
+        <Route path="purchase-returns/new" element={<Navigate to="/app/dashboard/purchases/returns/new" replace />} />
+        <Route path="purchase-returns/:id" element={<PurchasesIdRedirect to="/app/dashboard/purchases/returns" />} />
         <Route path="shipments" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><Shipments /></BusinessTypeRoute>} />
         <Route path="shipments/new" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><ShipmentForm /></BusinessTypeRoute>} />
         <Route path="shipments/:id" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><ShipmentForm /></BusinessTypeRoute>} />
@@ -878,9 +906,9 @@ function App() {
         <Route path="contracts/new" element={<ContractForm />} />
         <Route path="contracts/:id" element={<ContractForm />} />
         {/* Landed Costs */}
-        <Route path="landed-costs" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><LandedCosts /></BusinessTypeRoute>} />
-        <Route path="landed-costs/new" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><LandedCostForm /></BusinessTypeRoute>} />
-        <Route path="landed-costs/:id" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><LandedCostForm /></BusinessTypeRoute>} />
+        <Route path="landed-costs" element={<Navigate to="/app/dashboard/purchases/landed-costs" replace />} />
+        <Route path="landed-costs/new" element={<Navigate to="/app/dashboard/purchases/landed-costs/new" replace />} />
+        <Route path="landed-costs/:id" element={<PurchasesIdRedirect to="/app/dashboard/purchases/landed-costs" />} />
         {/* Local Compliance */}
         <Route path="compliance" element={<Compliance />} />
       </Route>

@@ -363,7 +363,7 @@ export default function Shipments() {
                         </Link>
                         {hasLandedCosts && s.type === 'inbound' && (
                           <Link
-                            to={`/app/dashboard/landed-costs/new?shipment=${s._id}`}
+                            to={`/app/dashboard/purchases/landed-costs/new?shipment=${s._id}`}
                             className="rounded-xl p-2 text-slate-500 hover:bg-slate-50 hover:text-emerald-700"
                             title={language === 'ar' ? 'تكلفة مرسية' : 'Landed cost'}
                           >

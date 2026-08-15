@@ -123,7 +123,7 @@ export default function LandedCosts() {
         </div>
         <button
           type="button"
-          onClick={() => navigate('/app/dashboard/landed-costs/new')}
+          onClick={() => navigate('/app/dashboard/purchases/landed-costs/new')}
           className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
         >
           <Plus className="h-4 w-4 opacity-80" />
@@ -233,7 +233,7 @@ export default function LandedCosts() {
             </p>
             <button
               type="button"
-              onClick={() => navigate('/app/dashboard/landed-costs/new')}
+              onClick={() => navigate('/app/dashboard/purchases/landed-costs/new')}
               className="mt-1 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-[13px] font-medium text-white dark:bg-white dark:text-slate-950"
             >
               <Plus className="h-4 w-4" />
@@ -272,7 +272,7 @@ export default function LandedCosts() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: idx * 0.02 }}
-                      onClick={() => navigate(`/app/dashboard/landed-costs/${lc._id}`)}
+                      onClick={() => navigate(`/app/dashboard/purchases/landed-costs/${lc._id}`)}
                       className="cursor-pointer transition hover:bg-slate-50/80 dark:hover:bg-white/[0.03]"
                     >
                       <td className="px-4 py-3.5 font-mono text-[12px] font-semibold text-slate-950 dark:text-white">

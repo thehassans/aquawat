@@ -3,7 +3,9 @@ import mongoose from 'mongoose';
 import LandedCost from '../models/LandedCost.js';
 import Shipment from '../models/Shipment.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
+import GRN from '../models/GRN.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
+import { allocateLandedCosts, applyLandedCostToProducts } from '../services/purchasesWorkflow.js';
 
 const router = express.Router();
 
@@ -25,11 +27,38 @@ function productLabel(product, fallback = '') {
   return product.nameEn || product.nameAr || fallback;
 }
 
-async function allocationsFromLinks(shipmentId, purchaseOrderId, tenantFilterValue) {
+async function allocationsFromLinks(shipmentId, purchaseOrderId, grnIds, tenantFilterValue) {
   const allocations = [];
   let vendor = '';
   let resolvedPoId = purchaseOrderId;
   let resolvedShipmentId = shipmentId;
+  const resolvedGrnIds = Array.isArray(grnIds) ? grnIds.filter(Boolean) : (grnIds ? [grnIds] : []);
+
+  if (resolvedGrnIds.length) {
+    const grns = await GRN.find({ _id: { $in: resolvedGrnIds }, ...tenantFilterValue })
+      .populate('supplierId', 'nameEn nameAr')
+      .populate('purchaseOrderId');
+    for (const grn of grns) {
+      if (!resolvedPoId && grn.purchaseOrderId) {
+        resolvedPoId = grn.purchaseOrderId._id || grn.purchaseOrderId;
+      }
+      if (!vendor) vendor = grn.supplierId?.nameEn || grn.supplierId?.nameAr || '';
+      for (const line of grn.lines || []) {
+        if (line.productType === 'service') continue;
+        const qty = line.quantityReceived || 0;
+        const unit = line.costPrice || 0;
+        allocations.push({
+          productId: line.productId || undefined,
+          productName: line.productName || '',
+          productCode: line.barcode || '',
+          quantity: qty,
+          unitCostBeforeLanded: unit,
+          weight: 0,
+          lineValue: qty * unit
+        });
+      }
+    }
+  }
 
   if (shipmentId) {
     const shipment = await Shipment.findOne({ _id: shipmentId, ...tenantFilterValue, isActive: true })
@@ -42,17 +71,19 @@ async function allocationsFromLinks(shipmentId, purchaseOrderId, tenantFilterVal
         resolvedPoId = shipment.purchaseOrderId._id || shipment.purchaseOrderId;
       }
       vendor = shipment.supplierId?.nameEn || shipment.supplierId?.nameAr || '';
-      for (const line of shipment.lineItems || []) {
-        const p = line.productId && typeof line.productId === 'object' ? line.productId : null;
-        allocations.push({
-          productId: p?._id || line.productId || undefined,
-          productName: productLabel(p, line.description || ''),
-          productCode: p?.sku || '',
-          quantity: line.quantity || 0,
-          unitCostBeforeLanded: 0,
-          weight: 0,
-          lineValue: 0
-        });
+      if (allocations.length === 0) {
+        for (const line of shipment.lineItems || []) {
+          const p = line.productId && typeof line.productId === 'object' ? line.productId : null;
+          allocations.push({
+            productId: p?._id || line.productId || undefined,
+            productName: productLabel(p, line.description || ''),
+            productCode: p?.sku || '',
+            quantity: line.quantity || 0,
+            unitCostBeforeLanded: 0,
+            weight: 0,
+            lineValue: 0
+          });
+        }
       }
     }
   }
@@ -98,13 +129,15 @@ async function allocationsFromLinks(shipmentId, purchaseOrderId, tenantFilterVal
     }
   }
 
-  return { allocations, vendor, purchaseOrder: resolvedPoId, shipment: resolvedShipmentId };
+  return { allocations, vendor, purchaseOrder: resolvedPoId, shipment: resolvedShipmentId, grnIds: resolvedGrnIds };
 }
 
 function sanitizeLandedCostBody(body) {
   const next = { ...body };
   next.purchaseOrder = asObjectId(body.purchaseOrder);
   next.shipment = asObjectId(body.shipment);
+  const rawGrns = Array.isArray(body.grnIds) ? body.grnIds : (body.grnId ? [body.grnId] : []);
+  next.grnIds = rawGrns.map(asObjectId).filter(Boolean);
   if (!next.purchaseOrder) delete next.purchaseOrder;
   if (!next.shipment) delete next.shipment;
   return next;
@@ -190,7 +223,8 @@ router.get('/', checkPermission('landed_costs', 'read'), async (req, res) => {
         .skip((page - 1) * limit)
         .limit(parseInt(limit))
         .populate('purchaseOrder', 'poNumber')
-        .populate('shipment', 'shipmentNumber'),
+        .populate('shipment', 'shipmentNumber')
+        .populate('grnIds', 'grnNumber'),
       LandedCost.countDocuments(query)
     ]);
 
@@ -205,12 +239,13 @@ router.post('/', checkPermission('landed_costs', 'create'), async (req, res) => 
     const lcNumber = req.body.lcNumber || (await generateLcNumber(req.tenantFilter));
     const payload = sanitizeLandedCostBody(req.body);
     const hasAllocations = Array.isArray(payload.allocations) && payload.allocations.some((a) => a?.productName || a?.productId || a?.quantity);
-    if (!hasAllocations && (payload.shipment || payload.purchaseOrder)) {
-      const linked = await allocationsFromLinks(payload.shipment, payload.purchaseOrder, req.tenantFilter);
+    if (!hasAllocations && (payload.shipment || payload.purchaseOrder || (payload.grnIds || []).length)) {
+      const linked = await allocationsFromLinks(payload.shipment, payload.purchaseOrder, payload.grnIds, req.tenantFilter);
       payload.allocations = linked.allocations;
       if (!payload.vendor) payload.vendor = linked.vendor;
       if (!payload.purchaseOrder && linked.purchaseOrder) payload.purchaseOrder = linked.purchaseOrder;
       if (!payload.shipment && linked.shipment) payload.shipment = linked.shipment;
+      if ((!payload.grnIds || !payload.grnIds.length) && linked.grnIds?.length) payload.grnIds = linked.grnIds;
     }
     const lc = new LandedCost({
       ...payload,
@@ -232,7 +267,8 @@ router.get('/:id', checkPermission('landed_costs', 'read'), async (req, res) => 
   try {
     const lc = await LandedCost.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('purchaseOrder')
-      .populate('shipment');
+      .populate('shipment')
+      .populate('grnIds', 'grnNumber status');
     if (!lc) return res.status(404).json({ error: 'Landed cost not found' });
     res.json(lc);
   } catch (error) {
@@ -245,6 +281,7 @@ router.put('/:id', checkPermission('landed_costs', 'update'), async (req, res) =
     const lc = await LandedCost.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!lc) return res.status(404).json({ error: 'Landed cost not found' });
     if (lc.status === 'posted') return res.status(400).json({ error: 'Cannot edit a posted landed cost' });
+    if (lc.status === 'cancelled') return res.status(400).json({ error: 'Cannot edit a cancelled landed cost' });
     Object.assign(lc, sanitizeLandedCostBody(req.body));
     await lc.save();
     res.json(lc);
@@ -274,48 +311,20 @@ router.post('/:id/calculate', checkPermission('landed_costs', 'update'), async (
     const lc = await LandedCost.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!lc) return res.status(404).json({ error: 'Landed cost not found' });
     if (lc.status === 'posted') return res.status(400).json({ error: 'Cannot recalculate a posted landed cost' });
+    if (lc.status === 'cancelled') return res.status(400).json({ error: 'Cannot recalculate a cancelled landed cost' });
 
     const totalCost = lc.totalCost || 0;
-    const allocations = lc.allocations || [];
+    const { allocations } = allocateLandedCosts({
+      totalCost,
+      allocations: (lc.allocations || []).map((row) => (row.toObject ? row.toObject() : row)),
+      method: lc.allocationMethod || 'by_value',
+    });
 
     if (allocations.length === 0) {
       return res.status(400).json({ error: 'No allocation lines to calculate' });
     }
 
-    // Determine the total basis for the chosen allocation method
-    let totalBasis = 0;
-    if (lc.allocationMethod === 'by_value') {
-      totalBasis = allocations.reduce((s, a) => s + (a.lineValue || 0), 0);
-    } else if (lc.allocationMethod === 'by_weight') {
-      totalBasis = allocations.reduce((s, a) => s + (a.weight || 0), 0);
-    } else if (lc.allocationMethod === 'by_quantity') {
-      totalBasis = allocations.reduce((s, a) => s + (a.quantity || 0), 0);
-    } else {
-      // equal
-      totalBasis = allocations.length;
-    }
-
-    lc.allocations = allocations.map((alloc, idx) => {
-      let basis = 0;
-      if (lc.allocationMethod === 'by_value') basis = alloc.lineValue || 0;
-      else if (lc.allocationMethod === 'by_weight') basis = alloc.weight || 0;
-      else if (lc.allocationMethod === 'by_quantity') basis = alloc.quantity || 0;
-      else basis = 1; // equal
-
-      const ratio = totalBasis > 0 ? basis / totalBasis : 1 / allocations.length;
-      const allocatedCost = totalCost * ratio;
-      const qty = alloc.quantity || 1;
-      const unitLandedCost = allocatedCost / qty;
-      const totalLandedUnitCost = (alloc.unitCostBeforeLanded || 0) + unitLandedCost;
-
-      return {
-        ...alloc.toObject ? alloc.toObject() : alloc,
-        allocatedCost: Math.round(allocatedCost * 100) / 100,
-        unitLandedCost: Math.round(unitLandedCost * 100) / 100,
-        totalLandedUnitCost: Math.round(totalLandedUnitCost * 100) / 100
-      };
-    });
-
+    lc.allocations = allocations;
     lc.status = 'calculated';
     await lc.save();
     res.json(lc);
@@ -331,9 +340,24 @@ router.post('/:id/post', checkPermission('landed_costs', 'update'), async (req, 
     const lc = await LandedCost.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!lc) return res.status(404).json({ error: 'Landed cost not found' });
     if (lc.status !== 'calculated') return res.status(400).json({ error: 'Only calculated landed costs can be posted' });
+    await applyLandedCostToProducts({ tenantFilter: req.tenantFilter, landedCost: lc });
     lc.status = 'posted';
     lc.postedAt = new Date();
     lc.postedBy = req.user._id;
+    await lc.save();
+    res.json(lc);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/cancel', checkPermission('landed_costs', 'update'), async (req, res) => {
+  try {
+    const lc = await LandedCost.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!lc) return res.status(404).json({ error: 'Landed cost not found' });
+    if (lc.status === 'posted') return res.status(400).json({ error: 'Posted landed costs cannot be cancelled' });
+    lc.status = 'cancelled';
+    lc.cancelledAt = new Date();
     await lc.save();
     res.json(lc);
   } catch (error) {

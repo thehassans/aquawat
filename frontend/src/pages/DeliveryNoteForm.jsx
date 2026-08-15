@@ -36,7 +36,7 @@ function DeliveryNoteOrderPicker({ language, navigate }) {
           <p className="text-slate-600 dark:text-slate-300">
             {language === 'ar' ? 'لا توجد طلبات معتمدة لإنشاء سند تسليم.' : 'No approved orders are ready for a delivery note.'}
           </p>
-          <button type="button" className="btn btn-primary mt-4" onClick={() => navigate('/app/dashboard/purchase-orders')}>
+          <button type="button" className="btn btn-primary mt-4" onClick={() => navigate('/app/dashboard/purchases/orders')}>
             <ShoppingCart className="h-4 w-4" />
             {language === 'ar' ? 'فتح طلبات الشراء' : 'Open Purchase Orders'}
           </button>

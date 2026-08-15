@@ -32,6 +32,7 @@ const landedCostSchema = new mongoose.Schema({
   lcNumber: { type: String, required: true },
   purchaseOrder: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder' },
   shipment: { type: mongoose.Schema.Types.ObjectId, ref: 'Shipment' },
+  grnIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'GRN' }],
 
   vendor: { type: String },
   invoiceDate: { type: Date, default: Date.now },
@@ -49,11 +50,20 @@ const landedCostSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['draft', 'calculated', 'posted'],
+    enum: ['draft', 'calculated', 'posted', 'cancelled'],
     default: 'draft'
   },
   postedAt: { type: Date },
   postedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  cancelledAt: { type: Date },
+
+  attachments: [{
+    name: { type: String },
+    url: { type: String },
+    mimeType: { type: String },
+    size: { type: Number },
+    uploadedAt: { type: Date, default: Date.now }
+  }],
 
   notes: { type: String },
   isActive: { type: Boolean, default: true },
@@ -76,6 +86,7 @@ landedCostSchema.index({ tenantId: 1, lcNumber: 1 }, { unique: true });
 landedCostSchema.index({ tenantId: 1, status: 1 });
 landedCostSchema.index({ tenantId: 1, purchaseOrder: 1 });
 landedCostSchema.index({ tenantId: 1, shipment: 1 });
+landedCostSchema.index({ tenantId: 1, grnIds: 1 });
 
 const LandedCost = mongoose.model('LandedCost', landedCostSchema);
 export default LandedCost;

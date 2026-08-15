@@ -30,7 +30,6 @@ import {
   Fingerprint,
   Shield,
   FileSignature,
-  Anchor,
   AlertCircle,
   ShoppingBag,
   ChefHat,
@@ -41,7 +40,6 @@ import {
   PlusCircle,
   Wrench,
   TrendingUp,
-  PackageMinus,
   QrCode,
   MonitorPlay,
   Database,
@@ -237,7 +235,18 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/delivery-notes', icon: FileText, label: language === 'ar' ? 'سندات التسليم' : 'Delivery Notes', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
         { path: '/app/dashboard/contacts', icon: Users, label: language === 'ar' ? 'جهات الاتصال' : 'Contacts', perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['bakala'] },
         { path: '/app/dashboard/calendar', icon: Calendar, label: language === 'ar' ? 'التقويم والمواعيد' : 'Calendar', perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['bakala'] },
-        { path: '/app/dashboard/purchase-orders', icon: ShoppingCart, label: language === 'ar' ? 'طلبات الشراء' : 'Purchase Orders', perm: { module: 'supply_chain', action: 'read' } },
+        {
+          path: '/app/dashboard/purchases',
+          icon: ShoppingCart,
+          label: language === 'ar' ? 'المشتريات' : 'Purchases',
+          perm: { module: 'supply_chain', action: 'read' },
+          children: [
+            { path: '/app/dashboard/purchases/orders', label: language === 'ar' ? 'طلبات الشراء' : 'Purchase Orders' },
+            { path: '/app/dashboard/purchases/grn', label: language === 'ar' ? 'إشعار الاستلام' : 'GRN' },
+            { path: '/app/dashboard/purchases/returns', label: language === 'ar' ? 'مرتجع المشتريات' : 'Purchase Return' },
+            { path: '/app/dashboard/purchases/landed-costs', label: language === 'ar' ? 'التكلفة المرسية' : 'Landed Cost' },
+          ],
+        },
       ]
     },
     {
@@ -274,10 +283,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       title: language === 'ar' ? 'سلسلة التوريد' : 'Supply Chain',
       businessTypes: ['trading', 'bakala', 'pharmacy', 'furniture_shop'],
       items: [
-        { path: '/app/dashboard/grn', icon: Truck, label: language === 'ar' ? 'استلام البضائع' : 'Goods Receipt', perm: { module: 'supply_chain', action: 'read' } },
-        { path: '/app/dashboard/purchase-returns', icon: PackageMinus, label: language === 'ar' ? 'مرتجعات المشتريات' : 'Purchase Returns', perm: { module: 'supply_chain', action: 'read' } },
         { path: '/app/dashboard/shipments', icon: Truck, label: language === 'ar' ? 'الشحنات' : 'Shipments', perm: { module: 'supply_chain', action: 'read' } },
-        { path: '/app/dashboard/landed-costs', icon: Anchor, label: language === 'ar' ? 'التكاليف المرسية' : 'Landed Costs', perm: { module: 'landed_costs', action: 'read' } },
       ]
     },
     {

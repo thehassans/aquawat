@@ -1,88 +1,220 @@
 import express from 'express';
-import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
+import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import PurchaseReturn from '../models/PurchaseReturn.js';
-import { adjustProductStock, findCatalogProduct } from '../services/inventoryAdjust.js';
+import GRN from '../models/GRN.js';
+import { normalizeProductType } from '../utils/productType.js';
+import {
+  generateReturnNumber,
+  confirmPurchaseReturn,
+  cancelPurchaseReturn,
+  resolveWarehouse,
+  PurchasesValidationError,
+} from '../services/purchasesWorkflow.js';
+import { remainingReturnable, toNumber } from '../services/purchasesLogic.js';
 
 const router = express.Router();
 router.use(protect);
 router.use(tenantFilter);
 router.use(requireTenantFilter);
 
-// Generate Return Number
-const generateReturnNumber = async (tenantId) => {
-  const count = await PurchaseReturn.countDocuments({ tenantId });
-  return `PR-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
-};
+function handlePurchasesError(res, error) {
+  if (error instanceof PurchasesValidationError) {
+    return res.status(400).json({ error: error.message, code: error.code });
+  }
+  return res.status(500).json({ error: error.message });
+}
 
-// Get all Purchase Returns
-router.get('/', protect, async (req, res) => {
+function normalizeReturnLines(lines = []) {
+  return (Array.isArray(lines) ? lines : []).map((line) => ({
+    productId: line.productId || undefined,
+    productName: line.productName || '',
+    barcode: line.barcode || '',
+    productType: normalizeProductType(line.productType),
+    quantityReturned: toNumber(line.quantityReturned ?? line.quantity, 0),
+    reason: line.reason || '',
+    notes: line.notes || '',
+    grnLineIndex: line.grnLineIndex,
+  }));
+}
+
+router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const returns = await PurchaseReturn.find({ tenantId: req.user.tenantId })
+    const { status, supplierId, warehouseId, search } = req.query;
+    const query = { tenantId: req.user.tenantId };
+    if (status) query.status = status;
+    if (supplierId) query.supplierId = supplierId;
+    if (warehouseId) query.warehouseId = warehouseId;
+    if (search) {
+      query.$or = [
+        { returnNumber: { $regex: search, $options: 'i' } },
+        { referenceNumber: { $regex: search, $options: 'i' } },
+        { notes: { $regex: search, $options: 'i' } },
+      ];
+    }
+    const returns = await PurchaseReturn.find(query)
       .populate('supplierId', 'nameEn nameAr')
+      .populate('warehouseId', 'code nameEn nameAr')
+      .populate('purchaseOrderId', 'poNumber')
+      .populate('grnId', 'grnNumber')
       .sort('-createdAt');
     res.json(returns);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handlePurchasesError(res, error);
   }
 });
 
-// Create Purchase Return and update stock
-router.post('/', checkTrialLimits('purchaseReturns'), protect, async (req, res) => {
+router.get('/from-grn/:grnId', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const { supplierId, referenceNumber, lines, notes } = req.body;
+    const grn = await GRN.findOne({ _id: req.params.grnId, tenantId: req.user.tenantId })
+      .populate('supplierId', 'nameEn nameAr')
+      .populate('warehouseId', 'code nameEn nameAr')
+      .populate('purchaseOrderId', 'poNumber');
+    if (!grn) return res.status(404).json({ error: 'GRN not found' });
+    const lines = (grn.lines || []).map((line, index) => ({
+      productId: line.productId,
+      productName: line.productName,
+      barcode: line.barcode,
+      productType: line.productType || 'goods',
+      quantityReceived: line.quantityReceived,
+      quantityReturned: line.quantityReturned || 0,
+      remaining: remainingReturnable(line),
+      grnLineIndex: index,
+    })).filter((line) => line.remaining > 0);
+    res.json({
+      grn,
+      warehouseId: grn.warehouseId?._id || grn.warehouseId,
+      supplierId: grn.supplierId?._id || grn.supplierId,
+      purchaseOrderId: grn.purchaseOrderId?._id || grn.purchaseOrderId,
+      lines,
+    });
+  } catch (error) {
+    handlePurchasesError(res, error);
+  }
+});
 
-    for (const line of lines || []) {
-      if (!line.productId) continue;
-      const found = await findCatalogProduct(req.user.tenantId, line.productId);
-      if (!found) {
-        return res.status(400).json({ error: `Product not found: ${line.productName || line.productId}` });
-      }
+router.post('/', checkTrialLimits('purchaseReturns'), checkPermission('supply_chain', 'create'), async (req, res) => {
+  try {
+    const {
+      supplierId,
+      warehouseId,
+      purchaseOrderId,
+      grnId,
+      referenceNumber,
+      lines,
+      notes,
+      reason,
+      status = 'draft',
+    } = req.body;
+
+    if (!supplierId) return res.status(400).json({ error: 'supplierId is required' });
+    const normalized = normalizeReturnLines(lines).filter((line) => line.quantityReturned > 0);
+    if (!normalized.length) return res.status(400).json({ error: 'At least one return line is required' });
+
+    let grn = null;
+    if (grnId) {
+      grn = await GRN.findOne({ _id: grnId, tenantId: req.user.tenantId });
+      if (!grn) return res.status(400).json({ error: 'Invalid GRN' });
     }
 
-    const returnNumber = await generateReturnNumber(req.user.tenantId);
+    const resolvedWarehouseId = warehouseId || grn?.warehouseId;
+    if (resolvedWarehouseId) {
+      const warehouse = await resolveWarehouse(req.tenantFilter, resolvedWarehouseId);
+      if (!warehouse) return res.status(400).json({ error: 'Warehouse not found' });
+    }
 
     const purchaseReturn = new PurchaseReturn({
       tenantId: req.user.tenantId,
-      returnNumber,
+      returnNumber: await generateReturnNumber(req.tenantFilter),
       supplierId,
+      warehouseId: resolvedWarehouseId || undefined,
+      purchaseOrderId: purchaseOrderId || grn?.purchaseOrderId || undefined,
+      grnId: grnId || undefined,
       referenceNumber,
       notes,
+      reason,
+      createdBy: req.user._id,
       returnedBy: req.user._id,
-      lines: lines || []
+      status: status === 'completed' ? 'draft' : (status || 'draft'),
+      lines: normalized,
     });
-
     await purchaseReturn.save();
 
-    for (const line of purchaseReturn.lines) {
-      if (!line.productId) continue;
-      const updated = await adjustProductStock({
-        tenantId: req.user.tenantId,
-        productId: line.productId,
-        delta: -line.quantityReturned,
-      });
-      if (!updated) {
-        throw new Error(`Product not found: ${line.productName || line.productId}`);
-      }
+    if (status === 'completed' || req.body.confirm === true) {
+      await confirmPurchaseReturn({ tenantFilter: req.tenantFilter, user: req.user, purchaseReturn });
     }
 
-    res.status(201).json(purchaseReturn);
+    const saved = await PurchaseReturn.findOne({ _id: purchaseReturn._id, tenantId: req.user.tenantId })
+      .populate('supplierId', 'nameEn nameAr')
+      .populate('warehouseId', 'code nameEn nameAr')
+      .populate('grnId', 'grnNumber')
+      .populate('purchaseOrderId', 'poNumber');
+    res.status(201).json(saved);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handlePurchasesError(res, error);
   }
 });
 
-// Get Single Purchase Return
-router.get('/:id', protect, async (req, res) => {
+router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
     const purchaseReturn = await PurchaseReturn.findOne({ _id: req.params.id, tenantId: req.user.tenantId })
       .populate('supplierId', 'nameEn nameAr email phone')
-      .populate('returnedBy', 'name');
-    
+      .populate('warehouseId', 'code nameEn nameAr')
+      .populate('purchaseOrderId', 'poNumber')
+      .populate('grnId', 'grnNumber')
+      .populate('returnedBy', 'firstName lastName name');
     if (!purchaseReturn) return res.status(404).json({ error: 'Purchase Return not found' });
     res.json(purchaseReturn);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handlePurchasesError(res, error);
+  }
+});
+
+router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) => {
+  try {
+    const purchaseReturn = await PurchaseReturn.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+    if (!purchaseReturn) return res.status(404).json({ error: 'Purchase Return not found' });
+    if (purchaseReturn.status !== 'draft') {
+      return res.status(400).json({ error: 'Only draft returns can be edited' });
+    }
+    const { supplierId, warehouseId, referenceNumber, notes, reason, lines, grnId, purchaseOrderId } = req.body;
+    if (supplierId) purchaseReturn.supplierId = supplierId;
+    if (warehouseId !== undefined) purchaseReturn.warehouseId = warehouseId || undefined;
+    if (referenceNumber !== undefined) purchaseReturn.referenceNumber = referenceNumber;
+    if (notes !== undefined) purchaseReturn.notes = notes;
+    if (reason !== undefined) purchaseReturn.reason = reason;
+    if (grnId !== undefined) purchaseReturn.grnId = grnId || undefined;
+    if (purchaseOrderId !== undefined) purchaseReturn.purchaseOrderId = purchaseOrderId || undefined;
+    if (Array.isArray(lines)) purchaseReturn.lines = normalizeReturnLines(lines);
+    await purchaseReturn.save();
+    res.json(purchaseReturn);
+  } catch (error) {
+    handlePurchasesError(res, error);
+  }
+});
+
+router.post('/:id/confirm', checkPermission('supply_chain', 'update'), async (req, res) => {
+  try {
+    const purchaseReturn = await PurchaseReturn.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+    if (!purchaseReturn) return res.status(404).json({ error: 'Purchase Return not found' });
+    if (purchaseReturn.status === 'cancelled') {
+      return res.status(400).json({ error: 'Cannot confirm a cancelled return' });
+    }
+    await confirmPurchaseReturn({ tenantFilter: req.tenantFilter, user: req.user, purchaseReturn });
+    res.json(purchaseReturn);
+  } catch (error) {
+    handlePurchasesError(res, error);
+  }
+});
+
+router.post('/:id/cancel', checkPermission('supply_chain', 'update'), async (req, res) => {
+  try {
+    const purchaseReturn = await PurchaseReturn.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+    if (!purchaseReturn) return res.status(404).json({ error: 'Purchase Return not found' });
+    await cancelPurchaseReturn({ tenantFilter: req.tenantFilter, user: req.user, purchaseReturn });
+    res.json(purchaseReturn);
+  } catch (error) {
+    handlePurchasesError(res, error);
   }
 });
 

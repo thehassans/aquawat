@@ -59,7 +59,7 @@ export default function GlobalSearch({ language }) {
         navigate(`/app/dashboard/suppliers`);
         break;
       case 'purchase_order':
-        navigate(`/app/dashboard/purchase-orders/${result.id}`);
+        navigate(`/app/dashboard/purchases/orders/${result.id}`);
         break;
       case 'contact':
         navigate(`/app/dashboard/contacts`);

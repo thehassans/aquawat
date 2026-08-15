@@ -405,7 +405,7 @@ export default function ShipmentForm() {
             {hasLandedCosts && (shipment?.type === 'inbound' || shipmentType === 'inbound') ? (
               <button
                 type="button"
-                onClick={() => navigate(`/app/dashboard/landed-costs/new?shipment=${id}`)}
+                onClick={() => navigate(`/app/dashboard/purchases/landed-costs/new?shipment=${id}`)}
                 className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800 disabled:opacity-40"
               >
                 <Anchor className="w-4 h-4" />

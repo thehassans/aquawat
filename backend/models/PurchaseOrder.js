@@ -6,8 +6,11 @@ const purchaseOrderLineItemSchema = new mongoose.Schema({
   uom: { type: String, default: '' },
   description: { type: String },
 
+  productType: { type: String, enum: ['goods', 'service'], default: 'goods' },
+
   quantityOrdered: { type: Number, required: true, min: 0 },
   quantityReceived: { type: Number, default: 0, min: 0 },
+  quantityReturned: { type: Number, default: 0, min: 0 },
   quantityDelivered: { type: Number, default: 0, min: 0 },
   quantityInvoiced: { type: Number, default: 0, min: 0 },
 
@@ -37,9 +40,11 @@ const purchaseOrderSchema = new mongoose.Schema({
   supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', index: true },
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', index: true },
 
+  warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true },
+
   status: {
     type: String,
-    enum: ['draft', 'sent', 'approved', 'partially_received', 'received', 'partially_delivered', 'delivered', 'closed', 'cancelled'],
+    enum: ['draft', 'sent', 'approved', 'partially_received', 'received', 'billed', 'partially_delivered', 'delivered', 'closed', 'cancelled'],
     default: 'draft'
   },
 
@@ -47,6 +52,16 @@ const purchaseOrderSchema = new mongoose.Schema({
   expectedDate: { type: Date },
 
   currency: { type: String, default: 'SAR' },
+
+  attachments: [{
+    name: { type: String },
+    url: { type: String },
+    mimeType: { type: String },
+    size: { type: Number },
+    uploadedAt: { type: Date, default: Date.now }
+  }],
+
+  billedInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
 
   lineItems: { type: [purchaseOrderLineItemSchema], default: [] },
 

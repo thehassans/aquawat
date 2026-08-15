@@ -1812,6 +1812,39 @@ export const DEFAULT_APP_CATALOG = [
       { key: 'etimadPassword', labelEn: 'Etimad Portal Password', labelAr: 'كلمة مرور بوابة اعتماد', type: 'password', defaultValue: '' }
     ]
   },
+  {
+    appId: 'purchases',
+    nameEn: 'Purchases',
+    nameAr: 'المشتريات',
+    taglineEn: 'Purchase orders, goods receipt, returns, and landed cost in one warehouse-aware app.',
+    taglineAr: 'طلبات الشراء واستلام البضائع والمرتجعات والتكاليف المرسية في تطبيق واحد مرتبط بالمستودعات.',
+    descriptionEn: 'Unify procurement on Maqder: raise purchase orders against a destination warehouse, receive goods with partial GRNs, return received stock, and allocate freight/customs/insurance into product cost. Shares the trading catalog, bakala/pharmacy stock, and vendor bills with invoicing — without a parallel product-type system.',
+    descriptionAr: 'وحّد المشتريات على ماقدر: أصدر طلبات الشراء إلى مستودع، واستلم جزئياً عبر إشعارات الاستلام، وأرجع الكميات المستلمة، ووزّع الشحن والجمارك والتأمين على تكلفة الصنف. المخزون وفواتير الموردين مشتركة مع باقي النظام.',
+    category: 'logistics',
+    appType: 'core_vertical',
+    icon: 'shopping-cart',
+    version: '1.0.0',
+    downloadSize: '6.4 MB',
+    author: 'Maqder Core',
+    rating: 4.94,
+    reviewsCount: 86,
+    pricingTier: 'free',
+    badge: 'Procurement',
+    defaultRoute: '/app/dashboard/purchases',
+    featuresEn: [
+      'Purchase orders with vendor, warehouse, tax lines, and vendor-bill attachments',
+      'GRN from open PO lines with partial receive, delay notes, and warehouse stock-in',
+      'Purchase returns that cannot exceed received qty and reverse warehouse stock',
+      'Landed cost allocated by value onto received goods and product unit cost'
+    ],
+    featuresAr: [
+      'طلبات شراء بالمورد والمستودع والضريبة ومرفقات فاتورة المورد',
+      'استلام من بنود الطلب المفتوحة مع التأخير وتحديث مخزون المستودع',
+      'مرتجعات لا تتجاوز الكمية المستلمة وتعكس المخزون',
+      'توزيع التكاليف المرسية بالقيمة على البضاعة المستلمة وتكلفة الصنف'
+    ],
+    configSchema: []
+  },
   // ══════════════════════════════════════════════════════════════════════════════
   // ── BANGLADESH NBR / MUSHAK COMPLIANCE ───────────────────────────────────────
   // ══════════════════════════════════════════════════════════════════════════════

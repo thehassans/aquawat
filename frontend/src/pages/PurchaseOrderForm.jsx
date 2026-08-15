@@ -30,6 +30,7 @@ import Select from 'react-select'
 import { getAvailableUomOptions } from '../lib/uomOptions'
 
 const STATUS_PILL = {
+  billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
   received: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
   partially_received: 'bg-amber-50 text-amber-700 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
   cancelled: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
@@ -93,11 +94,12 @@ export default function PurchaseOrderForm() {
     defaultValues: {
       poNumber: '',
       supplierId: '',
+      warehouseId: '',
       orderDate: formatDateForInput(new Date()),
       expectedDate: '',
       currency: tenant?.settings?.currency || 'SAR',
       notes: '',
-      lineItems: [{ productId: '', manualName: '', uom: '', description: '', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
+      lineItems: [{ productId: '', manualName: '', uom: '', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
     },
   })
 
@@ -122,7 +124,14 @@ export default function PurchaseOrderForm() {
 
   const { data: warehouses } = useQuery({
     queryKey: ['warehouses'],
-    queryFn: () => api.get('/warehouses').then((res) => res.data),
+    queryFn: async () => {
+      try {
+        const res = await api.get('/warehouses')
+        return Array.isArray(res.data) ? res.data : res.data?.warehouses || []
+      } catch {
+        return []
+      }
+    },
   })
 
   const addSupplierMutation = useMutation({
@@ -190,6 +199,7 @@ export default function PurchaseOrderForm() {
     reset({
       poNumber: order.poNumber || '',
       supplierId: order.supplierId?._id || order.supplierId || '',
+      warehouseId: order.warehouseId?._id || order.warehouseId || '',
       orderDate: formatDateForInput(order.orderDate),
       expectedDate: formatDateForInput(order.expectedDate),
       currency: order.currency || tenant?.settings?.currency || 'SAR',
@@ -201,17 +211,18 @@ export default function PurchaseOrderForm() {
               manualName: li?.manualName || '',
               uom: li?.uom || '',
               description: li?.description || '',
+              productType: li?.productType || li?.productId?.productType || 'goods',
               quantityOrdered: li?.quantityOrdered ?? 0,
               quantityReceived: li?.quantityReceived ?? 0,
               unitCost: li?.unitCost ?? 0,
               taxRate: li?.taxRate ?? 15,
             }))
-          : [{ productId: '', manualName: '', uom: '', description: '', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
+          : [{ productId: '', manualName: '', uom: '', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
     })
     setManualModes(items.map((li) => Boolean(li?.manualName && !li?.productId)))
   }, [order, reset, tenant?.settings?.currency])
 
-  const isLocked = isEdit && ['partially_received', 'received', 'cancelled'].includes(order?.status)
+  const isLocked = isEdit && ['partially_received', 'received', 'billed', 'cancelled'].includes(order?.status)
 
   const totals = useMemo(() => {
     const items = Array.isArray(lineItems) ? lineItems : []
@@ -251,9 +262,9 @@ export default function PurchaseOrderForm() {
         queryClient.invalidateQueries(['purchase-order', id])
       } else {
         if (res.data?.offline) {
-          navigate('/app/dashboard/purchase-orders')
+          navigate('/app/dashboard/purchases/orders')
         } else {
-          navigate(`/app/dashboard/purchase-orders/${res.data?._id}`)
+          navigate(`/app/dashboard/purchases/orders/${res.data?._id}`)
         }
       }
     },
@@ -266,6 +277,16 @@ export default function PurchaseOrderForm() {
       toast.success(language === 'ar' ? 'تم اعتماد طلب الشراء' : 'Purchase order approved')
       queryClient.invalidateQueries(['purchase-orders'])
       queryClient.invalidateQueries(['purchase-orders-stats'])
+      queryClient.invalidateQueries(['purchase-order', id])
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+  })
+
+  const sendMutation = useMutation({
+    mutationFn: () => api.post(`/purchase-orders/${id}/send`),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم إرسال طلب الشراء' : 'Purchase order sent')
+      queryClient.invalidateQueries(['purchase-orders'])
       queryClient.invalidateQueries(['purchase-order', id])
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
@@ -310,6 +331,7 @@ export default function PurchaseOrderForm() {
         manualName: manualModes[index] ? (li.manualName || '') : '',
         uom: manualModes[index] ? (li.uom || '') : '',
         description: li.description,
+        productType: li.productType || 'goods',
         quantityOrdered: Number(li.quantityOrdered || 0),
         quantityReceived: Number(li.quantityReceived || 0),
         unitCost: Number(li.unitCost || 0),
@@ -394,6 +416,7 @@ export default function PurchaseOrderForm() {
       if (status === 'approved') return 'معتمد'
       if (status === 'partially_received') return 'مستلم جزئياً'
       if (status === 'received') return 'مستلم'
+      if (status === 'billed') return 'مفوتر'
       if (status === 'cancelled') return 'ملغي'
       return status
     }
@@ -439,7 +462,7 @@ export default function PurchaseOrderForm() {
         <div className="flex items-start gap-3">
           <button
             type="button"
-            onClick={() => navigate('/app/dashboard/purchase-orders')}
+            onClick={() => navigate('/app/dashboard/purchases/orders')}
             className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-transparent dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -484,6 +507,33 @@ export default function PurchaseOrderForm() {
             </button>
             <button
               type="button"
+              onClick={() => navigate(`/app/dashboard/purchases/grn/new?poId=${id}`)}
+              disabled={!['approved', 'sent', 'partially_received'].includes(order?.status)}
+              className={ghostBtn}
+            >
+              <WarehouseIcon className="h-4 w-4 opacity-70" />
+              {language === 'ar' ? 'إنشاء إشعار استلام' : 'Create GRN'}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/app/dashboard/purchases/returns/new`)}
+              disabled={!['partially_received', 'received', 'billed'].includes(order?.status)}
+              className={ghostBtn}
+            >
+              <FileText className="h-4 w-4 opacity-70" />
+              {language === 'ar' ? 'مرتجع' : 'Return'}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/app/dashboard/purchases/landed-costs/new?po=${id}`)}
+              disabled={!['partially_received', 'received', 'billed'].includes(order?.status)}
+              className={ghostBtn}
+            >
+              <FileText className="h-4 w-4 opacity-70" />
+              {language === 'ar' ? 'تكلفة مرسية' : 'Landed cost'}
+            </button>
+            <button
+              type="button"
               onClick={() => navigate(`/app/dashboard/invoices/new/purchase?poId=${id}`)}
               className={ghostBtn}
             >
@@ -510,8 +560,17 @@ export default function PurchaseOrderForm() {
             </button>
             <button
               type="button"
+              onClick={() => sendMutation.mutate()}
+              disabled={sendMutation.isPending || !['draft'].includes(order?.status)}
+              className={ghostBtn}
+            >
+              {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4 opacity-70" />}
+              {language === 'ar' ? 'إرسال' : 'Send'}
+            </button>
+            <button
+              type="button"
               onClick={() => approveMutation.mutate()}
-              disabled={approveMutation.isPending || ['approved', 'received', 'cancelled', 'partially_received'].includes(order?.status)}
+              disabled={approveMutation.isPending || ['approved', 'received', 'billed', 'cancelled', 'partially_received'].includes(order?.status)}
               className={ghostBtn}
             >
               {approveMutation.isPending ? (
@@ -622,6 +681,18 @@ export default function PurchaseOrderForm() {
             </div>
 
             <div>
+              <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'} *</label>
+              <select {...register('warehouseId')} className="select" disabled={isLocked}>
+                <option value="">{language === 'ar' ? 'اختر مستودع' : 'Select warehouse'}</option>
+                {(Array.isArray(warehouses) ? warehouses : []).map((w) => (
+                  <option key={w._id} value={w._id}>
+                    {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <label className="label">{language === 'ar' ? 'العملة' : 'Currency'}</label>
               <input {...register('currency')} className="input" disabled />
             </div>
@@ -646,6 +717,37 @@ export default function PurchaseOrderForm() {
               <label className="label">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
               <textarea {...register('notes')} className="input" rows={3} disabled={isLocked} />
             </div>
+            {isEdit && (
+              <div className="md:col-span-2 lg:col-span-3">
+                <label className="label">{language === 'ar' ? 'فاتورة المورد (PDF / صورة)' : 'Vendor bill (PDF / image)'}</label>
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  className="input"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    if (!file) return
+                    const body = new FormData()
+                    body.append('file', file)
+                    try {
+                      await api.post(`/purchase-orders/${id}/attachments`, body, { headers: { 'Content-Type': 'multipart/form-data' } })
+                      toast.success(language === 'ar' ? 'تم رفع المرفق' : 'Attachment uploaded')
+                      queryClient.invalidateQueries(['purchase-order', id])
+                    } catch (err) {
+                      toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل الرفع' : 'Upload failed'))
+                    }
+                  }}
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(order?.attachments || []).map((file, idx) => (
+                    <a key={`${file.url}-${idx}`} href={file.url} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-50 px-3 py-1.5 text-[12px] text-teal-700 hover:underline dark:bg-white/5">
+                      {file.name || (language === 'ar' ? 'مرفق' : 'Attachment')}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </motion.div>
 
@@ -674,6 +776,7 @@ export default function PurchaseOrderForm() {
                     manualName: '',
                     uom: '',
                     description: '',
+                    productType: 'goods',
                     quantityOrdered: 1,
                     quantityReceived: 0,
                     unitCost: 0,
@@ -895,7 +998,7 @@ export default function PurchaseOrderForm() {
             </div>
 
             <div className="hidden gap-3 md:flex">
-              <button type="button" onClick={() => navigate('/app/dashboard/purchase-orders')} className={ghostBtn}>
+              <button type="button" onClick={() => navigate('/app/dashboard/purchases/orders')} className={ghostBtn}>
                 {t('cancel')}
               </button>
               <button type="submit" disabled={saveMutation.isPending || isLocked} className={primaryBtn}>
@@ -918,7 +1021,7 @@ export default function PurchaseOrderForm() {
         <div className="mx-auto flex max-w-lg gap-2">
           <button
             type="button"
-            onClick={() => navigate('/app/dashboard/purchase-orders')}
+            onClick={() => navigate('/app/dashboard/purchases/orders')}
             className={`${ghostBtn} flex-1 justify-center`}
           >
             {t('cancel')}
@@ -948,7 +1051,7 @@ export default function PurchaseOrderForm() {
               {language === 'ar' ? 'استلام المخزون' : 'Receive stock'}
             </p>
             <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-              {language === 'ar' ? 'تسجيل الكميات الواردة وتحديث المخزون' : 'Record incoming quantities and update stock'}
+              {language === 'ar' ? 'إنشاء إشعار استلام وتحديث المخزون' : 'Create a GRN and post warehouse stock'}
             </p>
           </div>
 
@@ -1045,6 +1148,39 @@ export default function PurchaseOrderForm() {
             </div>
           </div>
         </motion.div>
+      )}
+
+      {isEdit && order?.related && (
+        <div className={`${shell} p-5 sm:p-6`}>
+          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+            {language === 'ar' ? 'المستندات المرتبطة' : 'Related documents'}
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { title: language === 'ar' ? 'إشعارات الاستلام' : 'GRNs', items: order.related.grns, href: (d) => `/app/dashboard/purchases/grn/${d._id}`, label: (d) => d.grnNumber },
+              { title: language === 'ar' ? 'المرتجعات' : 'Returns', items: order.related.returns, href: (d) => `/app/dashboard/purchases/returns/${d._id}`, label: (d) => d.returnNumber },
+              { title: language === 'ar' ? 'تكاليف مرسية' : 'Landed costs', items: order.related.landedCosts, href: (d) => `/app/dashboard/purchases/landed-costs/${d._id}`, label: (d) => d.lcNumber },
+              { title: language === 'ar' ? 'فواتير الشراء' : 'Vendor bills', items: order.related.invoices, href: (d) => `/app/dashboard/invoices/${d._id}`, label: (d) => d.invoiceNumber },
+            ].map((group) => (
+              <div key={group.title}>
+                <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200">{group.title}</p>
+                {(group.items || []).length === 0 ? (
+                  <p className="mt-2 text-[12px] text-slate-400">—</p>
+                ) : (
+                  <ul className="mt-2 space-y-1">
+                    {group.items.map((doc) => (
+                      <li key={doc._id}>
+                        <button type="button" onClick={() => navigate(group.href(doc))} className="font-mono text-[12px] text-teal-700 hover:underline">
+                          {group.label(doc)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {showSupplierModal && (

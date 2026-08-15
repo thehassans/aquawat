@@ -785,7 +785,7 @@ export default function Dashboard() {
                     <h3 className="text-base font-bold text-gray-900 dark:text-white">
                       {isAr ? 'أحدث طلبات الشراء' : 'Recent Purchase Orders'}
                     </h3>
-                    <Link to="/app/dashboard/purchase-orders" className="text-xs text-primary-600 font-bold">
+                    <Link to="/app/dashboard/purchases/orders" className="text-xs text-primary-600 font-bold">
                       {isAr ? 'الكل' : 'All'}
                     </Link>
                   </div>

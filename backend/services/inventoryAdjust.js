@@ -12,7 +12,7 @@ export async function findCatalogProduct(tenantId, productId) {
  * Apply a stock delta to either the bakala catalog or the trading catalog.
  * GRN / purchase-return lines may reference either collection.
  */
-export async function adjustProductStock({ tenantId, productId, delta, setFields = {} }) {
+export async function adjustProductStock({ tenantId, productId, delta, warehouseId, setFields = {} }) {
   if (!tenantId || !productId) return null;
 
   const qty = Number(delta) || 0;
@@ -36,10 +36,14 @@ export async function adjustProductStock({ tenantId, productId, delta, setFields
   const product = await Product.findOne({ _id: productId, tenantId });
   if (!product) return null;
 
-  product.totalStock = (Number(product.totalStock) || 0) + qty;
-  if (Array.isArray(product.stocks) && product.stocks.length) {
-    product.stocks[0].quantity = (Number(product.stocks[0].quantity) || 0) + qty;
-    product.stocks[0].lastStockUpdate = new Date();
+  if (warehouseId && typeof product.updateStock === 'function') {
+    product.updateStock(warehouseId, qty);
+  } else {
+    product.totalStock = (Number(product.totalStock) || 0) + qty;
+    if (Array.isArray(product.stocks) && product.stocks.length) {
+      product.stocks[0].quantity = (Number(product.stocks[0].quantity) || 0) + qty;
+      product.stocks[0].lastStockUpdate = new Date();
+    }
   }
   if ($set.costPrice != null) product.costPrice = $set.costPrice;
   await product.save();

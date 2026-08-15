@@ -51,6 +51,7 @@ const APP_STYLE_MAP = {
   // Inventory & Operations Group (Green / Teal)
   '/app/dashboard/inventory': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/products': { gradient: 'from-[#11998e] to-[#38ef7d]' },
+  '/app/dashboard/purchases': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/purchase-orders': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/suppliers': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/shipments': { gradient: 'from-[#11998e] to-[#38ef7d]' },

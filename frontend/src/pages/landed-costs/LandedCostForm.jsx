@@ -75,11 +75,13 @@ export default function LandedCostForm() {
   const isAr = language === 'ar'
   const t = (en, ar) => isAr ? ar : en
   const presetShipmentId = String(searchParams.get('shipment') || '').trim()
+  const presetPoId = String(searchParams.get('po') || '').trim()
+  const presetGrnId = String(searchParams.get('grn') || '').trim()
 
   const [form, setForm] = useState({
     lcNumber: '', vendor: '', invoiceDate: '', referenceNumber: '', notes: '',
     allocationMethod: 'by_value', status: 'draft',
-    purchaseOrder: '', shipment: presetShipmentId
+    purchaseOrder: presetPoId, shipment: presetShipmentId, grnIds: presetGrnId ? [presetGrnId] : []
   })
   const [costLines, setCostLines] = useState([emptyCostLine()])
   const [allocations, setAllocations] = useState([emptyAllocation()])
@@ -90,6 +92,7 @@ export default function LandedCostForm() {
   const [error, setError] = useState('')
   const [shipments, setShipments] = useState([])
   const [purchaseOrders, setPurchaseOrders] = useState([])
+  const [grns, setGrns] = useState([])
   const [linkedPrefillDone, setLinkedPrefillDone] = useState(false)
 
   const fetchLC = useCallback(async () => {
@@ -103,7 +106,8 @@ export default function LandedCostForm() {
         referenceNumber: data.referenceNumber || '', notes: data.notes || '',
         allocationMethod: data.allocationMethod || 'by_value', status: data.status || 'draft',
         purchaseOrder: data.purchaseOrder?._id || data.purchaseOrder || '',
-        shipment: data.shipment?._id || data.shipment || ''
+        shipment: data.shipment?._id || data.shipment || '',
+        grnIds: (data.grnIds || []).map((g) => g._id || g),
       })
       setCostLines(data.costLines?.length ? data.costLines : [emptyCostLine()])
       setAllocations(data.allocations?.length ? data.allocations : [emptyAllocation()])
@@ -117,13 +121,15 @@ export default function LandedCostForm() {
     let cancelled = false
     const loadLookups = async () => {
       try {
-        const [shipRes, poRes] = await Promise.all([
+        const [shipRes, poRes, grnRes] = await Promise.all([
           api.get('/shipments', { params: { page: 1, limit: 200, type: 'inbound' } }),
           api.get('/purchase-orders', { params: { page: 1, limit: 200 } }),
+          api.get('/grn'),
         ])
         if (cancelled) return
         setShipments(shipRes.data?.shipments || [])
         setPurchaseOrders(poRes.data?.purchaseOrders || [])
+        setGrns(Array.isArray(grnRes.data) ? grnRes.data : [])
       } catch (_) { /* lookups optional */ }
     }
     loadLookups()
@@ -213,10 +219,17 @@ export default function LandedCostForm() {
   }, [isAr])
 
   useEffect(() => {
-    if (isEdit || linkedPrefillDone || !presetShipmentId) return
-    setLinkedPrefillDone(true)
-    applyLinkedDocs(presetShipmentId, '')
-  }, [applyLinkedDocs, isEdit, linkedPrefillDone, presetShipmentId])
+    if (isEdit || linkedPrefillDone) return
+    if (presetShipmentId) {
+      setLinkedPrefillDone(true)
+      applyLinkedDocs(presetShipmentId, presetPoId)
+      return
+    }
+    if (presetPoId) {
+      setLinkedPrefillDone(true)
+      applyLinkedDocs('', presetPoId)
+    }
+  }, [applyLinkedDocs, isEdit, linkedPrefillDone, presetShipmentId, presetPoId])
 
   const totalCost = costLines.reduce((s, l) => s + (parseFloat(l.amount) || 0) * (parseFloat(l.exchangeRate) || 1), 0)
 
@@ -225,7 +238,7 @@ export default function LandedCostForm() {
       setSaving(true); setError('')
       const payload = { ...form, costLines, allocations }
       if (isEdit) { await api.put(`/landed-costs/${id}`, payload); await fetchLC() }
-      else { const { data } = await api.post('/landed-costs', payload); navigate(`/app/dashboard/landed-costs/${data._id}`) }
+      else { const { data } = await api.post('/landed-costs', payload); navigate(`/app/dashboard/purchases/landed-costs/${data._id}`) }
     } catch (e) { setError(e.userMessage || t('Failed to save', 'فشل')) }
     finally { setSaving(false) }
   }
@@ -249,6 +262,13 @@ export default function LandedCostForm() {
       await fetchLC()
     } catch (e) { setError(e.userMessage || t('Failed to post', 'فشل النشر')) }
     finally { setPosting(false) }
+  }
+
+  const handleCancel = async () => {
+    try {
+      await api.post(`/landed-costs/${id}/cancel`)
+      await fetchLC()
+    } catch (e) { setError(e.userMessage || t('Failed to cancel', 'فشل الإلغاء')) }
   }
 
   const updateCostLine = (idx, field, value) => {
@@ -287,7 +307,7 @@ export default function LandedCostForm() {
         <div className="flex items-start gap-3">
           <button
             type="button"
-            onClick={() => navigate('/app/dashboard/landed-costs')}
+            onClick={() => navigate('/app/dashboard/purchases/landed-costs')}
             className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-transparent dark:text-slate-300"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -308,7 +328,7 @@ export default function LandedCostForm() {
           </div>
         </div>
         <div className="hidden flex-wrap items-center gap-2 md:flex">
-          <button type="button" onClick={() => navigate('/app/dashboard/landed-costs')} className={ghostBtn}>
+          <button type="button" onClick={() => navigate('/app/dashboard/purchases/landed-costs')} className={ghostBtn}>
             <X className="h-4 w-4 opacity-70" /> {t('Cancel', 'إلغاء')}
           </button>
           {!isPosted && (
@@ -324,6 +344,11 @@ export default function LandedCostForm() {
           {isEdit && form.status === 'calculated' && (
             <button type="button" onClick={handlePost} disabled={posting} className={emeraldBtn}>
               <CheckCircle className="h-4 w-4" /> {posting ? t('Posting…', 'جارٍ النشر…') : t('Post to inventory', 'ترحيل للمخزون')}
+            </button>
+          )}
+          {isEdit && form.status !== 'posted' && form.status !== 'cancelled' && (
+            <button type="button" onClick={handleCancel} className={ghostBtn}>
+              <X className="h-4 w-4" /> {t('Cancel', 'إلغاء')}
             </button>
           )}
         </div>
@@ -414,6 +439,18 @@ export default function LandedCostForm() {
               <option value="">{t('Select shipment', 'اختر شحنة')}</option>
               {shipments.map((s) => (
                 <option key={s._id} value={s._id}>{s.shipmentNumber}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t('GRN', 'إشعار الاستلام')}>
+            <Select
+              value={(form.grnIds || [])[0] || ''}
+              disabled={isPosted}
+              onChange={(e) => setForm((f) => ({ ...f, grnIds: e.target.value ? [e.target.value] : [] }))}
+            >
+              <option value="">{t('Select GRN', 'اختر إشعار استلام')}</option>
+              {grns.map((g) => (
+                <option key={g._id} value={g._id}>{g.grnNumber}</option>
               ))}
             </Select>
           </Field>
