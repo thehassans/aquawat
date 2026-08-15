@@ -47,3 +47,13 @@ export function isAppGateOpen(tenant, { requireApp, requireAnyApp } = {}) {
   if (requireApp) return isOn(requireApp)
   return true
 }
+
+/** Sidebar/launcher unlock: construction (or other) grant, or an installed App Store app. */
+export function isNavItemAppVisible(tenant, businessTypes = [], item = {}) {
+  const grantTypes = Array.isArray(item.grantBusinessTypes) ? item.grantBusinessTypes : []
+  const hasAppReq = Boolean(item.requireApp) || (Array.isArray(item.requireAnyApp) && item.requireAnyApp.length > 0)
+  if (!grantTypes.length && !hasAppReq) return true
+  if (grantTypes.some((type) => businessTypes.includes(type))) return true
+  if (hasAppReq) return isAppGateOpen(tenant, item)
+  return false
+}

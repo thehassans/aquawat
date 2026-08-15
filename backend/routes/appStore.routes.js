@@ -1845,6 +1845,39 @@ export const DEFAULT_APP_CATALOG = [
     ],
     configSchema: []
   },
+  {
+    appId: 'projects',
+    nameEn: 'Projects',
+    nameAr: 'المشاريع',
+    taglineEn: 'Plan jobs, track progress, and cost construction or service projects.',
+    taglineAr: 'خطط الأعمال وتتبع الإنجاز وتكلفة مشاريع المقاولات والخدمات.',
+    descriptionEn: 'Project hub for Maqder: create projects, follow progress, notes, and job costing links. Included for construction tenants; other businesses can install it from the App Store without switching their industry type.',
+    descriptionAr: 'مركز المشاريع على ماقدر: إنشاء المشاريع ومتابعة الإنجاز والملاحظات وربط تكلفة الأعمال. مضمّن لمنشآت المقاولات، ويمكن للمنشآت الأخرى تنزيله من المتجر دون تغيير نوع النشاط.',
+    category: 'operations',
+    appType: 'core_vertical',
+    icon: 'folderkanban',
+    version: '1.0.0',
+    downloadSize: '5.2 MB',
+    author: 'Maqder Core',
+    rating: 4.91,
+    reviewsCount: 124,
+    pricingTier: 'free',
+    badge: 'Projects',
+    defaultRoute: '/app/dashboard/projects',
+    featuresEn: [
+      'Project list, status, budget, and progress tracking',
+      'Included by default for construction tenants',
+      'Install from the App Store for any other tenant type',
+      'Links into job costing, tasks, and invoices'
+    ],
+    featuresAr: [
+      'قائمة المشاريع والحالة والميزانية ونسب الإنجاز',
+      'مفعّل افتراضياً لمنشآت المقاولات',
+      'يمكن تنزيله من المتجر لأي نوع منشأة آخر',
+      'ارتباط بتكلفة الأعمال والمهام والفواتير'
+    ],
+    configSchema: []
+  },
   // ══════════════════════════════════════════════════════════════════════════════
   // ── BANGLADESH NBR / MUSHAK COMPLIANCE ───────────────────────────────────────
   // ══════════════════════════════════════════════════════════════════════════════

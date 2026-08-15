@@ -6,7 +6,6 @@ import {
   Package,
   Warehouse,
   Settings,
-  Menu,
   Key,
   Calculator,
   Truck,
@@ -16,7 +15,6 @@ import {
   ShoppingCart,
   ShieldCheck,
   Building,
-  Building2,
   MessageCircle,
   MessageSquare,
   Mail,
@@ -229,8 +227,16 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/invoices', icon: FileText, label: t('invoices'), perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['khayyat'] },
         { path: '/app/dashboard/quotations', icon: FileSignature, label: language === 'ar' ? 'عروض الأسعار' : 'Quotations', perm: { module: 'sales', action: 'read' }, excludeBusinessTypes: ['bakala'] },
         { path: '/app/dashboard/letterhead', icon: FileText, label: language === 'ar' ? 'منشئ الخطابات' : 'Letterhead', perm: { module: 'invoicing', action: 'read' } },
-        { path: '/app/dashboard/customers', icon: Users, label: language === 'ar' ? 'العملاء' : 'Customers', perm: { module: 'sales', action: 'read' } },
-        { path: '/app/dashboard/customers/statement', icon: FileText, label: language === 'ar' ? 'كشف حساب' : 'Customer Statement', perm: { module: 'sales', action: 'read' } },
+        {
+          path: '/app/dashboard/customers',
+          icon: Users,
+          label: language === 'ar' ? 'العملاء' : 'Customers',
+          perm: { module: 'sales', action: 'read' },
+          children: [
+            { path: '/app/dashboard/customers', label: language === 'ar' ? 'قائمة العملاء' : 'Customer list' },
+            { path: '/app/dashboard/customers/statement', label: language === 'ar' ? 'كشوف الحساب' : 'Statements' },
+          ],
+        },
         { path: '/app/dashboard/suppliers', icon: Building, label: language === 'ar' ? 'الموردين' : 'Suppliers', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'bakala', 'pharmacy', 'furniture_shop'] },
         { path: '/app/dashboard/delivery-notes', icon: FileText, label: language === 'ar' ? 'سندات التسليم' : 'Delivery Notes', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
         { path: '/app/dashboard/contacts', icon: Users, label: language === 'ar' ? 'جهات الاتصال' : 'Contacts', perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['bakala'] },
@@ -327,7 +333,13 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/products', icon: Package, label: language === 'ar' ? 'المخزون' : 'Inventory', perm: { module: 'inventory', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
         { path: '/app/dashboard/warehouses', icon: Warehouse, label: t('warehouses'), perm: { module: 'inventory', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
         { path: '/app/dashboard/uom', icon: Ruler, label: language === 'ar' ? 'وحدات القياس' : 'Units of Measure', perm: { module: 'inventory', action: 'read' } },
-        { path: '/app/dashboard/projects', icon: FolderKanban, label: language === 'ar' ? 'المشاريع' : 'Projects' },
+        {
+          path: '/app/dashboard/projects',
+          icon: FolderKanban,
+          label: language === 'ar' ? 'المشاريع' : 'Projects',
+          grantBusinessTypes: ['construction'],
+          requireAnyApp: ['projects', 'construction_projects'],
+        },
       ]
     },
     {
@@ -433,12 +445,10 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       ]
     },
     {
-      title: language === 'ar' ? 'الإعدادات والمنشأة' : 'Settings & Profile',
+      title: language === 'ar' ? 'الإعدادات' : 'Settings',
       items: [
-        { path: '/app/dashboard/profile', icon: Building2, label: language === 'ar' ? 'الملف التعريفي والمنشأة' : 'Company Profile' },
         { path: '/app/dashboard/users', icon: Users, label: t('users'), perm: { module: 'settings', action: 'read' } },
         { path: '/app/dashboard/settings', icon: Settings, label: t('settings'), perm: { module: 'settings', action: 'read' } },
-        { path: '/app/dashboard/hidden-navbars', icon: Menu, label: language === 'ar' ? 'القوائم المخفية' : 'Hidden Navbars', perm: { module: 'settings', action: 'read' } },
       ]
     },
     {

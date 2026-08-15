@@ -11,7 +11,7 @@ import { setAppLauncherOpen, setLanguage, setTheme, setNavigationStyle, setHideS
 import { logout } from '../../store/slices/authSlice'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getNavSections } from '../../lib/sidebarConfig'
-import { isAppGateOpen } from '../../lib/appStorePartners'
+import { isNavItemAppVisible } from '../../lib/appStorePartners'
 import { useTranslation } from '../../lib/translations'
 import App3DIcon from '../ui/App3DIcon'
 import useMaqderWebAppInstall from '../../lib/useMaqderWebAppInstall'
@@ -281,11 +281,8 @@ export default function AppLauncher() {
         return
       }
 
-      // App Store gating: skip sections requiring an installed app
-      if (section.requireApp || section.requireAnyApp) {
-        if (!isAppGateOpen(tenant, section)) {
-          return
-        }
+      if (!isNavItemAppVisible(tenant, businessTypes, section)) {
+        return
       }
 
       const items = (Array.isArray(section.items) ? section.items : []).filter((item) => {
@@ -301,10 +298,7 @@ export default function AppLauncher() {
         if (item.requireAddon && !tenant?.subscription?.[item.requireAddon]) {
           return false
         }
-        // Per-item App Store gating
-        if (item.requireApp || item.requireAnyApp) {
-          if (!isAppGateOpen(tenant, item)) return false
-        }
+        if (!isNavItemAppVisible(tenant, businessTypes, item)) return false
         if (!item?.perm) return true
         return hasAccess(item.perm.module, item.perm.action)
       })
@@ -632,29 +626,6 @@ export default function AppLauncher() {
                       </div>
 
                       <div className="p-1.5">
-                        <Menu.Item>
-                          {({ active }) => (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
-                                dispatch(setHideSidebar(true))
-                                dispatch(setMobileMenuOpen(false))
-                                dispatch(setAppLauncherOpen(false))
-                                navigate('/app/dashboard/profile')
-                              }}
-                              className={`${
-                                active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'
-                              } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
-                            >
-                              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
-                                <Building2 className="h-4 w-4" />
-                              </span>
-                              <span>{language === 'ar' ? 'الملف التعريفي والمنشأة' : 'My Profile & Company'}</span>
-                            </button>
-                          )}
-                        </Menu.Item>
-
                         <Menu.Item>
                           {({ active }) => (
                             <button

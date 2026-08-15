@@ -2,6 +2,7 @@ import express from 'express';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import CalendarEvent from '../models/CalendarEvent.js';
 import logger from '../utils/logger.js';
+import { fetchProcurementCalendarEvents, PROCUREMENT_EVENT_TYPES } from '../services/procurementCalendar.js';
 
 const router = express.Router();
 
@@ -57,31 +58,29 @@ router.get('/', async (req, res) => {
       query.startDate = { $gte: startOfMonth, $lte: endOfMonth };
     }
 
-    // Type filter
-    if (type && type !== 'all') {
-      if (type.includes(',')) {
-        query.type = { $in: type.split(',') };
-      } else {
-        query.type = type;
-      }
+    const rangeStart = query.startDate?.$gte || (startDate ? new Date(startDate) : null);
+    const rangeEnd = query.startDate?.$lte || (endDate ? new Date(endDate) : null);
+
+    const typeList = type && type !== 'all'
+      ? String(type).split(',').map((item) => item.trim()).filter(Boolean)
+      : [];
+    const procurementOnly = typeList.length > 0 && typeList.every((item) => PROCUREMENT_EVENT_TYPES.includes(item));
+
+    if (type && type !== 'all' && !procurementOnly) {
+      const nativeTypes = typeList.filter((item) => !PROCUREMENT_EVENT_TYPES.includes(item));
+      if (nativeTypes.length === 1) query.type = nativeTypes[0];
+      else if (nativeTypes.length > 1) query.type = { $in: nativeTypes };
     }
 
-    // Priority filter
     if (priority && priority !== 'all') {
       query.priority = priority;
     }
-
-    // Status filter
     if (status && status !== 'all') {
       query.status = status;
     }
-
-    // Completed filter
     if (typeof isCompleted !== 'undefined' && isCompleted !== '') {
       query.isCompleted = isCompleted === 'true';
     }
-
-    // Search filter
     if (search && search.trim()) {
       const searchRegex = new RegExp(search.trim(), 'i');
       query.$or = [
@@ -94,10 +93,28 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    const events = await CalendarEvent.find(query)
-      .sort({ startDate: 1, startTime: 1 })
-      .limit(Math.min(parseInt(limit, 10) || 200, 500))
-      .lean();
+    const nativeEvents = procurementOnly
+      ? []
+      : await CalendarEvent.find(query)
+          .sort({ startDate: 1, startTime: 1 })
+          .limit(Math.min(parseInt(limit, 10) || 200, 500))
+          .lean();
+
+    const procurementEvents = rangeStart && rangeEnd
+      ? await fetchProcurementCalendarEvents({
+          tenantId,
+          start: rangeStart,
+          end: rangeEnd,
+          type: type || 'all',
+          search,
+        })
+      : [];
+
+    const events = [...nativeEvents, ...procurementEvents].sort((a, b) => {
+      const left = new Date(a.startDate || 0).getTime();
+      const right = new Date(b.startDate || 0).getTime();
+      return left - right;
+    });
 
     res.json({
       success: true,
@@ -127,7 +144,7 @@ router.get('/summary', async (req, res) => {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    const [todayEvents, monthEvents, pendingTasks, upcomingMeetings] = await Promise.all([
+    const [todayEvents, monthEvents, pendingTasks, upcomingMeetings, procurementToday, procurementMonth] = await Promise.all([
       CalendarEvent.countDocuments({
         tenantId,
         startDate: { $gte: startOfToday, $lte: endOfToday },
@@ -146,13 +163,15 @@ router.get('/summary', async (req, res) => {
         type: 'meeting',
         startDate: { $gte: startOfToday },
       }),
+      fetchProcurementCalendarEvents({ tenantId, start: startOfToday, end: endOfToday }),
+      fetchProcurementCalendarEvents({ tenantId, start: startOfMonth, end: endOfMonth }),
     ]);
 
     res.json({
       success: true,
       summary: {
-        todayCount: todayEvents,
-        monthCount: monthEvents,
+        todayCount: todayEvents + procurementToday.length,
+        monthCount: monthEvents + procurementMonth.length,
         pendingTasksCount: pendingTasks,
         upcomingMeetingsCount: upcomingMeetings,
       },

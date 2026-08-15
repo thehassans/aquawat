@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,7 +28,11 @@ import {
   CalendarDays,
   X,
   Check,
-  ChevronDown
+  ChevronDown,
+  ShoppingCart,
+  Package,
+  RotateCcw,
+  Truck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -41,6 +46,12 @@ const EVENT_TYPES = [
   { id: 'reminder', en: 'Reminder', ar: 'تذكير', icon: Bell, color: '#D97706' },
   { id: 'call', en: 'Call', ar: 'مكالمة', icon: Phone, color: '#DB2777' },
   { id: 'invoice_due', en: 'Invoice Due', ar: 'متابعة فاتورة', icon: FileText, color: '#0891B2' },
+  { id: 'purchase_order', en: 'Purchase Order', ar: 'طلب شراء', icon: ShoppingCart, color: '#0F766E' },
+  { id: 'purchase_order_expected', en: 'PO Expected', ar: 'تاريخ توريد متوقع', icon: ShoppingCart, color: '#0369A1' },
+  { id: 'grn', en: 'GRN', ar: 'إشعار استلام', icon: Package, color: '#7C3AED' },
+  { id: 'grn_delay', en: 'GRN Delay', ar: 'تأخير استلام', icon: Package, color: '#D97706' },
+  { id: 'purchase_return', en: 'Purchase Return', ar: 'مرتجع مشتريات', icon: RotateCcw, color: '#BE123C' },
+  { id: 'delivery_note', en: 'Delivery Note', ar: 'سند تسليم', icon: Truck, color: '#4F46E5' },
 ];
 
 const PRESET_COLORS = [
@@ -67,6 +78,7 @@ export default function CalendarPage() {
   const { t } = useTranslation(language);
   const isAr = language === 'ar';
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -228,7 +240,13 @@ export default function CalendarPage() {
     setIsEventModalOpen(true);
   };
 
+  const eventTitle = (evt) => (isAr ? (evt.titleAr || evt.title) : evt.title);
+
   const handleEditEvent = (evt) => {
+    if (evt?.relatedHref || evt?.source === 'procurement') {
+      if (evt.relatedHref) navigate(evt.relatedHref);
+      return;
+    }
     setSelectedEvent(evt);
     setFormData({
       title: evt.title || '',
@@ -643,7 +661,7 @@ export default function CalendarPage() {
                             {evt.startTime && !evt.allDay && (
                               <span className="opacity-70 font-mono text-[9px]">{evt.startTime}</span>
                             )}
-                            <span className="truncate">{evt.title}</span>
+                            <span className="truncate">{eventTitle(evt)}</span>
                           </div>
                         ))}
 
@@ -742,7 +760,7 @@ export default function CalendarPage() {
                                     evt.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : ''
                                   }`}
                                 >
-                                  {evt.title}
+                                  {eventTitle(evt)}
                                 </h4>
                                 <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
                                   {evt.allDay ? (
@@ -909,7 +927,7 @@ export default function CalendarPage() {
                           </div>
 
                           <h4 className="text-xs font-bold text-gray-900 dark:text-white mt-1">
-                            {evt.title}
+                            {eventTitle(evt)}
                           </h4>
 
                           <div className="flex items-center flex-wrap gap-2.5 mt-1 text-[11px] text-gray-500 dark:text-gray-400">

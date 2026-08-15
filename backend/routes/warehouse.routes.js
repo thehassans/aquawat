@@ -9,7 +9,7 @@ const router = express.Router();
 router.use(protect);
 router.use(tenantFilter);
 router.use(requireTenantFilter);
-router.use(requireBusinessType('trading'));
+router.use(requireBusinessType('trading', 'bakala', 'pharmacy', 'furniture_shop', 'construction', 'manufacturing'));
 
 // @route   GET /api/warehouses
 router.get('/', checkPermission('inventory', 'read'), async (req, res) => {

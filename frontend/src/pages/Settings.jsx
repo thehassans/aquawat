@@ -557,11 +557,20 @@ export default function Settings() {
 
   return (
     <div className="space-y-5 max-w-5xl">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight">{t('settings')}</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-          {language === 'ar' ? 'إعدادات الشركة والنظام' : 'Company & system'}
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight">{t('settings')}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            {language === 'ar' ? 'إعدادات الشركة والنظام' : 'Company & system'}
+          </p>
+        </div>
+        <Link
+          to="/app/dashboard/profile"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
+        >
+          <Building2 className="h-4 w-4" />
+          {language === 'ar' ? 'الملف التعريفي للمنشأة' : 'Company profile'}
+        </Link>
       </div>
 
       <div className="space-y-5">

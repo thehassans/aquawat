@@ -13,6 +13,24 @@ export function toNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+export function computePurchaseLineTotals(lineItems = []) {
+  const items = Array.isArray(lineItems) ? lineItems : [];
+  let subtotal = 0;
+  let totalTax = 0;
+  const lines = items.map((li) => {
+    const quantityOrdered = toNumber(li?.quantityOrdered ?? li?.quantity, 0);
+    const unitCost = toNumber(li?.unitCost, 0);
+    const taxRate = toNumber(li?.taxRate, 15);
+    const lineSubtotal = quantityOrdered * unitCost;
+    const lineTax = lineSubtotal * (taxRate / 100);
+    const lineTotal = lineSubtotal + lineTax;
+    subtotal += lineSubtotal;
+    totalTax += lineTax;
+    return { lineSubtotal, lineTax, lineTotal };
+  });
+  return { subtotal, totalTax, grandTotal: subtotal + totalTax, lines };
+}
+
 export function round2(value) {
   return Math.round((toNumber(value) + Number.EPSILON) * 100) / 100;
 }

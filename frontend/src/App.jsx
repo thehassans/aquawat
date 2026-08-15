@@ -5,6 +5,7 @@ import { getMe, setTenantInactive, forceLogout } from './store/slices/authSlice'
 import { setLanguage, setTheme, setDisplayMode, loadThemeForTenant, loadHiddenMenuItemsForTenant, loadDisplayModeForTenant, loadNavigationStyleForTenant } from './store/slices/uiSlice'
 import { applyTenantBranding } from './lib/branding'
 import { getTenantBusinessTypes } from './lib/businessTypes'
+import { isNavItemAppVisible } from './lib/appStorePartners'
 import { showArabicUi } from './lib/saudiTenant'
 import { ErrorBoundary } from './lib/errorBoundary'
 import { initSocket, disconnectSocket } from './lib/socket'
@@ -225,6 +226,7 @@ const ExpenseForm = lazy(() => import('./pages/ExpenseForm'))
 const CustomerList = lazy(() => import('./pages/customers/CustomerList'))
 const CustomerForm = lazy(() => import('./pages/customers/CustomerForm'))
 const CustomerStatement = lazy(() => import('./pages/customers/CustomerStatement'))
+const CustomersLayout = lazy(() => import('./pages/customers/CustomersLayout'))
 const Users = lazy(() => import('./pages/Users'))
 const SuperAdminDashboard = lazy(() => import('./pages/super-admin/SuperAdminDashboard'))
 const PosSessions = lazy(() => import('./pages/super-admin/PosSessions'))
@@ -380,6 +382,15 @@ function BusinessTypeRoute({ children, allowedTypes }) {
     return <Navigate to="/app/dashboard" replace />
   }
   
+  return children
+}
+
+function AppStoreOrTypeRoute({ children, grantBusinessTypes = [], requireAnyApp = [] }) {
+  const { tenant } = useSelector((state) => state.auth)
+  const businessTypes = getTenantBusinessTypes(tenant)
+  if (!isNavItemAppVisible(tenant, businessTypes, { grantBusinessTypes, requireAnyApp })) {
+    return <Navigate to="/app/dashboard" replace />
+  }
   return children
 }
 
@@ -646,11 +657,14 @@ function App() {
         <Route path="quotations/:id" element={<QuotationView />} />
         <Route path="contacts" element={<Contacts />} />
         <Route path="calendar" element={<Calendar />} />
-        <Route path="customers" element={<CustomerList />} />
-        <Route path="customers/new" element={<CustomerForm />} />
-        <Route path="customers/:id" element={<CustomerForm />} />
-        <Route path="customers/statement" element={<CustomerStatement />} />
-        <Route path="customers/:id/edit" element={<CustomerForm />} />
+        <Route path="customers" element={<CustomersLayout />}>
+          <Route index element={<CustomerList />} />
+          <Route path="statement" element={<CustomerStatement />} />
+          <Route path="new" element={<CustomerForm />} />
+          <Route path=":id/statement" element={<CustomerStatement />} />
+          <Route path=":id/edit" element={<CustomerForm />} />
+          <Route path=":id" element={<CustomerForm />} />
+        </Route>
         
         <Route path="letterhead" element={<Letterhead />} />
         <Route path="maqder-updates" element={<MaqderUpdates />} />
@@ -761,9 +775,9 @@ function App() {
         <Route path="delivery-notes/new" element={<BusinessTypeRoute allowedTypes={['trading']}><DeliveryNoteForm /></BusinessTypeRoute>} />
         <Route path="delivery-notes/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><DeliveryNoteForm /></BusinessTypeRoute>} />
 
-        <Route path="projects" element={<Projects />} />
-        <Route path="projects/new" element={<ProjectForm />} />
-        <Route path="projects/:id" element={<ProjectForm />} />
+        <Route path="projects" element={<AppStoreOrTypeRoute grantBusinessTypes={['construction']} requireAnyApp={['projects', 'construction_projects']}><Projects /></AppStoreOrTypeRoute>} />
+        <Route path="projects/new" element={<AppStoreOrTypeRoute grantBusinessTypes={['construction']} requireAnyApp={['projects', 'construction_projects']}><ProjectForm /></AppStoreOrTypeRoute>} />
+        <Route path="projects/:id" element={<AppStoreOrTypeRoute grantBusinessTypes={['construction']} requireAnyApp={['projects', 'construction_projects']}><ProjectForm /></AppStoreOrTypeRoute>} />
         <Route path="tasks" element={<Tasks />} />
         <Route path="tasks/new" element={<TaskForm />} />
         <Route path="tasks/:id" element={<TaskForm />} />

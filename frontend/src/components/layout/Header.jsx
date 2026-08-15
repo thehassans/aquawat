@@ -412,22 +412,6 @@ export default function Header() {
                   <HeadlessMenu.Item>
                     {({ active }) => (
                       <button
-                        onClick={() => navigate('/app/dashboard/profile')}
-                        className={`${
-                          active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300' : 'text-gray-700 dark:text-gray-300'
-                        } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
-                      >
-                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
-                          <Building2 className="h-4 w-4" />
-                        </span>
-                        <span>{language === 'ar' ? 'الملف التعريفي والمنشأة' : 'My Profile & Company'}</span>
-                      </button>
-                    )}
-                  </HeadlessMenu.Item>
-
-                  <HeadlessMenu.Item>
-                    {({ active }) => (
-                      <button
                         type="button"
                         onClick={() => installMaqderWebApp()}
                         className={`${

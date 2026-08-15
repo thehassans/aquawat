@@ -13,6 +13,7 @@ import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
 import { confirmGrnReceive, generateGrnNumber, PurchasesValidationError } from '../services/purchasesWorkflow.js';
+import { computePurchaseLineTotals } from '../services/purchasesLogic.js';
 
 const router = express.Router();
 
@@ -36,38 +37,27 @@ const vendorBillUpload = multer({
 });
 
 function normalizeLineItems(lineItems = []) {
-  const normalized = (Array.isArray(lineItems) ? lineItems : []).map((li) => {
-    const quantityOrdered = toNumber(li.quantityOrdered ?? li.quantity ?? 0, 0);
-    const quantityReceived = toNumber(li.quantityReceived ?? 0, 0);
-    const unitCost = toNumber(li.unitCost ?? 0, 0);
-    const taxRate = toNumber(li.taxRate ?? 15, 15);
-
-    const lineSubtotal = quantityOrdered * unitCost;
-    const lineTax = lineSubtotal * (taxRate / 100);
-    const lineTotal = lineSubtotal + lineTax;
-
+  const items = Array.isArray(lineItems) ? lineItems : [];
+  const totals = computePurchaseLineTotals(items);
+  const normalized = items.map((li, index) => {
+    const computed = totals.lines[index] || { lineSubtotal: 0, lineTax: 0, lineTotal: 0 };
     return {
       productId: li.productId || undefined,
       manualName: li.manualName || '',
       uom: li.uom || '',
       description: li.description,
       productType: normalizeProductType(li.productType),
-      quantityOrdered,
-      quantityReceived,
+      quantityOrdered: toNumber(li.quantityOrdered ?? li.quantity ?? 0, 0),
+      quantityReceived: toNumber(li.quantityReceived ?? 0, 0),
       quantityReturned: toNumber(li.quantityReturned, 0),
-      unitCost,
-      taxRate,
-      lineSubtotal,
-      lineTax,
-      lineTotal
+      unitCost: toNumber(li.unitCost ?? 0, 0),
+      taxRate: toNumber(li.taxRate ?? 15, 15),
+      lineSubtotal: computed.lineSubtotal,
+      lineTax: computed.lineTax,
+      lineTotal: computed.lineTotal
     };
   });
-
-  const subtotal = normalized.reduce((sum, li) => sum + (li.lineSubtotal || 0), 0);
-  const totalTax = normalized.reduce((sum, li) => sum + (li.lineTax || 0), 0);
-  const grandTotal = subtotal + totalTax;
-
-  return { normalized, subtotal, totalTax, grandTotal };
+  return { normalized, subtotal: totals.subtotal, totalTax: totals.totalTax, grandTotal: totals.grandTotal };
 }
 
 async function generatePoNumber(tenantFilterValue) {

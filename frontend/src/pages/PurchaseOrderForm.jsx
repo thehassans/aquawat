@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, Fragment } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft,
@@ -19,6 +19,8 @@ import {
   Printer,
   Download,
   Loader2,
+  Paperclip,
+  Eye,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
@@ -26,8 +28,10 @@ import { autoTranslateText } from '../lib/builtInTranslator'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
-import Select from 'react-select'
 import { getAvailableUomOptions } from '../lib/uomOptions'
+import ProductTypeToggle from '../components/ui/ProductTypeToggle'
+import { normalizeProductType, productPickerLabel } from '../lib/productType'
+import { computePurchaseLineTotals } from '../lib/purchaseLineTotals'
 
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
@@ -55,6 +59,8 @@ export default function PurchaseOrderForm() {
   const [receiveQty, setReceiveQty] = useState({})
   const [manualModes, setManualModes] = useState([])
   const [showSupplierModal, setShowSupplierModal] = useState(false)
+  const [showWarehouseModal, setShowWarehouseModal] = useState(false)
+  const [pendingBills, setPendingBills] = useState([])
   const [pdfBusy, setPdfBusy] = useState(null)
   const [supplierForm, setSupplierForm] = useState({
     code: '',
@@ -64,6 +70,13 @@ export default function PurchaseOrderForm() {
     phone: '',
     email: '',
     type: 'company',
+  })
+  const [warehouseForm, setWarehouseForm] = useState({
+    code: '',
+    nameEn: '',
+    nameAr: '',
+    type: 'main',
+    isPrimary: false,
   })
 
   const toggleManualMode = (index) => {
@@ -99,12 +112,12 @@ export default function PurchaseOrderForm() {
       expectedDate: '',
       currency: tenant?.settings?.currency || 'SAR',
       notes: '',
-      lineItems: [{ productId: '', manualName: '', uom: '', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
+      lineItems: [{ productId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
     },
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' })
-  const lineItems = watch('lineItems')
+  const lineItems = useWatch({ control, name: 'lineItems' })
 
   const { data: suppliers } = useQuery({
     queryKey: ['suppliers-lookup'],
@@ -143,6 +156,18 @@ export default function PurchaseOrderForm() {
       setShowSupplierModal(false)
       setValue('supplierId', res.data._id, { shouldValidate: true })
       setSupplierForm({ code: '', nameEn: '', nameAr: '', contactPerson: '', phone: '', email: '', type: 'company' })
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+  })
+
+  const addWarehouseMutation = useMutation({
+    mutationFn: (data) => api.post('/warehouses', data),
+    onSuccess: (res) => {
+      toast.success(language === 'ar' ? 'تم إضافة المستودع' : 'Warehouse added')
+      queryClient.invalidateQueries(['warehouses'])
+      setShowWarehouseModal(false)
+      setValue('warehouseId', res.data._id, { shouldValidate: true })
+      setWarehouseForm({ code: '', nameEn: '', nameAr: '', type: 'main', isPrimary: false })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -187,6 +212,59 @@ export default function PurchaseOrderForm() {
     return () => clearTimeout(timer)
   }, [supplierForm.nameAr, showSupplierModal])
 
+  useEffect(() => {
+    const s = warehouseForm.nameEn?.trim()
+    if (!s || s.length < 2 || !showWarehouseModal) return
+    const timer = setTimeout(() => {
+      if (warehouseForm.nameAr?.trim()) return
+      const translated = autoTranslateText(s, 'en', 'ar')
+      if (translated) setWarehouseForm((p) => ({ ...p, nameAr: translated }))
+    }, 120)
+    return () => clearTimeout(timer)
+  }, [warehouseForm.nameEn, showWarehouseModal])
+
+  useEffect(() => {
+    const s = warehouseForm.nameAr?.trim()
+    if (!s || s.length < 2 || !showWarehouseModal) return
+    const timer = setTimeout(() => {
+      if (warehouseForm.nameEn?.trim()) return
+      const translated = autoTranslateText(s, 'ar', 'en')
+      if (translated) setWarehouseForm((p) => ({ ...p, nameEn: translated }))
+    }, 120)
+    return () => clearTimeout(timer)
+  }, [warehouseForm.nameAr, showWarehouseModal])
+
+  const submitInlineWarehouse = () => {
+    if (!warehouseForm.nameEn?.trim() && !warehouseForm.nameAr?.trim()) {
+      toast.error(language === 'ar' ? 'اسم المستودع مطلوب' : 'Warehouse name is required')
+      return
+    }
+    addWarehouseMutation.mutate({
+      ...warehouseForm,
+      nameEn: warehouseForm.nameEn || warehouseForm.nameAr,
+      code: warehouseForm.code || `WH-${Math.floor(Date.now() / 1000).toString().slice(-5)}`,
+    })
+  }
+
+  const uploadVendorBill = async (orderId, file) => {
+    const body = new FormData()
+    body.append('file', file)
+    await api.post(`/purchase-orders/${orderId}/attachments`, body, { headers: { 'Content-Type': 'multipart/form-data' } })
+  }
+
+  const applyProductToLine = (index, productId) => {
+    const product = (products || []).find((row) => String(row._id) === String(productId))
+    if (!product) return
+    setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType), { shouldDirty: true })
+    setValue(`lineItems.${index}.uom`, product.unitOfMeasure || product.unitCode || 'PCE', { shouldDirty: true })
+    if (product.costPrice != null && product.costPrice !== '') {
+      setValue(`lineItems.${index}.unitCost`, Number(product.costPrice) || 0, { shouldDirty: true })
+    }
+    setValue(`lineItems.${index}.manualName`, '')
+    setValue(`lineItems.${index}.nameEn`, product.nameEn || '')
+    setValue(`lineItems.${index}.nameAr`, product.nameAr || '')
+  }
+
   const { data: order, isLoading } = useQuery({
     queryKey: ['purchase-order', id],
     queryFn: () => api.get(`/purchase-orders/${id}`).then((res) => res.data),
@@ -209,7 +287,7 @@ export default function PurchaseOrderForm() {
           ? items.map((li) => ({
               productId: li?.productId?._id || li?.productId || '',
               manualName: li?.manualName || '',
-              uom: li?.uom || '',
+              uom: li?.uom || li?.productId?.unitOfMeasure || 'PCE',
               description: li?.description || '',
               productType: li?.productType || li?.productId?.productType || 'goods',
               quantityOrdered: li?.quantityOrdered ?? 0,
@@ -217,36 +295,31 @@ export default function PurchaseOrderForm() {
               unitCost: li?.unitCost ?? 0,
               taxRate: li?.taxRate ?? 15,
             }))
-          : [{ productId: '', manualName: '', uom: '', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
+          : [{ productId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
     })
     setManualModes(items.map((li) => Boolean(li?.manualName && !li?.productId)))
   }, [order, reset, tenant?.settings?.currency])
 
   const isLocked = isEdit && ['partially_received', 'received', 'billed', 'cancelled'].includes(order?.status)
 
-  const totals = useMemo(() => {
-    const items = Array.isArray(lineItems) ? lineItems : []
-    let subtotal = 0
-    let totalTax = 0
-
-    items.forEach((li) => {
-      const qty = Number(li?.quantityOrdered || 0)
-      const unit = Number(li?.unitCost || 0)
-      const taxRate = Number(li?.taxRate ?? 15)
-      const lineSubtotal = qty * unit
-      const lineTax = lineSubtotal * (taxRate / 100)
-      subtotal += lineSubtotal
-      totalTax += lineTax
-    })
-
-    return { subtotal, totalTax, grandTotal: subtotal + totalTax }
-  }, [lineItems])
+  const totals = computePurchaseLineTotals(lineItems)
 
   const uomOptions = useMemo(() => getAvailableUomOptions(tenant), [tenant])
 
   const saveMutation = useMutation({
     mutationFn: (data) => (isEdit ? api.put(`/purchase-orders/${id}`, data) : api.post('/purchase-orders', data)),
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
+      const createdId = res.data?._id
+      if (!isEdit && createdId && pendingBills.length) {
+        try {
+          for (const file of pendingBills) {
+            await uploadVendorBill(createdId, file)
+          }
+          setPendingBills([])
+        } catch (err) {
+          toast.error(err.response?.data?.error || (language === 'ar' ? 'تم الحفظ وتعذر رفع الفاتورة' : 'Saved, but bill upload failed'))
+        }
+      }
       toast.success(
         isEdit
           ? language === 'ar'
@@ -329,9 +402,9 @@ export default function PurchaseOrderForm() {
       lineItems: (data.lineItems || []).map((li, index) => ({
         productId: manualModes[index] ? undefined : (li.productId || undefined),
         manualName: manualModes[index] ? (li.manualName || '') : '',
-        uom: manualModes[index] ? (li.uom || '') : '',
+        uom: li.uom || 'PCE',
         description: li.description,
-        productType: li.productType || 'goods',
+        productType: normalizeProductType(li.productType),
         quantityOrdered: Number(li.quantityOrdered || 0),
         quantityReceived: Number(li.quantityReceived || 0),
         unitCost: Number(li.unitCost || 0),
@@ -505,6 +578,18 @@ export default function PurchaseOrderForm() {
               {pdfBusy === 'download' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 opacity-80" />}
               {language === 'ar' ? 'تنزيل PDF' : 'Download PDF'}
             </button>
+            {(order?.attachments || []).slice(-1).map((file) => (
+              <Fragment key={file.url || file.name}>
+                <a href={file.url} target="_blank" rel="noreferrer" className={ghostBtn}>
+                  <Eye className="h-4 w-4 opacity-70" />
+                  {language === 'ar' ? 'عرض الفاتورة' : 'View bill'}
+                </a>
+                <a href={file.url} download={file.name || 'vendor-bill'} className={ghostBtn}>
+                  <Paperclip className="h-4 w-4 opacity-70" />
+                  {language === 'ar' ? 'تنزيل الفاتورة' : 'Download bill'}
+                </a>
+              </Fragment>
+            ))}
             <button
               type="button"
               onClick={() => navigate(`/app/dashboard/purchases/grn/new?poId=${id}`)}
@@ -682,14 +767,26 @@ export default function PurchaseOrderForm() {
 
             <div>
               <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'} *</label>
-              <select {...register('warehouseId')} className="select" disabled={isLocked}>
-                <option value="">{language === 'ar' ? 'اختر مستودع' : 'Select warehouse'}</option>
-                {(Array.isArray(warehouses) ? warehouses : []).map((w) => (
-                  <option key={w._id} value={w._id}>
-                    {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select {...register('warehouseId')} className="select flex-1" disabled={isLocked}>
+                  <option value="">{language === 'ar' ? 'اختر مستودع' : 'Select warehouse'}</option>
+                  {(Array.isArray(warehouses) ? warehouses : []).map((w) => (
+                    <option key={w._id} value={w._id}>
+                      {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
+                    </option>
+                  ))}
+                </select>
+                {!isLocked && (
+                  <button
+                    type="button"
+                    onClick={() => setShowWarehouseModal(true)}
+                    className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-slate-200/80 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
+                    title={language === 'ar' ? 'إنشاء مستودع' : 'Create warehouse'}
+                  >
+                    <WarehouseIcon className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div>
@@ -717,37 +814,49 @@ export default function PurchaseOrderForm() {
               <label className="label">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
               <textarea {...register('notes')} className="input" rows={3} disabled={isLocked} />
             </div>
-            {isEdit && (
-              <div className="md:col-span-2 lg:col-span-3">
-                <label className="label">{language === 'ar' ? 'فاتورة المورد (PDF / صورة)' : 'Vendor bill (PDF / image)'}</label>
-                <input
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png,image/webp"
-                  className="input"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    e.target.value = ''
-                    if (!file) return
-                    const body = new FormData()
-                    body.append('file', file)
+            <div className="md:col-span-2 lg:col-span-3">
+              <label className="label">{language === 'ar' ? 'فاتورة المورد (PDF / صورة)' : 'Vendor bill (PDF / image)'}</label>
+              <input
+                type="file"
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                className="input"
+                disabled={isLocked}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (!file) return
+                  if (isEdit && id) {
                     try {
-                      await api.post(`/purchase-orders/${id}/attachments`, body, { headers: { 'Content-Type': 'multipart/form-data' } })
+                      await uploadVendorBill(id, file)
                       toast.success(language === 'ar' ? 'تم رفع المرفق' : 'Attachment uploaded')
                       queryClient.invalidateQueries(['purchase-order', id])
                     } catch (err) {
                       toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل الرفع' : 'Upload failed'))
                     }
-                  }}
-                />
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(order?.attachments || []).map((file, idx) => (
-                    <a key={`${file.url}-${idx}`} href={file.url} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-50 px-3 py-1.5 text-[12px] text-teal-700 hover:underline dark:bg-white/5">
-                      {file.name || (language === 'ar' ? 'مرفق' : 'Attachment')}
-                    </a>
-                  ))}
-                </div>
+                  } else {
+                    setPendingBills((prev) => [...prev, file])
+                    toast.success(language === 'ar' ? 'ستُرفع الفاتورة بعد الحفظ' : 'Bill will upload after save')
+                  }
+                }}
+              />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(order?.attachments || []).map((file, idx) => (
+                  <a key={`${file.url}-${idx}`} href={file.url} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-50 px-3 py-1.5 text-[12px] text-teal-700 hover:underline dark:bg-white/5">
+                    {file.name || (language === 'ar' ? 'مرفق' : 'Attachment')}
+                  </a>
+                ))}
+                {pendingBills.map((file, idx) => (
+                  <button
+                    type="button"
+                    key={`${file.name}-${idx}`}
+                    onClick={() => setPendingBills((prev) => prev.filter((_, i) => i !== idx))}
+                    className="rounded-lg bg-amber-50 px-3 py-1.5 text-[12px] text-amber-800 dark:bg-amber-500/10"
+                  >
+                    {file.name} ×
+                  </button>
+                ))}
               </div>
-            )}
+            </div>
           </div>
         </motion.div>
 
@@ -774,7 +883,7 @@ export default function PurchaseOrderForm() {
                   append({
                     productId: '',
                     manualName: '',
-                    uom: '',
+                    uom: 'PCE',
                     description: '',
                     productType: 'goods',
                     quantityOrdered: 1,
@@ -811,87 +920,77 @@ export default function PurchaseOrderForm() {
                 >
                   <div className="grid grid-cols-1 items-end gap-4 lg:grid-cols-12">
                     <div className="lg:col-span-4">
-                      <div className="mb-1 flex items-center justify-between">
+                      <div className="mb-1 flex items-center justify-between gap-2">
                         <label className="label mb-0">{language === 'ar' ? 'المنتج' : 'Product'} *</label>
-                        {!isLocked && (
-                          <button
-                            type="button"
-                            onClick={() => toggleManualMode(index)}
-                            className="text-[11px] font-medium text-slate-500 underline underline-offset-2 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                          >
-                            {manualModes[index]
-                              ? language === 'ar'
-                                ? 'اختر من قائمة'
-                                : 'Select from list'
-                              : language === 'ar'
-                                ? 'كتابة يدوية'
-                                : 'Type manually'}
-                          </button>
-                        )}
-                      </div>
-                      {manualModes[index] ? (
-                        <div className="flex gap-2">
-                          <input
-                            {...register(`lineItems.${index}.manualName`, { required: true })}
-                            placeholder={language === 'ar' ? 'اسم المنتج' : 'Product name'}
-                            className="input flex-1"
-                            disabled={isLocked}
+                        <div className="flex items-center gap-2">
+                          <ProductTypeToggle
+                            value={watch(`lineItems.${index}.productType`)}
+                            onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
+                            language={language}
                           />
-                          <div className="w-48">
-                            <Select
-                              inputId={`uom-${index}`}
-                              options={uomOptions.map((u) => ({
-                                value: u.code,
-                                label: language === 'ar' ? u.labelAr : u.labelEn,
-                              }))}
-                              value={
-                                uomOptions.find((u) => u.code === watch(`lineItems.${index}.uom`))
-                                  ? {
-                                      value: watch(`lineItems.${index}.uom`),
-                                      label:
-                                        language === 'ar'
-                                          ? uomOptions.find((u) => u.code === watch(`lineItems.${index}.uom`))
-                                              ?.labelAr
-                                          : uomOptions.find((u) => u.code === watch(`lineItems.${index}.uom`))
-                                              ?.labelEn,
-                                    }
-                                  : null
-                              }
-                              onChange={(selected) => setValue(`lineItems.${index}.uom`, selected?.value || 'PCE')}
-                              isSearchable
-                              isDisabled={isLocked}
-                              menuPortalTarget={document.body}
-                              styles={{
-                                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-                                control: (base) => ({
-                                  ...base,
-                                  borderRadius: '0.75rem',
-                                  borderColor: '#e2e8f0',
-                                  padding: '0.125rem',
-                                  minHeight: '42px',
-                                }),
-                              }}
-                            />
-                            <input type="hidden" {...register(`lineItems.${index}.uom`)} />
-                          </div>
+                          {!isLocked && (
+                            <button
+                              type="button"
+                              onClick={() => toggleManualMode(index)}
+                              className="text-[11px] font-medium text-slate-500 underline underline-offset-2 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                            >
+                              {manualModes[index]
+                                ? language === 'ar'
+                                  ? 'اختر من قائمة'
+                                  : 'Select from list'
+                                : language === 'ar'
+                                  ? 'كتابة يدوية'
+                                  : 'Type manually'}
+                            </button>
+                          )}
                         </div>
+                      </div>
+                      <input type="hidden" {...register(`lineItems.${index}.productType`)} />
+                      {manualModes[index] ? (
+                        <input
+                          {...register(`lineItems.${index}.manualName`, { required: true })}
+                          placeholder={language === 'ar' ? 'اسم المنتج' : 'Product name'}
+                          className="input"
+                          disabled={isLocked}
+                        />
                       ) : (
                         <select
-                          {...register(`lineItems.${index}.productId`, { required: !manualModes[index] })}
+                          {...register(`lineItems.${index}.productId`, {
+                            required: !manualModes[index],
+                            onChange: (e) => applyProductToLine(index, e.target.value),
+                          })}
                           className="select"
                           disabled={isLocked}
                         >
                           <option value="">{language === 'ar' ? 'اختر منتج' : 'Select product'}</option>
                           {(products || []).map((p) => (
                             <option key={p._id} value={p._id}>
-                              {(language === 'ar' ? p.nameAr || p.nameEn : p.nameEn) || p.sku}
+                              {productPickerLabel(p, language) || p.sku}
                             </option>
                           ))}
                         </select>
                       )}
+                      {(current?.nameEn || current?.nameAr) && (
+                        <p className="mt-1.5 text-[11px] text-slate-500">
+                          <span dir="ltr">{current.nameEn || current.nameAr}</span>
+                          {current.nameEn && current.nameAr ? <span className="mx-1 text-slate-300">·</span> : null}
+                          {current.nameEn && current.nameAr ? <span dir="rtl">{current.nameAr}</span> : null}
+                        </p>
+                      )}
                     </div>
 
                     <div className="lg:col-span-2">
+                      <label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
+                      <select {...register(`lineItems.${index}.uom`)} className="select" disabled={isLocked}>
+                        {uomOptions.map((uom) => (
+                          <option key={uom.code} value={uom.code}>
+                            {language === 'ar' ? uom.labelAr : uom.labelEn}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="lg:col-span-1">
                       <label className="label">{language === 'ar' ? 'الكمية' : 'Qty'} *</label>
                       <input
                         type="number"
@@ -919,7 +1018,7 @@ export default function PurchaseOrderForm() {
                       />
                     </div>
 
-                    <div className="lg:col-span-2">
+                    <div className="lg:col-span-1">
                       <label className="label">{language === 'ar' ? 'الضريبة' : 'Tax'} %</label>
                       <select
                         {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })}
@@ -1253,6 +1352,94 @@ export default function PurchaseOrderForm() {
                   <>
                     <Save className="h-4 w-4 opacity-80" />
                     {language === 'ar' ? 'حفظ المورد' : 'Save supplier'}
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {showWarehouseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`${shell} w-full max-w-sm max-h-[90vh] overflow-y-auto p-6`}
+          >
+            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-white/[0.08]">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                  {language === 'ar' ? 'المستودعات' : 'Warehouses'}
+                </p>
+                <h3 className="mt-1 text-[16px] font-semibold tracking-tight text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'إنشاء مستودع' : 'Create warehouse'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWarehouseModal(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:hover:bg-white/10"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="label">{language === 'ar' ? 'الرمز' : 'Code'}</label>
+                <input
+                  className="input"
+                  placeholder="WH-001"
+                  value={warehouseForm.code}
+                  onChange={(e) => setWarehouseForm((p) => ({ ...p, code: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
+                <input
+                  className="input"
+                  value={warehouseForm.nameEn}
+                  onChange={(e) => setWarehouseForm((p) => ({ ...p, nameEn: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
+                <input
+                  className="input"
+                  dir="rtl"
+                  value={warehouseForm.nameAr}
+                  onChange={(e) => setWarehouseForm((p) => ({ ...p, nameAr: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'النوع' : 'Type'}</label>
+                <select
+                  className="select"
+                  value={warehouseForm.type}
+                  onChange={(e) => setWarehouseForm((p) => ({ ...p, type: e.target.value }))}
+                >
+                  <option value="main">{language === 'ar' ? 'رئيسي' : 'Main'}</option>
+                  <option value="branch">{language === 'ar' ? 'فرع' : 'Branch'}</option>
+                  <option value="distribution">{language === 'ar' ? 'توزيع' : 'Distribution'}</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowWarehouseModal(false)} className={ghostBtn}>
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={submitInlineWarehouse}
+                disabled={addWarehouseMutation.isPending}
+                className={primaryBtn}
+              >
+                {addWarehouseMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 opacity-80" />
+                    {language === 'ar' ? 'حفظ المستودع' : 'Save warehouse'}
                   </>
                 )}
               </button>

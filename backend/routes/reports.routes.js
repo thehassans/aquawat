@@ -934,24 +934,48 @@ router.get('/customer-statement', async (req, res) => {
     const invoices = await Invoice.find({ 
       ...req.tenantFilter, customerId, flow: 'sell', issueDate: { $gte: startDate, $lte: endDate }, status: { $nin: ['draft', 'cancelled'] }
     }).select('invoiceNumber issueDate grandTotal paymentStatus paidAmount').lean();
+
+    const priorInvoices = await Invoice.find({
+      ...req.tenantFilter, customerId, flow: 'sell', issueDate: { $lt: startDate }, status: { $nin: ['draft', 'cancelled'] }
+    }).select('invoiceNumber issueDate grandTotal paidAmount').lean();
     
     let receipts = [];
+    let priorReceipts = [];
     try {
       receipts = await Voucher.find({
         ...req.tenantFilter, partyId: customerId, type: 'receive', date: { $gte: startDate, $lte: endDate }
+      }).select('voucherNumber date amount description').lean();
+      priorReceipts = await Voucher.find({
+        ...req.tenantFilter, partyId: customerId, type: 'receive', date: { $lt: startDate }
       }).select('voucherNumber date amount description').lean();
     } catch(e) {
       console.log('Voucher collection missing or error:', e.message);
     }
 
-    const invoiceDebits = invoices.map(i => ({ type: 'invoice', id: i.invoiceNumber, date: i.issueDate, debit: i.grandTotal, credit: 0, desc: 'Invoice' }));
-    const invoiceCredits = invoices.filter(i => i.paidAmount > 0).map(i => ({ type: 'invoice_payment', id: i.invoiceNumber, date: i.issueDate, debit: 0, credit: i.paidAmount, desc: `Invoice Payment (${i.invoiceNumber})` }));
+    const mapInvoiceDebits = (rows) => rows.map(i => ({ type: 'invoice', id: i.invoiceNumber, date: i.issueDate, debit: i.grandTotal, credit: 0, desc: 'Invoice' }));
+    const mapInvoiceCredits = (rows) => rows.filter(i => i.paidAmount > 0).map(i => ({ type: 'invoice_payment', id: i.invoiceNumber, date: i.issueDate, debit: 0, credit: i.paidAmount, desc: `Invoice Payment (${i.invoiceNumber})` }));
+    const mapReceipts = (rows) => rows.map(r => ({ type: 'receipt', id: r.voucherNumber, date: r.date, debit: 0, credit: r.amount, desc: r.description }));
+
+    const priorTransactions = [
+      ...mapInvoiceDebits(priorInvoices),
+      ...mapInvoiceCredits(priorInvoices),
+      ...mapReceipts(priorReceipts),
+    ];
+    const openingBalance = priorTransactions.reduce((sum, row) => sum + (row.debit || 0) - (row.credit || 0), 0);
+
+    const invoiceDebits = mapInvoiceDebits(invoices);
+    const invoiceCredits = mapInvoiceCredits(invoices);
     
     const transactions = [
+      { type: 'opening', id: 'OPEN', date: startDate, debit: openingBalance > 0 ? openingBalance : 0, credit: openingBalance < 0 ? Math.abs(openingBalance) : 0, desc: 'Opening Balance' },
       ...invoiceDebits,
       ...invoiceCredits,
-      ...receipts.map(r => ({ type: 'receipt', id: r.voucherNumber, date: r.date, debit: 0, credit: r.amount, desc: r.description }))
-    ].sort((a, b) => new Date(a.date) - new Date(b.date));
+      ...mapReceipts(receipts),
+    ].sort((a, b) => {
+      if (a.type === 'opening') return -1;
+      if (b.type === 'opening') return 1;
+      return new Date(a.date) - new Date(b.date);
+    });
 
     let balance = 0;
     const statement = transactions.map(t => {
@@ -959,7 +983,7 @@ router.get('/customer-statement', async (req, res) => {
       return { ...t, balance };
     });
 
-    res.json({ statement, totalBalance: balance });
+    res.json({ statement, totalBalance: balance, openingBalance });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

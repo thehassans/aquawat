@@ -9,12 +9,24 @@ import {
   remainingReturnable,
   stockDeltaForLine,
   round2,
+  computePurchaseLineTotals,
 } from '../services/purchasesLogic.js';
 
 const poLines = () => ([
   { productId: 'g1', productType: 'goods', quantityOrdered: 10, quantityReceived: 0, unitCost: 20 },
   { productId: 's1', productType: 'service', quantityOrdered: 2, quantityReceived: 0, unitCost: 100 },
 ]);
+
+test('PO line totals recompute subtotal, tax, and grand total from qty/cost/tax', () => {
+  const totals = computePurchaseLineTotals([
+    { quantityOrdered: 1, unitCost: 1000, taxRate: 15 },
+    { quantityOrdered: 2, unitCost: 50, taxRate: 0 },
+  ]);
+  assert.equal(totals.subtotal, 1100);
+  assert.equal(totals.totalTax, 150);
+  assert.equal(totals.grandTotal, 1250);
+  assert.equal(totals.lines[0].lineTotal, 1150);
+});
 
 test('GRN cannot over-receive remaining PO quantity', () => {
   const first = applyGrnReceiveToPoLines(poLines(), [{ productId: 'g1', quantityReceived: 6 }]);

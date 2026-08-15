@@ -84,7 +84,7 @@ export default function CustomerForm() {
     onSuccess: () => {
       queryClient.invalidateQueries(['customers'])
       queryClient.invalidateQueries(['customer-stats'])
-      navigate('/customers')
+      navigate('/app/dashboard/customers')
     }
   })
 
@@ -105,11 +105,12 @@ export default function CustomerForm() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
-          onClick={() => navigate('/customers')}
+          onClick={() => navigate('/app/dashboard/customers')}
           className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
         </button>
+        <div className="flex flex-1 items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {isEditing 
@@ -123,6 +124,17 @@ export default function CustomerForm() {
               : (language === 'ar' ? 'أضف عميل جديد لنظامك' : 'Add a new customer to your system')
             }
           </p>
+        </div>
+        {isEditing && (
+          <button
+            type="button"
+            onClick={() => navigate(`/app/dashboard/customers/${id}/statement`)}
+            className="btn btn-secondary gap-2"
+          >
+            <FileText className="w-4 h-4" />
+            {language === 'ar' ? 'كشف الحساب' : 'Statement'}
+          </button>
+        )}
         </div>
       </div>
 
@@ -564,7 +576,7 @@ export default function CustomerForm() {
         <div className="flex items-center justify-end gap-4">
           <button
             type="button"
-            onClick={() => navigate('/customers')}
+            onClick={() => navigate('/app/dashboard/customers')}
             className="btn btn-secondary"
           >
             {language === 'ar' ? 'إلغاء' : 'Cancel'}
