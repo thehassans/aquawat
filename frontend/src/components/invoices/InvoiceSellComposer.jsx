@@ -38,26 +38,27 @@ const emptyBuyerAddress = {
 }
 
 const mapSellLineItems = (invoice) => {
-  const raw = Array.isArray(invoice?.lineItems) ? invoice.lineItems : []
+  const source = invoice?.lineItems || invoice?.items || invoice?.lines || []
+  const raw = Array.isArray(source) ? source : []
   const mapped = raw.map((line) => {
-    const rest = { ...(line || {}) }
-    delete rest.id
-    delete rest._id
+    const plain = JSON.parse(JSON.stringify(line || {}))
+    delete plain.id
+    delete plain._id
     return {
       ...emptyLine,
-      ...rest,
-      productId: idOf(line?.productId),
-      productName: line?.productName || line?.name || '',
-      productNameAr: line?.productNameAr || line?.nameAr || '',
-      unitCode: line?.unitCode || 'PCE',
-      quantity: Math.max(0.0001, toNumber(line?.quantity, 1)),
-      unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
-      customerPrice: Math.max(0, toNumber(line?.customerPrice, 0)),
-      taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
-      agencyPrice: Math.max(0, toNumber(line?.agencyPrice, 0)),
-      isTravelMargin: Boolean(line?.isTravelMargin),
+      ...plain,
+      productId: idOf(plain?.productId),
+      productName: plain?.productName || plain?.name || plain?.description || '',
+      productNameAr: plain?.productNameAr || plain?.nameAr || '',
+      unitCode: plain?.unitCode || 'PCE',
+      quantity: Math.max(0.0001, toNumber(plain?.quantity, 1)),
+      unitPrice: Math.max(0, toNumber(plain?.unitPrice ?? plain?.price, 0)),
+      customerPrice: Math.max(0, toNumber(plain?.customerPrice, 0)),
+      taxRate: Math.max(0, toNumber(plain?.taxRate, 15)),
+      agencyPrice: Math.max(0, toNumber(plain?.agencyPrice, 0)),
+      isTravelMargin: Boolean(plain?.isTravelMargin),
     }
-  })
+  }).filter((line) => line.productName || line.unitPrice > 0 || line.productId)
   return mapped.length ? mapped : [{ ...emptyLine }]
 }
 const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
@@ -272,6 +273,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const [sourceId, setSourceId] = useState('')
   const skipBusinessContextResetRef = useRef(false)
   const isSubmittedRef = useRef(false)
+  const hydratedInvoiceIdRef = useRef('')
+  const recoveredLinesRef = useRef(false)
 
   const handleToggleBankDetails = (enable) => {
     setShowBankPanel(enable)
@@ -318,6 +321,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
   useEffect(() => {
     if (!isEdit || !initialInvoice?._id || isSubmittedRef.current) return
+    const invoiceKey = String(initialInvoice._id)
+    if (hydratedInvoiceIdRef.current === invoiceKey) return
+    hydratedInvoiceIdRef.current = invoiceKey
+    recoveredLinesRef.current = false
     skipBusinessContextResetRef.current = true
     setInvoiceType(initialInvoice?.transactionType === 'B2B' ? 'B2B' : 'B2C')
     setSourceId('')
@@ -346,8 +353,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       hasTravel: tenantBusinessTypes.includes('travel_agency'),
     })
     reset(next)
-    replace(next.lineItems)
-  }, [defaultBusinessContext, initialInvoice?._id, isEdit, reset, replace, tenant?._id, tenantBusinessTypes])
+  }, [defaultBusinessContext, initialInvoice, isEdit, reset, tenant, tenantBusinessTypes])
+
+  useEffect(() => {
+    if (!isEdit || fields.length > 0 || recoveredLinesRef.current) return
+    recoveredLinesRef.current = true
+    replace(mapSellLineItems(initialInvoice))
+  }, [fields.length, initialInvoice, isEdit, replace])
 
   useEffect(() => {
     if (isTravelContext) {
@@ -1238,8 +1250,26 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </button>
             </div>
             <div className="space-y-4">
+              {fields.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center dark:border-dark-600 dark:bg-dark-900/40">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    {language === 'ar' ? 'لا توجد بنود بعد' : 'No billing lines yet'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {language === 'ar' ? 'أضف بنداً للمنتجات أو الخدمات على هذه الفاتورة.' : 'Add a product or service line to this invoice.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => replace(mapSellLineItems(initialInvoice))}
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white dark:bg-white dark:text-slate-900"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {language === 'ar' ? 'تحميل البنود' : 'Load lines'}
+                  </button>
+                </div>
+              ) : null}
               {fields.map((field, index) => (
-                <motion.div key={field.fieldId || field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 dark:border-dark-600 dark:bg-dark-900/50">
+                <div key={field.fieldId || field.id || `line-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 dark:border-dark-600 dark:bg-dark-900/50">
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''} initialName={initialInvoice?.lineItems?.[index]?.productName || ''} />
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
@@ -1409,7 +1439,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       </div>
                     )
                   })()}
-                </motion.div>
+                </div>
               ))}
             </div>
           </div>
