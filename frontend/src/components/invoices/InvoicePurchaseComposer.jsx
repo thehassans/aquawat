@@ -13,7 +13,7 @@ import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/busine
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
-import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
+import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from './InvoiceLivePreview'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
@@ -162,6 +162,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     sourceField: 'buyer.nameAr',
     targetField: 'buyer.name',
     sourceLang: 'ar', targetLang: 'en',
+  })
+  useBilingualAddressFields({
+    control, watch, setValue,
+    prefix: 'buyer.address',
+    enabled: showArabicFields,
   })
 
   useEffect(() => {

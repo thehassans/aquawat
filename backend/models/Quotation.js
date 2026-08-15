@@ -67,8 +67,11 @@ const partySchema = new mongoose.Schema({
   crNumber: { type: String },
   address: {
     street: { type: String },
+    streetAr: { type: String },
     district: { type: String },
+    districtAr: { type: String },
     city: { type: String },
+    cityAr: { type: String },
     postalCode: { type: String },
     country: { type: String, default: 'SA' },
     buildingNumber: { type: String },

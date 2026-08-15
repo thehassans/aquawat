@@ -65,8 +65,11 @@ const customerSchema = new mongoose.Schema({
   },
   address: {
     street: String,
+    streetAr: String,
     city: String,
+    cityAr: String,
     district: String,
+    districtAr: String,
     postalCode: String,
     country: { type: String, default: 'SA' },
     buildingNumber: String,

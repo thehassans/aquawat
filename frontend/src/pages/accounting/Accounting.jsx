@@ -10,6 +10,7 @@ import {
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
+import ExportMenu from '../../components/ui/ExportMenu'
 import Vouchers from '../finance/Vouchers'
 import {
   AccountReportPanel,
@@ -42,6 +43,18 @@ const GROUPS = [
 ]
 
 const emptyLine = () => ({ accountId: '', debit: '', credit: '', description: '' })
+
+const asMoney = (value) => Number(value || 0).toFixed(2)
+
+const journalExportColumns = (isAr) => [
+  { key: 'entryNumber', label: isAr ? 'رقم القيد' : 'Entry' },
+  { key: 'entryDate', label: isAr ? 'التاريخ' : 'Date', value: (row) => (row.entryDate ? new Date(row.entryDate).toLocaleDateString() : '') },
+  { key: 'type', label: isAr ? 'النوع' : 'Type' },
+  { key: 'memo', label: isAr ? 'البيان' : 'Memo' },
+  { key: 'status', label: isAr ? 'الحالة' : 'Status' },
+  { key: 'totalDebit', label: isAr ? 'مدين' : 'Debit', value: (row) => asMoney(row.totalDebit) },
+  { key: 'totalCredit', label: isAr ? 'دائن' : 'Credit', value: (row) => asMoney(row.totalCredit) },
+]
 
 const fontPage = { fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Tajawal', sans-serif" }
 const fontDisplay = { fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }
@@ -170,6 +183,105 @@ export default function Accounting() {
     })
   }
 
+  const exportColumns = useMemo(() => {
+    if (tab === 'chart-of-accounts') {
+      return [
+        { key: 'code', label: isAr ? 'الرمز' : 'Code' },
+        { key: 'name', label: isAr ? 'الاسم' : 'Name', value: (row) => (isAr ? (row.nameAr || row.name) : row.name) },
+        { key: 'type', label: isAr ? 'النوع' : 'Type' },
+        { key: 'balance', label: isAr ? 'الرصيد' : 'Balance', value: (row) => asMoney(row.balance) },
+      ]
+    }
+    if (tab === 'trial') {
+      return [
+        { key: 'code', label: isAr ? 'الرمز' : 'Code' },
+        { key: 'name', label: isAr ? 'الحساب' : 'Account', value: (row) => (isAr ? (row.nameAr || row.name) : row.name) },
+        { key: 'debit', label: isAr ? 'مدين' : 'Debit', value: (row) => asMoney(row.debit) },
+        { key: 'credit', label: isAr ? 'دائن' : 'Credit', value: (row) => asMoney(row.credit) },
+      ]
+    }
+    if (tab === 'pnl' || tab === 'balance-sheet') {
+      return [
+        { key: 'section', label: isAr ? 'القسم' : 'Section' },
+        { key: 'name', label: isAr ? 'الحساب' : 'Account' },
+        { key: 'amount', label: isAr ? 'المبلغ' : 'Amount', value: (row) => asMoney(row.amount) },
+      ]
+    }
+    if (tab === 'customer-summary' || tab === 'supplier-summary') {
+      return [
+        { key: 'name', label: isAr ? 'الاسم' : 'Name' },
+        { key: 'invoiced', label: isAr ? 'الفواتير' : 'Invoiced', value: (row) => asMoney(row.invoiced || row.total || row.amount) },
+        { key: 'paid', label: isAr ? 'المدفوع' : 'Paid', value: (row) => asMoney(row.paid) },
+        { key: 'balance', label: isAr ? 'الرصيد' : 'Balance', value: (row) => asMoney(row.balance) },
+      ]
+    }
+    return journalExportColumns(isAr)
+  }, [isAr, tab])
+
+  const getExportRows = async () => {
+    if (tab === 'chart-of-accounts') {
+      if (accounts.length) return accounts
+      return api.get('/accounting/accounts').then((r) => r.data || [])
+    }
+    if (tab === 'trial') {
+      const data = trial || await api.get('/accounting/reports/trial-balance').then((r) => r.data)
+      return data?.rows || []
+    }
+    if (tab === 'pnl') {
+      const data = pnl || await api.get('/accounting/reports/profit-and-loss').then((r) => r.data)
+      return [
+        ...(data?.revenue || []).map((row) => ({ section: isAr ? 'إيرادات' : 'Revenue', name: isAr ? (row.nameAr || row.name) : row.name, amount: row.amount })),
+        ...(data?.expenses || []).map((row) => ({ section: isAr ? 'مصروفات' : 'Expenses', name: isAr ? (row.nameAr || row.name) : row.name, amount: row.amount })),
+        { section: isAr ? 'صافي الدخل' : 'Net income', name: '', amount: data?.netIncome || 0 },
+      ]
+    }
+    if (tab === 'balance-sheet') {
+      const data = balance || await api.get('/accounting/reports/balance-sheet').then((r) => r.data)
+      const pack = (section, rows) => (rows || []).map((row) => ({ section, name: isAr ? (row.nameAr || row.name) : row.name, amount: row.balance }))
+      return [
+        ...pack(isAr ? 'الأصول' : 'Assets', data?.assets),
+        ...pack(isAr ? 'الالتزامات' : 'Liabilities', data?.liabilities),
+        ...pack(isAr ? 'حقوق الملكية' : 'Equity', data?.equity),
+      ]
+    }
+    if (tab === 'receipt-voucher' || tab === 'payment-voucher') {
+      const type = tab === 'receipt-voucher' ? 'receive' : 'payment'
+      const data = await api.get('/vouchers', { params: { type, limit: 200 } }).then((r) => r.data)
+      const rows = Array.isArray(data) ? data : (data?.rows || data?.vouchers || [])
+      return rows.map((row) => ({
+        entryNumber: row.voucherNumber || row.number || row.entryNumber,
+        entryDate: row.date || row.entryDate,
+        type: row.type || type,
+        memo: row.narration || row.memo || row.notes || '',
+        status: row.status || '',
+        totalDebit: row.amount || row.totalDebit || 0,
+        totalCredit: row.amount || row.totalCredit || 0,
+      }))
+    }
+    if (tab === 'customer-summary') {
+      const data = await api.get('/accounting/reports/customer-summary').then((r) => r.data).catch(() => null)
+      return data?.rows || data || []
+    }
+    if (tab === 'supplier-summary') {
+      const data = await api.get('/accounting/reports/supplier-summary').then((r) => r.data).catch(() => null)
+      return data?.rows || data || []
+    }
+    if (tab === 'customer-account' || tab === 'account-report') {
+      const data = await api.get('/accounting/journals', { params: { limit: 200 } }).then((r) => r.data)
+      return data?.rows || []
+    }
+    if (tab === 'daily-restriction') {
+      const day = new Date().toISOString().slice(0, 10)
+      const data = await api.get('/accounting/journals', { params: { from: day, to: day, limit: 200 } }).then((r) => r.data)
+      return data?.rows || []
+    }
+    if (tab === 'general-voucher') {
+      const data = await api.get('/accounting/journals', { params: { type: 'manual', limit: 200 } }).then((r) => r.data)
+      return data?.rows || []
+    }
+    return dashboard?.recent || []
+  }
+
   const kpis = [
     { key: 'cash', labelEn: 'Cash & Bank', labelAr: 'النقد والبنك', value: dashboard?.cashBalance, icon: Landmark },
     { key: 'ar', labelEn: 'Receivables', labelAr: 'الذمم المدينة', value: dashboard?.arBalance, icon: ArrowUpRight },
@@ -200,6 +312,14 @@ export default function Accounting() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <ExportMenu
+              language={language}
+              rows={[]}
+              getRows={getExportRows}
+              columns={exportColumns}
+              fileBaseName={`maqder-accounting-${tab}`}
+              title={isAr ? activeTab.labelAr : activeTab.labelEn}
+            />
             <button
               type="button"
               onClick={() => seedMutation.mutate()}

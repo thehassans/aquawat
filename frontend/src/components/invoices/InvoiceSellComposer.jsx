@@ -13,7 +13,7 @@ import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/busine
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
-import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
+import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms } from '../../lib/invoicePaymentTerms'
 import InvoiceLivePreview from './InvoiceLivePreview'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
@@ -25,6 +25,41 @@ import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', customerPrice: '', taxRate: 15, agencyPrice: '', isTravelMargin: false }
+
+const idOf = (value) => {
+  if (!value) return ''
+  if (typeof value === 'object') return String(value._id || value.id || '')
+  return String(value)
+}
+
+const emptyBuyerAddress = {
+  street: '', streetAr: '', district: '', districtAr: '', city: '', cityAr: '',
+  postalCode: '', country: 'SA', buildingNumber: '', additionalNumber: '',
+}
+
+const mapSellLineItems = (invoice) => {
+  const raw = Array.isArray(invoice?.lineItems) ? invoice.lineItems : []
+  const mapped = raw.map((line) => {
+    const rest = { ...(line || {}) }
+    delete rest.id
+    delete rest._id
+    return {
+      ...emptyLine,
+      ...rest,
+      productId: idOf(line?.productId),
+      productName: line?.productName || line?.name || '',
+      productNameAr: line?.productNameAr || line?.nameAr || '',
+      unitCode: line?.unitCode || 'PCE',
+      quantity: Math.max(0.0001, toNumber(line?.quantity, 1)),
+      unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
+      customerPrice: Math.max(0, toNumber(line?.customerPrice, 0)),
+      taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
+      agencyPrice: Math.max(0, toNumber(line?.agencyPrice, 0)),
+      isTravelMargin: Boolean(line?.isTravelMargin),
+    }
+  })
+  return mapped.length ? mapped : [{ ...emptyLine }]
+}
 const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
 
 /** High-contrast premium ERP form tokens */
@@ -110,24 +145,30 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
     iban: invoice?.bankDetails?.iban || '',
   },
   invoiceDiscount: Math.max(0, toNumber(invoice?.invoiceDiscount, 0)),
-  buyer: invoice?.buyer || {},
+  buyer: {
+    name: invoice?.buyer?.name || '',
+    nameAr: invoice?.buyer?.nameAr || '',
+    vatNumber: invoice?.buyer?.vatNumber || '',
+    crNumber: invoice?.buyer?.crNumber || '',
+    contactPhone: invoice?.buyer?.contactPhone || '',
+    contactEmail: invoice?.buyer?.contactEmail || '',
+    address: {
+      ...emptyBuyerAddress,
+      ...(invoice?.buyer?.address || {}),
+      street: invoice?.buyer?.address?.street || '',
+      streetAr: invoice?.buyer?.address?.streetAr || '',
+      district: invoice?.buyer?.address?.district || '',
+      districtAr: invoice?.buyer?.address?.districtAr || '',
+      city: invoice?.buyer?.address?.city || '',
+      cityAr: invoice?.buyer?.address?.cityAr || '',
+      postalCode: invoice?.buyer?.address?.postalCode || '',
+      country: invoice?.buyer?.address?.country || 'SA',
+      buildingNumber: invoice?.buyer?.address?.buildingNumber || '',
+      additionalNumber: invoice?.buyer?.address?.additionalNumber || '',
+    },
+  },
   travelDetails: sanitizeTravelDetails(invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] }),
-  lineItems: Array.isArray(invoice?.lineItems) && invoice.lineItems.length > 0
-    ? invoice.lineItems.map((line) => ({
-        ...emptyLine,
-        ...line,
-        productId: line?.productId || '',
-        productName: line?.productName || '',
-        productNameAr: line?.productNameAr || '',
-        unitCode: line?.unitCode || 'PCE',
-        quantity: Math.max(0.0001, toNumber(line?.quantity, 1)),
-        unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
-        customerPrice: Math.max(0, toNumber(line?.customerPrice, 0)),
-        taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
-        agencyPrice: Math.max(0, toNumber(line?.agencyPrice, 0)),
-        isTravelMargin: Boolean(line?.isTravelMargin),
-      }))
-    : [emptyLine],
+  lineItems: mapSellLineItems(invoice),
   authorizedPersonName: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonName || '') : '',
   authorizedPersonNameAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonNameAr || '') : '',
   authorizedPersonDesignation: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonDesignation || '') : '',
@@ -135,7 +176,7 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   authorizedPersonSignature: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonSignature || '') : '',
   stampImage: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.stampImage || '') : '',
   paymentTerms: invoice?.paymentTerms || 'immediate',
-  printFormat: invoice?.printFormat || (['restaurant', 'bakala', 'saloon', 'laundry', 'khayyat'].includes(invoice?.businessContext || defaultBusinessContext) ? 'thermal' : 'a4'),
+  printFormat: invoice?.printFormat === 'thermal' ? 'thermal' : 'a4',
   dueDate: (() => {
     if (invoice?.dueDate) return toDatetimeLocalInput(invoice.dueDate).slice(0, 10)
     const issue = invoice?.issueDate ? new Date(invoice.issueDate) : new Date()
@@ -217,7 +258,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     })
   })
 
-  const { fields, append, remove, replace } = useFieldArray({ control, name: 'lineItems' })
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'lineItems', keyName: 'fieldId' })
   const values = watch()
   const lineItems = Array.isArray(values.lineItems) ? values.lineItems : []
   const businessContext = values.businessContext || defaultBusinessContext
@@ -230,6 +271,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const isManpowerContext = businessContext === 'manpower'
   const [sourceId, setSourceId] = useState('')
   const skipBusinessContextResetRef = useRef(false)
+  const isSubmittedRef = useRef(false)
 
   const handleToggleBankDetails = (enable) => {
     setShowBankPanel(enable)
@@ -263,6 +305,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     sourceLang: 'ar', targetLang: 'en',
     initialTargetValue: initialInvoice?.buyer?.name || '',
   })
+  useBilingualAddressFields({
+    control, watch, setValue,
+    prefix: 'buyer.address',
+    enabled: showArabicFields,
+  })
 
   useEffect(() => {
     if (isEdit && initialInvoice?._id) return
@@ -270,7 +317,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }, [defaultBusinessContext, initialInvoice?._id, isEdit, setValue])
 
   useEffect(() => {
-    if (!isEdit || !initialInvoice?._id) return
+    if (!isEdit || !initialInvoice?._id || isSubmittedRef.current) return
     skipBusinessContextResetRef.current = true
     setInvoiceType(initialInvoice?.transactionType === 'B2B' ? 'B2B' : 'B2C')
     setSourceId('')
@@ -292,13 +339,15 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       initialInvoice?.bankDetails?.iban ||
       initialInvoice?.bankDetails?.accountNumber
     ))
-    reset(buildSellInvoiceFormValues({
+    const next = buildSellInvoiceFormValues({
       invoice: initialInvoice,
       tenant,
       defaultBusinessContext,
       hasTravel: tenantBusinessTypes.includes('travel_agency'),
-    }))
-  }, [defaultBusinessContext, initialInvoice, isEdit, reset, tenant, tenantBusinessTypes])
+    })
+    reset(next)
+    replace(next.lineItems)
+  }, [defaultBusinessContext, initialInvoice?._id, isEdit, reset, replace, tenant?._id, tenantBusinessTypes])
 
   useEffect(() => {
     if (isTravelContext) {
@@ -469,7 +518,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     onError: (error) => toast.error(error?.response?.data?.error || error.message || 'Failed'),
   })
 
-  const isSubmittedRef = useRef(false)
   const latestValues = useRef(values)
 
   useEffect(() => {
@@ -557,8 +605,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     setValue('buyer.vatNumber', customer.vatNumber || '')
     setValue('buyer.crNumber', customer.crNumber || '')
     setValue('buyer.address.city', customer.address?.city || '')
+    setValue('buyer.address.cityAr', customer.address?.cityAr || '')
     setValue('buyer.address.district', customer.address?.district || '')
+    setValue('buyer.address.districtAr', customer.address?.districtAr || '')
     setValue('buyer.address.street', customer.address?.street || '')
+    setValue('buyer.address.streetAr', customer.address?.streetAr || '')
     setValue('buyer.address.postalCode', customer.address?.postalCode || '')
     setValue('buyer.address.country', customer.address?.country || 'SA')
     setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '')
@@ -577,6 +628,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const totals = calculateInvoiceSummary({ lineItems, invoiceDiscount: values?.invoiceDiscount })
 
   const onSubmit = (data) => {
+    const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim())
+    if (!namedLines.length) {
+      toast.error(language === 'ar' ? 'أضف بنداً واحداً على الأقل قبل الحفظ' : 'Add at least one billing line before saving')
+      return
+    }
+    const namedTotals = calculateInvoiceSummary({ lineItems: namedLines, invoiceDiscount: Math.max(0, toNumber(data?.invoiceDiscount, 0)) })
     const transactionType = invoiceType
     const invoiceTypeCode = transactionType === 'B2C' ? '0200000' : '0100000'
     const payload = {
@@ -608,17 +665,23 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       })(),
       printFormat: data?.printFormat === 'thermal' ? 'thermal' : 'a4',
       paymentTerms: data?.paymentTerms || 'immediate',
-      lineItems: (data.lineItems || []).map((line, index) => {
-        const summaryLine = totals.lines[index] || {}
+      lineItems: namedLines.map((line, index) => {
+        const summaryLine = namedTotals.lines[index] || {}
         const agencyPrice = Math.max(0, toNumber(line.agencyPrice, 0))
         const isTravelMargin = isTravelContext ? true : Boolean(line.isTravelMargin)
         const customerPriceRaw = Math.max(0, toNumber(line.customerPrice, 0))
         const unitPriceNum = Math.max(0, toNumber(line.unitPrice, 0))
         return {
-          ...line,
           lineNumber: index + 1,
           taxCategory: 'S',
           productId: isTradingContext ? line.productId || undefined : undefined,
+          productName: line.productName,
+          productNameAr: line.productNameAr || '',
+          description: line.description || '',
+          descriptionAr: line.descriptionAr || '',
+          unitCode: line.unitCode || 'PCE',
+          quantity: Math.max(0.0001, toNumber(line.quantity, 1)),
+          unitPrice: Math.max(0, toNumber(line.unitPrice, 0)),
           taxRate: isTravelContext ? Math.max(0, toNumber(line.taxRate, 15)) : toNumber(line.taxRate, 15),
           agencyPrice: isTravelContext ? agencyPrice : 0,
           customerPrice: isTravelContext ? (customerPriceRaw > 0 ? customerPriceRaw : unitPriceNum) : 0,
@@ -629,11 +692,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           lineTotalWithTax: toNumber(summaryLine.lineTotalWithTax, 0),
         }
       }),
-      subtotal: totals.subtotal,
-      totalDiscount: totals.totalDiscount,
-      taxableAmount: totals.taxableAmount,
-      totalTax: totals.totalTax,
-      grandTotal: totals.grandTotal,
+      subtotal: namedTotals.subtotal,
+      totalDiscount: namedTotals.totalDiscount,
+      taxableAmount: namedTotals.taxableAmount,
+      totalTax: namedTotals.totalTax,
+      grandTotal: namedTotals.grandTotal,
     }
 
     if (!payload.restaurantOrderId) delete payload.restaurantOrderId
@@ -753,7 +816,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       </div>
 
       <div className="mx-auto w-full max-w-6xl space-y-8">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        <form onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))} className="space-y-8">
           <div className={`${sectionCardClass} space-y-5`}>
             <div className="mb-1 flex items-end justify-between gap-3">
               <div>
@@ -795,7 +858,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <button
                     key={fmt.id}
                     type="button"
-                    onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true })}
+                    onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true, shouldTouch: true })}
                     className={`group flex items-start gap-3 rounded-2xl border px-4 py-4 text-start transition ${
                       active
                         ? 'border-slate-900 bg-slate-950 text-white shadow-lg dark:border-white dark:bg-white dark:text-slate-950'
@@ -1176,7 +1239,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
             <div className="space-y-4">
               {fields.map((field, index) => (
-                <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 dark:border-dark-600 dark:bg-dark-900/50">
+                <motion.div key={field.fieldId || field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 dark:border-dark-600 dark:bg-dark-900/50">
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''} initialName={initialInvoice?.lineItems?.[index]?.productName || ''} />
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
@@ -1222,11 +1285,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                               placeholder: (base) => ({ ...base, color: '#94a3b8' })
                             }}
                           />
-                          <input {...register(`lineItems.${index}.productName`, { required: true })} className={`mt-2 ${fieldControlClass}`} readOnly={Boolean(lineItems?.[index]?.productId)} placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
+                          <input {...register(`lineItems.${index}.productName`)} className={`mt-2 ${fieldControlClass}`} readOnly={Boolean(lineItems?.[index]?.productId)} placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
                           <input type="hidden" {...register(`lineItems.${index}.productId`)} />
                         </div>
                       ) : (
-                        <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className={`mt-1.5 ${fieldControlClass}`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                        <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className={`mt-1.5 ${fieldControlClass}`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
                     {showArabicFields ? (

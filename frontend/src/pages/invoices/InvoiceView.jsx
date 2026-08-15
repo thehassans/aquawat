@@ -10,7 +10,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import InvoiceLivePreview from '../../components/invoices/InvoiceLivePreview'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
-import { buildInvoicePdfBlob, downloadInvoicePdf, printInvoiceSnapshot } from '../../lib/invoicePdf'
+import { buildInvoicePdfBlob, downloadInvoicePdf, printInvoiceSnapshot, isThermalInvoice } from '../../lib/invoicePdf'
 import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
@@ -84,12 +84,7 @@ export default function InvoiceView() {
   const hasSmsAddon = tenantHasSmsAddon(tenant)
   
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
-  const posTenants = ['bakala', 'super market', 'khayyat', 'saloon', 'laundry', 'restaurant']
-  const isPosTenant = tenantBusinessTypes.some(t => posTenants.includes(t))
-  const isPosInvoice = ['restaurant', 'bakala', 'saloon', 'laundry', 'khayyat'].includes(invoice?.businessContext)
-  // Trading context always uses A4 — never thermal regardless of tenant type
-  const isTradingInvoice = invoice?.businessContext === 'trading'
-  const showThermal = !isTradingInvoice && (isPosTenant || isPosInvoice)
+  const showThermal = isThermalInvoice(invoice)
 
   const signMutation = useMutation({
     mutationFn: () => api.post(`/invoices/${id}/sign`, undefined, { timeout: 120000 }),

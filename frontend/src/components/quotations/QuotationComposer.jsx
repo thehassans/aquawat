@@ -12,7 +12,7 @@ import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { LETTERHEAD_TEMPLATE_ID, QUOTATION_TEMPLATE_IDS, resolveQuotationTemplateId } from '../../lib/invoiceTemplates'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
-import { useLiveTranslation, LineItemTranslator } from '../../lib/liveTranslation'
+import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
 import InvoiceTemplateSelector from '../invoices/InvoiceTemplateSelector'
 import Select from 'react-select'
@@ -201,6 +201,11 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     sourceField: 'buyer.nameAr',
     targetField: 'buyer.name',
     sourceLang: 'ar', targetLang: 'en',
+  })
+  useBilingualAddressFields({
+    control, watch, setValue,
+    prefix: 'buyer.address',
+    enabled: showArabicFields,
   })
   useLiveTranslation({
     control, watch, setValue,

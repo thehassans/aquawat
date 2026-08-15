@@ -31,7 +31,7 @@ import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import toast from 'react-hot-toast'
-import { downloadInvoicePdf, buildInvoicePdfBlob } from '../../lib/invoicePdf'
+import { downloadInvoicePdf, buildInvoicePdfBlob, isThermalInvoice } from '../../lib/invoicePdf'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
@@ -109,7 +109,7 @@ export default function Invoices() {
   const hasTravel = tenantBusinessTypes.includes('travel_agency')
   const posTenants = ['bakala', 'super market', 'khayyat', 'saloon', 'laundry', 'boutique']
   const showNewInvoiceBtn = true
-  const isPosInvoice = (inv) => ['restaurant', 'bakala', 'saloon', 'laundry', 'khayyat'].includes(inv?.businessContext)
+  const isPosInvoice = (inv) => isThermalInvoice(inv)
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedSearch(search), 300)

@@ -1698,6 +1698,8 @@ export function autoTranslateText(text, fromLang, toLang) {
   if (!text || typeof text !== 'string') return '';
   const trimmed = text.trim();
   if (!trimmed) return '';
+  // National-address numbers (street/district/building) stay the same in both languages.
+  if (/^[\d\s\-\/]+$/.test(trimmed)) return trimmed;
 
   const isAr = isArabicText(trimmed);
   const target = String(toLang || '').toLowerCase();

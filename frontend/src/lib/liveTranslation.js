@@ -104,6 +104,39 @@ export const useLiveTranslation = ({
 
 export default useLiveTranslation
 
+export function useBilingualAddressFields({ control, watch, setValue, prefix = 'buyer.address', enabled = true }) {
+  useLiveTranslation({
+    control, watch, setValue, enabled, minLength: 1,
+    sourceField: `${prefix}.city`, targetField: `${prefix}.cityAr`,
+    sourceLang: 'en', targetLang: 'ar',
+  })
+  useLiveTranslation({
+    control, watch, setValue, enabled, minLength: 1,
+    sourceField: `${prefix}.cityAr`, targetField: `${prefix}.city`,
+    sourceLang: 'ar', targetLang: 'en',
+  })
+  useLiveTranslation({
+    control, watch, setValue, enabled, minLength: 1,
+    sourceField: `${prefix}.district`, targetField: `${prefix}.districtAr`,
+    sourceLang: 'en', targetLang: 'ar',
+  })
+  useLiveTranslation({
+    control, watch, setValue, enabled, minLength: 1,
+    sourceField: `${prefix}.districtAr`, targetField: `${prefix}.district`,
+    sourceLang: 'ar', targetLang: 'en',
+  })
+  useLiveTranslation({
+    control, watch, setValue, enabled, minLength: 1,
+    sourceField: `${prefix}.street`, targetField: `${prefix}.streetAr`,
+    sourceLang: 'en', targetLang: 'ar',
+  })
+  useLiveTranslation({
+    control, watch, setValue, enabled, minLength: 1,
+    sourceField: `${prefix}.streetAr`, targetField: `${prefix}.street`,
+    sourceLang: 'ar', targetLang: 'en',
+  })
+}
+
 export function LineItemTranslator({ index, control, watch, setValue, enabled = true, initialNameAr = '', initialName = '' }) {
   useLiveTranslation({
     control, watch, setValue,
