@@ -13,6 +13,22 @@ import { buildQuotationPdfBlob, downloadQuotationPdf, printQuotationSnapshot } f
 import { exportToExcel } from '../../lib/export'
 import { tenantHasEmailAddon } from '../../lib/emailAddon'
 
+const trimPartyName = (value) => String(value || '').trim()
+
+function PartyNames({ party, fallback = '—' }) {
+  const en = trimPartyName(party?.name)
+  const ar = trimPartyName(party?.nameAr)
+  if (en && ar && en !== ar) {
+    return (
+      <span className="block leading-snug text-end">
+        <span className="block font-semibold text-gray-900 dark:text-white">{en}</span>
+        <span className="block font-medium text-gray-800 dark:text-slate-100" dir="rtl">{ar}</span>
+      </span>
+    )
+  }
+  return <span className="font-semibold text-gray-900 dark:text-white">{en || ar || fallback}</span>
+}
+
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader()
   reader.onload = () => {
@@ -351,7 +367,7 @@ export default function QuotationView() {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'ملخص عرض السعر' : 'Quotation Summary'}</h3>
             <div className="mt-4 space-y-3 text-sm">
               <div className="flex items-center justify-between"><span>{language === 'ar' ? 'الحالة' : 'Status'}</span><span className="font-semibold">{quotation?.status || 'draft'}</span></div>
-              <div className="flex items-center justify-between"><span>{language === 'ar' ? 'العميل' : 'Customer'}</span><span className="font-semibold text-end">{language === 'ar' ? (quotation?.buyer?.nameAr || quotation?.buyer?.name || '—') : (quotation?.buyer?.name || quotation?.buyer?.nameAr || '—')}</span></div>
+              <div className="flex items-center justify-between gap-4"><span>{language === 'ar' ? 'العميل' : 'Customer'}</span><PartyNames party={quotation?.buyer} /></div>
               <div className="flex items-center justify-between"><span>{language === 'ar' ? 'صالح حتى' : 'Valid Until'}</span><span className="font-semibold">{quotation?.validUntil ? new Date(quotation.validUntil).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : '—'}</span></div>
               {quotation?.approvedAt ? (
                 <div className="flex items-center justify-between"><span>{language === 'ar' ? 'اعتمد في' : 'Approved At'}</span><span className="font-semibold">{new Date(quotation.approvedAt).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</span></div>

@@ -23,8 +23,8 @@ import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
-import { normalizeProductType, productPickerLabel, productTypeOptions } from '../../lib/productType'
-import ProductTypeMark from './ProductTypeMark'
+import { normalizeProductType, productPickerLabel } from '../../lib/productType'
+import ProductTypeToggle from '../ui/ProductTypeToggle'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', productType: 'goods', unitCode: 'PCE', quantity: 1, unitPrice: '', customerPrice: '', taxRate: 15, agencyPrice: '', isTravelMargin: false }
 
@@ -1288,11 +1288,22 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''} initialName={initialInvoice?.lineItems?.[index]?.productName || ''} />
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
+                  <input type="hidden" {...register(`lineItems.${index}.productType`)} />
                   <div className="grid grid-cols-1 items-end gap-4 lg:grid-cols-12" dir="ltr">
                     <div className={isTravelContext
-                      ? (showArabicFields ? 'lg:col-span-2' : 'lg:col-span-2')
-                      : (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-3')}>
-                      <label htmlFor={`product-select-${index}`} className={fieldLabelClass}>{t('productName')} *</label>
+                      ? (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')
+                      : (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')}>
+                      <div className="mb-1.5 flex items-center gap-2" dir="ltr">
+                        <label htmlFor={`product-select-${index}`} className="min-w-0 flex-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          <span>Product Name *</span>
+                          <span className="ms-1.5 font-medium text-slate-500 dark:text-slate-400" dir="rtl">اسم المنتج</span>
+                        </label>
+                        <ProductTypeToggle
+                          value={watch(`lineItems.${index}.productType`)}
+                          onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
+                          language={language}
+                        />
+                      </div>
                       {isTradingContext ? (
                         <div>
                           <CreatableSelect
@@ -1338,18 +1349,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       ) : (
                         <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className={`mt-1.5 ${fieldControlClass}`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
-                      <div className="mt-2 flex items-center gap-2">
-                        <select {...register(`lineItems.${index}.productType`)} className={fieldControlClass}>
-                          {productTypeOptions(language).map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.labelEn} / {opt.labelAr}</option>
-                          ))}
-                        </select>
-                        <ProductTypeMark productType={watch(`lineItems.${index}.productType`)} language={language} bilingual />
-                      </div>
                     </div>
                     {showArabicFields ? (
-                      <div className={isTravelContext ? 'lg:col-span-2' : 'lg:col-span-3'}>
-                        <label className={fieldLabelClass}>اسم البند بالعربية</label>
+                      <div className={isTravelContext ? 'lg:col-span-3' : 'lg:col-span-3'}>
+                        <label className={`${fieldLabelClass} !flex items-baseline justify-between gap-3`} dir="ltr">
+                          <span>Arabic name</span>
+                          <span className="font-medium text-slate-500 dark:text-slate-400" dir="rtl">اسم البند بالعربية</span>
+                        </label>
                         <input {...register(`lineItems.${index}.productNameAr`)} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" placeholder="اسم المنتج أو الخدمة" />
                       </div>
                     ) : (

@@ -56,13 +56,13 @@ function PartyNames({ party, fallback = '-' }) {
   const ar = trimPartyName(party?.nameAr)
   if (en && ar && en !== ar) {
     return (
-      <>
-        <span className="block">{en}</span>
-        <span className="block" dir="rtl">{ar}</span>
-      </>
+      <span className="block leading-snug">
+        <span className="block font-semibold text-gray-900 dark:text-white">{en}</span>
+        <span className="block font-medium text-gray-800 dark:text-slate-100" dir="rtl">{ar}</span>
+      </span>
     )
   }
-  return <>{en || ar || fallback}</>
+  return <span className="font-semibold text-gray-900 dark:text-white">{en || ar || fallback}</span>
 }
 
 const getInvoiceContextLabel = (invoice, language = 'en') => {
@@ -428,9 +428,9 @@ export default function Invoices() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl bg-gray-50 dark:bg-dark-700 p-3">
                     <p className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'العميل / المورد' : 'Customer / Supplier'}</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    <div className="text-sm">
                       <PartyNames party={getInvoiceParty(signModalInvoice)} fallback="—" />
-                    </p>
+                    </div>
                   </div>
                   <div className="rounded-xl bg-gray-50 dark:bg-dark-700 p-3">
                     <p className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'الإجمالي' : 'Total'}</p>
@@ -747,7 +747,7 @@ export default function Invoices() {
                     <div className="flex items-start justify-between gap-3">
                       <button type="button" onClick={() => navigate(`/app/dashboard/invoices/${invoice._id}`)} className="text-start min-w-0">
                         <p className="font-semibold text-primary-700 dark:text-primary-400 truncate">{invoice.invoiceNumber}</p>
-                        <p className="text-sm text-gray-900 dark:text-white"><PartyNames party={party} /></p>
+                        <div className="mt-0.5 text-sm"><PartyNames party={party} /></div>
                         <p className="text-xs text-gray-500 mt-0.5">{new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</p>
                       </button>
                       <div className="shrink-0 flex flex-col items-end gap-1">
@@ -806,11 +806,9 @@ export default function Invoices() {
                         </button>
                       </td>
                       <td>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          <PartyNames party={getInvoiceParty(invoice)} />
-                        </p>
+                        <PartyNames party={getInvoiceParty(invoice)} />
                         {(invoice.flow === 'purchase' ? invoice.seller?.vatNumber : invoice.buyer?.vatNumber) && (
-                          <p className="text-xs text-gray-500">{invoice.flow === 'purchase' ? invoice.seller.vatNumber : invoice.buyer.vatNumber}</p>
+                          <p className="mt-0.5 text-xs text-gray-500">{invoice.flow === 'purchase' ? invoice.seller.vatNumber : invoice.buyer.vatNumber}</p>
                         )}
                       </td>
                       <td>

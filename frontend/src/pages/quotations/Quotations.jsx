@@ -24,6 +24,29 @@ import { downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoiceP
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+const trimPartyName = (value) => String(value || '').trim()
+
+const formatPartyNames = (party, { fallback = '', joiner = ' / ' } = {}) => {
+  const en = trimPartyName(party?.name)
+  const ar = trimPartyName(party?.nameAr)
+  if (en && ar && en !== ar) return `${en}${joiner}${ar}`
+  return en || ar || fallback
+}
+
+function PartyNames({ party, fallback = '-' }) {
+  const en = trimPartyName(party?.name)
+  const ar = trimPartyName(party?.nameAr)
+  if (en && ar && en !== ar) {
+    return (
+      <span className="block leading-snug">
+        <span className="block font-semibold text-gray-900 dark:text-white">{en}</span>
+        <span className="block font-medium text-gray-800 dark:text-slate-100" dir="rtl">{ar}</span>
+      </span>
+    )
+  }
+  return <span className="font-semibold text-gray-900 dark:text-white">{en || ar || fallback}</span>
+}
+
 const isEditableQuotation = (q) =>
   ['draft', 'sent', 'rejected'].includes(String(q?.status || '').toLowerCase())
 const hasConvertedInvoice = (q) => Boolean(q?.convertedInvoiceId)
@@ -124,10 +147,7 @@ export default function Quotations() {
     () =>
       (data?.quotations || []).map((q) => ({
         quotationNumber: q?.quotationNumber || '',
-        customer:
-          language === 'ar'
-            ? q?.buyer?.nameAr || q?.buyer?.name || ''
-            : q?.buyer?.name || q?.buyer?.nameAr || '',
+        customer: formatPartyNames(q?.buyer),
         status: q?.status || '',
         issueDate: q?.issueDate
           ? new Date(q.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')
@@ -155,10 +175,7 @@ export default function Quotations() {
     }
     return all.map((q) => ({
       quotationNumber: q?.quotationNumber || '',
-      customer:
-        language === 'ar'
-          ? q?.buyer?.nameAr || q?.buyer?.name || ''
-          : q?.buyer?.name || q?.buyer?.nameAr || '',
+      customer: formatPartyNames(q?.buyer),
       status: q?.status || '',
       issueDate: q?.issueDate
         ? new Date(q.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')
@@ -452,11 +469,7 @@ export default function Quotations() {
 
                         {/* Customer */}
                         <td>
-                          <p className="font-medium text-gray-900 dark:text-white text-sm">
-                            {language === 'ar'
-                              ? q?.buyer?.nameAr || q?.buyer?.name || '—'
-                              : q?.buyer?.name || q?.buyer?.nameAr || '—'}
-                          </p>
+                          <PartyNames party={q?.buyer} fallback="—" />
                         </td>
 
                         {/* Issue Date */}

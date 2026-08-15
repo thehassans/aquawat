@@ -17,8 +17,8 @@ import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
 import InvoiceTemplateSelector from '../invoices/InvoiceTemplateSelector'
 import Select from 'react-select'
 import { useForm, useFieldArray } from 'react-hook-form'
-import { normalizeProductType, productPickerLabel, productTypeOptions } from '../../lib/productType'
-import ProductTypeMark from '../invoices/ProductTypeMark'
+import { normalizeProductType, productPickerLabel } from '../../lib/productType'
+import ProductTypeToggle from '../ui/ProductTypeToggle'
 
 const emptyLine = {
   productId: '',
@@ -845,43 +845,41 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                     className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/40 p-4 transition hover:border-emerald-300/80 hover:bg-emerald-50/30 dark:border-white/10 dark:bg-dark-900/50 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/5"
                   >
                     <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-12" dir="ltr">
-                      {isTradingContext ? (
-                        <div className="md:col-span-4">
-                          <label className="label">{language === 'ar' ? 'المنتج' : 'Product'}</label>
-                          <select className="select" value={values?.lineItems?.[index]?.productId || ''} onChange={(e) => onSelectProduct(index, e.target.value)}>
+                    <input type="hidden" {...register(`lineItems.${index}.productType`)} />
+                    <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12" dir="ltr">
+                      <div className={showArabicFields ? 'md:col-span-6' : 'md:col-span-12'}>
+                        <div className="mb-1.5 flex items-center gap-2" dir="ltr">
+                          <label className="label !mb-0 min-w-0 flex-1">
+                            <span>Item Name *</span>
+                            <span className="ms-1.5 font-medium text-gray-500" dir="rtl">اسم البند</span>
+                          </label>
+                          <ProductTypeToggle
+                            value={watch(`lineItems.${index}.productType`)}
+                            onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
+                            language={language}
+                          />
+                        </div>
+                        {isTradingContext ? (
+                          <select className="select mb-2" value={values?.lineItems?.[index]?.productId || ''} onChange={(e) => onSelectProduct(index, e.target.value)}>
                             <option value="">{language === 'ar' ? 'اختر منتج' : 'Select product'}</option>
                             {(products || []).map((item) => (
                               <option key={item._id} value={item._id}>{productPickerLabel(item, language)}</option>
                             ))}
                           </select>
-                        </div>
-                      ) : null}
-                      <div className={isTradingContext ? (showArabicFields ? 'md:col-span-4' : 'md:col-span-4') : (showArabicFields ? 'md:col-span-6' : 'md:col-span-6')}>
-                        <label className="label">{language === 'ar' ? 'اسم البند' : 'Item Name'} *</label>
-                        <input {...register(`lineItems.${index}.productName`)} className="input" />
+                        ) : null}
+                        <input {...register(`lineItems.${index}.productName`)} className="input" placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
                       </div>
                       {showArabicFields ? (
-                        <div className={isTradingContext ? 'md:col-span-4' : 'md:col-span-6'}>
-                          <label className="label">اسم البند بالعربية</label>
-                          <input {...register(`lineItems.${index}.productNameAr`)} className="input" dir="rtl" />
+                        <div className="md:col-span-6">
+                          <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                            <span>Arabic name</span>
+                            <span dir="rtl" className="font-medium text-gray-500">اسم البند بالعربية</span>
+                          </label>
+                          <input {...register(`lineItems.${index}.productNameAr`)} className="input" dir="rtl" placeholder="اسم المنتج أو الخدمة" />
                         </div>
                       ) : (
                         <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                       )}
-                    </div>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-12" dir="ltr">
-                      <div className="md:col-span-4">
-                        <label className="label">{language === 'ar' ? 'نوع المنتج' : 'Product Type'}</label>
-                        <div className="flex items-center gap-2">
-                          <select {...register(`lineItems.${index}.productType`)} className="select">
-                            {productTypeOptions(language).map((opt) => (
-                              <option key={opt.value} value={opt.value}>{opt.labelEn} / {opt.labelAr}</option>
-                            ))}
-                          </select>
-                          <ProductTypeMark productType={watch(`lineItems.${index}.productType`)} language={language} bilingual />
-                        </div>
-                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-12" dir="ltr">

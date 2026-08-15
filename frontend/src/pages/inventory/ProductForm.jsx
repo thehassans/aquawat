@@ -12,7 +12,9 @@ import SarIcon from '../../components/ui/SarIcon'
 import { useLiveTranslation } from '../../lib/liveTranslation'
 import Select from 'react-select'
 import { getAvailableUomOptions } from '../../lib/uomOptions'
-import { normalizeProductType, productTypeOptions } from '../../lib/productType'
+import { normalizeProductType } from '../../lib/productType'
+import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
+
 export default function ProductForm() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -22,7 +24,9 @@ export default function ProductForm() {
   const { t } = useTranslation(language)
   const isEdit = Boolean(id)
 
-  const { register, handleSubmit, reset, setValue, watch, control } = useForm()
+  const { register, handleSubmit, reset, setValue, watch, control } = useForm({
+    defaultValues: { productType: 'goods' },
+  })
   const [product, setProduct] = useState(null)
   const [stockWarehouseId, setStockWarehouseId] = useState('')
   const [stockQuantity, setStockQuantity] = useState(0)
@@ -250,6 +254,27 @@ export default function ProductForm() {
             <h3 className="text-lg font-semibold">{language === 'ar' ? 'معلومات المنتج' : 'Product Information'}</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="md:col-span-1 lg:col-span-1">
+              <div className="mb-1.5 flex items-center gap-2" dir="ltr">
+                <label className="label !mb-0 min-w-0 flex-1">{t('productName')} (EN) *</label>
+                <ProductTypeToggle
+                  value={selectedProductType}
+                  onChange={(next) => setValue('productType', next, { shouldDirty: true, shouldTouch: true })}
+                  language={language}
+                />
+              </div>
+              <input {...register('nameEn', { required: true })} className="input" />
+              <input type="hidden" {...register('productType')} />
+              {isService ? (
+                <p className="mt-1 text-[11px] text-gray-400">
+                  {language === 'ar' ? 'الخدمات لا تُخصم من المخزون' : 'Services are not stock-tracked'}
+                </p>
+              ) : null}
+            </div>
+            <div className="md:col-span-1 lg:col-span-2">
+              <label className="label">{t('productName')} (AR)</label>
+              <input {...register('nameAr')} className="input" dir="rtl" />
+            </div>
             <div>
               <label className="label">{t('sku')} *</label>
               <input {...register('sku', { required: true })} className="input" placeholder="SKU-001" />
@@ -259,29 +284,8 @@ export default function ProductForm() {
               <input {...register('barcode')} className="input" placeholder="1234567890123" />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'نوع المنتج' : 'Product Type'}</label>
-              <select {...register('productType')} className="select" defaultValue="goods">
-                {productTypeOptions(language).map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                {isService
-                  ? (language === 'ar' ? 'الخدمات لا تُخصم من المخزون' : 'Services are not stock-tracked')
-                  : (language === 'ar' ? 'البضاعة تُتابع في المخزون' : 'Goods decrement inventory on sale')}
-              </p>
-            </div>
-            <div>
               <label className="label">{t('category')}</label>
               <input {...register('category')} className="input" />
-            </div>
-            <div className="md:col-span-2 lg:col-span-1">
-              <label className="label">{t('productName')} (EN) *</label>
-              <input {...register('nameEn', { required: true })} className="input" />
-            </div>
-            <div className="md:col-span-2 lg:col-span-2">
-              <label className="label">{t('productName')} (AR)</label>
-              <input {...register('nameAr')} className="input" dir="rtl" />
             </div>
             <div className="md:col-span-2 lg:col-span-3">
               <label className="label">{language === 'ar' ? 'الوصف' : 'Description'}</label>
