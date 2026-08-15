@@ -38,6 +38,33 @@ import { printThermalElement, getThermalPrinterSettings } from '../../lib/therma
 import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
 
+const trimPartyName = (value) => String(value || '').trim()
+
+const getInvoiceParty = (invoice) => (
+  invoice?.flow === 'purchase' ? invoice?.seller : invoice?.buyer
+)
+
+const formatPartyNames = (party, { fallback = '', joiner = ' / ' } = {}) => {
+  const en = trimPartyName(party?.name)
+  const ar = trimPartyName(party?.nameAr)
+  if (en && ar && en !== ar) return `${en}${joiner}${ar}`
+  return en || ar || fallback
+}
+
+function PartyNames({ party, fallback = '-' }) {
+  const en = trimPartyName(party?.name)
+  const ar = trimPartyName(party?.nameAr)
+  if (en && ar && en !== ar) {
+    return (
+      <>
+        <span className="block">{en}</span>
+        <span className="block" dir="rtl">{ar}</span>
+      </>
+    )
+  }
+  return <>{en || ar || fallback}</>
+}
+
 const getInvoiceContextLabel = (invoice, language = 'en') => {
   const context = String(invoice?.businessContext || '').trim()
   const labels = {
@@ -161,9 +188,7 @@ export default function Invoices() {
 
   const handleDeleteInvoice = (invoice) => {
     const label = invoice.invoiceNumber || ''
-    const buyer = language === 'ar'
-      ? (invoice.buyer?.nameAr || invoice.buyer?.name || '')
-      : (invoice.buyer?.name || invoice.buyer?.nameAr || '')
+    const buyer = formatPartyNames(getInvoiceParty(invoice))
     const msg = language === 'ar'
       ? `هل أنت متأكد من حذف الفاتورة "${label}" للعميل "${buyer}" نهائياً؟ لا يمكن التراجع عن هذا الإجراء.`
       : `Permanently delete invoice "${label}" for "${buyer}"? This cannot be undone.`
@@ -298,7 +323,7 @@ export default function Invoices() {
     {
       key: 'buyerName',
       label: t('customer'),
-      value: (r) => language === 'ar' ? (r?.buyer?.nameAr || r?.buyer?.name || '') : (r?.buyer?.name || r?.buyer?.nameAr || '')
+      value: (r) => formatPartyNames(getInvoiceParty(r))
     },
     {
       label: language === 'ar' ? 'النوع' : 'Type',
@@ -403,10 +428,8 @@ export default function Invoices() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl bg-gray-50 dark:bg-dark-700 p-3">
                     <p className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'العميل / المورد' : 'Customer / Supplier'}</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {(language === 'ar'
-                        ? ((signModalInvoice.type === 'purchase' ? signModalInvoice.seller : signModalInvoice.buyer)?.nameAr || (signModalInvoice.type === 'purchase' ? signModalInvoice.seller : signModalInvoice.buyer)?.name)
-                        : ((signModalInvoice.type === 'purchase' ? signModalInvoice.seller : signModalInvoice.buyer)?.name || (signModalInvoice.type === 'purchase' ? signModalInvoice.seller : signModalInvoice.buyer)?.nameAr)) || '—'}
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      <PartyNames party={getInvoiceParty(signModalInvoice)} fallback="—" />
                     </p>
                   </div>
                   <div className="rounded-xl bg-gray-50 dark:bg-dark-700 p-3">
@@ -718,15 +741,13 @@ export default function Invoices() {
               items={data?.invoices || []}
               empty={<p className="p-6 text-center text-sm text-gray-500">{language === 'ar' ? 'لا توجد فواتير' : 'No invoices'}</p>}
               renderCard={(invoice) => {
-                const party = invoice.flow === 'purchase'
-                  ? (language === 'ar' ? (invoice.seller?.nameAr || invoice.seller?.name || '-') : (invoice.seller?.name || invoice.seller?.nameAr || '-'))
-                  : (language === 'ar' ? (invoice.buyer?.nameAr || invoice.buyer?.name || '-') : (invoice.buyer?.name || invoice.buyer?.nameAr || '-'))
+                const party = getInvoiceParty(invoice)
                 return (
                   <div key={invoice._id} className="rounded-xl border border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <button type="button" onClick={() => navigate(`/app/dashboard/invoices/${invoice._id}`)} className="text-start min-w-0">
                         <p className="font-semibold text-primary-700 dark:text-primary-400 truncate">{invoice.invoiceNumber}</p>
-                        <p className="text-sm text-gray-900 dark:text-white truncate">{party}</p>
+                        <p className="text-sm text-gray-900 dark:text-white"><PartyNames party={party} /></p>
                         <p className="text-xs text-gray-500 mt-0.5">{new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</p>
                       </button>
                       <div className="shrink-0 flex flex-col items-end gap-1">
@@ -786,9 +807,7 @@ export default function Invoices() {
                       </td>
                       <td>
                         <p className="font-medium text-gray-900 dark:text-white">
-                          {invoice.flow === 'purchase'
-                            ? (language === 'ar' ? (invoice.seller?.nameAr || invoice.seller?.name || '-') : (invoice.seller?.name || invoice.seller?.nameAr || '-'))
-                            : (language === 'ar' ? (invoice.buyer?.nameAr || invoice.buyer?.name || '-') : (invoice.buyer?.name || invoice.buyer?.nameAr || '-'))}
+                          <PartyNames party={getInvoiceParty(invoice)} />
                         </p>
                         {(invoice.flow === 'purchase' ? invoice.seller?.vatNumber : invoice.buyer?.vatNumber) && (
                           <p className="text-xs text-gray-500">{invoice.flow === 'purchase' ? invoice.seller.vatNumber : invoice.buyer.vatNumber}</p>

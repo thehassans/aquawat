@@ -21,6 +21,29 @@ export function applyPaidAmountStatus(invoiceData, now = new Date()) {
 export function resolvePaymentStatus(invoiceData, now = new Date()) {
   const method = invoiceData.paymentMethod || 'cash';
   const grandTotal = Number(invoiceData.grandTotal) || 0;
+  const explicit = String(invoiceData.paymentStatus || '').toLowerCase().trim();
+
+  if (explicit === 'paid') {
+    invoiceData.paidAmount = grandTotal;
+    invoiceData.paymentStatus = 'paid';
+    return invoiceData;
+  }
+
+  if (explicit === 'pending' || explicit === 'unpaid') {
+    const paid = Number(invoiceData.paidAmount) || 0;
+    if (grandTotal > 0 && paid >= grandTotal - 0.005) {
+      invoiceData.paidAmount = 0;
+    }
+    return applyPaidAmountStatus(invoiceData, now);
+  }
+
+  if (explicit === 'partial' || explicit === 'overdue') {
+    return applyPaidAmountStatus(invoiceData, now);
+  }
+
+  if (explicit === 'cancelled') {
+    return invoiceData;
+  }
 
   if (method === 'credit' || method === 'split' || method === 'khata') {
     return applyPaidAmountStatus(invoiceData, now);

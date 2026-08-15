@@ -1545,6 +1545,8 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
 
     ensureInvoiceDueDate(invoiceData);
 
+    resolvePaymentStatus(invoiceData);
+
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const createdInvoice = await Invoice.create(enrichedInvoiceData);
     await applyResolvedPayment(createdInvoice);
@@ -1752,6 +1754,8 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
 
     ensureInvoiceDueDate(invoiceData);
 
+    resolvePaymentStatus(invoiceData);
+
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const createdInvoice = await Invoice.create(enrichedInvoiceData);
     await applyResolvedPayment(createdInvoice);
@@ -1818,7 +1822,12 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
     }
     
     // Only resolve payment status for manually edited fields (not auto-triggered updates without payment info)
-    if (req.body.paymentMethod || req.body.grandTotal !== undefined) {
+    if (
+      req.body.paymentStatus ||
+      req.body.paymentMethod ||
+      req.body.grandTotal !== undefined ||
+      req.body.paidAmount !== undefined
+    ) {
       resolvePaymentStatus(req.body);
     }
 

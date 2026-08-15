@@ -56,3 +56,29 @@ export const getPaymentTermLabel = (id, language = 'en') => {
   if (!term) return id || ''
   return language === 'ar' ? term.labelAr : term.labelEn
 }
+
+const IMMEDIATE_PAYMENT_TERM_IDS = new Set(['immediate', 'cod'])
+
+export const isImmediatePaymentTerm = (id) => IMMEDIATE_PAYMENT_TERM_IDS.has(String(id || ''))
+
+/** Map stored invoice status to the Paid / Unpaid form control. */
+export const formPaymentStatusFromInvoice = (invoice, { defaultTerms = 'immediate' } = {}) => {
+  const status = String(invoice?.paymentStatus || '').toLowerCase()
+  if (status === 'paid') return 'paid'
+  if (['pending', 'partial', 'overdue', 'cancelled'].includes(status)) return 'pending'
+  return isImmediatePaymentTerm(invoice?.paymentTerms || defaultTerms) ? 'paid' : 'pending'
+}
+
+/** Apply the Paid / Unpaid control to a create/update payload. */
+export const applyFormPaymentToPayload = (payload, { paymentStatus, paidAmount, grandTotal } = {}) => {
+  const total = Math.max(0, Number(grandTotal) || 0)
+  if (paymentStatus === 'paid') {
+    payload.paymentStatus = 'paid'
+    payload.paidAmount = total
+    return payload
+  }
+  const paid = Math.max(0, Number(paidAmount) || 0)
+  payload.paymentStatus = 'pending'
+  payload.paidAmount = total > 0 && paid >= total ? 0 : paid
+  return payload
+}

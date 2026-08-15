@@ -14,7 +14,7 @@ import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
-import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms } from '../../lib/invoicePaymentTerms'
+import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms, isImmediatePaymentTerm, formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 import InvoiceLivePreview from './InvoiceLivePreview'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
@@ -130,6 +130,8 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   transactionType: invoice?.transactionType || 'B2B',
   invoiceTypeCode: invoice?.invoiceTypeCode || (invoice?.transactionType === 'B2C' ? '0200000' : '0100000'),
   paymentMethod: invoice?.paymentMethod || 'cash',
+  paidAmount: toNumber(invoice?.paidAmount, 0),
+  paymentStatus: formPaymentStatusFromInvoice(invoice),
   customerId: invoice?.customerId || '',
   warehouseId: invoice?.warehouseId || '',
   restaurantOrderId: invoice?.restaurantOrderId || '',
@@ -677,6 +679,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       })(),
       printFormat: data?.printFormat === 'thermal' ? 'thermal' : 'a4',
       paymentTerms: data?.paymentTerms || 'immediate',
+      paymentMethod: data?.paymentMethod || 'cash',
       lineItems: namedLines.map((line, index) => {
         const summaryLine = namedTotals.lines[index] || {}
         const agencyPrice = Math.max(0, toNumber(line.agencyPrice, 0))
@@ -710,6 +713,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       totalTax: namedTotals.totalTax,
       grandTotal: namedTotals.grandTotal,
     }
+    applyFormPaymentToPayload(payload, {
+      paymentStatus: data?.paymentStatus,
+      paidAmount: data?.paidAmount,
+      grandTotal: namedTotals.grandTotal,
+    })
 
     if (!payload.restaurantOrderId) delete payload.restaurantOrderId
     if (!payload.travelBookingId) delete payload.travelBookingId
@@ -1706,6 +1714,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         const issue = issueRaw ? new Date(issueRaw) : new Date()
                         const due = computeDueDateFromPaymentTerms(issue, id)
                         if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+                        setValue('paymentStatus', isImmediatePaymentTerm(id) ? 'paid' : 'pending', { shouldDirty: true })
+                        if (isImmediatePaymentTerm(id)) {
+                          setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
+                        } else {
+                          const currentPaid = Number(getValues('paidAmount') || 0)
+                          if (currentPaid >= totals.grandTotal) setValue('paidAmount', 0, { shouldDirty: true })
+                        }
                       }}
                     >
                       <optgroup label={language === 'ar' ? 'الأكثر استخداماً' : 'Most used'}>
@@ -1725,6 +1740,26 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     <input type="date" {...register('dueDate')} className={`mt-1.5 ${fieldControlClass}`} />
                   </div>
                   <div>
+                    <label className={fieldLabelClass}>{language === 'ar' ? 'مدفوعة / غير مدفوعة' : 'Paid / Unpaid'}</label>
+                    <select
+                      {...register('paymentStatus')}
+                      className={`mt-1.5 ${fieldControlClass}`}
+                      onChange={(e) => {
+                        const status = e.target.value
+                        setValue('paymentStatus', status, { shouldDirty: true })
+                        if (status === 'paid') {
+                          setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
+                        } else {
+                          const currentPaid = Number(getValues('paidAmount') || 0)
+                          if (currentPaid >= totals.grandTotal) setValue('paidAmount', 0, { shouldDirty: true })
+                        }
+                      }}
+                    >
+                      <option value="paid">{language === 'ar' ? 'مدفوعة' : 'Paid'}</option>
+                      <option value="pending">{language === 'ar' ? 'غير مدفوعة' : 'Unpaid'}</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className={fieldLabelClass}>{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>
                     <select {...register('paymentMethod')} className={`mt-1.5 ${fieldControlClass}`}>
                       <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
@@ -1733,7 +1768,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       <option value="credit">{language === 'ar' ? 'آجل / ذمم' : 'Credit / Split'}</option>
                     </select>
                   </div>
-                  {watch('paymentMethod') === 'credit' && (
+                  {watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' && (
                     <div>
                       <label className={fieldLabelClass}>{language === 'ar' ? 'المبلغ المدفوع (مقدم)' : 'Paid Amount (Advance)'}</label>
                       <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className={`mt-1.5 ${fieldControlClass}`} placeholder="0.00" />

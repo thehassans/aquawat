@@ -21,6 +21,7 @@ import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
+import { formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
@@ -44,6 +45,7 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
   stampImage: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.stampImage || '') : '',
   paymentTerms: invoice?.paymentTerms || '',
   paymentMethod: invoice?.paymentMethod || 'cash',
+  paymentStatus: formPaymentStatusFromInvoice(invoice),
   paidAmount: toNumber(invoice?.paidAmount, 0),
   invoiceDiscount: toNumber(invoice?.invoiceDiscount, 0),
   notes: invoice?.notes || '',
@@ -354,6 +356,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       totalTax: totals.totalTax,
       grandTotal: totals.grandTotal,
     }
+    applyFormPaymentToPayload(payload, {
+      paymentStatus: data?.paymentStatus,
+      paidAmount: data?.paidAmount,
+      grandTotal: totals.grandTotal,
+    })
 
     if (!isTradingContext) {
       delete payload.warehouseId
@@ -830,7 +837,27 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     <option value="credit">{language === 'ar' ? 'آجل / ذمم' : 'Credit / Split'}</option>
                   </select>
                 </div>
-                {watch('paymentMethod') === 'credit' && (
+                <div>
+                  <label className="label">{language === 'ar' ? 'مدفوعة / غير مدفوعة' : 'Paid / Unpaid'}</label>
+                  <select
+                    {...register('paymentStatus')}
+                    className="select"
+                    onChange={(e) => {
+                      const status = e.target.value
+                      setValue('paymentStatus', status, { shouldDirty: true })
+                      if (status === 'paid') {
+                        setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
+                      } else {
+                        const currentPaid = Number(getValues('paidAmount') || 0)
+                        if (currentPaid >= totals.grandTotal) setValue('paidAmount', 0, { shouldDirty: true })
+                      }
+                    }}
+                  >
+                    <option value="paid">{language === 'ar' ? 'مدفوعة' : 'Paid'}</option>
+                    <option value="pending">{language === 'ar' ? 'غير مدفوعة' : 'Unpaid'}</option>
+                  </select>
+                </div>
+                {watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' && (
                   <div>
                     <label className="label text-primary-600 font-semibold">{language === 'ar' ? 'المبلغ المدفوع (مقدم)' : 'Paid Amount (Advance)'}</label>
                     <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className="input border-primary-300" placeholder="0.00" />

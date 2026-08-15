@@ -125,3 +125,40 @@ test('isPastDueInRiyadh: future due is not past', () => {
   const tomorrow = new Date(Date.now() + 36 * 60 * 60 * 1000);
   assert.equal(isPastDueInRiyadh(tomorrow), false);
 });
+
+test('explicit pending is honored for cash / card / bank_transfer (not forced paid)', () => {
+  for (const paymentMethod of ['cash', 'card', 'bank_transfer']) {
+    const invoice = { paymentMethod, grandTotal: 100, paidAmount: 0, paymentStatus: 'pending' };
+    resolvePaymentStatus(invoice);
+    assert.equal(invoice.paymentStatus, 'pending', paymentMethod);
+    assert.equal(invoice.paidAmount, 0, paymentMethod);
+  }
+});
+
+test('explicit unpaid maps to pending and zeros a full paidAmount', () => {
+  const invoice = { paymentMethod: 'cash', grandTotal: 100, paidAmount: 100, paymentStatus: 'unpaid' };
+  resolvePaymentStatus(invoice);
+  assert.equal(invoice.paymentStatus, 'pending');
+  assert.equal(invoice.paidAmount, 0);
+});
+
+test('explicit paid sets paidAmount to grandTotal even on credit', () => {
+  const invoice = { paymentMethod: 'credit', grandTotal: 115.5, paidAmount: 10, paymentStatus: 'paid' };
+  resolvePaymentStatus(invoice);
+  assert.equal(invoice.paymentStatus, 'paid');
+  assert.equal(invoice.paidAmount, 115.5);
+});
+
+test('explicit pending with advance paidAmount stays partial', () => {
+  const invoice = { paymentMethod: 'cash', grandTotal: 100, paidAmount: 40, paymentStatus: 'pending' };
+  resolvePaymentStatus(invoice);
+  assert.equal(invoice.paymentStatus, 'partial');
+  assert.equal(invoice.paidAmount, 40);
+});
+
+test('no explicit status still auto-pays cash', () => {
+  const invoice = { paymentMethod: 'cash', grandTotal: 100, paidAmount: 0 };
+  resolvePaymentStatus(invoice);
+  assert.equal(invoice.paymentStatus, 'paid');
+  assert.equal(invoice.paidAmount, 100);
+});
