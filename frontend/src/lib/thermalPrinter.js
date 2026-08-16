@@ -247,29 +247,22 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       // They cause the white-page / invisible text bug because dark: classes get applied.
       // Instead, inject only a minimal clean stylesheet with explicit white background + black text.
 
-      // Only copy font @font-face rules from parent (so custom fonts render correctly)
-      let fontStyles = '';
+      // We need to copy all stylesheets from the parent to ensure Tailwind classes (flex, w-full) work.
+      // We will override colors to force black-on-white in the inline <style> block below.
+      let parentStyles = '';
       try {
-        document.querySelectorAll('style').forEach(node => {
-          if (node.textContent && node.textContent.includes('@font-face')) {
-            fontStyles += `<style>${node.textContent}</style>`;
-          }
-        });
-        // Also grab Google Font <link> tags
-        document.querySelectorAll('link[rel="stylesheet"]').forEach(node => {
-          const href = node.getAttribute('href') || '';
-          if (href.includes('fonts.googleapis.com') || href.includes('fonts.gstatic.com')) {
-            fontStyles += node.outerHTML;
-          }
+        document.querySelectorAll('style, link[rel="stylesheet"]').forEach(node => {
+          parentStyles += node.outerHTML;
         });
       } catch (_) {}
 
+      const htmlDir = document.documentElement.getAttribute('dir') || 'ltr';
       const fullHtml = `<!DOCTYPE html>
-<html>
+<html dir="${htmlDir}">
 <head>
   <meta charset="utf-8" />
   <title>Receipt</title>
-  ${fontStyles}
+  ${parentStyles}
   <style>
     @page {
       size: ${paperWidth} auto;
@@ -356,10 +349,10 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       };
 
       if (iframe.contentDocument?.readyState === 'complete') {
-        setTimeout(triggerIframePrint, 250);
+        setTimeout(triggerIframePrint, 500);
       } else {
-        iframe.onload = () => setTimeout(triggerIframePrint, 250);
-        setTimeout(triggerIframePrint, 800);
+        iframe.onload = () => setTimeout(triggerIframePrint, 500);
+        setTimeout(triggerIframePrint, 1200);
       }
     } catch (err) {
       console.error('printThermalElement error:', err);
