@@ -56,7 +56,7 @@ export default function PurchaseReturnForm() {
     queryFn: async () => {
       try {
         const res = await api.get('/warehouses')
-        return Array.isArray(res.data) ? res.data : []
+        return Array.isArray(res.data) ? res.data : res.data?.warehouses || []
       } catch {
         return []
       }

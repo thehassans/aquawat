@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Search, PackageMinus } from 'lucide-react'
+import { Plus, Search, PackageMinus, Anchor } from 'lucide-react'
 import api from '../../lib/api'
 import {
   PURCHASES_PATH,
   shell,
   primaryBtn,
+  ghostBtn,
   fieldControlClass,
   STATUS_PILL,
   statusLabel,
@@ -32,7 +33,16 @@ export default function PurchaseReturnList() {
     queryKey: ['purchase-returns', debounced, status],
     queryFn: () => api.get('/purchase-returns', { params: { search: debounced, status } }).then((res) => res.data),
   })
+  const { data: grns = [] } = useQuery({
+    queryKey: ['grn-list', 'returnable'],
+    queryFn: () => api.get('/grn').then((res) => (Array.isArray(res.data) ? res.data : [])),
+  })
+
   const rows = Array.isArray(data) ? data : []
+  const receivableGrns = useMemo(
+    () => (Array.isArray(grns) ? grns : []).filter((grn) => ['received', 'completed'].includes(grn.status)),
+    [grns],
+  )
 
   return (
     <div className="space-y-6">
@@ -74,6 +84,65 @@ export default function PurchaseReturnList() {
             ))}
           </select>
         </div>
+      </div>
+
+      <div className={shell}>
+        <div className="border-b border-slate-100 px-5 py-4 dark:border-white/10">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            {language === 'ar' ? 'إشعارات الاستلام القابلة للإرجاع' : 'Received GRNs'}
+          </p>
+          <p className="mt-1 text-[13px] text-slate-500">
+            {language === 'ar' ? 'كل إشعار استلام مكتمل يظهر هنا لإنشاء مرتجع أو تكلفة مرسية.' : 'Every received GRN can start a return or a landed-cost worksheet.'}
+          </p>
+        </div>
+        {receivableGrns.length === 0 ? (
+          <p className="px-5 py-8 text-[13px] text-slate-500">
+            {language === 'ar' ? 'لا توجد إشعارات استلام مكتملة بعد.' : 'No received GRNs yet.'}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-white/10">
+                <tr>
+                  <th className="px-5 py-3">{language === 'ar' ? 'الإشعار' : 'GRN'}</th>
+                  <th className="px-5 py-3">{language === 'ar' ? 'المورد' : 'Vendor'}</th>
+                  <th className="px-5 py-3">{language === 'ar' ? 'طلب الشراء' : 'PO'}</th>
+                  <th className="px-5 py-3">{language === 'ar' ? 'المستودع' : 'Warehouse'}</th>
+                  <th className="px-5 py-3">{language === 'ar' ? 'التكلفة المرسية' : 'Landed cost'}</th>
+                  <th className="px-5 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {receivableGrns.map((grn) => {
+                  const landed = (grn.landedCosts || [])[0]
+                  return (
+                    <tr key={grn._id} className="border-b border-slate-50 dark:border-white/[0.04]">
+                      <td className="px-5 py-4 font-mono text-[13px] font-semibold text-slate-900 dark:text-white">{grn.grnNumber}</td>
+                      <td className="px-5 py-4">{partyName(grn.supplierId, language)}</td>
+                      <td className="px-5 py-4 font-mono text-[12px] text-slate-500">{grn.purchaseOrderId?.poNumber || '—'}</td>
+                      <td className="px-5 py-4">{warehouseName(grn.warehouseId, language)}</td>
+                      <td className="px-5 py-4 text-[12px] text-slate-600">
+                        {landed ? `${landed.lcNumber}` : (language === 'ar' ? 'غير مكتوبة' : 'Not written')}
+                      </td>
+                      <td className="px-5 py-4 text-end">
+                        <div className="flex justify-end gap-2">
+                          <Link to={`${PURCHASES_PATH.returns}/new?grnId=${grn._id}`} className={ghostBtn.replace('px-3.5 py-2.5', 'px-3 py-1.5 text-[12px]')}>
+                            <PackageMinus className="h-3.5 w-3.5" />
+                            {language === 'ar' ? 'مرتجع' : 'Return'}
+                          </Link>
+                          <Link to={`${PURCHASES_PATH.landed}/new?grn=${grn._id}`} className={ghostBtn.replace('px-3.5 py-2.5', 'px-3 py-1.5 text-[12px]')}>
+                            <Anchor className="h-3.5 w-3.5" />
+                            {language === 'ar' ? 'تكلفة مرسية' : 'Landed cost'}
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className={shell}>

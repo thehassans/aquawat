@@ -39,6 +39,34 @@ export function remainingReceivable(line = {}) {
   return Math.max(0, toNumber(line.quantityOrdered) - toNumber(line.quantityReceived));
 }
 
+export function buildOpenReceiveLines(po) {
+  return (Array.isArray(po?.lineItems) ? po.lineItems : []).map((li) => {
+    const product = li?.productId && typeof li.productId === 'object' && li.productId._id ? li.productId : null;
+    const ordered = toNumber(li?.quantityOrdered ?? li?.quantity);
+    const remaining = remainingReceivable(li);
+    return {
+      productId: product?._id || li?.productId || undefined,
+      productName: product?.nameEn || product?.nameAr || li?.manualName || li?.description || '',
+      barcode: product?.barcode || '',
+      productType: normalizeProductType(li?.productType || product?.productType),
+      uom: li?.uom || product?.unitOfMeasure || '',
+      quantityOrdered: ordered,
+      quantityReceived: remaining,
+      remaining,
+      costPrice: toNumber(li?.unitCost ?? li?.costPrice),
+    };
+  }).filter((line) => line.remaining > 0);
+}
+
+export function summarizeOpenPo(po) {
+  const lines = buildOpenReceiveLines(po);
+  return {
+    lines,
+    remainingQty: lines.reduce((sum, line) => sum + toNumber(line.remaining), 0),
+    remainingValue: round2(lines.reduce((sum, line) => sum + toNumber(line.remaining) * toNumber(line.costPrice), 0)),
+  };
+}
+
 export function remainingReturnable(line = {}) {
   return Math.max(0, toNumber(line.quantityReceived) - toNumber(line.quantityReturned));
 }

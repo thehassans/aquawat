@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import GRN from '../models/GRN.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
+import LandedCost from '../models/LandedCost.js';
 import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../middleware/auth.js';
 import { normalizeProductType } from '../utils/productType.js';
 import {
@@ -11,7 +12,7 @@ import {
   resolveWarehouse,
   PurchasesValidationError,
 } from '../services/purchasesWorkflow.js';
-import { toNumber } from '../services/purchasesLogic.js';
+import { toNumber, buildOpenReceiveLines, summarizeOpenPo } from '../services/purchasesLogic.js';
 
 const router = express.Router();
 router.use(protect);
@@ -67,6 +68,49 @@ async function loadOpenPo(tenantFilter, purchaseOrderId) {
   return po;
 }
 
+function slimPo(po) {
+  if (!po) return null;
+  const supplier = po.supplierId && typeof po.supplierId === 'object' ? po.supplierId : null;
+  const warehouse = po.warehouseId && typeof po.warehouseId === 'object' ? po.warehouseId : null;
+  return {
+    _id: po._id,
+    poNumber: po.poNumber,
+    status: po.status,
+    expectedDate: po.expectedDate,
+    orderDate: po.orderDate,
+    supplierId: supplier ? { _id: supplier._id, nameEn: supplier.nameEn, nameAr: supplier.nameAr } : po.supplierId,
+    warehouseId: warehouse
+      ? { _id: warehouse._id, code: warehouse.code, nameEn: warehouse.nameEn, nameAr: warehouse.nameAr }
+      : po.warehouseId,
+  };
+}
+
+async function attachLandedCosts(tenantId, grns) {
+  const list = Array.isArray(grns) ? grns : [];
+  if (!list.length) return list;
+  const grnIds = list.map((g) => g._id);
+  const poIds = list.map((g) => g.purchaseOrderId?._id || g.purchaseOrderId).filter(Boolean);
+  const lcs = await LandedCost.find({
+    tenantId,
+    isActive: { $ne: false },
+    $or: [
+      { grnIds: { $in: grnIds } },
+      ...(poIds.length ? [{ purchaseOrder: { $in: poIds } }] : []),
+    ],
+  }).select('lcNumber totalCost status grnIds purchaseOrder').lean();
+
+  return list.map((grn) => {
+    const plain = typeof grn.toObject === 'function' ? grn.toObject() : grn;
+    const gid = String(grn._id);
+    const pid = String(grn.purchaseOrderId?._id || grn.purchaseOrderId || '');
+    plain.landedCosts = lcs.filter((lc) => {
+      const linkedGrns = (lc.grnIds || []).map((id) => String(id));
+      return linkedGrns.includes(gid) || (pid && String(lc.purchaseOrder || '') === pid);
+    });
+    return plain;
+  });
+}
+
 router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
     const { status, supplierId, warehouseId, purchaseOrderId, search } = req.query;
@@ -87,7 +131,7 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
       .populate('purchaseOrderId', 'poNumber status warehouseId')
       .populate('warehouseId', 'code nameEn nameAr')
       .sort('-createdAt');
-    res.json(grns);
+    res.json(await attachLandedCosts(req.user.tenantId, grns));
   } catch (error) {
     handlePurchasesError(res, error);
   }
@@ -97,28 +141,96 @@ router.get('/from-po/:poId', checkPermission('supply_chain', 'read'), async (req
   try {
     const po = await loadOpenPo(req.tenantFilter, req.params.poId);
     if (!po) return res.status(404).json({ error: 'Purchase order not found' });
-    const openLines = (po.lineItems || []).map((li) => {
-      const product = li.productId && typeof li.productId === 'object' ? li.productId : null;
-      const ordered = toNumber(li.quantityOrdered);
-      const received = toNumber(li.quantityReceived);
-      return {
-        productId: product?._id || li.productId,
-        productName: product?.nameEn || product?.nameAr || li.manualName || '',
-        barcode: product?.barcode || '',
-        productType: li.productType || product?.productType || 'goods',
-        uom: li.uom || product?.unitOfMeasure || '',
-        quantityOrdered: ordered,
-        quantityReceived: Math.max(0, ordered - received),
-        remaining: Math.max(0, ordered - received),
-        costPrice: li.unitCost,
-      };
-    }).filter((line) => line.remaining > 0);
+    const openLines = buildOpenReceiveLines(po);
     res.json({
-      purchaseOrder: po,
+      purchaseOrder: slimPo(po),
       warehouseId: po.warehouseId?._id || po.warehouseId || null,
       supplierId: po.supplierId?._id || po.supplierId,
       lines: openLines,
     });
+  } catch (error) {
+    handlePurchasesError(res, error);
+  }
+});
+
+router.get('/upcoming', checkPermission('supply_chain', 'read'), async (req, res) => {
+  try {
+    const search = String(req.query.search || '').trim();
+    const pos = await PurchaseOrder.find({
+      ...req.tenantFilter,
+      status: { $nin: ['cancelled', 'billed', 'closed', 'received'] },
+    })
+      .populate('supplierId', 'nameEn nameAr')
+      .populate('warehouseId', 'code nameEn nameAr')
+      .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType costPrice')
+      .sort({ expectedDate: 1, orderDate: 1, createdAt: 1 });
+
+    const poRows = pos.map((po) => {
+      const summary = summarizeOpenPo(po);
+      if (summary.remainingQty <= 0) return null;
+      const row = slimPo(po);
+      const haystack = `${row.poNumber || ''} ${row.supplierId?.nameEn || ''} ${row.supplierId?.nameAr || ''}`.toLowerCase();
+      if (search && !haystack.includes(search.toLowerCase())) return null;
+      return {
+        kind: 'po',
+        _id: po._id,
+        purchaseOrderId: po._id,
+        poNumber: po.poNumber,
+        supplierId: row.supplierId,
+        warehouseId: row.warehouseId,
+        expectedDate: po.expectedDate,
+        remainingQty: summary.remainingQty,
+        remainingValue: summary.remainingValue,
+        lineCount: summary.lines.length,
+        status: po.status,
+        delayed: false,
+      };
+    }).filter(Boolean);
+
+    const delayedGrns = await GRN.find({
+      tenantId: req.user.tenantId,
+      status: { $in: ['draft', 'received'] },
+      'lines.isDelayed': true,
+    })
+      .populate('supplierId', 'nameEn nameAr')
+      .populate('purchaseOrderId', 'poNumber status')
+      .populate('warehouseId', 'code nameEn nameAr')
+      .sort({ expectedDate: 1, createdAt: 1 });
+
+    const delayedRows = delayedGrns.map((grn) => {
+      const delayedLines = (grn.lines || []).filter((line) => line.isDelayed);
+      if (!delayedLines.length) return null;
+      const haystack = `${grn.grnNumber || ''} ${grn.purchaseOrderId?.poNumber || ''} ${grn.supplierId?.nameEn || ''} ${grn.supplierId?.nameAr || ''}`.toLowerCase();
+      if (search && !haystack.includes(search.toLowerCase())) return null;
+      const nextDate = delayedLines
+        .map((line) => line.delayedUntil)
+        .filter(Boolean)
+        .sort((a, b) => new Date(a) - new Date(b))[0] || grn.expectedDate;
+      return {
+        kind: 'delayed',
+        _id: grn._id,
+        grnId: grn._id,
+        grnNumber: grn.grnNumber,
+        purchaseOrderId: grn.purchaseOrderId?._id || grn.purchaseOrderId,
+        poNumber: grn.purchaseOrderId?.poNumber,
+        supplierId: grn.supplierId,
+        warehouseId: grn.warehouseId,
+        expectedDate: nextDate,
+        remainingQty: delayedLines.length,
+        remainingValue: delayedLines.reduce((sum, line) => sum + toNumber(line.quantityOrdered) * toNumber(line.costPrice), 0),
+        lineCount: delayedLines.length,
+        status: 'delayed',
+        delayed: true,
+      };
+    }).filter(Boolean);
+
+    const items = [...delayedRows, ...poRows].sort((a, b) => {
+      const da = a.expectedDate ? new Date(a.expectedDate).getTime() : Number.MAX_SAFE_INTEGER;
+      const db = b.expectedDate ? new Date(b.expectedDate).getTime() : Number.MAX_SAFE_INTEGER;
+      return da - db;
+    });
+
+    res.json({ items, counts: { upcoming: poRows.length, delayed: delayedRows.length } });
   } catch (error) {
     handlePurchasesError(res, error);
   }

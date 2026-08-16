@@ -171,7 +171,7 @@ export default function PurchaseOrders() {
       toast.success(language === 'ar' ? 'تم تنزيل ملف PDF' : 'PDF downloaded', { id: toastId })
     } catch (error) {
       console.error('[PurchaseOrders] PDF download failed', error)
-      toast.error(language === 'ar' ? 'فشل التنزيل' : 'Download failed', { id: toastId })
+      toast.error(error?.response?.data?.error || error?.message || (language === 'ar' ? 'فشل التنزيل' : 'Download failed'), { id: toastId })
     } finally {
       setPdfBusyId(null)
     }
@@ -507,6 +507,15 @@ export default function PurchaseOrders() {
                           >
                             {busyDownload ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                           </button>
+                          {!['cancelled', 'billed', 'closed', 'received'].includes(po.status) && (
+                            <Link
+                              to={`/app/dashboard/purchases/grn/new?poId=${po._id}`}
+                              className={ghostBtn.replace('px-3.5 py-2.5', 'h-8 w-8 justify-center px-0 py-0')}
+                              title={language === 'ar' ? 'إشعار استلام' : 'Create GRN'}
+                            >
+                              <PackageCheck className="h-4 w-4" />
+                            </Link>
+                          )}
                           <Link
                             to={`/app/dashboard/purchases/orders/${po._id}`}
                             className={ghostBtn.replace('px-3.5 py-2.5', 'h-8 w-8 justify-center px-0 py-0')}

@@ -53,6 +53,8 @@ export default function LandedCosts() {
   const [statsLoading, setStatsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [grnFilter, setGrnFilter] = useState('')
+  const [grns, setGrns] = useState([])
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState({ total: 0, pages: 1 })
 
@@ -80,6 +82,7 @@ export default function LandedCosts() {
       const params = { page, limit: 20 }
       if (search) params.search = search
       if (statusFilter) params.status = statusFilter
+      if (grnFilter) params.grnId = grnFilter
       const { data } = await api.get('/landed-costs', { params })
       setLandedCosts(data.landedCosts || [])
       setPagination(data.pagination || { total: 0, pages: 1 })
@@ -88,14 +91,21 @@ export default function LandedCosts() {
     } finally {
       setLoading(false)
     }
-  }, [page, search, statusFilter])
+  }, [page, search, statusFilter, grnFilter])
 
   useEffect(() => {
     fetchStats()
   }, [fetchStats])
   useEffect(() => {
+    let cancelled = false
+    api.get('/grn').then((res) => {
+      if (!cancelled) setGrns(Array.isArray(res.data) ? res.data : [])
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+  useEffect(() => {
     setPage(1)
-  }, [search, statusFilter])
+  }, [search, statusFilter, grnFilter])
   useEffect(() => {
     fetchLandedCosts()
   }, [fetchLandedCosts])
@@ -182,6 +192,62 @@ export default function LandedCosts() {
         </div>
       </div>
 
+      {grns.filter((g) => ['received', 'completed'].includes(g.status)).length > 0 && (
+        <div className={shell}>
+          <div className="border-b border-slate-100 px-5 py-4 dark:border-white/10">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              {t('GRN landed cost', 'تكلفة مرسية لإشعارات الاستلام')}
+            </p>
+            <p className="mt-1 text-[13px] text-slate-500">
+              {t('Write customs, freight, and handling against received GRNs.', 'سجّل الجمارك والشحن والمناولة على إشعارات الاستلام.')}
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-white/10">
+                <tr>
+                  <th className="px-5 py-3">{t('GRN', 'الإشعار')}</th>
+                  <th className="px-5 py-3">{t('Vendor', 'المورد')}</th>
+                  <th className="px-5 py-3">{t('PO', 'الطلب')}</th>
+                  <th className="px-5 py-3">{t('Landed cost written', 'التكلفة المرسية المكتوبة')}</th>
+                  <th className="px-5 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {grns.filter((g) => ['received', 'completed'].includes(g.status)).map((grn) => {
+                  const landed = (grn.landedCosts || [])[0]
+                  return (
+                    <tr key={grn._id} className="border-b border-slate-50 dark:border-white/[0.04]">
+                      <td className="px-5 py-3.5 font-mono text-[13px] font-semibold">{grn.grnNumber}</td>
+                      <td className="px-5 py-3.5 text-[13px]">{isAr ? (grn.supplierId?.nameAr || grn.supplierId?.nameEn) : (grn.supplierId?.nameEn || grn.supplierId?.nameAr) || '—'}</td>
+                      <td className="px-5 py-3.5 font-mono text-[12px] text-slate-500">{grn.purchaseOrderId?.poNumber || '—'}</td>
+                      <td className="px-5 py-3.5 text-[12px]">
+                        {landed ? (
+                          <span className="font-medium text-slate-900 dark:text-white">
+                            {landed.lcNumber} · <Money value={landed.totalCost || 0} />
+                          </span>
+                        ) : t('Not written', 'غير مكتوبة')}
+                      </td>
+                      <td className="px-5 py-3.5 text-end">
+                        <button
+                          type="button"
+                          onClick={() => navigate(landed?._id
+                            ? `/app/dashboard/purchases/landed-costs/${landed._id}`
+                            : `/app/dashboard/purchases/landed-costs/new?grn=${grn._id}`)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200/80 px-3 py-1.5 text-[12px] font-medium text-slate-700 dark:border-white/10 dark:text-slate-200"
+                        >
+                          {landed ? t('Open', 'فتح') : t('Write landed cost', 'كتابة تكلفة مرسية')}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className={shell}>
         <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center dark:border-white/10">
           <div className="relative flex-1">
@@ -194,6 +260,16 @@ export default function LandedCosts() {
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
+            <select
+              value={grnFilter}
+              onChange={(e) => setGrnFilter(e.target.value)}
+              className="rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-[12px] text-slate-700 outline-none dark:border-white/10 dark:bg-transparent dark:text-slate-200"
+            >
+              <option value="">{t('All GRNs', 'كل إشعارات الاستلام')}</option>
+              {grns.filter((g) => ['received', 'completed', 'draft'].includes(g.status)).map((g) => (
+                <option key={g._id} value={g._id}>{g.grnNumber}</option>
+              ))}
+            </select>
             {['', 'draft', 'calculated', 'posted'].map((status) => (
               <button
                 key={status || 'all'}
@@ -249,9 +325,9 @@ export default function LandedCosts() {
                     {[
                       t('LC #', 'رقم ت.م'),
                       t('Vendor', 'المورد'),
-                      t('Linked docs', 'المستندات'),
+                      t('GRN / PO', 'الإشعار / الطلب'),
                       t('Cost lines', 'بنود التكلفة'),
-                      t('Total', 'الإجمالي'),
+                      t('Landed cost', 'التكلفة المرسية'),
                       t('Method', 'الطريقة'),
                       t('Status', 'الحالة'),
                       '',
@@ -283,8 +359,13 @@ export default function LandedCosts() {
                       </td>
                       <td className="px-4 py-3.5 text-[12px] text-slate-500">
                         <div className="flex flex-col gap-0.5">
-                          <span>{lc.shipment?.shipmentNumber || t('No shipment', 'بدون شحنة')}</span>
+                          {(lc.grnIds || []).length
+                            ? (lc.grnIds || []).map((g) => g.grnNumber || g).filter(Boolean).join(', ')
+                            : t('No GRN', 'بدون إشعار استلام')}
                           <span className="text-[11px] text-slate-400">{lc.purchaseOrder?.poNumber || t('No PO', 'بدون أمر شراء')}</span>
+                          {lc.shipment?.shipmentNumber ? (
+                            <span className="text-[11px] text-slate-400">{lc.shipment.shipmentNumber}</span>
+                          ) : null}
                         </div>
                       </td>
                       <td className="px-4 py-3.5">

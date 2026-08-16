@@ -10,6 +10,8 @@ import {
   stockDeltaForLine,
   round2,
   computePurchaseLineTotals,
+  buildOpenReceiveLines,
+  summarizeOpenPo,
 } from '../services/purchasesLogic.js';
 
 const poLines = () => ([
@@ -86,4 +88,16 @@ test('landed cost allocation absorbs rounding on the last line', () => {
   });
   assert.equal(totalAllocated, 10);
   assert.equal(round2(allocations.reduce((sum, row) => sum + row.allocatedCost, 0)), 10);
+});
+
+test('open receive lines skip fully received qty and keep remaining cost', () => {
+  const summary = summarizeOpenPo({
+    lineItems: [
+      { productId: { _id: 'g1', nameEn: 'Rice', barcode: '1', unitOfMeasure: 'KG' }, quantityOrdered: 10, quantityReceived: 4, unitCost: 12 },
+      { manualName: 'Done', quantityOrdered: 2, quantityReceived: 2, unitCost: 5 },
+    ],
+  });
+  assert.equal(summary.remainingQty, 6);
+  assert.equal(summary.remainingValue, 72);
+  assert.equal(buildOpenReceiveLines({ lineItems: summary.lines }).length, 1);
 });

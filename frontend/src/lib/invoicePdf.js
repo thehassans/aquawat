@@ -1450,7 +1450,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   doc.text(shape(toBilingualBlock('Items', 'البنود')), isRtl ? contentRightEdge : contentLeft, y, { align })
   y += 14
 
-  const lineItems = totals.lines
+  const lineItems = Array.isArray(totals?.lines) ? totals.lines : []
 
   const itemsBaseWidths = {
     idx: 28,

@@ -136,100 +136,51 @@ export default function LandedCostForm() {
     return () => { cancelled = true }
   }, [])
 
-  const applyLinkedDocs = useCallback(async (shipmentId, purchaseOrderId, { fillVendor = true } = {}) => {
-    if (!shipmentId && !purchaseOrderId) return
+  const applyLinkedDocs = useCallback(async (shipmentId, purchaseOrderId, grnIds = [], { fillVendor = true } = {}) => {
+    const selectedGrns = Array.isArray(grnIds) ? grnIds.filter(Boolean) : (grnIds ? [grnIds] : [])
+    if (!shipmentId && !purchaseOrderId && !selectedGrns.length) return
     try {
-      let vendor = ''
-      let nextPo = purchaseOrderId || ''
-      let nextAlloc = []
-
-      if (shipmentId) {
-        const { data: shipment } = await api.get(`/shipments/${shipmentId}`)
-        vendor = isAr
-          ? (shipment.supplierId?.nameAr || shipment.supplierId?.nameEn || '')
-          : (shipment.supplierId?.nameEn || shipment.supplierId?.nameAr || '')
-        const poRef = shipment.purchaseOrderId?._id || shipment.purchaseOrderId || ''
-        if (poRef) nextPo = String(poRef)
-        nextAlloc = (shipment.lineItems || []).map((line) => {
-          const p = line.productId && typeof line.productId === 'object' ? line.productId : null
-          return {
-            productId: p?._id || line.productId || '',
-            productName: p?.nameEn || p?.nameAr || line.description || '',
-            productCode: p?.sku || '',
-            quantity: line.quantity || '',
-            unitCostBeforeLanded: '',
-            weight: '',
-            lineValue: '',
-          }
-        })
-      }
-
-      if (nextPo) {
-        const { data: po } = await api.get(`/purchase-orders/${nextPo}`)
-        if (!vendor) {
-          vendor = isAr
-            ? (po.supplierId?.nameAr || po.supplierId?.nameEn || '')
-            : (po.supplierId?.nameEn || po.supplierId?.nameAr || '')
-        }
-        const byProduct = new Map()
-        for (const line of po.lineItems || []) {
-          const pid = String(line.productId?._id || line.productId || '')
-          if (pid) byProduct.set(pid, line)
-        }
-        if (nextAlloc.length === 0) {
-          nextAlloc = (po.lineItems || []).map((line) => {
-            const p = line.productId && typeof line.productId === 'object' ? line.productId : null
-            const qty = line.quantityOrdered || 0
-            const unit = line.unitCost || 0
-            return {
-              productId: p?._id || line.productId || '',
-              productName: p?.nameEn || p?.nameAr || line.manualName || line.description || '',
-              productCode: p?.sku || '',
-              quantity: qty,
-              unitCostBeforeLanded: unit,
-              weight: '',
-              lineValue: qty * unit,
-            }
-          })
-        } else {
-          nextAlloc = nextAlloc.map((alloc) => {
-            const line = byProduct.get(String(alloc.productId || ''))
-            if (!line) return alloc
-            const unit = line.unitCost || 0
-            const qty = Number(alloc.quantity) || 0
-            return {
-              ...alloc,
-              unitCostBeforeLanded: unit,
-              lineValue: qty * unit,
-              productName: alloc.productName || line.productId?.nameEn || line.manualName || '',
-              productCode: alloc.productCode || line.productId?.sku || '',
-            }
-          })
-        }
-      }
-
+      const { data } = await api.get('/landed-costs/from-links', {
+        params: {
+          shipment: shipmentId || undefined,
+          purchaseOrder: purchaseOrderId || undefined,
+          grnIds: selectedGrns.join(','),
+        },
+      })
+      const vendor = data.vendor || ''
+      const nextPo = data.purchaseOrder?._id || data.purchaseOrder || purchaseOrderId || ''
+      const nextAlloc = (data.allocations || []).map((row) => ({
+        productId: row.productId || '',
+        productName: row.productName || '',
+        productCode: row.productCode || '',
+        quantity: row.quantity || '',
+        unitCostBeforeLanded: row.unitCostBeforeLanded || '',
+        weight: row.weight || '',
+        lineValue: row.lineValue || '',
+      }))
       setForm((f) => ({
         ...f,
-        shipment: shipmentId || f.shipment,
+        shipment: data.shipment || shipmentId || f.shipment,
         purchaseOrder: nextPo || f.purchaseOrder,
+        grnIds: (data.grnIds || selectedGrns).map((id) => String(id)),
         vendor: fillVendor && vendor ? vendor : f.vendor,
       }))
       if (nextAlloc.length) setAllocations(nextAlloc)
     } catch (_) { /* keep current form */ }
-  }, [isAr])
+  }, [])
 
   useEffect(() => {
     if (isEdit || linkedPrefillDone) return
     if (presetShipmentId) {
       setLinkedPrefillDone(true)
-      applyLinkedDocs(presetShipmentId, presetPoId)
+      applyLinkedDocs(presetShipmentId, presetPoId, presetGrnId ? [presetGrnId] : [])
       return
     }
-    if (presetPoId) {
+    if (presetPoId || presetGrnId) {
       setLinkedPrefillDone(true)
-      applyLinkedDocs('', presetPoId)
+      applyLinkedDocs('', presetPoId, presetGrnId ? [presetGrnId] : [])
     }
-  }, [applyLinkedDocs, isEdit, linkedPrefillDone, presetShipmentId, presetPoId])
+  }, [applyLinkedDocs, isEdit, linkedPrefillDone, presetShipmentId, presetPoId, presetGrnId])
 
   const totalCost = costLines.reduce((s, l) => s + (parseFloat(l.amount) || 0) * (parseFloat(l.exchangeRate) || 1), 0)
 
@@ -417,7 +368,7 @@ export default function LandedCostForm() {
               onChange={(e) => {
                 const next = e.target.value
                 setForm((f) => ({ ...f, purchaseOrder: next }))
-                if (next && !isEdit) applyLinkedDocs(form.shipment, next, { fillVendor: !form.vendor })
+                if (next && !isEdit) applyLinkedDocs(form.shipment, next, form.grnIds, { fillVendor: !form.vendor })
               }}
             >
               <option value="">{t('Select PO', 'اختر أمر شراء')}</option>
@@ -433,7 +384,7 @@ export default function LandedCostForm() {
               onChange={(e) => {
                 const next = e.target.value
                 setForm((f) => ({ ...f, shipment: next }))
-                if (next) applyLinkedDocs(next, form.purchaseOrder)
+                if (next) applyLinkedDocs(next, form.purchaseOrder, form.grnIds)
               }}
             >
               <option value="">{t('Select shipment', 'اختر شحنة')}</option>
@@ -446,10 +397,14 @@ export default function LandedCostForm() {
             <Select
               value={(form.grnIds || [])[0] || ''}
               disabled={isPosted}
-              onChange={(e) => setForm((f) => ({ ...f, grnIds: e.target.value ? [e.target.value] : [] }))}
+              onChange={(e) => {
+                const next = e.target.value ? [e.target.value] : []
+                setForm((f) => ({ ...f, grnIds: next }))
+                if (e.target.value) applyLinkedDocs(form.shipment, form.purchaseOrder, next)
+              }}
             >
               <option value="">{t('Select GRN', 'اختر إشعار استلام')}</option>
-              {grns.map((g) => (
+              {grns.filter((g) => ['received', 'completed', 'draft'].includes(g.status) || (form.grnIds || []).includes(g._id)).map((g) => (
                 <option key={g._id} value={g._id}>{g.grnNumber}</option>
               ))}
             </Select>

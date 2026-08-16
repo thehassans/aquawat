@@ -109,23 +109,56 @@ export default function GrnForm() {
 
   const pullPo = async (poId) => {
     if (!poId) return
-    try {
-      const { data } = await api.get(`/grn/from-po/${poId}`)
+    const applyFromPo = (data) => {
       setPurchaseOrderId(poId)
-      setSupplierId(data.supplierId?._id || data.supplierId || '')
-      setWarehouseId(data.warehouseId?._id || data.warehouseId || '')
-      if (data.lines?.length) {
-        setLines(data.lines.map((line) => ({
+      setSupplierId(data.supplierId?._id || data.supplierId || data.purchaseOrder?.supplierId?._id || data.purchaseOrder?.supplierId || '')
+      setWarehouseId(data.warehouseId?._id || data.warehouseId || data.purchaseOrder?.warehouseId?._id || data.purchaseOrder?.warehouseId || '')
+      const nextLines = Array.isArray(data.lines) ? data.lines : []
+      if (nextLines.length) {
+        setLines(nextLines.map((line) => ({
           ...emptyLine(),
           ...line,
+          productId: line.productId?._id || line.productId || '',
           productType: normalizeProductType(line.productType),
           quantityReceived: line.remaining || line.quantityReceived || 0,
         })))
       } else {
+        setLines([emptyLine()])
         toast.error(language === 'ar' ? 'لا توجد كميات متبقية على هذا الطلب' : 'No remaining quantity on this PO')
       }
+    }
+    try {
+      const { data } = await api.get(`/grn/from-po/${poId}`)
+      applyFromPo(data)
     } catch (err) {
-      toast.error(err.response?.data?.error || (language === 'ar' ? 'تعذر تحميل الطلب' : 'Could not load PO'))
+      try {
+        const { data: po } = await api.get(`/purchase-orders/${poId}`)
+        const lines = (Array.isArray(po?.lineItems) ? po.lineItems : []).map((li) => {
+          const product = li?.productId && typeof li.productId === 'object' ? li.productId : null
+          const ordered = Number(li?.quantityOrdered || 0)
+          const received = Number(li?.quantityReceived || 0)
+          const remaining = Math.max(0, ordered - received)
+          return {
+            productId: product?._id || li?.productId || '',
+            productName: product?.nameEn || product?.nameAr || li?.manualName || li?.description || '',
+            barcode: product?.barcode || '',
+            productType: normalizeProductType(li?.productType || product?.productType),
+            uom: li?.uom || product?.unitOfMeasure || 'PCE',
+            quantityOrdered: ordered,
+            quantityReceived: remaining,
+            remaining,
+            costPrice: Number(li?.unitCost || 0),
+          }
+        }).filter((line) => line.remaining > 0)
+        applyFromPo({
+          supplierId: po?.supplierId,
+          warehouseId: po?.warehouseId,
+          purchaseOrder: po,
+          lines,
+        })
+      } catch {
+        toast.error(err.response?.data?.error || (language === 'ar' ? 'تعذر تحميل الطلب' : 'Could not load PO'))
+      }
     }
   }
 
@@ -142,7 +175,7 @@ export default function GrnForm() {
     warehouseId: warehouseId || undefined,
     referenceNumber,
     notes,
-    lines: lines.map((line) => ({
+    lines: (Array.isArray(lines) ? lines : []).map((line) => ({
       ...line,
       quantityReceived: line.isDelayed ? 0 : line.quantityReceived,
       delayedUntil: line.delayedUntil || undefined,
@@ -152,6 +185,7 @@ export default function GrnForm() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['grn-list'] })
+    queryClient.invalidateQueries({ queryKey: ['grn-upcoming'] })
     queryClient.invalidateQueries({ queryKey: ['grn', id] })
     queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
     queryClient.invalidateQueries({ queryKey: ['purchase-orders-open'] })
@@ -215,7 +249,7 @@ export default function GrnForm() {
     }))
   }
 
-  const receiveTotal = lines.reduce((sum, line) => sum + (line.isDelayed ? 0 : Number(line.quantityReceived || 0) * Number(line.costPrice || 0)), 0)
+  const receiveTotal = (Array.isArray(lines) ? lines : []).reduce((sum, line) => sum + (line.isDelayed ? 0 : Number(line.quantityReceived || 0) * Number(line.costPrice || 0)), 0)
 
   if (isEdit && isLoading) {
     return (

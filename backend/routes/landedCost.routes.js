@@ -209,6 +209,8 @@ router.get('/', checkPermission('landed_costs', 'read'), async (req, res) => {
     const query = { ...req.tenantFilter, isActive: true };
 
     if (status) query.status = status;
+    if (req.query.grnId) query.grnIds = req.query.grnId;
+    if (req.query.purchaseOrderId) query.purchaseOrder = req.query.purchaseOrderId;
     if (search) {
       query.$or = [
         { lcNumber: { $regex: search, $options: 'i' } },
@@ -224,7 +226,7 @@ router.get('/', checkPermission('landed_costs', 'read'), async (req, res) => {
         .limit(parseInt(limit))
         .populate('purchaseOrder', 'poNumber')
         .populate('shipment', 'shipmentNumber')
-        .populate('grnIds', 'grnNumber'),
+        .populate('grnIds', 'grnNumber status dateReceived'),
       LandedCost.countDocuments(query)
     ]);
 
@@ -257,6 +259,26 @@ router.post('/', checkPermission('landed_costs', 'create'), async (req, res) => 
     res.status(201).json(lc);
   } catch (error) {
     if (error?.code === 11000) return res.status(400).json({ error: 'Duplicate LC number' });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/from-links', checkPermission('landed_costs', 'read'), async (req, res) => {
+  try {
+    const rawGrns = Array.isArray(req.query.grnIds)
+      ? req.query.grnIds
+      : String(req.query.grnId || req.query.grnIds || '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+    const linked = await allocationsFromLinks(
+      req.query.shipment || '',
+      req.query.purchaseOrder || '',
+      rawGrns,
+      req.tenantFilter,
+    );
+    res.json(linked);
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });

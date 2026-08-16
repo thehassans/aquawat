@@ -199,7 +199,7 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
       Invoice.find({ ...req.tenantFilter, sourcePurchaseOrderId: order._id, flow: 'purchase' }).select('invoiceNumber status grandTotal issueDate').sort('-createdAt'),
     ]);
 
-    const payload = order.toObject();
+    const payload = order.toObject({ depopulate: false, virtuals: false });
     payload.related = { grns, returns, landedCosts, invoices };
     res.json(payload);
   } catch (error) {

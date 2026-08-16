@@ -28,6 +28,7 @@ export const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
   partially_received: 'bg-amber-50 text-amber-800 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
   calculated: 'bg-amber-50 text-amber-800 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
+  delayed: 'bg-amber-50 text-amber-800 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
   cancelled: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
   approved: 'bg-teal-50 text-teal-800 ring-teal-200/80 dark:bg-teal-500/10 dark:text-teal-300 dark:ring-teal-500/20',
   sent: 'bg-sky-50 text-sky-800 ring-sky-200/80 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20',
@@ -46,6 +47,8 @@ export function statusLabel(status, language) {
     calculated: 'محسوب',
     posted: 'مرحّل',
     cancelled: 'ملغي',
+    delayed: 'متأخر',
+    upcoming: 'قادم',
   }
   if (language === 'ar') return ar[status] || status
   if (status === 'partially_received') return 'Partially received'

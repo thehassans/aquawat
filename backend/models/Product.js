@@ -148,10 +148,11 @@ productSchema.pre('save', function(next) {
   next();
 });
 
-// Virtual for available stock
+// Virtual for available stock. Populate/select often omits `stocks`, so never assume it is an array.
 productSchema.virtual('availableStock').get(function() {
-  return this.stocks.reduce((total, stock) => {
-    return total + (stock.quantity - stock.reservedQuantity);
+  const stocks = Array.isArray(this.stocks) ? this.stocks : [];
+  return stocks.reduce((total, stock) => {
+    return total + (Number(stock?.quantity) || 0) - (Number(stock?.reservedQuantity) || 0);
   }, 0);
 });
 
