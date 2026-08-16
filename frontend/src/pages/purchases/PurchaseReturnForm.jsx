@@ -138,12 +138,10 @@ export default function PurchaseReturnForm() {
       await api.post(`/purchase-returns/${docId}/confirm`)
       return docId
     },
-    onSuccess: (docId) => {
+    onSuccess: () => {
       toast.success(language === 'ar' ? 'تم تأكيد المرتجع وخصم المخزون' : 'Return confirmed and stock deducted')
       invalidate()
-      // Go back to the previous screen (purchase returns list or previous page)
-      const referer = document.referrer || PURCHASES_PATH.returns
-      navigate(referer, { replace: true })
+      navigate(PURCHASES_PATH.returns, { replace: true })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })

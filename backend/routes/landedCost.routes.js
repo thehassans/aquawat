@@ -45,7 +45,7 @@ async function allocationsFromLinks(shipmentId, purchaseOrderId, grnIds, tenantF
       if (!vendor) vendor = grn.supplierId?.nameEn || grn.supplierId?.nameAr || '';
       for (const line of grn.lines || []) {
         if (line.productType === 'service') continue;
-        const qty = line.quantityReceived || 0;
+        const qty = line.quantityReceived || line.quantityOrdered || 0;
         const unit = line.costPrice || 0;
         allocations.push({
           productId: line.productId || undefined,
@@ -95,9 +95,13 @@ async function allocationsFromLinks(shipmentId, purchaseOrderId, grnIds, tenantF
     if (po) {
       if (!vendor) vendor = po.supplierId?.nameEn || po.supplierId?.nameAr || '';
       const byProduct = new Map();
+      const byName = new Map();
       for (const line of po.lineItems || []) {
-        const pid = String(line.productId?._id || line.productId || line.manualName || '');
+        const pid = String(line.productId?._id || line.productId || '');
         if (pid) byProduct.set(pid, line);
+        const p = line.productId && typeof line.productId === 'object' ? line.productId : null;
+        const name = String(p?.nameEn || p?.nameAr || line.manualName || '').trim().toLowerCase();
+        if (name) byName.set(name, line);
       }
       if (allocations.length === 0) {
         for (const line of po.lineItems || []) {
@@ -117,12 +121,19 @@ async function allocationsFromLinks(shipmentId, purchaseOrderId, grnIds, tenantF
       } else {
         for (const alloc of allocations) {
           const pid = String(alloc.productId || '');
-          const line = byProduct.get(pid);
+          const name = String(alloc.productName || '').trim().toLowerCase();
+          const line = (pid && byProduct.get(pid)) || (name && byName.get(name));
           if (line) {
-            alloc.unitCostBeforeLanded = line.unitCost || 0;
-            alloc.lineValue = (Number(alloc.quantity) || 0) * (line.unitCost || 0);
+            const unit = Number(line.unitCost || 0);
+            alloc.unitCostBeforeLanded = unit;
+            const qty = Number(alloc.quantity) || Number(line.quantityOrdered) || 0;
+            if (!Number(alloc.quantity)) alloc.quantity = qty;
+            alloc.lineValue = qty * unit;
             if (!alloc.productName) alloc.productName = productLabel(line.productId, line.manualName || '');
             if (!alloc.productCode) alloc.productCode = line.productId?.sku || '';
+            if (!alloc.productId) alloc.productId = line.productId?._id || line.productId;
+          } else if (!Number(alloc.lineValue)) {
+            alloc.lineValue = (Number(alloc.quantity) || 0) * (Number(alloc.unitCostBeforeLanded) || 0);
           }
         }
       }

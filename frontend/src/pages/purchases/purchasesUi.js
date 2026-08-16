@@ -77,3 +77,27 @@ export function formatDay(value, language) {
     year: 'numeric',
   })
 }
+
+export function toDateInput(value) {
+  if (!value) return ''
+  return String(value).slice(0, 10)
+}
+
+export function isFutureDate(value) {
+  if (!value) return false
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  date.setHours(0, 0, 0, 0)
+  return date > today
+}
+
+export function earliestDelayedUntil(lines) {
+  const dates = (Array.isArray(lines) ? lines : [])
+    .map((line) => line?.delayedUntil)
+    .filter(Boolean)
+    .map((value) => String(value).slice(0, 10))
+    .sort()
+  return dates[0] || null
+}

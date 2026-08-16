@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Plus, Save, Trash2, UploadCloud } from 'lucide-react'
+import { ArrowLeft, Clock3, PackageCheck, Plus, Save, Trash2, UploadCloud } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -24,6 +24,8 @@ import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 import { normalizeProductType, productPickerLabel } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
+import PurchaseReceivingLedger from '../../pages/purchases/PurchaseReceivingLedger'
+import { PURCHASES_PATH, formatDay, ghostBtn, primaryBtn } from '../../pages/purchases/purchasesUi'
 
 const emptyLine = { productId: '', productName: '', productNameAr: '', productType: 'goods', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
@@ -34,8 +36,9 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
   pdfTemplateId: invoice?.pdfTemplateId || getInvoiceTemplateId(tenant, invoice?.businessContext || defaultBusinessContext),
   transactionType: invoice?.transactionType || 'B2B',
   invoiceTypeCode: invoice?.invoiceTypeCode || (invoice?.transactionType === 'B2C' ? '0200000' : '0100000'),
-  warehouseId: invoice?.warehouseId || '',
-  supplierId: invoice?.supplierId || '',
+  warehouseId: invoice?.warehouseId?._id || invoice?.warehouseId || '',
+  supplierId: invoice?.supplierId?._id || invoice?.supplierId || '',
+  sourcePurchaseOrderId: invoice?.sourcePurchaseOrderId?._id || invoice?.sourcePurchaseOrderId || '',
   seller: invoice?.seller || {},
   buyer: invoice?.buyer || {},
   travelDetails: invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] },
@@ -67,8 +70,26 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
     : [emptyLine],
 })
 
+function partyId(value) {
+  if (!value) return ''
+  if (typeof value === 'object') return String(value._id || '')
+  return String(value)
+}
+
+function isFutureDate(value) {
+  if (!value) return false
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  date.setHours(0, 0, 0, 0)
+  return date > today
+}
+
 export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice = null }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const poIdParam = String(searchParams.get('poId') || '').trim()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
@@ -76,6 +97,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const [transactionType, setTransactionType] = useState('B2B')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
+  const [selectedPoId, setSelectedPoId] = useState(
+    () => partyId(initialInvoice?.sourcePurchaseOrderId) || poIdParam
+  )
+  const filledPoIdRef = useRef('')
+  const shouldFillFromPoRef = useRef(Boolean(poIdParam) && !isEdit)
   const [showAuthorizedPerson, setShowAuthorizedPerson] = useState(() => {
     return Boolean(
       initialInvoice?.authorizedPersonName ||
@@ -233,6 +259,19 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     enabled: isTradingContext,
   })
 
+  const { data: purchaseOrders = [] } = useQuery({
+    queryKey: ['purchase-orders', 'invoice-fill'],
+    queryFn: () => api.get('/purchase-orders', { params: { page: 1, limit: 200 } })
+      .then((res) => res.data?.purchaseOrders || res.data || []),
+    enabled: isTradingContext,
+  })
+
+  const { data: selectedPo } = useQuery({
+    queryKey: ['purchase-order', selectedPoId],
+    queryFn: () => api.get(`/purchase-orders/${selectedPoId}`).then((res) => res.data),
+    enabled: Boolean(selectedPoId) && isTradingContext,
+  })
+
   const isSubmittedRef = useRef(false)
   const latestValues = useRef(values)
 
@@ -300,12 +339,12 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     }
   }
 
-  const onSelectSupplier = (supplierId) => {
-    const supplier = (suppliers || []).find((item) => item._id === supplierId)
+  const fillSellerFromParty = (supplier) => {
     if (!supplier) return
-    setValue('supplierId', supplier._id)
-    setValue('seller.name', supplier.nameEn)
-    setValue('seller.nameAr', supplier.nameAr || supplier.nameEn)
+    const id = partyId(supplier)
+    if (id) setValue('supplierId', id)
+    setValue('seller.name', supplier.nameEn || supplier.nameAr || '')
+    setValue('seller.nameAr', supplier.nameAr || supplier.nameEn || '')
     setValue('seller.vatNumber', supplier.vatNumber || '')
     setValue('seller.crNumber', supplier.crNumber || '')
     setValue('seller.contactPhone', supplier.phone || '')
@@ -321,6 +360,52 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue('seller.address.buildingNumber', supplier.address?.buildingNumber || '')
     setValue('seller.address.additionalNumber', supplier.address?.additionalNumber || '')
   }
+
+  const onSelectSupplier = (supplierId) => {
+    const supplier = (suppliers || []).find((item) => item._id === supplierId)
+    if (!supplier) return
+    fillSellerFromParty(supplier)
+  }
+
+  const applyPurchaseOrder = (po) => {
+    if (!po?._id) return
+    setValue('sourcePurchaseOrderId', po._id)
+    const warehouseId = partyId(po.warehouseId)
+    if (warehouseId) setValue('warehouseId', warehouseId)
+    const supplier = po.supplierId && typeof po.supplierId === 'object'
+      ? po.supplierId
+      : (suppliers || []).find((item) => item._id === partyId(po.supplierId))
+    if (supplier) fillSellerFromParty(supplier)
+    else if (partyId(po.supplierId)) setValue('supplierId', partyId(po.supplierId))
+    if (po.notes) setValue('notes', po.notes)
+    const items = (Array.isArray(po.lineItems) ? po.lineItems : []).map((li) => {
+      const product = li?.productId && typeof li.productId === 'object' ? li.productId : null
+      return {
+        ...emptyLine,
+        productId: product?._id || li?.productId || '',
+        productName: product?.nameEn || li?.manualName || li?.description || '',
+        productNameAr: product?.nameAr || '',
+        productType: normalizeProductType(li?.productType || product?.productType),
+        unitCode: li?.uom || product?.unitOfMeasure || 'PCE',
+        quantity: Math.max(0.0001, toNumber(li?.quantityOrdered ?? li?.quantity, 1)),
+        unitPrice: Math.max(0, toNumber(li?.unitCost ?? li?.unitPrice, 0)),
+        taxRate: Math.max(0, toNumber(li?.taxRate, 15)),
+      }
+    })
+    replace(items.length ? items : [emptyLine])
+    toast.success(language === 'ar' ? 'تم تعبئة الفاتورة من طلب الشراء' : 'Invoice filled from purchase order')
+  }
+
+  useEffect(() => {
+    if (!selectedPo?._id) return
+    setValue('sourcePurchaseOrderId', selectedPo._id)
+    if (!shouldFillFromPoRef.current) return
+    if (filledPoIdRef.current === String(selectedPo._id)) return
+    filledPoIdRef.current = String(selectedPo._id)
+    shouldFillFromPoRef.current = false
+    applyPurchaseOrder(selectedPo)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPo])
 
   const summary = useMemo(
     () => calculateInvoiceSummary({
@@ -370,9 +455,12 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     if (!isTradingContext) {
       delete payload.warehouseId
       delete payload.supplierId
+      delete payload.sourcePurchaseOrderId
     } else {
       if (!payload.warehouseId) delete payload.warehouseId
       if (!payload.supplierId) delete payload.supplierId
+      payload.sourcePurchaseOrderId = selectedPoId || data.sourcePurchaseOrderId || undefined
+      if (!payload.sourcePurchaseOrderId) delete payload.sourcePurchaseOrderId
     }
     if (invoiceSubtype !== 'travel_ticket') delete payload.travelDetails
     payload.authorizedPersonName = showAuthorizedPerson ? (data?.authorizedPersonName || '') : ''
@@ -462,8 +550,31 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               {isTradingContext && (
                 <>
                   <div>
+                    <label className="label">{language === 'ar' ? 'طلب الشراء' : 'Purchase order'}</label>
+                    <select
+                      value={selectedPoId}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setSelectedPoId(next)
+                        setValue('sourcePurchaseOrderId', next)
+                        filledPoIdRef.current = ''
+                        shouldFillFromPoRef.current = Boolean(next)
+                        if (!next) replace([emptyLine])
+                      }}
+                      className="select"
+                    >
+                      <option value="">{language === 'ar' ? 'اختر طلب شراء لتعبئة الفاتورة' : 'Select a purchase order to fill the invoice'}</option>
+                      {(Array.isArray(purchaseOrders) ? purchaseOrders : []).map((po) => (
+                        <option key={po._id} value={po._id}>
+                          {po.poNumber} — {language === 'ar' ? (po.supplierId?.nameAr || po.supplierId?.nameEn || '') : (po.supplierId?.nameEn || po.supplierId?.nameAr || '')}
+                        </option>
+                      ))}
+                    </select>
+                    <input type="hidden" {...register('sourcePurchaseOrderId')} />
+                  </div>
+                  <div>
                     <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
-                    <select {...register('warehouseId')} className="select"><option value="">{language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet'}</option>{(warehouses || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
+                    <select {...register('warehouseId')} className="select"><option value="">{language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet'}</option>{(Array.isArray(warehouses) ? warehouses : warehouses?.warehouses || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
                     <div className="mt-2 flex gap-2">
                       <button type="button" className="btn btn-secondary" onClick={() => setValue('warehouseId', '')} disabled={!selectedWarehouseId}>{language === 'ar' ? 'إلغاء التحديد' : 'Clear'}</button>
                       <button type="button" className="btn btn-action-dark" onClick={() => navigate(`/app/dashboard/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/purchase')}`)}>{language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}</button>
@@ -476,6 +587,59 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 </>
               )}
             </div>
+            {isTradingContext && selectedPo?._id ? (
+              <div className="mt-5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="grid flex-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'تاريخ الاستلام المتوقع' : 'Estimated receive date'}</p>
+                      <p className="mt-1 text-[13px] font-medium text-slate-900 dark:text-white">{formatDay(selectedPo.expectedDate, language)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الاستلام الجزئي' : 'Partial received'}</p>
+                      <p className="mt-1 text-[13px] font-medium text-slate-900 dark:text-white">
+                        {selectedPo.status === 'partially_received' || Number(selectedPo.receivingLedger?.receivedCount || 0) > 0
+                          ? (language === 'ar' ? 'نعم' : 'Yes')
+                          : (language === 'ar' ? 'لا' : 'No')}
+                        {selectedPo.receivingLedger ? ` · ${selectedPo.receivingLedger.receivedCount || 0}/${(selectedPo.receivingLedger.lines || []).length}` : ''}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'تواريخ التأخير' : 'Delayed receive dates'}</p>
+                      <p className="mt-1 text-[13px] font-medium text-slate-900 dark:text-white">
+                        {(() => {
+                          const dates = (selectedPo.receivingLedger?.lines || [])
+                            .flatMap((line) => (line.delayedEvents || []).map((event) => event.delayedUntil))
+                            .filter(Boolean)
+                          if (!dates.length) return '—'
+                          return [...new Set(dates.map((value) => formatDay(value, language)))].join(' · ')
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+                  {isFutureDate(selectedPo.expectedDate) ? (
+                    <Link
+                      to={`${PURCHASES_PATH.grn}/new?poId=${selectedPo._id}&early=1`}
+                      className={primaryBtn.replace('px-4 py-2.5', 'px-3.5 py-2 text-[12px]')}
+                    >
+                      <Clock3 className="h-3.5 w-3.5" />
+                      {language === 'ar' ? 'استلام قبل التاريخ المتوقع' : 'Receive before estimated date'}
+                    </Link>
+                  ) : (
+                    <Link
+                      to={`${PURCHASES_PATH.grn}/new?poId=${selectedPo._id}`}
+                      className={ghostBtn.replace('px-3.5 py-2.5', 'px-3.5 py-2 text-[12px]')}
+                    >
+                      <PackageCheck className="h-3.5 w-3.5" />
+                      {language === 'ar' ? 'استلام' : 'Receive'}
+                    </Link>
+                  )}
+                </div>
+                <div className="mt-4">
+                  <PurchaseReceivingLedger order={selectedPo} language={language} />
+                </div>
+              </div>
+            ) : null}
             {isTravelContext && (
               <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <button type="button" onClick={() => setValue('invoiceSubtype', 'travel_ticket')} className={`rounded-2xl border p-4 text-start ${invoiceSubtype === 'travel_ticket' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}><p className="font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'فاتورة سفر / تذاكر' : 'Travel / Ticket Invoice'}</p></button>

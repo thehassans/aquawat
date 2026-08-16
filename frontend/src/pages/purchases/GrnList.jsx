@@ -16,6 +16,8 @@ import {
   partyName,
   warehouseName,
   formatDay,
+  isFutureDate,
+  earliestDelayedUntil,
 } from './purchasesUi'
 
 const FILTERS = [
@@ -250,6 +252,7 @@ export default function GrnList() {
                   <th className="px-5 py-3">{language === 'ar' ? 'المورد' : 'Vendor'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'المستودع' : 'Warehouse'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'المتوقع' : 'Expected'}</th>
+                  <th className="px-5 py-3">{language === 'ar' ? 'المتأخر حتى' : 'Delayed until'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'المتبقي' : 'Remaining'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'الحالة' : 'Status'}</th>
                   <th className="px-5 py-3" />
@@ -280,6 +283,7 @@ export default function GrnList() {
                       <td className="px-5 py-4 text-slate-700 dark:text-slate-200">{partyName(row.supplierId, language)}</td>
                       <td className="px-5 py-4 text-slate-600">{warehouseName(row.warehouseId, language)}</td>
                       <td className="px-5 py-4 text-slate-500">{formatDay(row.expectedDate, language)}</td>
+                      <td className="px-5 py-4 text-slate-500">{formatDay(earliestDelayedUntil(row.delayLines), language)}</td>
                       <td className="px-5 py-4">
                         <p className="tabular-nums text-slate-900 dark:text-white">{row.remainingQty}</p>
                         <p className="text-[11px] text-slate-400"><Money value={row.remainingValue || 0} /></p>
@@ -290,10 +294,15 @@ export default function GrnList() {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-end" onClick={(e) => e.stopPropagation()}>
-                        <Link to={href} className={ghostBtn.replace('px-3.5 py-2.5', 'px-3 py-1.5 text-[12px]')}>
+                        <Link
+                          to={isFutureDate(row.expectedDate) ? `${href}${href.includes('?') ? '&' : '?'}early=1` : href}
+                          className={ghostBtn.replace('px-3.5 py-2.5', 'px-3 py-1.5 text-[12px]')}
+                        >
                           {row.kind === 'delayed'
                             ? (language === 'ar' ? 'فتح' : 'Open')
-                            : (language === 'ar' ? 'استلام' : 'Receive')}
+                            : isFutureDate(row.expectedDate)
+                              ? (language === 'ar' ? 'استلام مبكر' : 'Receive early')
+                              : (language === 'ar' ? 'استلام' : 'Receive')}
                         </Link>
                       </td>
                     </tr>
@@ -312,6 +321,8 @@ export default function GrnList() {
                   <th className="px-5 py-3">{language === 'ar' ? 'طلب الشراء' : 'PO'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'المستودع' : 'Warehouse'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'التكلفة المرسية' : 'Landed cost'}</th>
+                  <th className="px-5 py-3">{language === 'ar' ? 'المتوقع' : 'Estimated'}</th>
+                  <th className="px-5 py-3">{language === 'ar' ? 'التأخير' : 'Delayed until'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'التاريخ' : 'Date'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'الحالة' : 'Status'}</th>
                 </tr>
@@ -338,6 +349,8 @@ export default function GrnList() {
                           </span>
                         ) : '—'}
                       </td>
+                      <td className="px-5 py-4 text-slate-500">{formatDay(grn.expectedDate || grn.purchaseOrderId?.expectedDate, language)}</td>
+                      <td className="px-5 py-4 text-slate-500">{formatDay(earliestDelayedUntil(grn.lines), language)}</td>
                       <td className="px-5 py-4 text-slate-500">{formatDay(grn.dateReceived || grn.createdAt, language)}</td>
                       <td className="px-5 py-4">
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${STATUS_PILL[grn.status] || STATUS_PILL.draft}`}>

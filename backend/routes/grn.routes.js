@@ -141,7 +141,7 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
     }
     const grns = await GRN.find(query)
       .populate('supplierId', 'nameEn nameAr')
-      .populate('purchaseOrderId', 'poNumber status warehouseId')
+      .populate('purchaseOrderId', 'poNumber status warehouseId expectedDate')
       .populate('warehouseId', 'code nameEn nameAr')
       .sort('-createdAt');
     res.json(await attachLandedCosts(req.user.tenantId, grns));
@@ -159,6 +159,7 @@ router.get('/from-po/:poId', checkPermission('supply_chain', 'read'), async (req
       purchaseOrder: slimPo(po),
       warehouseId: po.warehouseId?._id || po.warehouseId || null,
       supplierId: po.supplierId?._id || po.supplierId,
+      expectedDate: po.expectedDate || null,
       lines: openLines,
     });
   } catch (error) {
@@ -320,7 +321,7 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
   try {
     const grn = await GRN.findOne({ _id: req.params.id, tenantId: req.user.tenantId })
       .populate('supplierId', 'nameEn nameAr email phone')
-      .populate('purchaseOrderId', 'poNumber status warehouseId')
+      .populate('purchaseOrderId', 'poNumber status warehouseId expectedDate')
       .populate('warehouseId', 'code nameEn nameAr')
       .populate('receivedBy', 'firstName lastName name')
       .populate('createdBy', 'firstName lastName name');
@@ -364,12 +365,11 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
     if (grn.status === 'cancelled') return res.status(400).json({ error: 'Cannot receive a cancelled GRN' });
     assertDelayedLines(grn.lines);
     const warehouseId = req.body.warehouseId || grn.warehouseId;
-    const receiveBeforeEstimated = req.body.receiveBeforeEstimated || false;
     if (warehouseId) {
       const warehouse = await resolveWarehouse(req.tenantFilter, warehouseId);
       if (!warehouse) return res.status(400).json({ error: 'Warehouse not found' });
     }
-    await confirmGrnReceive({ tenantFilter: req.tenantFilter, user: req.user, grn, warehouseId, receiveBeforeEstimated });
+    await confirmGrnReceive({ tenantFilter: req.tenantFilter, user: req.user, grn, warehouseId });
     res.json(grn);
   } catch (error) {
     handlePurchasesError(res, error);

@@ -63,6 +63,19 @@ test('stock increment/decrement is called for goods and skipped for services', (
   assert.equal(stockDeltaForLine({ productType: 'service', quantity: 9, direction: 'out' }), 0);
 });
 
+test('landed cost unit landed and total unit include PO unit cost', () => {
+  const { allocations } = allocateLandedCosts({
+    totalCost: 10,
+    method: 'by_value',
+    allocations: [
+      { productId: 'a', quantity: 1, lineValue: 100, unitCostBeforeLanded: 100 },
+    ],
+  });
+  assert.equal(allocations[0].allocatedCost, 10);
+  assert.equal(allocations[0].unitLandedCost, 10);
+  assert.equal(allocations[0].totalLandedUnitCost, 110);
+});
+
 test('landed cost allocation by value sums to the extra cost', () => {
   const { allocations, totalAllocated } = allocateLandedCosts({
     totalCost: 100,

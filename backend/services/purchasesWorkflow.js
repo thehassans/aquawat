@@ -46,12 +46,69 @@ export async function generateLcNumber(tenantFilter) {
   return nextNumber(LandedCost, 'lcNumber', tenantFilter, 'LC');
 }
 
+export async function upsertDraftLandedCostForPo({ tenantId, tenantFilter, userId, purchaseOrder, costLines }) {
+  const lines = (Array.isArray(costLines) ? costLines : [])
+    .map((line) => ({
+      type: ['customs_duty', 'freight', 'insurance', 'port_handling', 'clearance_fees', 'other'].includes(line?.type)
+        ? line.type
+        : 'other',
+      description: line?.description || '',
+      amount: toNumber(line?.amount, 0),
+      currency: line?.currency || purchaseOrder?.currency || 'SAR',
+      exchangeRate: toNumber(line?.exchangeRate, 1) || 1,
+    }))
+    .filter((line) => line.amount > 0);
+  if (!lines.length || !purchaseOrder?._id) return null;
+
+  const allocations = (purchaseOrder.lineItems || []).map((li) => {
+    const product = li.productId && typeof li.productId === 'object' ? li.productId : null;
+    const qty = toNumber(li.quantityOrdered);
+    const unit = toNumber(li.unitCost);
+    return {
+      productId: product?._id || li.productId || undefined,
+      productName: product?.nameEn || product?.nameAr || li.manualName || li.description || '',
+      productCode: product?.sku || '',
+      quantity: qty,
+      unitCostBeforeLanded: unit,
+      lineValue: round2(qty * unit),
+    };
+  }).filter((row) => row.quantity > 0 || row.lineValue > 0);
+
+  const payload = {
+    vendor: purchaseOrder.supplierId?.nameEn || purchaseOrder.supplierId?.nameAr || '',
+    costLines: lines,
+    allocationMethod: 'by_value',
+    purchaseOrder: purchaseOrder._id,
+    allocations,
+    notes: purchaseOrder.notes || '',
+  };
+
+  const lc = await LandedCost.findOne({
+    ...tenantFilter,
+    purchaseOrder: purchaseOrder._id,
+    isActive: true,
+    status: { $in: ['draft', 'calculated'] },
+  });
+  if (lc) {
+    Object.assign(lc, payload);
+    await lc.save();
+    return lc;
+  }
+  return LandedCost.create({
+    ...payload,
+    lcNumber: await generateLcNumber(tenantFilter),
+    tenantId,
+    createdBy: userId,
+    status: 'draft',
+  });
+}
+
 async function resolveWarehouse(tenantFilter, warehouseId) {
   if (!warehouseId) return null;
   return Warehouse.findOne({ _id: warehouseId, ...tenantFilter, isActive: true });
 }
 
-async function postLineStock({ tenantId, warehouseId, line, direction, receiveBeforeEstimated }) {
+async function postLineStock({ tenantId, warehouseId, line, direction }) {
   const productType = normalizeProductType(line.productType);
   if (line.isDelayed) return { kind: 'skip' };
   const qty = toNumber(line.quantityReceived ?? line.quantityReturned ?? line.quantity, 0);
@@ -137,24 +194,22 @@ export async function reversePurchaseOrderReceive({ tenantFilter, purchaseOrderI
   return order;
 }
 
-export async function postGrnStock({ tenantId, warehouseId, lines, direction = 'in', receiveBeforeEstimated }) {
+export async function postGrnStock({ tenantId, warehouseId, lines, direction = 'in' }) {
   const posted = [];
   for (const line of lines || []) {
-    posted.push(await postLineStock({ tenantId, warehouseId, line, direction, receiveBeforeEstimated }));
+    posted.push(await postLineStock({ tenantId, warehouseId, line, direction }));
   }
   return posted;
 }
 
-export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId, receiveBeforeEstimated }) {
+export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }) {
   if (grn.stockPostedAt) return grn;
-
   const whId = warehouseId || grn.warehouseId;
   await postGrnStock({
     tenantId: user.tenantId,
     warehouseId: whId,
     lines: grn.lines,
     direction: 'in',
-    receiveBeforeEstimated,
   });
   if (grn.purchaseOrderId) {
     await syncPurchaseOrderFromGrn({

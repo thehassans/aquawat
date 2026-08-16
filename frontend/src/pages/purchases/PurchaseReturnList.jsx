@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Search, PackageMinus, Anchor } from 'lucide-react'
+import { Plus, Search, PackageMinus } from 'lucide-react'
 import api from '../../lib/api'
 import {
   PURCHASES_PATH,
@@ -92,7 +92,7 @@ export default function PurchaseReturnList() {
             {language === 'ar' ? 'إشعارات الاستلام القابلة للإرجاع' : 'Received GRNs'}
           </p>
           <p className="mt-1 text-[13px] text-slate-500">
-            {language === 'ar' ? 'كل إشعار استلام مكتمل يظهر هنا لإنشاء مرتجع أو تكلفة مرسية.' : 'Every received GRN can start a return or a landed-cost worksheet.'}
+            {language === 'ar' ? 'كل إشعار استلام مكتمل يظهر هنا لإنشاء مرتجع.' : 'Every received GRN can start a return.'}
           </p>
         </div>
         {receivableGrns.length === 0 ? (
@@ -101,69 +101,45 @@ export default function PurchaseReturnList() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-white/10">
                 <tr>
                   <th className="px-5 py-3">{language === 'ar' ? 'الإشعار' : 'GRN'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'المورد' : 'Vendor'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'طلب الشراء' : 'PO'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'المستودع' : 'Warehouse'}</th>
-                  <th className="px-5 py-3">{language === 'ar' ? 'التكلفة المرسية' : 'Landed cost'}</th>
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
               <tbody>
-                {receivableGrns.map((grn) => {
-                  const landed = (grn.landedCosts || [])[0]
-                  return (
-                    <tr key={grn._id} className="border-b border-slate-50 dark:border-white/[0.04]">
-                      <td className="px-5 py-4 font-mono text-[13px] font-semibold text-slate-900 dark:text-white">{grn.grnNumber}</td>
-                      <td className="px-5 py-4">{partyName(grn.supplierId, language)}</td>
-                      <td className="px-5 py-4 font-mono text-[12px] text-slate-500">{grn.purchaseOrderId?.poNumber || '—'}</td>
-                      <td className="px-5 py-4">{warehouseName(grn.warehouseId, language)}</td>
-                      <td className="px-5 py-4 text-[12px] text-slate-600">
-                        {landed ? `${landed.lcNumber}` : (language === 'ar' ? 'غير مكتوبة' : 'Not written')}
-                      </td>
-                      <td className="px-5 py-4 text-end">
-                        <div className="flex justify-end gap-2">
-                          <Link to={`${PURCHASES_PATH.returns}/new?grnId=${grn._id}`} className={ghostBtn.replace('px-3.5 py-2.5', 'px-3 py-1.5 text-[12px]')}>
-                            <PackageMinus className="h-3.5 w-3.5" />
-                            {language === 'ar' ? 'مرتجع' : 'Return'}
-                          </Link>
-                          <Link to={`${PURCHASES_PATH.landed}/new?grn=${grn._id}`} className={ghostBtn.replace('px-3.5 py-2.5', 'px-3 py-1.5 text-[12px]')}>
-                            <Anchor className="h-3.5 w-3.5" />
-                            {language === 'ar' ? 'تكلفة مرسية' : 'Landed cost'}
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {receivableGrns.map((grn) => (
+                  <tr key={grn._id} className="border-b border-slate-50 dark:border-white/[0.04]">
+                    <td className="px-5 py-4 font-mono text-[13px] font-semibold text-slate-900 dark:text-white">{grn.grnNumber}</td>
+                    <td className="px-5 py-4">{partyName(grn.supplierId, language)}</td>
+                    <td className="px-5 py-4 font-mono text-[12px] text-slate-500">{grn.purchaseOrderId?.poNumber || '—'}</td>
+                    <td className="px-5 py-4">{warehouseName(grn.warehouseId, language)}</td>
+                    <td className="px-5 py-4 text-end">
+                      <Link to={`${PURCHASES_PATH.returns}/new?grnId=${grn._id}`} className={ghostBtn.replace('px-3.5 py-2.5', 'px-3 py-1.5 text-[12px]')}>
+                        <PackageMinus className="h-3.5 w-3.5" />
+                        {language === 'ar' ? 'مرتجع' : 'Return'}
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      <div className={shell}>
-        {isLoading ? (
+      {isLoading ? (
+        <div className={shell}>
           <div className="flex justify-center p-16">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-teal-700" />
           </div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center px-6 py-16 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-700 dark:bg-rose-500/10">
-              <PackageMinus className="h-7 w-7" />
-            </div>
-            <p className="text-[15px] font-semibold text-slate-900 dark:text-white">
-              {language === 'ar' ? 'لا توجد مرتجعات بعد' : 'No purchase returns yet'}
-            </p>
-            <Link to={`${PURCHASES_PATH.returns}/new`} className={`${primaryBtn} mt-5`}>
-              <Plus className="h-4 w-4" />
-              {language === 'ar' ? 'مرتجع جديد' : 'New return'}
-            </Link>
-          </div>
-        ) : (
+        </div>
+      ) : rows.length > 0 ? (
+        <div className={shell}>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-white/10">
@@ -198,8 +174,8 @@ export default function PurchaseReturnList() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      ) : null}
     </div>
   )
 }

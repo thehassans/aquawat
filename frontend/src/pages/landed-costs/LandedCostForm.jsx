@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import {
@@ -65,6 +65,44 @@ const emeraldBtn =
 
 const emptyCostLine = () => ({ type: 'customs_duty', description: '', amount: '', currency: 'SAR', exchangeRate: 1 })
 const emptyAllocation = () => ({ productName: '', productCode: '', quantity: '', unitCostBeforeLanded: '', weight: '', lineValue: '' })
+
+function round2(value) {
+  return Math.round((Number(value) || 0) * 100) / 100
+}
+
+function numOrBlank(value) {
+  return value === 0 || value === '0' ? 0 : (value ?? '')
+}
+
+function allocatePreview(totalCost, rows = [], method = 'by_value') {
+  const total = round2(totalCost)
+  const list = (Array.isArray(rows) ? rows : []).map((row) => ({ ...row }))
+  if (!list.length) return []
+  const bases = list.map((row) => {
+    if (method === 'by_quantity') return Math.max(0, Number(row.quantity) || 0)
+    if (method === 'by_weight') return Math.max(0, Number(row.weight) || 0)
+    if (method === 'equal') return 1
+    return Math.max(0, Number(row.lineValue) || 0)
+  })
+  const totalBasis = bases.reduce((sum, basis) => sum + basis, 0)
+  let allocatedSoFar = 0
+  return list.map((row, idx) => {
+    const isLast = idx === list.length - 1
+    let allocatedCost
+    if (totalBasis <= 0) {
+      allocatedCost = isLast ? round2(total - allocatedSoFar) : round2(total / list.length)
+    } else if (isLast) {
+      allocatedCost = round2(total - allocatedSoFar)
+    } else {
+      allocatedCost = round2(total * (bases[idx] / totalBasis))
+    }
+    allocatedSoFar = round2(allocatedSoFar + allocatedCost)
+    const qty = Number(row.quantity) || 1
+    const unitLandedCost = round2(allocatedCost / qty)
+    const totalLandedUnitCost = round2((Number(row.unitCostBeforeLanded) || 0) + unitLandedCost)
+    return { ...row, allocatedCost, unitLandedCost, totalLandedUnitCost }
+  })
+}
 
 export default function LandedCostForm() {
   const navigate = useNavigate()
@@ -149,15 +187,19 @@ export default function LandedCostForm() {
       })
       const vendor = data.vendor || ''
       const nextPo = data.purchaseOrder?._id || data.purchaseOrder || purchaseOrderId || ''
-      const nextAlloc = (data.allocations || []).map((row) => ({
-        productId: row.productId || '',
-        productName: row.productName || '',
-        productCode: row.productCode || '',
-        quantity: row.quantity || '',
-        unitCostBeforeLanded: row.unitCostBeforeLanded || '',
-        weight: row.weight || '',
-        lineValue: row.lineValue || '',
-      }))
+      const nextAlloc = (data.allocations || []).map((row) => {
+        const qty = Number(row.quantity) || 0
+        const unit = Number(row.unitCostBeforeLanded) || 0
+        return {
+          productId: row.productId || '',
+          productName: row.productName || '',
+          productCode: row.productCode || '',
+          quantity: numOrBlank(row.quantity),
+          unitCostBeforeLanded: numOrBlank(row.unitCostBeforeLanded),
+          weight: numOrBlank(row.weight),
+          lineValue: numOrBlank(row.lineValue ?? qty * unit),
+        }
+      })
       setForm((f) => ({
         ...f,
         shipment: data.shipment || shipmentId || f.shipment,
@@ -183,11 +225,15 @@ export default function LandedCostForm() {
   }, [applyLinkedDocs, isEdit, linkedPrefillDone, presetShipmentId, presetPoId, presetGrnId])
 
   const totalCost = costLines.reduce((s, l) => s + (parseFloat(l.amount) || 0) * (parseFloat(l.exchangeRate) || 1), 0)
+  const previewedAllocations = useMemo(
+    () => allocatePreview(totalCost, allocations, form.allocationMethod),
+    [totalCost, allocations, form.allocationMethod]
+  )
 
   const handleSave = async () => {
     try {
       setSaving(true); setError('')
-      const payload = { ...form, costLines, allocations }
+      const payload = { ...form, costLines, allocations: previewedAllocations }
       if (isEdit) { await api.put(`/landed-costs/${id}`, payload); await fetchLC() }
       else { const { data } = await api.post('/landed-costs', payload); navigate(`/app/dashboard/purchases/landed-costs/${data._id}`) }
     } catch (e) { setError(e.userMessage || t('Failed to save', 'فشل')) }
@@ -198,7 +244,7 @@ export default function LandedCostForm() {
     if (!isEdit) { await handleSave(); return }
     try {
       setCalculating(true)
-      await api.put(`/landed-costs/${id}`, { costLines, allocations })
+      await api.put(`/landed-costs/${id}`, { costLines, allocations: previewedAllocations })
       const { data } = await api.post(`/landed-costs/${id}/calculate`)
       setAllocations(data.allocations || [])
       setForm(f => ({ ...f, status: data.status }))
@@ -227,7 +273,16 @@ export default function LandedCostForm() {
   }
 
   const updateAllocation = (idx, field, value) => {
-    setAllocations(allocs => allocs.map((a, i) => i === idx ? { ...a, [field]: value } : a))
+    setAllocations((allocs) => allocs.map((a, i) => {
+      if (i !== idx) return a
+      const next = { ...a, [field]: value }
+      if (field === 'quantity' || field === 'unitCostBeforeLanded') {
+        const qty = Number(field === 'quantity' ? value : next.quantity) || 0
+        const unit = Number(field === 'unitCostBeforeLanded' ? value : next.unitCostBeforeLanded) || 0
+        next.lineValue = round2(qty * unit)
+      }
+      return next
+    }))
   }
 
   const isPosted = form.status === 'posted'
@@ -368,7 +423,11 @@ export default function LandedCostForm() {
               onChange={(e) => {
                 const next = e.target.value
                 setForm((f) => ({ ...f, purchaseOrder: next }))
-                if (next && !isEdit) applyLinkedDocs(form.shipment, next, form.grnIds, { fillVendor: !form.vendor })
+                if (next && !isPosted) {
+                  applyLinkedDocs(form.shipment, next, form.grnIds, { fillVendor: !form.vendor })
+                } else if (!next) {
+                  setAllocations([emptyAllocation()])
+                }
               }}
             >
               <option value="">{t('Select PO', 'اختر أمر شراء')}</option>
@@ -384,7 +443,7 @@ export default function LandedCostForm() {
               onChange={(e) => {
                 const next = e.target.value
                 setForm((f) => ({ ...f, shipment: next }))
-                if (next) applyLinkedDocs(next, form.purchaseOrder, form.grnIds)
+                if (next && !isPosted) applyLinkedDocs(next, form.purchaseOrder, form.grnIds)
               }}
             >
               <option value="">{t('Select shipment', 'اختر شحنة')}</option>
@@ -400,7 +459,11 @@ export default function LandedCostForm() {
               onChange={(e) => {
                 const next = e.target.value ? [e.target.value] : []
                 setForm((f) => ({ ...f, grnIds: next }))
-                if (e.target.value) applyLinkedDocs(form.shipment, form.purchaseOrder, next)
+                if (e.target.value && !isPosted) {
+                  applyLinkedDocs(form.shipment, form.purchaseOrder, next)
+                } else if (!e.target.value && !form.purchaseOrder && !form.shipment) {
+                  setAllocations([emptyAllocation()])
+                }
               }}
             >
               <option value="">{t('Select GRN', 'اختر إشعار استلام')}</option>
@@ -507,14 +570,14 @@ export default function LandedCostForm() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-white/5">
-              {allocations.map((alloc, idx) => (
+              {previewedAllocations.map((alloc, idx) => (
                 <tr key={idx} className="hover:bg-slate-50/70 dark:hover:bg-white/[0.02]">
                   <td className="px-3 py-2.5"><Input value={alloc.productName || ''} onChange={(e) => updateAllocation(idx, 'productName', e.target.value)} disabled={isPosted} /></td>
                   <td className="px-3 py-2.5"><Input value={alloc.productCode || ''} onChange={(e) => updateAllocation(idx, 'productCode', e.target.value)} disabled={isPosted} /></td>
-                  <td className="px-3 py-2.5"><Input type="number" value={alloc.quantity || ''} onChange={(e) => updateAllocation(idx, 'quantity', e.target.value)} disabled={isPosted} /></td>
-                  <td className="px-3 py-2.5"><Input type="number" value={alloc.unitCostBeforeLanded || ''} onChange={(e) => updateAllocation(idx, 'unitCostBeforeLanded', e.target.value)} disabled={isPosted} /></td>
-                  <td className="px-3 py-2.5"><Input type="number" value={alloc.weight || ''} onChange={(e) => updateAllocation(idx, 'weight', e.target.value)} disabled={isPosted} /></td>
-                  <td className="px-3 py-2.5"><Input type="number" value={alloc.lineValue || ''} onChange={(e) => updateAllocation(idx, 'lineValue', e.target.value)} disabled={isPosted} /></td>
+                  <td className="px-3 py-2.5"><Input type="number" value={numOrBlank(alloc.quantity)} onChange={(e) => updateAllocation(idx, 'quantity', e.target.value)} disabled={isPosted} /></td>
+                  <td className="px-3 py-2.5"><Input type="number" value={numOrBlank(alloc.unitCostBeforeLanded)} onChange={(e) => updateAllocation(idx, 'unitCostBeforeLanded', e.target.value)} disabled={isPosted} /></td>
+                  <td className="px-3 py-2.5"><Input type="number" value={numOrBlank(alloc.weight)} onChange={(e) => updateAllocation(idx, 'weight', e.target.value)} disabled={isPosted} /></td>
+                  <td className="px-3 py-2.5"><Input type="number" value={numOrBlank(alloc.lineValue)} onChange={(e) => updateAllocation(idx, 'lineValue', e.target.value)} disabled={isPosted} /></td>
                   <td className="px-3 py-2.5 text-[12px] font-semibold tabular-nums text-amber-700 dark:text-amber-400"><Money value={alloc.allocatedCost || 0} /></td>
                   <td className="px-3 py-2.5 text-[12px] font-semibold tabular-nums text-sky-700 dark:text-sky-400">{parseFloat(alloc.unitLandedCost || 0).toFixed(4)}</td>
                   <td className="px-3 py-2.5 text-[12px] font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{parseFloat(alloc.totalLandedUnitCost || 0).toFixed(4)}</td>

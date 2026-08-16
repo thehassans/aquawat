@@ -20,6 +20,10 @@ import {
   statusLabel,
   partyName,
   warehouseName,
+  formatDay,
+  toDateInput,
+  isFutureDate,
+  earliestDelayedUntil,
 } from './purchasesUi'
 
 const emptyLine = () => ({
@@ -29,7 +33,7 @@ const emptyLine = () => ({
   productType: 'goods',
   uom: 'PCE',
   quantityOrdered: 0,
-  quantityReceived: 0,
+  quantityReceived: 1,
   remaining: 0,
   costPrice: 0,
   isDelayed: false,
@@ -38,8 +42,6 @@ const emptyLine = () => ({
   notes: '',
   batchNumber: '',
   expiryDate: '',
-  estimatedReceivedDate: '',
-  partialReceived: false,
 })
 
 export default function GrnForm() {
@@ -47,6 +49,7 @@ export default function GrnForm() {
   const isEdit = Boolean(id)
   const [searchParams] = useSearchParams()
   const poIdParam = searchParams.get('poId') || ''
+  const receiveEarlyParam = searchParams.get('early') === '1'
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
@@ -55,6 +58,7 @@ export default function GrnForm() {
   const [purchaseOrderId, setPurchaseOrderId] = useState(poIdParam)
   const [warehouseId, setWarehouseId] = useState('')
   const [referenceNumber, setReferenceNumber] = useState('')
+  const [expectedDate, setExpectedDate] = useState('')
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState([emptyLine()])
   const [products, setProducts] = useState([])
@@ -99,16 +103,15 @@ export default function GrnForm() {
     setPurchaseOrderId(existing.purchaseOrderId?._id || existing.purchaseOrderId || '')
     setWarehouseId(existing.warehouseId?._id || existing.warehouseId || '')
     setReferenceNumber(existing.referenceNumber || '')
+    setExpectedDate(toDateInput(existing.expectedDate || existing.purchaseOrderId?.expectedDate))
     setNotes(existing.notes || '')
-setLines((existing.lines || []).map((line) => ({
-  ...emptyLine(),
-  ...line,
-  productId: line.productId?._id || line.productId || '',
-  delayedUntil: line.delayedUntil ? String(line.delayedUntil).slice(0, 10) : '',
-  expiryDate: line.expiryDate ? String(line.expiryDate).slice(0, 10) : '',
-  estimatedReceivedDate: line.estimatedReceivedDate || '',
-  partialReceived: line.partialReceived || false,
-})))
+    setLines((existing.lines || []).map((line) => ({
+      ...emptyLine(),
+      ...line,
+      productId: line.productId?._id || line.productId || '',
+      delayedUntil: line.delayedUntil ? String(line.delayedUntil).slice(0, 10) : '',
+      expiryDate: line.expiryDate ? String(line.expiryDate).slice(0, 10) : '',
+    })))
   }, [existing])
 
   const pullPo = async (poId) => {
@@ -117,6 +120,7 @@ setLines((existing.lines || []).map((line) => ({
       setPurchaseOrderId(poId)
       setSupplierId(data.supplierId?._id || data.supplierId || data.purchaseOrder?.supplierId?._id || data.purchaseOrder?.supplierId || '')
       setWarehouseId(data.warehouseId?._id || data.warehouseId || data.purchaseOrder?.warehouseId?._id || data.purchaseOrder?.warehouseId || '')
+      setExpectedDate(toDateInput(data.expectedDate || data.purchaseOrder?.expectedDate))
       const nextLines = Array.isArray(data.lines) ? data.lines : []
       if (nextLines.length) {
         setLines(nextLines.map((line) => ({
@@ -178,16 +182,15 @@ setLines((existing.lines || []).map((line) => ({
     purchaseOrderId: purchaseOrderId || undefined,
     warehouseId: warehouseId || undefined,
     referenceNumber,
+    expectedDate: expectedDate || undefined,
     notes,
     lines: (Array.isArray(lines) ? lines : []).map((line) => ({
       ...line,
       quantityReceived: line.isDelayed ? 0 : line.quantityReceived,
       delayedUntil: line.delayedUntil || undefined,
       expiryDate: line.expiryDate || undefined,
-      estimatedReceivedDate: line.estimatedReceivedDate || undefined,
-      partialReceived: line.partialReceived || undefined,
     })),
-  }), [supplierId, purchaseOrderId, warehouseId, referenceNumber, notes, lines])
+  }), [supplierId, purchaseOrderId, warehouseId, referenceNumber, expectedDate, notes, lines])
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['grn-list'] })
@@ -231,11 +234,7 @@ setLines((existing.lines || []).map((line) => ({
       } else if (existing?.status === 'draft') {
         await api.put(`/grn/${id}`, payload)
       }
-      // Check if we can receive before estimated date
-      const linesNeedingReceive = (Array.isArray(payload.lines) ? payload.lines : []).filter(
-        (line) => !line.estimatedReceivedDate || line.partialReceived
-      )
-      await api.post(`/grn/${grnId}/receive`, { warehouseId, receiveBeforeEstimated: linesNeedingReceive.length > 0 })
+      await api.post(`/grn/${grnId}/receive`, { warehouseId })
       return grnId
     },
     onSuccess: () => {
@@ -279,6 +278,9 @@ setLines((existing.lines || []).map((line) => ({
   }
 
   const receiveTotal = (Array.isArray(lines) ? lines : []).reduce((sum, line) => sum + (line.isDelayed ? 0 : Number(line.quantityReceived || 0) * Number(line.costPrice || 0)), 0)
+  const delayedCount = (Array.isArray(lines) ? lines : []).filter((line) => line.isDelayed).length
+  const receivingNowCount = (Array.isArray(lines) ? lines : []).filter((line) => !line.isDelayed && Number(line.quantityReceived || 0) > 0).length
+  const isPartialReceive = receivingNowCount > 0 && (delayedCount > 0 || (Array.isArray(lines) ? lines : []).some((line) => Number(line.quantityReceived || 0) < Number(line.quantityOrdered || 0)))
 
   if (isEdit && isLoading) {
     return (
@@ -317,21 +319,12 @@ setLines((existing.lines || []).map((line) => ({
             </button>
           )}
           {(!isEdit || existing?.status === 'draft') && (
-            <div className="flex flex-col gap-2">
-              <button type="button" onClick={() => receiveMutation.mutate()} disabled={receiveMutation.isPending} className={primaryBtn}>
-                {receiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {language === 'ar' ? 'استلام' : 'Receive'}
-              </button>
-              {(
-                <p className="text-[10px] text-slate-500">
-                  {language === 'ar' ? 'يمكنك الاستلام قبل التاريخ المتوقع' : 'Can receive before estimated date'}
-                </p>
-              ) && (
-                <button type="button" onClick={() => receiveMutation.mutate()} disabled={receiveMutation.isPending} className={ghostBtn}>
-                  <Clock3 className="h-4 w-4" /> {language === 'ar' ? 'استلام قبل التاريخ المتوقع' : 'Receive before estimated'}
-                </button>
-              )}
-            </div>
+            <button type="button" onClick={() => receiveMutation.mutate()} disabled={receiveMutation.isPending} className={primaryBtn}>
+              {receiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              {isFutureDate(expectedDate) || receiveEarlyParam
+                ? (language === 'ar' ? 'استلام قبل التاريخ المتوقع' : 'Receive before estimated date')
+                : (language === 'ar' ? 'استلام' : 'Receive')}
+            </button>
           )}
           {isEdit && existing?.status === 'received' && (
             <button type="button" onClick={() => completeMutation.mutate()} className={primaryBtn}>
@@ -400,6 +393,34 @@ setLines((existing.lines || []).map((line) => ({
             {language === 'ar' ? 'المرجع' : 'Reference'}
             <input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} disabled={locked} className={`mt-1.5 ${fieldControlClass}`} />
           </label>
+          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            {language === 'ar' ? 'تاريخ الاستلام المتوقع' : 'Estimated receive date'}
+            <input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} disabled={locked} className={`mt-1.5 ${fieldControlClass}`} />
+          </label>
+          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            {language === 'ar' ? 'تاريخ التأخير' : 'Delayed receive date'}
+            <input
+              type="date"
+              value={earliestDelayedUntil(lines) || ''}
+              disabled
+              className={`mt-1.5 ${fieldControlClass}`}
+            />
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 text-[12px]">
+          <span className={`inline-flex rounded-full px-2.5 py-0.5 font-medium ring-1 ring-inset ${isPartialReceive ? STATUS_PILL.partially_received || STATUS_PILL.draft : 'bg-slate-50 text-slate-500 ring-slate-200/70'}`}>
+            {language === 'ar' ? 'استلام جزئي' : 'Partial received'}: {isPartialReceive ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No')}
+          </span>
+          {expectedDate ? (
+            <span className="inline-flex rounded-full bg-slate-50 px-2.5 py-0.5 font-medium text-slate-600 ring-1 ring-inset ring-slate-200/70">
+              {language === 'ar' ? 'المتوقع' : 'Estimated'} {formatDay(expectedDate, language)}
+            </span>
+          ) : null}
+          {earliestDelayedUntil(lines) ? (
+            <span className={`inline-flex rounded-full px-2.5 py-0.5 font-medium ring-1 ring-inset ${STATUS_PILL.delayed}`}>
+              {language === 'ar' ? 'التأخير حتى' : 'Delayed until'} {formatDay(earliestDelayedUntil(lines), language)}
+            </span>
+          ) : null}
         </div>
         {!loadingPos && !(purchaseOrders || []).length && (
           <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-600 dark:bg-white/[0.04] dark:text-slate-300">
@@ -464,18 +485,7 @@ setLines((existing.lines || []).map((line) => ({
                 </div>
                 <label className="text-[11px] font-medium text-slate-500 lg:col-span-2">
                   {language === 'ar' ? 'الوحدة' : 'UOM'}
-                  <select
-                    value={line.uom || 'PCE'}
-                    onChange={(e) => updateLine(index, { uom: e.target.value })}
-                    disabled={locked}
-                    className={`mt-1.5 ${fieldControlClass} w-full`}
-                  >
-                    <option value="PCE">{language === 'ar' ? 'قطعة' : 'PCE'</option>
-                    <option value="KG">{language === 'ar' ? 'كيلوغرام' : 'KG'</option>
-                    <option value="LT">{language === 'ar' ? 'لتر' : 'LT'</option>
-                    <option value="M">{language === 'ar' ? 'متر' : 'M'</option>
-                    <option value="PCS">{language === 'ar' ? 'قطعة' : 'PCS'</option>
-                  </select>
+                  <input value={line.uom || 'PCE'} disabled className={`mt-1.5 ${fieldControlClass}`} />
                 </label>
                 <label className="text-[11px] font-medium text-slate-500 lg:col-span-2">
                   {language === 'ar' ? 'المطلوب' : 'Ordered'}
@@ -548,35 +558,6 @@ setLines((existing.lines || []).map((line) => ({
                         onChange={(e) => updateLine(index, { notes: e.target.value })}
                         className={`mt-1.5 ${fieldControlClass}`}
                       />
-                    </label>
-                  </div>
-                )}
-                {(!line.isDelayed || line.partialReceived) && (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <label className="text-[11px] font-medium text-slate-500">
-                      {language === 'ar' ? 'التاريخ المتوقع للاستلام' : 'Estimated received date'}
-                      <input
-                        type="date"
-                        value={line.estimatedReceivedDate || ''}
-                        disabled={locked}
-                        onChange={(e) => updateLine(index, { estimatedReceivedDate: e.target.value })}
-                        className={`mt-1.5 ${fieldControlClass}`}
-                      />
-                    </label>
-                    <label className="text-[11px] font-medium text-slate-500 sm:col-span-2">
-                      {language === 'ar' ? 'استلامPartial' : 'Partial received'}
-                      <input
-                        type="checkbox"
-                        checked={Boolean(line.partialReceived)}
-                        disabled={locked}
-                        onChange={(e) => updateLine(index, { partialReceived: e.target.checked })}
-                        className={`mt-1.5 ${fieldControlClass}`}
-                      />
-                      <span className="text-[10px] text-slate-500 ml-2">
-                        {language === 'ar' ? '(' : 'Partial '}
-                        {language === 'ar' ? 'استلام جزئي' : ''}
-                        {language === 'ar' ? ')' : ''}
-                      </span>
                     </label>
                   </div>
                 )}
