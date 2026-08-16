@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Users, MapPin, AlertCircle, X, ChevronRight, Loader2, Building2, Phone, Mail, FileText, ArrowUpRight, ArrowDownRight, Wallet } from 'lucide-react'
 import api from '../lib/api'
