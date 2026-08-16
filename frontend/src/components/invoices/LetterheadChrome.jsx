@@ -38,7 +38,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
               <>
                 <h1 className="min-h-16 font-bold leading-8 print:text-black" style={{ fontSize: `${headingFontSize}px` }}>
                   {isSingleLine ? (
-                    <span className="block">{contact.companyEn || '—'}</span>
+                    <span className="block whitespace-nowrap">{contact.companyEn || '—'}</span>
                   ) : (
                     nameEnLines.map((line) => (
                       <span key={line} className="block">{line}</span>
@@ -68,7 +68,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
               <>
                 <h1 className="min-h-16 w-full font-bold leading-8 print:text-black" style={{ fontSize: `${headingFontSize}px` }}>
                   {isSingleLine ? (
-                    <span className="block">{contact.companyAr}</span>
+                    <span className="block whitespace-nowrap">{contact.companyAr}</span>
                   ) : (
                     nameArLines.map((line) => (
                       <span key={line} className="block">{line}</span>

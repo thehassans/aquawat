@@ -13,6 +13,7 @@ import { updateTenant, getMe } from '../store/slices/authSlice'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getInvoiceBrandingProfile, getInvoiceTemplateId, getInvoiceTypography, INVOICE_FONT_OPTIONS } from '../lib/invoiceBranding'
 import { CURRENCIES, CURRENCY_CODE } from '../lib/currency'
+import LetterheadChrome from '../components/invoices/LetterheadChrome'
 import { INVOICE_LANGUAGE_OPTIONS, isGccArabicMarket } from '../lib/invoiceLanguage'
 import { getTenantAliasUrl } from '../lib/tenantHost'
 import { showArabicFields, isBangladeshTenant, isSaudiTenant, showArabicUi } from '../lib/saudiTenant'
@@ -678,6 +679,30 @@ export default function Settings() {
                         {language === 'ar' ? 'عرض الترويسة في سطر واحد (بجوار الشعار)' : 'Display Heading in a single line (next to logo)'}
                       </span>
                     </label>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-8">
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+                  {language === 'ar' ? 'معاينة حية' : 'Live Preview'}
+                </h4>
+                <div className="border border-gray-200 dark:border-dark-700 rounded-xl overflow-hidden bg-gray-50/50 p-4 sm:p-8 flex items-center justify-center">
+                  <div className="w-full max-w-[800px] origin-top transform scale-[0.5] sm:scale-75 md:scale-90 shadow-sm bg-white overflow-hidden pointer-events-none border border-gray-100 h-[200px] sm:h-[250px] overflow-y-hidden">
+                    <LetterheadChrome 
+                      tenant={{
+                        ...tenant,
+                        settings: {
+                          ...tenant?.settings,
+                          invoiceBranding: {
+                            ...tenant?.settings?.invoiceBranding,
+                            logoSize: invoiceLogoSize,
+                            headingSize: invoiceHeadingSize,
+                            singleLineHeading: invoiceSingleLineHeading
+                          }
+                        }
+                      }}
+                    />
                   </div>
                 </div>
               </div>
