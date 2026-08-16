@@ -57,6 +57,48 @@ router.get('/:id', checkPermission('inventory', 'read'), async (req, res) => {
   }
 });
 
+// @route   GET /api/warehouses/:id/dashboard
+router.get('/:id/dashboard', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const warehouse = await Warehouse.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    if (!warehouse) return res.status(404).json({ error: 'Warehouse not found' });
+    
+    const products = await Product.find({
+      ...req.tenantFilter,
+      'stocks.warehouseId': req.params.id,
+      'stocks.quantity': { $gt: 0 }
+    }).select('sku nameEn nameAr stocks category').lean();
+    
+    const inventory = products.map(p => {
+      const stock = p.stocks.find(s => s.warehouseId?.toString() === req.params.id);
+      return { product: p, quantity: stock?.quantity || 0, availableQuantity: (stock?.quantity || 0) - (stock?.reservedQuantity || 0) };
+    });
+
+    const PurchaseOrder = (await import('../models/PurchaseOrder.js')).default;
+    const upcomingPOs = await PurchaseOrder.find({
+      ...req.tenantFilter,
+      'lineItems.receiveWarehouseId': req.params.id,
+      status: { $in: ['issued', 'partially_received'] }
+    }).sort({ expectedDate: 1 }).limit(10).lean();
+
+    const GRN = (await import('../models/GRN.js')).default;
+    const recentGRNs = await GRN.find({
+      ...req.tenantFilter,
+      warehouseId: req.params.id
+    }).sort({ createdAt: -1 }).limit(10).lean();
+
+    const PurchaseReturn = (await import('../models/PurchaseReturn.js')).default;
+    const recentReturns = await PurchaseReturn.find({
+      ...req.tenantFilter,
+      warehouseId: req.params.id
+    }).sort({ createdAt: -1 }).limit(10).lean();
+
+    res.json({ warehouse, inventory, upcomingPOs, recentGRNs, recentReturns });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // @route   GET /api/warehouses/:id/inventory
 router.get('/:id/inventory', checkPermission('inventory', 'read'), async (req, res) => {
   try {

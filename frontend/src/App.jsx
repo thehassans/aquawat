@@ -78,6 +78,7 @@ const Products = lazy(() => import('./pages/inventory/Products'))
 const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
 const WarehouseForm = lazy(() => import('./pages/inventory/WarehouseForm'))
+const WarehouseDashboard = lazy(() => import('./pages/inventory/WarehouseDashboard'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Uom = lazy(() => import('./pages/Uom'))
 const Profile = lazy(() => import('./pages/Profile'))
@@ -738,7 +739,8 @@ function App() {
         <Route path="products/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><ProductForm /></BusinessTypeRoute>} />
         <Route path="warehouses" element={<BusinessTypeRoute allowedTypes={['trading']}><Warehouses /></BusinessTypeRoute>} />
         <Route path="warehouses/new" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseForm /></BusinessTypeRoute>} />
-        <Route path="warehouses/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseForm /></BusinessTypeRoute>} />
+        <Route path="warehouses/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseDashboard /></BusinessTypeRoute>} />
+        <Route path="warehouses/:id/edit" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseForm /></BusinessTypeRoute>} />
         <Route path="suppliers" element={<BusinessTypeRoute allowedTypes={['trading']}><Suppliers /></BusinessTypeRoute>} />
         <Route path="suppliers/new" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
         <Route path="suppliers/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />

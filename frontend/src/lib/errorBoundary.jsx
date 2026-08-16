@@ -137,7 +137,7 @@ function PremiumErrorScreen({ recovering = false, error = null }) {
         }}
       >
         <img
-          src={`${import.meta.env.BASE_URL}maqdernewlogo.webp`}
+          src={`${import.meta.env.BASE_URL}maqderbestlogo.png`}
           alt="Maqder"
           style={{ height: 52, width: 'auto', objectFit: 'contain', margin: '0 auto 22px' }}
         />

@@ -123,7 +123,7 @@ function QuickViewDrawer({ supplierId, supplierName, onClose, language }) {
             
             <div className="border-t border-slate-100 p-5 dark:border-white/10">
               <Link
-                to={`/app/dashboard/purchases/suppliers/${supplierId}`}
+                to={`/app/dashboard/suppliers/${supplierId}`}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
               >
                 {language === 'ar' ? 'عرض الملف' : 'View Profile'}
@@ -190,7 +190,7 @@ export default function Suppliers() {
             title={language === 'ar' ? 'الموردين' : 'Suppliers'}
             disabled={loadingSuppliers || !(suppliers || []).length}
           />
-          <Link to="/app/dashboard/purchases/suppliers/new" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100">
+          <Link to="/app/dashboard/suppliers/new" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100">
             <Plus className="h-4 w-4 opacity-80" />
             {language === 'ar' ? 'إضافة مورد' : 'Add Supplier'}
           </Link>
@@ -211,7 +211,7 @@ export default function Suppliers() {
             {language === 'ar' ? 'أضف موردك الأول للبدء في تتبع الطلبات.' : 'Add your first supplier to start tracking orders.'}
           </p>
           <Link
-            to="/app/dashboard/purchases/suppliers/new"
+            to="/app/dashboard/suppliers/new"
             className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-[13px] font-medium text-white dark:bg-white dark:text-slate-950"
           >
             <Plus className="h-4 w-4" />
@@ -290,7 +290,7 @@ export default function Suppliers() {
 
                   <div className="flex gap-2">
                     <Link
-                      to={`/app/dashboard/purchases/suppliers/${supplier._id}`}
+                      to={`/app/dashboard/suppliers/${supplier._id}`}
                       className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-3 py-2.5 text-[12px] font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/[0.1]"
                     >
                       {language === 'ar' ? 'عرض الملف' : 'Profile'}
