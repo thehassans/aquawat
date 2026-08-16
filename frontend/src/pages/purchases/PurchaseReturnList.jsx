@@ -156,7 +156,7 @@ export default function PurchaseReturnList() {
               <PackageMinus className="h-7 w-7" />
             </div>
             <p className="text-[15px] font-semibold text-slate-900 dark:text-white">
-              {language === 'ar' ? 'لا توجد مرتجعات' : 'No purchase returns yet'}
+              {language === 'ar' ? 'لا توجد مرتجعات بعد' : 'No purchase returns yet'}
             </p>
             <Link to={`${PURCHASES_PATH.returns}/new`} className={`${primaryBtn} mt-5`}>
               <Plus className="h-4 w-4" />

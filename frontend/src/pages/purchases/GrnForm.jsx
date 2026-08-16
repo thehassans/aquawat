@@ -29,7 +29,7 @@ const emptyLine = () => ({
   productType: 'goods',
   uom: 'PCE',
   quantityOrdered: 0,
-  quantityReceived: 1,
+  quantityReceived: 0,
   remaining: 0,
   costPrice: 0,
   isDelayed: false,
@@ -38,6 +38,8 @@ const emptyLine = () => ({
   notes: '',
   batchNumber: '',
   expiryDate: '',
+  estimatedReceivedDate: '',
+  partialReceived: false,
 })
 
 export default function GrnForm() {
@@ -98,13 +100,15 @@ export default function GrnForm() {
     setWarehouseId(existing.warehouseId?._id || existing.warehouseId || '')
     setReferenceNumber(existing.referenceNumber || '')
     setNotes(existing.notes || '')
-    setLines((existing.lines || []).map((line) => ({
-      ...emptyLine(),
-      ...line,
-      productId: line.productId?._id || line.productId || '',
-      delayedUntil: line.delayedUntil ? String(line.delayedUntil).slice(0, 10) : '',
-      expiryDate: line.expiryDate ? String(line.expiryDate).slice(0, 10) : '',
-    })))
+setLines((existing.lines || []).map((line) => ({
+  ...emptyLine(),
+  ...line,
+  productId: line.productId?._id || line.productId || '',
+  delayedUntil: line.delayedUntil ? String(line.delayedUntil).slice(0, 10) : '',
+  expiryDate: line.expiryDate ? String(line.expiryDate).slice(0, 10) : '',
+  estimatedReceivedDate: line.estimatedReceivedDate || '',
+  partialReceived: line.partialReceived || false,
+})))
   }, [existing])
 
   const pullPo = async (poId) => {
@@ -180,6 +184,8 @@ export default function GrnForm() {
       quantityReceived: line.isDelayed ? 0 : line.quantityReceived,
       delayedUntil: line.delayedUntil || undefined,
       expiryDate: line.expiryDate || undefined,
+      estimatedReceivedDate: line.estimatedReceivedDate || undefined,
+      partialReceived: line.partialReceived || undefined,
     })),
   }), [supplierId, purchaseOrderId, warehouseId, referenceNumber, notes, lines])
 
@@ -225,7 +231,11 @@ export default function GrnForm() {
       } else if (existing?.status === 'draft') {
         await api.put(`/grn/${id}`, payload)
       }
-      await api.post(`/grn/${grnId}/receive`, { warehouseId })
+      // Check if we can receive before estimated date
+      const linesNeedingReceive = (Array.isArray(payload.lines) ? payload.lines : []).filter(
+        (line) => !line.estimatedReceivedDate || line.partialReceived
+      )
+      await api.post(`/grn/${grnId}/receive`, { warehouseId, receiveBeforeEstimated: linesNeedingReceive.length > 0 })
       return grnId
     },
     onSuccess: () => {
@@ -307,10 +317,21 @@ export default function GrnForm() {
             </button>
           )}
           {(!isEdit || existing?.status === 'draft') && (
-            <button type="button" onClick={() => receiveMutation.mutate()} disabled={receiveMutation.isPending} className={primaryBtn}>
-              {receiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              {language === 'ar' ? 'استلام' : 'Receive'}
-            </button>
+            <div className="flex flex-col gap-2">
+              <button type="button" onClick={() => receiveMutation.mutate()} disabled={receiveMutation.isPending} className={primaryBtn}>
+                {receiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {language === 'ar' ? 'استلام' : 'Receive'}
+              </button>
+              {(
+                <p className="text-[10px] text-slate-500">
+                  {language === 'ar' ? 'يمكنك الاستلام قبل التاريخ المتوقع' : 'Can receive before estimated date'}
+                </p>
+              ) && (
+                <button type="button" onClick={() => receiveMutation.mutate()} disabled={receiveMutation.isPending} className={ghostBtn}>
+                  <Clock3 className="h-4 w-4" /> {language === 'ar' ? 'استلام قبل التاريخ المتوقع' : 'Receive before estimated'}
+                </button>
+              )}
+            </div>
           )}
           {isEdit && existing?.status === 'received' && (
             <button type="button" onClick={() => completeMutation.mutate()} className={primaryBtn}>
@@ -443,7 +464,18 @@ export default function GrnForm() {
                 </div>
                 <label className="text-[11px] font-medium text-slate-500 lg:col-span-2">
                   {language === 'ar' ? 'الوحدة' : 'UOM'}
-                  <input value={line.uom || 'PCE'} disabled className={`mt-1.5 ${fieldControlClass}`} />
+                  <select
+                    value={line.uom || 'PCE'}
+                    onChange={(e) => updateLine(index, { uom: e.target.value })}
+                    disabled={locked}
+                    className={`mt-1.5 ${fieldControlClass} w-full`}
+                  >
+                    <option value="PCE">{language === 'ar' ? 'قطعة' : 'PCE'</option>
+                    <option value="KG">{language === 'ar' ? 'كيلوغرام' : 'KG'</option>
+                    <option value="LT">{language === 'ar' ? 'لتر' : 'LT'</option>
+                    <option value="M">{language === 'ar' ? 'متر' : 'M'</option>
+                    <option value="PCS">{language === 'ar' ? 'قطعة' : 'PCS'</option>
+                  </select>
                 </label>
                 <label className="text-[11px] font-medium text-slate-500 lg:col-span-2">
                   {language === 'ar' ? 'المطلوب' : 'Ordered'}
@@ -516,6 +548,35 @@ export default function GrnForm() {
                         onChange={(e) => updateLine(index, { notes: e.target.value })}
                         className={`mt-1.5 ${fieldControlClass}`}
                       />
+                    </label>
+                  </div>
+                )}
+                {(!line.isDelayed || line.partialReceived) && (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="text-[11px] font-medium text-slate-500">
+                      {language === 'ar' ? 'التاريخ المتوقع للاستلام' : 'Estimated received date'}
+                      <input
+                        type="date"
+                        value={line.estimatedReceivedDate || ''}
+                        disabled={locked}
+                        onChange={(e) => updateLine(index, { estimatedReceivedDate: e.target.value })}
+                        className={`mt-1.5 ${fieldControlClass}`}
+                      />
+                    </label>
+                    <label className="text-[11px] font-medium text-slate-500 sm:col-span-2">
+                      {language === 'ar' ? 'استلامPartial' : 'Partial received'}
+                      <input
+                        type="checkbox"
+                        checked={Boolean(line.partialReceived)}
+                        disabled={locked}
+                        onChange={(e) => updateLine(index, { partialReceived: e.target.checked })}
+                        className={`mt-1.5 ${fieldControlClass}`}
+                      />
+                      <span className="text-[10px] text-slate-500 ml-2">
+                        {language === 'ar' ? '(' : 'Partial '}
+                        {language === 'ar' ? 'استلام جزئي' : ''}
+                        {language === 'ar' ? ')' : ''}
+                      </span>
                     </label>
                   </div>
                 )}

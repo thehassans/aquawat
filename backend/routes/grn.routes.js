@@ -364,11 +364,12 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
     if (grn.status === 'cancelled') return res.status(400).json({ error: 'Cannot receive a cancelled GRN' });
     assertDelayedLines(grn.lines);
     const warehouseId = req.body.warehouseId || grn.warehouseId;
+    const receiveBeforeEstimated = req.body.receiveBeforeEstimated || false;
     if (warehouseId) {
       const warehouse = await resolveWarehouse(req.tenantFilter, warehouseId);
       if (!warehouse) return res.status(400).json({ error: 'Warehouse not found' });
     }
-    await confirmGrnReceive({ tenantFilter: req.tenantFilter, user: req.user, grn, warehouseId });
+    await confirmGrnReceive({ tenantFilter: req.tenantFilter, user: req.user, grn, warehouseId, receiveBeforeEstimated });
     res.json(grn);
   } catch (error) {
     handlePurchasesError(res, error);

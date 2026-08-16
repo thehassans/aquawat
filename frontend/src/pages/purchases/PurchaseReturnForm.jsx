@@ -141,7 +141,9 @@ export default function PurchaseReturnForm() {
     onSuccess: (docId) => {
       toast.success(language === 'ar' ? 'تم تأكيد المرتجع وخصم المخزون' : 'Return confirmed and stock deducted')
       invalidate()
-      navigate(`${PURCHASES_PATH.returns}/${docId}`)
+      // Go back to the previous screen (purchase returns list or previous page)
+      const referer = document.referrer || PURCHASES_PATH.returns
+      navigate(referer, { replace: true })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })

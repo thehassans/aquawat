@@ -238,7 +238,7 @@ export default function Settings() {
   const { language, theme, hideSidebar, hiddenMenuItems, displayMode, navigationStyle } = useSelector((state) => state.ui)
   const { user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
-  const [activeTab, setActiveTab] = useState('company')
+  const [activeTab, setActiveTab] = useState('uom')
   const [companySections, setCompanySections] = useState({ basics: true })
   const [downloadingBackup, setDownloadingBackup] = useState(false)
   const [primaryColor, setPrimaryColor] = useState('#14B8A6')
@@ -520,7 +520,6 @@ export default function Settings() {
   const hasBookstore = tenantBusinessTypes.includes('bookstore')
 
   const tabs = [
-    { id: 'company', label: t('companySettings'), icon: Building2 },
     { id: 'uom', label: language === 'ar' ? 'وحدات القياس' : 'UOM', icon: FileText },
     { id: 'preferences', label: language === 'ar' ? 'التفضيلات' : 'Preferences', icon: Palette },
     { id: 'hardware', label: language === 'ar' ? 'الأجهزة والطباعة' : 'Hardware & Printers', icon: Terminal },
@@ -602,52 +601,6 @@ export default function Settings() {
 
         {/* Content */}
         <div>
-          {activeTab === 'company' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-              <form onSubmit={handleSubmit((data) => updateMutation.mutate({
-                business: data,
-                branding: {
-                  ...(tenant?.branding || {}),
-                  logo: logoDataUrl || tenant?.branding?.logo || null,
-                },
-              }))} className="space-y-3">
-                <fieldset disabled={user?.role !== 'super_admin' && user?.role !== 'superadmin' && user?.role !== 'admin'} className="space-y-3">
-                <SettingsAccordion
-                  id="basics"
-                  title={language === 'ar' ? 'بيانات الشركة' : 'Company basics'}
-                  icon={Building2}
-                  open={!!companySections.basics}
-                  onToggle={(id) => setCompanySections((s) => ({ ...s, [id]: !s[id] }))}
-                >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">{language === 'ar' ? 'الاسم القانوني' : 'Legal Name'}</label>
-                    <input {...register('legalNameEn')} className="input" />
-                  </div>
-                  {showArabicFields(tenant) && (
-                    <div>
-                      <label className="label">{language === 'ar' ? 'الاسم القانوني (عربي)' : 'Legal Name (Arabic)'}</label>
-                      <input {...register('legalNameAr')} className="input" dir="rtl" />
-                    </div>
-                  )}
-                  <div>
-                    <label className="label">
-                      {isBangladeshTenant(tenant) || String(defaultCurrency).toUpperCase() === 'BDT'
-                        ? (language === 'ar' ? 'رقم تسجيل ضريبة القيمة المضافة' : 'VAT Registration Number')
-                        : (language === 'ar' ? 'الرقم الضريبي / الضريبة' : 'Tax / VAT Number')}
-                    </label>
-                    <input {...register('vatNumber')} className="input" />
-                  </div>
-                  {(isBangladeshTenant(tenant) || String(defaultCurrency).toUpperCase() === 'BDT') && (
-                    <div>
-                      <label className="label">BIN (Bangladesh)</label>
-                      <input {...register('binNumber')} className="input" placeholder="123456789-0123" />
-                    </div>
-                  )}
-                  <div>
-                    <label className="label">{language === 'ar' ? 'رقم السجل' : 'Registration / CR Number'}</label>
-                    <input {...register('crNumber')} className="input" />
-                  </div>
                   <div>
                     <label className="label">{language === 'ar' ? 'الدولة' : 'Country'}</label>
                     <select {...register('address.country')} className="select">
