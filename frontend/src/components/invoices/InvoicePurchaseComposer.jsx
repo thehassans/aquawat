@@ -386,7 +386,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         productNameAr: product?.nameAr || '',
         productType: normalizeProductType(li?.productType || product?.productType),
         unitCode: li?.uom || product?.unitOfMeasure || 'PCE',
-        quantity: Math.max(0.0001, toNumber(li?.quantityOrdered ?? li?.quantity, 1)),
+        quantity: Math.max(0.0001, toNumber(li?.quantityOrdered ?? li?.quantity, 1) - toNumber(li?.quantityReturned, 0)),
         unitPrice: Math.max(0, toNumber(li?.unitCost ?? li?.unitPrice, 0)),
         taxRate: Math.max(0, toNumber(li?.taxRate, 15)),
       }
