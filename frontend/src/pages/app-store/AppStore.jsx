@@ -206,7 +206,6 @@ export default function AppStore() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [showInstalledOnly, setShowInstalledOnly] = useState(false);
   const [sortBy, setSortBy] = useState('featured'); // 'featured', 'rating', 'name'
-  const [selectedAppId, setSelectedAppId] = useState(null);
   const [selectedConfigAppId, setSelectedConfigAppId] = useState(null);
   const [configForm, setConfigForm] = useState({});
   const [uninstallConfirmApp, setUninstallConfirmApp] = useState(null);
@@ -246,10 +245,7 @@ export default function AppStore() {
 
   const apps = useMemo(() => data?.apps || [], [data?.apps]);
 
-  const detailApp = useMemo(
-    () => apps.find((a) => a.appId === selectedAppId) || null,
-    [apps, selectedAppId]
-  );
+  // We don't need detailApp anymore, we use a separate route
 
   const configApp = useMemo(
     () => apps.find((a) => a.appId === selectedConfigAppId) || null,
@@ -583,8 +579,7 @@ export default function AppStore() {
                 {isAr ? 'إلغاء' : 'Remove'}
               </button>
               <button
-                type="button"
-                onClick={() => setSelectedAppId(app.appId)}
+                onClick={() => navigate(`/app/dashboard/app-store/${app.appId}`)}
                 className="ms-auto text-[12px] text-slate-400 transition hover:text-emerald-700 dark:hover:text-emerald-300"
               >
                 {isAr ? 'التفاصيل' : 'Details'}
@@ -634,8 +629,7 @@ export default function AppStore() {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <button
-                  type="button"
-                  onClick={() => setSelectedAppId(app.appId)}
+                  onClick={() => navigate(`/app/dashboard/app-store/${app.appId}`)}
                   className="text-[12px] text-slate-400 transition hover:text-emerald-700 dark:hover:text-emerald-300"
                 >
                   {isAr ? 'التفاصيل' : 'Details'}
@@ -899,298 +893,7 @@ export default function AppStore() {
         )}
       </AnimatePresence>
 
-      {/* ─── Detail Slide-over Modal ─── */}
-      <AnimatePresence>
-        {detailApp && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80]"
-              onClick={() => setSelectedAppId(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, x: isAr ? -450 : 450 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: isAr ? -450 : 450 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 280 }}
-              className={`fixed top-0 bottom-0 ${isAr ? 'left-0' : 'right-0'} w-full sm:w-[500px] bg-white dark:bg-dark-800 shadow-2xl z-[80] overflow-hidden flex flex-col border-s border-gray-200 dark:border-white/10`}
-            >
-              <div className="relative p-6 sm:p-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-dark-900/40">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-20 h-20 rounded-2xl bg-white dark:bg-dark-800 border border-gray-200 dark:border-white/10 p-3 shadow-sm flex items-center justify-center shrink-0">
-                      <App3DIcon
-                        appId={detailApp.appId}
-                        icon={detailApp.icon}
-                        path={detailApp.defaultRoute}
-                        label={detailApp.nameEn}
-                        className="w-full h-full drop-shadow-md"
-                      />
-                    </div>
-                    <div>
-                      <h2 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white tracking-tight leading-tight">
-                        {isAr ? detailApp.nameAr : detailApp.nameEn}
-                      </h2>
-                      <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mt-1">
-                        {detailApp.author || 'Maqder Core'} • v{detailApp.version || '2.5.0'}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${pricing(detailApp.pricingTier).color}`}>
-                          {isAr ? pricing(detailApp.pricingTier).ar : pricing(detailApp.pricingTier).en}
-                        </span>
-                        {detailApp.badge && (
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-500/20">
-                            {detailApp.badge}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
-                  <button
-                    onClick={() => setSelectedAppId(null)}
-                    className="p-2 rounded-xl text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="px-6 sm:px-8 py-3 bg-white dark:bg-dark-800 border-b border-gray-100 dark:border-white/5 flex items-center justify-between text-xs font-bold text-gray-500 dark:text-gray-400">
-                <div className="flex items-center gap-1.5">
-                  <HardDrive className="w-4 h-4 text-primary-500" />
-                  <span>{detailApp.downloadSize || '4.8 MB'}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                  <span>{detailApp.rating?.toFixed(1) || '4.9'} ({detailApp.reviewsCount || 48} {isAr ? 'تقييم' : 'reviews'})</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Globe2 className="w-4 h-4 text-blue-500" />
-                  <span>{isAr ? 'سحابي' : 'Cloud Sync'}</span>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
-                {(() => {
-                  const { monthly, yearly } = resolveAppPrices(detailApp);
-                  const savings = yearlySavingsPercent(monthly, yearly);
-                  const hasPrice = monthly > 0 || yearly > 0;
-                  const showPricing = hasPrice && !detailApp.isInstalled && !detailApp.includedInCurrentPlan;
-                  if (!showPricing) return null;
-                  return (
-                    <div>
-                      <h4 className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-400">
-                        <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-                        {isAr ? 'خطط الأسعار' : 'Pricing plans'}
-                      </h4>
-                      <div className="grid grid-cols-2 gap-3">
-                        {[
-                          { id: 'monthly', amount: monthly, label: isAr ? 'شهري' : 'Monthly', period: isAr ? 'تُفوتر كل شهر' : 'Billed every month' },
-                          { id: 'yearly', amount: yearly, label: isAr ? 'سنوي' : 'Yearly', period: isAr ? 'تُفوتر مرة في السنة' : 'Billed once a year' },
-                        ].map((plan) => {
-                          const active = billingCycle === plan.id;
-                          const money = formatMoneyAmount(plan.amount, storeCurrency);
-                          if (!money) return null;
-                          return (
-                            <button
-                              key={plan.id}
-                              type="button"
-                              onClick={() => setBillingCycle(plan.id)}
-                              className={`relative rounded-2xl border p-3.5 text-start transition ${
-                                active
-                                  ? 'border-emerald-400 bg-emerald-50/80 shadow-[0_12px_28px_-18px_rgba(5,150,105,0.65)] dark:border-emerald-500/40 dark:bg-emerald-500/10'
-                                  : 'border-gray-200 bg-white hover:border-gray-300 dark:border-white/10 dark:bg-dark-900/40'
-                              }`}
-                            >
-                              {plan.id === 'yearly' && savings > 0 && (
-                                <span className="absolute -top-2 end-3 rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
-                                  {isAr ? `وفّر ${savings}%` : `Save ${savings}%`}
-                                </span>
-                              )}
-                              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{plan.label}</p>
-                              <p className="mt-1 text-xl font-semibold tracking-tight text-slate-900 tabular-nums dark:text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                                {money}
-                                <span className="ms-1 text-[11px] font-semibold text-slate-400">
-                                  {plan.id === 'yearly' ? (isAr ? '/سنة' : '/yr') : (isAr ? '/شهر' : '/mo')}
-                                </span>
-                              </p>
-                              <p className="mt-1 text-[11px] text-slate-500">{plan.period}</p>
-                              {plan.id === 'yearly' && monthly > 0 && (
-                                <p className="mt-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
-                                  {formatMoneyAmount(yearly / 12, storeCurrency)}{isAr ? '/شهر' : '/mo'} · {isAr ? 'شهرين مجاناً' : '2 months free'}
-                                </p>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {detailApp.trialEligible && (
-                        <p className="mt-2 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
-                          {isAr
-                            ? `يشمل تجربة مجانية ${detailApp.trialDays || 7} أيام. تجربة واحدة لكل منشأة — إلغاء التثبيت لا يعيدها.`
-                            : `Includes a ${detailApp.trialDays || 7}-day free trial. One trial per business — uninstalling does not reset it.`}
-                        </p>
-                      )}
-                      {(detailApp.trialUsed || detailApp.trialExpired) && !detailApp.isInstalled && (
-                        <p className="mt-2 text-[11px] font-medium text-amber-700 dark:text-amber-300">
-                          {isAr ? 'تم استخدام التجربة المجانية. التفعيل يتطلب الدفع.' : 'The free trial was already used. Activate with payment to continue.'}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                <div>
-                  <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">
-                    {isAr ? 'نظرة عامة والوصف' : 'Overview & Architecture'}
-                  </h4>
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 leading-relaxed">
-                    {isAr ? detailApp.descriptionAr : detailApp.descriptionEn}
-                  </p>
-                </div>
-
-                {(isAr ? detailApp.featuresAr : detailApp.featuresEn)?.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
-                      {isAr ? 'القدرات والميزات الرئيسية' : 'Key Capabilities & Workflows'}
-                    </h4>
-                    <div className="space-y-2.5">
-                      {(isAr ? detailApp.featuresAr : detailApp.featuresEn).map((feature, i) => (
-                        <div key={i} className="flex items-start gap-3 text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200">
-                          <div className="mt-0.5 rounded-full bg-emerald-500/10 p-0.5">
-                            <Check className="w-3.5 h-3.5 text-emerald-500 stroke-[3]" />
-                          </div>
-                          <span>{feature}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {detailApp.appType === 'invoice_template' && (
-                  <div>
-                    <div className="border border-gray-200 dark:border-white/10 rounded-2xl p-3 bg-gray-50/50 dark:bg-dark-900/40 mb-4">
-                      <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-2">{isAr ? 'معاينة مباشرة' : 'Live Preview'}</p>
-                      <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-dark-950 p-3 flex justify-center h-[360px] overflow-y-auto relative custom-scrollbar">
-                        <div className="origin-top scale-[0.32] transition-all" style={{ width: '1000px' }}>
-                          <div className="pointer-events-none shadow-2xl bg-white">
-                            <InvoiceLivePreview
-                              invoice={{
-                                invoiceNumber: 'INV-2026-001',
-                                issueDate: new Date(),
-                                grandTotal: 1150,
-                                totalTax: 150,
-                                subtotal: 1000,
-                                totalDiscount: 0,
-                                currency: tenant?.settings?.currency || 'SAR',
-                                buyer: { name: 'Acme Corp', nameAr: 'شركة أكامي', vatNumber: '310000000000003' },
-                                seller: { name: tenant?.business?.legalNameEn || 'My Company', nameAr: tenant?.business?.legalNameAr || 'شركتي', vatNumber: tenant?.business?.vatNumber || '300000000000003' },
-                                lines: [
-                                  { raw: { productName: 'Professional Services', productNameAr: 'خدمات احترافية' }, quantity: 1, unitPrice: 1000, lineTotalWithTax: 1150, taxAmount: 150 }
-                                ]
-                              }}
-                              tenant={{
-                                ...tenant,
-                                settings: { ...tenant?.settings, invoicePdfTemplate: detailApp.templateId || 1 },
-                              }}
-                              templateId={detailApp.templateId || 1}
-                              language={language}
-                              bilingual={true}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-900/40 border border-gray-100 dark:border-white/5 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-bold text-gray-900 dark:text-white">
-                    <Lock className="w-4 h-4 text-primary-500" />
-                    <span>{isAr ? 'الأمان والصلاحيات' : 'Security & Tenant Isolation'}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium">
-                    {isAr
-                      ? 'يتم تشغيل هذا التطبيق داخل بيئة العمل الخاصة بمنشأتك مع صلاحيات وصول مشفرة بالكامل ومتوافقة مع المعايير السعودية.'
-                      : 'This module executes in strict tenant isolation, encrypted per-tenant access tokens, and complies with official Saudi regulatory standards.'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-6 border-t border-gray-100 dark:border-white/5 bg-white dark:bg-dark-800 space-y-3">
-                {detailApp.isInstalled ? (
-                  <>
-                    <div className="flex items-center gap-3">
-                      {detailApp.defaultRoute && (
-                        <button
-                          onClick={() => {
-                            setSelectedAppId(null);
-                            navigate(detailApp.defaultRoute);
-                          }}
-                          className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-black text-sm shadow-md hover:bg-gray-800 transition-all active:scale-95"
-                        >
-                          <span>{isAr ? 'فتح التطبيق' : 'Launch Workspace'}</span>
-                          <ArrowRight className="w-4 h-4 rtl:rotate-180" />
-                        </button>
-                      )}
-
-                      {detailApp.configSchema?.length > 0 && (
-                        <button
-                          onClick={() => {
-                            setSelectedConfigAppId(detailApp.appId);
-                            setConfigForm(detailApp.config || {});
-                          }}
-                          className="px-5 py-3.5 rounded-2xl border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-700 font-bold text-sm transition-all flex items-center gap-2"
-                        >
-                          <Sliders className="w-4 h-4" />
-                          <span>{isAr ? 'الإعدادات' : 'Settings'}</span>
-                        </button>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => setUninstallConfirmApp(detailApp)}
-                      className="w-full py-2.5 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-500/10 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>{isAr ? 'إلغاء تثبيت التطبيق' : 'Uninstall Application'}</span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => {
-                        handleStartInstall(detailApp);
-                        setSelectedAppId(null);
-                      }}
-                      disabled={installMutation.isPending || installingState?.appId === detailApp.appId}
-                      className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-primary-600 hover:bg-primary-500 text-white font-black text-sm shadow-lg shadow-primary-500/25 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      <span>
-                        {appNeedsPayment(detailApp)
-                          ? (isAr
-                            ? `تفعيل ${formatAppPrice(detailApp) ? `— ${formatAppPrice(detailApp)}` : ''}`
-                            : `Activate ${formatAppPrice(detailApp) ? `— ${formatAppPrice(detailApp)}` : ''}`)
-                          : detailApp.trialEligible
-                            ? (isAr ? `بدء تجربة ${detailApp.trialDays || 7} أيام` : `Start ${detailApp.trialDays || 7}-day trial`)
-                            : (isAr ? 'تفعيل' : 'Activate')}
-                      </span>
-                    </button>
-                    {appNeedsPayment(detailApp) && billingCycle === 'yearly' && (
-                      <p className="text-center text-[11px] text-slate-400">
-                        {isAr ? 'إلغاء في أي وقت. التوفير يُطبَّق عند الدفع السنوي.' : 'Cancel anytime. Savings apply when billed yearly.'}
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       {/* ─── Uninstall Confirmation Modal ─── */}
       <AnimatePresence>

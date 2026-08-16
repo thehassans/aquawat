@@ -220,6 +220,7 @@ const JobCostingForm = lazy(() => import('./pages/JobCostingForm'))
 const MRP = lazy(() => import('./pages/MRP'))
 const Manufacturing = lazy(() => import('./pages/manufacturing/Manufacturing'))
 const AppStore = lazy(() => import('./pages/app-store/AppStore'))
+const AppStoreDetail = lazy(() => import('./pages/app-store/AppStoreDetail'))
 const WhatsApp = lazy(() => import('./pages/WhatsApp'))
 const Contacts = lazy(() => import('./pages/Contacts'))
 const Calendar = lazy(() => import('./pages/Calendar'))
@@ -903,6 +904,7 @@ function App() {
         <Route path="mrp" element={<BusinessTypeRoute allowedTypes={['trading', 'manufacturing']}><MRP /></BusinessTypeRoute>} />
         <Route path="manufacturing" element={<BusinessTypeRoute allowedTypes={['manufacturing', 'trading']}><Manufacturing /></BusinessTypeRoute>} />
         <Route path="app-store" element={<AppStore />} />
+        <Route path="app-store/:appId" element={<AppStoreDetail />} />
         <Route path="logistics" element={<EcommerceCouriers />} />
         <Route path="whatsapp" element={<WhatsApp />} />
         <Route path="reports" element={<Reports />} />
