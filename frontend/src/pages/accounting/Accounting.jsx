@@ -18,6 +18,8 @@ import {
   CustomerSummaryPanel,
   DailyRestrictionPanel,
   GeneralVoucherPanel,
+  LedgerSearchPanel,
+  SupplierAccountPanel,
   SupplierSummaryPanel,
 } from './AccountingModules'
 
@@ -32,7 +34,9 @@ const TABS = [
   { id: 'balance-sheet', labelEn: 'Balance Sheet', labelAr: 'الميزانية العمومية', icon: Scale, group: 'reports' },
   { id: 'customer-account', labelEn: 'Customer Account', labelAr: 'كشف حساب العميل', icon: Users, group: 'reports' },
   { id: 'customer-summary', labelEn: 'Customer Summary', labelAr: 'ملخص العملاء', icon: Users, group: 'reports' },
+  { id: 'supplier-account', labelEn: 'Supplier Account', labelAr: 'كشف حساب المورد', icon: Truck, group: 'reports' },
   { id: 'supplier-summary', labelEn: 'Supplier Summary', labelAr: 'ملخص الموردين', icon: Truck, group: 'reports' },
+  { id: 'ledger-search', labelEn: 'Search', labelAr: 'بحث', icon: FileSpreadsheet, group: 'workspace' },
   { id: 'trial', labelEn: 'Trial Balance', labelAr: 'ميزان المراجعة', icon: Scale, group: 'reports' },
   { id: 'pnl', labelEn: 'Profit & Loss', labelAr: 'الأرباح والخسائر', icon: TrendingUp, group: 'reports' },
 ]
@@ -75,6 +79,7 @@ export default function Accounting() {
   const activeTab = TABS.find((item) => item.id === tab) || TABS[0]
   const setTab = (id) => navigate(id === 'overview' ? '/app/dashboard/accounting' : `/app/dashboard/accounting/${id}`)
   const [showJournalForm, setShowJournalForm] = useState(false)
+  const [accountSearch, setAccountSearch] = useState('')
   const [journalForm, setJournalForm] = useState({
     memo: '',
     entryDate: new Date().toISOString().slice(0, 10),
@@ -460,6 +465,14 @@ export default function Accounting() {
 
           {tab === 'chart-of-accounts' && (
             <motion.div key="accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-[1.5rem] border border-white/80 bg-white/90 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] dark:border-white/10 dark:bg-dark-800">
+              <div className="border-b border-slate-100 px-5 py-3 dark:border-white/10">
+                <input
+                  value={accountSearch}
+                  onChange={(e) => setAccountSearch(e.target.value)}
+                  placeholder={isAr ? 'بحث بالرمز أو الاسم…' : 'Search code or name…'}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-dark-900"
+                />
+              </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-slate-50/80 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900">
@@ -471,7 +484,11 @@ export default function Accounting() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                    {accounts.map((a) => (
+                    {accounts.filter((a) => {
+                      const q = accountSearch.trim().toLowerCase()
+                      if (!q) return true
+                      return [a.code, a.name, a.nameAr].some((v) => String(v || '').toLowerCase().includes(q))
+                    }).map((a) => (
                       <tr key={a._id} className="hover:bg-emerald-50/40 dark:hover:bg-white/[0.03]">
                         <td className="px-5 py-3.5 font-mono text-xs font-semibold text-emerald-800 dark:text-emerald-300">{a.code}</td>
                         <td className="px-5 py-3.5">
@@ -530,9 +547,21 @@ export default function Accounting() {
             </motion.div>
           )}
 
+          {tab === 'supplier-account' && (
+            <motion.div key="supplier-account" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <SupplierAccountPanel language={language} />
+            </motion.div>
+          )}
+
           {tab === 'supplier-summary' && (
             <motion.div key="supplier-summary" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <SupplierSummaryPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'ledger-search' && (
+            <motion.div key="ledger-search" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <LedgerSearchPanel language={language} onPost={(id) => postJournalMutation.mutate(id)} posting={postJournalMutation.isPending} />
             </motion.div>
           )}
 

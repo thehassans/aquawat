@@ -72,8 +72,7 @@ import {
   Globe2,
   Store,
   Smartphone, 
-  CalendarRange, 
-  Info
+  CalendarRange
 } from 'lucide-react'
 
 /**
@@ -356,7 +355,9 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
           { path: '/app/dashboard/accounting/balance-sheet', label: language === 'ar' ? 'الميزانية العمومية' : 'Account Balance Sheet' },
           { path: '/app/dashboard/accounting/customer-account', label: language === 'ar' ? 'كشف حساب العميل' : 'Customer Account Report' },
           { path: '/app/dashboard/accounting/customer-summary', label: language === 'ar' ? 'ملخص العملاء' : 'Customer Summary Report' },
+          { path: '/app/dashboard/accounting/supplier-account', label: language === 'ar' ? 'كشف حساب المورد' : 'Supplier Account' },
           { path: '/app/dashboard/accounting/supplier-summary', label: language === 'ar' ? 'ملخص الموردين' : 'Supplier Summary Report' },
+          { path: '/app/dashboard/accounting/ledger-search', label: language === 'ar' ? 'بحث الدفتر' : 'Ledger search' },
         ] },
         { path: '/app/dashboard/vouchers', icon: Receipt, label: language === 'ar' ? 'السندات' : 'Vouchers', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/expenses', icon: Receipt, label: language === 'ar' ? 'المصروفات' : 'Expenses', perm: { module: 'finance', action: 'read' } },
@@ -457,12 +458,6 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       items: [
         { path: '/app/dashboard/fleet', icon: Truck, label: language === 'ar' ? 'الأصول' : 'Assets', perm: { module: 'fleet', action: 'read' } },
         { path: '/app/dashboard/fleet/maintenance-alerts', icon: AlertCircle, label: language === 'ar' ? 'تنبيهات الصيانة' : 'Maintenance Alerts', perm: { module: 'fleet', action: 'read' } },
-      ]
-    },
-    {
-      title: language === 'ar' ? 'حول مقدر' : 'About Maqder',
-      items: [
-        { path: '/app/dashboard/maqder-updates', icon: Info, label: language === 'ar' ? 'تحديثات مقدر' : 'Maqder Updates' },
       ]
     },
   ]

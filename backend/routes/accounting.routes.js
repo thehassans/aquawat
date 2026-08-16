@@ -3,6 +3,7 @@ import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../
 import ChartOfAccount from '../models/ChartOfAccount.js';
 import JournalEntry from '../models/JournalEntry.js';
 import Customer from '../models/Customer.js';
+import Supplier from '../models/Supplier.js';
 import {
   ensureDefaultChartOfAccounts,
   createJournalEntry,
@@ -16,6 +17,7 @@ import {
   buildCustomerAccountReport,
   buildCustomerSummaryReport,
   buildSupplierSummaryReport,
+  buildSupplierAccountReport,
   normaliseLines,
   assertBalanced,
 } from '../services/accountingService.js';
@@ -45,6 +47,14 @@ router.get('/accounts', checkPermission('finance', 'read'), async (req, res) => 
     const filter = { tenantId };
     if (req.query.type) filter.type = req.query.type;
     if (req.query.active !== 'false') filter.isActive = true;
+    if (req.query.q) {
+      const q = String(req.query.q).trim();
+      filter.$or = [
+        { code: new RegExp(q, 'i') },
+        { name: new RegExp(q, 'i') },
+        { nameAr: new RegExp(q, 'i') },
+      ];
+    }
     const accounts = await ChartOfAccount.find(filter).sort({ code: 1 });
     res.json(accounts);
   } catch (error) {
@@ -284,9 +294,32 @@ router.get('/reports/general-ledger/:accountId', checkPermission('finance', 'rea
 
 router.get('/parties/customers', checkPermission('finance', 'read'), async (req, res) => {
   try {
-    const rows = await Customer.find({ tenantId: tenantIdOf(req) })
+    const filter = { tenantId: tenantIdOf(req) };
+    if (req.query.q) {
+      const q = String(req.query.q).trim();
+      filter.$or = [{ name: new RegExp(q, 'i') }, { nameAr: new RegExp(q, 'i') }, { phone: new RegExp(q, 'i') }, { mobile: new RegExp(q, 'i') }];
+    }
+    const rows = await Customer.find(filter)
       .select('name nameAr phone mobile')
       .sort({ name: 1 })
+      .limit(500)
+      .lean();
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/parties/suppliers', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const filter = { tenantId: tenantIdOf(req) };
+    if (req.query.q) {
+      const q = String(req.query.q).trim();
+      filter.$or = [{ nameEn: new RegExp(q, 'i') }, { nameAr: new RegExp(q, 'i') }, { code: new RegExp(q, 'i') }, { phone: new RegExp(q, 'i') }];
+    }
+    const rows = await Supplier.find(filter)
+      .select('nameEn nameAr code phone')
+      .sort({ nameEn: 1 })
       .limit(500)
       .lean();
     res.json(rows);
@@ -328,6 +361,18 @@ router.get('/reports/supplier-summary', checkPermission('finance', 'read'), asyn
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/reports/supplier-account', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const data = await buildSupplierAccountReport(tenantIdOf(req), req.query.supplierId, {
+      from: req.query.from,
+      to: req.query.to,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 

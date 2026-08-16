@@ -158,7 +158,7 @@ export default function Expenses() {
             title={language === 'ar' ? 'المصروفات' : 'Expenses'}
             disabled={isLoading || expenses.length === 0}
           />
-          <Link to={projectIdFromQuery ? `/expenses/new?projectId=${projectIdFromQuery}` : '/expenses/new'} className="btn btn-primary">
+          <Link to="/app/dashboard/expenses/new" className="btn btn-primary">
             <Plus className="w-4 h-4" />
             {language === 'ar' ? 'إضافة مصروف' : 'Add Expense'}
           </Link>
@@ -274,7 +274,7 @@ export default function Expenses() {
                         <span className={`badge ${meta.badge}`}>{language === 'ar' ? meta.ar : meta.en}</span>
                       </td>
                       <td>
-                        <Link to={`/expenses/${e._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg inline-flex">
+                        <Link to={`/app/dashboard/expenses/${e._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg inline-flex">
                           <Edit className="w-4 h-4 text-gray-600" />
                         </Link>
                       </td>

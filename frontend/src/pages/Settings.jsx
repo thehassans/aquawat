@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Building2, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid, ChevronDown } from 'lucide-react'
+import { Building2, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid, ChevronDown, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
@@ -564,13 +564,22 @@ export default function Settings() {
             {language === 'ar' ? 'إعدادات الشركة والنظام' : 'Company & system'}
           </p>
         </div>
-        <Link
-          to="/app/dashboard/profile"
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
-        >
-          <Building2 className="h-4 w-4" />
-          {language === 'ar' ? 'الملف التعريفي للمنشأة' : 'Company profile'}
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to="/app/dashboard/maqder-updates"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
+          >
+            <Info className="h-4 w-4" />
+            {language === 'ar' ? 'تحديثات مقدر' : 'Maqder Updates'}
+          </Link>
+          <Link
+            to="/app/dashboard/profile"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
+          >
+            <Building2 className="h-4 w-4" />
+            {language === 'ar' ? 'الملف التعريفي للمنشأة' : 'Company profile'}
+          </Link>
+        </div>
       </div>
 
       <div className="space-y-5">
@@ -1067,6 +1076,24 @@ export default function Settings() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6">
               <h3 className="text-lg font-semibold mb-6">{language === 'ar' ? 'التفضيلات' : 'Preferences'}</h3>
               <div className="space-y-6">
+                <Link
+                  to="/app/dashboard/maqder-updates"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 transition hover:border-slate-300 dark:border-white/10 dark:bg-white/[0.03]"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-600 ring-1 ring-slate-200 dark:bg-dark-800 dark:text-slate-200 dark:ring-white/10">
+                      <Info className="h-4 w-4" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold text-slate-900 dark:text-white">
+                        {language === 'ar' ? 'تحديثات مقدر' : 'Maqder Updates'}
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        {language === 'ar' ? 'سجل الإصدارات وصحة النظام' : 'Release notes and system health'}
+                      </span>
+                    </span>
+                  </span>
+                </Link>
                 <div>
                   <label className="label flex items-center gap-2"><Globe className="w-4 h-4" />{t('language')}</label>
                   <div className="flex gap-3 mt-2">

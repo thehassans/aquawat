@@ -4,6 +4,7 @@ import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import Supplier from '../models/Supplier.js';
 import Voucher from '../models/Voucher.js';
+import Expense from '../models/Expense.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -1024,6 +1025,100 @@ export async function buildSupplierSummaryReport(tenantId, { from, to } = {}) {
   };
 }
 
+export async function buildSupplierAccountReport(tenantId, supplierId, { from, to } = {}) {
+  if (!supplierId) throw new Error('supplierId is required');
+  const supplier = await Supplier.findOne({ _id: supplierId, tenantId }).lean();
+  if (!supplier) throw new Error('Supplier not found');
+
+  const { start, end } = periodRange({ from, to });
+  const [invoices, payments, expenses] = await Promise.all([
+    Invoice.find({
+      tenantId,
+      supplierId,
+      flow: 'purchase',
+      status: { $nin: ['draft', 'cancelled'] },
+      issueDate: { $lte: end },
+    }).select('invoiceNumber issueDate grandTotal paidAmount').lean(),
+    Voucher.find({
+      tenantId,
+      partyId: supplierId,
+      type: 'payment',
+      date: { $lte: end },
+    }).select('voucherNumber date amount description').lean().catch(() => []),
+    Expense.find({
+      tenantId,
+      supplierId,
+      status: { $in: ['approved', 'paid'] },
+      expenseDate: { $lte: end },
+    }).select('expenseNumber expenseDate totalAmount amount taxAmount status description').lean().catch(() => []),
+  ]);
+
+  const events = [];
+  for (const invoice of invoices) {
+    events.push({
+      date: invoice.issueDate,
+      type: 'bill',
+      ref: invoice.invoiceNumber,
+      debit: 0,
+      credit: round2(invoice.grandTotal),
+      memo: 'Purchase invoice',
+    });
+    if (Number(invoice.paidAmount) > 0) {
+      events.push({
+        date: invoice.issueDate,
+        type: 'payment',
+        ref: invoice.invoiceNumber,
+        debit: round2(invoice.paidAmount),
+        credit: 0,
+        memo: 'Invoice payment',
+      });
+    }
+  }
+  for (const payment of payments) {
+    events.push({
+      date: payment.date,
+      type: 'payment',
+      ref: payment.voucherNumber,
+      debit: round2(payment.amount),
+      credit: 0,
+      memo: payment.description || 'Payment voucher',
+    });
+  }
+  for (const expense of expenses) {
+    const amount = round2(expense.totalAmount || (Number(expense.amount || 0) + Number(expense.taxAmount || 0)));
+    events.push({
+      date: expense.expenseDate,
+      type: 'expense',
+      ref: expense.expenseNumber,
+      debit: expense.status === 'paid' ? amount : 0,
+      credit: amount,
+      memo: expense.description || 'Expense',
+    });
+  }
+  events.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  let running = 0;
+  let openingBalance = 0;
+  const lines = [];
+  for (const event of events) {
+    running = round2(running + event.credit - event.debit);
+    if (new Date(event.date) < start) {
+      openingBalance = running;
+      continue;
+    }
+    lines.push({ ...event, balance: running });
+  }
+
+  return {
+    supplier,
+    from: start,
+    to: end,
+    openingBalance,
+    closingBalance: lines.length ? lines[lines.length - 1].balance : openingBalance,
+    lines,
+  };
+}
+
 export default {
   ensureDefaultChartOfAccounts,
   createJournalEntry,
@@ -1042,4 +1137,5 @@ export default {
   buildCustomerAccountReport,
   buildCustomerSummaryReport,
   buildSupplierSummaryReport,
+  buildSupplierAccountReport,
 };

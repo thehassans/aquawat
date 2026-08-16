@@ -70,6 +70,7 @@ export default function PurchaseOrderForm() {
     { type: 'insurance', amount: '', description: '' },
     { type: 'other', amount: '', description: '' },
   ])
+  const [includeLandedCost, setIncludeLandedCost] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(null)
   const [supplierForm, setSupplierForm] = useState({
     code: '',
@@ -315,6 +316,7 @@ export default function PurchaseOrderForm() {
         amount: byType[row.type]?.amount ?? row.amount,
         description: byType[row.type]?.description || row.description,
       })))
+      setIncludeLandedCost((existingLc.costLines || []).some((line) => Number(line.amount) > 0))
     }
   }, [order, reset, tenant?.settings?.currency])
 
@@ -426,9 +428,11 @@ export default function PurchaseOrderForm() {
     }
     saveMutation.mutate({
       ...cleaned,
-      landedCostLines: landedCostLines
-        .map((line) => ({ ...line, amount: Number(line.amount || 0) }))
-        .filter((line) => line.amount > 0),
+      landedCostLines: includeLandedCost
+        ? landedCostLines
+          .map((line) => ({ ...line, amount: Number(line.amount || 0) }))
+          .filter((line) => line.amount > 0)
+        : [],
     })
   }
 
@@ -1136,36 +1140,56 @@ export default function PurchaseOrderForm() {
           transition={{ delay: 0.06 }}
           className={`${shell} p-5 sm:p-6`}
         >
-          <div className="mb-5 border-b border-slate-100 pb-4 dark:border-white/[0.08]">
-            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-              {language === 'ar' ? 'التكلفة المرسية' : 'Landed cost'}
-            </p>
-            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+          <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white/[0.08]">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                {language === 'ar' ? 'التكلفة المرسية' : 'Landed cost'}
+              </p>
+              <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+                {language === 'ar'
+                  ? 'اختياري — الشحن والجمارك والتأمين تُوزَّع على بنود البضاعة عند الترحيل'
+                  : 'Optional — freight, customs, and insurance allocate onto goods when posted'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIncludeLandedCost((prev) => !prev)}
+              disabled={isLocked}
+              className={`${includeLandedCost ? primaryBtn : ghostBtn} px-3.5 py-2 text-[12px]`}
+            >
+              {includeLandedCost
+                ? (language === 'ar' ? 'إخفاء' : 'Hide')
+                : (language === 'ar' ? 'إضافة تكلفة مرسية' : 'Add landed cost')}
+            </button>
+          </div>
+          {includeLandedCost ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {landedCostLines.map((line, index) => (
+                <label key={line.type} className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  {line.type === 'freight' ? (language === 'ar' ? 'شحن' : 'Freight')
+                    : line.type === 'customs_duty' ? (language === 'ar' ? 'جمارك' : 'Customs')
+                      : line.type === 'insurance' ? (language === 'ar' ? 'تأمين' : 'Insurance')
+                        : (language === 'ar' ? 'أخرى' : 'Other')}
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={line.amount}
+                    disabled={isLocked}
+                    placeholder="0.00"
+                    onChange={(e) => setLandedCostLines((prev) => prev.map((row, i) => (i === index ? { ...row, amount: e.target.value } : row)))}
+                    className="input mt-1.5 font-normal normal-case tracking-normal"
+                  />
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[13px] text-slate-400">
               {language === 'ar'
-                ? 'الشحن والجمارك والتأمين تُوزَّع على بنود البضاعة عند الترحيل'
-                : 'Freight, customs, and insurance are allocated onto goods when posted'}
+                ? 'يمكنك حفظ الطلب بدون تكلفة مرسية وإضافتها لاحقاً من صفحة التكاليف المرسية.'
+                : 'Save the order without landed cost, or add it later from Landed cost.'}
             </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {landedCostLines.map((line, index) => (
-              <label key={line.type} className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                {line.type === 'freight' ? (language === 'ar' ? 'شحن' : 'Freight')
-                  : line.type === 'customs_duty' ? (language === 'ar' ? 'جمارك' : 'Customs')
-                    : line.type === 'insurance' ? (language === 'ar' ? 'تأمين' : 'Insurance')
-                      : (language === 'ar' ? 'أخرى' : 'Other')}
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={line.amount}
-                  disabled={isLocked}
-                  placeholder="0.00"
-                  onChange={(e) => setLandedCostLines((prev) => prev.map((row, i) => (i === index ? { ...row, amount: e.target.value } : row)))}
-                  className="input mt-1.5 font-normal normal-case tracking-normal"
-                />
-              </label>
-            ))}
-          </div>
+          )}
         </motion.div>
 
         <motion.div
