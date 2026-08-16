@@ -156,6 +156,91 @@ export default function GrnList() {
               {language === 'ar' ? 'إشعار استلام جديد' : 'New GRN'}
             </Link>
           </div>
+        ) : isPoView && activeFilter.bucket === 'delayed' ? (
+          <div className="divide-y divide-slate-100 dark:divide-white/[0.06]">
+            {rows.map((row) => {
+              const href = `${PURCHASES_PATH.grn}/${row.grnId || row._id}`
+              const delayLines = Array.isArray(row.delayLines) ? row.delayLines : []
+              return (
+                <div key={`${row.kind}-${row._id}`} className="px-5 py-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-mono text-[13px] font-semibold text-slate-900 dark:text-white">
+                          {row.grnNumber || row.poNumber}
+                        </p>
+                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${STATUS_PILL.delayed}`}>
+                          {language === 'ar' ? 'متأخر' : 'Delayed'}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[12px] text-slate-500">
+                        {row.poNumber ? `${row.poNumber} · ` : ''}
+                        {partyName(row.supplierId, language)}
+                        <span className="mx-1.5 text-slate-300">·</span>
+                        {warehouseName(row.warehouseId, language)}
+                        <span className="mx-1.5 text-slate-300">·</span>
+                        {language === 'ar' ? 'متبقي' : 'Remaining'} {row.remainingQty}
+                      </p>
+                    </div>
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      {row.purchaseOrderId ? (
+                        <Link
+                          to={`${PURCHASES_PATH.orders}/${row.purchaseOrderId}`}
+                          className={ghostBtn.replace('px-3.5 py-2.5', 'px-3 py-1.5 text-[12px]')}
+                        >
+                          {language === 'ar' ? 'الطلب' : 'PO'}
+                        </Link>
+                      ) : null}
+                      <Link to={href} className={ghostBtn.replace('px-3.5 py-2.5', 'px-3 py-1.5 text-[12px]')}>
+                        {language === 'ar' ? 'فتح' : 'Open'}
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    {delayLines.length === 0 ? (
+                      <p className="text-[13px] text-slate-400">
+                        {language === 'ar' ? 'لا توجد تفاصيل تأخير' : 'No delay details'}
+                      </p>
+                    ) : delayLines.map((line, index) => (
+                      <div
+                        key={`${row._id}-${index}`}
+                        className="rounded-xl border border-amber-200/70 bg-amber-50/50 px-3.5 py-3 dark:border-amber-500/20 dark:bg-amber-500/[0.06]"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-[13px] font-medium text-slate-900 dark:text-white">
+                              {line.productName || (language === 'ar' ? 'بند' : 'Line')}
+                            </p>
+                            <p className="mt-0.5 text-[12px] tabular-nums text-slate-500">
+                              {language === 'ar' ? 'الكمية' : 'Qty'} {line.quantityOrdered}
+                              <span className="mx-2 text-slate-300">·</span>
+                              {language === 'ar' ? 'حتى' : 'Until'} {formatDay(line.delayedUntil, language)}
+                            </p>
+                          </div>
+                          <Money value={Number(line.quantityOrdered || 0) * Number(line.costPrice || 0)} />
+                        </div>
+                        {line.delayReason ? (
+                          <p className="mt-2 text-[13px] text-slate-700 dark:text-slate-200">
+                            <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
+                              {language === 'ar' ? 'السبب' : 'Reason'}
+                            </span>
+                            <span className="ms-2">{line.delayReason}</span>
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-[12px] text-slate-400">
+                            {language === 'ar' ? 'بدون سبب مسجّل' : 'No reason recorded'}
+                          </p>
+                        )}
+                        {line.notes ? (
+                          <p className="mt-1 text-[13px] leading-6 text-slate-600 dark:text-slate-300">{line.notes}</p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         ) : isPoView ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">

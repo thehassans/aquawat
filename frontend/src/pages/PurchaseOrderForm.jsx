@@ -33,11 +33,13 @@ import ProductTypeToggle from '../components/ui/ProductTypeToggle'
 import PremiumFileDrop from '../components/ui/PremiumFileDrop'
 import { normalizeProductType, productPickerLabel } from '../lib/productType'
 import { computePurchaseLineTotals } from '../lib/purchaseLineTotals'
+import PurchaseReceivingLedger from './purchases/PurchaseReceivingLedger'
 
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
   received: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
   partially_received: 'bg-amber-50 text-amber-700 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
+  delayed: 'bg-amber-50 text-amber-800 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
   cancelled: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
   approved: 'bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10',
   sent: 'bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10',
@@ -633,6 +635,11 @@ export default function PurchaseOrderForm() {
                 >
                   {statusLabel(order.status)}
                 </span>
+                {order.receivingLedger?.delayedCount > 0 && (
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${STATUS_PILL.delayed}`}>
+                    {language === 'ar' ? `متأخر · ${order.receivingLedger.delayedCount}` : `Delayed · ${order.receivingLedger.delayedCount}`}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -784,6 +791,10 @@ export default function PurchaseOrderForm() {
             })}
           </div>
         </div>
+      )}
+
+      {isEdit && order && (
+        <PurchaseReceivingLedger order={order} language={language} />
       )}
 
       <form id="po-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">

@@ -13,7 +13,7 @@ import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer, readUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
 import { confirmGrnReceive, generateGrnNumber, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
-import { computePurchaseLineTotals } from '../services/purchasesLogic.js';
+import { computePurchaseLineTotals, buildPoReceivingLedger } from '../services/purchasesLogic.js';
 
 const router = express.Router();
 
@@ -193,7 +193,12 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
     }
 
     const [grns, returns, landedCosts, invoices] = await Promise.all([
-      GRN.find({ ...req.tenantFilter, purchaseOrderId: order._id }).select('grnNumber status dateReceived warehouseId').sort('-createdAt'),
+      GRN.find({ ...req.tenantFilter, purchaseOrderId: order._id })
+        .populate('warehouseId', 'code nameEn nameAr')
+        .populate('receivedBy', 'firstName lastName name')
+        .select('grnNumber status dateReceived createdAt warehouseId receivedBy notes lines')
+        .sort('-createdAt')
+        .lean(),
       PurchaseReturn.find({ ...req.tenantFilter, purchaseOrderId: order._id }).select('returnNumber status dateReturned').sort('-createdAt'),
       LandedCost.find({ ...req.tenantFilter, purchaseOrder: order._id, isActive: true }).select('lcNumber status totalCost costLines').sort('-createdAt'),
       Invoice.find({ ...req.tenantFilter, sourcePurchaseOrderId: order._id, flow: 'purchase' }).select('invoiceNumber status grandTotal issueDate').sort('-createdAt'),
@@ -201,6 +206,7 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
 
     const payload = order.toObject({ depopulate: false, virtuals: false });
     payload.related = { grns, returns, landedCosts, invoices };
+    payload.receivingLedger = buildPoReceivingLedger({ lineItems: payload.lineItems, grns });
     res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });

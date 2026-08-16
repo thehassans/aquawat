@@ -12,7 +12,7 @@ import {
   resolveWarehouse,
   PurchasesValidationError,
 } from '../services/purchasesWorkflow.js';
-import { toNumber, buildOpenReceiveLines, summarizeOpenPo } from '../services/purchasesLogic.js';
+import { toNumber, buildOpenReceiveLines, summarizeOpenPo, assertDelayedLines } from '../services/purchasesLogic.js';
 
 const router = express.Router();
 router.use(protect);
@@ -57,6 +57,19 @@ function normalizeGrnLines(lines = []) {
     delayReason: line.delayReason || '',
     notes: line.notes || '',
   }));
+}
+
+function mapDelayLines(lines = []) {
+  return (Array.isArray(lines) ? lines : [])
+    .filter((line) => line.isDelayed)
+    .map((line) => ({
+      productName: line.productName || '',
+      quantityOrdered: toNumber(line.quantityOrdered),
+      delayedUntil: line.delayedUntil || null,
+      delayReason: line.delayReason || '',
+      notes: line.notes || '',
+      costPrice: toNumber(line.costPrice),
+    }));
 }
 
 async function loadOpenPo(tenantFilter, purchaseOrderId) {
@@ -198,11 +211,17 @@ router.get('/upcoming', checkPermission('supply_chain', 'read'), async (req, res
       .sort({ expectedDate: 1, createdAt: 1 });
 
     const delayedRows = delayedGrns.map((grn) => {
-      const delayedLines = (grn.lines || []).filter((line) => line.isDelayed);
-      if (!delayedLines.length) return null;
-      const haystack = `${grn.grnNumber || ''} ${grn.purchaseOrderId?.poNumber || ''} ${grn.supplierId?.nameEn || ''} ${grn.supplierId?.nameAr || ''}`.toLowerCase();
+      const delayLines = mapDelayLines(grn.lines);
+      if (!delayLines.length) return null;
+      const haystack = [
+        grn.grnNumber,
+        grn.purchaseOrderId?.poNumber,
+        grn.supplierId?.nameEn,
+        grn.supplierId?.nameAr,
+        ...delayLines.map((line) => `${line.productName} ${line.delayReason} ${line.notes}`),
+      ].join(' ').toLowerCase();
       if (search && !haystack.includes(search.toLowerCase())) return null;
-      const nextDate = delayedLines
+      const nextDate = delayLines
         .map((line) => line.delayedUntil)
         .filter(Boolean)
         .sort((a, b) => new Date(a) - new Date(b))[0] || grn.expectedDate;
@@ -216,11 +235,12 @@ router.get('/upcoming', checkPermission('supply_chain', 'read'), async (req, res
         supplierId: grn.supplierId,
         warehouseId: grn.warehouseId,
         expectedDate: nextDate,
-        remainingQty: delayedLines.length,
-        remainingValue: delayedLines.reduce((sum, line) => sum + toNumber(line.quantityOrdered) * toNumber(line.costPrice), 0),
-        lineCount: delayedLines.length,
+        remainingQty: delayLines.reduce((sum, line) => sum + toNumber(line.quantityOrdered), 0),
+        remainingValue: delayLines.reduce((sum, line) => sum + toNumber(line.quantityOrdered) * toNumber(line.costPrice), 0),
+        lineCount: delayLines.length,
         status: 'delayed',
         delayed: true,
+        delayLines,
       };
     }).filter(Boolean);
 
@@ -252,6 +272,7 @@ router.post('/', checkPermission('supply_chain', 'create'), async (req, res) => 
     if (!supplierId) return res.status(400).json({ error: 'supplierId is required' });
     const normalized = normalizeGrnLines(lines);
     if (!normalized.length) return res.status(400).json({ error: 'At least one line is required' });
+    assertDelayedLines(normalized);
 
     let po = null;
     if (purchaseOrderId) {
@@ -324,7 +345,11 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
     if (notes !== undefined) grn.notes = notes;
     if (expectedDate !== undefined) grn.expectedDate = expectedDate;
     if (purchaseOrderId !== undefined) grn.purchaseOrderId = purchaseOrderId || undefined;
-    if (Array.isArray(lines)) grn.lines = normalizeGrnLines(lines);
+    if (Array.isArray(lines)) {
+      const normalized = normalizeGrnLines(lines);
+      assertDelayedLines(normalized);
+      grn.lines = normalized;
+    }
     await grn.save();
     res.json(grn);
   } catch (error) {
@@ -337,6 +362,7 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
     const grn = await GRN.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
     if (!grn) return res.status(404).json({ error: 'GRN not found' });
     if (grn.status === 'cancelled') return res.status(400).json({ error: 'Cannot receive a cancelled GRN' });
+    assertDelayedLines(grn.lines);
     const warehouseId = req.body.warehouseId || grn.warehouseId;
     if (warehouseId) {
       const warehouse = await resolveWarehouse(req.tenantFilter, warehouseId);

@@ -67,6 +67,95 @@ export function summarizeOpenPo(po) {
   };
 }
 
+export function assertDelayedLines(lines = []) {
+  for (const line of Array.isArray(lines) ? lines : []) {
+    if (!line?.isDelayed) continue;
+    if (!String(line.delayReason || '').trim()) {
+      throw new PurchasesValidationError('Each delayed line needs a delay reason', 'DELAY_REASON_REQUIRED');
+    }
+  }
+}
+
+function idOf(value) {
+  if (value == null || value === '') return '';
+  if (typeof value === 'object' && value._id) return String(value._id);
+  return String(value);
+}
+
+function nameSet(values) {
+  return new Set(
+    (Array.isArray(values) ? values : [])
+      .map((value) => String(value || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+export function buildPoReceivingLedger({ lineItems = [], grns = [] } = {}) {
+  const lines = (Array.isArray(lineItems) ? lineItems : []).map((li, index) => {
+    const product = li?.productId && typeof li.productId === 'object' ? li.productId : null;
+    return {
+      index,
+      productId: idOf(product || li?.productId),
+      sku: product?.sku || '',
+      productName: product?.nameEn || li?.manualName || li?.description || '',
+      productNameAr: product?.nameAr || li?.manualName || li?.description || '',
+      uom: li?.uom || product?.unitOfMeasure || '',
+      quantityOrdered: toNumber(li?.quantityOrdered ?? li?.quantity),
+      quantityReceived: toNumber(li?.quantityReceived),
+      remaining: remainingReceivable(li),
+      names: nameSet([product?.nameEn, product?.nameAr, li?.manualName, li?.description]),
+      receivedEvents: [],
+      delayedEvents: [],
+    };
+  });
+
+  const unmatched = [];
+  for (const grn of Array.isArray(grns) ? grns : []) {
+    if (grn?.status === 'cancelled') continue;
+    for (const line of Array.isArray(grn?.lines) ? grn.lines : []) {
+      const event = {
+        grnId: grn._id,
+        grnNumber: grn.grnNumber || '',
+        date: grn.dateReceived || grn.createdAt || null,
+        warehouse: grn.warehouseId || null,
+        productName: line.productName || '',
+        quantity: toNumber(line.isDelayed ? line.quantityOrdered : line.quantityReceived),
+        quantityReceived: toNumber(line.quantityReceived),
+        quantityOrdered: toNumber(line.quantityOrdered),
+        isDelayed: Boolean(line.isDelayed),
+        delayedUntil: line.delayedUntil || null,
+        delayReason: String(line.delayReason || '').trim(),
+        notes: String(line.notes || '').trim(),
+        status: grn.status,
+      };
+      const pid = idOf(line.productId);
+      const pname = String(line.productName || '').trim().toLowerCase();
+      const match = lines.find((row) =>
+        (pid && row.productId && pid === String(row.productId))
+        || (pname && row.names.has(pname))
+      );
+      if (!match) {
+        unmatched.push(event);
+        continue;
+      }
+      if (event.isDelayed) match.delayedEvents.push(event);
+      else if (event.quantityReceived > 0) match.receivedEvents.push(event);
+    }
+  }
+
+  const displayLines = lines.map(({ names, ...rest }) => rest);
+  const delayedCount = displayLines.reduce((sum, row) => sum + row.delayedEvents.length, 0);
+  const receivedCount = displayLines.reduce((sum, row) => sum + row.receivedEvents.length, 0);
+
+  return {
+    lines: displayLines,
+    unmatched,
+    delayedCount,
+    receivedCount,
+    hasActivity: delayedCount + receivedCount + unmatched.length > 0,
+  };
+}
+
 export function remainingReturnable(line = {}) {
   return Math.max(0, toNumber(line.quantityReceived) - toNumber(line.quantityReturned));
 }

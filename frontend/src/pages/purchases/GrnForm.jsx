@@ -189,20 +189,35 @@ export default function GrnForm() {
     queryClient.invalidateQueries({ queryKey: ['grn', id] })
     queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
     queryClient.invalidateQueries({ queryKey: ['purchase-orders-open'] })
+    queryClient.invalidateQueries({ queryKey: ['purchase-order'] })
+  }
+
+  const guardDelayDetails = () => {
+    const missing = (payload.lines || []).some((line) => line.isDelayed && !String(line.delayReason || '').trim())
+    if (!missing) return true
+    toast.error(language === 'ar' ? 'كل بند متأخر يحتاج سبب التأخير' : 'Each delayed line needs a delay reason')
+    return false
   }
 
   const saveMutation = useMutation({
-    mutationFn: () => (isEdit ? api.put(`/grn/${id}`, payload) : api.post('/grn', payload)),
-    onSuccess: (res) => {
+    mutationFn: () => {
+      if (!guardDelayDetails()) throw new Error('DELAY_REASON_REQUIRED')
+      return isEdit ? api.put(`/grn/${id}`, payload) : api.post('/grn', payload)
+    },
+    onSuccess: () => {
       toast.success(language === 'ar' ? 'تم الحفظ' : 'Saved')
       invalidate()
       navigate(PURCHASES_PATH.grn, { replace: true })
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: (err) => {
+      if (err?.message === 'DELAY_REASON_REQUIRED') return
+      toast.error(err.response?.data?.error || 'Error')
+    },
   })
 
   const receiveMutation = useMutation({
     mutationFn: async () => {
+      if (!guardDelayDetails()) throw new Error('DELAY_REASON_REQUIRED')
       let grnId = id
       if (!isEdit) {
         const created = await api.post('/grn', payload)
@@ -218,7 +233,10 @@ export default function GrnForm() {
       invalidate()
       navigate(PURCHASES_PATH.grn, { replace: true })
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: (err) => {
+      if (err?.message === 'DELAY_REASON_REQUIRED') return
+      toast.error(err.response?.data?.error || 'Error')
+    },
   })
 
   const completeMutation = useMutation({
@@ -455,7 +473,7 @@ export default function GrnForm() {
                   : (language === 'ar' ? 'خدمة — بدون مخزون' : 'Service — no stock movement')}
                 {line.remaining ? ` · ${language === 'ar' ? 'المتبقي' : 'Remaining'} ${line.remaining}` : ''}
               </p>
-              <div className="mt-4 grid gap-3 rounded-xl bg-slate-50/80 p-3 dark:bg-white/[0.03] sm:grid-cols-3">
+              <div className={`mt-4 rounded-xl p-3.5 ${line.isDelayed ? 'border border-amber-200/80 bg-amber-50/70 dark:border-amber-500/20 dark:bg-amber-500/[0.06]' : 'bg-slate-50/80 dark:bg-white/[0.03]'}`}>
                 <label className="flex items-center gap-2 text-[13px] font-medium text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
@@ -464,34 +482,53 @@ export default function GrnForm() {
                     onChange={(e) => updateLine(index, { isDelayed: e.target.checked })}
                   />
                   <Clock3 className="h-4 w-4 text-amber-600" />
-                  {language === 'ar' ? 'تأخير البند' : 'Delay item'}
+                  {language === 'ar' ? 'تأخير هذا البند' : 'Delay this line'}
                 </label>
                 {line.isDelayed && (
-                  <>
-                    <input
-                      type="date"
-                      value={line.delayedUntil}
-                      disabled={locked}
-                      onChange={(e) => updateLine(index, { delayedUntil: e.target.value })}
-                      className={fieldControlClass}
-                    />
-                    <input
-                      value={line.delayReason}
-                      disabled={locked}
-                      placeholder={language === 'ar' ? 'سبب التأخير' : 'Delay reason'}
-                      onChange={(e) => updateLine(index, { delayReason: e.target.value })}
-                      className={fieldControlClass}
-                    />
-                  </>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="text-[11px] font-medium text-slate-500">
+                      {language === 'ar' ? 'مؤجل حتى' : 'Delayed until'}
+                      <input
+                        type="date"
+                        value={line.delayedUntil}
+                        disabled={locked}
+                        onChange={(e) => updateLine(index, { delayedUntil: e.target.value })}
+                        className={`mt-1.5 ${fieldControlClass}`}
+                      />
+                    </label>
+                    <label className="text-[11px] font-medium text-slate-500">
+                      {language === 'ar' ? 'سبب التأخير' : 'Delay reason'}
+                      <input
+                        value={line.delayReason}
+                        disabled={locked}
+                        placeholder={language === 'ar' ? 'جمارك، ناقلة، نقص المورد…' : 'Customs, carrier, supplier shortage…'}
+                        onChange={(e) => updateLine(index, { delayReason: e.target.value })}
+                        className={`mt-1.5 ${fieldControlClass}`}
+                      />
+                    </label>
+                    <label className="text-[11px] font-medium text-slate-500 sm:col-span-2">
+                      {language === 'ar' ? 'ملاحظة التأخير' : 'Delay notes'}
+                      <textarea
+                        rows={2}
+                        value={line.notes}
+                        disabled={locked}
+                        placeholder={language === 'ar' ? 'تفاصيل هذا التأخير لهذا البند فقط' : 'Detail for this delayed line only'}
+                        onChange={(e) => updateLine(index, { notes: e.target.value })}
+                        className={`mt-1.5 ${fieldControlClass}`}
+                      />
+                    </label>
+                  </div>
                 )}
               </div>
-              <input
-                value={line.notes}
-                disabled={locked}
-                placeholder={language === 'ar' ? 'ملاحظة إضافية لهذا البند' : 'Extra note for this line'}
-                onChange={(e) => updateLine(index, { notes: e.target.value })}
-                className={`mt-3 ${fieldControlClass}`}
-              />
+              {!line.isDelayed && (
+                <input
+                  value={line.notes}
+                  disabled={locked}
+                  placeholder={language === 'ar' ? 'ملاحظة إضافية لهذا البند' : 'Extra note for this line'}
+                  onChange={(e) => updateLine(index, { notes: e.target.value })}
+                  className={`mt-3 ${fieldControlClass}`}
+                />
+              )}
               {!locked && lines.length > 1 && (
                 <button type="button" onClick={() => setLines((prev) => prev.filter((_, i) => i !== index))} className={`${dangerBtn} mt-3`}>
                   <Trash2 className="h-4 w-4" />

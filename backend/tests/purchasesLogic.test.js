@@ -12,6 +12,8 @@ import {
   computePurchaseLineTotals,
   buildOpenReceiveLines,
   summarizeOpenPo,
+  assertDelayedLines,
+  buildPoReceivingLedger,
 } from '../services/purchasesLogic.js';
 
 const poLines = () => ([
@@ -100,4 +102,41 @@ test('open receive lines skip fully received qty and keep remaining cost', () =>
   assert.equal(summary.remainingQty, 6);
   assert.equal(summary.remainingValue, 72);
   assert.equal(buildOpenReceiveLines({ lineItems: summary.lines }).length, 1);
+});
+
+test('each delayed GRN line must have its own delay reason', () => {
+  assert.doesNotThrow(() => assertDelayedLines([
+    { isDelayed: true, delayReason: 'Customs hold' },
+    { isDelayed: false },
+  ]));
+  assert.throws(
+    () => assertDelayedLines([{ isDelayed: true, delayReason: '  ' }]),
+    (err) => err instanceof PurchasesValidationError && err.code === 'DELAY_REASON_REQUIRED'
+  );
+});
+
+test('PO receiving ledger keeps a reason and note per delayed line', () => {
+  const ledger = buildPoReceivingLedger({
+    lineItems: [
+      { productId: { _id: 'g1', nameEn: 'Gloves', nameAr: 'قفازات' }, quantityOrdered: 10, quantityReceived: 4 },
+      { productId: { _id: 'g2', nameEn: 'Helmet' }, quantityOrdered: 2, quantityReceived: 0 },
+    ],
+    grns: [{
+      _id: 'grn1',
+      grnNumber: 'GRN-1',
+      status: 'received',
+      dateReceived: '2026-08-16',
+      lines: [
+        { productId: 'g1', productName: 'Gloves', quantityReceived: 4, isDelayed: false },
+        { productId: 'g1', productName: 'Gloves', quantityOrdered: 3, quantityReceived: 0, isDelayed: true, delayedUntil: '2026-08-20', delayReason: 'Harmoz', notes: 'Waiting on next vessel' },
+        { productId: 'g2', productName: 'Helmet', quantityOrdered: 2, quantityReceived: 0, isDelayed: true, delayedUntil: '2026-08-22', delayReason: 'Supplier shortage', notes: 'Partial crate' },
+      ],
+    }],
+  });
+  assert.equal(ledger.receivedCount, 1);
+  assert.equal(ledger.delayedCount, 2);
+  assert.equal(ledger.lines[0].receivedEvents[0].quantity, 4);
+  assert.equal(ledger.lines[0].delayedEvents[0].delayReason, 'Harmoz');
+  assert.equal(ledger.lines[0].delayedEvents[0].notes, 'Waiting on next vessel');
+  assert.equal(ledger.lines[1].delayedEvents[0].delayReason, 'Supplier shortage');
 });
