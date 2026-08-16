@@ -217,6 +217,13 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
         return;
       }
 
+      // *** CRITICAL FIX: Strip all embedded <style> tags from the receipt element's outerHTML.
+      // The ThermalReceipt component embeds a print stylesheet with
+      // "body * { visibility: hidden !important; }" which is designed for window.print()
+      // isolation. Inside our clean iframe, this CSS hides ALL content → blank white page.
+      // We inject our own comprehensive clean CSS below, so the embedded styles are not needed.
+      contentHtml = contentHtml.replace(/<style[\s\S]*?<\/style>/gi, '');
+
       // Remove any existing print iframes
       const existingIframe = document.getElementById('maqder-thermal-print-frame');
       if (existingIframe) {
@@ -386,10 +393,11 @@ export function getPrintCss(className, settings) {
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
         opacity: 1 !important;
+        visibility: visible !important;
       }
-      body * { visibility: hidden !important; }
-      .${className}, .${className} * { visibility: visible !important; }
-      .${className} { position: absolute; left: 0; top: 0; }
+      /* NOTE: Do NOT add "body * { visibility: hidden }" here.
+         That rule is only valid for window.print() page isolation.
+         When used inside printThermalElement (iframe), it hides all content → blank page. */
     }
   `;
 }

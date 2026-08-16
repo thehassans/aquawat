@@ -162,21 +162,20 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
         {`
           ${pageCss}
           @page { margin: 0; }
-          body { margin: 0; padding: 0; background: white; color: black; }
+          html, body { margin: 0; padding: 0; background: #ffffff !important; color: #000000 !important; }
           .print-section {
             width: 100% !important;
             max-width: 100% !important;
             border: none !important;
+            box-shadow: none !important;
             visibility: visible !important;
+            display: block !important;
           }
-          .print-section * {
-            visibility: visible !important;
-          }
-          ${printCss}
           .print-section, .print-section * {
             color: #000000 !important;
             -webkit-text-fill-color: #000000 !important;
             opacity: 1 !important;
+            visibility: visible !important;
           }
           ::-webkit-scrollbar { display: none; }
         `}
