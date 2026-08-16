@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, Fragment } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import Select from 'react-select'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
@@ -28,7 +29,7 @@ import { autoTranslateText } from '../lib/builtInTranslator'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
-import { getAvailableUomOptions } from '../lib/uomOptions'
+import { getAvailableUomOptions, getUomLabel } from '../lib/uomOptions'
 import ProductTypeToggle from '../components/ui/ProductTypeToggle'
 import PremiumFileDrop from '../components/ui/PremiumFileDrop'
 import { normalizeProductType, productPickerLabel } from '../lib/productType'
@@ -1140,13 +1141,25 @@ export default function PurchaseOrderForm() {
 
                     <div className="lg:col-span-2">
                       <label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
-                      <select {...register(`lineItems.${index}.uom`)} className="select" disabled={isLocked}>
-                        {uomOptions.map((uom) => (
-                          <option key={uom.code} value={uom.code}>
-                            {language === 'ar' ? uom.labelAr : uom.labelEn}
-                          </option>
-                        ))}
-                      </select>
+                      <Select
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        isDisabled={isLocked}
+                        value={
+                          watch(`lineItems.${index}.uom`)
+                            ? {
+                                value: watch(`lineItems.${index}.uom`),
+                                label: getUomLabel(watch(`lineItems.${index}.uom`), language)
+                              }
+                            : { value: 'PCE', label: getUomLabel('PCE', language) }
+                        }
+                        onChange={(option) => setValue(`lineItems.${index}.uom`, option ? option.value : 'PCE', { shouldValidate: true })}
+                        options={uomOptions.map((uom) => ({
+                          value: uom.code,
+                          label: language === 'ar' ? uom.labelAr : uom.labelEn
+                        }))}
+                        isSearchable
+                      />
                     </div>
 
                     <div className="lg:col-span-1">

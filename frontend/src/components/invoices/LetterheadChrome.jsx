@@ -18,6 +18,10 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
   const crAr = toEasternArabicNumerals(contact.crNumber)
   const vatAr = toEasternArabicNumerals(contact.vatNumber)
   const addressAr = toEasternArabicNumerals(contact.addressAr)
+  const invoiceBranding = tenant?.settings?.invoiceBranding || {}
+  const logoHeight = invoiceBranding.logoSize || 112 // 112px default
+  const headingFontSize = invoiceBranding.headingSize || 24 // 24px default
+  const isSingleLine = invoiceBranding.singleLineHeading || false
 
   return (
     <div data-letterhead-root className={`relative mx-auto flex min-h-[297mm] w-full max-w-4xl flex-col overflow-hidden bg-white text-gray-900 ${className}`}>
@@ -32,10 +36,14 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
           <div className="min-w-0 w-full text-left">
             {showEn ? (
               <>
-                <h1 className="min-h-16 text-2xl font-bold leading-8 print:text-black">
-                  {nameEnLines.map((line) => (
-                    <span key={line} className="block">{line}</span>
-                  ))}
+                <h1 className="min-h-16 font-bold leading-8 print:text-black" style={{ fontSize: `${headingFontSize}px` }}>
+                  {isSingleLine ? (
+                    <span className="block">{contact.companyEn || '—'}</span>
+                  ) : (
+                    nameEnLines.map((line) => (
+                      <span key={line} className="block">{line}</span>
+                    ))
+                  )}
                 </h1>
                 <div className="mt-1 space-y-1 text-sm font-bold leading-5">
                   {contact.crNumber ? <p>C.R # : {contact.crNumber}</p> : null}
@@ -47,7 +55,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
 
           <div className="flex items-center justify-center self-center px-2">
             {logoSrc ? (
-              <img src={logoSrc} alt="Logo" className="h-28 w-auto max-w-[200px] object-contain" />
+              <img src={logoSrc} alt="Logo" className="w-auto max-w-[200px] object-contain" style={{ height: `${logoHeight}px` }} />
             ) : (
               <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary-100">
                 <Building2 className="h-8 w-8 text-primary-600" />
@@ -58,10 +66,14 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
           <div className="min-w-0 w-full text-right font-['Almarai']" dir="rtl">
             {showAr ? (
               <>
-                <h1 className="min-h-16 w-full text-2xl font-bold leading-8 print:text-black">
-                  {nameArLines.map((line) => (
-                    <span key={line} className="block">{line}</span>
-                  ))}
+                <h1 className="min-h-16 w-full font-bold leading-8 print:text-black" style={{ fontSize: `${headingFontSize}px` }}>
+                  {isSingleLine ? (
+                    <span className="block">{contact.companyAr}</span>
+                  ) : (
+                    nameArLines.map((line) => (
+                      <span key={line} className="block">{line}</span>
+                    ))
+                  )}
                 </h1>
                 <div className="mt-1 w-full space-y-1 text-sm font-bold leading-5">
                   {contact.crNumber ? <p>س.ت : {crAr}</p> : null}

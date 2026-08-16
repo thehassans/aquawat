@@ -852,16 +852,24 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     )}
                     <div className="md:col-span-2">
                       <label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
-                      <select
-                        {...register(`lineItems.${index}.unitCode`)}
-                        className="select"
-                      >
-                        {getAvailableUomOptions(tenant).map((uom) => (
-                          <option key={uom.code} value={uom.code}>
-                            {language === 'ar' ? uom.labelAr : uom.labelEn}
-                          </option>
-                        ))}
-                      </select>
+                      <Select
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        value={
+                          watch(`lineItems.${index}.unitCode`)
+                            ? {
+                                value: watch(`lineItems.${index}.unitCode`),
+                                label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
+                              }
+                            : { value: 'PCE', label: getUomLabel('PCE', language) }
+                        }
+                        onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : 'PCE', { shouldValidate: true })}
+                        options={getAvailableUomOptions(tenant).map((uom) => ({
+                          value: uom.code,
+                          label: language === 'ar' ? uom.labelAr : uom.labelEn
+                        }))}
+                        isSearchable
+                      />
                     </div>
                     <div className="md:col-span-1">
                       <label htmlFor={`qty-${index}`} className="label">{t('quantity')}</label>

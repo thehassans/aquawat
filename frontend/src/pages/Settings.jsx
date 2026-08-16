@@ -266,6 +266,9 @@ export default function Settings() {
   const [invoiceHeadingFontFamily, setInvoiceHeadingFontFamily] = useState('helvetica')
   const [invoiceBodyFontSize, setInvoiceBodyFontSize] = useState(12)
   const [invoiceHeadingFontSize, setInvoiceHeadingFontSize] = useState(18)
+  const [invoiceLogoSize, setInvoiceLogoSize] = useState(112)
+  const [invoiceHeadingSize, setInvoiceHeadingSize] = useState(24)
+  const [invoiceSingleLineHeading, setInvoiceSingleLineHeading] = useState(false)
   const [showVision2030, setShowVision2030] = useState(true)
   const [vision2030LogoDataUrl, setVision2030LogoDataUrl] = useState('/saudi-vision-2030-logo.webp')
   const [invoiceBrandingProfiles, setInvoiceBrandingProfiles] = useState(() => buildInvoiceBrandingProfilesState(null))
@@ -332,6 +335,9 @@ export default function Settings() {
     setInvoiceHeaderTextAr(tenant.settings?.invoiceBranding?.headerTextAr || '')
     setInvoiceFooterTextEn(tenant.settings?.invoiceBranding?.footerTextEn || '')
     setInvoiceFooterTextAr(tenant.settings?.invoiceBranding?.footerTextAr || '')
+    setInvoiceLogoSize(tenant.settings?.invoiceBranding?.logoSize || 112)
+    setInvoiceHeadingSize(tenant.settings?.invoiceBranding?.headingSize || 24)
+    setInvoiceSingleLineHeading(tenant.settings?.invoiceBranding?.singleLineHeading || false)
     setWaAutoInvoiceSend(tenant.settings?.invoiceWhatsappAutoSend || false)
     setWaInvoiceMsgEn(tenant.settings?.invoiceWhatsappMessageEn || 'Dear customer, your invoice {{invoiceNumber}} is ready. Amount: {{total}} SAR. Link: {{link}}')
     setWaInvoiceMsgAr(tenant.settings?.invoiceWhatsappMessageAr || 'عزيزي العميل، فاتورتك رقم {{invoiceNumber}} جاهزة. المبلغ: {{total}} ريال. الرابط: {{link}}')
@@ -521,6 +527,7 @@ export default function Settings() {
 
   const tabs = [
     { id: 'hardware', label: language === 'ar' ? 'الأجهزة والطباعة' : 'Hardware & Printers', icon: Terminal },
+    { id: 'branding', label: language === 'ar' ? 'إعدادات الفواتير والخطابات' : 'Invoice & Letterhead Settings', icon: FileText },
     ...(hasRestaurant ? [{ id: 'restaurant', label: language === 'ar' ? 'إعدادات المطعم' : 'Restaurant', icon: UtensilsCrossed }] : []),
     ...(hasBakala ? [{ id: 'bakala', label: language === 'ar' ? 'إعدادات البقالة' : 'Bakala', icon: Building2 }] : []),
     ...(hasBookstore ? [{ id: 'bookstore', label: language === 'ar' ? 'إعدادات المكتبة' : 'Bookstore', icon: BookOpen }] : []),
@@ -624,6 +631,76 @@ export default function Settings() {
           {activeTab === 'carRentalApis' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6">
               <CarRentalApiSettings tenant={tenant} isAr={language === 'ar'} />
+            </motion.div>
+          )}
+
+          {activeTab === 'branding' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-6 space-y-8">
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary-500" />
+                  {language === 'ar' ? 'إعدادات الفواتير والخطابات' : 'Invoice & Letterhead Settings'}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="label">{language === 'ar' ? 'حجم الشعار (بكسل)' : 'Logo Size (px)'}</label>
+                    <input
+                      type="number"
+                      value={invoiceLogoSize}
+                      onChange={(e) => setInvoiceLogoSize(Number(e.target.value))}
+                      className="input"
+                      min="20"
+                      max="300"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">{language === 'ar' ? 'الافتراضي 112' : 'Default 112'}</p>
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'حجم النص الأساسي للترويسة (بكسل)' : 'Heading Font Size (px)'}</label>
+                    <input
+                      type="number"
+                      value={invoiceHeadingSize}
+                      onChange={(e) => setInvoiceHeadingSize(Number(e.target.value))}
+                      className="input"
+                      min="10"
+                      max="72"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">{language === 'ar' ? 'الافتراضي 24' : 'Default 24'}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={invoiceSingleLineHeading}
+                        onChange={(e) => setInvoiceSingleLineHeading(e.target.checked)}
+                        className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {language === 'ar' ? 'عرض الترويسة في سطر واحد (بجوار الشعار)' : 'Display Heading in a single line (next to logo)'}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100 dark:border-dark-700 flex justify-end">
+                <button
+                  disabled={updateMutation.isPending}
+                  onClick={() => updateMutation.mutate({
+                    settings: {
+                      ...tenant?.settings,
+                      invoiceBranding: {
+                        ...(tenant?.settings?.invoiceBranding || {}),
+                        logoSize: invoiceLogoSize,
+                        headingSize: invoiceHeadingSize,
+                        singleLineHeading: invoiceSingleLineHeading
+                      }
+                    }
+                  })}
+                  className="btn btn-primary"
+                >
+                  {updateMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Save className="w-4 h-4" /> {t('save')}</>}
+                </button>
+              </div>
             </motion.div>
           )}
 

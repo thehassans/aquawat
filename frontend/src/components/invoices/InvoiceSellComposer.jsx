@@ -1363,16 +1363,24 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     )}
                     <div className="lg:col-span-2">
                       <label htmlFor={`unit-${index}`} className={fieldLabelClass}>{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
-                      <select
-                        {...register(`lineItems.${index}.unitCode`)}
-                        className={`mt-1.5 ${fieldControlClass}`}
-                      >
-                        {getAvailableUomOptions(tenant).map((uom) => (
-                          <option key={uom.code} value={uom.code}>
-                            {language === 'ar' ? uom.labelAr : uom.labelEn}
-                          </option>
-                        ))}
-                      </select>
+                      <Select
+                        className="react-select-container mt-1.5"
+                        classNamePrefix="react-select"
+                        value={
+                          watch(`lineItems.${index}.unitCode`)
+                            ? {
+                                value: watch(`lineItems.${index}.unitCode`),
+                                label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
+                              }
+                            : { value: 'PCE', label: getUomLabel('PCE', language) }
+                        }
+                        onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : 'PCE', { shouldValidate: true })}
+                        options={getAvailableUomOptions(tenant).map((uom) => ({
+                          value: uom.code,
+                          label: language === 'ar' ? uom.labelAr : uom.labelEn
+                        }))}
+                        isSearchable
+                      />
                     </div>
                     {isTravelContext ? (
                       <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} />

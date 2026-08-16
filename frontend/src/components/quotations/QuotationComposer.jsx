@@ -860,12 +860,31 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                           />
                         </div>
                         {isTradingContext ? (
-                          <select className="select mb-2" value={values?.lineItems?.[index]?.productId || ''} onChange={(e) => onSelectProduct(index, e.target.value)}>
-                            <option value="">{language === 'ar' ? 'اختر منتج' : 'Select product'}</option>
-                            {(products || []).map((item) => (
-                              <option key={item._id} value={item._id}>{productPickerLabel(item, language)}</option>
-                            ))}
-                          </select>
+                          <div className="mb-2">
+                            <Select
+                              className="react-select-container"
+                              classNamePrefix="react-select"
+                              value={
+                                values?.lineItems?.[index]?.productId
+                                  ? {
+                                      value: values.lineItems[index].productId,
+                                      label: productPickerLabel(
+                                        (products || []).find((p) => p._id === values.lineItems[index].productId) || {},
+                                        language
+                                      )
+                                    }
+                                  : null
+                              }
+                              onChange={(option) => onSelectProduct(index, option ? option.value : '')}
+                              options={(products || []).map((item) => ({
+                                value: item._id,
+                                label: productPickerLabel(item, language)
+                              }))}
+                              placeholder={language === 'ar' ? 'ابحث عن منتج...' : 'Search for a product...'}
+                              isClearable
+                              isSearchable
+                            />
+                          </div>
                         ) : null}
                         <input {...register(`lineItems.${index}.productName`)} className="input" placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
                       </div>
@@ -893,17 +912,24 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                       </div>
                       <div className="md:col-span-3">
                         <label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
-                        <select
-                          value={watch(`lineItems.${index}.unitCode`) || 'PCE'}
-                          onChange={(e) => setValue(`lineItems.${index}.unitCode`, e.target.value)}
-                          className="select w-full"
-                        >
-                          {getAvailableUomOptions(tenant).map((uom) => (
-                            <option key={uom.code} value={uom.code}>
-                              {language === 'ar' ? uom.labelAr : uom.labelEn}
-                            </option>
-                          ))}
-                        </select>
+                        <Select
+                          className="react-select-container w-full"
+                          classNamePrefix="react-select"
+                          value={
+                            watch(`lineItems.${index}.unitCode`)
+                              ? {
+                                  value: watch(`lineItems.${index}.unitCode`),
+                                  label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
+                                }
+                              : { value: 'PCE', label: getUomLabel('PCE', language) }
+                          }
+                          onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : 'PCE')}
+                          options={getAvailableUomOptions(tenant).map((uom) => ({
+                            value: uom.code,
+                            label: language === 'ar' ? uom.labelAr : uom.labelEn
+                          }))}
+                          isSearchable
+                        />
                         <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
                       </div>
                       <div className="md:col-span-1">
