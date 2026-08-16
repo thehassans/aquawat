@@ -2,14 +2,14 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector, useDispatch } from 'react-redux';
-import { updateTenant } from '../../store/authSlice';
+import { updateTenant } from '../../store/slices/authSlice';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Check, Lock, Star, DownloadCloud, AlertTriangle, ArrowRight, Trash2, Loader2, Sliders, X } from 'lucide-react';
 import InvoiceLivePreview from '../../components/invoices/InvoiceLivePreview';
 import { formatMoneyAmount, resolveAppPrices, yearlySavingsPercent } from '../../lib/appStorePricing';
-import AppIcon from '../../components/ui/AppIcon';
+import { App3DIcon as AppIcon } from '../../components/ui/App3DIcon';
 
 export default function AppStoreDetail() {
   const { appId } = useParams();
