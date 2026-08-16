@@ -27,6 +27,8 @@ function rowDescription(row, language) {
   if (row?.type === 'invoice_payment') return language === 'ar' ? `سداد فاتورة (${row.id})` : row.desc
   return row?.desc || '—'
 }
+
+function formatDate(value, language) {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'

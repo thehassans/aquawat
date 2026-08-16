@@ -34,8 +34,8 @@ if [ -n "$COMPOSE" ]; then
     cp -f "$DEPLOY_PATH/frontend/public/updating.html" "$ERROR_DOCS/503.html" || true
     cp -f "$DEPLOY_PATH/frontend/public/updating.html" "$ERROR_DOCS/504.html" || true
   fi
-  $COMPOSE stop frontend || true
-  docker rm -f maqder_frontend || true
+  # Keep the current frontend up until the new image builds. Taking it down
+  # first leaves visitors on the holding page if npm run build fails.
   $COMPOSE up -d edge || true
   $COMPOSE up -d --build --remove-orphans
   echo "Running containers:"

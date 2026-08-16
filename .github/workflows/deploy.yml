@@ -105,24 +105,21 @@ jobs:
             exit 1
           fi
           chmod 600 "$HOME/.ssh/known_hosts" "$HOME/.ssh/plesk_deploy"
-          if ! ssh -i "$HOME/.ssh/plesk_deploy" \
+          set +e
+          ssh -i "$HOME/.ssh/plesk_deploy" \
             -o IdentitiesOnly=yes \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o ConnectTimeout=15 \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=20 \
             -p "${SSH_PORT}" \
             "${SSH_USER}@${SSH_HOST}" \
             "chmod +x /var/www/vhosts/maqder.com/httpdocs/deploy.sh && /var/www/vhosts/maqder.com/httpdocs/deploy.sh"
-          then
-            echo "SSH failed. Verbose tail (no private key):"
-            ssh -vvv -i "$HOME/.ssh/plesk_deploy" \
-              -o IdentitiesOnly=yes \
-              -o BatchMode=yes \
-              -o StrictHostKeyChecking=yes \
-              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-              -o ConnectTimeout=15 \
-              -p "${SSH_PORT}" \
-              "${SSH_USER}@${SSH_HOST}" true 2>&1 | grep -E 'Authentications|Permission denied|Host key|Could not resolve|Connection refused|Connection timed|Offering public key|Authenticated' || true
-            exit 255
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "Remote deploy.sh exited ${status} (255 usually means SSH never started the script)."
+            exit "$status"
           fi
