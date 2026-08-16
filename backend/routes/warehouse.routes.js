@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Warehouse from '../models/Warehouse.js';
 import Product from '../models/Product.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
@@ -88,12 +89,34 @@ router.get('/:id/dashboard', checkPermission('inventory', 'read'), async (req, r
     }).sort({ createdAt: -1 }).limit(10).lean();
 
     const PurchaseReturn = (await import('../models/PurchaseReturn.js')).default;
+    const Invoice = (await import('../models/Invoice.js')).default;
+
     const recentReturns = await PurchaseReturn.find({
       ...req.tenantFilter,
       warehouseId: req.params.id
     }).sort({ createdAt: -1 }).limit(10).lean();
 
-    res.json({ warehouse, inventory, upcomingPOs, recentGRNs, recentReturns });
+    const soldAggregation = await Invoice.aggregate([
+      { $match: { ...req.tenantFilter, warehouseId: new mongoose.Types.ObjectId(req.params.id), status: { $in: ['issued', 'paid', 'partially_paid'] } } },
+      { $unwind: "$lines" },
+      { $group: { _id: "$lines.productId", totalSold: { $sum: "$lines.quantity" } } }
+    ]);
+    const soldMap = soldAggregation.reduce((acc, curr) => ({ ...acc, [curr._id?.toString()]: curr.totalSold }), {});
+
+    const returnedAggregation = await PurchaseReturn.aggregate([
+      { $match: { ...req.tenantFilter, warehouseId: new mongoose.Types.ObjectId(req.params.id), status: { $in: ['completed'] } } },
+      { $unwind: "$lines" },
+      { $group: { _id: "$lines.productId", totalReturned: { $sum: "$lines.quantityReturned" } } }
+    ]);
+    const returnedMap = returnedAggregation.reduce((acc, curr) => ({ ...acc, [curr._id?.toString()]: curr.totalReturned }), {});
+
+    const enrichedInventory = inventory.map(item => ({
+      ...item,
+      totalSold: soldMap[item.product._id.toString()] || 0,
+      totalReturned: returnedMap[item.product._id.toString()] || 0
+    }));
+
+    res.json({ warehouse, inventory: enrichedInventory, upcomingPOs, recentGRNs, recentReturns });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

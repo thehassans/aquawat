@@ -90,8 +90,8 @@ export default function SupplierForm() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon">
-          <ArrowLeft className="w-5 h-5" />
+        <button onClick={() => navigate(returnTo || '/app/dashboard/suppliers')} className="btn btn-ghost btn-icon shrink-0">
+          <ArrowLeft className={`h-5 w-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
         </button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">

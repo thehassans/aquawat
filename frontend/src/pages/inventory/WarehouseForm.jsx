@@ -96,7 +96,7 @@ export default function WarehouseForm() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon">
+        <button onClick={() => navigate(returnTo || '/app/dashboard/warehouses')} className="btn btn-ghost btn-icon">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
