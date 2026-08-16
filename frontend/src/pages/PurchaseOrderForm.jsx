@@ -30,6 +30,7 @@ import Money from '../components/ui/Money'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
 import { getAvailableUomOptions } from '../lib/uomOptions'
 import ProductTypeToggle from '../components/ui/ProductTypeToggle'
+import PremiumFileDrop from '../components/ui/PremiumFileDrop'
 import { normalizeProductType, productPickerLabel } from '../lib/productType'
 import { computePurchaseLineTotals } from '../lib/purchaseLineTotals'
 
@@ -61,6 +62,12 @@ export default function PurchaseOrderForm() {
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [showWarehouseModal, setShowWarehouseModal] = useState(false)
   const [pendingBills, setPendingBills] = useState([])
+  const [landedCostLines, setLandedCostLines] = useState([
+    { type: 'freight', amount: '', description: '' },
+    { type: 'customs_duty', amount: '', description: '' },
+    { type: 'insurance', amount: '', description: '' },
+    { type: 'other', amount: '', description: '' },
+  ])
   const [pdfBusy, setPdfBusy] = useState(null)
   const [supplierForm, setSupplierForm] = useState({
     code: '',
@@ -298,6 +305,15 @@ export default function PurchaseOrderForm() {
           : [{ productId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
     })
     setManualModes(items.map((li) => Boolean(li?.manualName && !li?.productId)))
+    const existingLc = (order.related?.landedCosts || []).find((lc) => (lc.costLines || []).length) || order.related?.landedCosts?.[0]
+    if (existingLc?.costLines?.length) {
+      const byType = Object.fromEntries((existingLc.costLines || []).map((line) => [line.type, line]))
+      setLandedCostLines((prev) => prev.map((row) => ({
+        ...row,
+        amount: byType[row.type]?.amount ?? row.amount,
+        description: byType[row.type]?.description || row.description,
+      })))
+    }
   }, [order, reset, tenant?.settings?.currency])
 
   const isLocked = isEdit && ['partially_received', 'received', 'billed', 'cancelled'].includes(order?.status)
@@ -309,11 +325,12 @@ export default function PurchaseOrderForm() {
   const saveMutation = useMutation({
     mutationFn: (data) => (isEdit ? api.put(`/purchase-orders/${id}`, data) : api.post('/purchase-orders', data)),
     onSuccess: async (res) => {
-      const createdId = res.data?._id
-      if (!isEdit && createdId && pendingBills.length) {
+      const createdId = String(res.data?._id || res.data?.id || '')
+      const orderId = isEdit ? id : createdId
+      if (orderId && pendingBills.length) {
         try {
           for (const file of pendingBills) {
-            await uploadVendorBill(createdId, file)
+            await uploadVendorBill(orderId, file)
           }
           setPendingBills([])
         } catch (err) {
@@ -329,16 +346,13 @@ export default function PurchaseOrderForm() {
             ? 'تم إنشاء طلب الشراء'
             : 'Purchase order created'
       )
-      queryClient.invalidateQueries(['purchase-orders'])
-      queryClient.invalidateQueries(['purchase-orders-stats'])
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders-open'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders-stats'] })
       if (isEdit) {
-        queryClient.invalidateQueries(['purchase-order', id])
+        queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
       } else {
-        if (res.data?.offline) {
-          navigate('/app/dashboard/purchases/orders')
-        } else {
-          navigate(`/app/dashboard/purchases/orders/${res.data?._id}`)
-        }
+        navigate(orderId ? `/app/dashboard/purchases/orders/${orderId}` : '/app/dashboard/purchases/orders', { replace: true })
       }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
@@ -411,7 +425,12 @@ export default function PurchaseOrderForm() {
         taxRate: Number(li.taxRate ?? 15),
       })),
     }
-    saveMutation.mutate(cleaned)
+    saveMutation.mutate({
+      ...cleaned,
+      landedCostLines: landedCostLines
+        .map((line) => ({ ...line, amount: Number(line.amount || 0) }))
+        .filter((line) => line.amount > 0),
+    })
   }
 
   const submitReceive = () => {
@@ -816,46 +835,27 @@ export default function PurchaseOrderForm() {
             </div>
             <div className="md:col-span-2 lg:col-span-3">
               <label className="label">{language === 'ar' ? 'فاتورة المورد (PDF / صورة)' : 'Vendor bill (PDF / image)'}</label>
-              <input
-                type="file"
-                accept="application/pdf,image/jpeg,image/png,image/webp"
-                className="input"
+              <PremiumFileDrop
+                language={language}
                 disabled={isLocked}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0]
-                  e.target.value = ''
+                files={order?.attachments || []}
+                pendingFiles={pendingBills}
+                onAdd={(list) => {
+                  const file = list[0]
                   if (!file) return
                   if (isEdit && id) {
-                    try {
-                      await uploadVendorBill(id, file)
-                      toast.success(language === 'ar' ? 'تم رفع المرفق' : 'Attachment uploaded')
-                      queryClient.invalidateQueries(['purchase-order', id])
-                    } catch (err) {
-                      toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل الرفع' : 'Upload failed'))
-                    }
+                    uploadVendorBill(id, file)
+                      .then(() => {
+                        toast.success(language === 'ar' ? 'تم رفع المرفق' : 'Attachment uploaded')
+                        queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
+                      })
+                      .catch((err) => toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل الرفع' : 'Upload failed')))
                   } else {
                     setPendingBills((prev) => [...prev, file])
-                    toast.success(language === 'ar' ? 'ستُرفع الفاتورة بعد الحفظ' : 'Bill will upload after save')
                   }
                 }}
+                onRemovePending={(idx) => setPendingBills((prev) => prev.filter((_, i) => i !== idx))}
               />
-              <div className="mt-2 flex flex-wrap gap-2">
-                {(order?.attachments || []).map((file, idx) => (
-                  <a key={`${file.url}-${idx}`} href={file.url} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-50 px-3 py-1.5 text-[12px] text-teal-700 hover:underline dark:bg-white/5">
-                    {file.name || (language === 'ar' ? 'مرفق' : 'Attachment')}
-                  </a>
-                ))}
-                {pendingBills.map((file, idx) => (
-                  <button
-                    type="button"
-                    key={`${file.name}-${idx}`}
-                    onClick={() => setPendingBills((prev) => prev.filter((_, i) => i !== idx))}
-                    className="rounded-lg bg-amber-50 px-3 py-1.5 text-[12px] text-amber-800 dark:bg-amber-500/10"
-                  >
-                    {file.name} ×
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         </motion.div>
@@ -1065,6 +1065,44 @@ export default function PurchaseOrderForm() {
                 </div>
               )
             })}
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.06 }}
+          className={`${shell} p-5 sm:p-6`}
+        >
+          <div className="mb-5 border-b border-slate-100 pb-4 dark:border-white/[0.08]">
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+              {language === 'ar' ? 'التكلفة المرسية' : 'Landed cost'}
+            </p>
+            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
+              {language === 'ar'
+                ? 'الشحن والجمارك والتأمين تُوزَّع على بنود البضاعة عند الترحيل'
+                : 'Freight, customs, and insurance are allocated onto goods when posted'}
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {landedCostLines.map((line, index) => (
+              <label key={line.type} className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                {line.type === 'freight' ? (language === 'ar' ? 'شحن' : 'Freight')
+                  : line.type === 'customs_duty' ? (language === 'ar' ? 'جمارك' : 'Customs')
+                    : line.type === 'insurance' ? (language === 'ar' ? 'تأمين' : 'Insurance')
+                      : (language === 'ar' ? 'أخرى' : 'Other')}
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={line.amount}
+                  disabled={isLocked}
+                  placeholder="0.00"
+                  onChange={(e) => setLandedCostLines((prev) => prev.map((row, i) => (i === index ? { ...row, amount: e.target.value } : row)))}
+                  className="input mt-1.5 font-normal normal-case tracking-normal"
+                />
+              </label>
+            ))}
           </div>
         </motion.div>
 

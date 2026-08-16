@@ -12,7 +12,7 @@ import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
-import { confirmGrnReceive, generateGrnNumber, PurchasesValidationError } from '../services/purchasesWorkflow.js';
+import { confirmGrnReceive, generateGrnNumber, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
 import { computePurchaseLineTotals } from '../services/purchasesLogic.js';
 
 const router = express.Router();
@@ -86,11 +86,13 @@ async function generatePoNumber(tenantFilterValue) {
 
 router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 25, status, supplierId, warehouseId, search, startDate, endDate } = req.query;
-
+    const { page = 1, limit = 25, status, supplierId, warehouseId, search, startDate, endDate, receivable } = req.query;
+    
     const query = { ...req.tenantFilter };
 
-    if (status) query.status = status;
+    if (String(receivable) === '1') {
+      query.status = { $nin: ['cancelled', 'billed', 'closed'] };
+    } else if (status) query.status = status;
     if (supplierId) query.supplierId = supplierId;
     if (warehouseId) query.warehouseId = warehouseId;
 
@@ -193,7 +195,7 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
     const [grns, returns, landedCosts, invoices] = await Promise.all([
       GRN.find({ ...req.tenantFilter, purchaseOrderId: order._id }).select('grnNumber status dateReceived warehouseId').sort('-createdAt'),
       PurchaseReturn.find({ ...req.tenantFilter, purchaseOrderId: order._id }).select('returnNumber status dateReturned').sort('-createdAt'),
-      LandedCost.find({ ...req.tenantFilter, purchaseOrder: order._id, isActive: true }).select('lcNumber status totalCost').sort('-createdAt'),
+      LandedCost.find({ ...req.tenantFilter, purchaseOrder: order._id, isActive: true }).select('lcNumber status totalCost costLines').sort('-createdAt'),
       Invoice.find({ ...req.tenantFilter, sourcePurchaseOrderId: order._id, flow: 'purchase' }).select('invoiceNumber status grandTotal issueDate').sort('-createdAt'),
     ]);
 
@@ -246,18 +248,29 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
       return res.status(400).json({ error: 'Each line item must have a product or a product name' });
     }
 
+    const { landedCostLines, ...body } = req.body || {};
     const data = {
-      ...req.body,
+      ...body,
       poNumber,
       tenantId: req.user.tenantId,
       createdBy: req.user._id,
       lineItems: normalized,
       subtotal,
       totalTax,
-      grandTotal
+      grandTotal,
+      status: body.status && body.status !== 'draft' ? body.status : 'approved',
     };
 
     const order = await PurchaseOrder.create(data);
+    if (landedCostLines?.length) {
+      await upsertDraftLandedCostForPo({
+        tenantId: req.user.tenantId,
+        tenantFilter: req.tenantFilter,
+        userId: req.user._id,
+        purchaseOrder: order,
+        costLines: landedCostLines,
+      });
+    }
     res.status(201).json(order);
   } catch (error) {
     if (error?.code === 11000) {
@@ -292,10 +305,11 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
       }
     }
 
-    const updateData = { ...req.body };
+    const { landedCostLines, ...body } = req.body || {};
+    const updateData = { ...body };
 
-    if (Array.isArray(req.body.lineItems)) {
-      const { normalized, subtotal, totalTax, grandTotal } = normalizeLineItems(req.body.lineItems);
+    if (Array.isArray(body.lineItems)) {
+      const { normalized, subtotal, totalTax, grandTotal } = normalizeLineItems(body.lineItems);
       updateData.lineItems = normalized;
       updateData.subtotal = subtotal;
       updateData.totalTax = totalTax;
@@ -307,6 +321,15 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
       updateData,
       { new: true, runValidators: true }
     );
+    if (landedCostLines?.length) {
+      await upsertDraftLandedCostForPo({
+        tenantId: req.user.tenantId,
+        tenantFilter: req.tenantFilter,
+        userId: req.user._id,
+        purchaseOrder: order,
+        costLines: landedCostLines,
+      });
+    }
 
     res.json(order);
   } catch (error) {

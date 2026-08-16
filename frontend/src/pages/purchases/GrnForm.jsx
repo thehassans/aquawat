@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { ArrowLeft, CheckCircle2, Loader2, Plus, Save, Trash2, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Clock3, Loader2, Plus, Save, Trash2, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import ProductChooser, { loadInventoryProducts } from '../../components/inventory/ProductChooser'
-import { isStockTrackedProductType } from '../../lib/productType'
+import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
+import { isStockTrackedProductType, normalizeProductType } from '../../lib/productType'
+import Money from '../../components/ui/Money'
 import {
   PURCHASES_PATH,
   fieldControlClass,
@@ -25,8 +27,10 @@ const emptyLine = () => ({
   productName: '',
   barcode: '',
   productType: 'goods',
+  uom: 'PCE',
   quantityOrdered: 0,
   quantityReceived: 1,
+  remaining: 0,
   costPrice: 0,
   isDelayed: false,
   delayedUntil: '',
@@ -64,10 +68,11 @@ export default function GrnForm() {
     queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers || []),
   })
 
-  const { data: purchaseOrders } = useQuery({
+  const { data: purchaseOrders = [], isLoading: loadingPos } = useQuery({
     queryKey: ['purchase-orders-open'],
     queryFn: () =>
-      api.get('/purchase-orders', { params: { page: 1, limit: 200 } }).then((res) => res.data?.purchaseOrders || []),
+      api.get('/purchase-orders', { params: { page: 1, limit: 200, receivable: 1 } })
+        .then((res) => res.data?.purchaseOrders || res.data || []),
   })
 
   const { data: warehouses } = useQuery({
@@ -107,14 +112,17 @@ export default function GrnForm() {
     try {
       const { data } = await api.get(`/grn/from-po/${poId}`)
       setPurchaseOrderId(poId)
-      setSupplierId(data.supplierId?._id || data.supplierId || supplierId)
-      setWarehouseId(data.warehouseId?._id || data.warehouseId || warehouseId)
+      setSupplierId(data.supplierId?._id || data.supplierId || '')
+      setWarehouseId(data.warehouseId?._id || data.warehouseId || '')
       if (data.lines?.length) {
         setLines(data.lines.map((line) => ({
           ...emptyLine(),
           ...line,
+          productType: normalizeProductType(line.productType),
           quantityReceived: line.remaining || line.quantityReceived || 0,
         })))
+      } else {
+        toast.error(language === 'ar' ? 'لا توجد كميات متبقية على هذا الطلب' : 'No remaining quantity on this PO')
       }
     } catch (err) {
       toast.error(err.response?.data?.error || (language === 'ar' ? 'تعذر تحميل الطلب' : 'Could not load PO'))
@@ -136,6 +144,7 @@ export default function GrnForm() {
     notes,
     lines: lines.map((line) => ({
       ...line,
+      quantityReceived: line.isDelayed ? 0 : line.quantityReceived,
       delayedUntil: line.delayedUntil || undefined,
       expiryDate: line.expiryDate || undefined,
     })),
@@ -145,6 +154,7 @@ export default function GrnForm() {
     queryClient.invalidateQueries({ queryKey: ['grn-list'] })
     queryClient.invalidateQueries({ queryKey: ['grn', id] })
     queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+    queryClient.invalidateQueries({ queryKey: ['purchase-orders-open'] })
   }
 
   const saveMutation = useMutation({
@@ -152,7 +162,8 @@ export default function GrnForm() {
     onSuccess: (res) => {
       toast.success(language === 'ar' ? 'تم الحفظ' : 'Saved')
       invalidate()
-      if (!isEdit) navigate(`${PURCHASES_PATH.grn}/${res.data._id}`)
+      const nextId = res.data?._id || res.data?.id
+      if (!isEdit && nextId) navigate(`${PURCHASES_PATH.grn}/${nextId}`, { replace: true })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -162,7 +173,7 @@ export default function GrnForm() {
       let grnId = id
       if (!isEdit) {
         const created = await api.post('/grn', payload)
-        grnId = created.data._id
+        grnId = created.data._id || created.data.id
       } else if (existing?.status === 'draft') {
         await api.put(`/grn/${id}`, payload)
       }
@@ -172,7 +183,7 @@ export default function GrnForm() {
     onSuccess: (grnId) => {
       toast.success(language === 'ar' ? 'تم الاستلام وتحديث المخزون' : 'Received and stock updated')
       invalidate()
-      navigate(`${PURCHASES_PATH.grn}/${grnId}`)
+      navigate(`${PURCHASES_PATH.grn}/${grnId}`, { replace: true })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -196,8 +207,15 @@ export default function GrnForm() {
   })
 
   const updateLine = (index, patch) => {
-    setLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)))
+    setLines((prev) => prev.map((line, i) => {
+      if (i !== index) return line
+      const next = { ...line, ...patch }
+      if (patch.isDelayed === true) next.quantityReceived = 0
+      return next
+    }))
   }
+
+  const receiveTotal = lines.reduce((sum, line) => sum + (line.isDelayed ? 0 : Number(line.quantityReceived || 0) * Number(line.costPrice || 0)), 0)
 
   if (isEdit && isLoading) {
     return (
@@ -208,17 +226,17 @@ export default function GrnForm() {
   }
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6 pb-24">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-3">
-          <button type="button" onClick={() => navigate(PURCHASES_PATH.grn)} className={`${ghostBtn} h-10 w-10 justify-center px-0`}>
+          <button type="button" onClick={() => navigate(PURCHASES_PATH.grn)} className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition hover:border-slate-300 dark:border-white/10 dark:bg-transparent">
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-teal-700">
+            <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-400">
               {language === 'ar' ? 'إشعار الاستلام' : 'Goods receipt'}
             </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white sm:text-[28px]">
               {isEdit ? (existing?.grnNumber || 'GRN') : language === 'ar' ? 'إشعار استلام جديد' : 'New GRN'}
             </h1>
             {existing?.status && (
@@ -255,11 +273,37 @@ export default function GrnForm() {
         </div>
       </div>
 
-      <section className={`${shell} p-6`}>
-        <h2 className="text-[13px] font-semibold text-slate-900 dark:text-white">
-          {language === 'ar' ? 'المورد والمستودع' : 'Vendor & warehouse'}
-        </h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className={`${shell} p-5 sm:p-6`}>
+        <div className="mb-5 border-b border-slate-100 pb-4 dark:border-white/[0.08]">
+          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+            {language === 'ar' ? 'بيانات الاستلام' : 'Receipt information'}
+          </p>
+          <p className="mt-1 text-[13px] text-slate-500">
+            {language === 'ar' ? 'اختر أمر الشراء لتعبئة البنود والكميات المتبقية' : 'Pick a purchase order to fill remaining lines'}
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400 lg:col-span-2">
+            {language === 'ar' ? 'طلب الشراء' : 'Purchase order'}
+            <select
+              value={purchaseOrderId}
+              disabled={locked || loadingPos}
+              onChange={(e) => {
+                const value = e.target.value
+                setPurchaseOrderId(value)
+                if (value) pullPo(value)
+                else setLines([emptyLine()])
+              }}
+              className={`mt-1.5 ${fieldControlClass}`}
+            >
+              <option value="">{loadingPos ? (language === 'ar' ? 'جاري التحميل…' : 'Loading…') : (language === 'ar' ? 'اختر طلب شراء' : 'Select a purchase order')}</option>
+              {(Array.isArray(purchaseOrders) ? purchaseOrders : []).map((po) => (
+                <option key={po._id} value={po._id}>
+                  {po.poNumber} — {partyName(po.supplierId, language)} ({statusLabel(po.status, language)})
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
             {language === 'ar' ? 'المورد' : 'Vendor'}
             <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} disabled={locked} className={`mt-1.5 ${fieldControlClass}`}>
@@ -267,25 +311,6 @@ export default function GrnForm() {
               {(suppliers || []).map((s) => (
                 <option key={s._id} value={s._id}>{partyName(s, language)}</option>
               ))}
-            </select>
-          </label>
-          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-            {language === 'ar' ? 'طلب الشراء' : 'Purchase order'}
-            <select
-              value={purchaseOrderId}
-              disabled={locked}
-              onChange={(e) => {
-                setPurchaseOrderId(e.target.value)
-                if (e.target.value) pullPo(e.target.value)
-              }}
-              className={`mt-1.5 ${fieldControlClass}`}
-            >
-              <option value="">{language === 'ar' ? 'بدون طلب' : 'No PO'}</option>
-              {(purchaseOrders || [])
-                .filter((po) => !['cancelled', 'draft'].includes(po.status) || po._id === purchaseOrderId)
-                .map((po) => (
-                  <option key={po._id} value={po._id}>{po.poNumber} — {partyName(po.supplierId, language)}</option>
-                ))}
             </select>
           </label>
           <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
@@ -302,17 +327,30 @@ export default function GrnForm() {
             <input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} disabled={locked} className={`mt-1.5 ${fieldControlClass}`} />
           </label>
         </div>
+        {!loadingPos && !(purchaseOrders || []).length && (
+          <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-600 dark:bg-white/[0.04] dark:text-slate-300">
+            {language === 'ar' ? 'لا توجد طلبات شراء مفتوحة. ' : 'No open purchase orders. '}
+            <Link to={`${PURCHASES_PATH.orders}/new`} className="font-medium text-teal-700 hover:underline">
+              {language === 'ar' ? 'إنشاء طلب شراء' : 'Create a purchase order'}
+            </Link>
+          </p>
+        )}
       </section>
 
-      <section className={`${shell} p-6`}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[13px] font-semibold text-slate-900 dark:text-white">
-            {language === 'ar' ? 'البنود' : 'Lines'}
-          </h2>
+      <section className={`${shell} p-5 sm:p-6`}>
+        <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white/[0.08]">
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+              {language === 'ar' ? 'بنود الاستلام' : 'Receive items'}
+            </p>
+            <p className="mt-1 text-[13px] text-slate-500">
+              {language === 'ar' ? 'حدد الكمية المستلمة الآن، أو علّم البند متأخراً' : 'Receive now, or mark a line delayed'}
+            </p>
+          </div>
           {!locked && (
             <button type="button" onClick={() => setLines((prev) => [...prev, emptyLine()])} className={ghostBtn}>
               <Plus className="h-4 w-4" />
-              {language === 'ar' ? 'بند' : 'Line'}
+              {language === 'ar' ? 'إضافة بند' : 'Add item'}
             </button>
           )}
         </div>
@@ -324,60 +362,74 @@ export default function GrnForm() {
                 setLines((prev) => [{
                   ...emptyLine(),
                   productId: product._id,
-                  productName: product.name,
+                  productName: product.name || product.nameEn || product.nameAr,
                   barcode: product.barcode,
-                  productType: product.productType || 'goods',
+                  productType: normalizeProductType(product.productType),
+                  uom: product.unitOfMeasure || 'PCE',
                   costPrice: product.costPrice || 0,
                 }, ...prev.filter((l) => l.productId || l.productName)])
               }}
             />
           </div>
         )}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {lines.map((line, index) => (
-            <div key={index} className="rounded-2xl border border-slate-100 p-4 dark:border-white/10">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <label className="text-[11px] font-medium text-slate-500 sm:col-span-2">
-                  {language === 'ar' ? 'المنتج' : 'Product'}
-                  <input value={line.productName} disabled className={`mt-1.5 ${fieldControlClass}`} />
+            <div key={index} className="rounded-2xl border border-slate-100 p-4 dark:border-white/[0.08]">
+              <div className="grid grid-cols-1 items-end gap-4 lg:grid-cols-12">
+                <div className="lg:col-span-4">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <label className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'المنتج' : 'Product'}</label>
+                    <ProductTypeToggle
+                      value={normalizeProductType(line.productType)}
+                      onChange={(next) => updateLine(index, { productType: next })}
+                      language={language}
+                      disabled={locked}
+                    />
+                  </div>
+                  <input value={line.productName} disabled className={fieldControlClass} />
+                </div>
+                <label className="text-[11px] font-medium text-slate-500 lg:col-span-2">
+                  {language === 'ar' ? 'الوحدة' : 'UOM'}
+                  <input value={line.uom || 'PCE'} disabled className={`mt-1.5 ${fieldControlClass}`} />
                 </label>
-                <label className="text-[11px] font-medium text-slate-500">
-                  {language === 'ar' ? 'الكمية المستلمة' : 'Received qty'}
+                <label className="text-[11px] font-medium text-slate-500 lg:col-span-2">
+                  {language === 'ar' ? 'المطلوب' : 'Ordered'}
+                  <input value={line.quantityOrdered || 0} disabled className={`mt-1.5 ${fieldControlClass}`} />
+                </label>
+                <label className="text-[11px] font-medium text-slate-500 lg:col-span-2">
+                  {language === 'ar' ? 'استلام الآن' : 'Receive now'}
                   <input
                     type="number"
                     min="0"
-                    value={line.quantityReceived}
-                    disabled={locked}
+                    value={line.isDelayed ? 0 : line.quantityReceived}
+                    disabled={locked || line.isDelayed}
                     onChange={(e) => updateLine(index, { quantityReceived: Number(e.target.value) })}
                     className={`mt-1.5 ${fieldControlClass}`}
                   />
                 </label>
-                <label className="text-[11px] font-medium text-slate-500">
-                  {language === 'ar' ? 'التكلفة' : 'Cost'}
-                  <input
-                    type="number"
-                    min="0"
-                    value={line.costPrice}
-                    disabled={locked}
-                    onChange={(e) => updateLine(index, { costPrice: Number(e.target.value) })}
-                    className={`mt-1.5 ${fieldControlClass}`}
-                  />
-                </label>
+                <div className="lg:col-span-2 text-end">
+                  <p className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'القيمة' : 'Value'}</p>
+                  <p className="mt-2 text-[15px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                    <Money value={line.isDelayed ? 0 : Number(line.quantityReceived || 0) * Number(line.costPrice || 0)} />
+                  </p>
+                </div>
               </div>
               <p className="mt-2 text-[11px] text-slate-400">
                 {isStockTrackedProductType(line.productType)
-                  ? (language === 'ar' ? 'بضاعة — تُضاف للمخزون' : 'Goods — posts warehouse stock')
+                  ? (language === 'ar' ? 'بضاعة — تُضاف للمخزون عند الاستلام' : 'Goods — posts warehouse stock on receive')
                   : (language === 'ar' ? 'خدمة — بدون مخزون' : 'Service — no stock movement')}
+                {line.remaining ? ` · ${language === 'ar' ? 'المتبقي' : 'Remaining'} ${line.remaining}` : ''}
               </p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <label className="flex items-center gap-2 text-[13px] text-slate-600">
+              <div className="mt-4 grid gap-3 rounded-xl bg-slate-50/80 p-3 dark:bg-white/[0.03] sm:grid-cols-3">
+                <label className="flex items-center gap-2 text-[13px] font-medium text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
                     checked={Boolean(line.isDelayed)}
                     disabled={locked}
                     onChange={(e) => updateLine(index, { isDelayed: e.target.checked })}
                   />
-                  {language === 'ar' ? 'تأخير البند' : 'Item delay'}
+                  <Clock3 className="h-4 w-4 text-amber-600" />
+                  {language === 'ar' ? 'تأخير البند' : 'Delay item'}
                 </label>
                 {line.isDelayed && (
                   <>
@@ -401,7 +453,7 @@ export default function GrnForm() {
               <input
                 value={line.notes}
                 disabled={locked}
-                placeholder={language === 'ar' ? 'ملاحظات البند' : 'Line notes'}
+                placeholder={language === 'ar' ? 'ملاحظة إضافية لهذا البند' : 'Extra note for this line'}
                 onChange={(e) => updateLine(index, { notes: e.target.value })}
                 className={`mt-3 ${fieldControlClass}`}
               />
@@ -416,11 +468,22 @@ export default function GrnForm() {
         </div>
       </section>
 
-      <section className={`${shell} p-6`}>
-        <h2 className="text-[13px] font-semibold text-slate-900 dark:text-white">
-          {language === 'ar' ? 'ملاحظات' : 'Notes'}
-        </h2>
-        <textarea value={notes} disabled={locked} onChange={(e) => setNotes(e.target.value)} rows={4} className={`mt-3 ${fieldControlClass}`} />
+      <section className={`${shell} p-5 sm:p-6`}>
+        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+          {language === 'ar' ? 'ملاحظة إضافية' : 'Extra note'}
+        </p>
+        <textarea
+          value={notes}
+          disabled={locked}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={4}
+          placeholder={language === 'ar' ? 'ملاحظات الاستلام، الفحص، أو الناقل' : 'Receiving, inspection, or carrier notes'}
+          className={`mt-3 ${fieldControlClass}`}
+        />
+        <div className="mt-5 flex justify-between border-t border-slate-100 pt-4 text-[15px] font-semibold dark:border-white/[0.08]">
+          <span>{language === 'ar' ? 'قيمة المستلم' : 'Received value'}</span>
+          <span className="tabular-nums"><Money value={receiveTotal} /></span>
+        </div>
       </section>
     </div>
   )
