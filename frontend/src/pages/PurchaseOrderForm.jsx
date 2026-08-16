@@ -144,6 +144,9 @@ export default function PurchaseOrderForm() {
       expectedDate: '',
       currency: tenant?.settings?.currency || 'SAR',
       notes: '',
+      initialPaidAmount: '',
+      initialPaymentMethod: 'transfer',
+      initialPaymentReference: '',
       lineItems: [{ productId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, quantityReturned: 0, unitCost: 0, taxRate: 15 }],
     },
   })
@@ -154,6 +157,11 @@ export default function PurchaseOrderForm() {
   const { data: suppliers } = useQuery({
     queryKey: ['suppliers-lookup'],
     queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers),
+  })
+
+  const { data: supplierFinancials } = useQuery({
+    queryKey: ['suppliers-financials'],
+    queryFn: () => api.get('/suppliers/financials').then(res => res.data),
   })
 
   useEffect(() => {
@@ -900,6 +908,37 @@ export default function PurchaseOrderForm() {
               {errors.supplierId && (
                 <p className="mt-1 text-xs text-rose-600">{language === 'ar' ? 'المورد مطلوب' : 'Supplier is required'}</p>
               )}
+              {(() => {
+                const selected = watch('supplierId');
+                const fin = supplierFinancials?.find(f => f._id === selected);
+                if (!fin) return null;
+                return (
+                  <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mt-3 overflow-hidden rounded-xl border border-blue-200/60 bg-blue-50/50 p-3 shadow-sm dark:border-blue-900/30 dark:bg-blue-900/10">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="rounded-lg bg-blue-100 p-1.5 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <span className="text-[13px] font-semibold text-blue-900 dark:text-blue-100">
+                        {language === 'ar' ? 'الملخص المالي للمورد' : 'Supplier Financials'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 divide-x divide-blue-200/50 dark:divide-blue-800/50">
+                      <div className="flex flex-col px-2 text-center">
+                        <span className="text-[10px] uppercase tracking-wider text-blue-600/70 dark:text-blue-400/70">{language === 'ar' ? 'إجمالي الطلبات' : 'Total Billed'}</span>
+                        <span className="mt-0.5 text-xs font-medium text-blue-900 dark:text-blue-100"><Money value={fin.totalCredit || 0} /></span>
+                      </div>
+                      <div className="flex flex-col px-2 text-center">
+                        <span className="text-[10px] uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70">{language === 'ar' ? 'إجمالي المدفوع' : 'Total Paid'}</span>
+                        <span className="mt-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300"><Money value={fin.totalDebit || 0} /></span>
+                      </div>
+                      <div className="flex flex-col px-2 text-center border-l-rose-200/50 dark:border-l-rose-800/50">
+                        <span className="text-[10px] uppercase tracking-wider text-rose-600/70 dark:text-rose-400/70">{language === 'ar' ? 'الرصيد المتبقي' : 'Pending'}</span>
+                        <span className="mt-0.5 text-xs font-bold text-rose-700 dark:text-rose-300"><Money value={fin.balance || 0} /></span>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })()}
             </div>
 
             <div>
@@ -1280,11 +1319,51 @@ export default function PurchaseOrderForm() {
                   </span>
                 </div>
               )}
+              {!isEdit && (
+                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.08]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-medium text-emerald-600 dark:text-emerald-400">
+                      {language === 'ar' ? 'دفعة مقدمة' : 'Advance Payment'}
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      {...register('initialPaidAmount')}
+                      placeholder="0.00"
+                      className="input !py-1 !text-right !w-28 text-sm font-medium"
+                    />
+                  </div>
+                  {Number(watch('initialPaidAmount') || 0) > 0 && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="flex gap-2">
+                      <select {...register('initialPaymentMethod')} className="select !py-1.5 !text-xs flex-1">
+                        <option value="transfer">{language === 'ar' ? 'حوالة بنكية' : 'Bank Transfer'}</option>
+                        <option value="cash">{language === 'ar' ? 'كاش' : 'Cash'}</option>
+                        <option value="card">{language === 'ar' ? 'شبكة / بطاقة' : 'Card'}</option>
+                        <option value="cheque">{language === 'ar' ? 'شيك' : 'Cheque'}</option>
+                      </select>
+                      <input
+                        {...register('initialPaymentReference')}
+                        placeholder={language === 'ar' ? 'رقم المرجع...' : 'Ref...'}
+                        className="input !py-1.5 !text-xs flex-1"
+                      />
+                    </motion.div>
+                  )}
+                </div>
+              )}
               {order && (
                 <div className="flex justify-between border-t border-slate-100 pt-2 text-[13px] font-semibold dark:border-white/[0.08]">
                   <span className="text-slate-900 dark:text-white">{language === 'ar' ? 'المتبقي' : 'Balance Due'}</span>
                   <span className="tabular-nums text-slate-900 dark:text-white">
                     <Money value={order.balanceDue ?? totals.grandTotal} />
+                  </span>
+                </div>
+              )}
+              {!isEdit && (
+                <div className="flex justify-between border-t border-slate-100 pt-2 text-[13px] font-semibold dark:border-white/[0.08]">
+                  <span className="text-slate-900 dark:text-white">{language === 'ar' ? 'المتبقي' : 'Balance Due'}</span>
+                  <span className="tabular-nums text-slate-900 dark:text-white">
+                    <Money value={Math.max(0, totals.grandTotal - Number(watch('initialPaidAmount') || 0))} />
                   </span>
                 </div>
               )}

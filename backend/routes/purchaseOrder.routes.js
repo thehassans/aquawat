@@ -254,7 +254,28 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
       return res.status(400).json({ error: 'Each line item must have a product or a product name' });
     }
 
-    const { landedCostLines, ...body } = req.body || {};
+    const { landedCostLines, initialPaidAmount, initialPaymentMethod, initialPaymentReference, ...body } = req.body || {};
+    
+    let paidAmount = 0;
+    let payments = [];
+    const advance = toNumber(initialPaidAmount, 0);
+    if (advance > 0) {
+      paidAmount = advance;
+      payments.push({
+        amount: advance,
+        date: new Date(),
+        method: initialPaymentMethod || 'transfer',
+        reference: initialPaymentReference || 'Advance Payment',
+        recordedBy: req.user._id
+      });
+    }
+
+    const balanceDue = Math.max(0, grandTotal - paidAmount);
+    let paymentStatus = 'pending';
+    if (paidAmount > 0) {
+      paymentStatus = paidAmount >= grandTotal ? 'paid' : 'partial';
+    }
+
     const data = {
       ...body,
       poNumber,
@@ -264,9 +285,10 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
       subtotal,
       totalTax,
       grandTotal,
-      paidAmount: 0,
-      balanceDue: grandTotal,
-      paymentStatus: 'pending',
+      paidAmount,
+      balanceDue,
+      paymentStatus,
+      payments,
       status: body.status && body.status !== 'draft' ? body.status : 'approved',
     };
 
