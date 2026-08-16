@@ -459,7 +459,7 @@ export default function RestaurantPOS() {
     <div 
       ref={containerRef}
       style={{ height: containerHeight }}
-      className="flex flex-col lg:flex-row min-h-[500px] w-full max-w-full gap-4 lg:gap-6 overflow-hidden bg-transparent"
+      className="flex flex-col md:flex-row min-h-[500px] w-full max-w-full gap-3 md:gap-4 lg:gap-6 overflow-hidden bg-transparent"
     >
       
       {/* Left: Menu Grid */}
@@ -515,7 +515,7 @@ export default function RestaurantPOS() {
               <span className="font-semibold text-sm">Loading Menu...</span>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4">
               {displayCombos.map(combo => (
                 <motion.button
                   whileHover={{ y: -4, scale: 1.02 }}
@@ -592,7 +592,7 @@ export default function RestaurantPOS() {
       </div>
 
       {/* Right: Ultra-Minimalistic Cart Sidebar */}
-      <div className="w-full lg:w-[360px] xl:w-[400px] bg-white dark:bg-dark-900 shadow-[-4px_0_24px_rgba(0,0,0,0.02)] border-l border-gray-100 dark:border-dark-800 flex flex-col flex-shrink-0 min-h-0 h-full relative z-20">
+      <div className="w-full md:w-[300px] lg:w-[340px] xl:w-[380px] bg-white dark:bg-dark-900 shadow-[-4px_0_24px_rgba(0,0,0,0.02)] border-l border-gray-100 dark:border-dark-800 flex flex-col flex-shrink-0 min-h-0 h-full relative z-20">
         
         {/* Order Type Selector */}
         <div className="p-4 pb-2 flex-shrink-0 border-b border-gray-50 dark:border-dark-800">
