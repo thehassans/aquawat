@@ -196,8 +196,7 @@ export default function GrnForm() {
     onSuccess: (res) => {
       toast.success(language === 'ar' ? 'تم الحفظ' : 'Saved')
       invalidate()
-      const nextId = res.data?._id || res.data?.id
-      if (!isEdit && nextId) navigate(`${PURCHASES_PATH.grn}/${nextId}`, { replace: true })
+      navigate(PURCHASES_PATH.grn, { replace: true })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -214,10 +213,10 @@ export default function GrnForm() {
       await api.post(`/grn/${grnId}/receive`, { warehouseId })
       return grnId
     },
-    onSuccess: (grnId) => {
+    onSuccess: () => {
       toast.success(language === 'ar' ? 'تم الاستلام وتحديث المخزون' : 'Received and stock updated')
       invalidate()
-      navigate(`${PURCHASES_PATH.grn}/${grnId}`, { replace: true })
+      navigate(PURCHASES_PATH.grn, { replace: true })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -227,6 +226,7 @@ export default function GrnForm() {
     onSuccess: () => {
       toast.success(language === 'ar' ? 'اكتمل الاستلام' : 'GRN completed')
       invalidate()
+      navigate(PURCHASES_PATH.grn, { replace: true })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -236,6 +236,7 @@ export default function GrnForm() {
     onSuccess: () => {
       toast.success(language === 'ar' ? 'تم الإلغاء' : 'Cancelled')
       invalidate()
+      navigate(PURCHASES_PATH.grn, { replace: true })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })

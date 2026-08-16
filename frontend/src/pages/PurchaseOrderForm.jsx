@@ -349,11 +349,8 @@ export default function PurchaseOrderForm() {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders-open'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders-stats'] })
-      if (isEdit) {
-        queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
-      } else {
-        navigate(orderId ? `/app/dashboard/purchases/orders/${orderId}` : '/app/dashboard/purchases/orders', { replace: true })
-      }
+      queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
+      navigate('/app/dashboard/purchases/orders', { replace: true })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -485,6 +482,60 @@ export default function PurchaseOrderForm() {
     }
   }
 
+  const openVendorBill = async (file, { download = false } = {}) => {
+    if (!id || !file) return
+    const toastId = toast.loading(
+      download
+        ? (language === 'ar' ? 'جاري تنزيل الفاتورة...' : 'Downloading bill...')
+        : (language === 'ar' ? 'جاري فتح الفاتورة...' : 'Opening bill...')
+    )
+    try {
+      const files = order?.attachments || []
+      const index = Math.max(0, files.findIndex((row) => (row.url && row.url === file.url) || (row.name && row.name === file.name)))
+      const fileId = encodeURIComponent(file.key?.split('/').pop() || file.name || String(index))
+      const res = await api.get(`/purchase-orders/${id}/attachments/${fileId}`, {
+        responseType: 'blob',
+        params: { inline: download ? 0 : 1 },
+        timeout: 60000,
+      })
+      const blobType = res.data?.type || file.mimeType || 'application/octet-stream'
+      if (String(blobType).includes('json')) {
+        const parsed = JSON.parse(await res.data.text())
+        throw new Error(parsed.error || 'Vendor bill not found')
+      }
+      const blob = new Blob([res.data], { type: file.mimeType || blobType })
+      const url = URL.createObjectURL(blob)
+      if (download) {
+        const link = document.createElement('a')
+        link.href = url
+        link.download = file.name || 'vendor-bill'
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      }
+      toast.success(
+        download
+          ? (language === 'ar' ? 'تم تنزيل الفاتورة' : 'Bill downloaded')
+          : (language === 'ar' ? 'تم فتح الفاتورة' : 'Bill opened'),
+        { id: toastId }
+      )
+    } catch (err) {
+      let message = language === 'ar' ? 'تعذر فتح الفاتورة. أعد رفعها.' : 'Could not open the bill. Please upload it again.'
+      const data = err.response?.data
+      if (data instanceof Blob) {
+        try {
+          const parsed = JSON.parse(await data.text())
+          if (parsed?.error) message = parsed.error
+        } catch { /* keep fallback */ }
+      } else if (err.response?.data?.error || err.message) {
+        message = err.response?.data?.error || err.message
+      }
+      toast.error(message, { id: toastId })
+    }
+  }
+
   const handleDownloadPdf = async () => {
     if (!isEdit || !id) return
     const toastId = toast.loading(language === 'ar' ? 'جاري إنشاء PDF...' : 'Generating PDF...')
@@ -599,20 +650,20 @@ export default function PurchaseOrderForm() {
             </button>
             {(order?.attachments || []).slice(-1).map((file) => (
               <Fragment key={file.url || file.name}>
-                <a href={file.url} target="_blank" rel="noreferrer" className={ghostBtn}>
+                <button type="button" onClick={() => openVendorBill(file)} className={ghostBtn}>
                   <Eye className="h-4 w-4 opacity-70" />
                   {language === 'ar' ? 'عرض الفاتورة' : 'View bill'}
-                </a>
-                <a href={file.url} download={file.name || 'vendor-bill'} className={ghostBtn}>
+                </button>
+                <button type="button" onClick={() => openVendorBill(file, { download: true })} className={ghostBtn}>
                   <Paperclip className="h-4 w-4 opacity-70" />
                   {language === 'ar' ? 'تنزيل الفاتورة' : 'Download bill'}
-                </a>
+                </button>
               </Fragment>
             ))}
             <button
               type="button"
               onClick={() => navigate(`/app/dashboard/purchases/grn/new?poId=${id}`)}
-              disabled={!['approved', 'sent', 'partially_received'].includes(order?.status)}
+              disabled={!['draft', 'approved', 'sent', 'partially_received'].includes(order?.status)}
               className={ghostBtn}
             >
               <WarehouseIcon className="h-4 w-4 opacity-70" />

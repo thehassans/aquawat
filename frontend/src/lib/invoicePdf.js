@@ -22,7 +22,7 @@ const sanitizeFileName = (value) => {
 
 const resolveDocumentPdfTemplateId = (tenant, invoice, documentType = 'invoice') => {
   const id = getInvoiceTemplateId(tenant, invoice?.businessContext, invoice?.pdfTemplateId)
-  if (documentType === 'quotation' || invoice?.quotationNumber) {
+  if (documentType === 'quotation' || invoice?.quotationNumber || documentType === 'purchase_order') {
     return resolveQuotationTemplateId(id)
   }
   return Number(id)
@@ -880,7 +880,6 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   // snapshot so the file matches the on-screen letterhead.
   const shouldUseSnapshotRenderer =
     !editable &&
-    documentType !== 'purchase_order' &&
     (Boolean(sourceElement) || isLetterhead || shouldRenderBilingualInvoice(invoice, documentType, tenant) || isSarCurrency(snapshotCurrency))
 
   const jspdfModule = await import('jspdf')
@@ -1124,12 +1123,12 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     ? ''
     : getInvoiceTitle(invoice, language, documentType)
   const customerLabel = isPurchaseOrderPdf
-    ? toBilingualBlock('Buyer', 'المشتري')
+    ? toBilingualBlock('Supplier', 'المورد')
     : invoice.flow === 'purchase'
       ? toBilingualBlock('Buyer', 'المشتري')
       : toBilingualBlock('Customer', 'العميل')
   const sellerLabel = isPurchaseOrderPdf
-    ? toBilingualBlock('Supplier', 'المورد')
+    ? toBilingualBlock('Buyer', 'المشتري')
     : toBilingualBlock('Seller', 'البائع')
   const amountInWords = getAmountInWords(totals.grandTotal, currency, language)
   const typography = invoiceBranding.typography || {}
@@ -1611,8 +1610,8 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const amountWordsLeft = isRtl ? contentRightEdge - amountWordsW : contentLeft
   const totalsLeft = isRtl ? contentLeft : contentRightEdge - totalsW
   const totalsTop = doc.lastAutoTable.finalY + 12
-  const amountWordsH = Math.max(74, invoice?.notes ? 110 : 84)
-  const totalsH = 164
+  const amountWordsH = Math.max(86, invoice?.notes ? 118 : 92)
+  const totalsH = 210
 
   doc.setFillColor(255, 255, 255)
   doc.setDrawColor(theme.boxStrokeRgb.r, theme.boxStrokeRgb.g, theme.boxStrokeRgb.b)
@@ -1642,17 +1641,17 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   for (let i = 0; i < totalsRows.length; i += 1) {
     const [labelEn, labelAr, value] = totalsRows[i]
     const isGrandTotal = i === totalsRows.length - 1
-    const label = toBilingualText(labelEn, labelAr)
+    const label = toBilingualBlock(labelEn, labelAr)
 
     if (isGrandTotal) {
       doc.setDrawColor(203, 213, 225)
       doc.line(totalsLeft + 14, totalsY - 10, totalsLeft + totalsW - 14, totalsY - 10)
 
-      setHeadingFont(Math.max(bodyFontSize + 2, 11), 'bold')
+      setHeadingFont(Math.max(bodyFontSize, 10), 'bold')
       doc.setTextColor(theme.headerTitleRgb.r, theme.headerTitleRgb.g, theme.headerTitleRgb.b)
-      doc.text(shape(label), isRtl ? totalsLeft + totalsW - 14 : totalsLeft + 14, totalsY, { align, maxWidth: 132 })
+      doc.text(shape(label), isRtl ? totalsLeft + totalsW - 14 : totalsLeft + 14, totalsY, { align, maxWidth: totalsW - 36 })
 
-      totalsY += 22
+      totalsY += 28
 
       setHeadingFont(Math.max(bodyFontSize + 6, 15), 'bold')
       doc.text(shape(value), isRtl ? totalsLeft + 14 : totalsLeft + totalsW - 14, totalsY, { align: oppositeAlign, maxWidth: totalsW - 28 })
@@ -1661,12 +1660,12 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     } else {
       setBodyFont(Math.max(bodyFontSize - 1, 8), 'bold')
       doc.setTextColor(theme.headerMutedRgb.r, theme.headerMutedRgb.g, theme.headerMutedRgb.b)
-      doc.text(shape(label), isRtl ? totalsLeft + totalsW - 14 : totalsLeft + 14, totalsY, { align, maxWidth: 132 })
+      doc.text(shape(label), isRtl ? totalsLeft + totalsW - 14 : totalsLeft + 14, totalsY, { align, maxWidth: 148 })
 
       doc.setTextColor(theme.headerTitleRgb.r, theme.headerTitleRgb.g, theme.headerTitleRgb.b)
       doc.text(shape(value), isRtl ? totalsLeft + 14 : totalsLeft + totalsW - 14, totalsY, { align: oppositeAlign, maxWidth: 110 })
 
-      totalsY += 20
+      totalsY += 28
     }
   }
 
@@ -1861,6 +1860,7 @@ export const mapPurchaseOrderForPdf = (purchaseOrder, tenant) => {
       quantity: Number(li?.quantityOrdered ?? li?.quantity ?? 0),
       unitPrice: Number(li?.unitCost ?? li?.unitPrice ?? 0),
       taxRate: Number(li?.taxRate ?? 15),
+      productType: li?.productType || product?.productType || 'goods',
     }
   })
 

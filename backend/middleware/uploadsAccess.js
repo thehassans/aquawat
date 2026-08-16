@@ -1,6 +1,6 @@
 import { protect } from './auth.js';
 
-const SENSITIVE_PREFIXES = ['hr/', 'expense-receipts/', 'khayyat/'];
+const SENSITIVE_PREFIXES = ['hr/', 'expense-receipts/', 'khayyat/', 'purchase-orders/'];
 
 function normalizeUploadPath(reqPath = '') {
   return String(reqPath || '').replace(/^\/+/, '').replace(/\\/g, '/');

@@ -70,6 +70,9 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
             {isQuotation && invoice?.validUntil ? (
               <p className="mt-1"><span className="font-semibold text-slate-500">Valid until:</span> {formatDate(invoice.validUntil)}</p>
             ) : null}
+            {documentType === 'purchase_order' && invoice?.dueDate ? (
+              <p className="mt-1"><span className="font-semibold text-slate-500">Expected:</span> {formatDate(invoice.dueDate)}</p>
+            ) : null}
           </div>
         </div>
 

@@ -56,6 +56,7 @@ const purchaseOrderSchema = new mongoose.Schema({
   attachments: [{
     name: { type: String },
     url: { type: String },
+    key: { type: String },
     mimeType: { type: String },
     size: { type: Number },
     uploadedAt: { type: Date, default: Date.now }

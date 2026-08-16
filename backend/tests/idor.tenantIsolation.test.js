@@ -27,6 +27,7 @@ test('hr/ and expense-receipts/ and khayyat/ are sensitive', () => {
   assert.equal(isSensitiveUploadPath('hr/cv.pdf'), true);
   assert.equal(isSensitiveUploadPath('expense-receipts/a.png'), true);
   assert.equal(isSensitiveUploadPath('khayyat/measure.jpg'), true);
+  assert.equal(isSensitiveUploadPath('purchase-orders/aaaaaaaaaaaaaaaaaaaaaaaa/bill.jpg'), true);
   assert.equal(isSensitiveUploadPath('products/logo.png'), false);
   assert.equal(isSensitiveUploadPath('branding/logo.webp'), false);
 });

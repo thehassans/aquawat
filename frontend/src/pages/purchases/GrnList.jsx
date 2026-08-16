@@ -18,14 +18,24 @@ import {
   formatDay,
 } from './purchasesUi'
 
-const FILTERS = ['upcoming', '', 'draft', 'received', 'completed', 'delayed', 'cancelled']
+const FILTERS = [
+  { id: 'grns', kind: 'grn', status: '' },
+  { id: 'upcoming_po', kind: 'po', bucket: 'upcoming' },
+  { id: 'delayed_po', kind: 'po', bucket: 'delayed' },
+  { id: 'partially_received_po', kind: 'po', bucket: 'partially_received' },
+  { id: 'draft', kind: 'grn', status: 'draft' },
+  { id: 'received', kind: 'grn', status: 'received' },
+  { id: 'completed', kind: 'grn', status: 'completed' },
+  { id: 'cancelled', kind: 'grn', status: 'cancelled' },
+]
 
 export default function GrnList() {
   const { language } = useSelector((state) => state.ui)
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [debounced, setDebounced] = useState('')
-  const [status, setStatus] = useState('upcoming')
+  const [filterId, setFilterId] = useState('grns')
+  const activeFilter = FILTERS.find((row) => row.id === filterId) || FILTERS[0]
 
   useEffect(() => {
     const h = setTimeout(() => setDebounced(search.trim()), 280)
@@ -35,44 +45,40 @@ export default function GrnList() {
   const upcomingQuery = useQuery({
     queryKey: ['grn-upcoming', debounced],
     queryFn: () => api.get('/grn/upcoming', { params: { search: debounced } }).then((res) => res.data),
-    enabled: status === 'upcoming' || status === 'delayed',
+    enabled: activeFilter.kind === 'po',
   })
 
   const listQuery = useQuery({
-    queryKey: ['grn-list', debounced, status],
+    queryKey: ['grn-list', debounced, activeFilter.status],
     queryFn: () => api.get('/grn', {
       params: {
         search: debounced,
-        status: status && !['upcoming', 'delayed'].includes(status) ? status : undefined,
+        status: activeFilter.status || undefined,
       },
     }).then((res) => res.data),
-    enabled: status !== 'upcoming',
+    enabled: activeFilter.kind === 'grn',
   })
 
-  const upcomingItems = useMemo(() => {
+  const poRows = useMemo(() => {
     const items = Array.isArray(upcomingQuery.data?.items) ? upcomingQuery.data.items : []
-    if (status === 'delayed') return items.filter((row) => row.delayed || row.kind === 'delayed')
-    return items
-  }, [upcomingQuery.data, status])
-
-  const grnRows = useMemo(() => {
-    const rows = Array.isArray(listQuery.data) ? listQuery.data : []
-    if (status === 'delayed') {
-      return rows.filter((grn) => (grn.lines || []).some((line) => line.isDelayed))
+    if (activeFilter.bucket === 'delayed') return items.filter((row) => row.delayed || row.kind === 'delayed')
+    if (activeFilter.bucket === 'partially_received') {
+      return items.filter((row) => row.kind === 'po' && row.status === 'partially_received')
     }
-    return rows
-  }, [listQuery.data, status])
+    return items.filter((row) => row.kind === 'po')
+  }, [upcomingQuery.data, activeFilter.bucket])
 
-  const isUpcomingView = status === 'upcoming' || status === 'delayed'
-  const isLoading = isUpcomingView ? upcomingQuery.isLoading : listQuery.isLoading
-  const showUpcoming = status === 'upcoming'
-  const rows = showUpcoming || status === 'delayed' ? upcomingItems : grnRows
+  const grnRows = Array.isArray(listQuery.data) ? listQuery.data : []
+  const isPoView = activeFilter.kind === 'po'
+  const isLoading = isPoView ? upcomingQuery.isLoading : listQuery.isLoading
+  const rows = isPoView ? poRows : grnRows
 
-  const filterLabel = (value) => {
-    if (value === 'upcoming') return language === 'ar' ? 'القادمة' : 'Upcoming'
-    if (value === '') return language === 'ar' ? 'كل الإشعارات' : 'All GRNs'
-    if (value === 'delayed') return language === 'ar' ? 'متأخرة' : 'Delayed'
-    return statusLabel(value, language)
+  const filterLabel = (row) => {
+    if (row.id === 'grns') return language === 'ar' ? 'كل الإشعارات' : 'All GRNs'
+    if (row.id === 'upcoming_po') return language === 'ar' ? 'طلبات قادمة' : 'Upcoming POs'
+    if (row.id === 'delayed_po') return language === 'ar' ? 'طلبات متأخرة' : 'Delayed POs'
+    if (row.id === 'partially_received_po') return language === 'ar' ? 'مستلمة جزئياً' : 'Partially received POs'
+    return statusLabel(row.status, language)
   }
 
   return (
@@ -100,18 +106,18 @@ export default function GrnList() {
       <div className={`${shell} p-4`}>
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-1.5">
-            {FILTERS.map((value) => (
+            {FILTERS.map((row) => (
               <button
-                key={value || 'all'}
+                key={row.id}
                 type="button"
-                onClick={() => setStatus(value)}
+                onClick={() => setFilterId(row.id)}
                 className={`rounded-full px-3 py-1.5 text-[12px] font-medium ring-1 ring-inset transition ${
-                  status === value
+                  filterId === row.id
                     ? 'bg-teal-700 text-white ring-teal-700 dark:bg-teal-500 dark:text-slate-950 dark:ring-teal-500'
                     : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-transparent dark:text-slate-300 dark:ring-white/10'
                 }`}
               >
-                {filterLabel(value)}
+                {filterLabel(row)}
               </button>
             ))}
           </div>
@@ -138,8 +144,8 @@ export default function GrnList() {
               <PackageCheck className="h-7 w-7" />
             </div>
             <p className="text-[15px] font-semibold text-slate-900 dark:text-white">
-              {showUpcoming
-                ? (language === 'ar' ? 'لا توجد استلامات قادمة' : 'No upcoming receipts')
+              {isPoView
+                ? (language === 'ar' ? 'لا توجد طلبات في هذا التصفية' : 'No purchase orders in this filter')
                 : (language === 'ar' ? 'لا توجد إشعارات استلام' : 'No goods receipts yet')}
             </p>
             <p className="mt-1 max-w-sm text-[13px] text-slate-500">
@@ -150,7 +156,7 @@ export default function GrnList() {
               {language === 'ar' ? 'إشعار استلام جديد' : 'New GRN'}
             </Link>
           </div>
-        ) : showUpcoming || status === 'delayed' ? (
+        ) : isPoView ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-white/10">

@@ -10,7 +10,7 @@ import LandedCost from '../models/LandedCost.js';
 import Invoice from '../models/Invoice.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
-import { saveUploadBuffer } from '../utils/objectStorage.js';
+import { saveUploadBuffer, readUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
 import { confirmGrnReceive, generateGrnNumber, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
 import { computePurchaseLineTotals } from '../services/purchasesLogic.js';
@@ -495,6 +495,7 @@ router.post('/:id/attachments', checkPermission('supply_chain', 'update'), vendo
     const attachment = {
       name: req.file.originalname || filename,
       url,
+      key,
       mimeType: req.file.mimetype,
       size: req.file.size,
       uploadedAt: new Date(),
@@ -504,6 +505,40 @@ router.post('/:id/attachments', checkPermission('supply_chain', 'update'), vendo
     res.status(201).json({ attachment, attachments: order.attachments });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/:id/attachments/:fileId', checkPermission('supply_chain', 'read'), async (req, res) => {
+  try {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter }).select('attachments');
+    if (!order) return res.status(404).json({ error: 'Purchase order not found' });
+    const files = Array.isArray(order.attachments) ? order.attachments : [];
+    const fileId = decodeURIComponent(String(req.params.fileId || ''));
+    const byIndex = /^\d+$/.test(fileId) ? files[Number(fileId)] : null;
+    const file = byIndex
+      || files.find((row) => row?.name === fileId)
+      || files.find((row) => String(row?.url || '').endsWith(fileId))
+      || files.find((row) => String(row?.key || '').endsWith(fileId));
+    if (!file) return res.status(404).json({ error: 'Vendor bill not found' });
+
+    const rawUrl = String(file.url || '').replace(/^\/api/, '');
+    const key = String(file.key || '').replace(/^\/+/, '')
+      || rawUrl.replace(/^\/uploads\//, '').replace(/^\/+/, '');
+    if (!key) return res.status(404).json({ error: 'Vendor bill not found' });
+
+    const buffer = await readUploadBuffer(key);
+    if (!buffer) {
+      return res.status(404).json({ error: 'Vendor bill file is missing. Upload it again.' });
+    }
+
+    const inline = String(req.query.inline || '1') !== '0';
+    const filename = file.name || key.split('/').pop() || 'vendor-bill';
+    res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${filename.replace(/"/g, '')}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
