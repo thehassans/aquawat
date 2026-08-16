@@ -1,17 +1,13 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Warehouse as WarehouseIcon, MapPin, Package, AlertCircle, X, ChevronRight, Loader2, Box, Info } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import ExportMenu from '../../components/ui/ExportMenu'
 import Money from '../../components/ui/Money'
-
-function QuickViewDrawer({ warehouseId, warehouseName, onClose, language }) {
-  const { data, isLoading } = useQuery({
-import { useNavigate } from 'react-router-dom'
 
 export default function Warehouses() {
   const { language } = useSelector((state) => state.ui)

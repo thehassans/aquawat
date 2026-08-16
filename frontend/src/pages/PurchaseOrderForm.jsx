@@ -125,13 +125,7 @@ export default function PurchaseOrderForm() {
     })
   }
 
-  const formatDateForInput = (value) => {
-    if (!value) return ''
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return ''
-    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-    return local.toISOString().slice(0, 10)
-  }
+
 
   const {
     register,
