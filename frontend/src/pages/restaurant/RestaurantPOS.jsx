@@ -463,12 +463,9 @@ export default function RestaurantPOS() {
     >
       
       {/* Left: Menu Grid */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white/60 dark:bg-dark-800/60 backdrop-blur-xl rounded-3xl shadow-sm border border-white/50 dark:border-white/5 overflow-hidden relative">
-        {/* Subtle background glow */}
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-amber-500/10 blur-[100px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
+      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-dark-900 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 dark:border-dark-800 overflow-hidden relative">
         
-        <div className="p-4 sm:p-5 flex flex-col gap-4 flex-shrink-0 z-10 border-b border-gray-100 dark:border-dark-700/50">
+        <div className="p-4 sm:p-5 flex flex-col gap-4 flex-shrink-0 z-10 border-b border-gray-50 dark:border-dark-800">
           <div className="relative">
             <Search className={`absolute top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 ${isRtl ? 'right-4' : 'left-4'}`} />
             <input
@@ -476,30 +473,22 @@ export default function RestaurantPOS() {
               placeholder={isRtl ? "البحث عن صنف..." : "Search menu..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full bg-white/80 dark:bg-dark-900/80 backdrop-blur-md border border-gray-200/80 dark:border-dark-700 rounded-2xl shadow-sm py-3.5 focus:ring-2 focus:ring-amber-500/50 transition-all ${isRtl ? 'pr-12' : 'pl-12'}`}
+              className={`w-full bg-gray-50 dark:bg-dark-800 border-none rounded-xl py-3 focus:ring-1 focus:ring-gray-300 dark:focus:ring-dark-600 transition-all text-sm font-medium ${isRtl ? 'pr-11' : 'pl-11'}`}
             />
           </div>
           
           {/* Categories Pill Bar */}
-          <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2 pt-1 -mx-2 px-2 mask-linear-fade min-w-0 w-full">
+          <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1 min-w-0 w-full">
             {categories.map(cat => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`px-5 py-2.5 rounded-2xl whitespace-nowrap font-bold text-sm transition-all duration-300 relative overflow-hidden flex-shrink-0 ${
+                className={`px-4 py-2.5 rounded-xl whitespace-nowrap font-bold text-xs transition-all duration-200 relative flex-shrink-0 ${
                   activeCategory === cat 
-                    ? 'text-white shadow-md shadow-amber-500/20' 
-                    : 'bg-white/50 dark:bg-dark-900/50 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-dark-700 border border-transparent hover:border-gray-200 dark:hover:border-dark-600'
+                    ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm' 
+                    : 'bg-gray-50 dark:bg-dark-800 text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
-                {activeCategory === cat && (
-                  <motion.div 
-                    layoutId="activeCategory"
-                    className="absolute inset-0 bg-gradient-to-r from-amber-500 to-orange-500"
-                    initial={false}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  />
-                )}
                 <span className="relative z-10">
                   {cat === 'all' ? (isRtl ? 'الكل' : 'All') : cat}
                 </span>
@@ -550,37 +539,36 @@ export default function RestaurantPOS() {
               
               {filteredItems.map(item => (
                 <motion.button
-                  whileHover={{ y: -4, scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.98 }}
                   key={item._id}
                   onClick={() => handleItemClick(item)}
-                  className="bg-white/80 dark:bg-dark-900/80 backdrop-blur-sm rounded-3xl shadow-sm hover:shadow-xl border border-gray-100 dark:border-dark-700/50 text-left flex flex-col relative overflow-hidden group transition-all duration-300"
+                  className="bg-white dark:bg-dark-800 rounded-2xl shadow-sm border border-gray-100 dark:border-dark-700 text-left flex flex-col overflow-hidden group transition-all duration-200 hover:shadow-md hover:border-gray-200 dark:hover:border-dark-600"
                 >
-                  <div className="h-36 w-full bg-gray-50/50 dark:bg-dark-800/50 relative overflow-hidden flex items-center justify-center">
+                  <div className="h-32 w-full bg-gray-50 dark:bg-dark-900 relative overflow-hidden flex items-center justify-center">
                     {item.imageUrl ? (
-                      <img src={getImageUrl(item.imageUrl)} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                      <img src={getImageUrl(item.imageUrl)} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-50 dark:from-dark-800 dark:to-dark-700">
-                        <UtensilsCrossed className="w-10 h-10 text-gray-300 dark:text-dark-600" />
+                      <div className="w-full h-full flex items-center justify-center">
+                        <UtensilsCrossed className="w-8 h-8 text-gray-300 dark:text-dark-600" />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     
                     {item.hasHalfPlate && (
-                      <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-full font-bold shadow-md">
+                      <div className="absolute top-2 left-2 bg-white/90 dark:bg-black/90 backdrop-blur-sm text-gray-900 dark:text-white text-[9px] px-2 py-0.5 rounded-lg font-bold shadow-sm border border-gray-100 dark:border-dark-700">
                         {isRtl ? 'نصف و كامل' : 'Half/Full'}
                       </div>
                     )}
                   </div>
                   
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div className="font-bold text-gray-900 dark:text-white mb-2 line-clamp-2 leading-tight">
+                  <div className="p-3 flex-1 flex flex-col justify-between border-t border-gray-50 dark:border-dark-800">
+                    <div className="font-bold text-gray-900 dark:text-white mb-2 text-sm line-clamp-2 leading-tight">
                       {isRtl ? (item.nameAr || item.nameEn) : item.nameEn}
                     </div>
-                    <div className="text-base font-black text-amber-600 flex items-center justify-between">
+                    <div className="text-sm font-black text-gray-900 dark:text-white flex items-center justify-between">
                       <Money value={item.sellingPrice || 0} />
-                      <div className="w-6 h-6 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
-                        <Plus className="w-4 h-4" />
+                      <div className="w-6 h-6 rounded-lg bg-gray-100 dark:bg-dark-700 flex items-center justify-center text-gray-500 group-hover:bg-black group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-black transition-colors">
+                        <Plus className="w-3.5 h-3.5" />
                       </div>
                     </div>
                   </div>
