@@ -347,7 +347,10 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
                 <div className={`${isKitchen ? 'font-black text-sm' : 'font-bold'} text-gray-900 leading-tight`}>
                   {item.nameEn || item.productName || item.name || ''}
                 </div>
-                {bilingualAr && (item.nameAr || item.productNameAr) && (item.nameAr !== item.nameEn || item.productNameAr !== item.productName) && (
+                {bilingualAr && (item.nameAr || item.productNameAr) && (
+                  (item.nameAr?.trim().toLowerCase() !== (item.nameEn || item.productName || item.name)?.trim().toLowerCase()) && 
+                  (item.productNameAr?.trim().toLowerCase() !== (item.productName || item.nameEn || item.name)?.trim().toLowerCase())
+                ) && (
                   <div className={`${isKitchen ? 'text-black font-bold text-sm mt-1' : 'text-black font-bold mt-0.5'} leading-tight`}>
                     {item.nameAr || item.productNameAr}
                   </div>
