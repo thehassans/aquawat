@@ -80,7 +80,7 @@ export default function SupplierForm() {
       )
       queryClient.invalidateQueries(['suppliers'])
       queryClient.invalidateQueries(['suppliers-stats'])
-      navigate('/suppliers')
+      navigate(returnTo || '/app/dashboard/suppliers')
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
