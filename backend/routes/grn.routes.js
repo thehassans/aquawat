@@ -64,7 +64,7 @@ function mapDelayLines(lines = []) {
     .filter((line) => line.isDelayed)
     .map((line) => ({
       productName: line.productName || '',
-      quantityOrdered: toNumber(line.quantityOrdered),
+      quantityOrdered: Math.max(0, toNumber(line.quantityOrdered) - Math.max(toNumber(line.quantityReceived), toNumber(line.quantityReturned))),
       delayedUntil: line.delayedUntil || null,
       delayReason: line.delayReason || '',
       notes: line.notes || '',
@@ -212,6 +212,9 @@ router.get('/upcoming', checkPermission('supply_chain', 'read'), async (req, res
       .sort({ expectedDate: 1, createdAt: 1 });
 
     const delayedRows = delayedGrns.map((grn) => {
+      if (grn.purchaseOrderId && ['received', 'closed', 'billed', 'cancelled'].includes(grn.purchaseOrderId.status)) {
+        return null;
+      }
       const delayLines = mapDelayLines(grn.lines);
       if (!delayLines.length) return null;
       const haystack = [

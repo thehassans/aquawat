@@ -17,7 +17,6 @@ import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } fro
 import InvoiceLivePreview from './InvoiceLivePreview'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
-import ZatcaPreValidationPanel from '../zatca/ZatcaPreValidationPanel'
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
@@ -1057,9 +1056,6 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 <div className="flex justify-between text-sm"><span className="text-gray-500">{language === 'ar' ? 'المبلغ الخاضع للضريبة' : 'Taxable Amount'}</span><span><Money value={totals.taxableAmount} /></span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">{t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
                 <div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-bold dark:border-dark-600"><span>{t('total')}</span><span className="text-primary-600"><Money value={totals.grandTotal} /></span></div>
-              </div>
-              <div className="mb-4">
-                <ZatcaPreValidationPanel invoiceData={previewInvoice} language={language} />
               </div>
               <div className="flex gap-3"><button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="btn btn-secondary">{t('cancel')}</button><button type="submit" disabled={saveMutation.isPending} className="btn btn-action-dark">{saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <><Save className="w-4 h-4" />{isEdit ? (language === 'ar' ? 'حفظ التعديلات' : 'Save Changes') : t('save')}</>}</button></div>
             </div>

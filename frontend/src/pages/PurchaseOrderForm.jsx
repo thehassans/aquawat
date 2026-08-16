@@ -122,7 +122,7 @@ export default function PurchaseOrderForm() {
       expectedDate: '',
       currency: tenant?.settings?.currency || 'SAR',
       notes: '',
-      lineItems: [{ productId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
+      lineItems: [{ productId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, quantityReturned: 0, unitCost: 0, taxRate: 15 }],
     },
   })
 
@@ -302,10 +302,11 @@ export default function PurchaseOrderForm() {
               productType: li?.productType || li?.productId?.productType || 'goods',
               quantityOrdered: li?.quantityOrdered ?? 0,
               quantityReceived: li?.quantityReceived ?? 0,
+              quantityReturned: li?.quantityReturned ?? 0,
               unitCost: li?.unitCost ?? 0,
               taxRate: li?.taxRate ?? 15,
             }))
-          : [{ productId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, unitCost: 0, taxRate: 15 }],
+          : [{ productId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, quantityReturned: 0, unitCost: 0, taxRate: 15 }],
     })
     setManualModes(items.map((li) => Boolean(li?.manualName && !li?.productId)))
     const existingLc = (order.related?.landedCosts || []).find((lc) => (lc.costLines || []).length) || order.related?.landedCosts?.[0]
@@ -422,6 +423,7 @@ export default function PurchaseOrderForm() {
         productType: normalizeProductType(li.productType),
         quantityOrdered: Number(li.quantityOrdered || 0),
         quantityReceived: Number(li.quantityReceived || 0),
+        quantityReturned: Number(li.quantityReturned || 0),
         unitCost: Number(li.unitCost || 0),
         taxRate: Number(li.taxRate ?? 15),
       })),
@@ -954,6 +956,7 @@ export default function PurchaseOrderForm() {
                     productType: 'goods',
                     quantityOrdered: 1,
                     quantityReceived: 0,
+                    quantityReturned: 0,
                     unitCost: 0,
                     taxRate: 15,
                   })

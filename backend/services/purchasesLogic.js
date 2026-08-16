@@ -36,7 +36,8 @@ export function round2(value) {
 }
 
 export function remainingReceivable(line = {}) {
-  return Math.max(0, toNumber(line.quantityOrdered) - toNumber(line.quantityReceived));
+  const netReceived = Math.max(0, toNumber(line.quantityReceived) - toNumber(line.quantityReturned));
+  return Math.max(0, toNumber(line.quantityOrdered) - netReceived);
 }
 
 export function buildOpenReceiveLines(po) {
@@ -102,6 +103,7 @@ export function buildPoReceivingLedger({ lineItems = [], grns = [] } = {}) {
       uom: li?.uom || product?.unitOfMeasure || '',
       quantityOrdered: toNumber(li?.quantityOrdered ?? li?.quantity),
       quantityReceived: toNumber(li?.quantityReceived),
+      quantityReturned: toNumber(li?.quantityReturned),
       remaining: remainingReceivable(li),
       names: nameSet([product?.nameEn, product?.nameAr, li?.manualName, li?.description]),
       receivedEvents: [],
@@ -119,7 +121,7 @@ export function buildPoReceivingLedger({ lineItems = [], grns = [] } = {}) {
         date: grn.dateReceived || grn.createdAt || null,
         warehouse: grn.warehouseId || null,
         productName: line.productName || '',
-        quantity: toNumber(line.isDelayed ? line.quantityOrdered : line.quantityReceived),
+        quantity: toNumber(line.isDelayed ? Math.max(0, line.quantityOrdered - line.quantityReceived) : line.quantityReceived),
         quantityReceived: toNumber(line.quantityReceived),
         quantityOrdered: toNumber(line.quantityOrdered),
         isDelayed: Boolean(line.isDelayed),
@@ -138,7 +140,7 @@ export function buildPoReceivingLedger({ lineItems = [], grns = [] } = {}) {
         unmatched.push(event);
         continue;
       }
-      if (event.isDelayed) match.delayedEvents.push(event);
+      if (event.isDelayed && match.remaining > 0) match.delayedEvents.push(event);
       else if (event.quantityReceived > 0) match.receivedEvents.push(event);
     }
   }

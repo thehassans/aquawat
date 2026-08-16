@@ -80,6 +80,7 @@ export default function PurchaseReceivingLedger({ order, language }) {
   const unmatched = Array.isArray(ledger?.unmatched) ? ledger.unmatched : []
   const ordered = lines.reduce((sum, row) => sum + Number(row.quantityOrdered || 0), 0)
   const received = lines.reduce((sum, row) => sum + Number(row.quantityReceived || 0), 0)
+  const returned = lines.reduce((sum, row) => sum + Number(row.quantityReturned || 0), 0)
   const delayed = Number(ledger?.delayedCount || 0)
 
   return (
@@ -95,9 +96,10 @@ export default function PurchaseReceivingLedger({ order, language }) {
               : 'What arrived, when, and what is delayed — with reason and notes.'}
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-4 gap-6">
           <Stat label={language === 'ar' ? 'مطلوب' : 'Ordered'} value={ordered} />
           <Stat label={language === 'ar' ? 'مستلم' : 'Received'} value={received} tone="text-teal-800 dark:text-teal-300" />
+          <Stat label={language === 'ar' ? 'مرتجع' : 'Returned'} value={returned} tone={returned > 0 ? "text-rose-800 dark:text-rose-300" : undefined} />
           <Stat label={language === 'ar' ? 'متأخر' : 'Delayed'} value={delayed} tone={delayed ? 'text-amber-800 dark:text-amber-300' : undefined} />
         </div>
       </div>
@@ -143,6 +145,14 @@ export default function PurchaseReceivingLedger({ order, language }) {
                   {language === 'ar' ? 'مطلوب' : 'Ordered'} {row.quantityOrdered}
                   <span className="mx-2 text-slate-300">·</span>
                   {language === 'ar' ? 'مستلم' : 'Received'} {row.quantityReceived}
+                  {row.quantityReturned > 0 && (
+                    <>
+                      <span className="mx-2 text-slate-300">·</span>
+                      <span className="text-rose-600 dark:text-rose-400">
+                        {language === 'ar' ? 'مرتجع' : 'Returned'} {row.quantityReturned}
+                      </span>
+                    </>
+                  )}
                   <span className="mx-2 text-slate-300">·</span>
                   {language === 'ar' ? 'متبقي' : 'Remaining'} {row.remaining}
                 </p>
