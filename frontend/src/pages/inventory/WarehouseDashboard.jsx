@@ -89,7 +89,10 @@ export default function WarehouseDashboard() {
                       <span className="text-rose-600 dark:text-rose-400">{item.totalReturned} {language === 'ar' ? 'مرتجع' : 'Returned'}</span>
                     </div>
                     <div className="flex items-baseline gap-1.5">
-                      <p className="text-[16px] font-bold tabular-nums text-slate-900 dark:text-white">{item.availableQuantity}</p>
+                      <p className="text-[16px] font-bold tabular-nums text-slate-900 dark:text-white">{item.quantity}</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider">{language === 'ar' ? 'الإجمالي' : 'Total'}</p>
+                      <span className="mx-1 text-slate-200 dark:text-white/10">|</span>
+                      <p className="text-[16px] font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{item.availableQuantity}</p>
                       <p className="text-[10px] text-slate-400 uppercase tracking-wider">{language === 'ar' ? 'متوفر' : 'Available'}</p>
                     </div>
                   </div>

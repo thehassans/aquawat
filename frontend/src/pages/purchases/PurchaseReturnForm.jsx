@@ -268,7 +268,9 @@ export default function PurchaseReturnForm() {
                 <tr>
                   <th className="py-2">{language === 'ar' ? 'المنتج' : 'Product'}</th>
                   <th className="py-2">{language === 'ar' ? 'قابل للإرجاع' : 'Returnable'}</th>
+                  <th className="py-2">{language === 'ar' ? 'سعر الوحدة' : 'Unit Price'}</th>
                   <th className="py-2">{language === 'ar' ? 'الكمية' : 'Qty'}</th>
+                  <th className="py-2">{language === 'ar' ? 'الإجمالي' : 'Total'}</th>
                   <th className="py-2">{language === 'ar' ? 'ملاحظات' : 'Notes'}</th>
                 </tr>
               </thead>
@@ -277,6 +279,7 @@ export default function PurchaseReturnForm() {
                   <tr key={index} className="border-t border-slate-100 dark:border-white/10">
                     <td className="py-3 font-medium text-slate-900 dark:text-white">{line.productName || '—'}</td>
                     <td className="py-3 tabular-nums text-slate-500">{line.remaining ?? line.quantityReceived ?? '—'}</td>
+                    <td className="py-3 tabular-nums text-slate-500">{Number(line.unitCost || 0).toFixed(2)}</td>
                     <td className="py-3">
                       <input
                         type="number"
@@ -291,6 +294,9 @@ export default function PurchaseReturnForm() {
                         className={fieldControlClass}
                       />
                     </td>
+                    <td className="py-3 tabular-nums font-semibold text-slate-900 dark:text-white">
+                      {(Number(line.quantityReturned || 0) * Number(line.unitCost || 0)).toFixed(2)}
+                    </td>
                     <td className="py-3">
                       <input
                         disabled={locked}
@@ -302,6 +308,16 @@ export default function PurchaseReturnForm() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="border-t border-slate-200 dark:border-white/20">
+                  <td colSpan="4" className="py-4 text-end font-semibold text-slate-900 dark:text-white">
+                    {language === 'ar' ? 'الإجمالي:' : 'Total Amount:'}
+                  </td>
+                  <td colSpan="2" className="py-4 pl-0 pr-4 tabular-nums font-bold text-teal-600 dark:text-teal-400">
+                    {lines.reduce((sum, line) => sum + (Number(line.quantityReturned || 0) * Number(line.unitCost || 0)), 0).toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}

@@ -149,6 +149,7 @@ export default function PurchaseReturnList() {
                   <th className="px-5 py-3">{language === 'ar' ? 'الإشعار' : 'GRN'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'المستودع' : 'Warehouse'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'التاريخ' : 'Date'}</th>
+                  <th className="px-5 py-3 text-right">{language === 'ar' ? 'المبلغ' : 'Amount'}</th>
                   <th className="px-5 py-3">{language === 'ar' ? 'الحالة' : 'Status'}</th>
                 </tr>
               </thead>
@@ -164,6 +165,9 @@ export default function PurchaseReturnList() {
                     <td className="px-5 py-4 font-mono text-[12px] text-slate-500">{row.grnId?.grnNumber || '—'}</td>
                     <td className="px-5 py-4">{warehouseName(row.warehouseId, language)}</td>
                     <td className="px-5 py-4 text-slate-500">{formatDay(row.dateReturned || row.createdAt, language)}</td>
+                    <td className="px-5 py-4 text-right tabular-nums font-medium text-slate-700 dark:text-slate-300">
+                      {Number(row.returnAmount || 0).toFixed(2)}
+                    </td>
                     <td className="px-5 py-4">
                       <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${STATUS_PILL[row.status] || STATUS_PILL.draft}`}>
                         {statusLabel(row.status, language)}

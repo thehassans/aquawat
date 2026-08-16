@@ -6,6 +6,8 @@ const purchaseReturnLineSchema = new mongoose.Schema({
   barcode: { type: String },
   productType: { type: String, enum: ['goods', 'service'], default: 'goods' },
   quantityReturned: { type: Number, required: true, min: 0 },
+  unitCost: { type: Number, default: 0 },
+  lineTotal: { type: Number, default: 0 },
   reason: { type: String },
   notes: { type: String },
   grnLineIndex: { type: Number }
@@ -30,6 +32,7 @@ const purchaseReturnSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   notes: { type: String },
   reason: { type: String },
+  returnAmount: { type: Number, default: 0 },
   stockPostedAt: { type: Date },
   cancelledAt: { type: Date },
   lines: { type: [purchaseReturnLineSchema], default: [] }

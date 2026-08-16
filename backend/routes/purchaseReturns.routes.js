@@ -25,17 +25,23 @@ function handlePurchasesError(res, error) {
   return res.status(500).json({ error: error.message });
 }
 
-function normalizeReturnLines(lines = []) {
-  return (Array.isArray(lines) ? lines : []).map((line) => ({
-    productId: line.productId || undefined,
-    productName: line.productName || '',
-    barcode: line.barcode || '',
-    productType: normalizeProductType(line.productType),
-    quantityReturned: toNumber(line.quantityReturned ?? line.quantity, 0),
-    reason: line.reason || '',
-    notes: line.notes || '',
-    grnLineIndex: line.grnLineIndex,
-  }));
+function normalizeReturnLines(lines = [], costMap = {}) {
+  return (Array.isArray(lines) ? lines : []).map((line) => {
+    const qty = toNumber(line.quantityReturned ?? line.quantity, 0);
+    const unitCost = costMap[String(line.productId)] || 0;
+    return {
+      productId: line.productId || undefined,
+      productName: line.productName || '',
+      barcode: line.barcode || '',
+      productType: normalizeProductType(line.productType),
+      quantityReturned: qty,
+      unitCost: unitCost,
+      lineTotal: qty * unitCost,
+      reason: line.reason || '',
+      notes: line.notes || '',
+      grnLineIndex: line.grnLineIndex,
+    };
+  });
 }
 
 router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
@@ -71,6 +77,17 @@ router.get('/from-grn/:grnId', checkPermission('supply_chain', 'read'), async (r
       .populate('warehouseId', 'code nameEn nameAr')
       .populate('purchaseOrderId', 'poNumber');
     if (!grn) return res.status(404).json({ error: 'GRN not found' });
+    
+    // Attempt to fetch unit cost from PO if it exists
+    let costMap = {};
+    if (grn.purchaseOrderId) {
+      import('../models/PurchaseOrder.js').then(({ default: PurchaseOrder }) => {
+        PurchaseOrder.findById(grn.purchaseOrderId).then((po) => {
+          if (po) po.lineItems.forEach(li => costMap[String(li.productId)] = li.unitCost || 0);
+        });
+      }).catch(() => {});
+    }
+
     const lines = (grn.lines || []).map((line, index) => ({
       productId: line.productId,
       productName: line.productName,
@@ -108,8 +125,6 @@ router.post('/', checkTrialLimits('purchaseReturns'), checkPermission('supply_ch
     } = req.body;
 
     if (!supplierId) return res.status(400).json({ error: 'supplierId is required' });
-    const normalized = normalizeReturnLines(lines).filter((line) => line.quantityReturned > 0);
-    if (!normalized.length) return res.status(400).json({ error: 'At least one return line is required' });
 
     let grn = null;
     if (grnId) {
@@ -123,12 +138,27 @@ router.post('/', checkTrialLimits('purchaseReturns'), checkPermission('supply_ch
       if (!warehouse) return res.status(400).json({ error: 'Warehouse not found' });
     }
 
+    const actualPoId = purchaseOrderId || grn?.purchaseOrderId;
+    let costMap = {};
+    if (actualPoId) {
+      const { default: PurchaseOrder } = await import('../models/PurchaseOrder.js');
+      const po = await PurchaseOrder.findOne({ _id: actualPoId, tenantId: req.user.tenantId });
+      if (po && po.lineItems) {
+        po.lineItems.forEach(li => { costMap[String(li.productId)] = li.unitCost || 0; });
+      }
+    }
+
+    const normalized = normalizeReturnLines(lines, costMap).filter((line) => line.quantityReturned > 0);
+    if (!normalized.length) return res.status(400).json({ error: 'At least one return line is required' });
+
+    const returnAmount = normalized.reduce((sum, line) => sum + (line.lineTotal || 0), 0);
+
     const purchaseReturn = new PurchaseReturn({
       tenantId: req.user.tenantId,
       returnNumber: await generateReturnNumber(req.tenantFilter),
       supplierId,
       warehouseId: resolvedWarehouseId || undefined,
-      purchaseOrderId: purchaseOrderId || grn?.purchaseOrderId || undefined,
+      purchaseOrderId: actualPoId || undefined,
       grnId: grnId || undefined,
       referenceNumber,
       notes,
@@ -136,6 +166,7 @@ router.post('/', checkTrialLimits('purchaseReturns'), checkPermission('supply_ch
       createdBy: req.user._id,
       returnedBy: req.user._id,
       status: status === 'completed' ? 'draft' : (status || 'draft'),
+      returnAmount,
       lines: normalized,
     });
     await purchaseReturn.save();
@@ -185,7 +216,19 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
     if (reason !== undefined) purchaseReturn.reason = reason;
     if (grnId !== undefined) purchaseReturn.grnId = grnId || undefined;
     if (purchaseOrderId !== undefined) purchaseReturn.purchaseOrderId = purchaseOrderId || undefined;
-    if (Array.isArray(lines)) purchaseReturn.lines = normalizeReturnLines(lines);
+    
+    if (Array.isArray(lines)) {
+      const actualPoId = purchaseReturn.purchaseOrderId || (purchaseReturn.grnId ? (await GRN.findById(purchaseReturn.grnId))?.purchaseOrderId : null);
+      let costMap = {};
+      if (actualPoId) {
+        const { default: PurchaseOrder } = await import('../models/PurchaseOrder.js');
+        const po = await PurchaseOrder.findOne({ _id: actualPoId, tenantId: req.user.tenantId });
+        if (po && po.lineItems) po.lineItems.forEach(li => { costMap[String(li.productId)] = li.unitCost || 0; });
+      }
+      purchaseReturn.lines = normalizeReturnLines(lines, costMap);
+      purchaseReturn.returnAmount = purchaseReturn.lines.reduce((sum, line) => sum + (line.lineTotal || 0), 0);
+    }
+    
     await purchaseReturn.save();
     res.json(purchaseReturn);
   } catch (error) {

@@ -134,6 +134,30 @@ router.get('/:id/inventory', checkPermission('inventory', 'read'), async (req, r
       .select('sku nameEn nameAr barcode stocks category sellingPrice costPrice')
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
+
+    const productIds = products.map(p => p._id);
+
+    // Aggregate total sold
+    const { default: Invoice } = await import('../models/Invoice.js');
+    const soldAgg = await Invoice.aggregate([
+      { $match: { tenantId: req.user.tenantId, warehouseId: new mongoose.Types.ObjectId(req.params.id), status: { $in: ['issued', 'paid', 'partially_paid'] } } },
+      { $unwind: "$lineItems" },
+      { $match: { "lineItems.productId": { $in: productIds } } },
+      { $group: { _id: "$lineItems.productId", totalSold: { $sum: "$lineItems.quantity" } } }
+    ]);
+    const soldMap = {};
+    soldAgg.forEach(s => { soldMap[String(s._id)] = s.totalSold; });
+
+    // Aggregate total returned
+    const { default: PurchaseReturn } = await import('../models/PurchaseReturn.js');
+    const returnAgg = await PurchaseReturn.aggregate([
+      { $match: { tenantId: req.user.tenantId, warehouseId: new mongoose.Types.ObjectId(req.params.id), status: 'completed' } },
+      { $unwind: "$lines" },
+      { $match: { "lines.productId": { $in: productIds } } },
+      { $group: { _id: "$lines.productId", totalReturned: { $sum: "$lines.quantityReturned" } } }
+    ]);
+    const returnMap = {};
+    returnAgg.forEach(r => { returnMap[String(r._id)] = r.totalReturned; });
     
     const inventoryItems = products.map(p => {
       const stock = p.stocks.find(s => s.warehouseId.toString() === req.params.id);
@@ -151,6 +175,8 @@ router.get('/:id/inventory', checkPermission('inventory', 'read'), async (req, r
         quantity: stock?.quantity || 0,
         reservedQuantity: stock?.reservedQuantity || 0,
         availableQuantity: (stock?.quantity || 0) - (stock?.reservedQuantity || 0),
+        totalSold: soldMap[String(p._id)] || 0,
+        totalReturned: returnMap[String(p._id)] || 0,
         reorderPoint: stock?.reorderPoint || 0,
         location: stock?.location
       };

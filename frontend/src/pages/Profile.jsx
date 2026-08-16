@@ -56,7 +56,8 @@ import {
   Star,
   Trash2,
   Hash,
-  ChevronRight
+  ChevronRight,
+  ArrowLeft
 } from 'lucide-react'
 
 import api from '../lib/api'
@@ -403,6 +404,14 @@ export default function Profile() {
 
   return (
     <div className="min-h-screen pb-16 space-y-8 animate-fade-in">
+      {/* Back Button */}
+      <div className="flex items-center">
+        <button onClick={() => navigate('/app/dashboard')} className="btn btn-ghost btn-icon">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <span className="text-lg font-semibold ml-2">{language === 'ar' ? 'العودة للرئيسية' : 'Back to Dashboard'}</span>
+      </div>
+
       {/* Ultra-premium company identity header */}
       <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/70 bg-[#0b1220] text-white shadow-[0_40px_80px_-48px_rgba(15,23,42,0.65)] dark:border-white/10">
         <div className="pointer-events-none absolute inset-0">

@@ -243,7 +243,7 @@ export default function SupplierForm() {
         </motion.div>
 
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary">
+          <button type="button" onClick={() => navigate(returnTo || '/app/dashboard/suppliers')} className="btn btn-secondary">
             {t('cancel')}
           </button>
           <button type="submit" disabled={mutation.isPending} className="btn btn-primary">

@@ -2110,7 +2110,8 @@ router.get('/apps', protect, async (req, res) => {
       // retroactively for existing customers.
       const isGrandfatheredPremiumTemplates = app.appId === PREMIUM_INVOICE_TEMPLATES_APP_ID && !isExplicitlyInstalled && hasPremiumTemplateAccess(tenant);
       const accessValid = isAppAccessValid(record);
-      const isInstalled = accessValid || isGrandfatheredPremiumTemplates;
+      const isCoreAlwaysInstalled = app.appId === 'purchases';
+      const isInstalled = accessValid || isGrandfatheredPremiumTemplates || isCoreAlwaysInstalled;
       const isEnabled = record.isEnabled !== false && accessValid;
       const config = record.config || {};
       const includedInPlans = Array.isArray(app.includedInPlans)

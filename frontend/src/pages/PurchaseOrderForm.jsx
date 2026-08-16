@@ -1030,7 +1030,8 @@ export default function PurchaseOrderForm() {
               const lineSubtotal = qty * unit
               const lineTax = lineSubtotal * (taxRate / 100)
               const lineTotal = lineSubtotal + lineTax
-              const remaining = Math.max(0, qty - received)
+              const returned = Number(current?.quantityReturned || 0)
+              const remaining = Math.max(0, qty - (received - returned))
 
               return (
                 <div
@@ -1390,7 +1391,7 @@ export default function PurchaseOrderForm() {
                             : li?.productId?.nameEn || li?.productId?.nameAr
                         const remaining = Math.max(
                           0,
-                          Number(li.quantityOrdered || 0) - Number(li.quantityReceived || 0)
+                          Number(li.quantityOrdered || 0) - (Number(li.quantityReceived || 0) - Number(li.quantityReturned || 0))
                         )
 
                         return (
