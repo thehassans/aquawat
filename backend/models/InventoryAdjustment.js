@@ -8,7 +8,7 @@ const inventoryAdjustmentSchema = new mongoose.Schema({
   reason: { type: String, required: true }, // e.g. 'Shrinkage', 'Damage', 'Found'
   notes: { type: String },
   lines: [{
-    productId: { type: mongoose.Schema.Types.ObjectId, ref: 'BakalaProduct' },
+    productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     productName: { type: String },
     barcode: { type: String },
     systemQuantity: { type: Number },

@@ -1,7 +1,7 @@
 import express from 'express';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import InventoryAdjustment from '../models/InventoryAdjustment.js';
-import BakalaProduct from '../models/BakalaProduct.js';
+import { adjustProductStock } from '../services/inventoryAdjust.js';
 import { resolveTenantId, withTenant, handleTenantScopeError } from '../utils/tenantScope.js';
 
 const router = express.Router();
@@ -48,11 +48,12 @@ router.post('/', protect, async (req, res) => {
     await adjustment.save();
 
     for (const line of adjustment.lines) {
-      if (line.productId) {
-        await BakalaProduct.findOneAndUpdate(
-          { _id: line.productId, tenantId },
-          { $set: { stockQuantity: line.actualQuantity } }
-        );
+      if (line.productId && line.difference !== undefined) {
+        await adjustProductStock({
+          tenantId,
+          productId: line.productId,
+          delta: line.difference
+        });
       }
     }
 

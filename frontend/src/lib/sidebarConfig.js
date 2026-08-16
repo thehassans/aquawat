@@ -288,7 +288,13 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       title: language === 'ar' ? 'سلسلة التوريد' : 'Supply Chain',
       businessTypes: ['trading', 'bakala', 'pharmacy', 'furniture_shop'],
       items: [
-        { path: '/app/dashboard/shipments', icon: Truck, label: language === 'ar' ? 'الشحنات' : 'Shipments', perm: { module: 'supply_chain', action: 'read' } },
+        { 
+          path: '/app/dashboard/shipments', 
+          icon: Truck, 
+          label: language === 'ar' ? 'الشحنات' : 'Shipments', 
+          perm: { module: 'supply_chain', action: 'read' },
+          requireAnyApp: ['shipments']
+        },
       ]
     },
     {
@@ -358,7 +364,6 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
           { path: '/app/dashboard/accounting/supplier-summary', label: language === 'ar' ? 'ملخص الموردين' : 'Supplier Summary Report' },
           { path: '/app/dashboard/accounting/ledger-search', label: language === 'ar' ? 'بحث الدفتر' : 'Ledger search' },
         ] },
-        { path: '/app/dashboard/vouchers', icon: Receipt, label: language === 'ar' ? 'السندات' : 'Vouchers', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/expenses', icon: Receipt, label: language === 'ar' ? 'المصروفات' : 'Expenses', perm: { module: 'finance', action: 'read' } },
         ...(isSarCurrencyTenant ? [{ path: '/app/dashboard/vat-returns', icon: Calculator, label: language === 'ar' ? 'إقرارات القيمة المضافة (زاتكا)' : 'VAT Returns (ZATCA)', perm: { module: 'finance', action: 'read' } }] : []),
         ...(isSarCurrencyTenant && tenant?.zatca?.phase !== 1 ? [{ path: '/app/dashboard/finance/zatca-logs', icon: Shield, label: language === 'ar' ? 'سجل زاتكا' : 'ZATCA Logs', perm: { module: 'finance', action: 'read' } }] : []),
