@@ -58,6 +58,8 @@ test('updating.html is an English light deploy holding page with the Maqder mark
   assert.match(html, /3–5 minutes|3-5 minutes/);
   assert.match(html, /Thank you for your patience/);
   assert.match(html, /maqderbestlogo\.png/);
+  assert.match(html, /\.logo \{[\s\S]*?background:\s*#fff/);
+  assert.doesNotMatch(html, /\.logo \{[\s\S]*?background:\s*#000/);
   assert.doesNotMatch(html, /class="wordmark"/);
   assert.match(html, /#f4f6f3/);
   assert.doesNotMatch(html, /شكراً|مقدر|الرجاء/);
