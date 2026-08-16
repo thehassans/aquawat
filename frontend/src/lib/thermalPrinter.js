@@ -212,7 +212,6 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       } else if (elementOrHtml && elementOrHtml.outerHTML) {
         contentHtml = elementOrHtml.outerHTML;
       } else {
-        // Fallback to window.print if no element
         window.print();
         resolve(true);
         return;
@@ -237,11 +236,24 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
         return;
       }
 
-      // Collect head styles from parent document for full Tailwind & font fidelity
-      let parentStyles = '';
+      // *** FIX: Do NOT copy parent SPA styles (Tailwind dark-mode etc.) into the iframe.
+      // They cause the white-page / invisible text bug because dark: classes get applied.
+      // Instead, inject only a minimal clean stylesheet with explicit white background + black text.
+
+      // Only copy font @font-face rules from parent (so custom fonts render correctly)
+      let fontStyles = '';
       try {
-        document.querySelectorAll('style, link[rel="stylesheet"]').forEach(node => {
-          parentStyles += node.outerHTML;
+        document.querySelectorAll('style').forEach(node => {
+          if (node.textContent && node.textContent.includes('@font-face')) {
+            fontStyles += `<style>${node.textContent}</style>`;
+          }
+        });
+        // Also grab Google Font <link> tags
+        document.querySelectorAll('link[rel="stylesheet"]').forEach(node => {
+          const href = node.getAttribute('href') || '';
+          if (href.includes('fonts.googleapis.com') || href.includes('fonts.gstatic.com')) {
+            fontStyles += node.outerHTML;
+          }
         });
       } catch (_) {}
 
@@ -250,16 +262,11 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
 <head>
   <meta charset="utf-8" />
   <title>Receipt</title>
-  ${parentStyles}
+  ${fontStyles}
   <style>
     @page {
       size: ${paperWidth} auto;
       margin: 0mm !important;
-    }
-    *, *::before, *::after {
-      box-sizing: border-box !important;
-      visibility: visible !important;
-      opacity: 1 !important;
     }
     html, body {
       margin: 0 !important;
@@ -269,11 +276,17 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       -webkit-text-fill-color: #000000 !important;
       width: ${paperWidth} !important;
       max-width: ${paperWidth} !important;
-      min-width: ${paperWidth} !important;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', Courier, monospace, 'Cairo', sans-serif !important;
       font-size: ${fontSize}px !important;
       line-height: ${lineHeight} !important;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box !important;
       visibility: visible !important;
+      opacity: 1 !important;
+      color: #000000 !important;
+      -webkit-text-fill-color: #000000 !important;
+      background-color: transparent;
     }
     .print-section, .order-receipt, .thermal-receipt, .kitchen-ticket {
       width: 100% !important;
@@ -282,17 +295,10 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       margin: 0 auto !important;
       background: #ffffff !important;
       color: #000000 !important;
-      -webkit-text-fill-color: #000000 !important;
       border: none !important;
       box-shadow: none !important;
       display: block !important;
-      visibility: visible !important;
       position: static !important;
-    }
-    .print-section *, .order-receipt *, .thermal-receipt *, .kitchen-ticket * {
-      color: #000000 !important;
-      -webkit-text-fill-color: #000000 !important;
-      opacity: 1 !important;
     }
     table {
       width: 100% !important;
@@ -301,11 +307,17 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
     img {
       max-width: 100% !important;
       height: auto !important;
+      display: block;
     }
     svg {
       display: block !important;
       margin: 0 auto !important;
     }
+    /* Neutralize Tailwind dark mode classes */
+    .dark, [class*="dark:"] { color: #000 !important; background: transparent !important; }
+    [class*="text-white"] { color: #000000 !important; }
+    [class*="bg-gray"], [class*="bg-slate"], [class*="bg-dark"] { background: transparent !important; }
+    hr { border-color: #aaa !important; }
   </style>
 </head>
 <body style="margin: 0; padding: 0; background: #fff; color: #000; width: ${paperWidth};">
