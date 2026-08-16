@@ -1,5 +1,6 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
@@ -14,6 +15,8 @@ export default function SupplierForm() {
   const isEdit = Boolean(id)
 
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const returnTo = searchParams.get('returnTo')
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
@@ -46,19 +49,22 @@ export default function SupplierForm() {
     targetLang: 'en'
   })
 
-  const { isLoading } = useQuery({
+  const { data: supplierData, isLoading } = useQuery({
     queryKey: ['supplier', id],
     queryFn: () => api.get(`/suppliers/${id}`).then((res) => res.data),
     enabled: isEdit,
-    onSuccess: (data) => {
-      reset({
-        ...data,
-        paymentTerms: data?.paymentTerms || { term: 'net_30' },
-        address: data?.address || { country: 'SA' },
-        bank: data?.bank || {},
-      })
-    },
   })
+
+  useEffect(() => {
+    if (isEdit && supplierData) {
+      reset({
+        ...supplierData,
+        paymentTerms: supplierData.paymentTerms || { term: 'net_30' },
+        address: supplierData.address || { country: 'SA' },
+        bank: supplierData.bank || {},
+      })
+    }
+  }, [isEdit, supplierData, reset])
 
   const mutation = useMutation({
     mutationFn: (data) => (isEdit ? api.put(`/suppliers/${id}`, data) : api.post('/suppliers', data)),

@@ -91,6 +91,7 @@ const Accounting = lazy(() => import('./pages/accounting/Accounting'))
 const Backup = lazy(() => import('./pages/Backup'))
 const Suppliers = lazy(() => import('./pages/Suppliers'))
 const SupplierForm = lazy(() => import('./pages/SupplierForm'))
+const SupplierDashboard = lazy(() => import('./pages/SupplierDashboard'))
 const SupplierPerformance = lazy(() => import('./pages/trading/SupplierPerformance'))
 const PurchaseOrders = lazy(() => import('./pages/PurchaseOrders'))
 const PurchaseOrderForm = lazy(() => import('./pages/PurchaseOrderForm'))
@@ -743,7 +744,8 @@ function App() {
         <Route path="warehouses/:id/edit" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseForm /></BusinessTypeRoute>} />
         <Route path="suppliers" element={<BusinessTypeRoute allowedTypes={['trading']}><Suppliers /></BusinessTypeRoute>} />
         <Route path="suppliers/new" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
-        <Route path="suppliers/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
+        <Route path="suppliers/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierDashboard /></BusinessTypeRoute>} />
+        <Route path="suppliers/:id/edit" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
         <Route path="supplier-performance" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierPerformance /></BusinessTypeRoute>} />
         <Route path="purchases" element={<PurchasesLayout />}>
           <Route index element={<Navigate to="orders" replace />} />

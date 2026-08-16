@@ -9,138 +9,11 @@ import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
 import Money from '../components/ui/Money'
 
-function QuickViewDrawer({ supplierId, supplierName, onClose, language }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['supplier-performance', supplierId],
-    queryFn: () => api.get(`/suppliers/${supplierId}/performance-detail`, { params: { months: 6 } }).then(res => res.data),
-    enabled: Boolean(supplierId)
-  })
-
-  return (
-    <AnimatePresence>
-      {supplierId && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm dark:bg-black/60"
-          />
-          <motion.div
-            initial={{ x: language === 'ar' ? '-100%' : '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: language === 'ar' ? '-100%' : '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`fixed top-0 bottom-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl dark:bg-[#0c111a] ${
-              language === 'ar' ? 'left-0 border-r dark:border-r-white/10' : 'right-0 border-l dark:border-l-white/10'
-            }`}
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 p-5 dark:border-white/10">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {supplierName}
-                </h3>
-                <p className="text-[13px] text-slate-500">
-                  {language === 'ar' ? 'أداء المورد' : 'Supplier Performance'}
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-5">
-              {isLoading ? (
-                <div className="flex h-32 items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-                </div>
-              ) : !data ? (
-                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 py-12 dark:border-white/10">
-                  <AlertCircle className="h-8 w-8 text-slate-300 dark:text-slate-600" />
-                  <p className="mt-3 text-[14px] font-medium text-slate-600 dark:text-slate-300">
-                    {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
-                      <p className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'إجمالي الطلبات' : 'Total Orders'}</p>
-                      <p className="mt-1 flex items-center gap-2 text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
-                        {data.summary.totalOrders}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
-                      <p className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'إجمالي المشتريات' : 'Total Spend'}</p>
-                      <p className="mt-1 flex items-center gap-2 text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
-                        <Money value={data.summary.totalSpend} />
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
-                      <p className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'المرتجعات' : 'Returns'}</p>
-                      <p className="mt-1 flex items-center gap-2 text-xl font-semibold tabular-nums text-rose-600 dark:text-rose-400">
-                        {data.summary.totalReturns}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
-                      <p className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'متوسط قيمة الطلب' : 'Avg Order Value'}</p>
-                      <p className="mt-1 flex items-center gap-2 text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
-                        <Money value={data.summary.avgOrderValue} />
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="mb-3 text-[13px] font-semibold text-slate-900 dark:text-white">
-                      {language === 'ar' ? 'أحدث الطلبات' : 'Recent Orders'}
-                    </h4>
-                    <div className="space-y-2">
-                      {(data.orders || []).slice(0, 5).map((order) => (
-                        <div key={order._id} className="flex items-center justify-between rounded-lg border border-slate-100 p-3 dark:border-white/5">
-                          <div className="flex items-center gap-3">
-                            <FileText className="h-4 w-4 text-slate-400" />
-                            <div>
-                              <p className="font-mono text-[12px] font-medium text-slate-700 dark:text-slate-300">{order.poNumber}</p>
-                              <p className="text-[10px] text-slate-500">
-                                {new Date(order.orderDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}
-                              </p>
-                            </div>
-                          </div>
-                          <p className="text-[13px] font-semibold tabular-nums">
-                            <Money value={order.grandTotal} />
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className="border-t border-slate-100 p-5 dark:border-white/10">
-              <Link
-                to={`/app/dashboard/suppliers/${supplierId}`}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
-              >
-                {language === 'ar' ? 'عرض الملف' : 'View Profile'}
-                <ChevronRight className={`h-4 w-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
-              </Link>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  )
-}
 
 export default function Suppliers() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
-  const [selectedSupplier, setSelectedSupplier] = useState(null)
+  const navigate = useNavigate()
   const [page, setPage] = useState(1)
 
   const exportColumns = [
@@ -227,7 +100,8 @@ export default function Suppliers() {
                 key={supplier._id}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="group relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:shadow-lg dark:border-white/10 dark:bg-[#0c111a]"
+                onClick={() => navigate(`/app/dashboard/suppliers/${supplier._id}`)}
+                className="cursor-pointer group relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:shadow-lg dark:border-white/10 dark:bg-[#0c111a]"
               >
                 {/* Background Gradient flair */}
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/50 to-transparent opacity-0 transition group-hover:opacity-100 dark:from-indigo-900/10" />
@@ -289,14 +163,20 @@ export default function Suppliers() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Link
-                      to={`/app/dashboard/suppliers/${supplier._id}`}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/app/dashboard/suppliers/${supplier._id}/edit`)
+                      }}
                       className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-3 py-2.5 text-[12px] font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/[0.1]"
                     >
                       {language === 'ar' ? 'عرض الملف' : 'Profile'}
-                    </Link>
+                    </button>
                     <button
-                      onClick={() => setSelectedSupplier({ id: supplier._id, name: language === 'ar' ? supplier.nameAr || supplier.nameEn : supplier.nameEn })}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/app/dashboard/suppliers/${supplier._id}`)
+                      }}
                       className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2.5 text-[12px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                     >
                       {language === 'ar' ? 'الأداء' : 'Performance'}
@@ -311,12 +191,6 @@ export default function Suppliers() {
 
       {/* Pagination controls can be added here if needed */}
 
-      <QuickViewDrawer
-        supplierId={selectedSupplier?.id}
-        supplierName={selectedSupplier?.name}
-        onClose={() => setSelectedSupplier(null)}
-        language={language}
-      />
     </div>
   )
 }

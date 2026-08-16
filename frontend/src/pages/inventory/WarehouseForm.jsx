@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -48,24 +49,27 @@ export default function WarehouseForm() {
     targetLang: 'en'
   })
 
-  const { isLoading } = useQuery({
+  const { data: warehouseData, isLoading } = useQuery({
     queryKey: ['warehouse', id],
     queryFn: () => api.get(`/warehouses/${id}`).then((res) => res.data),
     enabled: isEdit,
-    onSuccess: (data) => {
+  })
+
+  useEffect(() => {
+    if (isEdit && warehouseData) {
       reset({
-        ...data,
+        ...warehouseData,
         address: {
-          city: data?.address?.city || '',
-          district: data?.address?.district || '',
+          city: warehouseData?.address?.city || '',
+          district: warehouseData?.address?.district || '',
         },
         capacity: {
-          totalSpace: data?.capacity?.totalSpace || 0,
-          unit: data?.capacity?.unit || 'sqm',
+          totalSpace: warehouseData?.capacity?.totalSpace || 0,
+          unit: warehouseData?.capacity?.unit || 'sqm',
         },
       })
-    },
-  })
+    }
+  }, [isEdit, warehouseData, reset])
 
   const mutation = useMutation({
     mutationFn: (data) => (isEdit ? api.put(`/warehouses/${id}`, data) : api.post('/warehouses', data)),

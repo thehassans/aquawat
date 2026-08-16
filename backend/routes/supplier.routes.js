@@ -2,6 +2,7 @@ import express from 'express';
 import Supplier from '../models/Supplier.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import PurchaseReturn from '../models/PurchaseReturn.js';
+import GRN from '../models/GRN.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 
