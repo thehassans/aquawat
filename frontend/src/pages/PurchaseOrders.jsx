@@ -32,6 +32,13 @@ const STATUS_PILL = {
   draft: 'bg-slate-50 text-slate-500 ring-slate-200/70 dark:bg-white/[0.04] dark:text-slate-400 dark:ring-white/10',
 }
 
+const PAYMENT_STATUS_PILL = {
+  pending: 'bg-slate-50 text-slate-500 ring-slate-200/70 dark:bg-white/[0.04] dark:text-slate-400 dark:ring-white/10',
+  partial: 'bg-amber-50 text-amber-800 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
+  paid: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
+  overdue: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
+}
+
 const STATUS_KEYS = ['draft', 'sent', 'approved', 'partially_received', 'received', 'billed', 'cancelled']
 
 export default function PurchaseOrders() {
@@ -65,6 +72,11 @@ export default function PurchaseOrders() {
     return status ? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ') : status
   }
 
+  const paymentStatusLabel = (status) => {
+    const ar = { pending: 'قيد الانتظار', partial: 'مدفوع جزئياً', paid: 'مدفوع', overdue: 'متأخر' }
+    return language === 'ar' ? (ar[status] || status) : (status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Pending')
+  }
+
   const supplierName = (s) => {
     if (!s) return '—'
     return language === 'ar' ? s.nameAr || s.nameEn || s.code : s.nameEn || s.nameAr || s.code
@@ -88,6 +100,8 @@ export default function PurchaseOrders() {
       value: (r) => (r?.orderDate ? new Date(r.orderDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : ''),
     },
     { key: 'status', label: t('status'), value: (r) => r?.status || '' },
+    { key: 'paymentStatus', label: language === 'ar' ? 'حالة الدفع' : 'Payment', value: (r) => r?.paymentStatus || 'pending' },
+    { key: 'balanceDue', label: language === 'ar' ? 'المتبقي' : 'Balance', value: (r) => r?.balanceDue ?? '' },
     { key: 'grandTotal', label: t('total'), value: (r) => r?.grandTotal ?? '' },
   ]
 
@@ -426,6 +440,9 @@ export default function PurchaseOrders() {
                     {language === 'ar' ? 'متوقع' : 'Expected'}
                   </th>
                   <th className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{t('status')}</th>
+                  <th className="hidden text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 xl:table-cell">
+                    {language === 'ar' ? 'الدفع' : 'Payment'}
+                  </th>
                   <th className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{t('total')}</th>
                   <th className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{t('actions')}</th>
                 </tr>
@@ -484,8 +501,24 @@ export default function PurchaseOrders() {
                           {statusLabel(po.status)}
                         </span>
                       </td>
-                      <td className="text-[13px] font-semibold tabular-nums text-slate-950 dark:text-white">
-                        <Money value={po.grandTotal} />
+                      <td className="hidden xl:table-cell">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
+                            PAYMENT_STATUS_PILL[po.paymentStatus || 'pending']
+                          }`}
+                        >
+                          {paymentStatusLabel(po.paymentStatus || 'pending')}
+                        </span>
+                      </td>
+                      <td>
+                        <p className="text-[13px] font-semibold tabular-nums text-slate-950 dark:text-white">
+                          <Money value={po.grandTotal} />
+                        </p>
+                        {(po.balanceDue ?? po.grandTotal) !== po.grandTotal && (
+                          <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                            {language === 'ar' ? 'المتبقي' : 'Bal'}: <Money value={po.balanceDue} />
+                          </p>
+                        )}
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">

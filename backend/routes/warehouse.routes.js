@@ -23,6 +23,25 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
   }
 });
 
+// @route   GET /api/warehouses/stock-summary/stats
+router.get('/stock-summary/stats', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const summary = await Product.aggregate([
+      { $match: req.tenantFilter },
+      { $unwind: "$stocks" },
+      { $group: {
+          _id: "$stocks.warehouseId",
+          totalSKUs: { $sum: 1 },
+          totalQuantity: { $sum: "$stocks.quantity" },
+          totalValue: { $sum: { $multiply: ["$stocks.quantity", { $ifNull: ["$costPrice", 0] }] } }
+      }}
+    ]);
+    res.json(summary);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // @route   GET /api/warehouses/:id
 router.get('/:id', checkPermission('inventory', 'read'), async (req, res) => {
   try {

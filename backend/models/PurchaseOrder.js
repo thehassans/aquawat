@@ -72,6 +72,21 @@ const purchaseOrderSchema = new mongoose.Schema({
 
   receiving: { type: [receivingEventSchema], default: [] },
 
+  paidAmount: { type: Number, default: 0 },
+  balanceDue: { type: Number, default: 0 },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'partial', 'paid', 'overdue'],
+    default: 'pending'
+  },
+  payments: [{
+    amount: { type: Number, required: true },
+    date: { type: Date, default: Date.now },
+    method: { type: String, default: 'transfer' },
+    reference: { type: String, default: '' },
+    recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }],
+
   notes: { type: String },
 
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

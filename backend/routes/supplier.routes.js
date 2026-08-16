@@ -88,6 +88,39 @@ router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) =
   }
 });
 
+// @route   GET /api/suppliers/financials
+router.get('/financials', checkPermission('supply_chain', 'read'), async (req, res) => {
+  try {
+    const suppliers = await Supplier.find({ ...req.tenantFilter, isActive: true }).lean();
+    const supplierIds = suppliers.map(s => s._id);
+
+    const orders = await PurchaseOrder.find({
+      ...req.tenantFilter,
+      supplierId: { $in: supplierIds },
+      status: { $ne: 'cancelled' },
+    }).lean();
+
+    const financials = suppliers.map(supplier => {
+      const supplierOrders = orders.filter(o => o.supplierId?.toString() === supplier._id.toString());
+      const totalCredit = supplierOrders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
+      const totalDebit = supplierOrders.reduce((sum, o) => sum + (o.paidAmount || 0), 0);
+      const balance = supplierOrders.reduce((sum, o) => sum + ((o.balanceDue != null ? o.balanceDue : o.grandTotal) || 0), 0);
+
+      return {
+        _id: supplier._id,
+        totalCredit,
+        totalDebit,
+        balance,
+        totalPO: supplierOrders.length
+      };
+    });
+
+    res.json(financials);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // @route   GET /api/suppliers/:id
 router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {

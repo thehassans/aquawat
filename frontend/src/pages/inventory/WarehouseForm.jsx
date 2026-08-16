@@ -24,6 +24,7 @@ export default function WarehouseForm() {
       type: 'main',
       isPrimary: false,
       address: { city: '', district: '' },
+      capacity: { totalSpace: 0, unit: 'sqm' },
     },
   })
 
@@ -57,6 +58,10 @@ export default function WarehouseForm() {
         address: {
           city: data?.address?.city || '',
           district: data?.address?.district || '',
+        },
+        capacity: {
+          totalSpace: data?.capacity?.totalSpace || 0,
+          unit: data?.capacity?.unit || 'sqm',
         },
       })
     },
@@ -164,6 +169,31 @@ export default function WarehouseForm() {
             <div>
               <label className="label">{language === 'ar' ? 'الحي' : 'District'}</label>
               <input {...register('address.district')} className="input" />
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+              <WarehouseIcon className="w-5 h-5 text-emerald-600" />
+            </div>
+            <h3 className="text-lg font-semibold">{language === 'ar' ? 'السعة والتخزين' : 'Capacity & Storage'}</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">{language === 'ar' ? 'إجمالي السعة' : 'Total Capacity'}</label>
+              <input type="number" min="0" step="any" {...register('capacity.totalSpace', { valueAsNumber: true })} className="input" placeholder="0" />
+            </div>
+            <div>
+              <label className="label">{language === 'ar' ? 'وحدة القياس' : 'Unit of Measurement'}</label>
+              <select {...register('capacity.unit')} className="select">
+                <option value="sqm">{language === 'ar' ? 'متر مربع (sqm)' : 'Square Meters (sqm)'}</option>
+                <option value="cbm">{language === 'ar' ? 'متر مكعب (cbm)' : 'Cubic Meters (cbm)'}</option>
+                <option value="pallets">{language === 'ar' ? 'منصات نقالة (Pallets)' : 'Pallets'}</option>
+                <option value="units">{language === 'ar' ? 'وحدات (Units)' : 'Units'}</option>
+              </select>
             </div>
           </div>
         </motion.div>

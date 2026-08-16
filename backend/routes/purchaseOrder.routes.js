@@ -264,6 +264,9 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
       subtotal,
       totalTax,
       grandTotal,
+      paidAmount: 0,
+      balanceDue: grandTotal,
+      paymentStatus: 'pending',
       status: body.status && body.status !== 'draft' ? body.status : 'approved',
     };
 
@@ -320,6 +323,15 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
       updateData.subtotal = subtotal;
       updateData.totalTax = totalTax;
       updateData.grandTotal = grandTotal;
+      updateData.balanceDue = Math.max(0, grandTotal - (existing.paidAmount || 0));
+      
+      if ((existing.paidAmount || 0) >= grandTotal && grandTotal > 0) {
+        updateData.paymentStatus = 'paid';
+      } else if ((existing.paidAmount || 0) > 0) {
+        updateData.paymentStatus = 'partial';
+      } else {
+        updateData.paymentStatus = 'pending';
+      }
     }
 
     const order = await PurchaseOrder.findOneAndUpdate(
@@ -543,6 +555,41 @@ router.get('/:id/attachments/:fileId', checkPermission('supply_chain', 'read'), 
     res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${filename.replace(/"/g, '')}"`);
     res.setHeader('Cache-Control', 'private, no-store');
     res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/payment', checkPermission('supply_chain', 'update'), async (req, res) => {
+  try {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!order) return res.status(404).json({ error: 'Purchase order not found' });
+    
+    const amount = Number(req.body.amount || 0);
+    if (amount <= 0) return res.status(400).json({ error: 'Valid amount is required' });
+
+    const payment = {
+      amount,
+      date: req.body.date ? new Date(req.body.date) : new Date(),
+      method: req.body.method || 'transfer',
+      reference: req.body.reference || '',
+      recordedBy: req.user._id
+    };
+
+    order.payments = [...(order.payments || []), payment];
+    order.paidAmount = (order.paidAmount || 0) + amount;
+    order.balanceDue = Math.max(0, order.grandTotal - order.paidAmount);
+    
+    if (order.paidAmount >= order.grandTotal) {
+      order.paymentStatus = 'paid';
+    } else if (order.paidAmount > 0) {
+      order.paymentStatus = 'partial';
+    } else {
+      order.paymentStatus = 'pending';
+    }
+
+    await order.save();
+    res.json(order);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

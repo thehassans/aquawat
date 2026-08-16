@@ -1,661 +1,322 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Plus, Search, Building, Phone, Mail, MapPin, Edit, PackagePlus, X, ShoppingCart } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Plus, Users, MapPin, AlertCircle, X, ChevronRight, Loader2, Building2, Phone, Mail, FileText, ArrowUpRight, ArrowDownRight, Wallet } from 'lucide-react'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
-import { TrendingUp, AlertTriangle } from 'lucide-react'
-import { AnimatePresence } from 'framer-motion'
+import Money from '../components/ui/Money'
 
-function MinimalPerformanceModal({ supplierId, supplierName, onClose, language }) {
-  const isAr = language === 'ar'
+function QuickViewDrawer({ supplierId, supplierName, onClose, language }) {
   const { data, isLoading } = useQuery({
     queryKey: ['supplier-performance', supplierId],
-    queryFn: () => api.get(`/suppliers/${supplierId}/performance-detail`).then(res => res.data),
-    enabled: !!supplierId
+    queryFn: () => api.get(`/suppliers/${supplierId}/performance-detail`, { params: { months: 6 } }).then(res => res.data),
+    enabled: Boolean(supplierId)
   })
-
-  const gradeColors = {
-    A: 'from-emerald-500 to-teal-600 text-white shadow-emerald-500/20',
-    B: 'from-amber-500 to-orange-600 text-white shadow-amber-500/20',
-    C: 'from-red-500 to-rose-600 text-white shadow-red-500/20',
-  }
-
-  const grade = data?.summary?.grade || 'A'
-  const gradeBadgeClass = gradeColors[grade] || gradeColors.A
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ scale: 0.95, opacity: 0, y: 10 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.95, opacity: 0, y: 10 }}
-          className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100 dark:border-white/10"
-          onClick={e => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="p-5 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400">
-                <TrendingUp className="w-4 h-4" />
-              </div>
+      {supplierId && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm dark:bg-black/60"
+          />
+          <motion.div
+            initial={{ x: language === 'ar' ? '-100%' : '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: language === 'ar' ? '-100%' : '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className={`fixed top-0 bottom-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl dark:bg-[#0c111a] ${
+              language === 'ar' ? 'left-0 border-r dark:border-r-white/10' : 'right-0 border-l dark:border-l-white/10'
+            }`}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 p-5 dark:border-white/10">
               <div>
-                <h3 className="font-bold text-gray-900 dark:text-white text-sm leading-none">{supplierName}</h3>
-                <span className="text-[11px] text-gray-400 mt-1 block">{isAr ? 'بطاقة تقييم أداء المورد' : 'Supplier Performance Scorecard'}</span>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                  {supplierName}
+                </h3>
+                <p className="text-[13px] text-slate-500">
+                  {language === 'ar' ? 'أداء المورد' : 'Supplier Performance'}
+                </p>
               </div>
+              <button
+                onClick={onClose}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-400 transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          
-          <div className="p-6 space-y-6">
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-10 space-y-3">
-                <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs text-gray-400">{isAr ? 'جاري تحليل الأداء...' : 'Analyzing metrics...'}</span>
-              </div>
-            ) : !data ? (
-              <p className="text-center text-sm text-gray-400 py-8">{isAr ? 'لا توجد بيانات متاحة لهذا المورد' : 'No performance data available'}</p>
-            ) : (
-              <>
-                {/* Score & Grade Hero */}
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 dark:bg-dark-900/50 border border-gray-100 dark:border-white/5">
-                  <div className="space-y-1">
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{isAr ? 'التقييم العام' : 'Overall Score'}</span>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-                        {data.summary?.overallScore ?? 100}%
-                      </span>
-                      <span className="text-xs font-semibold text-emerald-500">
-                        {isAr ? 'ممتاز' : 'Optimal'}
-                      </span>
-                    </div>
-                  </div>
 
-                  <div className="text-right">
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">{isAr ? 'التصنيف' : 'Grade'}</span>
-                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${gradeBadgeClass} font-black text-2xl flex items-center justify-center shadow-lg`}>
-                      {grade}
-                    </div>
-                  </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              {isLoading ? (
+                <div className="flex h-32 items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
                 </div>
-
-                {/* Key KPIs Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-2xl bg-gray-50/70 dark:bg-dark-900/40 border border-gray-100 dark:border-white/5 space-y-1">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{isAr ? 'إجمالي الطلبات' : 'Total Orders'}</span>
-                    <p className="text-lg font-black text-gray-900 dark:text-white">{data.summary?.totalOrders ?? 0}</p>
-                  </div>
-                  <div className="p-3.5 rounded-2xl bg-gray-50/70 dark:bg-dark-900/40 border border-gray-100 dark:border-white/5 space-y-1">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{isAr ? 'إجمالي المشتريات' : 'Total Spend'}</span>
-                    <p className="text-lg font-black text-gray-900 dark:text-white">{(data.summary?.totalSpend ?? 0).toFixed(2)} <span className="text-xs font-medium text-gray-400">SAR</span></p>
-                  </div>
+              ) : !data ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 py-12 dark:border-white/10">
+                  <AlertCircle className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+                  <p className="mt-3 text-[14px] font-medium text-slate-600 dark:text-slate-300">
+                    {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
+                  </p>
                 </div>
-
-                {/* Delivery & Quality Progress Bars */}
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-xs font-bold mb-1.5">
-                      <span className="text-gray-600 dark:text-gray-300">{isAr ? 'الالتزام بمواعيد التوريد' : 'On-Time Delivery Rate'}</span>
-                      <span className="text-emerald-600 dark:text-emerald-400">{data.summary?.onTimeDeliveryRate ?? 100}%</span>
+              ) : (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
+                      <p className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'إجمالي الطلبات' : 'Total Orders'}</p>
+                      <p className="mt-1 flex items-center gap-2 text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                        {data.summary.totalOrders}
+                      </p>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-gray-100 dark:bg-dark-700 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
-                        style={{ width: `${Math.min(100, Math.max(0, data.summary?.onTimeDeliveryRate ?? 100))}%` }}
-                      />
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
+                      <p className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'إجمالي المشتريات' : 'Total Spend'}</p>
+                      <p className="mt-1 flex items-center gap-2 text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                        <Money value={data.summary.totalSpend} />
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
+                      <p className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'المرتجعات' : 'Returns'}</p>
+                      <p className="mt-1 flex items-center gap-2 text-xl font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+                        {data.summary.totalReturns}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
+                      <p className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'متوسط قيمة الطلب' : 'Avg Order Value'}</p>
+                      <p className="mt-1 flex items-center gap-2 text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                        <Money value={data.summary.avgOrderValue} />
+                      </p>
                     </div>
                   </div>
 
                   <div>
-                    <div className="flex justify-between text-xs font-bold mb-1.5">
-                      <span className="text-gray-600 dark:text-gray-300">{isAr ? 'معدل جودة المنتجات (قلة الإرجاع)' : 'Quality Retention (Low Returns)'}</span>
-                      <span className="text-blue-600 dark:text-blue-400">{100 - (data.summary?.returnRate ?? 0)}%</span>
-                    </div>
-                    <div className="w-full h-2 rounded-full bg-gray-100 dark:bg-dark-700 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500"
-                        style={{ width: `${Math.min(100, Math.max(0, 100 - (data.summary?.returnRate ?? 0)))}%` }}
-                      />
+                    <h4 className="mb-3 text-[13px] font-semibold text-slate-900 dark:text-white">
+                      {language === 'ar' ? 'أحدث الطلبات' : 'Recent Orders'}
+                    </h4>
+                    <div className="space-y-2">
+                      {(data.orders || []).slice(0, 5).map((order) => (
+                        <div key={order._id} className="flex items-center justify-between rounded-lg border border-slate-100 p-3 dark:border-white/5">
+                          <div className="flex items-center gap-3">
+                            <FileText className="h-4 w-4 text-slate-400" />
+                            <div>
+                              <p className="font-mono text-[12px] font-medium text-slate-700 dark:text-slate-300">{order.poNumber}</p>
+                              <p className="text-[10px] text-slate-500">
+                                {new Date(order.orderDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-[13px] font-semibold tabular-nums">
+                            <Money value={order.grandTotal} />
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
-
-                {/* Action footer */}
-                <div className="pt-2">
-                  <Link
-                    to={`/app/dashboard/purchases/orders/new?supplierId=${supplierId}`}
-                    onClick={onClose}
-                    className="w-full py-3 rounded-2xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all"
-                  >
-                    <ShoppingCart className="w-3.5 h-3.5" />
-                    <span>{isAr ? 'إنشاء أمر شراء للمورد' : 'Create Purchase Order'}</span>
-                  </Link>
-                </div>
-              </>
-            )}
-          </div>
-        </motion.div>
-      </motion.div>
+              )}
+            </div>
+            
+            <div className="border-t border-slate-100 p-5 dark:border-white/10">
+              <Link
+                to={`/app/dashboard/purchases/suppliers/${supplierId}`}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+              >
+                {language === 'ar' ? 'عرض الملف' : 'View Profile'}
+                <ChevronRight className={`h-4 w-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+              </Link>
+            </div>
+          </motion.div>
+        </>
+      )}
     </AnimatePresence>
   )
 }
 
-
 export default function Suppliers() {
   const { language } = useSelector((state) => state.ui)
-  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
-  const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
+  const [selectedSupplier, setSelectedSupplier] = useState(null)
   const [page, setPage] = useState(1)
-  const [stockInModal, setStockInModal] = useState(null)
-  const [performanceModal, setPerformanceModal] = useState(null)
-  const [stockForm, setStockForm] = useState({ productId: '', quantity: 1, costPrice: '', warehouseId: '', expiryDate: '', batchNumber: '' })
-
-  const isBakala = tenant?.businessType === 'bakala' || (tenant?.businessTypes || []).includes('bakala')
-
-  const [isAddition, setIsAddition] = useState('')
 
   const exportColumns = [
-    {
-      key: 'code',
-      label: language === 'ar' ? 'الرمز' : 'Code',
-      value: (r) => r?.code || ''
-    },
-    {
-      key: 'name',
-      label: language === 'ar' ? 'الاسم' : 'Name',
-      value: (r) => (language === 'ar' ? r?.nameAr || r?.nameEn : r?.nameEn || r?.nameAr) || ''
-    },
-    {
-      key: 'vatNumber',
-      label: language === 'ar' ? 'الرقم الضريبي' : 'VAT Number',
-      value: (r) => r?.vatNumber || ''
-    },
-    {
-      key: 'phone',
-      label: language === 'ar' ? 'الهاتف' : 'Phone',
-      value: (r) => r?.phone || ''
-    },
-    {
-      key: 'email',
-      label: language === 'ar' ? 'البريد' : 'Email',
-      value: (r) => r?.email || ''
-    },
-    {
-      key: 'city',
-      label: language === 'ar' ? 'المدينة' : 'City',
-      value: (r) => r?.address?.city || ''
-    },
-    {
-      key: 'status',
-      label: t('status'),
-      value: (r) => (r?.isActive ? (language === 'ar' ? 'نشط' : 'Active') : (language === 'ar' ? 'غير نشط' : 'Inactive'))
-    },
+    { key: 'code', label: language === 'ar' ? 'الرمز' : 'Code', value: (r) => r?.code || '' },
+    { key: 'name', label: language === 'ar' ? 'الاسم' : 'Name', value: (r) => (language === 'ar' ? r?.nameAr || r?.nameEn : r?.nameEn || r?.nameAr) || '' },
+    { key: 'phone', label: language === 'ar' ? 'الهاتف' : 'Phone', value: (r) => r?.phone || '' },
+    { key: 'email', label: language === 'ar' ? 'البريد الإلكتروني' : 'Email', value: (r) => r?.email || '' },
   ]
 
-  const getExportRows = async () => {
-    const limit = 200
-    let currentPage = 1
-    let all = []
-
-    while (true) {
-      const res = await api.get('/suppliers', { params: { page: currentPage, limit, search, isAddition } })
-      const batch = res.data?.suppliers || []
-      all = all.concat(batch)
-
-      const pages = res.data?.pagination?.pages || 1
-      if (currentPage >= pages) break
-      currentPage += 1
-
-      if (all.length >= 10000) break
-    }
-
-    return all
-  }
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['suppliers', page, search, isAddition],
-    queryFn: () => api.get('/suppliers', { params: { page, search, isAddition, limit: 25 } }).then((res) => res.data)
+  const { data: response, isLoading: loadingSuppliers } = useQuery({
+    queryKey: ['suppliers', { page }],
+    queryFn: () => api.get('/suppliers', { params: { page, limit: 50, isActive: 'all' } }).then((res) => res.data)
   })
 
-  const { data: stats } = useQuery({
-    queryKey: ['suppliers-stats'],
-    queryFn: () => api.get('/suppliers/stats').then((res) => res.data)
+  const { data: financials } = useQuery({
+    queryKey: ['suppliers-financials'],
+    queryFn: () => api.get('/suppliers/financials').then((res) => res.data)
   })
 
-  const { data: products } = useQuery({
-    queryKey: ['stock-in-products', isBakala],
-    queryFn: () => isBakala
-      ? api.get('/bakala-products', { params: { limit: 200 } }).then((res) => res.data.products || res.data)
-      : api.get('/products', { params: { limit: 200 } }).then((res) => res.data.products || res.data),
-    enabled: !!stockInModal,
-  })
-
-  const { data: warehouses } = useQuery({
-    queryKey: ['stock-in-warehouses'],
-    queryFn: () => api.get('/warehouses').then((res) => res.data),
-    enabled: !!stockInModal && !isBakala,
-  })
-
-  const stockInMutation = useMutation({
-    mutationFn: ({ productId, payload }) => isBakala
-      ? api.post(`/bakala-products/${productId}/add-stock`, payload)
-      : api.post(`/products/${productId}/stock`, payload),
-    onSuccess: () => {
-      toast.success(language === 'ar' ? 'تم إضافة المخزون' : 'Stock added successfully')
-      queryClient.invalidateQueries(['products'])
-      queryClient.invalidateQueries(['bakala-products'])
-      setStockInModal(null)
-      setStockForm({ productId: '', quantity: 1, costPrice: '', warehouseId: '', expiryDate: '', batchNumber: '' })
-    },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
-  })
-
-  const submitStockIn = () => {
-    if (!stockForm.productId) {
-      toast.error(language === 'ar' ? 'اختر منتج' : 'Select a product')
-      return
-    }
-    if (!stockForm.quantity || stockForm.quantity <= 0) {
-      toast.error(language === 'ar' ? 'الكمية يجب أن تكون أكبر من صفر' : 'Quantity must be greater than zero')
-      return
-    }
-    const payload = isBakala
-      ? { quantity: Number(stockForm.quantity), costPrice: stockForm.costPrice || undefined, expiryDate: stockForm.expiryDate || undefined, batchNumber: stockForm.batchNumber || undefined }
-      : { warehouseId: stockForm.warehouseId, quantity: Number(stockForm.quantity), type: 'add' }
-    stockInMutation.mutate({ productId: stockForm.productId, payload })
-  }
-
-  const suppliers = data?.suppliers || []
-  const pagination = data?.pagination
-
-  const totals = stats?.totals?.[0]
-  const totalSuppliers = totals?.total || 0
-  const activeSuppliers = totals?.active || 0
-  const additionsCount = totals?.additions || 0
-  const companyCount = stats?.byType?.find((x) => x._id === 'company')?.count || 0
-  const individualCount = stats?.byType?.find((x) => x._id === 'individual')?.count || 0
+  const suppliers = response?.suppliers || []
+  const financialsMap = (financials || []).reduce((acc, curr) => {
+    acc[curr._id] = curr;
+    return acc;
+  }, {})
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{language === 'ar' ? 'الموردين' : 'Suppliers'}</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            {language === 'ar' ? 'إدارة الموردين وسجلهم' : 'Manage suppliers and vendor records'}
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-600 dark:text-blue-400">
+            {language === 'ar' ? 'الموردين' : 'Suppliers'}
+          </p>
+          <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white sm:text-[30px]">
+            {t('suppliers')}
+          </h1>
+          <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-slate-500 dark:text-slate-400">
+            {language === 'ar' ? 'إدارة الموردين وتتبع العمليات المالية والطلبات.' : 'Manage suppliers and track financials and orders.'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ExportMenu
             language={language}
             t={t}
-            rows={suppliers}
-            getRows={getExportRows}
+            rows={suppliers || []}
             columns={exportColumns}
             fileBaseName={language === 'ar' ? 'الموردين' : 'Suppliers'}
             title={language === 'ar' ? 'الموردين' : 'Suppliers'}
-            disabled={isLoading || suppliers.length === 0}
+            disabled={loadingSuppliers || !(suppliers || []).length}
           />
-          <Link to="/suppliers/new" className="btn btn-primary">
-            <Plus className="w-4 h-4" />
+          <Link to="/app/dashboard/purchases/suppliers/new" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100">
+            <Plus className="h-4 w-4 opacity-80" />
             {language === 'ar' ? 'إضافة مورد' : 'Add Supplier'}
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-xl">
-            <Building className="w-5 h-5 text-primary-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'إجمالي الموردين' : 'Total Suppliers'}</p>
-            <p className="text-2xl font-bold">{totalSuppliers}</p>
-          </div>
+      {loadingSuppliers ? (
+        <div className="flex justify-center p-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-950 dark:border-slate-600 dark:border-t-white" />
         </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
-            <Building className="w-5 h-5 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'إضافات الموردين' : 'Supplier Additions'}</p>
-            <p className="text-2xl font-bold text-emerald-600">{additionsCount}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-            <Building className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'موردين نشطين' : 'Active Suppliers'}</p>
-            <p className="text-2xl font-bold text-blue-600">{activeSuppliers}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
-            <Building className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">{language === 'ar' ? 'شركات' : 'Companies'}</p>
-            <p className="text-2xl font-bold">{companyCount}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder={language === 'ar' ? 'بحث بالاسم / الرمز / الرقم الضريبي...' : 'Search by name / code / VAT...'}
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
-                setPage(1)
-              }}
-              className="input ps-10"
-            />
-          </div>
-          <select
-            value={isAddition}
-            onChange={(e) => {
-              setIsAddition(e.target.value)
-              setPage(1)
-            }}
-            className="select w-full sm:w-56"
+      ) : suppliers.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-20 text-center dark:border-white/10 dark:bg-white/[0.02]">
+          <Users className="h-10 w-10 text-slate-300 dark:text-slate-600" />
+          <p className="mt-4 text-[15px] font-semibold text-slate-900 dark:text-white">
+            {language === 'ar' ? 'لا يوجد موردين' : 'No suppliers found'}
+          </p>
+          <p className="mt-1 max-w-sm text-[13px] text-slate-500">
+            {language === 'ar' ? 'أضف موردك الأول للبدء في تتبع الطلبات.' : 'Add your first supplier to start tracking orders.'}
+          </p>
+          <Link
+            to="/app/dashboard/purchases/suppliers/new"
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-[13px] font-medium text-white dark:bg-white dark:text-slate-950"
           >
-            <option value="">{language === 'ar' ? 'كل الموردين' : 'All Suppliers'}</option>
-            <option value="true">{language === 'ar' ? 'إضافات الموردين فقط' : 'Supplier Additions Only'}</option>
-            <option value="false">{language === 'ar' ? 'الموردين المباشرين فقط' : 'Direct Suppliers Only'}</option>
-          </select>
+            <Plus className="h-4 w-4" />
+            {language === 'ar' ? 'إضافة مورد' : 'Add Supplier'}
+          </Link>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {suppliers.map((supplier) => {
+            const fin = financialsMap[supplier._id] || { totalCredit: 0, totalDebit: 0, balance: 0, totalPO: 0 }
+            return (
+              <motion.div
+                key={supplier._id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="group relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:shadow-lg dark:border-white/10 dark:bg-[#0c111a]"
+              >
+                {/* Background Gradient flair */}
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/50 to-transparent opacity-0 transition group-hover:opacity-100 dark:from-indigo-900/10" />
 
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
-        {isLoading ? (
-          <div className="p-8 text-center"><div className="inline-block w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>
-        ) : (
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>{language === 'ar' ? 'الرمز' : 'Code'}</th>
-                  <th>{language === 'ar' ? 'الاسم' : 'Name'}</th>
-                  <th>{language === 'ar' ? 'الهاتف' : 'Phone'}</th>
-                  <th>{language === 'ar' ? 'البريد' : 'Email'}</th>
-                  <th>{language === 'ar' ? 'المدينة' : 'City'}</th>
-                  <th>{t('status')}</th>
-                  <th>{t('actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {suppliers.map((s) => (
-                  <tr key={s._id}>
-                    <td className="font-mono text-sm">{s.code}</td>
-                    <td>
+                <div className="relative p-6 flex flex-col h-full justify-between gap-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                        <Building2 className="h-6 w-6" />
+                      </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {language === 'ar' ? s.nameAr || s.nameEn : s.nameEn}
-                          </p>
-                          {s.isAddition && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 rounded border border-emerald-200 dark:border-emerald-800">
-                              {language === 'ar' ? 'إضافة' : 'Addition'}
+                        <h3 className="text-[17px] font-semibold text-slate-950 dark:text-white line-clamp-1">
+                          {language === 'ar' ? supplier.nameAr || supplier.nameEn : supplier.nameEn || supplier.nameAr}
+                        </h3>
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="font-mono text-[12px] font-medium text-slate-500">{supplier.code}</span>
+                          {!supplier.isActive && (
+                            <span className="inline-flex items-center rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
+                              {language === 'ar' ? 'غير نشط' : 'INACTIVE'}
                             </span>
                           )}
                         </div>
-                        {s.vatNumber && (
-                          <p className="text-xs text-gray-500">VAT: {s.vatNumber}</p>
-                        )}
                       </div>
-                    </td>
-                    <td>
-                      {s.phone ? (
-                        <span className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                          <Phone className="w-4 h-4 text-gray-400" />
-                          {s.phone}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td>
-                      {s.email ? (
-                        <span className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                          <Mail className="w-4 h-4 text-gray-400" />
-                          {s.email}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td>
-                      {s.address?.city ? (
-                        <span className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                          <MapPin className="w-4 h-4 text-gray-400" />
-                          {s.address.city}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td>
-                      <span className={`badge ${s.isActive ? 'badge-success' : 'badge-neutral'}`}>
-                        {s.isActive ? (language === 'ar' ? 'نشط' : 'Active') : (language === 'ar' ? 'غير نشط' : 'Inactive')}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <Link to={`/suppliers/${s._id}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg" title={language === 'ar' ? 'تعديل' : 'Edit'}>
-                          <Edit className="w-4 h-4 text-gray-600" />
-                        </Link>
-                        <Link
-                          to={`/app/dashboard/purchases/orders/new?supplierId=${s._id}`}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"
-                          title={language === 'ar' ? 'طلب شراء جديد' : 'New Purchase Order'}
-                        >
-                          <ShoppingCart className="w-4 h-4 text-blue-600" />
-                        </Link>
-                        <button
-                          onClick={() => { setStockInModal(s); setStockForm({ productId: '', quantity: 1, costPrice: '', warehouseId: '', expiryDate: '', batchNumber: '' }) }}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"
-                          title={language === 'ar' ? 'إضافة مخزون سريع' : 'Quick Stock In'}
-                        >
-                          <PackagePlus className="w-4 h-4 text-emerald-600" />
-                        </button>
-                        <button
-                          onClick={() => setPerformanceModal(s)}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"
-                          title={language === 'ar' ? 'أداء المورد' : 'Supplier Performance'}
-                        >
-                          <TrendingUp className="w-4 h-4 text-amber-500" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </motion.div>
-
-      {pagination?.pages > 1 && (
-        <div className="flex items-center justify-between">
-          <button
-            className="btn btn-secondary"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            {language === 'ar' ? 'السابق' : 'Previous'}
-          </button>
-          <div className="text-sm text-gray-500">
-            {language === 'ar' ? 'صفحة' : 'Page'} {page} / {pagination.pages}
-          </div>
-          <button
-            className="btn btn-secondary"
-            disabled={page >= pagination.pages}
-            onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
-          >
-            {language === 'ar' ? 'التالي' : 'Next'}
-          </button>
-        </div>
-      )}
-
-      {stockInModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="card p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
-                  <PackagePlus className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold">{language === 'ar' ? 'إضافة مخزون سريع' : 'Quick Stock In'}</h3>
-                  <p className="text-sm text-gray-500">
-                    {language === 'ar' ? 'المورد:' : 'Supplier:'} {language === 'ar' ? stockInModal.nameAr || stockInModal.nameEn : stockInModal.nameEn}
-                  </p>
-                </div>
-              </div>
-              <button type="button" onClick={() => setStockInModal(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="label">{language === 'ar' ? 'المنتج' : 'Product'} *</label>
-                <select
-                  className="select"
-                  value={stockForm.productId}
-                  onChange={(e) => setStockForm((p) => ({ ...p, productId: e.target.value }))}
-                >
-                  <option value="">{language === 'ar' ? 'اختر منتج' : 'Select product'}</option>
-                  {(products || []).map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {(language === 'ar' ? p.nameAr || p.nameEn : p.nameEn) || p.sku || p.primaryBarcode}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">{language === 'ar' ? 'الكمية' : 'Quantity'} *</label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    className="input"
-                    value={stockForm.quantity}
-                    onChange={(e) => setStockForm((p) => ({ ...p, quantity: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'سعر التكلفة' : 'Cost Price'}</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="input"
-                    value={stockForm.costPrice}
-                    onChange={(e) => setStockForm((p) => ({ ...p, costPrice: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              {!isBakala && (
-                <div>
-                  <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'} *</label>
-                  <select
-                    className="select"
-                    value={stockForm.warehouseId}
-                    onChange={(e) => setStockForm((p) => ({ ...p, warehouseId: e.target.value }))}
-                  >
-                    <option value="">{language === 'ar' ? 'اختر مستودع' : 'Select warehouse'}</option>
-                    {(warehouses || []).map((w) => (
-                      <option key={w._id} value={w._id}>
-                        {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {isBakala && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="label">{language === 'ar' ? 'تاريخ الانتهاء' : 'Expiry Date'}</label>
-                      <input
-                        type="date"
-                        className="input"
-                        value={stockForm.expiryDate}
-                        onChange={(e) => setStockForm((p) => ({ ...p, expiryDate: e.target.value }))}
-                      />
                     </div>
-                    <div>
-                      <label className="label">{language === 'ar' ? 'رقم التشغيلة' : 'Batch Number'}</label>
-                      <input
-                        className="input"
-                        value={stockForm.batchNumber}
-                        onChange={(e) => setStockForm((p) => ({ ...p, batchNumber: e.target.value }))}
-                      />
+                    <div className="text-end">
+                      <p className="text-[11px] font-medium text-slate-500">{language === 'ar' ? 'إجمالي طلبات الشراء' : 'Total POs'}</p>
+                      <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">{fin.totalPO}</p>
                     </div>
                   </div>
-                </>
-              )}
-            </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button type="button" onClick={() => setStockInModal(null)} className="btn btn-secondary">
-                {t('cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={submitStockIn}
-                disabled={stockInMutation.isPending}
-                className="btn btn-primary"
-              >
-                {stockInMutation.isPending ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <PackagePlus className="w-4 h-4" />
-                    {language === 'ar' ? 'إضافة المخزون' : 'Add Stock'}
-                  </>
-                )}
-              </button>
-            </div>
-          </motion.div>
+                  <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-4 dark:bg-white/[0.02]">
+                    <div>
+                      <p className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                        <ArrowUpRight className="h-3 w-3 text-emerald-500" />
+                        {language === 'ar' ? 'دائن' : 'Credit'}
+                      </p>
+                      <p className="mt-1.5 text-[14px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                        <Money value={fin.totalCredit} />
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                        <ArrowDownRight className="h-3 w-3 text-rose-500" />
+                        {language === 'ar' ? 'مدين' : 'Debit'}
+                      </p>
+                      <p className="mt-1.5 text-[14px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                        <Money value={fin.totalDebit} />
+                      </p>
+                    </div>
+                    <div className="border-l border-slate-200 pl-3 dark:border-white/10">
+                      <p className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                        <Wallet className="h-3 w-3 text-blue-500" />
+                        {language === 'ar' ? 'الرصيد' : 'Balance'}
+                      </p>
+                      <p className="mt-1.5 text-[14px] font-bold tabular-nums text-slate-900 dark:text-white">
+                        <Money value={fin.balance} />
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Link
+                      to={`/app/dashboard/purchases/suppliers/${supplier._id}`}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-3 py-2.5 text-[12px] font-medium text-slate-700 transition hover:bg-slate-200 dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/[0.1]"
+                    >
+                      {language === 'ar' ? 'عرض الملف' : 'Profile'}
+                    </Link>
+                    <button
+                      onClick={() => setSelectedSupplier({ id: supplier._id, name: language === 'ar' ? supplier.nameAr || supplier.nameEn : supplier.nameEn })}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2.5 text-[12px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+                    >
+                      {language === 'ar' ? 'الأداء' : 'Performance'}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )
+          })}
         </div>
       )}
 
-      {performanceModal && (
-        <MinimalPerformanceModal
-          supplierId={performanceModal._id}
-          supplierName={language === 'ar' ? performanceModal.nameAr || performanceModal.nameEn : performanceModal.nameEn}
-          language={language}
-          onClose={() => setPerformanceModal(null)}
-        />
-      )}
+      {/* Pagination controls can be added here if needed */}
+
+      <QuickViewDrawer
+        supplierId={selectedSupplier?.id}
+        supplierName={selectedSupplier?.name}
+        onClose={() => setSelectedSupplier(null)}
+        language={language}
+      />
     </div>
   )
 }
