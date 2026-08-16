@@ -24,7 +24,8 @@ const appAddonSchema = new mongoose.Schema({
       'finance_accounting',
       'hr_manpower',
       'logistics',
-      'delivery_platforms'
+      'delivery_platforms',
+      'invoice_templates'
     ],
     required: true,
     index: true
@@ -39,7 +40,8 @@ const appAddonSchema = new mongoose.Schema({
       'pakistan_compliance',
       'automation_comm',
       'ai_tool',
-      'premium_addon'
+      'premium_addon',
+      'invoice_template'
     ],
     required: true,
     index: true
@@ -79,7 +81,9 @@ const appAddonSchema = new mongoose.Schema({
     helpTextEn: { type: String, default: '' },
     helpTextAr: { type: String, default: '' }
   }],
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  templateId: { type: Number },
+  previewImage: { type: String, default: '' }
 }, { timestamps: true });
 
 export const AppAddon = mongoose.model('AppAddon', appAddonSchema);

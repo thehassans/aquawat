@@ -36,7 +36,8 @@ import {
   yearlySavingsPercent,
 } from '../../lib/appStorePricing';
 
-const PREMIUM_INVOICE_TEMPLATES_APP_ID = 'premium_invoice_templates';
+const PREFERRED_TABBY_APP_ID = 'tabby_bnpl';
+const PREFERRED_TAMARA_APP_ID = 'tamara_bnpl';
 
 const PRICING_LABELS = {
   free: {
@@ -112,6 +113,7 @@ const CATEGORIES = [
   { id: 'delivery_platforms', en: 'Delivery Platforms', ar: 'منصات التوصيل' },
   { id: 'finance_accounting', en: 'Finance', ar: 'المالية' },
   { id: 'automation_comm', en: 'Marketing', ar: 'التسويق' },
+  { id: 'invoice_templates', en: 'Invoice Templates', ar: 'قوالب الفواتير' },
 ];
 
 function appMatchesCategory(app, categoryId) {
@@ -181,6 +183,9 @@ function appMatchesCategory(app, categoryId) {
     if (app.category === 'logistics' || app.category === 'delivery_platforms') return false
     return app.category === 'automation_comm' || app.category === 'ai_intelligence' || app.appId.includes('whatsapp') || app.appId.includes('ai') || app.appId.includes('email')
   }
+  if (categoryId === 'invoice_templates') {
+    return app.category === 'invoice_templates' || app.appType === 'invoice_template'
+  }
   return false;
 }
 
@@ -205,7 +210,6 @@ export default function AppStore() {
   const [selectedConfigAppId, setSelectedConfigAppId] = useState(null);
   const [configForm, setConfigForm] = useState({});
   const [uninstallConfirmApp, setUninstallConfirmApp] = useState(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(() => Number(tenant?.settings?.invoicePdfTemplate) || 1);
   const [billingCycle, setBillingCycle] = useState('monthly'); // for paid app pricing display / checkout
 
   // Animated Installation State: { appId, name, size, progress, stage }
@@ -331,28 +335,6 @@ export default function AppStore() {
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to save settings'),
   });
-
-  const saveTemplateMutation = useMutation({
-    mutationFn: (templateId) => api.put('/tenants/current', {
-      settings: { ...(tenant?.settings || {}), invoicePdfTemplate: templateId },
-    }),
-    onSuccess: (res) => {
-      const updatedTenant = res.data;
-      if (updatedTenant?.settings) dispatch(updateTenant(updatedTenant));
-      toast.success(isAr ? 'تم تحديث القالب الافتراضي' : 'Default template updated');
-      queryClient.invalidateQueries(['tenant-settings']);
-      refreshTenant();
-    },
-    onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل حفظ القالب' : 'Failed to save template')),
-  });
-
-  // Keep the picker in sync with the tenant's current default whenever the
-  // templates app detail drawer is (re)opened.
-  useEffect(() => {
-    if (selectedAppId === PREMIUM_INVOICE_TEMPLATES_APP_ID) {
-      setSelectedTemplateId(Number(tenant?.settings?.invoicePdfTemplate) || 1);
-    }
-  }, [selectedAppId, tenant?.settings?.invoicePdfTemplate]);
 
   // Handle interactive animated installation
   const handleStartInstall = useCallback((app) => {
@@ -1088,49 +1070,8 @@ export default function AppStore() {
                   </div>
                 )}
 
-                {detailApp.appId === PREMIUM_INVOICE_TEMPLATES_APP_ID && (
+                {detailApp.appType === 'invoice_template' && (
                   <div>
-                    <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
-                      {isAr ? 'اختر القالب الافتراضي' : 'Choose Your Default Template'}
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      {invoiceTemplateOptions.map((tpl) => {
-                        const isLocked = tpl.id > 1 && !detailApp.isInstalled;
-                        const isSelected = selectedTemplateId === tpl.id;
-                        return (
-                          <button
-                            type="button"
-                            key={tpl.id}
-                            onClick={() => {
-                              if (isLocked) {
-                                toast.error(isAr
-                                  ? 'ثبّت هذه الإضافة لاستخدام هذا القالب'
-                                  : 'Install this add-on to use this template');
-                                return;
-                              }
-                              setSelectedTemplateId(tpl.id);
-                            }}
-                            className={`relative text-start rounded-2xl border-2 transition-all p-3 ${isSelected ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'} ${isLocked ? 'opacity-60' : ''}`}
-                          >
-                            {isLocked && (
-                              <span className="absolute top-2 end-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-900/80 text-white dark:bg-white/10">
-                                <Lock className="w-2.5 h-2.5" />
-                              </span>
-                            )}
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="font-bold text-xs text-gray-900 dark:text-white">{isAr ? tpl.nameAr : tpl.nameEn}</span>
-                              {!isLocked && (
-                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'border-primary-500' : 'border-gray-300 dark:border-white/20'}`}>
-                                  {isSelected && <div className="w-2 h-2 bg-primary-500 rounded-full" />}
-                                </div>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">{isAr ? tpl.descriptionAr : tpl.descriptionEn}</p>
-                          </button>
-                        );
-                      })}
-                    </div>
-
                     <div className="border border-gray-200 dark:border-white/10 rounded-2xl p-3 bg-gray-50/50 dark:bg-dark-900/40 mb-4">
                       <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-2">{isAr ? 'معاينة مباشرة' : 'Live Preview'}</p>
                       <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-dark-950 p-3 flex justify-center h-[360px] overflow-y-auto relative custom-scrollbar">
@@ -1153,9 +1094,9 @@ export default function AppStore() {
                               }}
                               tenant={{
                                 ...tenant,
-                                settings: { ...tenant?.settings, invoicePdfTemplate: selectedTemplateId },
+                                settings: { ...tenant?.settings, invoicePdfTemplate: detailApp.templateId || 1 },
                               }}
-                              templateId={selectedTemplateId}
+                              templateId={detailApp.templateId || 1}
                               language={language}
                               bilingual={true}
                             />
@@ -1163,20 +1104,6 @@ export default function AppStore() {
                         </div>
                       </div>
                     </div>
-
-                    <button
-                      type="button"
-                      disabled={saveTemplateMutation.isPending || selectedTemplateId === Number(tenant?.settings?.invoicePdfTemplate || 1)}
-                      onClick={() => saveTemplateMutation.mutate(selectedTemplateId)}
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-black text-sm shadow-md hover:bg-gray-800 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      {saveTemplateMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Check className="w-4 h-4" />
-                      )}
-                      <span>{isAr ? 'تطبيق كقالب افتراضي' : 'Apply as Default Template'}</span>
-                    </button>
                   </div>
                 )}
 

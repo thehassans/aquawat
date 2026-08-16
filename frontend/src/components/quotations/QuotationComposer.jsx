@@ -623,7 +623,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
               language={language}
               value={selectedTemplateId}
               allowedIds={QUOTATION_TEMPLATE_IDS}
-              hasPremiumAccess
+              tenant={tenant}
               onChange={(id) => setValue('pdfTemplateId', resolveQuotationTemplateId(id))}
               onLockedClick={() => navigate('/app/dashboard/app-store')}
             />

@@ -1967,19 +1967,28 @@ export const DEFAULT_APP_CATALOG = [
   // ══════════════════════════════════════════════════════════════════════════════
   // ── DOCUMENT DESIGN ADD-ONS ────────────────────────────────────────────────────
   // ══════════════════════════════════════════════════════════════════════════════
-  {
-    appId: PREMIUM_INVOICE_TEMPLATES_APP_ID,
-    nameEn: 'Premium Invoice & Quotation Templates',
-    nameAr: 'قوالب الفواتير وعروض الأسعار المميزة',
-    taglineEn: 'Unlock 7 additional professionally designed PDF templates',
-    taglineAr: 'افتح 7 قوالب PDF احترافية إضافية للفواتير وعروض الأسعار',
-    descriptionEn: 'Give your invoices and quotations a distinctive, professional identity. This add-on unlocks the full design library — Modern, Mono, Air, Ledger, Signature, Classic Elegant and Modern Split — on top of the free Essential template. Switch templates anytime from Settings without losing your logo, stamp, signature or bilingual Arabic layout.',
-    descriptionAr: 'امنح فواتيرك وعروض أسعارك هوية احترافية مميزة. تفتح هذه الإضافة مكتبة التصميم الكاملة (حديث، أحادي، هواء، سجل، توقيع، كلاسيكي أنيق، وحديث منقسم) بالإضافة إلى القالب الأساسي المجاني. بدّل بين القوالب في أي وقت من الإعدادات دون فقدان شعارك أو ختمك أو توقيعك أو التصميم العربي ثنائي اللغة.',
-    category: 'finance_accounting',
-    appType: 'premium_addon',
-    icon: 'file-text',
+  ...[
+    { id: 2, nameEn: 'Modern', nameAr: 'حديث', descEn: 'Light corporate accents with refined contrast', descAr: 'لمسات مؤسسية خفيفة بتباين أنيق' },
+    { id: 3, nameEn: 'Mono', nameAr: 'أحادي', descEn: 'Monochrome invoice with compact rhythm', descAr: 'فاتورة أحادية بإيقاع بصري متماسك' },
+    { id: 4, nameEn: 'Air', nameAr: 'هواء', descEn: 'Open whitespace and subtle dividers', descAr: 'مساحات مفتوحة وفواصل هادئة' },
+    { id: 5, nameEn: 'Ledger', nameAr: 'سجل', descEn: 'Formal business layout with crisp rules', descAr: 'تصميم أعمال رسمي بخطوط دقيقة' },
+    { id: 6, nameEn: 'Signature', nameAr: 'توقيع', descEn: 'Premium minimalist layout for formal invoices', descAr: 'تصميم بسيط فاخر للفواتير الرسمية' },
+    { id: 7, nameEn: 'Classic Elegant', nameAr: 'كلاسيكي أنيق', descEn: 'Premium bordered design with clear hierarchy', descAr: 'تصميم فاخر بإطار وهيكل واضح' },
+    { id: 8, nameEn: 'Modern Split', nameAr: 'حديث منقسم', descEn: 'Two-column modern structure with distinctive colors', descAr: 'هيكل حديث بعمودين مع ألوان مميزة' }
+  ].map(t => ({
+    appId: `invoice_template_${t.id}`,
+    templateId: t.id,
+    nameEn: `${t.nameEn} Invoice Template`,
+    nameAr: `قالب فاتورة ${t.nameAr}`,
+    taglineEn: t.descEn,
+    taglineAr: t.descAr,
+    descriptionEn: `Unlock the ${t.nameEn} invoice and quotation template. ${t.descEn}. Includes full bilingual Arabic/English layout support, keeping your logo, stamp, signature and brand colors intact.`,
+    descriptionAr: `افتح قالب الفاتورة وعرض السعر ${t.nameAr}. ${t.descAr}. يشمل دعماً كاملاً للتصميم ثنائي اللغة (عربي/إنجليزي) مع الحفاظ على الشعار والختم والتوقيع.`,
+    category: 'invoice_templates',
+    appType: 'invoice_template',
+    icon: 'layout-template',
     version: '1.0.0',
-    downloadSize: '3.2 MB',
+    downloadSize: '1.2 MB',
     author: 'Maqder Core',
     rating: 4.95,
     reviewsCount: 156,
@@ -1987,19 +1996,19 @@ export const DEFAULT_APP_CATALOG = [
     badge: 'Design Pack',
     defaultRoute: '/app/dashboard/settings',
     featuresEn: [
-      '7 additional professional PDF templates: Modern, Mono, Air, Ledger, Signature, Classic Elegant & Modern Split',
-      'Full bilingual Arabic/English layout support on every template',
-      'Switch templates instantly from Settings — applies to invoices, quotations & PDF exports',
+      `Professional ${t.nameEn} PDF template`,
+      'Full bilingual Arabic/English layout support',
+      'Applies to invoices, quotations & PDF exports',
       'Keeps your logo, stamp, signature and brand colors intact'
     ],
     featuresAr: [
-      '7 قوالب PDF احترافية إضافية: حديث، أحادي، هواء، سجل، توقيع، كلاسيكي أنيق، وحديث منقسم',
-      'دعم كامل للتصميم ثنائي اللغة عربي/إنجليزي على كل قالب',
-      'بدّل القوالب فورًا من الإعدادات - تنطبق على الفواتير وعروض الأسعار وملفات PDF',
+      `قالب PDF احترافي: ${t.nameAr}`,
+      'دعم كامل للتصميم ثنائي اللغة عربي/إنجليزي',
+      'ينطبق على الفواتير وعروض الأسعار وملفات PDF',
       'يحافظ على شعارك وختمك وتوقيعك وألوان علامتك التجارية'
     ],
     configSchema: []
-  },
+  })),
   ...DELIVERY_PARTNER_APPS,
   ...LOGISTICS_PARTNER_APPS,
   ...BNPL_PARTNER_APPS,
@@ -2035,6 +2044,8 @@ export const ensureCatalogInitialized = async () => {
             featuresAr: app.featuresAr,
             configSchema: app.configSchema,
             requiredCurrency: app.requiredCurrency || '',
+            ...(app.templateId ? { templateId: app.templateId } : {}),
+            ...(app.previewImage !== undefined ? { previewImage: app.previewImage } : {}),
           },
           $setOnInsert: {
             pricingTier: app.pricingTier || 'free',

@@ -1,7 +1,7 @@
 import { Lock } from 'lucide-react'
 import { invoiceTemplateOptions, FREE_TEMPLATE_IDS } from '../../lib/invoiceTemplates'
 
-export default function InvoiceTemplateSelector({ language = 'en', value = 1, onChange, hasPremiumAccess = true, onLockedClick, allowedIds }) {
+export default function InvoiceTemplateSelector({ language = 'en', value = 1, onChange, tenant, onLockedClick, allowedIds }) {
   const options = Array.isArray(allowedIds) && allowedIds.length > 0
     ? invoiceTemplateOptions.filter((template) => allowedIds.includes(template.id))
     : invoiceTemplateOptions
@@ -9,11 +9,20 @@ export default function InvoiceTemplateSelector({ language = 'en', value = 1, on
     ? 'grid grid-cols-1 gap-3 md:grid-cols-2'
     : 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3'
 
+  const installedApps = tenant?.settings?.installedApps || {}
+
   return (
     <div className={gridClass}>
       {options.map((template) => {
         const isActive = Number(value) === template.id
-        const isLocked = !FREE_TEMPLATE_IDS.includes(template.id) && !hasPremiumAccess
+        
+        // Check if the specific template addon is installed, or if they have the legacy bundle
+        const isLegacyBundleInstalled = installedApps['premium_invoice_templates']?.isInstalled && installedApps['premium_invoice_templates']?.isEnabled !== false;
+        const isSpecificTemplateInstalled = installedApps[`invoice_template_${template.id}`]?.isInstalled && installedApps[`invoice_template_${template.id}`]?.isEnabled !== false;
+        const hasAccess = isLegacyBundleInstalled || isSpecificTemplateInstalled;
+
+        const isLocked = !FREE_TEMPLATE_IDS.includes(template.id) && !hasAccess
+
         return (
           <button
             key={template.id}
