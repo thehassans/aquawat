@@ -35,7 +35,8 @@ import {
   AlertCircle,
   MessageCircle,
   Mail,
-  Send
+  Send,
+  Phone
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
