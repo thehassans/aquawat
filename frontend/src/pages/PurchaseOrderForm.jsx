@@ -2411,74 +2411,259 @@ export default function PurchaseOrderForm() {
       )}
 
       {/* Inline Quick Add Supplier Modal */}
-      {showSupplierModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className={`${shell} w-full max-w-sm max-h-[90vh] overflow-y-auto p-6`}>
-            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-white/[0.08]">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">{language === 'ar' ? 'الموردون' : 'Suppliers'}</p>
-                <h3 className="mt-1 text-[16px] font-semibold tracking-tight text-slate-900 dark:text-white">{language === 'ar' ? 'إضافة مورد سريع' : 'Quick add supplier'}</h3>
+      <AnimatePresence>
+        {showSupplierModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-[#111827] border border-gray-100 dark:border-white/10 space-y-5 my-6 max-h-[92vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-gray-100 pb-4 dark:border-white/10">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500/10 via-emerald-500/15 to-teal-500/5 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-teal-500/20">
+                    <UserPlus className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-teal-700 dark:text-teal-400">
+                      {language === 'ar' ? 'الموردون والمشتريات' : 'Vendors & Suppliers'}
+                    </p>
+                    <h3 className="text-base font-bold text-slate-950 dark:text-white">
+                      {language === 'ar' ? 'إضافة مورد سريع' : 'Quick Add Supplier'}
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSupplierModal(false)}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200 transition"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button type="button" onClick={() => setShowSupplierModal(false)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
-            </div>
-            <div className="grid grid-cols-1 gap-4 text-xs">
-              <div>
-                <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
-                <input className="input" value={supplierForm.nameEn} onChange={(e) => setSupplierForm((p) => ({ ...p, nameEn: e.target.value }))} />
+
+              {/* Form Fields */}
+              <div className="space-y-4 text-xs">
+                {/* Names */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                      <span>{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</span>
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-mono font-bold text-slate-500 dark:bg-white/10 dark:text-slate-400">EN</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
+                      placeholder="e.g. Al-Marai Foods"
+                      value={supplierForm.nameEn}
+                      onChange={(e) => setSupplierForm((p) => ({ ...p, nameEn: e.target.value }))}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                      <span>{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</span>
+                      <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[9px] font-mono font-bold text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">AR</span>
+                    </label>
+                    <input
+                      type="text"
+                      dir="rtl"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
+                      placeholder="مثال: شركة المراعي للأغذية"
+                      value={supplierForm.nameAr}
+                      onChange={(e) => setSupplierForm((p) => ({ ...p, nameAr: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Contact: Phone & Email */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                      <Phone className="h-3 w-3 text-slate-400" />
+                      <span>{language === 'ar' ? 'رقم الهاتف' : 'Phone Number'}</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
+                      placeholder="+966 5X XXX XXXX"
+                      value={supplierForm.phone}
+                      onChange={(e) => setSupplierForm((p) => ({ ...p, phone: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                      <Mail className="h-3 w-3 text-slate-400" />
+                      <span>{language === 'ar' ? 'البريد الإلكتروني' : 'Email (Optional)'}</span>
+                    </label>
+                    <input
+                      type="email"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
+                      placeholder="supplier@example.com"
+                      value={supplierForm.email || ''}
+                      onChange={(e) => setSupplierForm((p) => ({ ...p, email: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {/* VAT Number */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                    <span>{language === 'ar' ? 'الرقم الضريبي (اختياري)' : 'VAT Number (Optional)'}</span>
+                    <span className="text-[10px] font-mono text-slate-400">15 digits</span>
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={15}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs font-medium text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
+                    placeholder="300000000000003"
+                    value={supplierForm.vatNumber || ''}
+                    onChange={(e) => setSupplierForm((p) => ({ ...p, vatNumber: e.target.value }))}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
-                <input className="input" dir="rtl" value={supplierForm.nameAr} onChange={(e) => setSupplierForm((p) => ({ ...p, nameAr: e.target.value }))} />
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowSupplierModal(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 transition"
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={submitInlineSupplier}
+                  disabled={addSupplierMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 transition"
+                >
+                  {addSupplierMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5 text-teal-400 dark:text-teal-600" />
+                  )}
+                  <span>{language === 'ar' ? 'حفظ وتحديد المورد' : 'Save & Select Supplier'}</span>
+                </button>
               </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'الهاتف' : 'Phone'}</label>
-                <input className="input" placeholder="+9665xxxxxxxx" value={supplierForm.phone} onChange={(e) => setSupplierForm((p) => ({ ...p, phone: e.target.value }))} />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <button type="button" onClick={() => setShowSupplierModal(false)} className={ghostBtn}>{t('cancel')}</button>
-              <button type="button" onClick={submitInlineSupplier} disabled={addSupplierMutation.isPending} className={primaryBtn}>
-                {addSupplierMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : language === 'ar' ? 'حفظ المورد' : 'Save supplier'}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Inline Quick Add Warehouse Modal */}
-      {showWarehouseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className={`${shell} w-full max-w-sm max-h-[90vh] overflow-y-auto p-6`}>
-            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-white/[0.08]">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">{language === 'ar' ? 'المستودعات' : 'Warehouses'}</p>
-                <h3 className="mt-1 text-[16px] font-semibold tracking-tight text-slate-900 dark:text-white">{language === 'ar' ? 'إنشاء مستودع' : 'Create warehouse'}</h3>
+      <AnimatePresence>
+        {showWarehouseModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-[#111827] border border-gray-100 dark:border-white/10 space-y-5 my-6 max-h-[92vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-gray-100 pb-4 dark:border-white/10">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/10 via-blue-500/15 to-indigo-500/5 text-indigo-700 dark:text-indigo-300 ring-1 ring-inset ring-indigo-500/20">
+                    <Building2 className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-700 dark:text-indigo-400">
+                      {language === 'ar' ? 'المستودعات والمخازن' : 'Warehouses & Locations'}
+                    </p>
+                    <h3 className="text-base font-bold text-slate-950 dark:text-white">
+                      {language === 'ar' ? 'إنشاء مستودع جديد' : 'Create Warehouse'}
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowWarehouseModal(false)}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200 transition"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button type="button" onClick={() => setShowWarehouseModal(false)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
-            </div>
-            <div className="grid grid-cols-1 gap-4 text-xs">
-              <div>
-                <label className="label">{language === 'ar' ? 'الرمز' : 'Code'}</label>
-                <input className="input" placeholder="WH-001" value={warehouseForm.code} onChange={(e) => setWarehouseForm((p) => ({ ...p, code: e.target.value }))} />
+
+              {/* Form Fields */}
+              <div className="space-y-4 text-xs">
+                {/* Code */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                    <span>{language === 'ar' ? 'رمز المستودع' : 'Warehouse Code'}</span>
+                    <span className="text-[10px] font-mono text-slate-400">e.g. WH-001</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs font-medium text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
+                    placeholder="WH-001"
+                    value={warehouseForm.code}
+                    onChange={(e) => setWarehouseForm((p) => ({ ...p, code: e.target.value }))}
+                  />
+                </div>
+
+                {/* Names */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                      <span>{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</span>
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-mono font-bold text-slate-500 dark:bg-white/10 dark:text-slate-400">EN</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
+                      placeholder="e.g. Central Warehouse"
+                      value={warehouseForm.nameEn}
+                      onChange={(e) => setWarehouseForm((p) => ({ ...p, nameEn: e.target.value }))}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                      <span>{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</span>
+                      <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] font-mono font-bold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">AR</span>
+                    </label>
+                    <input
+                      type="text"
+                      dir="rtl"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
+                      placeholder="مثال: المستودع المركزي"
+                      value={warehouseForm.nameAr}
+                      onChange={(e) => setWarehouseForm((p) => ({ ...p, nameAr: e.target.value }))}
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
-                <input className="input" value={warehouseForm.nameEn} onChange={(e) => setWarehouseForm((p) => ({ ...p, nameEn: e.target.value }))} />
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowWarehouseModal(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 transition"
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={submitInlineWarehouse}
+                  disabled={addWarehouseMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 transition"
+                >
+                  {addWarehouseMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Building2 className="h-3.5 w-3.5 text-indigo-400 dark:text-indigo-600" />
+                  )}
+                  <span>{language === 'ar' ? 'حفظ وتحديد المستودع' : 'Save & Select Warehouse'}</span>
+                </button>
               </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
-                <input className="input" dir="rtl" value={warehouseForm.nameAr} onChange={(e) => setWarehouseForm((p) => ({ ...p, nameAr: e.target.value }))} />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <button type="button" onClick={() => setShowWarehouseModal(false)} className={ghostBtn}>{t('cancel')}</button>
-              <button type="button" onClick={submitInlineWarehouse} disabled={addWarehouseMutation.isPending} className={primaryBtn}>
-                {addWarehouseMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : language === 'ar' ? 'حفظ المستودع' : 'Save warehouse'}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Inline Quick Add Product Modal */}
       {showProductModal && (
