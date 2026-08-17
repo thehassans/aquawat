@@ -5,8 +5,9 @@ DEPLOY_PATH="/var/www/vhosts/maqder.com/httpdocs"
 LOCK_FILE="/var/lock/maqder-deploy.lock"
 mkdir -p /var/lock
 exec 9>"$LOCK_FILE"
-if ! flock -n 9; then
-  echo "Another Maqder deploy is already running — aborting to avoid compose races"
+echo "Acquiring deployment lock..."
+if ! flock -w 600 9; then
+  echo "Timeout waiting for previous Maqder deploy to finish."
   exit 1
 fi
 
