@@ -15,17 +15,29 @@ router.post('/', checkPermission('invoicing', 'create'), createDeliveryNoteFromP
 // @route   GET /api/delivery-notes
 router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 25, status, customerId, purchaseOrderId, shipmentId } = req.query;
+    const { page = 1, limit = 25, status, customerId, purchaseOrderId, quotationId, shipmentId, search } = req.query;
     const query = { ...req.tenantFilter };
 
     if (status) query.status = status;
     if (customerId) query.customerId = customerId;
     if (purchaseOrderId) query.purchaseOrderId = purchaseOrderId;
+    if (quotationId) query.quotationId = quotationId;
     if (shipmentId) query.shipmentId = shipmentId;
+    if (search && String(search).trim()) {
+      const searchRegex = { $regex: String(search).trim(), $options: 'i' };
+      query.$or = [
+        { dnNumber: searchRegex },
+        { customerName: searchRegex },
+        { driverName: searchRegex },
+        { trackingNumber: searchRegex },
+        { carrier: searchRegex }
+      ];
+    }
 
     const deliveryNotes = await DeliveryNote.find(query)
-      .populate('customerId', 'code nameEn nameAr')
-      .populate('purchaseOrderId', 'poNumber')
+      .populate('customerId', 'code nameEn nameAr phone email')
+      .populate('purchaseOrderId', 'poNumber status')
+      .populate('quotationId', 'quotationNumber status issueDate')
       .populate('shipmentId', 'shipmentNumber status carrier trackingNumber')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -52,7 +64,8 @@ router.get('/:id', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
     const deliveryNote = await DeliveryNote.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('customerId', 'code nameEn nameAr phone email address vatNumber')
-      .populate('purchaseOrderId', 'poNumber status date')
+      .populate('purchaseOrderId', 'poNumber status date supplierId customerId lineItems')
+      .populate('quotationId', 'quotationNumber status issueDate buyer seller lineItems')
       .populate('shipmentId', 'shipmentNumber status carrier trackingNumber')
       .populate('lineItems.productId', 'sku nameEn nameAr barcode unitPrice unit measureUnit');
 

@@ -13,6 +13,7 @@ import {
   Clock,
   Download,
   Printer,
+  Truck,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -555,6 +556,15 @@ export default function Quotations() {
                                 <FileText className="w-4 h-4" />
                               </Link>
                             )}
+
+                            {/* Create Delivery Note */}
+                            <Link
+                              to={`/app/dashboard/delivery-notes/new?quotationId=${q._id}`}
+                              className="btn btn-ghost btn-icon text-sky-600 hover:text-sky-700"
+                              title={language === 'ar' ? 'إنشاء سند تسليم' : 'Create Delivery Note'}
+                            >
+                              <Truck className="w-4 h-4" />
+                            </Link>
 
                             {/* Print */}
                             <button

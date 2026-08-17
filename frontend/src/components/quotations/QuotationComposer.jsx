@@ -14,6 +14,7 @@ import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
+import DocumentPreSaveModal from '../invoices/DocumentPreSaveModal'
 import InvoiceTemplateSelector from '../invoices/InvoiceTemplateSelector'
 import Select from 'react-select'
 import { useForm, useFieldArray } from 'react-hook-form'
@@ -334,10 +335,13 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '')
   }
 
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [pendingPayload, setPendingPayload] = useState(null)
+
   const totals = calculateInvoiceSummary({ lineItems, invoiceDiscount: values?.invoiceDiscount })
 
-  const onSubmit = (data) => {
-    const payload = {
+  const buildPayload = (data) => {
+    return {
       ...data,
       businessContext,
       pdfTemplateId: selectedTemplateId,
@@ -390,7 +394,16 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       stampImage: showAuthorizedPerson ? (data?.stampImage || '') : '',
       status: initialQuotation?.status || 'draft',
     }
+  }
 
+  const onSubmit = (data) => {
+    const payload = buildPayload(data)
+    setPendingPayload(payload)
+    setShowPreviewModal(true)
+  }
+
+  const handleConfirmSave = () => {
+    const payload = pendingPayload || buildPayload(getValues())
     saveMutation.mutate(payload)
   }
 
@@ -1173,7 +1186,14 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/app/dashboard/quotations')}
+              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-dark-800"
+            >
+              {t('cancel')}
+            </button>
             <button
               type="submit"
               disabled={saveMutation.isPending}
@@ -1182,9 +1202,9 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
               {saveMutation.isPending ? (
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
               ) : (
-                <Save className="h-4 w-4" />
+                <Eye className="h-4 w-4" />
               )}
-              {isEdit ? (language === 'ar' ? 'تحديث عرض السعر' : 'Update Quotation') : (language === 'ar' ? 'حفظ عرض السعر' : 'Save Quotation')}
+              {isEdit ? (language === 'ar' ? 'معاينة وتعديل عرض السعر' : 'Preview & Update Quotation') : (language === 'ar' ? 'معاينة وحفظ عرض السعر' : 'Preview & Save Quotation')}
             </button>
           </div>
         </form>
@@ -1208,6 +1228,19 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
           <InvoiceLivePreview invoice={previewQuotation} tenant={tenant} language={language} templateId={selectedTemplateId} bilingual={resolveInvoiceBilingual(tenant, true)} secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined} documentType="quotation" />
         </div>
       </div>
+
+      <DocumentPreSaveModal
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        onConfirm={handleConfirmSave}
+        isPending={saveMutation.isPending}
+        document={previewQuotation}
+        tenant={tenant}
+        language={language}
+        documentType="quotation"
+        templateId={selectedTemplateId}
+        title={language === 'ar' ? 'معاينة عرض السعر قبل الحفظ' : 'Quotation Live Preview'}
+      />
     </div>
   )
 }

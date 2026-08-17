@@ -15,6 +15,7 @@ import { isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from './InvoiceLivePreview'
+import DocumentPreSaveModal from './DocumentPreSaveModal'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
 import Select from 'react-select'
@@ -433,11 +434,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     return Math.round((sub + (sub * tax / 100)) * 100) / 100
   }
 
-  const onSubmit = (data) => {
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [pendingPayload, setPendingPayload] = useState(null)
+
+  const buildPayload = (data) => {
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim() || toNumber(line?.unitPrice, 0) > 0)
     if (!namedLines.length) {
       toast.error(language === 'ar' ? 'أضف بنداً واحداً على الأقل قبل الحفظ' : 'Add at least one line item before saving')
-      return
+      return null
     }
     const computedTotals = calculateInvoiceSummary({
       lineItems: namedLines,
@@ -499,6 +503,19 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     payload.authorizedPersonDesignationAr = showAuthorizedPerson ? (data?.authorizedPersonDesignationAr || '') : ''
     payload.authorizedPersonSignature = showAuthorizedPerson ? (data?.authorizedPersonSignature || '') : ''
     payload.stampImage = showAuthorizedPerson ? (data?.stampImage || '') : ''
+    return payload
+  }
+
+  const onSubmit = (data) => {
+    const payload = buildPayload(data)
+    if (!payload) return
+    setPendingPayload(payload)
+    setShowPreviewModal(true)
+  }
+
+  const handleConfirmSave = () => {
+    const payload = pendingPayload || buildPayload(getValues())
+    if (!payload) return
     saveMutation.mutate(payload)
   }
 
@@ -1114,7 +1131,19 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 <div className="flex justify-between text-sm"><span className="text-gray-500">{t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
                 <div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-bold dark:border-dark-600"><span>{t('total')}</span><span className="text-primary-600"><Money value={totals.grandTotal} /></span></div>
               </div>
-              <div className="flex gap-3"><button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="btn btn-secondary">{t('cancel')}</button><button type="submit" disabled={saveMutation.isPending} className="btn btn-action-dark">{saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <><Save className="w-4 h-4" />{isEdit ? (language === 'ar' ? 'حفظ التعديلات' : 'Save Changes') : t('save')}</>}</button></div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="btn btn-secondary">{t('cancel')}</button>
+                <button type="submit" disabled={saveMutation.isPending} className="btn btn-action-dark shadow-lg">
+                  {saveMutation.isPending ? (
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4" />
+                      {isEdit ? (language === 'ar' ? 'معاينة وتعديل الفاتورة' : 'Preview & Update Invoice') : (language === 'ar' ? 'معاينة وحفظ الفاتورة' : 'Preview & Save Invoice')}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </form>
@@ -1124,6 +1153,19 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           <InvoiceLivePreview invoice={previewInvoice} tenant={tenant} language={language} templateId={selectedTemplateId} bilingual={previewInvoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction'].includes(previewInvoice?.businessContext)} />
         </div>
       </div>
+
+      <DocumentPreSaveModal
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        onConfirm={handleConfirmSave}
+        isPending={saveMutation.isPending}
+        document={previewInvoice}
+        tenant={tenant}
+        language={language}
+        documentType="purchase_invoice"
+        templateId={selectedTemplateId}
+        title={language === 'ar' ? 'معاينة فاتورة الشراء قبل الحفظ' : 'Purchase Invoice Live Preview'}
+      />
     </div>
   )
 }

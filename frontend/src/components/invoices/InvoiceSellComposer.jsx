@@ -16,6 +16,7 @@ import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms, isImmediatePaymentTerm, formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 import InvoiceLivePreview from './InvoiceLivePreview'
+import DocumentPreSaveModal from './DocumentPreSaveModal'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
 import ThermalReceipt from '../ui/ThermalReceipt'
@@ -647,11 +648,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
   const totals = calculateInvoiceSummary({ lineItems, invoiceDiscount: values?.invoiceDiscount })
 
-  const onSubmit = (data) => {
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [pendingPayload, setPendingPayload] = useState(null)
+
+  const buildPayload = (data) => {
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim())
     if (!namedLines.length) {
       toast.error(language === 'ar' ? 'أضف بنداً واحداً على الأقل قبل الحفظ' : 'Add at least one billing line before saving')
-      return
+      return null
     }
     const namedTotals = calculateInvoiceSummary({ lineItems: namedLines, invoiceDiscount: Math.max(0, toNumber(data?.invoiceDiscount, 0)) })
     const transactionType = invoiceType
@@ -754,6 +758,19 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           iban: data?.bankDetails?.iban || '',
         }
       : { bankName: '', accountName: '', accountNumber: '', iban: '' }
+    return payload
+  }
+
+  const onSubmit = (data) => {
+    const payload = buildPayload(data)
+    if (!payload) return
+    setPendingPayload(payload)
+    setShowPreviewModal(true)
+  }
+
+  const handleConfirmSave = () => {
+    const payload = pendingPayload || buildPayload(getValues())
+    if (!payload) return
     saveMutation.mutate(payload)
   }
 
@@ -1912,13 +1929,26 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:text-slate-300">{t('cancel')}</button>
-              <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-slate-900">
-                {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Save className="w-4 h-4" />{isEdit ? (language === 'ar' ? 'حفظ التعديلات' : 'Save Changes') : t('save')}</>}
+              <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-slate-900 shadow-lg hover:opacity-95 transition">
+                {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{isEdit ? (language === 'ar' ? 'معاينة وتعديل الفاتورة' : 'Preview & Update Invoice') : (language === 'ar' ? 'معاينة وحفظ الفاتورة' : 'Preview & Save Invoice')}</>}
               </button>
             </div>
           </div>
         </form>
       </div>
+
+      <DocumentPreSaveModal
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        onConfirm={handleConfirmSave}
+        isPending={saveMutation.isPending}
+        document={previewInvoice}
+        tenant={tenant}
+        language={language}
+        documentType="invoice"
+        templateId={selectedTemplateId}
+        title={language === 'ar' ? 'معاينة الفاتورة قبل الحفظ' : 'Invoice Live Preview'}
+      />
     </div>
   )
  }

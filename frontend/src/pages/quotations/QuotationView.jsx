@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { ArrowLeft, Download, Mail, Printer, Edit, FileSpreadsheet, FileText, CheckCircle, XCircle, PenLine } from 'lucide-react'
+import { ArrowLeft, Download, Mail, Printer, Edit, FileSpreadsheet, FileText, CheckCircle, XCircle, PenLine, Truck } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -243,6 +243,18 @@ export default function QuotationView() {
               {language === 'ar' ? 'يتطلب الاعتماد للتحويل' : 'Approval Required to Convert'}
             </button>
           ) : null}
+
+          {/* Create Delivery Note */}
+          <button
+            type="button"
+            onClick={() => navigate(`/app/dashboard/delivery-notes/new?quotationId=${id}`)}
+            className="btn btn-secondary text-sky-600 hover:text-sky-700 dark:text-sky-400"
+            title={language === 'ar' ? 'إنشاء سند تسليم من عرض السعر هذا' : 'Create Delivery Note from this quotation'}
+          >
+            <Truck className="w-4 h-4" />
+            {language === 'ar' ? 'سند تسليم' : 'Delivery Note'}
+          </button>
+
           {isEditableQuotation(quotation) ? (
             <button type="button" onClick={() => navigate(`/app/dashboard/quotations/${id}/edit`)} className="btn btn-secondary">
               <Edit className="w-4 h-4" />
