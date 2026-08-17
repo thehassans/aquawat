@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
 import { GoogleGenAI } from '@google/genai';
@@ -37,6 +38,78 @@ import ReportSchedule from '../models/ReportSchedule.js';
 import DemoUser from '../models/DemoUser.js';
 import IoTDevice from '../models/IoTDevice.js';
 import IoTReading from '../models/IoTReading.js';
+import GRN from '../models/GRN.js';
+import LandedCost from '../models/LandedCost.js';
+import PurchaseReturn from '../models/PurchaseReturn.js';
+import StockTransfer from '../models/StockTransfer.js';
+import InventoryAdjustment from '../models/InventoryAdjustment.js';
+import Transaction from '../models/Transaction.js';
+import JournalEntry from '../models/JournalEntry.js';
+import ChartOfAccount from '../models/ChartOfAccount.js';
+import Voucher from '../models/Voucher.js';
+import DailyPnL from '../models/DailyPnL.js';
+import ExpenseClaim from '../models/ExpenseClaim.js';
+import BakalaProduct from '../models/BakalaProduct.js';
+import BakalaCategory from '../models/BakalaCategory.js';
+import BakalaBrand from '../models/BakalaBrand.js';
+import BakalaShift from '../models/BakalaShift.js';
+import BakalaUnit from '../models/BakalaUnit.js';
+import BoutiqueProduct from '../models/BoutiqueProduct.js';
+import BoutiqueRental from '../models/BoutiqueRental.js';
+import BoutiqueAlteration from '../models/BoutiqueAlteration.js';
+import LaundryOrder from '../models/LaundryOrder.js';
+import LaundryCustomer from '../models/LaundryCustomer.js';
+import LaundryInventory from '../models/LaundryInventory.js';
+import LaundryService from '../models/LaundryService.js';
+import LaundryDeliveryRoute from '../models/LaundryDeliveryRoute.js';
+import RentalCar from '../models/RentalCar.js';
+import RentalContract from '../models/RentalContract.js';
+import RentalCustomer from '../models/RentalCustomer.js';
+import RentalInspection from '../models/RentalInspection.js';
+import RentalInvoice from '../models/RentalInvoice.js';
+import RentalMaintenance from '../models/RentalMaintenance.js';
+import RestaurantDelivery from '../models/RestaurantDelivery.js';
+import RestaurantMess from '../models/RestaurantMess.js';
+import RestaurantReservation from '../models/RestaurantReservation.js';
+import RestaurantTable from '../models/RestaurantTable.js';
+import RestaurantCombo from '../models/RestaurantCombo.js';
+import RestaurantInventory from '../models/RestaurantInventory.js';
+import RestaurantKDSStation from '../models/RestaurantKDSStation.js';
+import SaloonOrder from '../models/SaloonOrder.js';
+import SaloonAppointment from '../models/SaloonAppointment.js';
+import SaloonService from '../models/SaloonService.js';
+import SaloonStaff from '../models/SaloonStaff.js';
+import WorkshopJobCard from '../models/WorkshopJobCard.js';
+import WorkshopVehicle from '../models/WorkshopVehicle.js';
+import WorkshopEstimate from '../models/WorkshopEstimate.js';
+import WorkshopInventoryItem from '../models/WorkshopInventoryItem.js';
+import WorkshopPurchaseOrder from '../models/WorkshopPurchaseOrder.js';
+import WorkshopServiceReminder from '../models/WorkshopServiceReminder.js';
+import EcommerceOrder from '../models/EcommerceOrder.js';
+import EcommerceProduct from '../models/EcommerceProduct.js';
+import EcommerceReturn from '../models/EcommerceReturn.js';
+import EcommerceReview from '../models/EcommerceReview.js';
+import EcommerceBundle from '../models/EcommerceBundle.js';
+import EcommerceCoupon from '../models/EcommerceCoupon.js';
+import EcommerceGiftCard from '../models/EcommerceGiftCard.js';
+import Contract from '../models/Contract.js';
+import ManpowerTimesheet from '../models/ManpowerTimesheet.js';
+import ManpowerWorker from '../models/ManpowerWorker.js';
+import ManpowerAssignment from '../models/ManpowerAssignment.js';
+import Candidate from '../models/Candidate.js';
+import JobRequisition from '../models/JobRequisition.js';
+import LeaveRequest from '../models/LeaveRequest.js';
+import PerformanceReview from '../models/PerformanceReview.js';
+import CalendarEvent from '../models/CalendarEvent.js';
+import CRMLead from '../models/CRMLead.js';
+import CRMDeal from '../models/CRMDeal.js';
+import CRMContact from '../models/CRMContact.js';
+import CRMCampaign from '../models/CRMCampaign.js';
+import CRMActivity from '../models/CRMActivity.js';
+import LoyaltyPoints from '../models/LoyaltyPoints.js';
+import WasteEntry from '../models/WasteEntry.js';
+import MaintenanceRecord from '../models/MaintenanceRecord.js';
+import GovIntegrationLog from '../models/GovIntegrationLog.js';
 import {
   WhatsAppContact,
   WhatsAppMessage,
@@ -1540,10 +1613,23 @@ router.post('/tenants/:id/reset', async (req, res) => {
       ['travelBookings', TravelBooking],
       ['restaurantOrders', RestaurantOrder],
       ['restaurantMenuItems', RestaurantMenuItem],
+      ['restaurantDelivery', RestaurantDelivery],
+      ['restaurantMess', RestaurantMess],
+      ['restaurantReservation', RestaurantReservation],
+      ['restaurantTable', RestaurantTable],
+      ['restaurantCombo', RestaurantCombo],
+      ['restaurantInventory', RestaurantInventory],
+      ['restaurantKDSStation', RestaurantKDSStation],
       ['emails', EmailMessage],
       ['expenses', Expense],
+      ['expenseClaims', ExpenseClaim],
       ['products', Product],
       ['purchaseOrders', PurchaseOrder],
+      ['purchaseReturns', PurchaseReturn],
+      ['grns', GRN],
+      ['landedCosts', LandedCost],
+      ['stockTransfers', StockTransfer],
+      ['inventoryAdjustments', InventoryAdjustment],
       ['suppliers', Supplier],
       ['warehouses', Warehouse],
       ['shipments', Shipment],
@@ -1563,6 +1649,65 @@ router.post('/tenants/:id/reset', async (req, res) => {
       ['quotations', Quotation],
       ['deliveryNotes', DeliveryNote],
       ['reportSchedules', ReportSchedule],
+      ['transactions', Transaction],
+      ['journalEntries', JournalEntry],
+      ['chartOfAccounts', ChartOfAccount],
+      ['vouchers', Voucher],
+      ['dailyPnL', DailyPnL],
+      ['bakalaProducts', BakalaProduct],
+      ['bakalaCategories', BakalaCategory],
+      ['bakalaBrands', BakalaBrand],
+      ['bakalaShifts', BakalaShift],
+      ['bakalaUnits', BakalaUnit],
+      ['boutiqueProducts', BoutiqueProduct],
+      ['boutiqueRentals', BoutiqueRental],
+      ['boutiqueAlterations', BoutiqueAlteration],
+      ['laundryOrders', LaundryOrder],
+      ['laundryCustomers', LaundryCustomer],
+      ['laundryInventory', LaundryInventory],
+      ['laundryServices', LaundryService],
+      ['laundryDeliveryRoutes', LaundryDeliveryRoute],
+      ['rentalCars', RentalCar],
+      ['rentalContracts', RentalContract],
+      ['rentalCustomers', RentalCustomer],
+      ['rentalInspections', RentalInspection],
+      ['rentalInvoices', RentalInvoice],
+      ['rentalMaintenance', RentalMaintenance],
+      ['saloonOrders', SaloonOrder],
+      ['saloonAppointments', SaloonAppointment],
+      ['saloonServices', SaloonService],
+      ['saloonStaff', SaloonStaff],
+      ['workshopJobCards', WorkshopJobCard],
+      ['workshopVehicles', WorkshopVehicle],
+      ['workshopEstimates', WorkshopEstimate],
+      ['workshopInventoryItems', WorkshopInventoryItem],
+      ['workshopPurchaseOrders', WorkshopPurchaseOrder],
+      ['workshopServiceReminders', WorkshopServiceReminder],
+      ['ecommerceOrders', EcommerceOrder],
+      ['ecommerceProducts', EcommerceProduct],
+      ['ecommerceReturns', EcommerceReturn],
+      ['ecommerceReviews', EcommerceReview],
+      ['ecommerceBundles', EcommerceBundle],
+      ['ecommerceCoupons', EcommerceCoupon],
+      ['ecommerceGiftCards', EcommerceGiftCard],
+      ['contracts', Contract],
+      ['manpowerTimesheets', ManpowerTimesheet],
+      ['manpowerWorkers', ManpowerWorker],
+      ['manpowerAssignments', ManpowerAssignment],
+      ['candidates', Candidate],
+      ['jobRequisitions', JobRequisition],
+      ['leaveRequests', LeaveRequest],
+      ['performanceReviews', PerformanceReview],
+      ['calendarEvents', CalendarEvent],
+      ['crmLeads', CRMLead],
+      ['crmDeals', CRMDeal],
+      ['crmContacts', CRMContact],
+      ['crmCampaigns', CRMCampaign],
+      ['crmActivities', CRMActivity],
+      ['loyaltyPoints', LoyaltyPoints],
+      ['wasteEntries', WasteEntry],
+      ['maintenanceRecords', MaintenanceRecord],
+      ['govIntegrationLogs', GovIntegrationLog],
     ];
 
     const results = await Promise.all(
@@ -1576,6 +1721,19 @@ router.post('/tenants/:id/reset', async (req, res) => {
       })
     );
 
+    // Reset installed apps so the tenant starts with fresh apps catalog
+    if (!tenant.settings) tenant.settings = {};
+    tenant.settings.installedApps = {};
+    tenant.installedApps = [];
+    tenant.apps = [];
+    tenant.markModified('settings.installedApps');
+    tenant.markModified('installedApps');
+    tenant.markModified('apps');
+
+    try {
+      await AppAddon.deleteMany({ tenantId });
+    } catch (_) {}
+
     // Reset the ZATCA invoice chain so the next invoice starts from scratch.
     tenant.zatca = {
       ...(tenant.zatca?.toObject?.() || tenant.zatca || {}),
@@ -1584,6 +1742,8 @@ router.post('/tenants/:id/reset', async (req, res) => {
     };
     tenant.markModified('zatca');
     await tenant.save();
+
+    invalidateAuthCache(tenantId);
 
     const summary = Object.fromEntries(results);
     res.json({
@@ -1614,10 +1774,23 @@ router.delete('/tenants/:id', async (req, res) => {
       ['travelBookings', TravelBooking],
       ['restaurantOrders', RestaurantOrder],
       ['restaurantMenuItems', RestaurantMenuItem],
+      ['restaurantDelivery', RestaurantDelivery],
+      ['restaurantMess', RestaurantMess],
+      ['restaurantReservation', RestaurantReservation],
+      ['restaurantTable', RestaurantTable],
+      ['restaurantCombo', RestaurantCombo],
+      ['restaurantInventory', RestaurantInventory],
+      ['restaurantKDSStation', RestaurantKDSStation],
       ['emails', EmailMessage],
       ['expenses', Expense],
+      ['expenseClaims', ExpenseClaim],
       ['products', Product],
       ['purchaseOrders', PurchaseOrder],
+      ['purchaseReturns', PurchaseReturn],
+      ['grns', GRN],
+      ['landedCosts', LandedCost],
+      ['stockTransfers', StockTransfer],
+      ['inventoryAdjustments', InventoryAdjustment],
       ['suppliers', Supplier],
       ['warehouses', Warehouse],
       ['shipments', Shipment],
@@ -1637,6 +1810,65 @@ router.delete('/tenants/:id', async (req, res) => {
       ['quotations', Quotation],
       ['deliveryNotes', DeliveryNote],
       ['reportSchedules', ReportSchedule],
+      ['transactions', Transaction],
+      ['journalEntries', JournalEntry],
+      ['chartOfAccounts', ChartOfAccount],
+      ['vouchers', Voucher],
+      ['dailyPnL', DailyPnL],
+      ['bakalaProducts', BakalaProduct],
+      ['bakalaCategories', BakalaCategory],
+      ['bakalaBrands', BakalaBrand],
+      ['bakalaShifts', BakalaShift],
+      ['bakalaUnits', BakalaUnit],
+      ['boutiqueProducts', BoutiqueProduct],
+      ['boutiqueRentals', BoutiqueRental],
+      ['boutiqueAlterations', BoutiqueAlteration],
+      ['laundryOrders', LaundryOrder],
+      ['laundryCustomers', LaundryCustomer],
+      ['laundryInventory', LaundryInventory],
+      ['laundryServices', LaundryService],
+      ['laundryDeliveryRoutes', LaundryDeliveryRoute],
+      ['rentalCars', RentalCar],
+      ['rentalContracts', RentalContract],
+      ['rentalCustomers', RentalCustomer],
+      ['rentalInspections', RentalInspection],
+      ['rentalInvoices', RentalInvoice],
+      ['rentalMaintenance', RentalMaintenance],
+      ['saloonOrders', SaloonOrder],
+      ['saloonAppointments', SaloonAppointment],
+      ['saloonServices', SaloonService],
+      ['saloonStaff', SaloonStaff],
+      ['workshopJobCards', WorkshopJobCard],
+      ['workshopVehicles', WorkshopVehicle],
+      ['workshopEstimates', WorkshopEstimate],
+      ['workshopInventoryItems', WorkshopInventoryItem],
+      ['workshopPurchaseOrders', WorkshopPurchaseOrder],
+      ['workshopServiceReminders', WorkshopServiceReminder],
+      ['ecommerceOrders', EcommerceOrder],
+      ['ecommerceProducts', EcommerceProduct],
+      ['ecommerceReturns', EcommerceReturn],
+      ['ecommerceReviews', EcommerceReview],
+      ['ecommerceBundles', EcommerceBundle],
+      ['ecommerceCoupons', EcommerceCoupon],
+      ['ecommerceGiftCards', EcommerceGiftCard],
+      ['contracts', Contract],
+      ['manpowerTimesheets', ManpowerTimesheet],
+      ['manpowerWorkers', ManpowerWorker],
+      ['manpowerAssignments', ManpowerAssignment],
+      ['candidates', Candidate],
+      ['jobRequisitions', JobRequisition],
+      ['leaveRequests', LeaveRequest],
+      ['performanceReviews', PerformanceReview],
+      ['calendarEvents', CalendarEvent],
+      ['crmLeads', CRMLead],
+      ['crmDeals', CRMDeal],
+      ['crmContacts', CRMContact],
+      ['crmCampaigns', CRMCampaign],
+      ['crmActivities', CRMActivity],
+      ['loyaltyPoints', LoyaltyPoints],
+      ['wasteEntries', WasteEntry],
+      ['maintenanceRecords', MaintenanceRecord],
+      ['govIntegrationLogs', GovIntegrationLog],
       ['users', User],
       ['employees', Employee]
     ];

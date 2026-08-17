@@ -161,6 +161,61 @@ export default function PurchaseOrderForm() {
     })
   }
 
+  const customSelectStyles = {
+    control: (base, state) => ({
+      ...base,
+      minHeight: '34px',
+      height: '34px',
+      fontSize: '12px',
+      borderRadius: '0.75rem',
+      borderColor: state.isFocused ? '#0d9488' : '#e2e8f0',
+      boxShadow: state.isFocused ? '0 0 0 1px #0d9488' : 'none',
+      backgroundColor: 'transparent',
+      '&:hover': {
+        borderColor: '#cbd5e1',
+      },
+    }),
+    valueContainer: (base) => ({
+      ...base,
+      height: '34px',
+      padding: '0 8px',
+    }),
+    input: (base) => ({
+      ...base,
+      margin: '0',
+      padding: '0',
+    }),
+    indicatorsContainer: (base) => ({
+      ...base,
+      height: '34px',
+    }),
+    dropdownIndicator: (base) => ({
+      ...base,
+      padding: '4px',
+    }),
+    clearIndicator: (base) => ({
+      ...base,
+      padding: '4px',
+    }),
+    menuPortal: (base) => ({ ...base, zIndex: 99999 }),
+    menu: (base) => ({
+      ...base,
+      borderRadius: '0.75rem',
+      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+      border: '1px solid #e2e8f0',
+      zIndex: 99999,
+      overflow: 'hidden',
+    }),
+    option: (base, state) => ({
+      ...base,
+      fontSize: '12px',
+      padding: '6px 12px',
+      backgroundColor: state.isSelected ? '#0d9488' : state.isFocused ? '#f0fdfa' : 'transparent',
+      color: state.isSelected ? '#ffffff' : state.isFocused ? '#0f766e' : '#1e293b',
+      cursor: 'pointer',
+    }),
+  }
+
   const {
     register,
     control,
@@ -1556,6 +1611,8 @@ export default function PurchaseOrderForm() {
                             isDisabled={isLocked}
                             isClearable
                             isSearchable
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                            styles={customSelectStyles}
                             placeholder={language === 'ar' ? 'ابحث بالاسم أو الرمز، أو اكتب...' : 'Search product or type...'}
                             formatCreateLabel={(inputValue) =>
                               language === 'ar'
@@ -1611,6 +1668,8 @@ export default function PurchaseOrderForm() {
                           className="react-select-container text-xs"
                           classNamePrefix="react-select"
                           isDisabled={isLocked}
+                          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                          styles={customSelectStyles}
                           value={
                             watch(`lineItems.${index}.uom`)
                               ? {
@@ -1725,7 +1784,7 @@ export default function PurchaseOrderForm() {
                   ) : (
                     <>
                       <Save className="h-4 w-4 opacity-80" />
-                      {language === 'ar' ? 'حفظ ومعاينة' : 'Save & Preview'}
+                      {language === 'ar' ? 'حفظ طلب الشراء' : 'Save Purchase Order'}
                     </>
                   )}
                 </button>
@@ -1757,27 +1816,43 @@ export default function PurchaseOrderForm() {
                     </h3>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => openWhatsAppModal(createdOrderForPreview || order)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                    title={language === 'ar' ? 'إرسال عبر الواتساب' : 'Send via WhatsApp'}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openEmailModal(createdOrderForPreview || order)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-blue-300 bg-blue-50 text-blue-700 transition hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                    title={language === 'ar' ? 'إرسال بالبريد' : 'Send via Email'}
+                  >
+                    <Mail className="h-4 w-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => handlePrintPdf(createdOrderForPreview || order)}
-                    className={ghostBtn}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
+                    title={language === 'ar' ? 'طباعة' : 'Print'}
                   >
-                    <Printer className="h-3.5 w-3.5" />
-                    {language === 'ar' ? 'طباعة' : 'Print'}
+                    <Printer className="h-4 w-4" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDownloadPdf(createdOrderForPreview || order)}
-                    className={ghostBtn}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
+                    title={language === 'ar' ? 'تنزيل PDF' : 'PDF'}
                   >
-                    <Download className="h-3.5 w-3.5" />
-                    {language === 'ar' ? 'PDF' : 'PDF'}
+                    <Download className="h-4 w-4" />
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowLivePreviewModal(false)}
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-slate-300"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-slate-300"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -1801,24 +1876,24 @@ export default function PurchaseOrderForm() {
                       </p>
                     )}
                   </div>
-                  <div className="text-start sm:text-end">
-                    <span className="inline-block rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white dark:bg-white dark:text-slate-950">
-                      {language === 'ar' ? 'أمر شراء' : 'PURCHASE ORDER'}
+                  <div className="sm:text-end">
+                    <span className="inline-block rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white dark:bg-white dark:text-slate-950">
+                      {language === 'ar' ? 'طلب شراء' : 'PURCHASE ORDER'}
                     </span>
-                    <p className="mt-2 font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
-                      {(createdOrderForPreview || order)?.poNumber || watch('poNumber') || 'PO-DRAFT'}
+                    <p className="mt-1 font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
+                      {watch('poNumber') || order?.poNumber || 'PO-DRAFT'}
                     </p>
-                    <p className="text-xs text-slate-500">
-                      {language === 'ar' ? 'التاريخ:' : 'Date:'} {watch('orderDate') || formatDateForInput(new Date())}
+                    <p className="text-[11px] text-slate-500">
+                      {language === 'ar' ? 'التاريخ:' : 'Date:'} {watch('orderDate') || new Date().toISOString().slice(0, 10)}
                     </p>
                   </div>
                 </div>
 
-                {/* 2-Column Info Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-2xl bg-slate-50 p-4 dark:bg-white/[0.03] text-xs">
+                {/* Vendor & Delivery info */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div>
                     <span className="font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                      {language === 'ar' ? 'إلى المورد / Supplier' : 'Vendor / Supplier'}
+                      {language === 'ar' ? 'المورد / البائع' : 'Vendor / Supplier'}
                     </span>
                     {(() => {
                       const suppId = watch('supplierId') || order?.supplierId?._id || order?.supplierId
@@ -1934,30 +2009,6 @@ export default function PurchaseOrderForm() {
                     type="button"
                     onClick={() => {
                       setShowLivePreviewModal(false)
-                      openWhatsAppModal(createdOrderForPreview || order)
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    {language === 'ar' ? 'واتساب' : 'WhatsApp'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowLivePreviewModal(false)
-                      openEmailModal(createdOrderForPreview || order)
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
-                  >
-                    <Mail className="h-4 w-4" />
-                    {language === 'ar' ? 'بريد' : 'Email'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowLivePreviewModal(false)
                       setIsViewMode(false)
                     }}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
@@ -1981,17 +2032,6 @@ export default function PurchaseOrderForm() {
                   >
                     {approveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                     {language === 'ar' ? 'اعتماد طلب الشراء الآن' : 'Approve Purchase Order'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowLivePreviewModal(false)
-                      setIsViewMode(true)
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950"
-                  >
-                    {language === 'ar' ? 'تم / عرض الطلب' : 'Done / View'}
                   </button>
                 </div>
               </div>
