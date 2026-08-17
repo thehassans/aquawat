@@ -30,6 +30,15 @@ import { PURCHASES_PATH, formatDay, ghostBtn, primaryBtn } from '../../pages/pur
 const emptyLine = { productId: '', productName: '', productNameAr: '', productType: 'goods', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
 
+function BilingualLabel({ en, ar }) {
+  return (
+    <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+      <span>{en}</span>
+      <span dir="rtl" className="font-medium text-gray-500">{ar}</span>
+    </label>
+  )
+}
+
 const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, hasTravel }) => ({
   businessContext: invoice?.businessContext || defaultBusinessContext,
   invoiceSubtype: invoice?.invoiceSubtype || (hasTravel ? 'travel_ticket' : 'standard'),
@@ -53,7 +62,15 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
   paymentStatus: formPaymentStatusFromInvoice(invoice),
   paidAmount: toNumber(invoice?.paidAmount, 0),
   invoiceDiscount: toNumber(invoice?.invoiceDiscount, 0),
+  termsAndConditions: invoice?.termsAndConditions || '',
   notes: invoice?.notes || '',
+  bankDetails: {
+    bankName: invoice?.bankDetails?.bankName || '',
+    accountName: invoice?.bankDetails?.accountName || '',
+    accountNumber: invoice?.bankDetails?.accountNumber || '',
+    iban: invoice?.bankDetails?.iban || '',
+  },
+  includeBankDetails: Boolean(invoice?.includeBankDetails || invoice?.bankDetails?.bankName || invoice?.bankDetails?.iban || invoice?.bankDetails?.accountNumber),
   lineItems: Array.isArray(invoice?.lineItems) && invoice.lineItems.length > 0
     ? invoice.lineItems.map((line) => ({
         ...emptyLine,
@@ -112,6 +129,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       initialInvoice?.stampImage
     )
   })
+  const [showTermsPanel, setShowTermsPanel] = useState(() => Boolean(initialInvoice?.termsAndConditions))
+  const [showNotesPanel, setShowNotesPanel] = useState(() => Boolean(initialInvoice?.notes))
+  const [showBankPanel, setShowBankPanel] = useState(() => Boolean(
+    initialInvoice?.includeBankDetails ||
+    initialInvoice?.bankDetails?.bankName ||
+    initialInvoice?.bankDetails?.iban ||
+    initialInvoice?.bankDetails?.accountNumber
+  ))
 
   const handleToggleAuthorizedPerson = (enable) => {
     setShowAuthorizedPerson(enable)
@@ -126,11 +151,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       if (!getValues('authorizedPersonNameAr') && tenant?.business?.legalNameAr) {
         setValue('authorizedPersonNameAr', tenant.business.legalNameAr)
       }
-      if (!currentSignature && tenant?.settings?.invoiceBranding?.presetSignature) {
-        setValue('authorizedPersonSignature', tenant.settings.invoiceBranding.presetSignature)
+      if (!currentSignature && (tenant?.settings?.invoiceBranding?.presetSignature || tenant?.settings?.invoiceBranding?.signatureImage)) {
+        setValue('authorizedPersonSignature', tenant.settings.invoiceBranding.presetSignature || tenant.settings.invoiceBranding.signatureImage)
       }
-      if (!currentStamp && tenant?.settings?.invoiceBranding?.presetStamp) {
-        setValue('stampImage', tenant.settings.invoiceBranding.presetStamp)
+      if (!currentStamp && (tenant?.settings?.invoiceBranding?.presetStamp || tenant?.settings?.invoiceBranding?.stampImage)) {
+        setValue('stampImage', tenant.settings.invoiceBranding.presetStamp || tenant.settings.invoiceBranding.stampImage)
       }
     } else {
       setValue('authorizedPersonName', '')
@@ -139,6 +164,55 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       setValue('authorizedPersonDesignationAr', '')
       setValue('authorizedPersonSignature', '')
       setValue('stampImage', '')
+    }
+  }
+
+  const handleToggleTerms = (enable) => {
+    setShowTermsPanel(enable)
+    if (enable) {
+      const current = getValues('termsAndConditions')
+      if (!current) {
+        const defaultTerms = tenant?.settings?.invoiceBranding?.termsAndConditions ||
+          tenant?.settings?.termsAndConditions ||
+          tenant?.settings?.invoiceBranding?.defaultTermsAndConditions ||
+          ''
+        if (defaultTerms) setValue('termsAndConditions', defaultTerms)
+      }
+    } else {
+      setValue('termsAndConditions', '')
+    }
+  }
+
+  const handleToggleNotes = (enable) => {
+    setShowNotesPanel(enable)
+    if (enable) {
+      const current = getValues('notes')
+      if (!current) {
+        const defaultNotes = tenant?.settings?.invoiceBranding?.defaultNotes ||
+          tenant?.settings?.notes ||
+          ''
+        if (defaultNotes) setValue('notes', defaultNotes)
+      }
+    } else {
+      setValue('notes', '')
+    }
+  }
+
+  const handleToggleBankDetails = (enable) => {
+    setShowBankPanel(enable)
+    setValue('includeBankDetails', enable)
+    if (enable) {
+      const current = getValues('bankDetails') || {}
+      const tenantBank = tenant?.business?.bankDetails || {}
+      if (!current.bankName && tenantBank.bankName) setValue('bankDetails.bankName', tenantBank.bankName)
+      if (!current.accountName && tenantBank.accountName) setValue('bankDetails.accountName', tenantBank.accountName)
+      if (!current.accountNumber && tenantBank.accountNumber) setValue('bankDetails.accountNumber', tenantBank.accountNumber)
+      if (!current.iban && tenantBank.iban) setValue('bankDetails.iban', tenantBank.iban)
+    } else {
+      setValue('bankDetails.bankName', '')
+      setValue('bankDetails.accountName', '')
+      setValue('bankDetails.accountNumber', '')
+      setValue('bankDetails.iban', '')
     }
   }
 
@@ -505,6 +579,17 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     payload.authorizedPersonDesignationAr = showAuthorizedPerson ? (data?.authorizedPersonDesignationAr || '') : ''
     payload.authorizedPersonSignature = showAuthorizedPerson ? (data?.authorizedPersonSignature || '') : ''
     payload.stampImage = showAuthorizedPerson ? (data?.stampImage || '') : ''
+    payload.termsAndConditions = showTermsPanel ? (data?.termsAndConditions || '') : ''
+    payload.notes = showNotesPanel ? (data?.notes || '') : ''
+    payload.includeBankDetails = Boolean(showBankPanel)
+    payload.bankDetails = showBankPanel
+      ? {
+          bankName: data?.bankDetails?.bankName || '',
+          accountName: data?.bankDetails?.accountName || '',
+          accountNumber: data?.bankDetails?.accountNumber || '',
+          iban: data?.bankDetails?.iban || '',
+        }
+      : { bankName: '', accountName: '', accountNumber: '', iban: '' }
     return payload
   }
 
@@ -531,6 +616,17 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     authorizedPersonDesignationAr: showAuthorizedPerson ? (values?.authorizedPersonDesignationAr || '') : '',
     authorizedPersonSignature: showAuthorizedPerson ? (values?.authorizedPersonSignature || '') : '',
     stampImage: showAuthorizedPerson ? (values?.stampImage || '') : '',
+    termsAndConditions: showTermsPanel ? (values?.termsAndConditions || '') : '',
+    notes: showNotesPanel ? (values?.notes || '') : '',
+    includeBankDetails: Boolean(showBankPanel),
+    bankDetails: showBankPanel
+      ? {
+          bankName: values?.bankDetails?.bankName || '',
+          accountName: values?.bankDetails?.accountName || '',
+          accountNumber: values?.bankDetails?.accountNumber || '',
+          iban: values?.bankDetails?.iban || '',
+        }
+      : { bankName: '', accountName: '', accountNumber: '', iban: '' },
     invoiceNumber: initialInvoice?.invoiceNumber || 'DRAFT-PURCHASE',
     issueDate: initialInvoice?.issueDate || new Date(),
     createdByName: initialInvoice?.createdByName || [user?.firstName, user?.lastName].filter(Boolean).join(' '),
@@ -954,42 +1050,56 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             </div>
           </div>
 
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
-                  </h3>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
-                    showAuthorizedPerson 
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' 
-                      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-                  }`}>
-                    {showAuthorizedPerson ? (language === 'ar' ? 'مفعّل' : 'Active') : (language === 'ar' ? 'معطّل' : 'Disabled')}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {language === 'ar' 
-                    ? 'إضافة المفوض بالتوقيع والختم الرسمي على مستند فاتورة الشراء' 
-                    : 'Include signatory name, designation, signature and official stamp on document.'}
-                </p>
+          <div className="card p-6 space-y-5">
+            <div>
+              <h3 className="text-lg font-semibold tracking-[-0.02em] text-slate-950 dark:text-white">
+                {language === 'ar' ? 'معلومات إضافية' : 'Additional Information'}
+              </h3>
+              <div className="mt-4 flex flex-wrap gap-2.5">
+                {[
+                  {
+                    id: 'signature',
+                    active: showAuthorizedPerson,
+                    labelEn: '+ Add Signature',
+                    labelAr: '+ إضافة توقيع',
+                    onClick: () => handleToggleAuthorizedPerson(!showAuthorizedPerson),
+                  },
+                  {
+                    id: 'terms',
+                    active: showTermsPanel,
+                    labelEn: '+ Add Terms & Conditions',
+                    labelAr: '+ إضافة الشروط والأحكام',
+                    onClick: () => handleToggleTerms(!showTermsPanel),
+                  },
+                  {
+                    id: 'notes',
+                    active: showNotesPanel,
+                    labelEn: '+ Add Notes',
+                    labelAr: '+ إضافة ملاحظات',
+                    onClick: () => handleToggleNotes(!showNotesPanel),
+                  },
+                  {
+                    id: 'bank',
+                    active: showBankPanel,
+                    labelEn: '+ Add Bank Details',
+                    labelAr: '+ إضافة بيانات البنك',
+                    onClick: () => handleToggleBankDetails(!showBankPanel),
+                  },
+                ].map((pill) => (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={pill.onClick}
+                    className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.12em] transition ${
+                      pill.active
+                        ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                        : 'border-slate-300 bg-white text-slate-800 hover:border-slate-500 dark:border-dark-500 dark:bg-dark-800 dark:text-slate-100'
+                    }`}
+                  >
+                    {language === 'ar' ? pill.labelAr : pill.labelEn}
+                  </button>
+                ))}
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showAuthorizedPerson}
-                onClick={() => handleToggleAuthorizedPerson(!showAuthorizedPerson)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  showAuthorizedPerson ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    showAuthorizedPerson ? (language === 'ar' ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
-                  }`}
-                />
-              </button>
             </div>
 
             <AnimatePresence>
@@ -999,28 +1109,36 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="overflow-hidden pt-5 border-t border-gray-100 dark:border-gray-800 mt-4"
+                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
                 >
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
+                    </h4>
+                    <button type="button" onClick={() => handleToggleAuthorizedPerson(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
+                      {language === 'ar' ? 'إزالة' : 'Remove'}
+                    </button>
+                  </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
                       <label className="label">{language === 'ar' ? 'الاسم' : 'Name'}</label>
-                      <input {...register('authorizedPersonName')} className="input" placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
+                      <input {...register('authorizedPersonName')} className="input mt-1.5" placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
                     </div>
                     <div>
                       <label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
-                      <input {...register('authorizedPersonNameAr')} className="input" dir="rtl" />
+                      <input {...register('authorizedPersonNameAr')} className="input mt-1.5" dir="rtl" />
                     </div>
                     <div>
                       <label className="label">{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label>
-                      <input {...register('authorizedPersonDesignation')} className="input" placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
+                      <input {...register('authorizedPersonDesignation')} className="input mt-1.5" placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
                     </div>
                     <div>
                       <label className="label">{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label>
-                      <input {...register('authorizedPersonDesignationAr')} className="input" dir="rtl" />
+                      <input {...register('authorizedPersonDesignationAr')} className="input mt-1.5" dir="rtl" />
                     </div>
                     <div className="md:col-span-2">
                       <label className="label">{language === 'ar' ? 'التوقيع' : 'Signature'}</label>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 mt-1.5">
                         <input type="file" accept="image/*" className="hidden" id="purchase-signature-upload" onChange={(e) => {
                           const file = e.target.files?.[0]
                           if (!file) return
@@ -1051,7 +1169,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     </div>
                     <div className="md:col-span-2">
                       <label className="label">{language === 'ar' ? 'الختم' : 'Stamp'}</label>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 mt-1.5">
                         <input type="file" accept="image/*" className="hidden" id="purchase-stamp-upload" onChange={(e) => {
                           const file = e.target.files?.[0]
                           if (!file) return
@@ -1084,11 +1202,101 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <AnimatePresence>
+              {showTermsPanel && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="label font-semibold">{language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}</label>
+                    <button type="button" onClick={() => handleToggleTerms(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
+                      {language === 'ar' ? 'إزالة' : 'Remove'}
+                    </button>
+                  </div>
+                  <textarea {...register('termsAndConditions')} className="input" rows={5} placeholder={language === 'ar' ? 'أدخل الشروط والأحكام...' : 'Enter terms and conditions...'} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {showNotesPanel && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="label font-semibold">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
+                    <button type="button" onClick={() => handleToggleNotes(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
+                      {language === 'ar' ? 'إزالة' : 'Remove'}
+                    </button>
+                  </div>
+                  <textarea {...register('notes')} className="input" rows={4} placeholder={language === 'ar' ? 'أدخل ملاحظات إضافية...' : 'Enter additional notes...'} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {showBankPanel && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="label font-semibold">{language === 'ar' ? 'بيانات البنك' : 'Bank Details'}</label>
+                    <button type="button" onClick={() => handleToggleBankDetails(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
+                      {language === 'ar' ? 'إزالة' : 'Remove'}
+                    </button>
+                  </div>
+                  <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+                    {language === 'ar'
+                      ? 'تُؤخذ تلقائياً من ملف الشركة ويمكن تعديلها لهذه الفاتورة فقط.'
+                      : 'Prefills from your company profile. You can edit values for this document only.'}
+                  </p>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
+                    <div>
+                      <BilingualLabel en="Bank Name" ar="اسم البنك" />
+                      <input {...register('bankDetails.bankName')} className="input mt-1.5" placeholder="Al Rajhi Bank / SNB" />
+                    </div>
+                    <div>
+                      <BilingualLabel en="Account Name" ar="اسم الحساب" />
+                      <input {...register('bankDetails.accountName')} className="input mt-1.5" />
+                    </div>
+                    <div>
+                      <BilingualLabel en="Account Number" ar="رقم الحساب" />
+                      <input {...register('bankDetails.accountNumber')} className="input mt-1.5 font-mono" />
+                    </div>
+                    <div>
+                      <BilingualLabel en="IBAN" ar="الآيبان" />
+                      <input {...register('bankDetails.iban')} className="input mt-1.5 font-mono" placeholder="SA0000000000000000000000" />
+                    </div>
+                  </div>
+                  <input type="hidden" {...register('includeBankDetails')} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {!showNotesPanel && <input type="hidden" {...register('notes')} />}
+            {!showTermsPanel && <input type="hidden" {...register('termsAndConditions')} />}
+            {!showBankPanel && (
+              <>
+                <input type="hidden" {...register('includeBankDetails')} />
+                <input type="hidden" {...register('bankDetails.bankName')} />
+                <input type="hidden" {...register('bankDetails.accountName')} />
+                <input type="hidden" {...register('bankDetails.accountNumber')} />
+                <input type="hidden" {...register('bankDetails.iban')} />
+              </>
+            )}
           </div>
 
           <div className="card p-6">
-            <div><label className="label">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label><textarea {...register('notes')} className="input" rows={3} /></div>
-            <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
               <div className="space-y-3 md:w-80">
                 <div>
                   <label className="label">{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>

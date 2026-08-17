@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Building2, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid, ChevronDown, Info } from 'lucide-react'
+import { Building2, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid, ChevronDown, Info, UploadCloud, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
@@ -270,6 +270,12 @@ export default function Settings() {
   const [invoiceLogoSize, setInvoiceLogoSize] = useState(112)
   const [invoiceHeadingSize, setInvoiceHeadingSize] = useState(24)
   const [invoiceSingleLineHeading, setInvoiceSingleLineHeading] = useState(false)
+  const [presetAuthorizedPersonName, setPresetAuthorizedPersonName] = useState('')
+  const [presetAuthorizedPersonNameAr, setPresetAuthorizedPersonNameAr] = useState('')
+  const [presetAuthorizedPersonDesignation, setPresetAuthorizedPersonDesignation] = useState('')
+  const [presetAuthorizedPersonDesignationAr, setPresetAuthorizedPersonDesignationAr] = useState('')
+  const [invoiceTermsAndConditions, setInvoiceTermsAndConditions] = useState('')
+  const [invoiceDefaultNotes, setInvoiceDefaultNotes] = useState('')
   const [showVision2030, setShowVision2030] = useState(true)
   const [vision2030LogoDataUrl, setVision2030LogoDataUrl] = useState('/saudi-vision-2030-logo.webp')
   const [invoiceBrandingProfiles, setInvoiceBrandingProfiles] = useState(() => buildInvoiceBrandingProfilesState(null))
@@ -339,6 +345,12 @@ export default function Settings() {
     setInvoiceLogoSize(tenant.settings?.invoiceBranding?.logoSize || 112)
     setInvoiceHeadingSize(tenant.settings?.invoiceBranding?.headingSize || 24)
     setInvoiceSingleLineHeading(tenant.settings?.invoiceBranding?.singleLineHeading || false)
+    setPresetAuthorizedPersonName(tenant.settings?.invoiceBranding?.presetAuthorizedPersonName || '')
+    setPresetAuthorizedPersonNameAr(tenant.settings?.invoiceBranding?.presetAuthorizedPersonNameAr || '')
+    setPresetAuthorizedPersonDesignation(tenant.settings?.invoiceBranding?.presetAuthorizedPersonDesignation || '')
+    setPresetAuthorizedPersonDesignationAr(tenant.settings?.invoiceBranding?.presetAuthorizedPersonDesignationAr || '')
+    setInvoiceTermsAndConditions(tenant.settings?.invoiceBranding?.termsAndConditions || tenant.settings?.termsAndConditions || '')
+    setInvoiceDefaultNotes(tenant.settings?.invoiceBranding?.defaultNotes || tenant.settings?.notes || '')
     setWaAutoInvoiceSend(tenant.settings?.invoiceWhatsappAutoSend || false)
     setWaInvoiceMsgEn(tenant.settings?.invoiceWhatsappMessageEn || 'Dear customer, your invoice {{invoiceNumber}} is ready. Amount: {{total}} SAR. Link: {{link}}')
     setWaInvoiceMsgAr(tenant.settings?.invoiceWhatsappMessageAr || 'عزيزي العميل، فاتورتك رقم {{invoiceNumber}} جاهزة. المبلغ: {{total}} ريال. الرابط: {{link}}')
@@ -682,10 +694,135 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
+
+              {/* Signatory & Stamp Defaults */}
+              <div className="pt-6 border-t border-gray-100 dark:border-dark-700">
+                <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                  {language === 'ar' ? 'المفوّض بالتوقيع والختم الافتراضي' : 'Default Authorized Person & Stamp'}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
+                  {language === 'ar'
+                    ? 'يتم تعبئة هذه البيانات تلقائياً عند إنشاء فواتير المبيعات أو المشتريات أو عروض الأسعار.'
+                    : 'These values automatically prefill when creating sales invoices, purchase invoices, or quotations.'}
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">{language === 'ar' ? 'الاسم الافتراضي للمفوّض' : 'Default Signatory Name (EN)'}</label>
+                    <input
+                      type="text"
+                      value={presetAuthorizedPersonName}
+                      onChange={(e) => setPresetAuthorizedPersonName(e.target.value)}
+                      placeholder="e.g. Arthur Michael"
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Default Signatory Name (AR)'}</label>
+                    <input
+                      type="text"
+                      value={presetAuthorizedPersonNameAr}
+                      onChange={(e) => setPresetAuthorizedPersonNameAr(e.target.value)}
+                      dir="rtl"
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'المسمى الوظيفي' : 'Default Designation (EN)'}</label>
+                    <input
+                      type="text"
+                      value={presetAuthorizedPersonDesignation}
+                      onChange={(e) => setPresetAuthorizedPersonDesignation(e.target.value)}
+                      placeholder="e.g. Managing Director"
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Default Designation (AR)'}</label>
+                    <input
+                      type="text"
+                      value={presetAuthorizedPersonDesignationAr}
+                      onChange={(e) => setPresetAuthorizedPersonDesignationAr(e.target.value)}
+                      dir="rtl"
+                      className="input"
+                    />
+                  </div>
+
+                  {/* Signature Upload */}
+                  <div>
+                    <label className="label">{language === 'ar' ? 'التوقيع الافتراضي' : 'Default Signature'}</label>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <input type="file" accept="image/*" className="hidden" id="settings-signature-upload" onChange={handleSignatureFile} />
+                      <label htmlFor="settings-signature-upload" className="btn btn-secondary cursor-pointer">
+                        <UploadCloud className="w-4 h-4" />
+                        {language === 'ar' ? 'رفع توقيع' : 'Upload Signature'}
+                      </label>
+                      {signatureDataUrl ? (
+                        <div className="relative">
+                          <img src={signatureDataUrl} alt="Signature" className="h-14 max-w-[160px] object-contain border rounded-lg p-1 bg-white" />
+                          <button type="button" onClick={() => setSignatureDataUrl(null)} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full hover:bg-red-200">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stamp Upload */}
+                  <div>
+                    <label className="label">{language === 'ar' ? 'الختم الافتراضي' : 'Default Stamp'}</label>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <input type="file" accept="image/*" className="hidden" id="settings-stamp-upload" onChange={handleStampFile} />
+                      <label htmlFor="settings-stamp-upload" className="btn btn-secondary cursor-pointer">
+                        <UploadCloud className="w-4 h-4" />
+                        {language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}
+                      </label>
+                      {stampDataUrl ? (
+                        <div className="relative">
+                          <img src={stampDataUrl} alt="Stamp" className="h-14 max-w-[160px] object-contain border rounded-lg p-1 bg-white" />
+                          <button type="button" onClick={() => setStampDataUrl(null)} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full hover:bg-red-200">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Default Terms & Notes */}
+              <div className="pt-6 border-t border-gray-100 dark:border-dark-700 space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {language === 'ar' ? 'الشروط والملاحظات الافتراضية' : 'Default Terms & Notes'}
+                </h3>
+                <div>
+                  <label className="label">{language === 'ar' ? 'الشروط والأحكام الافتراضية' : 'Default Terms & Conditions'}</label>
+                  <textarea
+                    rows={4}
+                    value={invoiceTermsAndConditions}
+                    onChange={(e) => setInvoiceTermsAndConditions(e.target.value)}
+                    placeholder={language === 'ar' ? 'أدخل الشروط والأحكام التي تظهر افتراضياً في الفواتير...' : 'Enter default terms & conditions that prefill on invoices...'}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'الملاحظات الافتراضية' : 'Default Notes'}</label>
+                  <textarea
+                    rows={3}
+                    value={invoiceDefaultNotes}
+                    onChange={(e) => setInvoiceDefaultNotes(e.target.value)}
+                    placeholder={language === 'ar' ? 'أدخل الملاحظات التي تظهر افتراضياً في الفواتير...' : 'Enter default notes that prefill on invoices...'}
+                    className="input"
+                  />
+                </div>
+              </div>
               
               <div className="mt-8">
                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
-                  {language === 'ar' ? 'معاينة حية' : 'Live Preview'}
+                  {language === 'ar' ? 'معاينة حية للترويسة' : 'Letterhead Live Preview'}
                 </h4>
                 <div className="border border-gray-200 dark:border-dark-700 rounded-xl overflow-hidden bg-gray-50/50 p-4 sm:p-8 flex items-center justify-center">
                   <div className="w-full max-w-[800px] origin-top transform scale-[0.5] sm:scale-75 md:scale-90 shadow-sm bg-white overflow-hidden pointer-events-none border border-gray-100 h-[200px] sm:h-[250px] overflow-y-hidden">
@@ -713,11 +850,21 @@ export default function Settings() {
                   onClick={() => updateMutation.mutate({
                     settings: {
                       ...tenant?.settings,
+                      termsAndConditions: invoiceTermsAndConditions,
+                      notes: invoiceDefaultNotes,
                       invoiceBranding: {
                         ...(tenant?.settings?.invoiceBranding || {}),
                         logoSize: invoiceLogoSize,
                         headingSize: invoiceHeadingSize,
-                        singleLineHeading: invoiceSingleLineHeading
+                        singleLineHeading: invoiceSingleLineHeading,
+                        presetSignature: signatureDataUrl,
+                        presetStamp: stampDataUrl,
+                        presetAuthorizedPersonName,
+                        presetAuthorizedPersonNameAr,
+                        presetAuthorizedPersonDesignation,
+                        presetAuthorizedPersonDesignationAr,
+                        termsAndConditions: invoiceTermsAndConditions,
+                        defaultNotes: invoiceDefaultNotes,
                       }
                     }
                   })}

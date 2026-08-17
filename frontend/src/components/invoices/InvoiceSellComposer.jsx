@@ -300,6 +300,37 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     }
   }
 
+  const handleToggleTerms = (enable) => {
+    setShowTermsPanel(enable)
+    if (enable) {
+      const current = getValues('termsAndConditions')
+      if (!current) {
+        const defaultTerms = tenant?.settings?.invoiceBranding?.termsAndConditions ||
+          tenant?.settings?.termsAndConditions ||
+          tenant?.settings?.invoiceBranding?.defaultTermsAndConditions ||
+          ''
+        if (defaultTerms) setValue('termsAndConditions', defaultTerms)
+      }
+    } else {
+      setValue('termsAndConditions', '')
+    }
+  }
+
+  const handleToggleNotes = (enable) => {
+    setShowNotesPanel(enable)
+    if (enable) {
+      const current = getValues('notes')
+      if (!current) {
+        const defaultNotes = tenant?.settings?.invoiceBranding?.defaultNotes ||
+          tenant?.settings?.notes ||
+          ''
+        if (defaultNotes) setValue('notes', defaultNotes)
+      }
+    } else {
+      setValue('notes', '')
+    }
+  }
+
   useLiveTranslation({
     control, watch, setValue,
     sourceField: 'buyer.name',
@@ -1523,14 +1554,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     active: showTermsPanel,
                     labelEn: '+ Add Terms & Conditions',
                     labelAr: '+ إضافة الشروط والأحكام',
-                    onClick: () => setShowTermsPanel((v) => !v),
+                    onClick: () => handleToggleTerms(!showTermsPanel),
                   },
                   {
                     id: 'notes',
                     active: showNotesPanel,
                     labelEn: '+ Add Notes',
                     labelAr: '+ إضافة ملاحظات',
-                    onClick: () => setShowNotesPanel((v) => !v),
+                    onClick: () => handleToggleNotes(!showNotesPanel),
                   },
                   {
                     id: 'bank',

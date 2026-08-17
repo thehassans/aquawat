@@ -187,6 +187,37 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     }
   }
 
+  const handleToggleTerms = (enable) => {
+    setShowTermsPanel(enable)
+    if (enable) {
+      const current = getValues('termsAndConditions')
+      if (!current) {
+        const defaultTerms = tenant?.settings?.invoiceBranding?.termsAndConditions ||
+          tenant?.settings?.termsAndConditions ||
+          tenant?.settings?.invoiceBranding?.defaultTermsAndConditions ||
+          ''
+        if (defaultTerms) setValue('termsAndConditions', defaultTerms)
+      }
+    } else {
+      setValue('termsAndConditions', '')
+    }
+  }
+
+  const handleToggleNotes = (enable) => {
+    setShowNotesPanel(enable)
+    if (enable) {
+      const current = getValues('notes')
+      if (!current) {
+        const defaultNotes = tenant?.settings?.invoiceBranding?.defaultNotes ||
+          tenant?.settings?.notes ||
+          ''
+        if (defaultNotes) setValue('notes', defaultNotes)
+      }
+    } else {
+      setValue('notes', '')
+    }
+  }
+
   const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' })
   const values = watch()
   const lineItems = Array.isArray(values?.lineItems) ? values.lineItems : []
@@ -1009,8 +1040,8 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             <div className="mt-4 flex flex-wrap gap-2.5">
               {[
                 { id: 'signature', active: showAuthorizedPerson, labelEn: '+ Add Signature', labelAr: '+ إضافة توقيع', onClick: () => handleToggleAuthorizedPerson(!showAuthorizedPerson) },
-                { id: 'terms', active: showTermsPanel, labelEn: '+ Add Terms & Conditions', labelAr: '+ إضافة الشروط والأحكام', onClick: () => setShowTermsPanel((v) => !v) },
-                { id: 'notes', active: showNotesPanel, labelEn: '+ Add Notes', labelAr: '+ إضافة ملاحظات', onClick: () => setShowNotesPanel((v) => !v) },
+                { id: 'terms', active: showTermsPanel, labelEn: '+ Add Terms & Conditions', labelAr: '+ إضافة الشروط والأحكام', onClick: () => handleToggleTerms(!showTermsPanel) },
+                { id: 'notes', active: showNotesPanel, labelEn: '+ Add Notes', labelAr: '+ إضافة ملاحظات', onClick: () => handleToggleNotes(!showNotesPanel) },
                 { id: 'bank', active: showBankPanel, labelEn: '+ Add Bank Details', labelAr: '+ إضافة بيانات البنك', onClick: () => handleToggleBankDetails(!showBankPanel) },
               ].map((pill) => (
                 <button

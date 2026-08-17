@@ -202,7 +202,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
           </div>
 
           <div className="flex flex-col gap-4 md:items-end">
-            <div className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium w-fit ${
+            <div className={`inline-flex items-center justify-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider w-fit text-center align-middle ${
               isPurchaseOrder
                 ? 'bg-slate-900 text-white border-slate-900'
                 : isPurchaseFlow
@@ -215,20 +215,22 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   : 'bg-rose-50 text-rose-700 border-rose-200'
                 : 'bg-primary-50 text-primary-700'
             }`}>
-              <FileText className="mr-2 h-4 w-4" />
-              {isPurchaseOrder
-                ? L('Purchase Order', 'طلب شراء')
-                : isPurchaseFlow
-                ? L('Purchase Invoice', 'فاتورة شراء')
-                : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
-                ? L('Furniture Sale Invoice', 'فاتورة بيع مفروشات')
-                : invoice?.businessContext === 'boutique'
-                ? invoice?.boutiqueDetails?.transactionType === 'sale'
-                  ? L('Boutique Sale Invoice', 'فاتورة بيع بوتيك')
-                  : L('Boutique Rental Invoice', 'فاتورة إيجار بوتيك')
-                : isQuotation
-                ? L('Quotation', 'عرض سعر')
-                : L('Tax Invoice', 'فاتورة ضريبية')}
+              <FileText className="h-4 w-4 shrink-0" />
+              <span className="inline-flex items-center gap-1.5 leading-none">
+                {isPurchaseOrder
+                  ? L('Purchase Order', 'طلب شراء')
+                  : isPurchaseFlow
+                  ? L('Purchase Invoice', 'فاتورة شراء')
+                  : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
+                  ? L('Furniture Sale Invoice', 'فاتورة بيع مفروشات')
+                  : invoice?.businessContext === 'boutique'
+                  ? invoice?.boutiqueDetails?.transactionType === 'sale'
+                    ? L('Boutique Sale Invoice', 'فاتورة بيع بوتيك')
+                    : L('Boutique Rental Invoice', 'فاتورة إيجار بوتيك')
+                  : isQuotation
+                  ? L('Quotation', 'عرض سعر')
+                  : L('Tax Invoice', 'فاتورة ضريبية')}
+              </span>
             </div>
             
             <div className={`mt-2 space-y-1 text-sm md:text-right ${isQuotation ? 'font-bold text-gray-900' : 'text-gray-600'}`}>

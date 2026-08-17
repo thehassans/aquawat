@@ -753,7 +753,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
 
           <div className={`flex flex-col items-center justify-center rounded-[1.75rem] p-5 ${styles.block}`}>
             <div className="flex w-full justify-center">
-              <div className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${styles.badge}`}>
+              <div className={`inline-flex items-center justify-center rounded-full border px-3.5 py-1 text-xs font-semibold uppercase tracking-wider text-center ${styles.badge}`}>
                 {invoice?.transactionType || 'B2C'}
               </div>
             </div>

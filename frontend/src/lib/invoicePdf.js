@@ -1679,8 +1679,42 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     }
   }
 
+  let extraBoxesY = totalsTop + totalsH + 14
+
+  const pdfBank = invoice?.includeBankDetails ? (invoice?.bankDetails || {}) : null
+  const hasPdfBank = Boolean(pdfBank && (pdfBank.bankName || pdfBank.accountName || pdfBank.accountNumber || pdfBank.iban))
+
+  if (hasPdfBank) {
+    const bankY = extraBoxesY
+    const bankW = contentW
+    const bankLines = [
+      pdfBank.bankName ? `${isRtl ? 'اسم البنك' : 'Bank'}: ${pdfBank.bankName}` : null,
+      pdfBank.accountName ? `${isRtl ? 'اسم الحساب' : 'Account Name'}: ${pdfBank.accountName}` : null,
+      pdfBank.accountNumber ? `${isRtl ? 'رقم الحساب' : 'Account #'}: ${pdfBank.accountNumber}` : null,
+      pdfBank.iban ? `IBAN: ${pdfBank.iban}` : null,
+    ].filter(Boolean)
+
+    const bankHeight = Math.max(38, bankLines.length * 12 + 24)
+    doc.setFillColor(255, 255, 255)
+    doc.setDrawColor(theme.boxStrokeRgb.r, theme.boxStrokeRgb.g, theme.boxStrokeRgb.b)
+    doc.roundedRect(contentLeft, bankY, bankW, bankHeight, 12, 12, 'FD')
+
+    setBodyFont(Math.max(bodyFontSize - 1, 8), 'bold')
+    doc.setTextColor(51, 65, 85)
+    doc.text(shape(toBilingualText('Bank Details', 'بيانات البنك')), isRtl ? contentRightEdge - 12 : contentLeft + 12, bankY + 14, { align, maxWidth: bankW - 24 })
+
+    setBodyFont(Math.max(bodyFontSize - 2, 7.5), 'normal')
+    doc.setTextColor(71, 85, 105)
+    let lineY = bankY + 26
+    for (const bLine of bankLines) {
+      doc.text(shape(bLine), isRtl ? contentRightEdge - 12 : contentLeft + 12, lineY, { align, maxWidth: bankW - 24 })
+      lineY += 11
+    }
+    extraBoxesY += bankHeight + 10
+  }
+
   if (invoice?.termsAndConditions) {
-    const tcY = totalsTop + totalsH + 14
+    const tcY = extraBoxesY
     const tcW = contentW
     const tcText = shape(invoice.termsAndConditions)
     setBodyFont(Math.max(bodyFontSize - 2, 7.5), 'normal')
@@ -1698,13 +1732,14 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     setBodyFont(Math.max(bodyFontSize - 2, 7.5), 'normal')
     doc.setTextColor(71, 85, 105)
     doc.text(tcLines, isRtl ? contentRightEdge - 12 : contentLeft + 12, tcY + 30, { align, maxWidth: tcW - 24 })
+    extraBoxesY += tcHeight + 10
   }
 
   if (signatureImage && signatureFormat) {
     const sigW = 130
     const sigH = 52
     const sigX = isRtl ? contentLeft : contentRightEdge - sigW
-    const sigY = (invoice?.termsAndConditions ? totalsTop + totalsH + 70 : totalsTop + totalsH) + 18
+    const sigY = extraBoxesY + 8
     if (stampImage && stampFormat) {
       doc.addImage(stampImage, stampFormat, sigX - 90, sigY, 70, 70)
     }
