@@ -27,13 +27,18 @@ import {
   Loader2,
   X,
   Save,
-  Eye
+  Eye,
+  Receipt,
+  Sparkles,
+  Image as ImageIcon
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../../lib/invoicePdf'
+import RecordPoPaymentModal from '../../components/purchases/RecordPoPaymentModal'
+import ReceiptLightboxModal from '../../components/purchases/ReceiptLightboxModal'
 
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
@@ -63,6 +68,10 @@ export default function PurchasesSuppliers() {
   const [balanceFilter, setBalanceFilter] = useState('all') // 'all', 'has_balance', 'zero_balance'
   const [expandedSupplierId, setExpandedSupplierId] = useState(null)
   const [showAddSupplierModal, setShowAddSupplierModal] = useState(false)
+  const [selectedPoForPayment, setSelectedPoForPayment] = useState(null)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [receiptModalUrl, setReceiptModalUrl] = useState(null)
+  const [receiptModalTitle, setReceiptModalTitle] = useState('')
   const [supplierForm, setSupplierForm] = useState({
     code: '',
     nameEn: '',
@@ -158,7 +167,7 @@ export default function PurchasesSuppliers() {
 
       let matchBalance = true
       if (balanceFilter === 'has_balance') matchBalance = s.totalBalance > 0
-      if (balanceFilter === 'zero_balance') matchBalance = s.totalBalance <= 0
+      if (balanceFilter === 'zero_balance') matchBalance = s.totalBalance <= 0 && s.totalSpend > 0
 
       return matchSearch && matchBalance
     })
@@ -170,6 +179,8 @@ export default function PurchasesSuppliers() {
   const totalPaidAll = suppliersWithPOs.reduce((sum, s) => sum + s.totalPaid, 0)
   const totalBalanceAll = suppliersWithPOs.reduce((sum, s) => sum + s.totalBalance, 0)
   const totalOpenPOsAll = suppliersWithPOs.reduce((sum, s) => sum + s.openPOsCount, 0)
+  const withBalanceCount = suppliersWithPOs.filter((s) => s.totalBalance > 0).length
+  const clearedCount = suppliersWithPOs.filter((s) => s.totalBalance <= 0 && s.totalSpend > 0).length
 
   const statusLabel = (status) => {
     const ar = {
@@ -264,9 +275,11 @@ export default function PurchasesSuppliers() {
             <p className="mt-2 text-2xl font-bold text-slate-950 dark:text-white tabular-nums">
               <Money value={totalSpendAll} />
             </p>
-            <span className="text-[11px] text-emerald-600 font-medium">
-              {language === 'ar' ? 'المدفوع:' : 'Paid:'} <Money value={totalPaidAll} />
-            </span>
+            <div className="mt-1 flex items-center gap-1.5 text-[11px]">
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                {language === 'ar' ? 'المسدد:' : 'Paid:'} <Money value={totalPaidAll} />
+              </span>
+            </div>
           </div>
 
           <div className="bg-white p-4 sm:p-5 dark:bg-[#0c111a]">
@@ -332,7 +345,7 @@ export default function PurchasesSuppliers() {
                   : 'bg-white text-rose-700 ring-rose-200 hover:bg-rose-50 dark:bg-transparent dark:text-rose-300'
               }`}
             >
-              {language === 'ar' ? 'عليهم رصيد مستحق' : 'With Balance'}
+              {language === 'ar' ? 'عليهم مستحقات' : 'With Balance'} ({withBalanceCount})
             </button>
             <button
               type="button"
@@ -343,7 +356,7 @@ export default function PurchasesSuppliers() {
                   : 'bg-white text-emerald-700 ring-emerald-200 hover:bg-emerald-50 dark:bg-transparent dark:text-emerald-300'
               }`}
             >
-              {language === 'ar' ? 'رصيد مسدد (0)' : 'Cleared (0)'}
+              {language === 'ar' ? 'مسدد بالكامل' : 'Cleared'} ({clearedCount})
             </button>
           </div>
         </div>
@@ -363,6 +376,7 @@ export default function PurchasesSuppliers() {
           filteredSuppliers.map((supp) => {
             const isExpanded = expandedSupplierId === supp._id
             const name = language === 'ar' ? supp.nameAr || supp.nameEn : supp.nameEn || supp.nameAr
+            const isFullyCleared = supp.totalBalance <= 0 && supp.totalSpend > 0
 
             return (
               <motion.div
@@ -389,6 +403,12 @@ export default function PurchasesSuppliers() {
                         {supp.totalBalance > 0 && (
                           <span className="inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300">
                             {language === 'ar' ? 'مستحق' : 'Due'}: <Money value={supp.totalBalance} />
+                          </span>
+                        )}
+                        {isFullyCleared && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+                            <CheckCircle2 className="h-3 w-3" />
+                            {language === 'ar' ? 'مسدد بالكامل' : 'Cleared'}
                           </span>
                         )}
                       </div>
@@ -518,56 +538,106 @@ export default function PurchasesSuppliers() {
                                 <th className="p-3 text-center">{language === 'ar' ? 'حالة الطلب' : 'Status'}</th>
                                 <th className="p-3 text-center">{language === 'ar' ? 'حالة الدفع' : 'Payment'}</th>
                                 <th className="p-3 text-end">{language === 'ar' ? 'المبلغ الإجمالي' : 'Grand Total'}</th>
+                                <th className="p-3 text-end">{language === 'ar' ? 'المدفوع' : 'Paid'}</th>
                                 <th className="p-3 text-end">{language === 'ar' ? 'المتبقي' : 'Balance'}</th>
                                 <th className="p-3 text-end">{language === 'ar' ? 'الإجراءات' : 'Actions'}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06]">
-                              {supp.orders.map((po) => (
-                                <tr key={po._id} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02]">
-                                  <td className="p-3">
-                                    <Link
-                                      to={`/app/dashboard/purchases/orders/${po._id}`}
-                                      className="font-mono font-bold text-teal-700 hover:underline dark:text-teal-400"
-                                    >
-                                      {po.poNumber}
-                                    </Link>
-                                  </td>
-                                  <td className="p-3 text-slate-600 dark:text-slate-300">
-                                    {po.orderDate ? new Date(po.orderDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
-                                  </td>
-                                  <td className="p-3 text-slate-600 dark:text-slate-300">
-                                    {po.warehouseId?.nameEn || po.warehouseId?.nameAr || '—'}
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${STATUS_PILL[po.status] || STATUS_PILL.draft}`}>
-                                      {statusLabel(po.status)}
-                                    </span>
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${PAYMENT_STATUS_PILL[po.paymentStatus || 'pending']}`}>
-                                      {po.paymentStatus || 'pending'}
-                                    </span>
-                                  </td>
-                                  <td className="p-3 text-end font-bold text-slate-900 dark:text-white tabular-nums">
-                                    <Money value={po.grandTotal} />
-                                  </td>
-                                  <td className="p-3 text-end font-semibold text-rose-600 dark:text-rose-400 tabular-nums">
-                                    <Money value={po.balanceDue != null ? po.balanceDue : po.grandTotal} />
-                                  </td>
-                                  <td className="p-3 text-end">
-                                    <div className="flex items-center justify-end gap-1">
+                              {supp.orders.map((po) => {
+                                const poGrandTotal = Number(po.grandTotal || 0)
+                                const poPaidAmount = Number(po.paidAmount || 0)
+                                const poBalance = Math.max(0, Math.round((po.balanceDue != null ? Number(po.balanceDue) : (poGrandTotal - poPaidAmount)) * 100) / 100)
+                                const hasReceipts = (po.payments || []).some((p) => p.receiptUrl)
+
+                                return (
+                                  <tr key={po._id} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02]">
+                                    <td className="p-3">
                                       <Link
                                         to={`/app/dashboard/purchases/orders/${po._id}`}
-                                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10"
-                                        title={language === 'ar' ? 'عرض الطلب' : 'View PO'}
+                                        className="font-mono font-bold text-teal-700 hover:underline dark:text-teal-400"
                                       >
-                                        <Eye className="h-3.5 w-3.5" />
+                                        {po.poNumber}
                                       </Link>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
+                                    </td>
+                                    <td className="p-3 text-slate-600 dark:text-slate-300">
+                                      {po.orderDate ? new Date(po.orderDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
+                                    </td>
+                                    <td className="p-3 text-slate-600 dark:text-slate-300">
+                                      {po.warehouseId?.nameEn || po.warehouseId?.nameAr || '—'}
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${STATUS_PILL[po.status] || STATUS_PILL.draft}`}>
+                                        {statusLabel(po.status)}
+                                      </span>
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${PAYMENT_STATUS_PILL[po.paymentStatus || 'pending']}`}>
+                                        {po.paymentStatus || 'pending'}
+                                      </span>
+                                    </td>
+                                    <td className="p-3 text-end font-bold text-slate-900 dark:text-white tabular-nums">
+                                      <Money value={poGrandTotal} />
+                                    </td>
+                                    <td className="p-3 text-end font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                      <Money value={poPaidAmount} />
+                                    </td>
+                                    <td className="p-3 text-end font-semibold tabular-nums">
+                                      {poBalance > 0 ? (
+                                        <span className="text-rose-600 dark:text-rose-400">
+                                          <Money value={poBalance} />
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                          <CheckCircle2 className="h-3 w-3" />
+                                          {language === 'ar' ? 'مسدد' : 'Cleared'}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-3 text-end">
+                                      <div className="flex items-center justify-end gap-1.5">
+                                        {poBalance > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedPoForPayment(po)
+                                              setShowPaymentModal(true)
+                                            }}
+                                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 transition hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                            title={language === 'ar' ? 'تسجيل دفعة لهذا الطلب' : 'Record payment for this PO'}
+                                          >
+                                            <CreditCard className="h-3 w-3" />
+                                            <span>{language === 'ar' ? 'دفع' : 'Pay'}</span>
+                                          </button>
+                                        )}
+                                        {hasReceipts && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const pWithReceipt = (po.payments || []).find((p) => p.receiptUrl)
+                                              if (pWithReceipt?.receiptUrl) {
+                                                setReceiptModalUrl(pWithReceipt.receiptUrl)
+                                                setReceiptModalTitle(pWithReceipt.receiptName || (language === 'ar' ? `إيصال دفع ${po.poNumber}` : `Payment Receipt ${po.poNumber}`))
+                                              }
+                                            }}
+                                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition"
+                                            title={language === 'ar' ? 'عرض إيصال التحويل' : 'View Payment Receipt'}
+                                          >
+                                            <Receipt className="h-3.5 w-3.5" />
+                                          </button>
+                                        )}
+                                        <Link
+                                          to={`/app/dashboard/purchases/orders/${po._id}`}
+                                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10"
+                                          title={language === 'ar' ? 'عرض الطلب' : 'View PO'}
+                                        >
+                                          <Eye className="h-3.5 w-3.5" />
+                                        </Link>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -647,6 +717,33 @@ export default function PurchasesSuppliers() {
           </motion.div>
         </div>
       )}
+
+      {/* Record Payment Modal */}
+      {selectedPoForPayment && (
+        <RecordPoPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false)
+            setSelectedPoForPayment(null)
+          }}
+          order={selectedPoForPayment}
+          isAr={language === 'ar'}
+          onSuccess={() => {
+            queryClient.invalidateQueries(['purchase-orders-all'])
+            queryClient.invalidateQueries(['suppliers-list'])
+            queryClient.invalidateQueries(['suppliers-financials'])
+          }}
+        />
+      )}
+
+      {/* Receipt Lightbox Modal */}
+      <ReceiptLightboxModal
+        isOpen={Boolean(receiptModalUrl)}
+        onClose={() => setReceiptModalUrl(null)}
+        url={receiptModalUrl}
+        title={receiptModalTitle}
+        isAr={language === 'ar'}
+      />
     </div>
   )
 }

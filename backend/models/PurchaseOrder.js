@@ -84,6 +84,9 @@ const purchaseOrderSchema = new mongoose.Schema({
     date: { type: Date, default: Date.now },
     method: { type: String, default: 'transfer' },
     reference: { type: String, default: '' },
+    receiptUrl: { type: String, default: '' },
+    receiptName: { type: String, default: '' },
+    notes: { type: String, default: '' },
     recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
 

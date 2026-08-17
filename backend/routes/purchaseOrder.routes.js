@@ -344,7 +344,8 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
       .populate('supplierId', 'code nameEn nameAr phone email vatNumber crNumber address contactPerson')
       .populate('warehouseId', 'code nameEn nameAr')
       .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType')
-      .populate('receiving.warehouseId', 'code nameEn nameAr');
+      .populate('receiving.warehouseId', 'code nameEn nameAr')
+      .populate('payments.recordedBy', 'name firstName lastName');
 
     if (!order) {
       return res.status(404).json({ error: 'Purchase order not found' });
@@ -748,27 +749,48 @@ router.get('/:id/attachments/:fileId', checkPermission('supply_chain', 'read'), 
   }
 });
 
-router.post('/:id/payment', checkPermission('supply_chain', 'update'), async (req, res) => {
+router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBillUpload.single('receipt'), async (req, res) => {
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!order) return res.status(404).json({ error: 'Purchase order not found' });
     
-    const amount = Number(req.body.amount || 0);
-    if (amount <= 0) return res.status(400).json({ error: 'Valid amount is required' });
+    const amount = Math.round(Number(req.body.amount || 0) * 100) / 100;
+    if (amount <= 0) return res.status(400).json({ error: 'Valid amount greater than 0 is required' });
+
+    let receiptUrl = String(req.body.receiptUrl || '').trim();
+    let receiptName = String(req.body.receiptName || '').trim();
+
+    if (req.file) {
+      const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const filename = `payment-receipt-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext || 'bin'}`;
+      const key = `purchase-orders/${req.user.tenantId}/${order._id}/${filename}`;
+      const { url } = await saveUploadBuffer({
+        buffer: req.file.buffer,
+        key,
+        contentType: req.file.mimetype,
+        publicUrlPath: `/uploads/${key}`,
+      });
+      receiptUrl = url;
+      receiptName = req.file.originalname || filename;
+    }
 
     const payment = {
       amount,
       date: req.body.date ? new Date(req.body.date) : new Date(),
       method: req.body.method || 'transfer',
-      reference: req.body.reference || '',
-      recordedBy: req.user._id
+      reference: String(req.body.reference || '').trim(),
+      receiptUrl,
+      receiptName,
+      notes: String(req.body.notes || '').trim(),
+      recordedBy: req.user._id,
     };
 
     order.payments = [...(order.payments || []), payment];
-    order.paidAmount = (order.paidAmount || 0) + amount;
-    order.balanceDue = Math.max(0, order.grandTotal - order.paidAmount);
+    const totalPaid = Math.round((order.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0) * 100) / 100;
+    order.paidAmount = totalPaid;
+    order.balanceDue = Math.max(0, Math.round((order.grandTotal - totalPaid) * 100) / 100);
     
-    if (order.paidAmount >= order.grandTotal) {
+    if (order.paidAmount >= order.grandTotal - 0.001) {
       order.paymentStatus = 'paid';
     } else if (order.paidAmount > 0) {
       order.paymentStatus = 'partial';
@@ -777,7 +799,9 @@ router.post('/:id/payment', checkPermission('supply_chain', 'update'), async (re
     }
 
     await order.save();
-    res.json(order);
+    const refreshed = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter })
+      .populate('payments.recordedBy', 'name firstName lastName');
+    res.json(refreshed);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

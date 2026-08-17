@@ -19,12 +19,14 @@ import {
   Send,
   X,
   Eye,
+  CreditCard,
 } from 'lucide-react'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import ExportMenu from '../components/ui/ExportMenu'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
+import RecordPoPaymentModal from '../components/purchases/RecordPoPaymentModal'
 import toast from 'react-hot-toast'
 
 const STATUS_PILL = {
@@ -63,6 +65,8 @@ export default function PurchaseOrders() {
   const [emailTo, setEmailTo] = useState('')
   const [emailSubject, setEmailSubject] = useState('')
   const [emailBody, setEmailBody] = useState('')
+  const [selectedPoForPayment, setSelectedPoForPayment] = useState(null)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
 
   useEffect(() => {
     const h = setTimeout(() => setDebouncedSearch(search.trim()), 280)
@@ -626,6 +630,19 @@ export default function PurchaseOrders() {
                           >
                             <Mail className="h-4 w-4" />
                           </button>
+                          {['approved', 'partially_received', 'received', 'billed'].includes(po.status) && (po.balanceDue > 0 || po.paymentStatus !== 'paid') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedPoForPayment(po)
+                                setShowPaymentModal(true)
+                              }}
+                              className={ghostBtn.replace('px-3.5 py-2.5', 'h-8 w-8 justify-center px-0 py-0 text-emerald-600 dark:text-emerald-400')}
+                              title={language === 'ar' ? 'تسجيل دفعة لهذا الطلب' : 'Record payment'}
+                            >
+                              <CreditCard className="h-4 w-4" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handlePrintPdf(po)}
@@ -818,6 +835,22 @@ export default function PurchaseOrders() {
             </div>
           </motion.div>
         </div>
+      )}
+
+      {/* Record Payment Modal */}
+      {selectedPoForPayment && (
+        <RecordPoPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false)
+            setSelectedPoForPayment(null)
+          }}
+          order={selectedPoForPayment}
+          isAr={language === 'ar'}
+          onSuccess={() => {
+            refetch()
+          }}
+        />
       )}
     </div>
   )

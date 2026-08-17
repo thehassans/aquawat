@@ -49,6 +49,8 @@ import PremiumFileDrop from '../components/ui/PremiumFileDrop'
 import { normalizeProductType, productPickerLabel, isStockTrackedProductType } from '../lib/productType'
 import { computePurchaseLineTotals } from '../lib/purchaseLineTotals'
 import PurchaseReceivingLedger from './purchases/PurchaseReceivingLedger'
+import RecordPoPaymentModal from '../components/purchases/RecordPoPaymentModal'
+import PurchasePaymentsLedger from '../components/purchases/PurchasePaymentsLedger'
 
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
@@ -1384,6 +1386,15 @@ export default function PurchaseOrderForm() {
                 onOpenReceive={() => setShowQuickReceiveModal(true)}
               />
             </div>
+
+            {/* INTEGRATED PAYMENTS & SETTLEMENTS LEDGER */}
+            <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/[0.08]">
+              <PurchasePaymentsLedger
+                order={order}
+                isAr={language === 'ar'}
+                onOpenRecordPayment={() => setShowPaymentModal(true)}
+              />
+            </div>
           </div>
         </motion.div>
       )}
@@ -2610,57 +2621,19 @@ export default function PurchaseOrderForm() {
       )}
 
       {/* Record Payment Modal */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 px-4 py-6 backdrop-blur-sm sm:px-6">
-          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl dark:bg-[#111827]">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{language === 'ar' ? 'تسجيل دفعة' : 'Record Payment'}</h3>
-              <button type="button" onClick={() => setShowPaymentModal(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
-            </div>
-            <div className="mt-5 space-y-4 text-xs">
-              <div>
-                <label className="font-medium text-slate-700 dark:text-slate-300">{language === 'ar' ? 'المبلغ' : 'Amount'}</label>
-                <input type="number" step="0.01" min="0" value={paymentForm.amount} onChange={(e) => setPaymentForm((p) => ({ ...p, amount: e.target.value }))} className="input mt-1.5" placeholder="0.00" />
-                {order && order.balanceDue > 0 && (
-                  <p className="mt-1 text-[11px] text-slate-500">{language === 'ar' ? 'المتبقي:' : 'Balance Due:'} {order.balanceDue}</p>
-                )}
-              </div>
-              <div>
-                <label className="font-medium text-slate-700 dark:text-slate-300">{language === 'ar' ? 'التاريخ' : 'Date'}</label>
-                <input type="date" value={paymentForm.date} onChange={(e) => setPaymentForm((p) => ({ ...p, date: e.target.value }))} className="input mt-1.5" />
-              </div>
-              <div>
-                <label className="font-medium text-slate-700 dark:text-slate-300">{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>
-                <select value={paymentForm.method} onChange={(e) => setPaymentForm((p) => ({ ...p, method: e.target.value }))} className="select mt-1.5">
-                  <option value="transfer">{language === 'ar' ? 'حوالة بنكية' : 'Bank Transfer'}</option>
-                  <option value="cash">{language === 'ar' ? 'نقدي' : 'Cash'}</option>
-                  <option value="check">{language === 'ar' ? 'شيك' : 'Check'}</option>
-                </select>
-              </div>
-              <div>
-                <label className="font-medium text-slate-700 dark:text-slate-300">{language === 'ar' ? 'المرجع' : 'Reference'}</label>
-                <input type="text" value={paymentForm.reference} onChange={(e) => setPaymentForm((p) => ({ ...p, reference: e.target.value }))} className="input mt-1.5" />
-              </div>
-              <div className="mt-6 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowPaymentModal(false)} className={ghostBtn}>{t('cancel')}</button>
-                <button
-                  type="button"
-                  onClick={() => recordPaymentMutation.mutate({
-                    amount: paymentForm.amount,
-                    date: paymentForm.date,
-                    method: paymentForm.method,
-                    reference: paymentForm.reference
-                  })}
-                  disabled={recordPaymentMutation.isPending || !paymentForm.amount || Number(paymentForm.amount) <= 0}
-                  className={primaryBtn}
-                >
-                  {recordPaymentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : language === 'ar' ? 'حفظ الدفعة' : 'Save Payment'}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      <RecordPoPaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        order={order}
+        isAr={language === 'ar'}
+        onSuccess={() => {
+          queryClient.invalidateQueries(['purchase-order', id])
+          queryClient.invalidateQueries(['purchase-orders'])
+          queryClient.invalidateQueries(['purchase-orders-stats'])
+          queryClient.invalidateQueries(['suppliers-list'])
+          queryClient.invalidateQueries(['suppliers-financials'])
+        }}
+      />
     </div>
   )
 }
