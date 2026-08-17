@@ -657,15 +657,15 @@ export default function PurchaseOrderForm() {
     )
   }
 
-  const showPreview = previewMode || (existing && existing.status !== 'draft')
+  const showPreview = previewMode || (order && order.status !== 'draft')
 
   if (showPreview) {
     return (
       <div className="pb-24 pt-4 sm:pt-6">
         <PurchaseOrderPreview
-          order={{ ...existing, ...watch() }}
-          supplier={suppliers?.find((s) => s._id === watch('supplierId')) || existing?.supplierId}
-          warehouse={warehouses?.find((w) => w._id === watch('warehouseId')) || existing?.warehouseId}
+          order={{ ...order, ...watch() }}
+          supplier={suppliers?.find((s) => s._id === watch('supplierId')) || order?.supplierId}
+          warehouse={warehouses?.find((w) => w._id === watch('warehouseId')) || order?.warehouseId}
           isApproving={approveMutation.isPending}
           onEdit={() => {
             setPreviewMode(false)
@@ -677,17 +677,17 @@ export default function PurchaseOrderForm() {
           onPrint={async () => {
             setPdfBusy('print')
             try {
-              await printPurchaseOrderPdf(existing)
+              await printPurchaseOrderPdf(order)
             } finally {
               setPdfBusy(null)
             }
           }}
-          onCreateGrn={() => navigate(`/app/dashboard/purchases/grn/new?poId=${existing._id}`)}
+          onCreateGrn={() => navigate(`/app/dashboard/purchases/grn/new?poId=${order._id}`)}
         />
         {/* Render the receiving ledger if it has receipts */}
-        {existing && (existing.status === 'partially_received' || existing.status === 'received' || existing.status === 'billed') && (
+        {order && (order.status === 'partially_received' || order.status === 'received' || order.status === 'billed') && (
           <div className="mx-auto mt-8 max-w-5xl">
-            <PurchaseReceivingLedger poId={existing._id} language={language} />
+            <PurchaseReceivingLedger poId={order._id} language={language} />
           </div>
         )}
       </div>
