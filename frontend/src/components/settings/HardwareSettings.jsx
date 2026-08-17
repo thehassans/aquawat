@@ -989,29 +989,6 @@ export default function HardwareSettings({ tenant, language, onSave, isSaving })
               : 'Test print requires a connected network printer (ESC/POS).'}
           </p>
         )}
-
-        {/* Blank White Page Troubleshooting Box */}
-        <div className="mt-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4 text-xs space-y-2 text-slate-800 dark:text-slate-200">
-          <div className="flex items-center gap-2 font-bold text-amber-700 dark:text-amber-300 text-sm">
-            <span>⚠️</span>
-            <span>{language === 'ar' ? 'حل مشكلة خروج ورق أبيض فارغ بدون طباعة' : 'Troubleshooting: Blank White Paper Ejecting Without Print'}</span>
-          </div>
-          <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-            {language === 'ar'
-              ? '1. اتجاه رول الورق الحراري (شائع جداً): الورق الحراري مغلف كيميائياً على وجه واحد فقط. إذا تم وضع الرول بالمقلوب (عكسياً)، ستقوم الطابعة بتغذية الورق ولكن لن تظهر أي كتابة. اقلب رول الورق بحيث يواجه الوجه اللامع/الحساس رأس الطباعة الحراري.'
-              : '1. Reversed Thermal Paper Roll (Most Common): Thermal paper has a heat-sensitive chemical coating on only one side. If the roll is inserted backwards/upside down, the printer will feed paper but no ink/text will appear. Flip the paper roll so the smooth heat-sensitive side faces the thermal print head.'}
-          </p>
-          <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-            {language === 'ar'
-              ? '2. اختبار الخدش بالظفر: اخدش سطح الورقة سريعاً بظفرك؛ الوجه الذي يظهر عليه خط أسود يجب أن يواجه رأس الطباعة في فتحة خروج الورق.'
-              : '2. Fingernail Scratch Test: Scratch the paper quickly with your fingernail; the side that produces a dark black streak is the coated side and must face the printer thermal head.'}
-          </p>
-          <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-            {language === 'ar'
-              ? '3. الطباعة التلقائية: إذا كنت لا ترغب في خروج الإيصال تلقائياً بعد كل عملية بيع، عطّل خيار "طباعة تلقائية بعد الدفع" في الأعلى.'
-              : '3. Automatic Printing: If you do not want receipts to print automatically after each checkout, disable the "Auto-print after checkout" toggle above.'}
-          </p>
-        </div>
       </div>
 
       <div className="flex justify-end gap-3">
