@@ -235,16 +235,23 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
         try { document.body.removeChild(existingIframe); } catch (_) {}
       }
 
-      // Create isolated invisible iframe
+      // Create isolated iframe with proper dimensions for Chromium print spooler
       const iframe = document.createElement('iframe');
       iframe.id = 'maqder-thermal-print-frame';
-      iframe.setAttribute('style', 'position: fixed; top: -9999px; left: -9999px; width: 0; height: 0; border: 0; visibility: hidden;');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = paperWidth;
+      iframe.style.height = '600px';
+      iframe.style.border = '0';
+      iframe.style.opacity = '0.001';
+      iframe.style.pointerEvents = 'none';
+      iframe.style.zIndex = '-9999';
       document.body.appendChild(iframe);
 
       const doc = iframe.contentWindow?.document || iframe.contentDocument;
       if (!doc) {
-        window.print();
-        resolve(true);
+        resolve(false);
         return;
       }
 
@@ -253,10 +260,10 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
 <html dir="${htmlDir}">
 <head>
   <meta charset="utf-8" />
-  <title>Thermal Receipt</title>
+  <title>Receipt</title>
   <style>
     @page {
-      size: auto;
+      size: ${paperWidth} auto;
       margin: 0mm !important;
     }
     *, *::before, *::after {
@@ -284,8 +291,13 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       -webkit-text-fill-color: #000000 !important;
     }
     @media print {
+      @page {
+        size: ${paperWidth} auto;
+        margin: 0mm !important;
+      }
       html, body {
         width: ${paperWidth} !important;
+        max-width: ${paperWidth} !important;
         margin: 0 auto !important;
         padding: 0 !important;
         background: #ffffff !important;
@@ -380,8 +392,13 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
 
       const triggerIframePrint = () => {
         try {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
+          const win = iframe.contentWindow;
+          if (!win) {
+            resolve(false);
+            return;
+          }
+          win.focus();
+          win.print();
           // Clean up iframe after user completes print
           setTimeout(() => {
             try {
@@ -392,17 +409,16 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
             resolve(true);
           }, 30000);
         } catch (e) {
-          console.error('Iframe print failed, falling back to window.print:', e);
-          window.print();
-          resolve(true);
+          console.error('Thermal iframe print error:', e);
+          resolve(false);
         }
       };
 
       if (iframe.contentDocument?.readyState === 'complete') {
-        setTimeout(triggerIframePrint, 350);
+        setTimeout(triggerIframePrint, 250);
       } else {
-        iframe.onload = () => setTimeout(triggerIframePrint, 350);
-        setTimeout(triggerIframePrint, 800);
+        iframe.onload = () => setTimeout(triggerIframePrint, 250);
+        setTimeout(triggerIframePrint, 600);
       }
     } catch (err) {
       console.error('printThermalElement error:', err);

@@ -367,8 +367,16 @@ html.display-mode-desktop {
 
 @media print {
   @page {
-    size: A4 portrait;
-    margin: 10mm 12mm 14mm;
+    size: auto;
+    margin: 0;
+  }
+
+  body.printing-a4,
+  .print-a4-page {
+    @page {
+      size: A4 portrait;
+      margin: 10mm 12mm 14mm;
+    }
   }
 
   html,

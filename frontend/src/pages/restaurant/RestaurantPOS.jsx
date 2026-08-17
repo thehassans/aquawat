@@ -897,9 +897,9 @@ export default function RestaurantPOS() {
 
       {/* Thermal Receipt Print Modal */}
       {completedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 print:bg-white print:static print:inset-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[420px] mx-4 max-h-[90vh] overflow-y-auto print:shadow-none print:p-0 print:w-auto print:max-h-none print:overflow-visible">
-            <div className="flex justify-between items-center mb-4 print:hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[420px] mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-amber-600" />
                 <h3 className="text-lg font-bold text-gray-900">
@@ -917,7 +917,7 @@ export default function RestaurantPOS() {
             </div>
             
             {/* Toggle between Customer Receipt and Kitchen Ticket */}
-            <div className="flex bg-gray-100 p-1 rounded-xl mb-4 print:hidden">
+            <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
               <button
                 type="button"
                 onClick={() => setReceiptType('customer')}
@@ -934,7 +934,7 @@ export default function RestaurantPOS() {
               </button>
             </div>
 
-            <div className="border border-gray-200 rounded-xl p-3 print:border-none print:p-0 flex justify-center bg-gray-50 print:bg-white overflow-hidden">
+            <div className="border border-gray-200 rounded-xl p-3 flex justify-center bg-gray-50 overflow-hidden">
               <ThermalReceipt
                 ref={receiptRef}
                 order={completedOrder}
@@ -944,7 +944,7 @@ export default function RestaurantPOS() {
               />
             </div>
 
-            <div className="mt-5 flex gap-3 print:hidden">
+            <div className="mt-5 flex gap-3">
               <button 
                 onClick={handleCloseReceipt} 
                 className="flex-1 py-3 rounded-xl border border-gray-200 font-bold hover:bg-gray-50 text-gray-700 transition-colors"
