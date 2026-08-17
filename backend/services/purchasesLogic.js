@@ -165,14 +165,16 @@ export function remainingReturnable(line = {}) {
 export function poReceiveStatus(lines = []) {
   const stockLines = (lines || []).filter((line) => isStockTrackedProductType(line.productType));
   const relevant = stockLines.length ? stockLines : (lines || []);
-  if (!relevant.length) return 'received';
-  const anyReceived = relevant.some((line) => toNumber(line.quantityReceived) > 0);
-  const fullyReceived = relevant.every(
-    (line) => toNumber(line.quantityReceived) >= toNumber(line.quantityOrdered)
+  if (!relevant.length) return 'approved';
+  const totalOrdered = relevant.reduce((sum, line) => sum + toNumber(line.quantityOrdered ?? line.quantity, 0), 0);
+  const totalReceived = relevant.reduce((sum, line) => sum + toNumber(line.quantityReceived, 0), 0);
+  
+  if (totalReceived <= 0) return 'approved';
+  const allLinesFulfilled = relevant.every(
+    (line) => toNumber(line.quantityReceived) >= toNumber(line.quantityOrdered ?? line.quantity) && toNumber(line.quantityOrdered ?? line.quantity) > 0
   );
-  if (fullyReceived) return 'received';
-  if (anyReceived) return 'partially_received';
-  return null;
+  if (allLinesFulfilled && totalReceived >= totalOrdered) return 'received';
+  return 'partially_received';
 }
 
 export function matchPoLine(poLines, receiveLine, index) {

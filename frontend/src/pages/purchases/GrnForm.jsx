@@ -47,7 +47,6 @@ const emptyLine = () => ({
 export default function GrnForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
-  const [showBackorderPrompt, setShowBackorderPrompt] = useState(false)
   const [searchParams] = useSearchParams()
   const poIdParam = searchParams.get('poId') || ''
   const receiveEarlyParam = searchParams.get('early') === '1'
@@ -185,14 +184,12 @@ export default function GrnForm() {
     referenceNumber,
     expectedDate: expectedDate || undefined,
     notes,
-    lines: (Array.isArray(lines) ? lines : [])
-      .filter((line) => line.isDelayed || Number(line.quantityReceived) > 0)
-      .map((line) => ({
-        ...line,
-        quantityReceived: line.isDelayed ? 0 : line.quantityReceived,
-        delayedUntil: line.delayedUntil || undefined,
-        expiryDate: line.expiryDate || undefined,
-      })),
+    lines: (Array.isArray(lines) ? lines : []).map((line) => ({
+      ...line,
+      quantityReceived: line.isDelayed ? 0 : line.quantityReceived,
+      delayedUntil: line.delayedUntil || undefined,
+      expiryDate: line.expiryDate || undefined,
+    })),
   }), [supplierId, purchaseOrderId, warehouseId, referenceNumber, expectedDate, notes, lines])
 
   const invalidate = () => {
@@ -230,6 +227,11 @@ export default function GrnForm() {
   const receiveMutation = useMutation({
     mutationFn: async () => {
       if (!guardDelayDetails()) throw new Error('DELAY_REASON_REQUIRED')
+      const totalRecv = (lines || []).reduce((sum, l) => sum + (l.isDelayed ? 0 : Number(l.quantityReceived || 0)), 0)
+      if (totalRecv <= 0 && !(lines || []).some(l => l.isDelayed)) {
+        toast.error(language === 'ar' ? 'أدخل كميات مستلمة أكبر من 0 أو علّم البنود كمتأخرة لإنشاء طلب متبقي' : 'Enter received quantity > 0 or mark lines as delayed for backorder')
+        throw new Error('ZERO_RECEIVE')
+      }
       let grnId = id
       if (!isEdit) {
         const created = await api.post('/grn', payload)
@@ -237,16 +239,18 @@ export default function GrnForm() {
       } else if (existing?.status === 'draft') {
         await api.put(`/grn/${id}`, payload)
       }
-      await api.post(`/grn/${grnId}/receive`, { warehouseId })
+      if (totalRecv > 0) {
+        await api.post(`/grn/${grnId}/receive`, { warehouseId })
+      }
       return grnId
     },
     onSuccess: () => {
-      toast.success(language === 'ar' ? 'تم الاستلام وتحديث المخزون' : 'Received and stock updated')
+      toast.success(language === 'ar' ? 'تم حفظ الاستلام وتحديث المخزون' : 'Received and stock updated')
       invalidate()
       navigate(PURCHASES_PATH.grn, { replace: true })
     },
     onError: (err) => {
-      if (err?.message === 'DELAY_REASON_REQUIRED') return
+      if (err?.message === 'DELAY_REASON_REQUIRED' || err?.message === 'ZERO_RECEIVE') return
       toast.error(err.response?.data?.error || 'Error')
     },
   })
@@ -275,6 +279,7 @@ export default function GrnForm() {
     setLines((prev) => prev.map((line, i) => {
       if (i !== index) return line
       const next = { ...line, ...patch }
+      if (patch.isDelayed === true) next.quantityReceived = 0
       return next
     }))
   }
@@ -321,19 +326,7 @@ export default function GrnForm() {
             </button>
           )}
           {(!isEdit || existing?.status === 'draft') && (
-            <button
-              type="button"
-              onClick={() => {
-                const shortages = lines.filter((l) => Number(l.quantityReceived || 0) < Number(l.remaining || l.quantityOrdered || 0))
-                if (shortages.length > 0) {
-                  setShowBackorderPrompt(true)
-                } else {
-                  receiveMutation.mutate()
-                }
-              }}
-              disabled={receiveMutation.isPending}
-              className={primaryBtn}
-            >
+            <button type="button" onClick={() => receiveMutation.mutate()} disabled={receiveMutation.isPending} className={primaryBtn}>
               {receiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {isFutureDate(expectedDate) || receiveEarlyParam
                 ? (language === 'ar' ? 'استلام قبل التاريخ المتوقع' : 'Receive before estimated date')
@@ -523,13 +516,77 @@ export default function GrnForm() {
                   </p>
                 </div>
               </div>
-              <p className="mt-2 text-[11px] text-slate-400">
-                {isStockTrackedProductType(line.productType)
-                  ? (language === 'ar' ? 'بضاعة — تُضاف للمخزون عند الاستلام' : 'Goods — posts warehouse stock on receive')
-                  : (language === 'ar' ? 'خدمة — بدون مخزون' : 'Service — no stock movement')}
-                {line.remaining ? ` · ${language === 'ar' ? 'المتبقي' : 'Remaining'} ${line.remaining}` : ''}
-              </p>
-
+              {(() => {
+                const orderedQty = Number(line.quantityOrdered || 0);
+                const receivedQty = line.isDelayed ? 0 : Number(line.quantityReceived || 0);
+                const remainingTarget = Number(line.remaining != null ? line.remaining : orderedQty);
+                const backorderQty = Math.max(0, remainingTarget - receivedQty);
+                return (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                    <span className="text-slate-400">
+                      {isStockTrackedProductType(line.productType)
+                        ? (language === 'ar' ? 'بضاعة — تُضاف للمخزون عند الاستلام' : 'Goods — posts warehouse stock on receive')
+                        : (language === 'ar' ? 'خدمة — بدون مخزون' : 'Service — no stock movement')}
+                    </span>
+                    {backorderQty > 0 ? (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 ring-1 ring-inset ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20">
+                        {language === 'ar' ? `طلب متبقي (Backorder): ${backorderQty} ${line.uom || 'PCE'}` : `Backorder: ${backorderQty} ${line.uom || 'PCE'}`}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20">
+                        {language === 'ar' ? 'استلام كامل' : 'Full receipt'}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+              <div className={`mt-4 rounded-xl p-3.5 ${line.isDelayed ? 'border border-amber-200/80 bg-amber-50/70 dark:border-amber-500/20 dark:bg-amber-500/[0.06]' : 'bg-slate-50/80 dark:bg-white/[0.03]'}`}>
+                <label className="flex items-center gap-2 text-[13px] font-medium text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(line.isDelayed)}
+                    disabled={locked}
+                    onChange={(e) => updateLine(index, { isDelayed: e.target.checked })}
+                  />
+                  <Clock3 className="h-4 w-4 text-amber-600" />
+                  {language === 'ar' ? 'تأخير هذا البند' : 'Delay this line'}
+                </label>
+                {line.isDelayed && (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="text-[11px] font-medium text-slate-500">
+                      {language === 'ar' ? 'مؤجل حتى' : 'Delayed until'}
+                      <input
+                        type="date"
+                        value={line.delayedUntil}
+                        disabled={locked}
+                        onChange={(e) => updateLine(index, { delayedUntil: e.target.value })}
+                        className={`mt-1.5 ${fieldControlClass}`}
+                      />
+                    </label>
+                    <label className="text-[11px] font-medium text-slate-500">
+                      {language === 'ar' ? 'سبب التأخير' : 'Delay reason'}
+                      <input
+                        value={line.delayReason}
+                        disabled={locked}
+                        placeholder={language === 'ar' ? 'جمارك، ناقلة، نقص المورد…' : 'Customs, carrier, supplier shortage…'}
+                        onChange={(e) => updateLine(index, { delayReason: e.target.value })}
+                        className={`mt-1.5 ${fieldControlClass}`}
+                      />
+                    </label>
+                    <label className="text-[11px] font-medium text-slate-500 sm:col-span-2">
+                      {language === 'ar' ? 'ملاحظة التأخير' : 'Delay notes'}
+                      <textarea
+                        rows={2}
+                        value={line.notes}
+                        disabled={locked}
+                        placeholder={language === 'ar' ? 'تفاصيل هذا التأخير لهذا البند فقط' : 'Detail for this delayed line only'}
+                        onChange={(e) => updateLine(index, { notes: e.target.value })}
+                        className={`mt-1.5 ${fieldControlClass}`}
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
               {!line.isDelayed && (
                 <input
                   value={line.notes}
@@ -567,41 +624,6 @@ export default function GrnForm() {
           <span className="tabular-nums"><Money value={receiveTotal} /></span>
         </div>
       </section>
-
-      {/* Backorder Modal */}
-      {showBackorderPrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 dark:ring-1 dark:ring-white/10">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-              {language === 'ar' ? 'استلام جزئي (طلب متأخر)' : 'Partial Receipt (Backorder)'}
-            </h3>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              {language === 'ar'
-                ? 'أنت تستلم كمية أقل من المطلوبة. سيظل باقي الكمية معلقاً في أمر الشراء (Backorder).'
-                : 'You are receiving less than the ordered quantity. The remaining amount will stay open on the Purchase Order as a backorder.'}
-            </p>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowBackorderPrompt(false)}
-                className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
-              >
-                {language === 'ar' ? 'تعديل الكمية' : 'Cancel & Edit'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowBackorderPrompt(false)
-                  receiveMutation.mutate()
-                }}
-                className={primaryBtn}
-              >
-                {language === 'ar' ? 'نعم، قم بإنشاء Backorder' : 'Yes, create backorder'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

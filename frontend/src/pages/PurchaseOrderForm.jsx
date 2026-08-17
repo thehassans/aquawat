@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, Fragment } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import Select from 'react-select'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft,
   Save,
@@ -22,6 +22,16 @@ import {
   Loader2,
   Paperclip,
   Eye,
+  Edit3,
+  CreditCard,
+  Building2,
+  Package,
+  Clock,
+  Sparkles,
+  ExternalLink,
+  ChevronRight,
+  Receipt,
+  AlertCircle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
@@ -32,10 +42,9 @@ import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoiceP
 import { getAvailableUomOptions, getUomLabel } from '../lib/uomOptions'
 import ProductTypeToggle from '../components/ui/ProductTypeToggle'
 import PremiumFileDrop from '../components/ui/PremiumFileDrop'
-import { normalizeProductType, productPickerLabel } from '../lib/productType'
+import { normalizeProductType, productPickerLabel, isStockTrackedProductType } from '../lib/productType'
 import { computePurchaseLineTotals } from '../lib/purchaseLineTotals'
 import PurchaseReceivingLedger from './purchases/PurchaseReceivingLedger'
-import PurchaseOrderPreview from '../components/purchases/PurchaseOrderPreview'
 
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
@@ -43,8 +52,8 @@ const STATUS_PILL = {
   partially_received: 'bg-amber-50 text-amber-700 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
   delayed: 'bg-amber-50 text-amber-800 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
   cancelled: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
-  approved: 'bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10',
-  sent: 'bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10',
+  approved: 'bg-teal-50 text-teal-700 ring-teal-200/80 dark:bg-teal-500/10 dark:text-teal-300 dark:ring-teal-500/20',
+  sent: 'bg-blue-50 text-blue-700 ring-blue-200/80 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-500/20',
   draft: 'bg-slate-50 text-slate-500 ring-slate-200/70 dark:bg-white/[0.04] dark:text-slate-400 dark:ring-white/10',
 }
 
@@ -58,8 +67,7 @@ const PAYMENT_STATUS_PILL = {
 export default function PurchaseOrderForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [previewMode, setPreviewMode] = useState(searchParams.get('preview') === '1')
+  const [searchParams] = useSearchParams()
 
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -67,6 +75,11 @@ export default function PurchaseOrderForm() {
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+
+  const [isViewMode, setIsViewMode] = useState(isEdit)
+  const [showLivePreviewModal, setShowLivePreviewModal] = useState(false)
+  const [createdOrderForPreview, setCreatedOrderForPreview] = useState(null)
+  const [showQuickReceiveModal, setShowQuickReceiveModal] = useState(false)
 
   const paymentStatusLabel = (status) => {
     const ar = { pending: 'قيد الانتظار', partial: 'مدفوع جزئياً', paid: 'مدفوع', overdue: 'متأخر' }
@@ -127,8 +140,6 @@ export default function PurchaseOrderForm() {
       return next
     })
   }
-
-
 
   const {
     register,
@@ -363,7 +374,8 @@ export default function PurchaseOrderForm() {
   const saveMutation = useMutation({
     mutationFn: (data) => (isEdit ? api.put(`/purchase-orders/${id}`, data) : api.post('/purchase-orders', data)),
     onSuccess: async (res) => {
-      const createdId = String(res.data?._id || res.data?.id || '')
+      const created = res.data?.purchaseOrder || res.data?.order || res.data
+      const createdId = String(created?._id || created?.id || '')
       const orderId = isEdit ? id : createdId
       if (orderId && pendingBills.length) {
         try {
@@ -381,29 +393,37 @@ export default function PurchaseOrderForm() {
             ? 'تم تحديث طلب الشراء'
             : 'Purchase order updated'
           : language === 'ar'
-            ? 'تم إنشاء طلب الشراء'
+            ? 'تم إنشاء طلب الشراء بنجاح'
             : 'Purchase order created'
       )
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders-open'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders-stats'] })
-      queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-order', orderId] })
+
       if (!isEdit && createdId) {
-        navigate(`/app/dashboard/purchases/orders/${createdId}?preview=1`, { replace: true })
+        // Show Live Preview Modal with options to Approve or Edit!
+        setCreatedOrderForPreview(created)
+        setShowLivePreviewModal(true)
+        navigate(`/app/dashboard/purchases/orders/${createdId}`, { replace: true })
+        setIsViewMode(true)
       } else {
-        setPreviewMode(true)
+        setIsViewMode(true)
       }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
 
   const approveMutation = useMutation({
-    mutationFn: () => api.post(`/purchase-orders/${id}/approve`),
-    onSuccess: () => {
-      toast.success(language === 'ar' ? 'تم اعتماد طلب الشراء' : 'Purchase order approved')
+    mutationFn: (targetId) => api.post(`/purchase-orders/${targetId || id}/approve`),
+    onSuccess: (res) => {
+      toast.success(language === 'ar' ? 'تم اعتماد طلب الشراء بنجاح' : 'Purchase order approved')
       queryClient.invalidateQueries(['purchase-orders'])
       queryClient.invalidateQueries(['purchase-orders-stats'])
-      queryClient.invalidateQueries(['purchase-order', id])
+      queryClient.invalidateQueries(['purchase-order', id || res.data?._id])
+      if (createdOrderForPreview) {
+        setCreatedOrderForPreview((prev) => (prev ? { ...prev, status: 'approved' } : null))
+      }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -447,6 +467,7 @@ export default function PurchaseOrderForm() {
     onSuccess: () => {
       toast.success(language === 'ar' ? 'تم تسجيل الاستلام وتحديث المخزون' : 'Received and stock updated')
       setReceiveQty({})
+      setShowQuickReceiveModal(false)
       queryClient.invalidateQueries(['products'])
       queryClient.invalidateQueries(['purchase-orders'])
       queryClient.invalidateQueries(['purchase-orders-stats'])
@@ -504,7 +525,7 @@ export default function PurchaseOrderForm() {
     }
 
     if (items.length === 0) {
-      toast.error(language === 'ar' ? 'أدخل كميات للاستلام' : 'Enter receiving quantities')
+      toast.error(language === 'ar' ? 'أدخل كميات مستلمة صالحة أكبر من 0' : 'Enter valid receiving quantities greater than 0')
       return
     }
 
@@ -520,12 +541,13 @@ export default function PurchaseOrderForm() {
     return full
   }
 
-  const handlePrintPdf = async () => {
-    if (!isEdit || !id) return
+  const handlePrintPdf = async (targetOrder) => {
+    const orderToUse = targetOrder || order
+    if (!orderToUse) return
     const toastId = toast.loading(language === 'ar' ? 'جاري التحضير للطباعة...' : 'Preparing print...')
     setPdfBusy('print')
     try {
-      const full = await resolveOrderForPdf()
+      const full = targetOrder?._id ? targetOrder : await resolveOrderForPdf()
       await printPurchaseOrderPdf({
         purchaseOrder: full,
         language,
@@ -535,6 +557,23 @@ export default function PurchaseOrderForm() {
     } catch (e) {
       console.error('[PurchaseOrderForm] PDF print failed', e)
       toast.error(language === 'ar' ? 'فشل الطباعة' : 'Print failed', { id: toastId })
+    } finally {
+      setPdfBusy(null)
+    }
+  }
+
+  const handleDownloadPdf = async (targetOrder) => {
+    const orderToUse = targetOrder || order
+    if (!orderToUse) return
+    const toastId = toast.loading(language === 'ar' ? 'جاري إنشاء PDF...' : 'Generating PDF...')
+    setPdfBusy('download')
+    try {
+      const full = targetOrder?._id ? targetOrder : await resolveOrderForPdf()
+      await downloadPurchaseOrderPdf({ purchaseOrder: full, language, tenant })
+      toast.success(language === 'ar' ? 'تم التنزيل' : 'Downloaded', { id: toastId })
+    } catch (e) {
+      console.error('[PurchaseOrderForm] PDF download failed', e)
+      toast.error(language === 'ar' ? 'فشل التنزيل' : 'Download failed', { id: toastId })
     } finally {
       setPdfBusy(null)
     }
@@ -594,29 +633,13 @@ export default function PurchaseOrderForm() {
     }
   }
 
-  const handleDownloadPdf = async () => {
-    if (!isEdit || !id) return
-    const toastId = toast.loading(language === 'ar' ? 'جاري إنشاء PDF...' : 'Generating PDF...')
-    setPdfBusy('download')
-    try {
-      const full = await resolveOrderForPdf()
-      await downloadPurchaseOrderPdf({ purchaseOrder: full, language, tenant })
-      toast.success(language === 'ar' ? 'تم التنزيل' : 'Downloaded', { id: toastId })
-    } catch (e) {
-      console.error('[PurchaseOrderForm] PDF download failed', e)
-      toast.error(language === 'ar' ? 'فشل التنزيل' : 'Download failed', { id: toastId })
-    } finally {
-      setPdfBusy(null)
-    }
-  }
-
   const statusLabel = (status) => {
     if (language === 'ar') {
       if (status === 'draft') return 'مسودة'
       if (status === 'sent') return 'مرسل'
       if (status === 'approved') return 'معتمد'
       if (status === 'partially_received') return 'مستلم جزئياً'
-      if (status === 'received') return 'مستلم'
+      if (status === 'received') return 'مستلم بالكامل'
       if (status === 'billed') return 'مفوتر'
       if (status === 'cancelled') return 'ملغي'
       return status
@@ -628,15 +651,15 @@ export default function PurchaseOrderForm() {
   const shell =
     'overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_40px_-32px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#0c111a]'
   const ghostBtn =
-    'inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2 text-[13px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-transparent dark:text-slate-200 dark:hover:border-white/20 dark:hover:bg-white/[0.04]'
+    'inline-flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-transparent dark:text-slate-200 dark:hover:border-white/20 dark:hover:bg-white/[0.04]'
   const primaryBtn =
-    'inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100'
+    'inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-3.5 py-1.5 text-[12px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100'
   const inkBtn =
-    'inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100'
+    'inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100'
 
   const workflow = [
     { id: 'draft', label: language === 'ar' ? 'مسودة' : 'Draft' },
-    { id: 'approved', label: language === 'ar' ? 'اعتماد' : 'Approved' },
+    { id: 'approved', label: language === 'ar' ? 'معتمد' : 'Approved' },
     { id: 'partially_received', label: language === 'ar' ? 'استلام' : 'Receiving' },
     { id: 'received', label: language === 'ar' ? 'مكتمل' : 'Received' },
   ]
@@ -649,6 +672,15 @@ export default function PurchaseOrderForm() {
     return 0
   })()
 
+  // Quantities summary
+  const orderLineItems = order?.lineItems || []
+  const totalOrderedQty = orderLineItems.reduce((sum, li) => sum + Number(li.quantityOrdered || 0), 0)
+  const totalReceivedQty = orderLineItems.reduce((sum, li) => sum + Number(li.quantityReceived || 0), 0)
+  const totalBackorderQty = Math.max(0, totalOrderedQty - totalReceivedQty)
+  const fulfillmentPercent = totalOrderedQty > 0 ? Math.min(100, Math.round((totalReceivedQty / totalOrderedQty) * 100)) : 0
+
+  const supplierFin = supplierFinancials?.find(f => f._id === (order?.supplierId?._id || order?.supplierId))
+
   if (isEdit && isLoading) {
     return (
       <div className="flex justify-center p-12">
@@ -657,1123 +689,1221 @@ export default function PurchaseOrderForm() {
     )
   }
 
-  const showPreview = previewMode || (order && order.status !== 'draft')
-
-  if (showPreview) {
-    return (
-      <div className="pb-24 pt-4 sm:pt-6">
-        <PurchaseOrderPreview
-          order={{ ...order, ...watch() }}
-          supplier={suppliers?.find((s) => s._id === watch('supplierId')) || order?.supplierId}
-          warehouse={warehouses?.find((w) => w._id === watch('warehouseId')) || order?.warehouseId}
-          isApproving={approveMutation.isPending}
-          onEdit={() => {
-            setPreviewMode(false)
-            if (searchParams.get('preview')) {
-              setSearchParams({})
-            }
-          }}
-          onApprove={() => approveMutation.mutate()}
-          onPrint={async () => {
-            setPdfBusy('print')
-            try {
-              await printPurchaseOrderPdf(order)
-            } finally {
-              setPdfBusy(null)
-            }
-          }}
-          onCreateGrn={() => navigate(`/app/dashboard/purchases/grn/new?poId=${order._id}`)}
-        />
-        {/* Render the receiving ledger if it has receipts */}
-        {order && (order.status === 'partially_received' || order.status === 'received' || order.status === 'billed') && (
-          <div className="mx-auto mt-8 max-w-5xl">
-            <PurchaseReceivingLedger poId={order._id} language={language} />
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-6 pb-24">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-start gap-3">
+    <div className="space-y-4 pb-16">
+      {/* Top Header Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => navigate('/app/dashboard/purchases/orders')}
-            className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-transparent dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-transparent dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div>
-            <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
-              {language === 'ar' ? 'طلبات الشراء' : 'Purchase orders'}
-            </p>
-            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white sm:text-[28px]">
-              {isEdit
-                ? language === 'ar'
-                  ? 'طلب شراء'
-                  : 'Purchase order'
-                : language === 'ar'
-                  ? 'طلب شراء جديد'
-                  : 'New purchase order'}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-2xl">
+                {isEdit
+                  ? language === 'ar' ? 'طلب شراء' : 'Purchase order'
+                  : language === 'ar' ? 'طلب شراء جديد' : 'New purchase order'}
+              </h1>
+              {isEdit && order && (
+                <span className="font-mono text-[13px] font-semibold text-slate-700 dark:text-slate-300">
+                  {order.poNumber}
+                </span>
+              )}
+            </div>
             {isEdit && order && (
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                <span className="font-mono text-[12px] text-slate-500 dark:text-slate-400">{order.poNumber}</span>
-                <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
-                    STATUS_PILL[order.status] || STATUS_PILL.draft
-                  }`}
-                >
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${STATUS_PILL[order.status] || STATUS_PILL.draft}`}>
                   {statusLabel(order.status)}
                 </span>
-                {order.receivingLedger?.delayedCount > 0 && (
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${STATUS_PILL.delayed}`}>
-                    {language === 'ar' ? `متأخر · ${order.receivingLedger.delayedCount}` : `Delayed · ${order.receivingLedger.delayedCount}`}
-                  </span>
-                )}
-                <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
-                    PAYMENT_STATUS_PILL[order.paymentStatus || 'pending']
-                  }`}
-                >
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${PAYMENT_STATUS_PILL[order.paymentStatus || 'pending']}`}>
                   {paymentStatusLabel(order.paymentStatus || 'pending')}
+                </span>
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+                  {language === 'ar' ? `استلام: ${totalReceivedQty}/${totalOrderedQty}` : `Received: ${totalReceivedQty}/${totalOrderedQty}`}
                 </span>
               </div>
             )}
           </div>
         </div>
 
+        {/* Header Action Ribbon */}
         {isEdit && order && (
-          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            <button type="button" onClick={handlePrintPdf} disabled={Boolean(pdfBusy)} className={ghostBtn}>
-              {pdfBusy === 'print' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4 opacity-70" />}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowLivePreviewModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50/60 px-3 py-1.5 text-[12px] font-semibold text-teal-800 transition hover:bg-teal-100 dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-300 dark:hover:bg-teal-500/20"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              {language === 'ar' ? 'معاينة حية' : 'Live preview'}
+            </button>
+            <button type="button" onClick={() => handlePrintPdf(order)} disabled={Boolean(pdfBusy)} className={ghostBtn}>
+              {pdfBusy === 'print' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5 opacity-70" />}
               {language === 'ar' ? 'طباعة' : 'Print'}
             </button>
-            <button type="button" onClick={handleDownloadPdf} disabled={Boolean(pdfBusy)} className={inkBtn}>
-              {pdfBusy === 'download' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 opacity-80" />}
-              {language === 'ar' ? 'تنزيل PDF' : 'Download PDF'}
+            <button type="button" onClick={() => handleDownloadPdf(order)} disabled={Boolean(pdfBusy)} className={ghostBtn}>
+              {pdfBusy === 'download' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 opacity-80" />}
+              {language === 'ar' ? 'تنزيل PDF' : 'PDF'}
             </button>
-            {(order?.attachments || []).slice(-1).map((file) => (
-              <Fragment key={file.url || file.name}>
-                <button type="button" onClick={() => openVendorBill(file)} className={ghostBtn}>
-                  <Eye className="h-4 w-4 opacity-70" />
-                  {language === 'ar' ? 'عرض الفاتورة' : 'View bill'}
-                </button>
-                <button type="button" onClick={() => openVendorBill(file, { download: true })} className={ghostBtn}>
-                  <Paperclip className="h-4 w-4 opacity-70" />
-                  {language === 'ar' ? 'تنزيل الفاتورة' : 'Download bill'}
-                </button>
-              </Fragment>
-            ))}
             <button
               type="button"
               onClick={() => navigate(`/app/dashboard/purchases/grn/new?poId=${id}`)}
               disabled={!['draft', 'approved', 'sent', 'partially_received'].includes(order?.status)}
               className={ghostBtn}
             >
-              <WarehouseIcon className="h-4 w-4 opacity-70" />
-              {language === 'ar' ? 'إنشاء إشعار استلام' : 'Create GRN'}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate(`/app/dashboard/purchases/returns/new`)}
-              disabled={!['partially_received', 'received', 'billed'].includes(order?.status)}
-              className={ghostBtn}
-            >
-              <FileText className="h-4 w-4 opacity-70" />
-              {language === 'ar' ? 'مرتجع' : 'Return'}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate(`/app/dashboard/purchases/landed-costs/new?po=${id}`)}
-              disabled={!['partially_received', 'received', 'billed'].includes(order?.status)}
-              className={ghostBtn}
-            >
-              <FileText className="h-4 w-4 opacity-70" />
-              {language === 'ar' ? 'تكلفة مرسية' : 'Landed cost'}
+              <WarehouseIcon className="h-3.5 w-3.5 opacity-70" />
+              {language === 'ar' ? 'إشعار استلام' : 'Create GRN'}
             </button>
             <button
               type="button"
               onClick={() => navigate(`/app/dashboard/invoices/new/purchase?poId=${id}`)}
               className={ghostBtn}
             >
-              <FileText className="h-4 w-4 opacity-70" />
-              {language === 'ar' ? 'فاتورة شراء' : 'Purchase invoice'}
+              <FileText className="h-3.5 w-3.5 opacity-70" />
+              {language === 'ar' ? 'فاتورة شراء' : 'Vendor bill'}
             </button>
             <button
               type="button"
               onClick={() => setShowPaymentModal(true)}
               className={inkBtn}
             >
-              <Money value={0} className="hidden" />
+              <CreditCard className="h-3.5 w-3.5 opacity-80" />
               {language === 'ar' ? 'تسجيل دفعة' : 'Record payment'}
             </button>
-            {order?.flow === 'sell' && (
+            {isViewMode ? (
               <button
                 type="button"
-                onClick={() => navigate(`/app/dashboard/delivery-notes/new?poId=${id}`)}
+                onClick={() => setIsViewMode(false)}
+                disabled={isLocked}
                 className={ghostBtn}
+                title={isLocked ? (language === 'ar' ? 'لا يمكن تعديل طلب مستلم أو مفوتر' : 'Cannot edit locked order') : ''}
               >
-                <FileText className="h-4 w-4 opacity-70" />
-                {language === 'ar' ? 'إذن تسليم' : 'Delivery note'}
+                <Edit3 className="h-3.5 w-3.5 opacity-70" />
+                {language === 'ar' ? 'تعديل الطلب' : 'Edit order'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsViewMode(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-slate-100 px-3 py-1.5 text-[12px] font-medium text-slate-800 dark:border-white/20 dark:bg-white/10 dark:text-white"
+              >
+                <Eye className="h-3.5 w-3.5 opacity-70" />
+                {language === 'ar' ? 'عرض الملخص' : 'Summary view'}
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => navigate(`/app/dashboard/invoices/new/sell?poId=${id}`)}
-              className={ghostBtn}
-            >
-              <FileText className="h-4 w-4 opacity-70" />
-              {language === 'ar' ? 'فاتورة بيع' : 'Sell invoice'}
-            </button>
-            <button
-              type="button"
-              onClick={() => sendMutation.mutate()}
-              disabled={sendMutation.isPending || !['draft'].includes(order?.status)}
-              className={ghostBtn}
-            >
-              {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4 opacity-70" />}
-              {language === 'ar' ? 'إرسال' : 'Send'}
-            </button>
-            <button
-              type="button"
-              onClick={() => approveMutation.mutate()}
-              disabled={approveMutation.isPending || ['approved', 'received', 'billed', 'cancelled', 'partially_received'].includes(order?.status)}
-              className={ghostBtn}
-            >
-              {approveMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 opacity-70" />
-                  {language === 'ar' ? 'اعتماد' : 'Approve'}
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => cancelMutation.mutate()}
-              disabled={cancelMutation.isPending || ['received', 'cancelled'].includes(order?.status)}
-              className="inline-flex items-center gap-2 rounded-xl border border-rose-200/80 bg-white px-3.5 py-2 text-[13px] font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-40 dark:border-rose-500/30 dark:bg-transparent dark:text-rose-300 dark:hover:bg-rose-500/10"
-            >
-              {cancelMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <XCircle className="h-4 w-4 opacity-70" />
-                  {language === 'ar' ? 'إلغاء' : 'Cancel'}
-                </>
-              )}
-            </button>
+            {['draft', 'sent'].includes(order?.status) && (
+              <button
+                type="button"
+                onClick={() => approveMutation.mutate(order._id)}
+                disabled={approveMutation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-40"
+              >
+                {approveMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                {language === 'ar' ? 'اعتماد' : 'Approve'}
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {isEdit && order && order.status !== 'cancelled' && (
-        <div className={`${shell} px-5 py-4`}>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {workflow.map((step, index) => {
-              const done = workflowIndex >= index
-              const current = workflowIndex === index
-              return (
-                <div key={step.id} className="flex items-center gap-2 sm:gap-3">
-                  {index > 0 && <div className={`h-px w-6 sm:w-10 ${done ? 'bg-teal-600' : 'bg-slate-200 dark:bg-white/10'}`} />}
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold ${
-                        done
-                          ? 'bg-teal-700 text-white'
-                          : 'bg-slate-100 text-slate-400 dark:bg-white/10 dark:text-slate-500'
-                      } ${current ? 'ring-2 ring-teal-600/30' : ''}`}
-                    >
-                      {index + 1}
-                    </span>
-                    <span className={`text-[12px] font-medium ${done ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
-                      {step.label}
-                    </span>
+      {/* ULTRA PREMIUM COMPACT EXECUTIVE DASHBOARD (Visible without scrolling down) */}
+      {isEdit && order && isViewMode && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          {/* 4-Card Executive KPI Grid (Fits in 1 Row) */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Card 1: Financial Overview */}
+            <div className={`${shell} p-4 flex flex-col justify-between`}>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/[0.08]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {language === 'ar' ? 'إجمالي الطلب والمالية' : 'Financials'}
+                </span>
+                <span className="text-[11px] font-semibold text-slate-500">{order.currency || 'SAR'}</span>
+              </div>
+              <div className="mt-2.5">
+                <div className="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
+                  <Money value={order.grandTotal} />
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-1 rounded-xl bg-slate-50 p-2 text-center text-[11px] dark:bg-white/[0.03]">
+                  <div>
+                    <span className="block text-[9px] text-slate-400 uppercase">{language === 'ar' ? 'الأساسي' : 'Subtotal'}</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200"><Money value={order.subtotal} /></span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-slate-400 uppercase">{language === 'ar' ? 'الضريبة' : 'VAT (15%)'}</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200"><Money value={order.totalTax} /></span>
+                  </div>
+                  <div className="border-s border-slate-200/60 dark:border-white/10">
+                    <span className="block text-[9px] text-rose-500 uppercase">{language === 'ar' ? 'المتبقي' : 'Balance'}</span>
+                    <span className="font-bold text-rose-600 dark:text-rose-400"><Money value={order.balanceDue ?? order.grandTotal} /></span>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {isEdit && order && (
-        <PurchaseReceivingLedger order={order} language={language} />
-      )}
-
-      <form id="po-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`${shell} p-5 sm:p-6`}>
-          <div className="mb-5 border-b border-slate-100 pb-4 dark:border-white/[0.08]">
-            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-              {language === 'ar' ? 'معلومات الطلب' : 'Order information'}
-            </p>
-            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-              {language === 'ar' ? 'المورد والتواريخ والملاحظات' : 'Supplier, dates, and notes'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <label className="label">{language === 'ar' ? 'رقم الطلب' : 'PO number'}</label>
-              <input
-                {...register('poNumber')}
-                className="input"
-                placeholder={language === 'ar' ? 'تلقائي إذا تركته فارغاً' : 'Auto if left empty'}
-                disabled={isEdit}
-              />
-            </div>
-
-            <div>
-              <label className="label">{language === 'ar' ? 'المورد' : 'Supplier'} *</label>
-              <div className="flex gap-2">
-                <select {...register('supplierId', { required: true })} className="select flex-1" disabled={isLocked}>
-                  <option value="">{language === 'ar' ? 'اختر مورد' : 'Select supplier'}</option>
-                  {(suppliers || []).map((s) => (
-                    <option key={s._id} value={s._id}>
-                      {(language === 'ar' ? s.nameAr || s.nameEn : s.nameEn) || s.code}
-                    </option>
-                  ))}
-                </select>
-                {!isLocked && (
-                  <button
-                    type="button"
-                    onClick={() => setShowSupplierModal(true)}
-                    className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-slate-200/80 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
-                    title={language === 'ar' ? 'إضافة مورد جديد' : 'Add new supplier'}
-                  >
-                    <UserPlus className="h-4 w-4" />
-                  </button>
-                )}
               </div>
-              {errors.supplierId && (
-                <p className="mt-1 text-xs text-rose-600">{language === 'ar' ? 'المورد مطلوب' : 'Supplier is required'}</p>
-              )}
-              {(() => {
-                const selected = watch('supplierId');
-                const fin = supplierFinancials?.find(f => f._id === selected);
-                if (!fin) return null;
-                return (
-                  <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mt-3 overflow-hidden rounded-xl border border-blue-200/60 bg-blue-50/50 p-3 shadow-sm dark:border-blue-900/30 dark:bg-blue-900/10">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="rounded-lg bg-blue-100 p-1.5 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      <span className="text-[13px] font-semibold text-blue-900 dark:text-blue-100">
-                        {language === 'ar' ? 'الملخص المالي للمورد' : 'Supplier Financials'}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 divide-x divide-blue-200/50 dark:divide-blue-800/50">
-                      <div className="flex flex-col px-2 text-center">
-                        <span className="text-[10px] uppercase tracking-wider text-blue-600/70 dark:text-blue-400/70">{language === 'ar' ? 'إجمالي الطلبات' : 'Total Billed'}</span>
-                        <span className="mt-0.5 text-xs font-medium text-blue-900 dark:text-blue-100"><Money value={fin.totalCredit || 0} /></span>
-                      </div>
-                      <div className="flex flex-col px-2 text-center">
-                        <span className="text-[10px] uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70">{language === 'ar' ? 'إجمالي المدفوع' : 'Total Paid'}</span>
-                        <span className="mt-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300"><Money value={fin.totalDebit || 0} /></span>
-                      </div>
-                      <div className="flex flex-col px-2 text-center border-l-rose-200/50 dark:border-l-rose-800/50">
-                        <span className="text-[10px] uppercase tracking-wider text-rose-600/70 dark:text-rose-400/70">{language === 'ar' ? 'الرصيد المتبقي' : 'Pending'}</span>
-                        <span className="mt-0.5 text-xs font-bold text-rose-700 dark:text-rose-300"><Money value={fin.balance || 0} /></span>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })()}
             </div>
 
-            <div>
-              <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'} *</label>
-              <div className="flex gap-2">
-                <select {...register('warehouseId')} className="select flex-1" disabled={isLocked}>
-                  <option value="">{language === 'ar' ? 'اختر مستودع' : 'Select warehouse'}</option>
-                  {(Array.isArray(warehouses) ? warehouses : []).map((w) => (
-                    <option key={w._id} value={w._id}>
-                      {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
-                    </option>
-                  ))}
-                </select>
-                {!isLocked && (
-                  <button
-                    type="button"
-                    onClick={() => setShowWarehouseModal(true)}
-                    className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-slate-200/80 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
-                    title={language === 'ar' ? 'إنشاء مستودع' : 'Create warehouse'}
-                  >
-                    <WarehouseIcon className="h-4 w-4" />
-                  </button>
+            {/* Card 2: Supplier Info & Financials */}
+            <div className={`${shell} p-4 flex flex-col justify-between`}>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/[0.08]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {language === 'ar' ? 'المورد' : 'Supplier'}
+                </span>
+                <Building2 className="h-3.5 w-3.5 text-slate-400" />
+              </div>
+              <div className="mt-2.5">
+                <p className="font-semibold text-slate-900 dark:text-white text-[14px] line-clamp-1">
+                  {language === 'ar' ? order.supplierId?.nameAr || order.supplierId?.nameEn : order.supplierId?.nameEn || order.supplierId?.nameAr || '—'}
+                </p>
+                <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                  {order.supplierId?.phone || order.supplierId?.contactPerson || order.supplierId?.email || order.supplierId?.code || '—'}
+                </p>
+                {supplierFin && (
+                  <div className="mt-2 flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50/50 px-2.5 py-1.5 text-[11px] dark:border-blue-900/30 dark:bg-blue-950/20">
+                    <span className="text-blue-600 dark:text-blue-400 font-medium">{language === 'ar' ? 'رصيد المورد:' : 'Supplier Pend:'}</span>
+                    <span className="font-bold text-rose-600 dark:text-rose-400"><Money value={supplierFin.balance || 0} /></span>
+                  </div>
                 )}
               </div>
             </div>
 
-            <div>
-              <label className="label">{language === 'ar' ? 'العملة' : 'Currency'}</label>
-              <input {...register('currency')} className="input" disabled />
-            </div>
-
-            <div>
-              <label className="label">{language === 'ar' ? 'تاريخ الطلب' : 'Order date'}</label>
-              <div className="relative">
-                <Calendar className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input type="date" {...register('orderDate')} className="input ps-10" disabled={isLocked} />
-              </div>
-            </div>
-
-            <div>
-              <label className="label">{language === 'ar' ? 'تاريخ متوقع' : 'Expected date'}</label>
-              <div className="relative">
-                <Calendar className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input type="date" {...register('expectedDate')} className="input ps-10" disabled={isLocked} />
-              </div>
-            </div>
-
-            <div className="md:col-span-2 lg:col-span-3">
-              <label className="label">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
-              <textarea {...register('notes')} className="input" rows={3} disabled={isLocked} />
-            </div>
-            <div className="md:col-span-2 lg:col-span-3">
-              <label className="label">{language === 'ar' ? 'فاتورة المورد (PDF / صورة)' : 'Vendor bill (PDF / image)'}</label>
-              <PremiumFileDrop
-                language={language}
-                disabled={isLocked}
-                files={order?.attachments || []}
-                pendingFiles={pendingBills}
-                onAdd={(list) => {
-                  const file = list[0]
-                  if (!file) return
-                  if (isEdit && id) {
-                    uploadVendorBill(id, file)
-                      .then(() => {
-                        toast.success(language === 'ar' ? 'تم رفع المرفق' : 'Attachment uploaded')
-                        queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
-                      })
-                      .catch((err) => toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل الرفع' : 'Upload failed')))
-                  } else {
-                    setPendingBills((prev) => [...prev, file])
-                  }
-                }}
-                onRemovePending={(idx) => setPendingBills((prev) => prev.filter((_, i) => i !== idx))}
-              />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.04 }}
-          className={`${shell} p-5 sm:p-6`}
-        >
-          <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white/[0.08]">
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-                {language === 'ar' ? 'بنود الطلب' : 'Line items'}
-              </p>
-              <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-                {language === 'ar' ? 'المنتجات والكميات والتكاليف' : 'Products, quantities, and costs'}
-              </p>
-            </div>
-
-            {!isLocked && (
-              <button
-                type="button"
-                onClick={() => {
-                  append({
-                    productId: '',
-                    manualName: '',
-                    uom: 'PCE',
-                    description: '',
-                    productType: 'goods',
-                    quantityOrdered: 1,
-                    quantityReceived: 0,
-                    quantityReturned: 0,
-                    unitCost: 0,
-                    taxRate: 15,
-                  })
-                  setManualModes((p) => [...p, false])
-                }}
-                className={ghostBtn}
-              >
-                <Plus className="h-4 w-4 opacity-70" />
-                {language === 'ar' ? 'إضافة بند' : 'Add item'}
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            {fields.map((field, index) => {
-              const current = lineItems?.[index] || {}
-              const qty = Number(current?.quantityOrdered || 0)
-              const received = Number(current?.quantityReceived || 0)
-              const unit = Number(current?.unitCost || 0)
-              const taxRate = Number(current?.taxRate ?? 15)
-              const lineSubtotal = qty * unit
-              const lineTax = lineSubtotal * (taxRate / 100)
-              const lineTotal = lineSubtotal + lineTax
-              const returned = Number(current?.quantityReturned || 0)
-              const remaining = Math.max(0, qty - (received - returned))
-
-              return (
-                <div
-                  key={field.id}
-                  className="rounded-2xl border border-slate-100 p-4 dark:border-white/[0.08]"
-                >
-                  <div className="grid grid-cols-1 items-end gap-4 lg:grid-cols-12">
-                    <div className="lg:col-span-4">
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <label className="label mb-0">{language === 'ar' ? 'المنتج' : 'Product'} *</label>
-                        <div className="flex items-center gap-2">
-                          <ProductTypeToggle
-                            value={watch(`lineItems.${index}.productType`)}
-                            onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
-                            language={language}
-                          />
-                          {!isLocked && (
-                            <button
-                              type="button"
-                              onClick={() => toggleManualMode(index)}
-                              className="text-[11px] font-medium text-slate-500 underline underline-offset-2 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                            >
-                              {manualModes[index]
-                                ? language === 'ar'
-                                  ? 'اختر من قائمة'
-                                  : 'Select from list'
-                                : language === 'ar'
-                                  ? 'كتابة يدوية'
-                                  : 'Type manually'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <input type="hidden" {...register(`lineItems.${index}.productType`)} />
-                      {manualModes[index] ? (
-                        <input
-                          {...register(`lineItems.${index}.manualName`, { required: true })}
-                          placeholder={language === 'ar' ? 'اسم المنتج' : 'Product name'}
-                          className="input"
-                          disabled={isLocked}
-                        />
-                      ) : (
-                        <select
-                          {...register(`lineItems.${index}.productId`, {
-                            required: !manualModes[index],
-                            onChange: (e) => applyProductToLine(index, e.target.value),
-                          })}
-                          className="select"
-                          disabled={isLocked}
-                        >
-                          <option value="">{language === 'ar' ? 'اختر منتج' : 'Select product'}</option>
-                          {(products || []).map((p) => (
-                            <option key={p._id} value={p._id}>
-                              {productPickerLabel(p, language) || p.sku}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      {(current?.nameEn || current?.nameAr) && (
-                        <p className="mt-1.5 text-[11px] text-slate-500">
-                          <span dir="ltr">{current.nameEn || current.nameAr}</span>
-                          {current.nameEn && current.nameAr ? <span className="mx-1 text-slate-300">·</span> : null}
-                          {current.nameEn && current.nameAr ? <span dir="rtl">{current.nameAr}</span> : null}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="lg:col-span-2">
-                      <label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
-                      <Select
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        isDisabled={isLocked}
-                        value={
-                          watch(`lineItems.${index}.uom`)
-                            ? {
-                                value: watch(`lineItems.${index}.uom`),
-                                label: getUomLabel(watch(`lineItems.${index}.uom`), language)
-                              }
-                            : { value: 'PCE', label: getUomLabel('PCE', language) }
-                        }
-                        onChange={(option) => setValue(`lineItems.${index}.uom`, option ? option.value : 'PCE', { shouldValidate: true })}
-                        options={uomOptions.map((uom) => ({
-                          value: uom.code,
-                          label: language === 'ar' ? uom.labelAr : uom.labelEn
-                        }))}
-                        isSearchable
-                      />
-                    </div>
-
-                    <div className="lg:col-span-1">
-                      <label className="label">{language === 'ar' ? 'الكمية' : 'Qty'} *</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        {...register(`lineItems.${index}.quantityOrdered`, {
-                          valueAsNumber: true,
-                          required: true,
-                          min: 0,
-                        })}
-                        className="input"
-                        disabled={isLocked}
-                      />
-                    </div>
-
-                    <div className="lg:col-span-2">
-                      <label className="label">{language === 'ar' ? 'سعر الوحدة' : 'Unit cost'}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        {...register(`lineItems.${index}.unitCost`, { valueAsNumber: true, min: 0 })}
-                        className="input"
-                        disabled={isLocked}
-                      />
-                    </div>
-
-                    <div className="lg:col-span-1">
-                      <label className="label">{language === 'ar' ? 'الضريبة' : 'Tax'} %</label>
-                      <select
-                        {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })}
-                        className="select"
-                        disabled={isLocked}
-                      >
-                        <option value={15}>15%</option>
-                        <option value={0}>0%</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3 lg:col-span-2">
-                      <div className="flex-1 text-end">
-                        <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
-                          {t('total')}
-                        </p>
-                        <p className="text-[14px] font-semibold tabular-nums text-slate-900 dark:text-white">
-                          <Money value={lineTotal} />
-                        </p>
-                        {isEdit && (
-                          <p className="mt-1 text-[11px] text-slate-400">
-                            {language === 'ar' ? 'متبقي' : 'Remaining'}: {remaining}
-                          </p>
-                        )}
-                      </div>
-                      {!isLocked && fields.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => remove(index)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50 dark:hover:bg-rose-500/10"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <input type="hidden" {...register(`lineItems.${index}.quantityReceived`, { valueAsNumber: true })} />
-
-                  <div className="mt-4">
-                    <label className="label">{language === 'ar' ? 'وصف' : 'Description'}</label>
-                    <input {...register(`lineItems.${index}.description`)} className="input" disabled={isLocked} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.06 }}
-          className={`${shell} p-5 sm:p-6`}
-        >
-          <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white/[0.08]">
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-                {language === 'ar' ? 'التكلفة المرسية' : 'Landed cost'}
-              </p>
-              <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-                {language === 'ar'
-                  ? 'اختياري — الشحن والجمارك والتأمين تُوزَّع على بنود البضاعة عند الترحيل'
-                  : 'Optional — freight, customs, and insurance allocate onto goods when posted'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIncludeLandedCost((prev) => !prev)}
-              disabled={isLocked}
-              className={`${includeLandedCost ? primaryBtn : ghostBtn} px-3.5 py-2 text-[12px]`}
-            >
-              {includeLandedCost
-                ? (language === 'ar' ? 'إخفاء' : 'Hide')
-                : (language === 'ar' ? 'إضافة تكلفة مرسية' : 'Add landed cost')}
-            </button>
-          </div>
-          {includeLandedCost ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {landedCostLines.map((line, index) => (
-                <label key={line.type} className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                  {line.type === 'freight' ? (language === 'ar' ? 'شحن' : 'Freight')
-                    : line.type === 'customs_duty' ? (language === 'ar' ? 'جمارك' : 'Customs')
-                      : line.type === 'insurance' ? (language === 'ar' ? 'تأمين' : 'Insurance')
-                        : (language === 'ar' ? 'أخرى' : 'Other')}
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={line.amount}
-                    disabled={isLocked}
-                    placeholder="0.00"
-                    onChange={(e) => setLandedCostLines((prev) => prev.map((row, i) => (i === index ? { ...row, amount: e.target.value } : row)))}
-                    className="input mt-1.5 font-normal normal-case tracking-normal"
-                  />
-                </label>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[13px] text-slate-400">
-              {language === 'ar'
-                ? 'يمكنك حفظ الطلب بدون تكلفة مرسية وإضافتها لاحقاً من صفحة التكاليف المرسية.'
-                : 'Save the order without landed cost, or add it later from Landed cost.'}
-            </p>
-          )}
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08 }}
-          className={`${shell} p-5 sm:p-6`}
-        >
-          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-            <div className="w-full space-y-2.5 md:w-72">
-              <div className="flex justify-between text-[13px]">
-                <span className="text-slate-500">{t('subtotal')}</span>
-                <span className="tabular-nums text-slate-800 dark:text-slate-100">
-                  <Money value={totals.subtotal} />
+            {/* Card 3: Logistics, Warehouse & Dates */}
+            <div className={`${shell} p-4 flex flex-col justify-between`}>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/[0.08]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {language === 'ar' ? 'المستودع والمواعيد' : 'Logistics & Dates'}
                 </span>
+                <WarehouseIcon className="h-3.5 w-3.5 text-slate-400" />
               </div>
-              <div className="flex justify-between text-[13px]">
-                <span className="text-slate-500">{t('tax')}</span>
-                <span className="tabular-nums text-slate-800 dark:text-slate-100">
-                  <Money value={totals.totalTax} />
-                </span>
-              </div>
-              <div className="flex justify-between border-t border-slate-100 pt-3 text-[15px] font-semibold dark:border-white/[0.08]">
-                <span className="text-slate-900 dark:text-white">{t('total')}</span>
-                <span className="tabular-nums text-slate-900 dark:text-white">
-                  <Money value={totals.grandTotal} />
-                </span>
-              </div>
-              {order && order.paidAmount > 0 && (
-                <div className="flex justify-between text-[13px] text-emerald-600 dark:text-emerald-400">
-                  <span>{language === 'ar' ? 'المدفوع' : 'Paid Amount'}</span>
-                  <span className="tabular-nums">
-                    -<Money value={order.paidAmount} />
+              <div className="mt-2.5 space-y-1.5 text-[12px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">{language === 'ar' ? 'المستودع:' : 'Warehouse:'}</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {language === 'ar' ? order.warehouseId?.nameAr || order.warehouseId?.nameEn : order.warehouseId?.nameEn || order.warehouseId?.nameAr || '—'}
                   </span>
                 </div>
-              )}
-              {!isEdit && (
-                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.08]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-medium text-emerald-600 dark:text-emerald-400">
-                      {language === 'ar' ? 'دفعة مقدمة' : 'Advance Payment'}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">{language === 'ar' ? 'تاريخ الطلب:' : 'Order Date:'}</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">{formatDateForInput(order.orderDate) || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">{language === 'ar' ? 'المتوقع:' : 'Expected:'}</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">{formatDateForInput(order.expectedDate) || '—'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Receiving & Backorder Status */}
+            <div className={`${shell} p-4 flex flex-col justify-between`}>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/[0.08]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {language === 'ar' ? 'حالة الاستلام والطلب المتبقي' : 'Receiving & Backorder'}
+                </span>
+                <Package className="h-3.5 w-3.5 text-slate-400" />
+              </div>
+              <div className="mt-2.5">
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="font-semibold text-slate-900 dark:text-white">
+                    {totalReceivedQty} / {totalOrderedQty} {language === 'ar' ? 'مستلم' : 'Received'}
+                  </span>
+                  {totalBackorderQty > 0 ? (
+                    <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300">
+                      {language === 'ar' ? `متبقي (Backorder): ${totalBackorderQty}` : `Backorder: ${totalBackorderQty}`}
                     </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      {...register('initialPaidAmount')}
-                      placeholder="0.00"
-                      className="input !py-1 !text-right !w-28 text-sm font-medium"
-                    />
-                  </div>
-                  {Number(watch('initialPaidAmount') || 0) > 0 && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="flex gap-2">
-                      <select {...register('initialPaymentMethod')} className="select !py-1.5 !text-xs flex-1">
-                        <option value="transfer">{language === 'ar' ? 'حوالة بنكية' : 'Bank Transfer'}</option>
-                        <option value="cash">{language === 'ar' ? 'كاش' : 'Cash'}</option>
-                        <option value="card">{language === 'ar' ? 'شبكة / بطاقة' : 'Card'}</option>
-                        <option value="cheque">{language === 'ar' ? 'شيك' : 'Cheque'}</option>
-                      </select>
-                      <input
-                        {...register('initialPaymentReference')}
-                        placeholder={language === 'ar' ? 'رقم المرجع...' : 'Ref...'}
-                        className="input !py-1.5 !text-xs flex-1"
-                      />
-                    </motion.div>
+                  ) : (
+                    <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300">
+                      {language === 'ar' ? 'مكتمل' : 'Fulfilled'}
+                    </span>
                   )}
                 </div>
-              )}
-              {order && (
-                <div className="flex justify-between border-t border-slate-100 pt-2 text-[13px] font-semibold dark:border-white/[0.08]">
-                  <span className="text-slate-900 dark:text-white">{language === 'ar' ? 'المتبقي' : 'Balance Due'}</span>
-                  <span className="tabular-nums text-slate-900 dark:text-white">
-                    <Money value={order.balanceDue ?? totals.grandTotal} />
-                  </span>
+                {/* Progress bar */}
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                  <div
+                    className={`h-full transition-all duration-500 ${totalReceivedQty >= totalOrderedQty ? 'bg-emerald-500' : 'bg-teal-600'}`}
+                    style={{ width: `${fulfillmentPercent}%` }}
+                  />
                 </div>
-              )}
-              {!isEdit && (
-                <div className="flex justify-between border-t border-slate-100 pt-2 text-[13px] font-semibold dark:border-white/[0.08]">
-                  <span className="text-slate-900 dark:text-white">{language === 'ar' ? 'المتبقي' : 'Balance Due'}</span>
-                  <span className="tabular-nums text-slate-900 dark:text-white">
-                    <Money value={Math.max(0, totals.grandTotal - Number(watch('initialPaidAmount') || 0))} />
-                  </span>
+                <div className="mt-2.5 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400">{fulfillmentPercent}% {language === 'ar' ? 'منجز' : 'Fulfilled'}</span>
+                  {totalBackorderQty > 0 && ['approved', 'sent', 'partially_received'].includes(order.status) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickReceiveModal(true)}
+                      className="text-[11px] font-semibold text-teal-700 hover:underline dark:text-teal-400"
+                    >
+                      {language === 'ar' ? 'استلام سريع' : 'Quick Receive'}
+                    </button>
+                  )}
                 </div>
-              )}
+              </div>
+            </div>
+          </div>
+
+          {/* Unified High-Density Line Items Table (Ultra-Clean & Compact) */}
+          <div className={`${shell} p-4 sm:p-5`}>
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-[14px] font-semibold text-slate-950 dark:text-white">
+                  {language === 'ar' ? 'بنود طلب الشراء' : 'Order Line Items'}
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {language === 'ar' ? 'الكميات، الاستلام، المتبقي والتكاليف' : 'Quantities, receiving progress, and costs'}
+                </p>
+              </div>
+              <span className="text-[11px] font-medium text-slate-500">
+                {orderLineItems.length} {language === 'ar' ? 'بند' : 'Items'}
+              </span>
             </div>
 
-            <div className="hidden gap-3 md:flex">
-              <button type="button" onClick={() => navigate('/app/dashboard/purchases/orders')} className={ghostBtn}>
-                {t('cancel')}
-              </button>
-              <button type="submit" disabled={saveMutation.isPending || isLocked} className={primaryBtn}>
-                {saveMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-white/[0.08]">
+              <table className="w-full text-start text-[12px]">
+                <thead className="bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:bg-white/[0.03]">
+                  <tr>
+                    <th className="px-3.5 py-2.5 text-start w-10">#</th>
+                    <th className="px-3.5 py-2.5 text-start">{language === 'ar' ? 'المنتج / الوصف' : 'Product / Description'}</th>
+                    <th className="px-3.5 py-2.5 text-start">{language === 'ar' ? 'النوع' : 'Type'}</th>
+                    <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'الوحدة' : 'UOM'}</th>
+                    <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'المطلوب' : 'Ordered'}</th>
+                    <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'المستلم' : 'Received'}</th>
+                    <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'المتبقي (Backorder)' : 'Backorder'}</th>
+                    <th className="px-3.5 py-2.5 text-end">{language === 'ar' ? 'سعر الوحدة' : 'Unit Cost'}</th>
+                    <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'الضريبة' : 'Tax'}</th>
+                    <th className="px-3.5 py-2.5 text-end">{language === 'ar' ? 'الإجمالي' : 'Total'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06]">
+                  {orderLineItems.map((li, idx) => {
+                    const ordered = Number(li.quantityOrdered || 0)
+                    const rec = Number(li.quantityReceived || 0)
+                    const backorder = Math.max(0, ordered - rec)
+                    const unit = Number(li.unitCost || 0)
+                    const taxRate = Number(li.taxRate ?? 15)
+                    const lineSub = ordered * unit
+                    const lineTot = lineSub + (lineSub * taxRate / 100)
+                    const name = language === 'ar'
+                      ? li.productId?.nameAr || li.productId?.nameEn || li.manualName || li.description
+                      : li.productId?.nameEn || li.productId?.nameAr || li.manualName || li.description
+
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02]">
+                        <td className="px-3.5 py-2 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                        <td className="px-3.5 py-2">
+                          <p className="font-semibold text-slate-900 dark:text-white text-[13px]">{name || '—'}</p>
+                          {li.productId?.sku && (
+                            <span className="font-mono text-[10px] text-slate-400">SKU: {li.productId.sku}</span>
+                          )}
+                        </td>
+                        <td className="px-3.5 py-2">
+                          <span className="inline-flex rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                            {li.productType === 'service' ? (language === 'ar' ? 'خدمة' : 'Service') : (language === 'ar' ? 'بضاعة' : 'Goods')}
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2 text-center text-slate-500 font-medium">{li.uom || 'PCE'}</td>
+                        <td className="px-3.5 py-2 text-center font-semibold text-slate-900 dark:text-white tabular-nums">{ordered}</td>
+                        <td className="px-3.5 py-2 text-center font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{rec}</td>
+                        <td className="px-3.5 py-2 text-center tabular-nums">
+                          {backorder > 0 ? (
+                            <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300">
+                              {backorder}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 dark:text-slate-600 font-mono">0</span>
+                          )}
+                        </td>
+                        <td className="px-3.5 py-2 text-end text-slate-700 dark:text-slate-300 font-medium tabular-nums"><Money value={unit} /></td>
+                        <td className="px-3.5 py-2 text-center text-slate-500">{taxRate}%</td>
+                        <td className="px-3.5 py-2 text-end font-bold text-slate-900 dark:text-white tabular-nums"><Money value={lineTot} /></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Bottom Mini Shelf: Notes, Vendor Bill, Related Documents */}
+            <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-3 border-t border-slate-100 pt-3 dark:border-white/[0.08] text-[12px]">
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  {language === 'ar' ? 'ملاحظات الطلب' : 'Notes'}
+                </span>
+                <p className="text-slate-600 dark:text-slate-300 text-[11px] italic">
+                  {order.notes || (language === 'ar' ? 'لا توجد ملاحظات' : 'No notes')}
+                </p>
+              </div>
+
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  {language === 'ar' ? 'فاتورة المورد المرفقة' : 'Vendor Bill Attachment'}
+                </span>
+                {(order?.attachments || []).length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openVendorBill(order.attachments[0])}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 hover:underline dark:text-teal-400"
+                    >
+                      <Paperclip className="h-3 w-3" />
+                      {order.attachments[0]?.name || (language === 'ar' ? 'عرض الفاتورة' : 'View Bill')}
+                    </button>
+                  </div>
                 ) : (
-                  <>
-                    <Save className="h-4 w-4 opacity-80" />
-                    {t('save')}
-                  </>
+                  <span className="text-slate-400 text-[11px]">{language === 'ar' ? 'لا يوجد مرفق' : 'No attachment'}</span>
                 )}
-              </button>
+              </div>
+
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  {language === 'ar' ? 'المستندات المرتبطة' : 'Linked Records'}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(order.related?.grns || []).map((g) => (
+                    <button
+                      key={g._id}
+                      type="button"
+                      onClick={() => navigate(`/app/dashboard/purchases/grn/${g._id}`)}
+                      className="inline-flex rounded-lg bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-800 hover:bg-teal-100 dark:bg-teal-900/30 dark:text-teal-300"
+                    >
+                      {g.grnNumber}
+                    </button>
+                  ))}
+                  {(order.related?.invoices || []).map((inv) => (
+                    <button
+                      key={inv._id}
+                      type="button"
+                      onClick={() => navigate(`/app/dashboard/invoices/${inv._id}`)}
+                      className="inline-flex rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300"
+                    >
+                      {inv.invoiceNumber}
+                    </button>
+                  ))}
+                  {!(order.related?.grns?.length || order.related?.invoices?.length) && (
+                    <span className="text-slate-400 text-[11px]">—</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>
-      </form>
+      )}
 
-      {/* Sticky primary save */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/80 bg-white/90 px-4 py-3 backdrop-blur-md dark:border-white/10 dark:bg-[#0c111a]/90 md:hidden">
-        <div className="mx-auto flex max-w-lg gap-2">
-          <button
-            type="button"
-            onClick={() => navigate('/app/dashboard/purchases/orders')}
-            className={`${ghostBtn} flex-1 justify-center`}
-          >
-            {t('cancel')}
-          </button>
-          <button
-            type="submit"
-            form="po-form"
-            disabled={saveMutation.isPending || isLocked}
-            className={`${primaryBtn} flex-1 justify-center`}
-          >
-            {saveMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <Save className="h-4 w-4 opacity-80" />
-                {t('save')}
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {isEdit && order && ['approved', 'partially_received'].includes(order.status) && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`${shell} p-5 sm:p-6`}>
-          <div className="mb-5 border-b border-slate-100 pb-4 dark:border-white/[0.08]">
-            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-              {language === 'ar' ? 'استلام المخزون' : 'Receive stock'}
-            </p>
-            <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-              {language === 'ar' ? 'إنشاء إشعار استلام وتحديث المخزون' : 'Create a GRN and post warehouse stock'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-1">
-              <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
-              <select
-                value={receiveWarehouseId}
-                onChange={(e) => setReceiveWarehouseId(e.target.value)}
-                className="select"
-              >
-                {(warehouses || []).map((w) => (
-                  <option key={w._id} value={w._id}>
-                    {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
-                  </option>
-                ))}
-              </select>
+      {/* FULL FORM EDITING VIEW (When creating new or toggled into edit mode) */}
+      {(!isEdit || !isViewMode) && (
+        <form id="po-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`${shell} p-4 sm:p-5`}>
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/[0.08]">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                  {language === 'ar' ? 'معلومات الطلب' : 'Order information'}
+                </p>
+                <p className="text-[12px] text-slate-500 dark:text-slate-400">
+                  {language === 'ar' ? 'المورد والمستودع والتواريخ' : 'Supplier, warehouse, and dates'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLivePreviewModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-[12px] font-semibold text-teal-800 transition hover:bg-teal-100 dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-300"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  {language === 'ar' ? 'معاينة حية' : 'Live preview'}
+                </button>
+              </div>
             </div>
 
-            <div className="lg:col-span-2">
-              <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-white/[0.08]">
-                <div className="table-container">
-                  <table className="table">
-                    <thead>
+            <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <label className="label text-xs">{language === 'ar' ? 'رقم الطلب' : 'PO number'}</label>
+                <input
+                  {...register('poNumber')}
+                  className="input !py-1.5 text-xs"
+                  placeholder={language === 'ar' ? 'تلقائي إذا تركته فارغاً' : 'Auto if left empty'}
+                  disabled={isEdit}
+                />
+              </div>
+
+              <div>
+                <label className="label text-xs">{language === 'ar' ? 'المورد' : 'Supplier'} *</label>
+                <div className="flex gap-2">
+                  <select {...register('supplierId', { required: true })} className="select flex-1 !py-1.5 text-xs" disabled={isLocked}>
+                    <option value="">{language === 'ar' ? 'اختر مورد' : 'Select supplier'}</option>
+                    {(suppliers || []).map((s) => (
+                      <option key={s._id} value={s._id}>
+                        {(language === 'ar' ? s.nameAr || s.nameEn : s.nameEn) || s.code}
+                      </option>
+                    ))}
+                  </select>
+                  {!isLocked && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSupplierModal(true)}
+                      className="inline-flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl border border-slate-200/80 text-slate-600 transition hover:border-slate-300 dark:border-white/10 dark:text-slate-300"
+                      title={language === 'ar' ? 'إضافة مورد جديد' : 'Add new supplier'}
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {errors.supplierId && (
+                  <p className="mt-1 text-xs text-rose-600">{language === 'ar' ? 'المورد مطلوب' : 'Supplier is required'}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="label text-xs">{language === 'ar' ? 'المستودع' : 'Warehouse'} *</label>
+                <div className="flex gap-2">
+                  <select {...register('warehouseId')} className="select flex-1 !py-1.5 text-xs" disabled={isLocked}>
+                    <option value="">{language === 'ar' ? 'اختر مستودع' : 'Select warehouse'}</option>
+                    {(Array.isArray(warehouses) ? warehouses : []).map((w) => (
+                      <option key={w._id} value={w._id}>
+                        {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
+                      </option>
+                    ))}
+                  </select>
+                  {!isLocked && (
+                    <button
+                      type="button"
+                      onClick={() => setShowWarehouseModal(true)}
+                      className="inline-flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl border border-slate-200/80 text-slate-600 transition hover:border-slate-300 dark:border-white/10 dark:text-slate-300"
+                      title={language === 'ar' ? 'إنشاء مستودع' : 'Create warehouse'}
+                    >
+                      <WarehouseIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="label text-xs">{language === 'ar' ? 'تاريخ الطلب' : 'Order date'}</label>
+                <div className="relative">
+                  <Calendar className="pointer-events-none absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <input type="date" {...register('orderDate')} className="input ps-9 !py-1.5 text-xs" disabled={isLocked} />
+                </div>
+              </div>
+
+              <div>
+                <label className="label text-xs">{language === 'ar' ? 'تاريخ متوقع' : 'Expected date'}</label>
+                <div className="relative">
+                  <Calendar className="pointer-events-none absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <input type="date" {...register('expectedDate')} className="input ps-9 !py-1.5 text-xs" disabled={isLocked} />
+                </div>
+              </div>
+
+              <div>
+                <label className="label text-xs">{language === 'ar' ? 'العملة' : 'Currency'}</label>
+                <input {...register('currency')} className="input !py-1.5 text-xs" disabled />
+              </div>
+
+              <div className="md:col-span-2 lg:col-span-3">
+                <label className="label text-xs">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
+                <textarea {...register('notes')} className="input text-xs" rows={2} disabled={isLocked} />
+              </div>
+
+              <div className="md:col-span-2 lg:col-span-3">
+                <label className="label text-xs">{language === 'ar' ? 'فاتورة المورد (PDF / صورة)' : 'Vendor bill (PDF / image)'}</label>
+                <PremiumFileDrop
+                  language={language}
+                  disabled={isLocked}
+                  files={order?.attachments || []}
+                  pendingFiles={pendingBills}
+                  onAdd={(list) => {
+                    const file = list[0]
+                    if (!file) return
+                    if (isEdit && id) {
+                      uploadVendorBill(id, file)
+                        .then(() => {
+                          toast.success(language === 'ar' ? 'تم رفع المرفق' : 'Attachment uploaded')
+                          queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
+                        })
+                        .catch((err) => toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل الرفع' : 'Upload failed')))
+                    } else {
+                      setPendingBills((prev) => [...prev, file])
+                    }
+                  }}
+                  onRemovePending={(idx) => setPendingBills((prev) => prev.filter((_, i) => i !== idx))}
+                />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Line Items Card */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`${shell} p-4 sm:p-5`}>
+            <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-white/[0.08]">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                  {language === 'ar' ? 'بنود الطلب' : 'Line items'}
+                </p>
+                <p className="text-[12px] text-slate-500 dark:text-slate-400">
+                  {language === 'ar' ? 'المنتجات والكميات والتكاليف' : 'Products, quantities, and costs'}
+                </p>
+              </div>
+
+              {!isLocked && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    append({
+                      productId: '',
+                      manualName: '',
+                      uom: 'PCE',
+                      description: '',
+                      productType: 'goods',
+                      quantityOrdered: 1,
+                      quantityReceived: 0,
+                      quantityReturned: 0,
+                      unitCost: 0,
+                      taxRate: 15,
+                    })
+                    setManualModes((p) => [...p, false])
+                  }}
+                  className={ghostBtn}
+                >
+                  <Plus className="h-3.5 w-3.5 opacity-70" />
+                  {language === 'ar' ? 'إضافة بند' : 'Add item'}
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-2.5">
+              {fields.map((field, index) => {
+                const current = lineItems?.[index] || {}
+                const qty = Number(current?.quantityOrdered || 0)
+                const unit = Number(current?.unitCost || 0)
+                const taxRate = Number(current?.taxRate ?? 15)
+                const lineSubtotal = qty * unit
+                const lineTax = lineSubtotal * (taxRate / 100)
+                const lineTotal = lineSubtotal + lineTax
+
+                return (
+                  <div key={field.id} className="rounded-xl border border-slate-100 p-3 dark:border-white/[0.08]">
+                    <div className="grid grid-cols-1 items-end gap-3 lg:grid-cols-12">
+                      <div className="lg:col-span-4">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <label className="label mb-0 text-xs">{language === 'ar' ? 'المنتج' : 'Product'} *</label>
+                          <div className="flex items-center gap-2">
+                            <ProductTypeToggle
+                              value={watch(`lineItems.${index}.productType`)}
+                              onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
+                              language={language}
+                            />
+                            {!isLocked && (
+                              <button
+                                type="button"
+                                onClick={() => toggleManualMode(index)}
+                                className="text-[11px] font-medium text-slate-500 underline underline-offset-2 hover:text-slate-800 dark:text-slate-400"
+                              >
+                                {manualModes[index]
+                                  ? language === 'ar' ? 'اختر من قائمة' : 'List'
+                                  : language === 'ar' ? 'كتابة يدوية' : 'Custom'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <input type="hidden" {...register(`lineItems.${index}.productType`)} />
+                        {manualModes[index] ? (
+                          <input
+                            {...register(`lineItems.${index}.manualName`, { required: true })}
+                            placeholder={language === 'ar' ? 'اسم المنتج' : 'Product name'}
+                            className="input !py-1.5 text-xs"
+                            disabled={isLocked}
+                          />
+                        ) : (
+                          <select
+                            {...register(`lineItems.${index}.productId`, {
+                              required: !manualModes[index],
+                              onChange: (e) => applyProductToLine(index, e.target.value),
+                            })}
+                            className="select !py-1.5 text-xs"
+                            disabled={isLocked}
+                          >
+                            <option value="">{language === 'ar' ? 'اختر منتج' : 'Select product'}</option>
+                            {(products || []).map((p) => (
+                              <option key={p._id} value={p._id}>
+                                {productPickerLabel(p, language) || p.sku}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+
+                      <div className="lg:col-span-2">
+                        <label className="label text-xs">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
+                        <Select
+                          className="react-select-container text-xs"
+                          classNamePrefix="react-select"
+                          isDisabled={isLocked}
+                          value={
+                            watch(`lineItems.${index}.uom`)
+                              ? {
+                                  value: watch(`lineItems.${index}.uom`),
+                                  label: getUomLabel(watch(`lineItems.${index}.uom`), language)
+                                }
+                              : { value: 'PCE', label: getUomLabel('PCE', language) }
+                          }
+                          onChange={(option) => setValue(`lineItems.${index}.uom`, option ? option.value : 'PCE', { shouldValidate: true })}
+                          options={uomOptions.map((uom) => ({
+                            value: uom.code,
+                            label: language === 'ar' ? uom.labelAr : uom.labelEn
+                          }))}
+                          isSearchable
+                        />
+                      </div>
+
+                      <div className="lg:col-span-1">
+                        <label className="label text-xs">{language === 'ar' ? 'الكمية' : 'Qty'} *</label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          {...register(`lineItems.${index}.quantityOrdered`, {
+                            valueAsNumber: true,
+                            required: true,
+                            min: 1,
+                          })}
+                          className="input !py-1.5 text-xs text-center font-bold"
+                          disabled={isLocked}
+                        />
+                      </div>
+
+                      <div className="lg:col-span-2">
+                        <label className="label text-xs">{language === 'ar' ? 'سعر الوحدة' : 'Unit cost'}</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          {...register(`lineItems.${index}.unitCost`, { valueAsNumber: true, min: 0 })}
+                          className="input !py-1.5 text-xs text-end"
+                          disabled={isLocked}
+                        />
+                      </div>
+
+                      <div className="lg:col-span-1">
+                        <label className="label text-xs">{language === 'ar' ? 'الضريبة' : 'Tax'} %</label>
+                        <select
+                          {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })}
+                          className="select !py-1.5 text-xs"
+                          disabled={isLocked}
+                        >
+                          <option value={15}>15%</option>
+                          <option value={0}>0%</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 lg:col-span-2">
+                        <div className="flex-1 text-end">
+                          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{t('total')}</p>
+                          <p className="text-[13px] font-bold tabular-nums text-slate-900 dark:text-white">
+                            <Money value={lineTotal} />
+                          </p>
+                        </div>
+                        {!isLocked && fields.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => remove(index)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+
+          {/* Financial Summary & Save Actions */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`${shell} p-4 sm:p-5`}>
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div className="w-full space-y-1.5 md:w-80 text-[12px]">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">{t('subtotal')}</span>
+                  <span className="tabular-nums text-slate-800 dark:text-slate-100 font-semibold"><Money value={totals.subtotal} /></span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">{t('tax')} (15%)</span>
+                  <span className="tabular-nums text-slate-800 dark:text-slate-100 font-semibold"><Money value={totals.totalTax} /></span>
+                </div>
+                <div className="flex justify-between border-t border-slate-100 pt-2 text-[14px] font-bold dark:border-white/[0.08]">
+                  <span className="text-slate-900 dark:text-white">{t('total')}</span>
+                  <span className="tabular-nums text-slate-900 dark:text-white"><Money value={totals.grandTotal} /></span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLivePreviewModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-teal-300 bg-teal-50 px-4 py-2 text-[13px] font-semibold text-teal-800 transition hover:bg-teal-100 dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-300"
+                >
+                  <Eye className="h-4 w-4" />
+                  {language === 'ar' ? 'معاينة حية' : 'Live preview'}
+                </button>
+                <button type="submit" disabled={saveMutation.isPending || isLocked} className={primaryBtn}>
+                  {saveMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 opacity-80" />
+                      {language === 'ar' ? 'حفظ ومعاينة' : 'Save & Preview'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </form>
+      )}
+
+      {/* LIVE PREVIEW MODAL WITH APPROVE & EDIT OPTIONS */}
+      <AnimatePresence>
+        {showLivePreviewModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-[#0c111a] border border-slate-200 dark:border-white/10 flex flex-col"
+            >
+              {/* Modal Top Bar */}
+              <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-100 bg-white/90 px-6 py-3.5 backdrop-blur-md dark:border-white/[0.08] dark:bg-[#0c111a]/90">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+                    <Eye className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white">
+                      {language === 'ar' ? 'معاينة طلب الشراء (Live Preview)' : 'Purchase Order Live Preview'}
+                    </h3>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handlePrintPdf(createdOrderForPreview || order)}
+                    className={ghostBtn}
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    {language === 'ar' ? 'طباعة' : 'Print'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadPdf(createdOrderForPreview || order)}
+                    className={ghostBtn}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    {language === 'ar' ? 'PDF' : 'PDF'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLivePreviewModal(false)}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-slate-300"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Printable Document Style Card inside Modal */}
+              <div className="p-6 sm:p-8 space-y-6 flex-1 text-slate-900 dark:text-slate-100">
+                {/* Document Header */}
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-slate-200 pb-5 dark:border-white/10">
+                  <div>
+                    <h2 className="text-xl font-extrabold tracking-tight text-slate-950 dark:text-white">
+                      {tenant?.business?.legalNameEn || tenant?.name || 'Maqder POS'}
+                    </h2>
+                    {tenant?.business?.legalNameAr && (
+                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{tenant.business.legalNameAr}</p>
+                    )}
+                    {tenant?.business?.vatNumber && (
+                      <p className="mt-1 text-xs font-mono text-slate-500">
+                        {language === 'ar' ? 'الرقم الضريبي:' : 'VAT No:'} {tenant.business.vatNumber}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-start sm:text-end">
+                    <span className="inline-block rounded-xl bg-slate-900 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white dark:bg-white dark:text-slate-950">
+                      {language === 'ar' ? 'أمر شراء' : 'PURCHASE ORDER'}
+                    </span>
+                    <p className="mt-2 font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
+                      {(createdOrderForPreview || order)?.poNumber || watch('poNumber') || 'PO-DRAFT'}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {language === 'ar' ? 'التاريخ:' : 'Date:'} {watch('orderDate') || formatDateForInput(new Date())}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2-Column Info Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-2xl bg-slate-50 p-4 dark:bg-white/[0.03] text-xs">
+                  <div>
+                    <span className="font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                      {language === 'ar' ? 'إلى المورد / Supplier' : 'Vendor / Supplier'}
+                    </span>
+                    {(() => {
+                      const suppId = watch('supplierId') || order?.supplierId?._id || order?.supplierId
+                      const supp = suppliers?.find(s => s._id === suppId) || order?.supplierId
+                      return (
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-sm text-slate-900 dark:text-white">
+                            {supp?.nameEn || supp?.nameAr || '—'}
+                          </p>
+                          {supp?.nameAr && supp?.nameEn && supp.nameAr !== supp.nameEn && (
+                            <p className="text-slate-600 dark:text-slate-300">{supp.nameAr}</p>
+                          )}
+                          {supp?.phone && <p className="text-slate-500">{supp.phone}</p>}
+                          {supp?.vatNumber && <p className="font-mono text-slate-500">VAT: {supp.vatNumber}</p>}
+                        </div>
+                      )
+                    })()}
+                  </div>
+
+                  <div>
+                    <span className="font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                      {language === 'ar' ? 'التسليم والمستودع' : 'Delivery & Warehouse'}
+                    </span>
+                    {(() => {
+                      const whId = watch('warehouseId') || order?.warehouseId?._id || order?.warehouseId
+                      const wh = warehouses?.find(w => w._id === whId) || order?.warehouseId
+                      return (
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-slate-900 dark:text-white">
+                            {wh?.nameEn || wh?.nameAr || '—'}
+                          </p>
+                          <p className="text-slate-500">
+                            {language === 'ar' ? 'تاريخ التسليم المتوقع:' : 'Expected Date:'} {watch('expectedDate') || '—'}
+                          </p>
+                          <p className="text-slate-500">
+                            {language === 'ar' ? 'العملة:' : 'Currency:'} {watch('currency') || 'SAR'}
+                          </p>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                </div>
+
+                {/* Items Table */}
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">
+                  <table className="w-full text-start text-xs">
+                    <thead className="bg-slate-100/70 font-bold uppercase tracking-wider text-slate-600 dark:bg-white/[0.05] dark:text-slate-300">
                       <tr>
-                        <th className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
-                          {language === 'ar' ? 'المنتج' : 'Product'}
-                        </th>
-                        <th className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
-                          {language === 'ar' ? 'المتبقي' : 'Remaining'}
-                        </th>
-                        <th className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
-                          {language === 'ar' ? 'استلام' : 'Receive'}
-                        </th>
+                        <th className="p-3 text-start">#</th>
+                        <th className="p-3 text-start">{language === 'ar' ? 'المنتج' : 'Product'}</th>
+                        <th className="p-3 text-center">{language === 'ar' ? 'الوحدة' : 'UOM'}</th>
+                        <th className="p-3 text-center">{language === 'ar' ? 'الكمية' : 'Qty'}</th>
+                        <th className="p-3 text-end">{language === 'ar' ? 'سعر الوحدة' : 'Unit Cost'}</th>
+                        <th className="p-3 text-center">{language === 'ar' ? 'الضريبة' : 'Tax'}</th>
+                        <th className="p-3 text-end">{language === 'ar' ? 'المجموع' : 'Total'}</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {(order.lineItems || []).map((li, rowIndex) => {
-                        const productId = li?.productId?._id || li?.productId
-                        const name = li?.manualName
-                          ? `${li.manualName}${li.uom ? ` (${li.uom})` : ''}`
-                          : language === 'ar'
-                            ? li?.productId?.nameAr || li?.productId?.nameEn
-                            : li?.productId?.nameEn || li?.productId?.nameAr
-                        const remaining = Math.max(
-                          0,
-                          Number(li.quantityOrdered || 0) - (Number(li.quantityReceived || 0) - Number(li.quantityReturned || 0))
-                        )
+                    <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+                      {(lineItems || []).map((li, idx) => {
+                        const product = products?.find(p => p._id === li.productId)
+                        const name = product ? (language === 'ar' ? product.nameAr || product.nameEn : product.nameEn || product.nameAr) : (li.manualName || li.description || '—')
+                        const qty = Number(li.quantityOrdered || 0)
+                        const unit = Number(li.unitCost || 0)
+                        const tax = Number(li.taxRate ?? 15)
+                        const sub = qty * unit
+                        const tot = sub + (sub * tax / 100)
 
                         return (
-                          <tr key={productId || li?.manualName || rowIndex}>
-                            <td className="text-[13px] font-medium text-slate-900 dark:text-white">{name || '—'}</td>
-                            <td className="tabular-nums text-slate-600 dark:text-slate-300">{remaining}</td>
-                            <td>
-                              <input
-                                type="number"
-                                min="0"
-                                step="1"
-                                max={remaining}
-                                value={receiveQty?.[productId] ?? ''}
-                                onChange={(e) =>
-                                  setReceiveQty((prev) => ({ ...prev, [productId]: e.target.value }))
-                                }
-                                className="input"
-                                placeholder="0"
-                                disabled={remaining <= 0}
-                              />
-                            </td>
+                          <tr key={idx}>
+                            <td className="p-3 font-mono text-slate-400">{idx + 1}</td>
+                            <td className="p-3 font-semibold text-slate-900 dark:text-white">{name}</td>
+                            <td className="p-3 text-center text-slate-500">{li.uom || 'PCE'}</td>
+                            <td className="p-3 text-center font-bold">{qty}</td>
+                            <td className="p-3 text-end tabular-nums"><Money value={unit} /></td>
+                            <td className="p-3 text-center text-slate-500">{tax}%</td>
+                            <td className="p-3 text-end font-bold tabular-nums"><Money value={tot} /></td>
                           </tr>
                         )
                       })}
                     </tbody>
                   </table>
                 </div>
+
+                {/* Summary box */}
+                <div className="flex justify-end">
+                  <div className="w-64 space-y-1.5 text-xs rounded-2xl bg-slate-50 p-4 dark:bg-white/[0.03]">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">{language === 'ar' ? 'المجموع الفرعي' : 'Subtotal'}</span>
+                      <span className="font-semibold tabular-nums"><Money value={totals.subtotal} /></span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">{language === 'ar' ? 'ضريبة القيمة المضافة (15%)' : 'VAT (15%)'}</span>
+                      <span className="font-semibold tabular-nums"><Money value={totals.totalTax} /></span>
+                    </div>
+                    <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-bold text-slate-950 dark:text-white dark:border-white/10">
+                      <span>{language === 'ar' ? 'الإجمالي النهائي' : 'Grand Total'}</span>
+                      <span className="tabular-nums"><Money value={totals.grandTotal} /></span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={submitReceive}
-                  disabled={receiveMutation.isPending}
-                  className={primaryBtn}
-                >
-                  {receiveMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <WarehouseIcon className="h-4 w-4 opacity-80" />
-                      {language === 'ar' ? 'تسجيل الاستلام' : 'Receive'}
-                    </>
-                  )}
-                </button>
+              {/* Modal Action Bar (Prominent Approve or Edit options) */}
+              <div className="sticky bottom-0 z-20 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 bg-white/90 px-6 py-4 backdrop-blur-md dark:border-white/[0.08] dark:bg-[#0c111a]/90">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">
+                    {language === 'ar' ? 'اختر الإجراء المطلوب:' : 'Choose action:'}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLivePreviewModal(false)
+                      setIsViewMode(false)
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    {language === 'ar' ? 'تعديل الطلب' : 'Edit Order'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetId = createdOrderForPreview?._id || order?._id || id
+                      if (targetId) {
+                        approveMutation.mutate(targetId)
+                        setShowLivePreviewModal(false)
+                        setIsViewMode(true)
+                      }
+                    }}
+                    disabled={approveMutation.isPending || (order?.status === 'approved')}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {approveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    {language === 'ar' ? 'اعتماد طلب الشراء الآن' : 'Approve Purchase Order'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLivePreviewModal(false)
+                      setIsViewMode(true)
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+                  >
+                    {language === 'ar' ? 'تم / عرض الطلب' : 'Done / View'}
+                  </button>
+                </div>
               </div>
-            </div>
+            </motion.div>
           </div>
-        </motion.div>
-      )}
+        )}
+      </AnimatePresence>
 
-      {isEdit && order?.related && (
-        <div className={`${shell} p-5 sm:p-6`}>
-          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
-            {language === 'ar' ? 'المستندات المرتبطة' : 'Related documents'}
-          </p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { title: language === 'ar' ? 'إشعارات الاستلام' : 'GRNs', items: order.related.grns, href: (d) => `/app/dashboard/purchases/grn/${d._id}`, label: (d) => d.grnNumber },
-              { title: language === 'ar' ? 'المرتجعات' : 'Returns', items: order.related.returns, href: (d) => `/app/dashboard/purchases/returns/${d._id}`, label: (d) => d.returnNumber },
-              { title: language === 'ar' ? 'تكاليف مرسية' : 'Landed costs', items: order.related.landedCosts, href: (d) => `/app/dashboard/purchases/landed-costs/${d._id}`, label: (d) => d.lcNumber },
-              { title: language === 'ar' ? 'فواتير الشراء' : 'Vendor bills', items: order.related.invoices, href: (d) => `/app/dashboard/invoices/${d._id}`, label: (d) => d.invoiceNumber },
-            ].map((group) => (
-              <div key={group.title}>
-                <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200">{group.title}</p>
-                {(group.items || []).length === 0 ? (
-                  <p className="mt-2 text-[12px] text-slate-400">—</p>
-                ) : (
-                  <ul className="mt-2 space-y-1">
-                    {group.items.map((doc) => (
-                      <li key={doc._id}>
-                        <button type="button" onClick={() => navigate(group.href(doc))} className="font-mono text-[12px] text-teal-700 hover:underline">
-                          {group.label(doc)}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {showSupplierModal && (
+      {/* QUICK RECEIVE MODAL */}
+      {showQuickReceiveModal && order && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
           <motion.div
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
-            className={`${shell} w-full max-w-sm max-h-[90vh] overflow-y-auto p-6`}
+            className={`${shell} w-full max-w-lg p-6 space-y-4`}
           >
-            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-white/[0.08]">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-                  {language === 'ar' ? 'الموردون' : 'Suppliers'}
-                </p>
-                <h3 className="mt-1 text-[16px] font-semibold tracking-tight text-slate-900 dark:text-white">
-                  {language === 'ar' ? 'إضافة مورد سريع' : 'Quick add supplier'}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/[0.08]">
+              <div className="flex items-center gap-2">
+                <WarehouseIcon className="h-5 w-5 text-teal-700" />
+                <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'استلام سريع للمخزون' : 'Quick Receive Stock'}
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setShowSupplierModal(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:hover:bg-white/10"
+                onClick={() => setShowQuickReceiveModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
-                <input
-                  className="input"
-                  value={supplierForm.nameEn}
-                  onChange={(e) => setSupplierForm((p) => ({ ...p, nameEn: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
-                <input
-                  className="input"
-                  dir="rtl"
-                  value={supplierForm.nameAr}
-                  onChange={(e) => setSupplierForm((p) => ({ ...p, nameAr: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'الهاتف' : 'Phone'}</label>
-                <input
-                  className="input"
-                  placeholder="+9665xxxxxxxx"
-                  value={supplierForm.phone}
-                  onChange={(e) => setSupplierForm((p) => ({ ...p, phone: e.target.value }))}
-                />
+            <div className="space-y-3">
+              <label className="text-xs font-semibold text-slate-500">
+                {language === 'ar' ? 'مستودع الاستلام' : 'Receiving Warehouse'}
+                <select
+                  value={receiveWarehouseId}
+                  onChange={(e) => setReceiveWarehouseId(e.target.value)}
+                  className="select mt-1.5 w-full text-xs"
+                >
+                  {(warehouses || []).map((w) => (
+                    <option key={w._id} value={w._id}>
+                      {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="rounded-xl border border-slate-100 p-2 dark:border-white/[0.08]">
+                <table className="w-full text-start text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
+                    <tr>
+                      <th className="p-2 text-start">{language === 'ar' ? 'المنتج' : 'Product'}</th>
+                      <th className="p-2 text-center">{language === 'ar' ? 'المتبقي' : 'Remaining'}</th>
+                      <th className="p-2 text-center">{language === 'ar' ? 'الكمية المستلمة' : 'Receive Qty'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {orderLineItems.map((li) => {
+                      const productId = li?.productId?._id || li?.productId
+                      const name = language === 'ar' ? li.productId?.nameAr || li.productId?.nameEn : li.productId?.nameEn || li.productId?.nameAr || li.manualName
+                      const remaining = Math.max(0, Number(li.quantityOrdered || 0) - Number(li.quantityReceived || 0))
+                      const currVal = receiveQty[productId] ?? ''
+
+                      return (
+                        <tr key={productId}>
+                          <td className="p-2 font-medium text-slate-800 dark:text-slate-200">{name}</td>
+                          <td className="p-2 text-center font-bold tabular-nums text-amber-600">{remaining}</td>
+                          <td className="p-2 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max={remaining}
+                              value={currVal}
+                              onChange={(e) => setReceiveQty(prev => ({ ...prev, [productId]: e.target.value }))}
+                              placeholder="0"
+                              className="input !py-1 text-center font-bold w-20 mx-auto"
+                              disabled={remaining <= 0}
+                            />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
-              <button type="button" onClick={() => setShowSupplierModal(false)} className={ghostBtn}>
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-white/[0.08]">
+              <button
+                type="button"
+                onClick={() => setShowQuickReceiveModal(false)}
+                className={ghostBtn}
+              >
                 {t('cancel')}
               </button>
               <button
                 type="button"
-                onClick={submitInlineSupplier}
-                disabled={addSupplierMutation.isPending}
+                onClick={submitReceive}
+                disabled={receiveMutation.isPending}
                 className={primaryBtn}
               >
-                {addSupplierMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 opacity-80" />
-                    {language === 'ar' ? 'حفظ المورد' : 'Save supplier'}
-                  </>
-                )}
+                {receiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <WarehouseIcon className="h-4 w-4" />}
+                {language === 'ar' ? 'تسجيل الاستلام وتحديث المخزون' : 'Post Stock & Receive'}
               </button>
             </div>
           </motion.div>
         </div>
       )}
 
-      {/* Payment Modal */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 px-4 py-6 backdrop-blur-sm sm:px-6">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl dark:bg-[#111827] dark:shadow-black/60"
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                {language === 'ar' ? 'تسجيل دفعة' : 'Record Payment'}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowPaymentModal(false)}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-slate-300"
-              >
-                <X className="h-4 w-4" />
+      {/* Inline Quick Add Supplier Modal */}
+      {showSupplierModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className={`${shell} w-full max-w-sm max-h-[90vh] overflow-y-auto p-6`}>
+            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-white/[0.08]">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">{language === 'ar' ? 'الموردون' : 'Suppliers'}</p>
+                <h3 className="mt-1 text-[16px] font-semibold tracking-tight text-slate-900 dark:text-white">{language === 'ar' ? 'إضافة مورد سريع' : 'Quick add supplier'}</h3>
+              </div>
+              <button type="button" onClick={() => setShowSupplierModal(false)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="grid grid-cols-1 gap-4 text-xs">
+              <div>
+                <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
+                <input className="input" value={supplierForm.nameEn} onChange={(e) => setSupplierForm((p) => ({ ...p, nameEn: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
+                <input className="input" dir="rtl" value={supplierForm.nameAr} onChange={(e) => setSupplierForm((p) => ({ ...p, nameAr: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'الهاتف' : 'Phone'}</label>
+                <input className="input" placeholder="+9665xxxxxxxx" value={supplierForm.phone} onChange={(e) => setSupplierForm((p) => ({ ...p, phone: e.target.value }))} />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowSupplierModal(false)} className={ghostBtn}>{t('cancel')}</button>
+              <button type="button" onClick={submitInlineSupplier} disabled={addSupplierMutation.isPending} className={primaryBtn}>
+                {addSupplierMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : language === 'ar' ? 'حفظ المورد' : 'Save supplier'}
               </button>
             </div>
-            
-            <div className="mt-5 space-y-4">
+          </motion.div>
+        </div>
+      )}
+
+      {/* Inline Quick Add Warehouse Modal */}
+      {showWarehouseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className={`${shell} w-full max-w-sm max-h-[90vh] overflow-y-auto p-6`}>
+            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-white/[0.08]">
               <div>
-                <label className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  {language === 'ar' ? 'المبلغ' : 'Amount'}
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={paymentForm.amount}
-                  onChange={(e) => setPaymentForm((p) => ({ ...p, amount: e.target.value }))}
-                  className="input mt-1.5"
-                  placeholder="0.00"
-                />
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">{language === 'ar' ? 'المستودعات' : 'Warehouses'}</p>
+                <h3 className="mt-1 text-[16px] font-semibold tracking-tight text-slate-900 dark:text-white">{language === 'ar' ? 'إنشاء مستودع' : 'Create warehouse'}</h3>
+              </div>
+              <button type="button" onClick={() => setShowWarehouseModal(false)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="grid grid-cols-1 gap-4 text-xs">
+              <div>
+                <label className="label">{language === 'ar' ? 'الرمز' : 'Code'}</label>
+                <input className="input" placeholder="WH-001" value={warehouseForm.code} onChange={(e) => setWarehouseForm((p) => ({ ...p, code: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
+                <input className="input" value={warehouseForm.nameEn} onChange={(e) => setWarehouseForm((p) => ({ ...p, nameEn: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
+                <input className="input" dir="rtl" value={warehouseForm.nameAr} onChange={(e) => setWarehouseForm((p) => ({ ...p, nameAr: e.target.value }))} />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowWarehouseModal(false)} className={ghostBtn}>{t('cancel')}</button>
+              <button type="button" onClick={submitInlineWarehouse} disabled={addWarehouseMutation.isPending} className={primaryBtn}>
+                {addWarehouseMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : language === 'ar' ? 'حفظ المستودع' : 'Save warehouse'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Record Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 px-4 py-6 backdrop-blur-sm sm:px-6">
+          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl dark:bg-[#111827]">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{language === 'ar' ? 'تسجيل دفعة' : 'Record Payment'}</h3>
+              <button type="button" onClick={() => setShowPaymentModal(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="mt-5 space-y-4 text-xs">
+              <div>
+                <label className="font-medium text-slate-700 dark:text-slate-300">{language === 'ar' ? 'المبلغ' : 'Amount'}</label>
+                <input type="number" step="0.01" min="0" value={paymentForm.amount} onChange={(e) => setPaymentForm((p) => ({ ...p, amount: e.target.value }))} className="input mt-1.5" placeholder="0.00" />
                 {order && order.balanceDue > 0 && (
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    {language === 'ar' ? 'المتبقي:' : 'Balance Due:'} {order.balanceDue}
-                  </p>
+                  <p className="mt-1 text-[11px] text-slate-500">{language === 'ar' ? 'المتبقي:' : 'Balance Due:'} {order.balanceDue}</p>
                 )}
               </div>
-              
               <div>
-                <label className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  {language === 'ar' ? 'التاريخ' : 'Date'}
-                </label>
-                <input
-                  type="date"
-                  value={paymentForm.date}
-                  onChange={(e) => setPaymentForm((p) => ({ ...p, date: e.target.value }))}
-                  className="input mt-1.5"
-                />
+                <label className="font-medium text-slate-700 dark:text-slate-300">{language === 'ar' ? 'التاريخ' : 'Date'}</label>
+                <input type="date" value={paymentForm.date} onChange={(e) => setPaymentForm((p) => ({ ...p, date: e.target.value }))} className="input mt-1.5" />
               </div>
-
               <div>
-                <label className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  {language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}
-                </label>
-                <select
-                  value={paymentForm.method}
-                  onChange={(e) => setPaymentForm((p) => ({ ...p, method: e.target.value }))}
-                  className="select mt-1.5"
-                >
+                <label className="font-medium text-slate-700 dark:text-slate-300">{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>
+                <select value={paymentForm.method} onChange={(e) => setPaymentForm((p) => ({ ...p, method: e.target.value }))} className="select mt-1.5">
                   <option value="transfer">{language === 'ar' ? 'حوالة بنكية' : 'Bank Transfer'}</option>
                   <option value="cash">{language === 'ar' ? 'نقدي' : 'Cash'}</option>
                   <option value="check">{language === 'ar' ? 'شيك' : 'Check'}</option>
                 </select>
               </div>
-
               <div>
-                <label className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                  {language === 'ar' ? 'المرجع (رقم العملية)' : 'Reference / Transaction ID'}
-                </label>
-                <input
-                  type="text"
-                  value={paymentForm.reference}
-                  onChange={(e) => setPaymentForm((p) => ({ ...p, reference: e.target.value }))}
-                  className="input mt-1.5"
-                />
+                <label className="font-medium text-slate-700 dark:text-slate-300">{language === 'ar' ? 'المرجع' : 'Reference'}</label>
+                <input type="text" value={paymentForm.reference} onChange={(e) => setPaymentForm((p) => ({ ...p, reference: e.target.value }))} className="input mt-1.5" />
               </div>
-
               <div className="mt-6 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowPaymentModal(false)} className={ghostBtn}>
-                  {t('cancel')}
-                </button>
+                <button type="button" onClick={() => setShowPaymentModal(false)} className={ghostBtn}>{t('cancel')}</button>
                 <button
                   type="button"
                   onClick={() => recordPaymentMutation.mutate({
@@ -1788,94 +1918,6 @@ export default function PurchaseOrderForm() {
                   {recordPaymentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : language === 'ar' ? 'حفظ الدفعة' : 'Save Payment'}
                 </button>
               </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {showWarehouseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className={`${shell} w-full max-w-sm max-h-[90vh] overflow-y-auto p-6`}
-          >
-            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-white/[0.08]">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-                  {language === 'ar' ? 'المستودعات' : 'Warehouses'}
-                </p>
-                <h3 className="mt-1 text-[16px] font-semibold tracking-tight text-slate-900 dark:text-white">
-                  {language === 'ar' ? 'إنشاء مستودع' : 'Create warehouse'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowWarehouseModal(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:hover:bg-white/10"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label className="label">{language === 'ar' ? 'الرمز' : 'Code'}</label>
-                <input
-                  className="input"
-                  placeholder="WH-001"
-                  value={warehouseForm.code}
-                  onChange={(e) => setWarehouseForm((p) => ({ ...p, code: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
-                <input
-                  className="input"
-                  value={warehouseForm.nameEn}
-                  onChange={(e) => setWarehouseForm((p) => ({ ...p, nameEn: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
-                <input
-                  className="input"
-                  dir="rtl"
-                  value={warehouseForm.nameAr}
-                  onChange={(e) => setWarehouseForm((p) => ({ ...p, nameAr: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label">{language === 'ar' ? 'النوع' : 'Type'}</label>
-                <select
-                  className="select"
-                  value={warehouseForm.type}
-                  onChange={(e) => setWarehouseForm((p) => ({ ...p, type: e.target.value }))}
-                >
-                  <option value="main">{language === 'ar' ? 'رئيسي' : 'Main'}</option>
-                  <option value="branch">{language === 'ar' ? 'فرع' : 'Branch'}</option>
-                  <option value="distribution">{language === 'ar' ? 'توزيع' : 'Distribution'}</option>
-                </select>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <button type="button" onClick={() => setShowWarehouseModal(false)} className={ghostBtn}>
-                {t('cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={submitInlineWarehouse}
-                disabled={addWarehouseMutation.isPending}
-                className={primaryBtn}
-              >
-                {addWarehouseMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 opacity-80" />
-                    {language === 'ar' ? 'حفظ المستودع' : 'Save warehouse'}
-                  </>
-                )}
-              </button>
             </div>
           </motion.div>
         </div>

@@ -220,7 +220,10 @@ export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }
       userId: user._id,
     });
   }
-  grn.status = grn.status === 'draft' ? 'received' : grn.status;
+  const totalReceivedInGrn = (grn.lines || []).reduce((sum, l) => sum + (l.isDelayed ? 0 : toNumber(l.quantityReceived, 0)), 0);
+  if (totalReceivedInGrn > 0) {
+    grn.status = grn.status === 'draft' ? 'received' : grn.status;
+  }
   grn.stockPostedAt = new Date();
   grn.receivedBy = user._id;
   grn.dateReceived = grn.dateReceived || new Date();
