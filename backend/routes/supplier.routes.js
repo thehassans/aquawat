@@ -103,9 +103,9 @@ router.get('/financials', checkPermission('supply_chain', 'read'), async (req, r
 
     const financials = suppliers.map(supplier => {
       const supplierOrders = orders.filter(o => o.supplierId?.toString() === supplier._id.toString());
-      const totalCredit = supplierOrders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
-      const totalDebit = supplierOrders.reduce((sum, o) => sum + (o.paidAmount || 0), 0);
-      const balance = supplierOrders.reduce((sum, o) => sum + ((o.balanceDue != null ? o.balanceDue : o.grandTotal) || 0), 0);
+      const totalCredit = Math.round(supplierOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || 0), 0) * 100) / 100;
+      const totalDebit = Math.round(supplierOrders.reduce((sum, o) => sum + (Number(o.paidAmount) || 0), 0) * 100) / 100;
+      const balance = Math.round((totalCredit - totalDebit) * 100) / 100;
 
       return {
         _id: supplier._id,

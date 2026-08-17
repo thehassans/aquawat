@@ -118,14 +118,10 @@ export default function PurchasesSuppliers() {
     return (suppliersData || []).map((supp) => {
       const suppId = String(supp._id)
       const suppOrders = ordersList.filter((o) => String(o.supplierId?._id || o.supplierId) === suppId)
-      const fin = financialsMap.get(suppId)
 
-      const totalSpend = suppOrders.reduce((sum, o) => sum + Number(o.grandTotal || 0), 0)
-      const totalPaid = suppOrders.reduce((sum, o) => sum + Number(o.paidAmount || 0), 0)
-      const totalBalance = suppOrders.reduce(
-        (sum, o) => sum + Number(o.balanceDue != null ? o.balanceDue : (o.grandTotal || 0)),
-        0
-      )
+      const totalSpend = Math.round(suppOrders.reduce((sum, o) => sum + Number(o.grandTotal || 0), 0) * 100) / 100
+      const totalPaid = Math.round(suppOrders.reduce((sum, o) => sum + Number(o.paidAmount || 0), 0) * 100) / 100
+      const totalBalance = Math.round((totalSpend - totalPaid) * 100) / 100
 
       const statusCounts = {
         draft: 0,
@@ -167,7 +163,8 @@ export default function PurchasesSuppliers() {
 
       let matchBalance = true
       if (balanceFilter === 'has_balance') matchBalance = s.totalBalance > 0
-      if (balanceFilter === 'zero_balance') matchBalance = s.totalBalance <= 0 && s.totalSpend > 0
+      if (balanceFilter === 'advance') matchBalance = s.totalBalance < 0
+      if (balanceFilter === 'zero_balance') matchBalance = s.totalBalance === 0 && s.totalSpend > 0
 
       return matchSearch && matchBalance
     })
@@ -175,12 +172,13 @@ export default function PurchasesSuppliers() {
 
   // Aggregate KPIs
   const totalSuppliersCount = suppliersWithPOs.length
-  const totalSpendAll = suppliersWithPOs.reduce((sum, s) => sum + s.totalSpend, 0)
-  const totalPaidAll = suppliersWithPOs.reduce((sum, s) => sum + s.totalPaid, 0)
-  const totalBalanceAll = suppliersWithPOs.reduce((sum, s) => sum + s.totalBalance, 0)
+  const totalSpendAll = Math.round(suppliersWithPOs.reduce((sum, s) => sum + s.totalSpend, 0) * 100) / 100
+  const totalPaidAll = Math.round(suppliersWithPOs.reduce((sum, s) => sum + s.totalPaid, 0) * 100) / 100
+  const totalBalanceAll = Math.round((totalSpendAll - totalPaidAll) * 100) / 100
   const totalOpenPOsAll = suppliersWithPOs.reduce((sum, s) => sum + s.openPOsCount, 0)
   const withBalanceCount = suppliersWithPOs.filter((s) => s.totalBalance > 0).length
-  const clearedCount = suppliersWithPOs.filter((s) => s.totalBalance <= 0 && s.totalSpend > 0).length
+  const advanceCreditCount = suppliersWithPOs.filter((s) => s.totalBalance < 0).length
+  const clearedCount = suppliersWithPOs.filter((s) => s.totalBalance === 0 && s.totalSpend > 0).length
 
   const statusLabel = (status) => {
     const ar = {
@@ -277,7 +275,7 @@ export default function PurchasesSuppliers() {
             </p>
             <div className="mt-1 flex items-center gap-1.5 text-[11px]">
               <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                {language === 'ar' ? 'المسدد:' : 'Paid:'} <Money value={totalPaidAll} />
+                {language === 'ar' ? 'المدفوع:' : 'Paid:'} <Money value={totalPaidAll} />
               </span>
             </div>
           </div>
@@ -285,14 +283,24 @@ export default function PurchasesSuppliers() {
           <div className="bg-white p-4 sm:p-5 dark:bg-[#0c111a]">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                {language === 'ar' ? 'الرصيد المستحق' : 'Pending Balance'}
+                {totalBalanceAll > 0
+                  ? (language === 'ar' ? 'الذمم المستحقة' : 'Pending Payables')
+                  : totalBalanceAll < 0
+                  ? (language === 'ar' ? 'صافي الرصيد المقدم (-)' : 'Net Advance Credit (-)')
+                  : (language === 'ar' ? 'الرصيد المستحق' : 'Pending Balance')}
               </span>
-              <AlertCircle className="h-4 w-4 text-rose-500" />
+              <AlertCircle className={`h-4 w-4 ${totalBalanceAll > 0 ? 'text-rose-500' : totalBalanceAll < 0 ? 'text-amber-500' : 'text-slate-300'}`} />
             </div>
-            <p className="mt-2 text-2xl font-bold text-rose-600 dark:text-rose-400 tabular-nums">
+            <p className={`mt-2 text-2xl font-bold tabular-nums ${totalBalanceAll > 0 ? 'text-rose-600 dark:text-rose-400' : totalBalanceAll < 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-950 dark:text-white'}`}>
               <Money value={totalBalanceAll} />
             </p>
-            <span className="text-[11px] text-slate-400">{language === 'ar' ? 'ذمم موردين مستحقة' : 'Outstanding payables'}</span>
+            <span className="text-[11px] text-slate-400">
+              {totalBalanceAll > 0
+                ? (language === 'ar' ? 'ذمم موردين مستحقة للسداد' : 'Outstanding payables')
+                : totalBalanceAll < 0
+                ? (language === 'ar' ? 'فائض دفعات مقدمة للموردين' : 'Supplier advance credits')
+                : (language === 'ar' ? 'جميع الحسابات مسددة' : 'All accounts settled')}
+            </span>
           </div>
 
           <div className="bg-white p-4 sm:p-5 dark:bg-[#0c111a]">
@@ -347,6 +355,19 @@ export default function PurchasesSuppliers() {
             >
               {language === 'ar' ? 'عليهم مستحقات' : 'With Balance'} ({withBalanceCount})
             </button>
+            {advanceCreditCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setBalanceFilter('advance')}
+                className={`rounded-xl px-3 py-1.5 text-xs font-semibold ring-1 ring-inset transition whitespace-nowrap ${
+                  balanceFilter === 'advance'
+                    ? 'bg-amber-600 text-white ring-amber-600'
+                    : 'bg-white text-amber-700 ring-amber-200 hover:bg-amber-50 dark:bg-transparent dark:text-amber-300'
+                }`}
+              >
+                {language === 'ar' ? 'رصيد دفع مقدم (-)' : 'Advance Credit (-)'} ({advanceCreditCount})
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setBalanceFilter('zero_balance')}
@@ -376,7 +397,7 @@ export default function PurchasesSuppliers() {
           filteredSuppliers.map((supp) => {
             const isExpanded = expandedSupplierId === supp._id
             const name = language === 'ar' ? supp.nameAr || supp.nameEn : supp.nameEn || supp.nameAr
-            const isFullyCleared = supp.totalBalance <= 0 && supp.totalSpend > 0
+            const isFullyCleared = supp.totalBalance === 0 && supp.totalSpend > 0
 
             return (
               <motion.div
@@ -403,6 +424,11 @@ export default function PurchasesSuppliers() {
                         {supp.totalBalance > 0 && (
                           <span className="inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300">
                             {language === 'ar' ? 'مستحق' : 'Due'}: <Money value={supp.totalBalance} />
+                          </span>
+                        )}
+                        {supp.totalBalance < 0 && (
+                          <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-inset ring-amber-300 dark:bg-amber-500/10 dark:text-amber-300">
+                            {language === 'ar' ? 'رصيد دائن' : 'Advance'}: <Money value={supp.totalBalance} />
                           </span>
                         )}
                         {isFullyCleared && (
@@ -446,9 +472,17 @@ export default function PurchasesSuppliers() {
 
                     <div className="text-start lg:text-end">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                        {language === 'ar' ? 'الرصيد المتبقي' : 'Balance Due'}
+                        {supp.totalBalance < 0
+                          ? (language === 'ar' ? 'رصيد مقدم دائن' : 'Advance Balance')
+                          : (language === 'ar' ? 'الرصيد المتبقي' : 'Balance Due')}
                       </span>
-                      <span className={`font-bold text-sm tabular-nums ${supp.totalBalance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      <span className={`font-bold text-sm tabular-nums ${
+                        supp.totalBalance > 0
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : supp.totalBalance < 0
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                      }`}>
                         <Money value={supp.totalBalance} />
                       </span>
                     </div>
@@ -539,7 +573,7 @@ export default function PurchasesSuppliers() {
                                 <th className="p-3 text-center">{language === 'ar' ? 'حالة الدفع' : 'Payment'}</th>
                                 <th className="p-3 text-end">{language === 'ar' ? 'المبلغ الإجمالي' : 'Grand Total'}</th>
                                 <th className="p-3 text-end">{language === 'ar' ? 'المدفوع' : 'Paid'}</th>
-                                <th className="p-3 text-end">{language === 'ar' ? 'المتبقي' : 'Balance'}</th>
+                                <th className="p-3 text-end">{language === 'ar' ? 'المتبقي / الفائض' : 'Balance'}</th>
                                 <th className="p-3 text-end">{language === 'ar' ? 'الإجراءات' : 'Actions'}</th>
                               </tr>
                             </thead>
@@ -547,7 +581,7 @@ export default function PurchasesSuppliers() {
                               {supp.orders.map((po) => {
                                 const poGrandTotal = Number(po.grandTotal || 0)
                                 const poPaidAmount = Number(po.paidAmount || 0)
-                                const poBalance = Math.max(0, Math.round((po.balanceDue != null ? Number(po.balanceDue) : (poGrandTotal - poPaidAmount)) * 100) / 100)
+                                const netPoBalance = Math.round((poGrandTotal - poPaidAmount) * 100) / 100
                                 const hasReceipts = (po.payments || []).some((p) => p.receiptUrl)
 
                                 return (
@@ -583,9 +617,13 @@ export default function PurchasesSuppliers() {
                                       <Money value={poPaidAmount} />
                                     </td>
                                     <td className="p-3 text-end font-semibold tabular-nums">
-                                      {poBalance > 0 ? (
+                                      {netPoBalance > 0 ? (
                                         <span className="text-rose-600 dark:text-rose-400">
-                                          <Money value={poBalance} />
+                                          <Money value={netPoBalance} />
+                                        </span>
+                                      ) : netPoBalance < 0 ? (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300">
+                                          <Money value={netPoBalance} />
                                         </span>
                                       ) : (
                                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -596,7 +634,7 @@ export default function PurchasesSuppliers() {
                                     </td>
                                     <td className="p-3 text-end">
                                       <div className="flex items-center justify-end gap-1.5">
-                                        {poBalance > 0 && (
+                                        {netPoBalance > 0 && (
                                           <button
                                             type="button"
                                             onClick={() => {

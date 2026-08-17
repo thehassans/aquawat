@@ -182,11 +182,19 @@ export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onS
               </span>
             </div>
             <div className="border-s border-slate-200/60 dark:border-white/10">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-rose-500">
-                {isAr ? 'المتبقي للسداد' : 'Balance Due'}
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {grandTotal - paidAmount < 0
+                  ? (isAr ? 'رصيد دائن (-)' : 'Advance (-)')
+                  : (isAr ? 'المتبقي للسداد' : 'Balance Due')}
               </span>
-              <span className={`text-sm font-black tabular-nums ${balanceDue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                <Money value={balanceDue} />
+              <span className={`text-sm font-black tabular-nums ${
+                grandTotal - paidAmount > 0
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : grandTotal - paidAmount < 0
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
+                <Money value={Math.round((grandTotal - paidAmount) * 100) / 100} />
               </span>
             </div>
           </div>
