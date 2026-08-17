@@ -12,7 +12,7 @@ import Money from '../ui/Money'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { isGccArabicMarket } from '../../lib/invoiceLanguage'
-import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
+import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from './InvoiceLivePreview'
 import DocumentPreSaveModal from './DocumentPreSaveModal'
@@ -27,7 +27,17 @@ import ProductTypeToggle from '../ui/ProductTypeToggle'
 import PurchaseReceivingLedger from '../../pages/purchases/PurchaseReceivingLedger'
 import { PURCHASES_PATH, formatDay, ghostBtn, primaryBtn } from '../../pages/purchases/purchasesUi'
 
-const emptyLine = { productId: '', productName: '', productNameAr: '', productType: 'goods', unitCode: 'PCE', quantity: 1, unitPrice: '', taxRate: 15 }
+const getEmptyLine = (tenant) => ({
+  productId: '',
+  productName: '',
+  productNameAr: '',
+  productType: 'goods',
+  unitCode: getDefaultUom(tenant) || '',
+  quantity: 1,
+  unitPrice: '',
+  taxRate: 15,
+})
+
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
 
 function BilingualLabel({ en, ar }) {
@@ -39,53 +49,56 @@ function BilingualLabel({ en, ar }) {
   )
 }
 
-const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, hasTravel }) => ({
-  businessContext: invoice?.businessContext || defaultBusinessContext,
-  invoiceSubtype: invoice?.invoiceSubtype || (hasTravel ? 'travel_ticket' : 'standard'),
-  pdfTemplateId: invoice?.pdfTemplateId || getInvoiceTemplateId(tenant, invoice?.businessContext || defaultBusinessContext),
-  transactionType: invoice?.transactionType || 'B2B',
-  invoiceTypeCode: invoice?.invoiceTypeCode || (invoice?.transactionType === 'B2C' ? '0200000' : '0100000'),
-  warehouseId: invoice?.warehouseId?._id || invoice?.warehouseId || '',
-  supplierId: invoice?.supplierId?._id || invoice?.supplierId || '',
-  sourcePurchaseOrderId: invoice?.sourcePurchaseOrderId?._id || invoice?.sourcePurchaseOrderId || '',
-  seller: invoice?.seller || {},
-  buyer: invoice?.buyer || {},
-  travelDetails: invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] },
-  authorizedPersonName: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonName || '') : '',
-  authorizedPersonNameAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonNameAr || '') : '',
-  authorizedPersonDesignation: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonDesignation || '') : '',
-  authorizedPersonDesignationAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonDesignationAr || '') : '',
-  authorizedPersonSignature: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonSignature || '') : '',
-  stampImage: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.stampImage || '') : '',
-  paymentTerms: invoice?.paymentTerms || '',
-  paymentMethod: invoice?.paymentMethod || 'cash',
-  paymentStatus: formPaymentStatusFromInvoice(invoice),
-  paidAmount: toNumber(invoice?.paidAmount, 0),
-  invoiceDiscount: toNumber(invoice?.invoiceDiscount, 0),
-  termsAndConditions: invoice?.termsAndConditions || '',
-  notes: invoice?.notes || '',
-  bankDetails: {
-    bankName: invoice?.bankDetails?.bankName || '',
-    accountName: invoice?.bankDetails?.accountName || '',
-    accountNumber: invoice?.bankDetails?.accountNumber || '',
-    iban: invoice?.bankDetails?.iban || '',
-  },
-  includeBankDetails: Boolean(invoice?.includeBankDetails || invoice?.bankDetails?.bankName || invoice?.bankDetails?.iban || invoice?.bankDetails?.accountNumber),
-  lineItems: Array.isArray(invoice?.lineItems) && invoice.lineItems.length > 0
-    ? invoice.lineItems.map((line) => ({
-        ...emptyLine,
-        ...line,
-        productId: line?.productId || '',
-        productName: line?.productName || '',
-        productNameAr: line?.productNameAr || '',
-        productType: normalizeProductType(line?.productType),
-        unitCode: line?.unitCode || 'PCE',
-        quantity: Math.max(0.0001, toNumber(line?.quantity, 1)),
-        unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
-        taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
-      }))
-    : [emptyLine],
-})
+const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, hasTravel }) => {
+  const empty = getEmptyLine(tenant)
+  return {
+    businessContext: invoice?.businessContext || defaultBusinessContext,
+    invoiceSubtype: invoice?.invoiceSubtype || (hasTravel ? 'travel_ticket' : 'standard'),
+    pdfTemplateId: invoice?.pdfTemplateId || getInvoiceTemplateId(tenant, invoice?.businessContext || defaultBusinessContext),
+    transactionType: invoice?.transactionType || 'B2B',
+    invoiceTypeCode: invoice?.invoiceTypeCode || (invoice?.transactionType === 'B2C' ? '0200000' : '0100000'),
+    warehouseId: invoice?.warehouseId?._id || invoice?.warehouseId || '',
+    supplierId: invoice?.supplierId?._id || invoice?.supplierId || '',
+    sourcePurchaseOrderId: invoice?.sourcePurchaseOrderId?._id || invoice?.sourcePurchaseOrderId || '',
+    seller: invoice?.seller || {},
+    buyer: invoice?.buyer || {},
+    travelDetails: invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] },
+    authorizedPersonName: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonName || '') : '',
+    authorizedPersonNameAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonNameAr || '') : '',
+    authorizedPersonDesignation: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonDesignation || '') : '',
+    authorizedPersonDesignationAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonDesignationAr || '') : '',
+    authorizedPersonSignature: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonSignature || '') : '',
+    stampImage: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.stampImage || '') : '',
+    paymentTerms: invoice?.paymentTerms || '',
+    paymentMethod: invoice?.paymentMethod || 'cash',
+    paymentStatus: formPaymentStatusFromInvoice(invoice),
+    paidAmount: toNumber(invoice?.paidAmount, 0),
+    invoiceDiscount: toNumber(invoice?.invoiceDiscount, 0),
+    termsAndConditions: invoice?.termsAndConditions || '',
+    notes: invoice?.notes || '',
+    bankDetails: {
+      bankName: invoice?.bankDetails?.bankName || '',
+      accountName: invoice?.bankDetails?.accountName || '',
+      accountNumber: invoice?.bankDetails?.accountNumber || '',
+      iban: invoice?.bankDetails?.iban || '',
+    },
+    includeBankDetails: Boolean(invoice?.includeBankDetails || invoice?.bankDetails?.bankName || invoice?.bankDetails?.iban || invoice?.bankDetails?.accountNumber),
+    lineItems: Array.isArray(invoice?.lineItems) && invoice.lineItems.length > 0
+      ? invoice.lineItems.map((line) => ({
+          ...empty,
+          ...line,
+          productId: line?.productId || '',
+          productName: line?.productName || '',
+          productNameAr: line?.productNameAr || '',
+          productType: normalizeProductType(line?.productType),
+          unitCode: line?.unitCode !== undefined ? (line.unitCode || '') : empty.unitCode,
+          quantity: Math.max(0.0001, toNumber(line?.quantity, 1)),
+          unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
+          taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
+        }))
+      : [empty],
+  }
+}
 
 function partyId(value) {
   if (!value) return ''
@@ -937,7 +950,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           </div>
 
           <div className="card p-6">
-            <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'بنود الفاتورة' : 'Line Items'}</h3><button type="button" onClick={() => append({ ...emptyLine })} className="btn btn-secondary"><Plus className="w-4 h-4" />{t('add')}</button></div>
+            <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'بنود الفاتورة' : 'Line Items'}</h3><button type="button" onClick={() => append(getEmptyLine(tenant))} className="btn btn-secondary"><Plus className="w-4 h-4" />{t('add')}</button></div>
             <div className="space-y-4">
               {fields.map((field, index) => (
                 <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
@@ -1005,24 +1018,29 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                       <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                     )}
                     <div className="md:col-span-2">
-                      <label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
+                      <label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة (اختياري)' : 'UOM (Optional)'}</label>
                       <Select
                         className="react-select-container"
                         classNamePrefix="react-select"
+                        isClearable
+                        isSearchable
+                        placeholder={language === 'ar' ? 'بدون وحدة' : 'None (Optional)'}
                         value={
                           watch(`lineItems.${index}.unitCode`)
                             ? {
                                 value: watch(`lineItems.${index}.unitCode`),
                                 label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
                               }
-                            : { value: 'PCE', label: getUomLabel('PCE', language) }
+                            : null
                         }
-                        onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : 'PCE', { shouldValidate: true })}
-                        options={getAvailableUomOptions(tenant).map((uom) => ({
-                          value: uom.code,
-                          label: language === 'ar' ? uom.labelAr : uom.labelEn
-                        }))}
-                        isSearchable
+                        onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '', { shouldValidate: true })}
+                        options={[
+                          { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' },
+                          ...getAvailableUomOptions(tenant).map((uom) => ({
+                            value: uom.code,
+                            label: language === 'ar' ? uom.labelAr : uom.labelEn
+                          }))
+                        ]}
                       />
                     </div>
                     <div className="md:col-span-1">

@@ -137,7 +137,7 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
                     ) : null}
                   </td>
                   <td className="px-3 py-2">{line.quantity}</td>
-                  <td className="px-3 py-2">{getUomLabel(line.raw?.unitCode || 'PCE', language)}</td>
+                  <td className="px-3 py-2">{line.raw?.unitCode ? getUomLabel(line.raw.unitCode, language) : '—'}</td>
                   <td className="px-3 py-2 text-end">{renderMoney(line.unitPrice)}</td>
                   <td className="px-3 py-2 text-end">{renderMoney(line.taxAmount)}</td>
                   <td className="px-3 py-2 text-end font-semibold">{renderMoney(line.lineTotalWithTax)}</td>

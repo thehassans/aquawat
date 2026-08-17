@@ -11,7 +11,7 @@ import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/busine
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { LETTERHEAD_TEMPLATE_ID, QUOTATION_TEMPLATE_IDS, resolveQuotationTemplateId } from '../../lib/invoiceTemplates'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
-import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
+import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
 import DocumentPreSaveModal from '../invoices/DocumentPreSaveModal'
@@ -21,20 +21,20 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { normalizeProductType, productPickerLabel } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
 
-const emptyLine = {
+const getEmptyLine = (tenant) => ({
   productId: '',
   productName: '',
   productNameAr: '',
   productType: 'goods',
   description: '',
   descriptionAr: '',
-  unitCode: 'PCE',
+  unitCode: getDefaultUom(tenant) || '',
   quantity: 1,
   unitPrice: '',
   taxRate: 15,
   discount: 0,
   discountType: 'fixed',
-}
+})
 
 const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant']
 
@@ -52,51 +52,54 @@ const formatDateForInput = (value) => {
   return date.toISOString().slice(0, 10)
 }
 
-const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext }) => ({
-  businessContext: quotation?.businessContext || defaultBusinessContext,
-  pdfTemplateId: resolveQuotationTemplateId(quotation?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID),
-  issueDate: formatDateForInput(quotation?.issueDate) || formatDateForInput(new Date()),
-  validUntil: formatDateForInput(quotation?.validUntil),
-  transactionType: quotation?.transactionType || 'B2B',
-  customerId: quotation?.customerId?._id || quotation?.customerId || '',
-  subject: quotation?.subject || '',
-  subjectAr: quotation?.subjectAr || '',
-  notes: quotation?.notes || '',
-  termsAndConditions: quotation?.termsAndConditions || '',
-  includeBankDetails: Boolean(quotation?.includeBankDetails),
-  bankDetails: {
-    bankName: quotation?.bankDetails?.bankName || '',
-    accountName: quotation?.bankDetails?.accountName || '',
-    accountNumber: quotation?.bankDetails?.accountNumber || '',
-    iban: quotation?.bankDetails?.iban || '',
-  },
-  invoiceDiscount: Math.max(0, toNumber(quotation?.invoiceDiscount, 0)),
-  buyer: quotation?.buyer || {},
-  authorizedPersonName: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonName || '') : '',
-  authorizedPersonNameAr: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonNameAr || '') : '',
-  authorizedPersonDesignation: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonDesignation || '') : '',
-  authorizedPersonDesignationAr: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonDesignationAr || '') : '',
-  authorizedPersonSignature: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonSignature || '') : '',
-  stampImage: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.stampImage || '') : '',
-  lineItems: Array.isArray(quotation?.lineItems) && quotation.lineItems.length > 0
-    ? quotation.lineItems.map((line) => ({
-        ...emptyLine,
-        ...line,
-        productId: line?.productId?._id || line?.productId || '',
-        productName: line?.productName || '',
-        productNameAr: line?.productNameAr || '',
-        productType: normalizeProductType(line?.productType),
-        description: line?.description || '',
-        descriptionAr: line?.descriptionAr || '',
-        unitCode: line?.unitCode || 'PCE',
-        quantity: Math.max(1, toNumber(line?.quantity, 1)),
-        unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
-        taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
-        discount: Math.max(0, toNumber(line?.discount, 0)),
-        discountType: line?.discountType || 'fixed',
-      }))
-    : [emptyLine],
-})
+const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext }) => {
+  const empty = getEmptyLine(tenant)
+  return {
+    businessContext: quotation?.businessContext || defaultBusinessContext,
+    pdfTemplateId: resolveQuotationTemplateId(quotation?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID),
+    issueDate: formatDateForInput(quotation?.issueDate) || formatDateForInput(new Date()),
+    validUntil: formatDateForInput(quotation?.validUntil),
+    transactionType: quotation?.transactionType || 'B2B',
+    customerId: quotation?.customerId?._id || quotation?.customerId || '',
+    subject: quotation?.subject || '',
+    subjectAr: quotation?.subjectAr || '',
+    notes: quotation?.notes || '',
+    termsAndConditions: quotation?.termsAndConditions || '',
+    includeBankDetails: Boolean(quotation?.includeBankDetails),
+    bankDetails: {
+      bankName: quotation?.bankDetails?.bankName || '',
+      accountName: quotation?.bankDetails?.accountName || '',
+      accountNumber: quotation?.bankDetails?.accountNumber || '',
+      iban: quotation?.bankDetails?.iban || '',
+    },
+    invoiceDiscount: Math.max(0, toNumber(quotation?.invoiceDiscount, 0)),
+    buyer: quotation?.buyer || {},
+    authorizedPersonName: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonName || '') : '',
+    authorizedPersonNameAr: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonNameAr || '') : '',
+    authorizedPersonDesignation: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonDesignation || '') : '',
+    authorizedPersonDesignationAr: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonDesignationAr || '') : '',
+    authorizedPersonSignature: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonSignature || '') : '',
+    stampImage: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.stampImage || '') : '',
+    lineItems: Array.isArray(quotation?.lineItems) && quotation.lineItems.length > 0
+      ? quotation.lineItems.map((line) => ({
+          ...empty,
+          ...line,
+          productId: line?.productId?._id || line?.productId || '',
+          productName: line?.productName || '',
+          productNameAr: line?.productNameAr || '',
+          productType: normalizeProductType(line?.productType),
+          description: line?.description || '',
+          descriptionAr: line?.descriptionAr || '',
+          unitCode: line?.unitCode !== undefined ? (line.unitCode || '') : empty.unitCode,
+          quantity: Math.max(1, toNumber(line?.quantity, 1)),
+          unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
+          taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
+          discount: Math.max(0, toNumber(line?.discount, 0)),
+          discountType: line?.discountType || 'fixed',
+        }))
+      : [empty],
+  }
+}
 
 export default function QuotationComposer({ quotationId = '', initialQuotation = null }) {
   const navigate = useNavigate()
@@ -877,7 +880,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
               <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-dark-900 dark:text-slate-200 dark:hover:border-emerald-500/40 dark:hover:text-emerald-300"
-                onClick={() => append(emptyLine)}
+                onClick={() => append(getEmptyLine(tenant))}
               >
                 <Plus className="h-4 w-4" />
                 {language === 'ar' ? 'إضافة بند' : 'Add Item'}
@@ -959,24 +962,29 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                         <textarea {...register(`lineItems.${index}.descriptionAr`)} className="input min-h-[80px]" dir="rtl" placeholder={'• النقطة الأولى\n• النقطة الثانية'} />
                       </div>
                       <div className="md:col-span-3">
-                        <label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
+                        <label className="label">{language === 'ar' ? 'الوحدة (اختياري)' : 'UOM (Optional)'}</label>
                         <Select
                           className="react-select-container w-full"
                           classNamePrefix="react-select"
+                          isClearable
+                          isSearchable
+                          placeholder={language === 'ar' ? 'بدون وحدة' : 'None (Optional)'}
                           value={
                             watch(`lineItems.${index}.unitCode`)
                               ? {
                                   value: watch(`lineItems.${index}.unitCode`),
                                   label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
                                 }
-                              : { value: 'PCE', label: getUomLabel('PCE', language) }
+                              : null
                           }
-                          onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : 'PCE')}
-                          options={getAvailableUomOptions(tenant).map((uom) => ({
-                            value: uom.code,
-                            label: language === 'ar' ? uom.labelAr : uom.labelEn
-                          }))}
-                          isSearchable
+                          onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '')}
+                          options={[
+                            { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' },
+                            ...getAvailableUomOptions(tenant).map((uom) => ({
+                              value: uom.code,
+                              label: language === 'ar' ? uom.labelAr : uom.labelEn
+                            }))
+                          ]}
                         />
                         <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
                       </div>

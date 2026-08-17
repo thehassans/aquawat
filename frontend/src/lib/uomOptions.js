@@ -112,3 +112,7 @@ export const getAvailableUomOptions = (tenant) => {
     labelAr: `${u.shortAr} - ${u.labelAr.split('(')[0].trim()}`
   }))
 }
+
+export const getDefaultUom = (tenant) => {
+  return tenant?.settings?.defaultUom || tenant?.business?.defaultUom || ''
+}

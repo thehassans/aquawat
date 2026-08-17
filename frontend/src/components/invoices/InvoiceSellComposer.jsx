@@ -22,12 +22,24 @@ import TravelInvoiceFields from './TravelInvoiceFields'
 import ThermalReceipt from '../ui/ThermalReceipt'
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
-import { getAvailableUomOptions, getUomLabel } from '../../lib/uomOptions'
+import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { normalizeProductType, productPickerLabel } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
 
-const emptyLine = { productId: '', productName: '', productNameAr: '', productType: 'goods', unitCode: 'PCE', quantity: 1, unitPrice: '', customerPrice: '', taxRate: 15, agencyPrice: '', isTravelMargin: false }
+const getEmptyLine = (tenant) => ({
+  productId: '',
+  productName: '',
+  productNameAr: '',
+  productType: 'goods',
+  unitCode: getDefaultUom(tenant) || '',
+  quantity: 1,
+  unitPrice: '',
+  customerPrice: '',
+  taxRate: 15,
+  agencyPrice: '',
+  isTravelMargin: false,
+})
 
 const idOf = (value) => {
   if (!value) return ''
@@ -40,7 +52,8 @@ const emptyBuyerAddress = {
   postalCode: '', country: 'SA', buildingNumber: '', additionalNumber: '',
 }
 
-const mapSellLineItems = (invoice) => {
+const mapSellLineItems = (invoice, tenant) => {
+  const empty = getEmptyLine(tenant)
   const source = invoice?.lineItems || invoice?.items || invoice?.lines || []
   const raw = Array.isArray(source) ? source : []
   const mapped = raw.map((line) => {
@@ -48,12 +61,12 @@ const mapSellLineItems = (invoice) => {
     delete plain.id
     delete plain._id
     return {
-      ...emptyLine,
+      ...empty,
       ...plain,
       productId: idOf(plain?.productId),
       productName: plain?.productName || plain?.name || plain?.description || '',
       productNameAr: plain?.productNameAr || plain?.nameAr || '',
-      unitCode: plain?.unitCode || 'PCE',
+      unitCode: plain?.unitCode !== undefined ? (plain.unitCode || '') : empty.unitCode,
       quantity: Math.max(0.0001, toNumber(plain?.quantity, 1)),
       unitPrice: Math.max(0, toNumber(plain?.unitPrice ?? plain?.price, 0)),
       customerPrice: Math.max(0, toNumber(plain?.customerPrice, 0)),
@@ -63,7 +76,7 @@ const mapSellLineItems = (invoice) => {
       productType: normalizeProductType(plain?.productType),
     }
   }).filter((line) => line.productName || line.unitPrice > 0 || line.productId)
-  return mapped.length ? mapped : [{ ...emptyLine }]
+  return mapped.length ? mapped : [{ ...empty }]
 }
 const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
 
@@ -175,7 +188,7 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
     },
   },
   travelDetails: sanitizeTravelDetails(invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] }),
-  lineItems: mapSellLineItems(invoice),
+  lineItems: mapSellLineItems(invoice, tenant),
   authorizedPersonName: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonName || '') : '',
   authorizedPersonNameAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonNameAr || '') : '',
   authorizedPersonDesignation: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonDesignation || '') : '',
@@ -1312,7 +1325,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   {language === 'ar' ? 'بنود الفاتورة' : 'What are you billing?'}
                 </h3>
               </div>
-              <button type="button" onClick={() => append({ ...emptyLine })} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-sm transition hover:border-teal-600 hover:text-teal-700 dark:border-dark-500 dark:bg-dark-700 dark:text-slate-100">
+              <button type="button" onClick={() => append(getEmptyLine(tenant))} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-sm transition hover:border-teal-600 hover:text-teal-700 dark:border-dark-500 dark:bg-dark-700 dark:text-slate-100">
                 <Plus className="w-3.5 h-3.5" />{t('add')}
               </button>
             </div>
@@ -1327,7 +1340,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   </p>
                   <button
                     type="button"
-                    onClick={() => replace(mapSellLineItems(initialInvoice))}
+                    onClick={() => replace(mapSellLineItems(initialInvoice, tenant))}
                     className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white dark:bg-white dark:text-slate-900"
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -1414,24 +1427,29 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                     )}
                     <div className="lg:col-span-2">
-                      <label htmlFor={`unit-${index}`} className={fieldLabelClass}>{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
+                      <label htmlFor={`unit-${index}`} className={fieldLabelClass}>{language === 'ar' ? 'الوحدة (اختياري)' : 'UOM (Optional)'}</label>
                       <Select
                         className="react-select-container mt-1.5"
                         classNamePrefix="react-select"
+                        isClearable
+                        isSearchable
+                        placeholder={language === 'ar' ? 'بدون وحدة' : 'None (Optional)'}
                         value={
                           watch(`lineItems.${index}.unitCode`)
                             ? {
                                 value: watch(`lineItems.${index}.unitCode`),
                                 label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
                               }
-                            : { value: 'PCE', label: getUomLabel('PCE', language) }
+                            : null
                         }
-                        onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : 'PCE', { shouldValidate: true })}
-                        options={getAvailableUomOptions(tenant).map((uom) => ({
-                          value: uom.code,
-                          label: language === 'ar' ? uom.labelAr : uom.labelEn
-                        }))}
-                        isSearchable
+                        onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '', { shouldValidate: true })}
+                        options={[
+                          { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' },
+                          ...getAvailableUomOptions(tenant).map((uom) => ({
+                            value: uom.code,
+                            label: language === 'ar' ? uom.labelAr : uom.labelEn
+                          }))
+                        ]}
                       />
                     </div>
                     {isTravelContext ? (

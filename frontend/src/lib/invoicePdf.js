@@ -1503,15 +1503,17 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     const descriptionEn = l.raw?.description || l.description || l.raw?.descriptionAr || l.descriptionAr || ''
     const descriptionAr = l.raw?.descriptionAr || l.descriptionAr || (hasArabicText(descriptionEn) ? descriptionEn : '')
     const nameText = toBilingualText(productNameEn, productNameAr, '')
-    const descText = toBilingualText(descriptionEn, descriptionAr, '')
-    const typeText = formatProductTypeBilingual(l.raw?.productType || l.productType)
+    const rawType = l.raw?.productType || l.productType
+    const typeText = rawType && rawType !== 'goods' ? formatProductTypeBilingual(rawType) : ''
+    const rawUnitCode = l.raw?.unitCode || l.unitCode || ''
+    const unitCodeText = rawUnitCode ? String(rawUnitCode).trim() : ''
 
     rowDescriptions.push(descText)
 
     return [
       String(idx + 1),
       shape([nameText, typeText].filter(Boolean).join('\n')),
-      l.raw?.unitCode ? `${quantity}\n${l.raw.unitCode}` : String(quantity),
+      unitCodeText ? `${quantity}\n${unitCodeText}` : String(quantity),
       money(unitPrice),
       money(taxAmount),
       money(lineTotalWithTax),

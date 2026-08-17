@@ -437,12 +437,13 @@ export default function PurchaseOrderForm() {
       toast.success(language === 'ar' ? 'تم إضافة المنتج بنجاح' : 'Product created successfully')
       queryClient.invalidateQueries(['products-list'])
       queryClient.invalidateQueries(['products'])
+      queryClient.invalidateQueries(['products-dropdown'])
       setShowProductModal(false)
       const created = res.data
       if (productModalTargetIndex !== null && productModalTargetIndex !== undefined) {
         setValue(`lineItems.${productModalTargetIndex}.productId`, created._id, { shouldDirty: true, shouldValidate: true })
         setValue(`lineItems.${productModalTargetIndex}.productType`, normalizeProductType(created.productType), { shouldDirty: true })
-        setValue(`lineItems.${productModalTargetIndex}.uom`, created.unitOfMeasure || created.unitCode || 'PCE', { shouldDirty: true })
+        setValue(`lineItems.${productModalTargetIndex}.uom`, created.unitOfMeasure || created.unitCode || getDefaultUom(tenant) || '', { shouldDirty: true })
         if (created.costPrice != null && created.costPrice !== '') {
           setValue(`lineItems.${productModalTargetIndex}.unitCost`, Number(created.costPrice) || 0, { shouldDirty: true })
         }
@@ -458,7 +459,7 @@ export default function PurchaseOrderForm() {
         nameEn: '',
         nameAr: '',
         productType: 'goods',
-        unitOfMeasure: 'PCE',
+        unitOfMeasure: getDefaultUom(tenant) || '',
         costPrice: '',
         sellingPrice: '',
         taxRate: 15,
@@ -518,7 +519,7 @@ export default function PurchaseOrderForm() {
     const product = (products || []).find((row) => String(row._id) === String(productId))
     if (!product) return
     setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType), { shouldDirty: true })
-    setValue(`lineItems.${index}.uom`, product.unitOfMeasure || product.unitCode || 'PCE', { shouldDirty: true })
+    setValue(`lineItems.${index}.uom`, product.unitOfMeasure || product.unitCode || getDefaultUom(tenant) || '', { shouldDirty: true })
     if (product.costPrice != null && product.costPrice !== '') {
       setValue(`lineItems.${index}.unitCost`, Number(product.costPrice) || 0, { shouldDirty: true })
     }
@@ -549,7 +550,7 @@ export default function PurchaseOrderForm() {
           ? items.map((li) => ({
               productId: li?.productId?._id || li?.productId || '',
               manualName: li?.manualName || '',
-              uom: li?.uom || li?.productId?.unitOfMeasure || 'PCE',
+              uom: li?.uom !== undefined ? (li.uom || '') : (li?.productId?.unitOfMeasure || getDefaultUom(tenant) || ''),
               description: li?.description || '',
               productType: li?.productType || li?.productId?.productType || 'goods',
               quantityOrdered: li?.quantityOrdered ?? 0,
@@ -558,7 +559,7 @@ export default function PurchaseOrderForm() {
               unitCost: li?.unitCost ?? 0,
               taxRate: li?.taxRate ?? 15,
             }))
-          : [{ productId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, quantityReturned: 0, unitCost: 0, taxRate: 15 }],
+          : [{ productId: '', manualName: '', uom: getDefaultUom(tenant) || '', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, quantityReturned: 0, unitCost: 0, taxRate: 15 }],
     })
     setManualModes(items.map((li) => Boolean(li?.manualName && !li?.productId)))
     const existingLc = (order.related?.landedCosts || []).find((lc) => (lc.costLines || []).length) || order.related?.landedCosts?.[0]
@@ -1741,20 +1742,25 @@ export default function PurchaseOrderForm() {
                           isDisabled={isLocked}
                           menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                           styles={customSelectStyles}
+                          isClearable
+                          isSearchable
+                          placeholder={language === 'ar' ? 'بدون وحدة' : 'None (Optional)'}
                           value={
                             watch(`lineItems.${index}.uom`)
                               ? {
                                   value: watch(`lineItems.${index}.uom`),
                                   label: getUomLabel(watch(`lineItems.${index}.uom`), language)
                                 }
-                              : { value: 'PCE', label: getUomLabel('PCE', language) }
+                              : null
                           }
-                          onChange={(option) => setValue(`lineItems.${index}.uom`, option ? option.value : 'PCE', { shouldValidate: true })}
-                          options={uomOptions.map((uom) => ({
-                            value: uom.code,
-                            label: language === 'ar' ? uom.labelAr : uom.labelEn
-                          }))}
-                          isSearchable
+                          onChange={(option) => setValue(`lineItems.${index}.uom`, option ? option.value : '', { shouldValidate: true })}
+                          options={[
+                            { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' },
+                            ...uomOptions.map((uom) => ({
+                              value: uom.code,
+                              label: language === 'ar' ? uom.labelAr : uom.labelEn
+                            }))
+                          ]}
                         />
                       </div>
 
@@ -2764,12 +2770,13 @@ export default function PurchaseOrderForm() {
                   />
                 </div>
                 <div>
-                  <label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
+                  <label className="label">{language === 'ar' ? 'الوحدة (اختياري)' : 'UOM (Optional)'}</label>
                   <select
                     value={productForm.unitOfMeasure}
                     onChange={(e) => setProductForm((p) => ({ ...p, unitOfMeasure: e.target.value }))}
                     className="select !py-1.5 text-xs"
                   >
+                    <option value="">{language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)'}</option>
                     {uomOptions.map((u) => (
                       <option key={u.code} value={u.code}>
                         {language === 'ar' ? u.labelAr : u.labelEn}

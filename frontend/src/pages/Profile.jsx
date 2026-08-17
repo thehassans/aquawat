@@ -63,6 +63,7 @@ import {
 import api from '../lib/api'
 import { updateTenant, updateUser } from '../store/slices/authSlice'
 import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes, normalizeBusinessTypes } from '../lib/businessTypes'
+import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../lib/uomOptions'
 import {
   formatPlanLimit,
   formatSubscriptionDate,
@@ -103,6 +104,8 @@ export default function Profile() {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
   const [copiedField, setCopiedField] = useState(null)
   const [logoPreview, setLogoPreview] = useState(null)
+  const [signaturePreview, setSignaturePreview] = useState(null)
+  const [stampPreview, setStampPreview] = useState(null)
 
   // Fetch fresh tenant data — never seed from slim auth.tenant (missing business).
   const { data: tenantData, isLoading, refetch, isRefetching } = useQuery({
@@ -127,6 +130,7 @@ export default function Profile() {
   const bankDetails = business?.bankDetails || {}
   const subscription = tenant?.subscription || {}
   const branding = tenant?.branding || {}
+  const invoiceBranding = tenant?.settings?.invoiceBranding || {}
 
   const businessTypes = getTenantBusinessTypes(tenant)
   const primaryBusinessType = getPrimaryBusinessType(tenant)
@@ -146,6 +150,10 @@ export default function Profile() {
   useEffect(() => {
     if (!tenant?._id) return
     const resolvedCr = business?.crNumber || commercialReg?.crNumber || ''
+    const currentInvoiceBranding = tenant?.settings?.invoiceBranding || {}
+    const signatureUrl = currentInvoiceBranding.presetSignature || currentInvoiceBranding.signatureImage || ''
+    const stampUrl = currentInvoiceBranding.presetStamp || currentInvoiceBranding.stampImage || ''
+    const defUom = getDefaultUom(tenant) || ''
     reset({
       business: {
         legalNameEn: business.legalNameEn || '',
@@ -156,6 +164,7 @@ export default function Profile() {
         contactEmail: business.contactEmail || '',
         contactPhone: business.contactPhone || '',
         website: business.website || '',
+        defaultUom: defUom,
         address: {
           city: business.address?.city || '',
           cityAr: business.address?.cityAr || '',
@@ -207,9 +216,26 @@ export default function Profile() {
       branding: {
         primaryColor: branding.primaryColor || '#0284c7',
         logo: branding.logo || '',
+      },
+      settings: {
+        defaultUom: defUom,
+        termsAndConditions: tenant?.settings?.termsAndConditions || currentInvoiceBranding.termsAndConditions || '',
+        notes: tenant?.settings?.notes || currentInvoiceBranding.defaultNotes || '',
+        invoiceBranding: {
+          presetAuthorizedPersonName: currentInvoiceBranding.presetAuthorizedPersonName || '',
+          presetAuthorizedPersonNameAr: currentInvoiceBranding.presetAuthorizedPersonNameAr || '',
+          presetAuthorizedPersonDesignation: currentInvoiceBranding.presetAuthorizedPersonDesignation || '',
+          presetAuthorizedPersonDesignationAr: currentInvoiceBranding.presetAuthorizedPersonDesignationAr || '',
+          presetSignature: signatureUrl,
+          presetStamp: stampUrl,
+          termsAndConditions: currentInvoiceBranding.termsAndConditions || tenant?.settings?.termsAndConditions || '',
+          defaultNotes: currentInvoiceBranding.defaultNotes || tenant?.settings?.notes || '',
+        }
       }
     })
     setLogoPreview(branding.logo || null)
+    setSignaturePreview(signatureUrl || null)
+    setStampPreview(stampUrl || null)
   }, [tenant, isEditModalOpen, reset])
 
   const handleLogoUpload = (e) => {
@@ -233,16 +259,63 @@ export default function Profile() {
     setValue('branding.logo', '', { shouldDirty: true })
   }
 
+  const handleSignatureUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(language === 'ar' ? 'حجم التوقيع يجب أن لا يتجاوز 2 ميجابايت' : 'Signature size must not exceed 2MB')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result
+      setSignaturePreview(dataUrl)
+      setValue('settings.invoiceBranding.presetSignature', dataUrl, { shouldDirty: true })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleRemoveSignature = () => {
+    setSignaturePreview('')
+    setValue('settings.invoiceBranding.presetSignature', '', { shouldDirty: true })
+  }
+
+  const handleStampUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(language === 'ar' ? 'حجم الختم يجب أن لا يتجاوز 2 ميجابايت' : 'Stamp size must not exceed 2MB')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result
+      setStampPreview(dataUrl)
+      setValue('settings.invoiceBranding.presetStamp', dataUrl, { shouldDirty: true })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleRemoveStamp = () => {
+    setStampPreview('')
+    setValue('settings.invoiceBranding.presetStamp', '', { shouldDirty: true })
+  }
+
   const updateProfileMutation = useMutation({
     mutationFn: async (formData) => {
       const crVal = formData.business?.crNumber || ''
-      // Empty string = intentional remove. Never restore the previous logo.
       const nextLogo = logoPreview == null ? String(formData.branding?.logo || '') : String(logoPreview || '')
+      const nextSig = signaturePreview == null ? String(formData.settings?.invoiceBranding?.presetSignature || '') : String(signaturePreview || '')
+      const nextStamp = stampPreview == null ? String(formData.settings?.invoiceBranding?.presetStamp || '') : String(stampPreview || '')
+      const nextUom = formData.settings?.defaultUom ?? (getDefaultUom(tenant) || '')
+      const nextTerms = formData.settings?.termsAndConditions || formData.settings?.invoiceBranding?.termsAndConditions || ''
+      const nextNotes = formData.settings?.notes || formData.settings?.invoiceBranding?.defaultNotes || ''
       const payload = {
         ...formData,
         business: {
           ...formData.business,
           crNumber: crVal,
+          defaultUom: nextUom,
           commercialRegistration: {
             ...formData.business.commercialRegistration,
             crNumber: crVal,
@@ -256,10 +329,23 @@ export default function Profile() {
         settings: {
           ...(tenant.settings || {}),
           ...(formData.settings || {}),
+          defaultUom: nextUom,
+          termsAndConditions: nextTerms,
+          notes: nextNotes,
           invoiceBranding: {
             ...(tenant.settings?.invoiceBranding || {}),
             ...(formData.settings?.invoiceBranding || {}),
             logo: nextLogo,
+            presetSignature: nextSig,
+            signatureImage: nextSig,
+            presetStamp: nextStamp,
+            stampImage: nextStamp,
+            presetAuthorizedPersonName: formData.settings?.invoiceBranding?.presetAuthorizedPersonName || '',
+            presetAuthorizedPersonNameAr: formData.settings?.invoiceBranding?.presetAuthorizedPersonNameAr || '',
+            presetAuthorizedPersonDesignation: formData.settings?.invoiceBranding?.presetAuthorizedPersonDesignation || '',
+            presetAuthorizedPersonDesignationAr: formData.settings?.invoiceBranding?.presetAuthorizedPersonDesignationAr || '',
+            termsAndConditions: nextTerms,
+            defaultNotes: nextNotes,
           },
         },
       }
@@ -394,6 +480,7 @@ export default function Profile() {
 
   const tabs = [
     { id: 'overview', label: language === 'ar' ? 'بيانات المنشأة' : 'Company Overview', icon: Building2, color: 'text-blue-500', activeStyle: 'text-blue-700 dark:text-blue-300 bg-blue-50/80 dark:bg-blue-950/40 border-blue-200/80 dark:border-blue-800/60' },
+    { id: 'signature_defaults', label: language === 'ar' ? 'التوقيع والختم والإعدادات' : 'Signature, Stamp & Defaults', icon: FileText, color: 'text-rose-500', activeStyle: 'text-rose-700 dark:text-rose-300 bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800/60' },
     { id: 'commercial', label: language === 'ar' ? 'السجل التجاري' : 'Commercial Reg.', icon: Briefcase, color: 'text-amber-500', activeStyle: 'text-amber-700 dark:text-amber-300 bg-amber-50/80 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800/60' },
     { id: 'national_address', label: language === 'ar' ? 'العنوان الوطني' : 'National Address', icon: MapPin, color: 'text-sky-500', activeStyle: 'text-sky-700 dark:text-sky-300 bg-sky-50/80 dark:bg-sky-950/40 border-sky-200/80 dark:border-sky-800/60' },
     { id: 'vat_cert', label: language === 'ar' ? 'شهادة الضريبة' : 'VAT Certificate', icon: Receipt, color: 'text-teal-500', activeStyle: 'text-teal-700 dark:text-teal-300 bg-teal-50/80 dark:bg-teal-950/40 border-teal-200/80 dark:border-teal-800/60' },
@@ -837,6 +924,188 @@ export default function Profile() {
                     <KeyRound className="w-4 h-4 text-amber-500" />
                     {language === 'ar' ? 'تغيير كلمة المرور' : 'Change Password'}
                   </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* SIGNATURE, STAMP & DEFAULTS TAB */}
+        {activeTab === 'signature_defaults' && (
+          <motion.div
+            key="signature_defaults"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            {/* Top Signatory & Stamps Card */}
+            <div className="card p-6 sm:p-8 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                      {language === 'ar' ? 'التوقيع، الختم، والمفوّض بالتوقيع' : 'Authorized Signatory, Signature & Stamp'}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {language === 'ar' ? 'تُدرج هذه البيانات تلقائياً على الفواتير، عروض الأسعار، وسندات الشراء' : 'These details auto-fill onto invoices, quotations, and purchase orders'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="btn btn-secondary text-xs flex items-center gap-2 self-start sm:self-auto"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  {language === 'ar' ? 'تعديل التوقيع والختم' : 'Edit Signature & Stamp'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                    {language === 'ar' ? 'اسم المفوض (عربي)' : 'Authorized Person (Arabic)'}
+                  </p>
+                  <p className="text-base font-bold text-gray-900 dark:text-white" dir="rtl">
+                    {invoiceBranding.presetAuthorizedPersonNameAr || '—'}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                    {language === 'ar' ? 'اسم المفوض (إنجليزي)' : 'Authorized Person (English)'}
+                  </p>
+                  <p className="text-base font-bold text-gray-900 dark:text-white">
+                    {invoiceBranding.presetAuthorizedPersonName || '—'}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                    {language === 'ar' ? 'الصفة / المنصب (عربي)' : 'Designation (Arabic)'}
+                  </p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white" dir="rtl">
+                    {invoiceBranding.presetAuthorizedPersonDesignationAr || '—'}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                    {language === 'ar' ? 'الصفة / المنصب (إنجليزي)' : 'Designation (English)'}
+                  </p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white">
+                    {invoiceBranding.presetAuthorizedPersonDesignation || '—'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Visual previews of Signature & Stamp */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6 rounded-3xl bg-slate-50 dark:bg-dark-900/40 border border-slate-200/80 dark:border-dark-600 flex flex-col items-center justify-center text-center min-h-[200px]">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4">
+                    {language === 'ar' ? 'توقيع المفوض المعتمد' : 'Authorized Signature'}
+                  </p>
+                  {invoiceBranding.presetSignature || invoiceBranding.signatureImage ? (
+                    <div className="max-h-28 max-w-full flex items-center justify-center p-2 rounded-xl bg-white dark:bg-dark-800 border border-slate-200 dark:border-dark-700 shadow-sm">
+                      <img
+                        src={invoiceBranding.presetSignature || invoiceBranding.signatureImage}
+                        alt="Signature"
+                        className="max-h-24 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center gap-2">
+                      <FileText className="w-8 h-8 opacity-40" />
+                      <span>{language === 'ar' ? 'لم يتم رفع توقيع بعد' : 'No signature uploaded yet'}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 rounded-3xl bg-slate-50 dark:bg-dark-900/40 border border-slate-200/80 dark:border-dark-600 flex flex-col items-center justify-center text-center min-h-[200px]">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4">
+                    {language === 'ar' ? 'ختم المنشأة الرسمي' : 'Official Company Stamp'}
+                  </p>
+                  {invoiceBranding.presetStamp || invoiceBranding.stampImage ? (
+                    <div className="max-h-28 max-w-full flex items-center justify-center p-2 rounded-xl bg-white dark:bg-dark-800 border border-slate-200 dark:border-dark-700 shadow-sm">
+                      <img
+                        src={invoiceBranding.presetStamp || invoiceBranding.stampImage}
+                        alt="Stamp"
+                        className="max-h-24 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center gap-2">
+                      <Shield className="w-8 h-8 opacity-40" />
+                      <span>{language === 'ar' ? 'لم يتم رفع ختم بعد' : 'No stamp uploaded yet'}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Invoice & Document Defaults Card */}
+            <div className="card p-6 sm:p-8 border border-gray-100 dark:border-dark-700 shadow-sm rounded-3xl relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                    <Sliders className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                      {language === 'ar' ? 'إعدادات المستندات ووحدة القياس الافتراضية' : 'Document Defaults & Default UOM'}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {language === 'ar' ? 'الوحدة الافتراضية للمنتجات والفواتير وعروض الأسعار والشروط والأحكام' : 'Default UOM for products, invoices, quotations, and default terms & notes'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="btn btn-secondary text-xs flex items-center gap-2 self-start sm:self-auto"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  {language === 'ar' ? 'تعديل الإعدادات' : 'Edit Defaults'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                    {language === 'ar' ? 'وحدة القياس الافتراضية (Default UOM)' : 'Default Unit of Measure (UOM)'}
+                  </p>
+                  <div className="text-base font-bold text-teal-700 dark:text-teal-300 flex items-center gap-2 mt-1">
+                    {getDefaultUom(tenant) ? (
+                      <>
+                        <span className="px-2.5 py-1 rounded-lg bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 text-xs font-mono">
+                          {getDefaultUom(tenant)}
+                        </span>
+                        <span>{getUomLabel(getDefaultUom(tenant), language)}</span>
+                      </>
+                    ) : (
+                      <span className="text-slate-400 text-sm font-normal">{language === 'ar' ? 'بدون وحدة افتراضية (اختياري)' : 'None (Optional)'}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50 md:col-span-2">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                    {language === 'ar' ? 'الشروط والأحكام الافتراضية' : 'Default Terms & Conditions'}
+                  </p>
+                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-line mt-1">
+                    {tenant?.settings?.termsAndConditions || invoiceBranding.termsAndConditions || (language === 'ar' ? 'لا توجد شروط افتراضية مضافة' : 'No default terms added')}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50 md:col-span-3">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                    {language === 'ar' ? 'الملاحظات الافتراضية' : 'Default Notes'}
+                  </p>
+                  <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-line mt-1">
+                    {tenant?.settings?.notes || invoiceBranding.defaultNotes || (language === 'ar' ? 'لا توجد ملاحظات افتراضية مضافة' : 'No default notes added')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -1880,6 +2149,136 @@ export default function Profile() {
                     <div>
                       <label className="label">{language === 'ar' ? 'الآيبان (IBAN)' : 'IBAN'}</label>
                       <input {...register('business.bankDetails.iban')} className="input font-mono" placeholder="SA0000000000000000000000" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 8. Signature, Stamp & Document Defaults */}
+                <div className="space-y-6">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b pb-2 dark:border-dark-700">
+                    <FileText className="w-4 h-4 text-rose-500" />
+                    {language === 'ar' ? 'التوقيع، الختم، والإعدادات الافتراضية للمستندات' : 'Signature, Stamp & Document Defaults'}
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Signature Upload */}
+                    <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50 space-y-3">
+                      <label className="label !mb-0">{language === 'ar' ? 'توقيع المفوض المعتمد' : 'Authorized Signature'}</label>
+                      <div className="flex items-center gap-4">
+                        <div className="w-20 h-20 rounded-xl bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden p-1.5">
+                          {signaturePreview ? (
+                            <img src={signaturePreview} alt="Signature" className="w-full h-full object-contain" />
+                          ) : (
+                            <FileText className="w-6 h-6 text-gray-400" />
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="btn btn-secondary text-xs cursor-pointer inline-flex items-center gap-2">
+                            <Upload className="w-3.5 h-3.5" />
+                            {language === 'ar' ? 'رفع توقيع' : 'Upload Signature'}
+                            <input type="file" accept="image/*" onChange={handleSignatureUpload} className="hidden" />
+                          </label>
+                          {signaturePreview ? (
+                            <button
+                              type="button"
+                              onClick={handleRemoveSignature}
+                              className="text-xs text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              {language === 'ar' ? 'إزالة التوقيع' : 'Remove Signature'}
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stamp Upload */}
+                    <div className="p-4 rounded-2xl bg-gray-50 dark:bg-dark-700/50 border border-gray-100 dark:border-dark-600/50 space-y-3">
+                      <label className="label !mb-0">{language === 'ar' ? 'ختم المنشأة الرسمي' : 'Official Company Stamp'}</label>
+                      <div className="flex items-center gap-4">
+                        <div className="w-20 h-20 rounded-xl bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden p-1.5">
+                          {stampPreview ? (
+                            <img src={stampPreview} alt="Stamp" className="w-full h-full object-contain" />
+                          ) : (
+                            <Shield className="w-6 h-6 text-gray-400" />
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="btn btn-secondary text-xs cursor-pointer inline-flex items-center gap-2">
+                            <Upload className="w-3.5 h-3.5" />
+                            {language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}
+                            <input type="file" accept="image/*" onChange={handleStampUpload} className="hidden" />
+                          </label>
+                          {stampPreview ? (
+                            <button
+                              type="button"
+                              onClick={handleRemoveStamp}
+                              className="text-xs text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              {language === 'ar' ? 'إزالة الختم' : 'Remove Stamp'}
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signatory Names & Designations */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'اسم الشخص المفوض (عربي)' : 'Authorized Person Name (Arabic)'}</label>
+                      <input {...register('settings.invoiceBranding.presetAuthorizedPersonNameAr')} className="input" dir="rtl" placeholder="فلان بن فلان" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'اسم الشخص المفوض (إنجليزي)' : 'Authorized Person Name (English)'}</label>
+                      <input {...register('settings.invoiceBranding.presetAuthorizedPersonName')} className="input" placeholder="Full Name" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الصفة / المنصب (عربي)' : 'Authorized Person Designation (Arabic)'}</label>
+                      <input {...register('settings.invoiceBranding.presetAuthorizedPersonDesignationAr')} className="input" dir="rtl" placeholder="المدير التنفيذي / المدير العام" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الصفة / المنصب (إنجليزي)' : 'Authorized Person Designation (English)'}</label>
+                      <input {...register('settings.invoiceBranding.presetAuthorizedPersonDesignation')} className="input" placeholder="Chief Executive Officer / General Manager" />
+                    </div>
+                  </div>
+
+                  {/* Default UOM */}
+                  <div>
+                    <label className="label">{language === 'ar' ? 'وحدة القياس الافتراضية (Default UOM)' : 'Default Unit of Measure (UOM)'}</label>
+                    <select {...register('settings.defaultUom')} className="select">
+                      <option value="">{language === 'ar' ? 'بدون وحدة افتراضية (اختياري)' : 'None (Optional)'}</option>
+                      {getAvailableUomOptions(tenant).map((uom) => (
+                        <option key={uom.code} value={uom.code}>
+                          {language === 'ar' ? `${uom.labelAr} (${uom.code})` : `${uom.labelEn} (${uom.code})`}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      {language === 'ar' ? 'تُعرض هذه الوحدة تلقائياً عند إضافة منتجات جديدة أو بنود فواتير وعروض أسعار' : 'Used as the default UOM when creating products, invoices, quotations, and purchase orders'}
+                    </p>
+                  </div>
+
+                  {/* Default Terms and Notes */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الشروط والأحكام الافتراضية للفواتير' : 'Default Terms & Conditions'}</label>
+                      <textarea
+                        {...register('settings.termsAndConditions')}
+                        rows={3}
+                        className="input"
+                        placeholder={language === 'ar' ? '• البضاعة المباعة لا ترد ولا تستبدل بعد 7 أيام\n• الدفع خلال 30 يوماً من تاريخ الفاتورة' : '• Payment due within 30 days\n• Goods once sold cannot be returned'}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الملاحظات الافتراضية للفواتير' : 'Default Invoice Notes'}</label>
+                      <textarea
+                        {...register('settings.notes')}
+                        rows={3}
+                        className="input"
+                        placeholder={language === 'ar' ? 'شكراً لتعاملكم معنا' : 'Thank you for your business'}
+                      />
                     </div>
                   </div>
                 </div>

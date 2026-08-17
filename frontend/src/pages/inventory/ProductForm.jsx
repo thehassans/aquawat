@@ -11,7 +11,7 @@ import { useTranslation } from '../../lib/translations'
 import SarIcon from '../../components/ui/SarIcon'
 import { useLiveTranslation } from '../../lib/liveTranslation'
 import Select from 'react-select'
-import { getAvailableUomOptions } from '../../lib/uomOptions'
+import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { normalizeProductType } from '../../lib/productType'
 import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
 
@@ -25,7 +25,10 @@ export default function ProductForm() {
   const isEdit = Boolean(id)
 
   const { register, handleSubmit, reset, setValue, watch, control } = useForm({
-    defaultValues: { productType: 'goods' },
+    defaultValues: {
+      productType: 'goods',
+      unitOfMeasure: getDefaultUom(tenant),
+    },
   })
   const [product, setProduct] = useState(null)
   const [stockWarehouseId, setStockWarehouseId] = useState('')
@@ -338,12 +341,16 @@ export default function ProductForm() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="label">{language === 'ar' ? 'وحدة القياس' : 'Unit of Measure'}</label>
+              <label className="label">{language === 'ar' ? 'وحدة القياس (اختياري)' : 'Unit of Measure (Optional)'}</label>
               <Select
                 inputId="unitOfMeasure"
-                options={uomOptions.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))}
-                value={uomOptions.find(u => u.code === watch('unitOfMeasure')) ? { value: watch('unitOfMeasure'), label: language === 'ar' ? uomOptions.find(u => u.code === watch('unitOfMeasure'))?.labelAr : uomOptions.find(u => u.code === watch('unitOfMeasure'))?.labelEn } : null}
-                onChange={(selected) => setValue('unitOfMeasure', selected?.value || 'PCE')}
+                options={[
+                  { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' },
+                  ...uomOptions.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))
+                ]}
+                value={watch('unitOfMeasure') ? (uomOptions.find(u => u.code === watch('unitOfMeasure')) ? { value: watch('unitOfMeasure'), label: language === 'ar' ? uomOptions.find(u => u.code === watch('unitOfMeasure'))?.labelAr : uomOptions.find(u => u.code === watch('unitOfMeasure'))?.labelEn } : { value: watch('unitOfMeasure'), label: watch('unitOfMeasure') }) : { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' }}
+                onChange={(selected) => setValue('unitOfMeasure', selected?.value || '')}
+                isClearable
                 isSearchable
                 styles={{
                   control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
