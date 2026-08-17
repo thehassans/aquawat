@@ -68,8 +68,8 @@ import RentalCustomer from '../models/RentalCustomer.js';
 import RentalInspection from '../models/RentalInspection.js';
 import RentalInvoice from '../models/RentalInvoice.js';
 import RentalMaintenance from '../models/RentalMaintenance.js';
-import RestaurantDelivery from '../models/RestaurantDelivery.js';
-import RestaurantMess from '../models/RestaurantMess.js';
+import { DeliveryOrder, DeliveryPlatformConfig, MenuSyncLog } from '../models/RestaurantDelivery.js';
+import { MessAttendance, MessBilling, MessPlan, MessSubscriber } from '../models/RestaurantMess.js';
 import RestaurantReservation from '../models/RestaurantReservation.js';
 import RestaurantTable from '../models/RestaurantTable.js';
 import RestaurantCombo from '../models/RestaurantCombo.js';
@@ -1612,9 +1612,13 @@ router.post('/tenants/:id/reset', async (req, res) => {
       ['customers', Customer],
       ['travelBookings', TravelBooking],
       ['restaurantOrders', RestaurantOrder],
-      ['restaurantMenuItems', RestaurantMenuItem],
-      ['restaurantDelivery', RestaurantDelivery],
-      ['restaurantMess', RestaurantMess],
+      ['restaurantDeliveryOrders', DeliveryOrder],
+      ['restaurantDeliveryConfigs', DeliveryPlatformConfig],
+      ['restaurantMenuSyncLogs', MenuSyncLog],
+      ['messSubscribers', MessSubscriber],
+      ['messPlans', MessPlan],
+      ['messBillings', MessBilling],
+      ['messAttendances', MessAttendance],
       ['restaurantReservation', RestaurantReservation],
       ['restaurantTable', RestaurantTable],
       ['restaurantCombo', RestaurantCombo],
@@ -1772,10 +1776,13 @@ router.delete('/tenants/:id', async (req, res) => {
       ['invoices', Invoice],
       ['customers', Customer],
       ['travelBookings', TravelBooking],
-      ['restaurantOrders', RestaurantOrder],
-      ['restaurantMenuItems', RestaurantMenuItem],
-      ['restaurantDelivery', RestaurantDelivery],
-      ['restaurantMess', RestaurantMess],
+      ['restaurantDeliveryOrders', DeliveryOrder],
+      ['restaurantDeliveryConfigs', DeliveryPlatformConfig],
+      ['restaurantMenuSyncLogs', MenuSyncLog],
+      ['messSubscribers', MessSubscriber],
+      ['messPlans', MessPlan],
+      ['messBillings', MessBilling],
+      ['messAttendances', MessAttendance],
       ['restaurantReservation', RestaurantReservation],
       ['restaurantTable', RestaurantTable],
       ['restaurantCombo', RestaurantCombo],
