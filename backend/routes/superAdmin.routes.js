@@ -2488,6 +2488,244 @@ router.delete('/invoices/:id', async (req, res) => {
   }
 });
 
+// ==========================================
+// SUPER ADMIN EXPENSES & COSTS ENDPOINTS
+// ==========================================
+
+// @route   GET /api/super-admin/expenses
+// @desc    Get all platform / super admin expenses with pagination, search, and category stats
+router.get('/expenses', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search = '', category, status, paymentMethod, startDate, endDate } = req.query;
+    const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+
+    const query = { isActive: { $ne: false } };
+    if (category) query.category = category;
+    if (status) query.status = status;
+    if (paymentMethod) query.paymentMethod = paymentMethod;
+
+    if (startDate || endDate) {
+      query.expenseDate = {};
+      if (startDate) query.expenseDate.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.expenseDate.$lte = end;
+      }
+    }
+
+    if (search && String(search).trim()) {
+      const s = String(search).trim();
+      query.$or = [
+        { expenseNumber: { $regex: s, $options: 'i' } },
+        { description: { $regex: s, $options: 'i' } },
+        { descriptionAr: { $regex: s, $options: 'i' } },
+        { payeeName: { $regex: s, $options: 'i' } },
+        { paymentReference: { $regex: s, $options: 'i' } },
+        { category: { $regex: s, $options: 'i' } },
+      ];
+    }
+
+    const [expenses, total, stats, categoryStats] = await Promise.all([
+      Expense.find(query)
+        .populate('tenantId', 'name slug')
+        .populate('createdBy', 'name email')
+        .sort({ expenseDate: -1, createdAt: -1 })
+        .skip((parsedPage - 1) * parsedLimit)
+        .limit(parsedLimit)
+        .lean(),
+      Expense.countDocuments(query),
+      Expense.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalExpenses: { $sum: '$totalAmount' },
+            totalTax: { $sum: '$taxAmount' },
+            baseAmount: { $sum: '$amount' },
+            count: { $sum: 1 }
+          }
+        }
+      ]),
+      Expense.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: '$category',
+            total: { $sum: '$totalAmount' },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { total: -1 } }
+      ])
+    ]);
+
+    res.json({
+      expenses: expenses || [],
+      pagination: {
+        page: parsedPage,
+        limit: parsedLimit,
+        total,
+        pages: Math.ceil(total / parsedLimit) || 1
+      },
+      stats: stats[0] || { totalExpenses: 0, totalTax: 0, baseAmount: 0, count: 0 },
+      categoryStats: categoryStats || []
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/super-admin/expenses/:id
+// @desc    Get single expense by ID
+router.get('/expenses/:id', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid expense ID' });
+    }
+    const expense = await Expense.findById(req.params.id)
+      .populate('tenantId', 'name slug')
+      .populate('createdBy', 'name email')
+      .lean();
+    if (!expense) return res.status(404).json({ error: 'Expense not found' });
+    res.json(expense);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/super-admin/expenses
+// @desc    Create a new expense or operational cost
+router.post('/expenses', async (req, res) => {
+  try {
+    const body = req.body || {};
+    
+    // Resolve tenantId
+    let tenantId = body.tenantId;
+    if (!tenantId || !mongoose.Types.ObjectId.isValid(tenantId)) {
+      const anyTenant = await Tenant.findOne({ isActive: true });
+      tenantId = anyTenant?._id;
+    }
+
+    if (!tenantId) {
+      return res.status(400).json({ error: 'No tenant found to attach expense' });
+    }
+
+    // Generate sequential expenseNumber
+    let expenseNumber = body.expenseNumber;
+    if (!expenseNumber || !String(expenseNumber).trim()) {
+      const lastExp = await Expense.findOne({ expenseNumber: { $regex: /^EXP-\d{4}-\d+$/ } })
+        .sort({ createdAt: -1 })
+        .select('expenseNumber')
+        .lean();
+      
+      let nextSeq = 1;
+      if (lastExp?.expenseNumber) {
+        const parts = lastExp.expenseNumber.split('-');
+        const lastPart = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(lastPart)) nextSeq = lastPart + 1;
+      }
+      expenseNumber = `EXP-${new Date().getFullYear()}-${String(nextSeq).padStart(6, '0')}`;
+    }
+
+    const amount = Math.max(0, Number(body.amount) || 0);
+    const taxAmount = Math.max(0, Number(body.taxAmount) || 0);
+    const totalAmount = Number((amount + taxAmount).toFixed(2));
+
+    const attachments = Array.isArray(body.attachments) ? body.attachments.map(att => ({
+      name: att.name || 'receipt_proof.jpg',
+      url: att.url || '',
+      mimeType: att.mimeType || 'image/jpeg',
+      size: Number(att.size) || 0
+    })) : [];
+
+    const expense = await Expense.create({
+      tenantId,
+      expenseNumber,
+      expenseDate: body.expenseDate ? new Date(body.expenseDate) : new Date(),
+      category: body.category || 'other',
+      categoryAr: body.categoryAr || '',
+      description: body.description || 'Operational Expense',
+      descriptionAr: body.descriptionAr || '',
+      payeeName: body.payeeName || '',
+      currency: body.currency || 'SAR',
+      amount,
+      taxAmount,
+      totalAmount,
+      status: body.status || 'paid',
+      paymentMethod: body.paymentMethod || 'bank_transfer',
+      paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
+      paymentReference: body.paymentReference || '',
+      attachments,
+      notes: body.notes || '',
+      isActive: true,
+      createdBy: req.user?._id
+    });
+
+    res.status(201).json(expense);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   PUT /api/super-admin/expenses/:id
+// @desc    Update super admin expense
+router.put('/expenses/:id', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid expense ID' });
+    }
+    const expense = await Expense.findById(req.params.id);
+    if (!expense) return res.status(404).json({ error: 'Expense not found' });
+
+    const body = req.body || {};
+    if (body.category !== undefined) expense.category = body.category;
+    if (body.categoryAr !== undefined) expense.categoryAr = body.categoryAr;
+    if (body.description !== undefined) expense.description = body.description;
+    if (body.descriptionAr !== undefined) expense.descriptionAr = body.descriptionAr;
+    if (body.payeeName !== undefined) expense.payeeName = body.payeeName;
+    if (body.expenseDate !== undefined) expense.expenseDate = new Date(body.expenseDate);
+    if (body.paymentMethod !== undefined) expense.paymentMethod = body.paymentMethod;
+    if (body.paymentReference !== undefined) expense.paymentReference = body.paymentReference;
+    if (body.status !== undefined) expense.status = body.status;
+    if (body.notes !== undefined) expense.notes = body.notes;
+
+    if (body.amount !== undefined) expense.amount = Math.max(0, Number(body.amount) || 0);
+    if (body.taxAmount !== undefined) expense.taxAmount = Math.max(0, Number(body.taxAmount) || 0);
+    expense.totalAmount = Number((expense.amount + expense.taxAmount).toFixed(2));
+
+    if (Array.isArray(body.attachments)) {
+      expense.attachments = body.attachments.map(att => ({
+        name: att.name || 'receipt_proof.jpg',
+        url: att.url || '',
+        mimeType: att.mimeType || 'image/jpeg',
+        size: Number(att.size) || 0
+      }));
+    }
+
+    await expense.save();
+    res.json(expense);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   DELETE /api/super-admin/expenses/:id
+// @desc    Delete super admin expense
+router.delete('/expenses/:id', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid expense ID' });
+    }
+    const expense = await Expense.findByIdAndDelete(req.params.id);
+    if (!expense) return res.status(404).json({ error: 'Expense not found' });
+    res.json({ message: 'Expense deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // @route   GET /api/super-admin/reports/revenue
 router.get('/reports/revenue', async (req, res) => {
   try {

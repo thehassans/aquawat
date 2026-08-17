@@ -22,7 +22,8 @@ import {
   Crown,
   Target,
   Database,
-  Receipt
+  Receipt,
+  DollarSign
 } from 'lucide-react'
 import { logout } from '../store/slices/authSlice'
 import { setTheme, setLanguage } from '../store/slices/uiSlice'
@@ -39,6 +40,7 @@ export default function SuperAdminLayout() {
     { path: '/super-admin', icon: LayoutDashboard, label: t('dashboard'), end: true },
     { path: '/super-admin/tenants', icon: Building2, label: t('tenants') },
     { path: '/super-admin/invoices', icon: Receipt, label: language === 'ar' ? 'فواتير المبيعات (ZATCA)' : 'Sell Invoices' },
+    { path: '/super-admin/expenses', icon: DollarSign, label: language === 'ar' ? 'المصاريف والتكاليف' : 'Expenses & Costs' },
     { path: '/super-admin/pos-sessions', icon: Monitor, label: language === 'ar' ? 'جلسات نقاط البيع' : 'POS Sessions' },
     { path: '/super-admin/resellers', icon: Store, label: language === 'ar' ? 'الموزعون' : 'Resellers' },
     { path: '/super-admin/queries', icon: HelpCircle, label: t('queries') },
