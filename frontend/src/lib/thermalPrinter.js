@@ -212,16 +212,21 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       } else if (elementOrHtml && elementOrHtml.outerHTML) {
         contentHtml = elementOrHtml.outerHTML;
       } else {
-        window.print();
-        resolve(true);
+        console.warn('printThermalElement: Invalid element provided, aborting.');
+        resolve(false);
         return;
       }
 
-      // *** CRITICAL FIX: Strip all embedded <style> tags from the receipt element's outerHTML.
-      // The ThermalReceipt component embeds a print stylesheet with
-      // "body * { visibility: hidden !important; }" which is designed for window.print()
-      // isolation. Inside our clean iframe, this CSS hides ALL content → blank white page.
-      // We inject our own comprehensive clean CSS below, so the embedded styles are not needed.
+      // *** GUARD: Check if content is empty before opening print dialog (prevents blank white page)
+      const rawText = contentHtml.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]*>/g, '').trim();
+      const hasMedia = /<(img|svg|canvas)/i.test(contentHtml);
+      if (!rawText && !hasMedia) {
+        console.warn('printThermalElement: Content is empty, aborting print to avoid blank page.');
+        resolve(false);
+        return;
+      }
+
+      // Strip all embedded <style> tags from the source element
       contentHtml = contentHtml.replace(/<style[\s\S]*?<\/style>/gi, '');
 
       // Remove any existing print iframes
@@ -243,31 +248,21 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
         return;
       }
 
-      // *** FIX: Do NOT copy parent SPA styles (Tailwind dark-mode etc.) into the iframe.
-      // They cause the white-page / invisible text bug because dark: classes get applied.
-      // Instead, inject only a minimal clean stylesheet with explicit white background + black text.
-
-      // We copy parent stylesheets to maintain layout utilities, but sanitize any destructive rules
-      let parentStyles = '';
-      try {
-        document.querySelectorAll('style, link[rel="stylesheet"]').forEach(node => {
-          parentStyles += node.outerHTML;
-        });
-        // Sanitize destructive visibility rules from copied parent stylesheets
-        parentStyles = parentStyles.replace(/visibility\s*:\s*hidden\s*!important/gi, 'visibility: visible !important');
-      } catch (_) {}
-
       const htmlDir = document.documentElement.getAttribute('dir') || 'ltr';
       const fullHtml = `<!DOCTYPE html>
 <html dir="${htmlDir}">
 <head>
   <meta charset="utf-8" />
   <title>Thermal Receipt</title>
-  ${parentStyles}
   <style>
     @page {
-      size: ${paperWidth} auto;
+      size: auto;
       margin: 0mm !important;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     html, body {
       margin: 0 !important;
@@ -282,15 +277,21 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       line-height: ${lineHeight} !important;
       visibility: visible !important;
     }
-    body, body *, div, p, span, table, tbody, tr, td, th, h1, h2, h3, h4, svg, img, b, strong, i, em {
-      box-sizing: border-box !important;
+    body * {
       visibility: visible !important;
       opacity: 1 !important;
       color: #000000 !important;
       -webkit-text-fill-color: #000000 !important;
     }
     @media print {
-      body, body *, div, p, span, table, tbody, tr, td, th, h1, h2, h3, h4, svg, img, b, strong, i, em {
+      html, body {
+        width: ${paperWidth} !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+      }
+      body * {
         visibility: visible !important;
         opacity: 1 !important;
         color: #000000 !important;
@@ -319,17 +320,17 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       max-width: 100% !important;
       height: auto !important;
       display: block;
+      margin: 0 auto;
     }
     svg {
       display: block !important;
       margin: 0 auto !important;
       max-width: 100% !important;
     }
-    /* Neutralize Tailwind dark mode classes */
     .dark, [class*="dark:"] { color: #000 !important; background: transparent !important; }
     [class*="text-white"] { color: #000000 !important; }
     [class*="bg-gray"], [class*="bg-slate"], [class*="bg-dark"] { background: transparent !important; }
-    hr { border-color: #aaa !important; }
+    hr, .divider, [class*="border-dashed"] { border-color: #333 !important; border-top-color: #333 !important; }
   </style>
 </head>
 <body style="margin: 0; padding: 0; background: #fff; color: #000; width: ${paperWidth};">
@@ -345,6 +346,7 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
         try {
           iframe.contentWindow.focus();
           iframe.contentWindow.print();
+          // Clean up iframe after user completes print
           setTimeout(() => {
             try {
               if (document.body.contains(iframe)) {
@@ -352,7 +354,7 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
               }
             } catch (_) {}
             resolve(true);
-          }, 3000);
+          }, 30000);
         } catch (e) {
           console.error('Iframe print failed, falling back to window.print:', e);
           window.print();
@@ -361,14 +363,13 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       };
 
       if (iframe.contentDocument?.readyState === 'complete') {
-        setTimeout(triggerIframePrint, 500);
+        setTimeout(triggerIframePrint, 350);
       } else {
-        iframe.onload = () => setTimeout(triggerIframePrint, 500);
-        setTimeout(triggerIframePrint, 1200);
+        iframe.onload = () => setTimeout(triggerIframePrint, 350);
+        setTimeout(triggerIframePrint, 800);
       }
     } catch (err) {
       console.error('printThermalElement error:', err);
-      window.print();
       resolve(false);
     }
   });

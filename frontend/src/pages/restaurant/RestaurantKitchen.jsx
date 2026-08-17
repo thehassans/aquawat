@@ -8,7 +8,7 @@ import toast from 'react-hot-toast'
 import api, { getImageUrl } from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
-import { getThermalPrinterSettings, getPaperWidth } from '../../lib/thermalPrinter'
+import { getThermalPrinterSettings, getPaperWidth, printThermalElement } from '../../lib/thermalPrinter'
 
 function formatTime(value) {
   if (!value) return '-'
@@ -17,34 +17,6 @@ function formatTime(value) {
   } catch {
     return '-'
   }
-}
-
-function printHtml(html) {
-  const iframe = document.createElement('iframe')
-  iframe.style.position = 'fixed'
-  iframe.style.right = '0'
-  iframe.style.bottom = '0'
-  iframe.style.width = '0'
-  iframe.style.height = '0'
-  iframe.style.border = '0'
-  document.body.appendChild(iframe)
-
-  const doc = iframe.contentWindow?.document
-  if (!doc) return
-
-  doc.open()
-  doc.write(html)
-  doc.close()
-
-  const win = iframe.contentWindow
-  if (!win) return
-
-  win.focus()
-  win.print()
-
-  setTimeout(() => {
-    document.body.removeChild(iframe)
-  }, 500)
 }
 
 export default function RestaurantKitchen() {
@@ -130,7 +102,7 @@ export default function RestaurantKitchen() {
         seenOrderIdsRef.current.add(o._id)
         setPrintingIds(prev => new Set([...prev, o._id]))
         try {
-          printHtml(buildKitchenTicketHtml(o))
+          printThermalElement(buildKitchenTicketHtml(o), getThermalPrinterSettings(tenant))
           markPrintedMutation.mutate(o._id, {
             onSettled: () => {
               setPrintingIds(prev => {
@@ -444,7 +416,7 @@ th{font-size:12px; text-align:start; border-bottom:1px solid #ddd; padding-botto
                           className="btn btn-secondary"
                           onClick={() => {
                             try {
-                              printHtml(buildKitchenTicketHtml(o))
+                              printThermalElement(buildKitchenTicketHtml(o), getThermalPrinterSettings(tenant))
                               markPrintedMutation.mutate(o._id)
                             } catch {
                               toast.error(language === 'ar' ? 'فشل الطباعة' : 'Print failed')
@@ -460,7 +432,7 @@ th{font-size:12px; text-align:start; border-bottom:1px solid #ddd; padding-botto
                           className="btn btn-secondary"
                           onClick={() => {
                             try {
-                              printHtml(buildReceiptHtml(o))
+                              printThermalElement(buildReceiptHtml(o), getThermalPrinterSettings(tenant))
                             } catch {
                               toast.error(language === 'ar' ? 'فشل الطباعة' : 'Print failed')
                             }

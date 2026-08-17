@@ -295,12 +295,15 @@ export default function RestaurantPOS() {
       setCompletedOrder(data)
       clearCart()
 
-      // Auto-open print dialog for thermal receipt
-      setTimeout(() => {
-        if (receiptRef.current) {
-          printThermalElement(receiptRef.current, thermalSettings)
-        }
-      }, 350)
+      // Auto-open print dialog for thermal receipt ONLY if autoPrint is enabled in settings
+      const shouldAutoPrint = thermalSettings?.autoPrint === true || tenant?.settings?.restaurant?.autoPrintReceipt === true
+      if (shouldAutoPrint) {
+        setTimeout(() => {
+          if (receiptRef.current) {
+            printThermalElement(receiptRef.current, thermalSettings)
+          }
+        }, 400)
+      }
 
       // Refresh tables if dine in to update status
       if (orderType === 'dine_in') {
@@ -356,12 +359,15 @@ export default function RestaurantPOS() {
       setCompletedOrder(data)
       clearCart()
 
-      // Auto-print kitchen ticket if setting enabled
-      setTimeout(() => {
-        if (printKitchenReceipt && receiptRef.current) {
-          printThermalElement(receiptRef.current, thermalSettings)
-        }
-      }, 350)
+      // Auto-print kitchen ticket ONLY if setting enabled
+      const shouldAutoPrintKitchen = printKitchenReceipt && (thermalSettings?.autoPrint === true || tenant?.settings?.restaurant?.autoPrintKitchen === true)
+      if (shouldAutoPrintKitchen) {
+        setTimeout(() => {
+          if (receiptRef.current) {
+            printThermalElement(receiptRef.current, thermalSettings)
+          }
+        }, 400)
+      }
 
       if (orderType === 'dine_in') fetchData()
     } catch (error) {
@@ -431,11 +437,14 @@ export default function RestaurantPOS() {
       setCompletedOrder(data)
       clearCart()
 
-      setTimeout(() => {
-        if (receiptRef.current) {
-          printThermalElement(receiptRef.current, thermalSettings)
-        }
-      }, 350)
+      const shouldAutoPrint = thermalSettings?.autoPrint === true || tenant?.settings?.restaurant?.autoPrintReceipt === true
+      if (shouldAutoPrint) {
+        setTimeout(() => {
+          if (receiptRef.current) {
+            printThermalElement(receiptRef.current, thermalSettings)
+          }
+        }, 400)
+      }
 
       if (orderType === 'dine_in') fetchData()
     } catch (error) {
