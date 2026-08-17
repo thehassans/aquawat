@@ -21,7 +21,8 @@ import {
   CreditCard,
   Crown,
   Target,
-  Database
+  Database,
+  Receipt
 } from 'lucide-react'
 import { logout } from '../store/slices/authSlice'
 import { setTheme, setLanguage } from '../store/slices/uiSlice'
@@ -37,6 +38,7 @@ export default function SuperAdminLayout() {
   const primaryNavItems = [
     { path: '/super-admin', icon: LayoutDashboard, label: t('dashboard'), end: true },
     { path: '/super-admin/tenants', icon: Building2, label: t('tenants') },
+    { path: '/super-admin/invoices', icon: Receipt, label: language === 'ar' ? 'فواتير المبيعات (ZATCA)' : 'Sell Invoices' },
     { path: '/super-admin/pos-sessions', icon: Monitor, label: language === 'ar' ? 'جلسات نقاط البيع' : 'POS Sessions' },
     { path: '/super-admin/resellers', icon: Store, label: language === 'ar' ? 'الموزعون' : 'Resellers' },
     { path: '/super-admin/queries', icon: HelpCircle, label: t('queries') },

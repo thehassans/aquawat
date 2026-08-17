@@ -129,6 +129,8 @@ import { buildEmailShell } from '../utils/tenantEmailService.js';
 import whatsappService from '../services/whatsappService.js';
 import { generateTermsPdf } from '../utils/termsPdf.js';
 import { provisionTenantApps, provisionAllTenants, getDefaultInstalledApps } from '../utils/appProvisioning.js';
+import { buildDraftInvoiceQr } from '../utils/zatca/draftInvoiceQr.js';
+import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 
 const router = express.Router();
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000);
@@ -2042,6 +2044,445 @@ router.post('/tenants/:id/login-as', async (req, res) => {
         terminationNotice: tenant.terminationNotice
       }
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/super-admin/tenants/lookup
+// @desc    Fast lightweight list of tenants for dropdown selection in sell invoice & other modules
+router.get('/tenants/lookup', async (req, res) => {
+  try {
+    const tenants = await Tenant.find({})
+      .select('_id name slug business businessType businessTypes branding settings.defaultUom settings.currency settings.invoiceBranding settings.termsAndConditions settings.notes isActive')
+      .sort({ name: 1 })
+      .lean();
+    res.json({ tenants: tenants || [] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/super-admin/invoices
+// @desc    Get all sell/platform invoices with filters and pagination
+router.get('/invoices', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search = '', status, transactionType, tenantId, startDate, endDate } = req.query;
+    const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    
+    const query = { flow: 'sell' };
+    if (status) query.status = status;
+    if (transactionType) query.transactionType = transactionType;
+    if (tenantId && mongoose.Types.ObjectId.isValid(tenantId)) {
+      query.$or = [
+        { tenantId: new mongoose.Types.ObjectId(tenantId) },
+        { customerId: new mongoose.Types.ObjectId(tenantId) }
+      ];
+    }
+    
+    if (startDate || endDate) {
+      query.issueDate = {};
+      if (startDate) query.issueDate.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.issueDate.$lte = end;
+      }
+    }
+
+    if (search && String(search).trim()) {
+      const s = String(search).trim();
+      query.$or = [
+        { invoiceNumber: { $regex: s, $options: 'i' } },
+        { 'seller.name': { $regex: s, $options: 'i' } },
+        { 'seller.nameAr': { $regex: s, $options: 'i' } },
+        { 'seller.vatNumber': { $regex: s, $options: 'i' } },
+        { 'seller.crNumber': { $regex: s, $options: 'i' } },
+        { 'buyer.name': { $regex: s, $options: 'i' } },
+        { 'buyer.nameAr': { $regex: s, $options: 'i' } },
+        { 'buyer.vatNumber': { $regex: s, $options: 'i' } },
+        { 'buyer.crNumber': { $regex: s, $options: 'i' } },
+      ];
+    }
+
+    const [invoices, total, stats] = await Promise.all([
+      Invoice.find(query)
+        .populate('tenantId', 'name slug business.legalNameEn business.legalNameAr')
+        .sort({ issueDate: -1, createdAt: -1 })
+        .skip((parsedPage - 1) * parsedLimit)
+        .limit(parsedLimit)
+        .lean(),
+      Invoice.countDocuments(query),
+      Invoice.statsAggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: '$grandTotal' },
+            totalTax: { $sum: '$totalTax' },
+            totalInvoices: { $sum: 1 }
+          }
+        }
+      ])
+    ]);
+
+    res.json({
+      invoices: invoices || [],
+      pagination: {
+        page: parsedPage,
+        limit: parsedLimit,
+        total,
+        pages: Math.ceil(total / parsedLimit) || 1
+      },
+      stats: stats[0] || { totalRevenue: 0, totalTax: 0, totalInvoices: total }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/super-admin/invoices/:id
+// @desc    Get single invoice by ID
+router.get('/invoices/:id', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid invoice ID' });
+    }
+    const invoice = await Invoice.findById(req.params.id)
+      .populate('tenantId', 'name slug business branding settings')
+      .lean();
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    res.json(invoice);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/super-admin/invoices
+// @desc    Create a sell invoice from Super Admin with full seller, buyer, line items and ZATCA integration
+router.post('/invoices', async (req, res) => {
+  try {
+    const body = req.body || {};
+    
+    // Resolve seller tenant if specified
+    let sellerTenant = null;
+    if (body.sellerTenantId && mongoose.Types.ObjectId.isValid(body.sellerTenantId)) {
+      sellerTenant = await Tenant.findById(body.sellerTenantId);
+    }
+    
+    // If no sellerTenantId or tenant not found, find first active tenant or fallback
+    let tenantId = sellerTenant?._id || body.tenantId;
+    if (!tenantId || !mongoose.Types.ObjectId.isValid(tenantId)) {
+      const anyTenant = await Tenant.findOne({ isActive: true });
+      tenantId = anyTenant?._id;
+    }
+
+    if (!tenantId) {
+      return res.status(400).json({ error: 'No active tenant found to associate invoice with' });
+    }
+
+    // Structure Seller details
+    const seller = {
+      name: body.seller?.name || body.seller?.legalNameEn || sellerTenant?.business?.legalNameEn || 'Maqder Platform',
+      nameAr: body.seller?.nameAr || body.seller?.legalNameAr || sellerTenant?.business?.legalNameAr || 'منصة مقدر',
+      vatNumber: body.seller?.vatNumber || sellerTenant?.business?.vatNumber || '',
+      crNumber: body.seller?.crNumber || sellerTenant?.business?.crNumber || '',
+      address: {
+        street: body.seller?.address?.street || sellerTenant?.business?.address?.street || '',
+        streetAr: body.seller?.address?.streetAr || sellerTenant?.business?.address?.streetAr || '',
+        district: body.seller?.address?.district || sellerTenant?.business?.address?.district || '',
+        districtAr: body.seller?.address?.districtAr || sellerTenant?.business?.address?.districtAr || '',
+        city: body.seller?.address?.city || sellerTenant?.business?.address?.city || 'Riyadh',
+        cityAr: body.seller?.address?.cityAr || sellerTenant?.business?.address?.cityAr || 'الرياض',
+        buildingNumber: body.seller?.address?.buildingNumber || sellerTenant?.business?.address?.buildingNumber || '',
+        additionalNumber: body.seller?.address?.additionalNumber || sellerTenant?.business?.address?.additionalNumber || '',
+        postalCode: body.seller?.address?.postalCode || sellerTenant?.business?.address?.postalCode || '',
+        country: body.seller?.address?.country || sellerTenant?.business?.address?.country || 'SA',
+      },
+      contactEmail: body.seller?.contactEmail || sellerTenant?.business?.contactEmail || '',
+      contactPhone: body.seller?.contactPhone || sellerTenant?.business?.contactPhone || '',
+    };
+
+    // Structure Buyer details
+    let buyerTenant = null;
+    if (body.buyerTenantId && mongoose.Types.ObjectId.isValid(body.buyerTenantId)) {
+      buyerTenant = await Tenant.findById(body.buyerTenantId);
+    }
+
+    const buyer = {
+      name: body.buyer?.name || buyerTenant?.business?.legalNameEn || buyerTenant?.name || 'Cash Customer',
+      nameAr: body.buyer?.nameAr || buyerTenant?.business?.legalNameAr || 'عميل نقدي',
+      vatNumber: body.buyer?.vatNumber || buyerTenant?.business?.vatNumber || '',
+      crNumber: body.buyer?.crNumber || buyerTenant?.business?.crNumber || '',
+      address: {
+        street: body.buyer?.address?.street || buyerTenant?.business?.address?.street || '',
+        streetAr: body.buyer?.address?.streetAr || buyerTenant?.business?.address?.streetAr || '',
+        district: body.buyer?.address?.district || buyerTenant?.business?.address?.district || '',
+        districtAr: body.buyer?.address?.districtAr || buyerTenant?.business?.address?.districtAr || '',
+        city: body.buyer?.address?.city || buyerTenant?.business?.address?.city || 'Riyadh',
+        cityAr: body.buyer?.address?.cityAr || buyerTenant?.business?.address?.cityAr || 'الرياض',
+        buildingNumber: body.buyer?.address?.buildingNumber || buyerTenant?.business?.address?.buildingNumber || '',
+        additionalNumber: body.buyer?.address?.additionalNumber || buyerTenant?.business?.address?.additionalNumber || '',
+        postalCode: body.buyer?.address?.postalCode || buyerTenant?.business?.address?.postalCode || '',
+        country: body.buyer?.address?.country || buyerTenant?.business?.address?.country || 'SA',
+      },
+      contactEmail: body.buyer?.contactEmail || buyerTenant?.business?.contactEmail || '',
+      contactPhone: body.buyer?.contactPhone || buyerTenant?.business?.contactPhone || '',
+    };
+
+    // Line items processing
+    const rawLines = Array.isArray(body.lineItems) && body.lineItems.length > 0 ? body.lineItems : [
+      {
+        lineNumber: 1,
+        productName: 'Professional Services',
+        productNameAr: 'خدمات احترافية',
+        productType: 'service',
+        quantity: 1,
+        unitCode: '',
+        unitPrice: 100,
+        taxRate: 15,
+        taxAmount: 15,
+        lineTotal: 100,
+        lineTotalWithTax: 115
+      }
+    ];
+
+    let subtotal = 0;
+    let totalDiscount = Math.max(0, Number(body.invoiceDiscount || body.totalDiscount || 0));
+    let totalTax = 0;
+
+    const lineItems = rawLines.map((item, idx) => {
+      const qty = Math.max(0.001, Number(item.quantity || 1));
+      const price = Math.max(0, Number(item.unitPrice || 0));
+      const discount = Math.max(0, Number(item.discount || 0));
+      const isPercent = item.discountType === 'percentage';
+      const lineDisc = isPercent ? (qty * price * (discount / 100)) : discount;
+      const taxable = Math.max(0, (qty * price) - lineDisc);
+      const taxRate = item.taxRate !== undefined ? Number(item.taxRate) : 15;
+      const taxAmount = Number(((taxable * taxRate) / 100).toFixed(2));
+      const lineTotal = Number(taxable.toFixed(2));
+      const lineTotalWithTax = Number((taxable + taxAmount).toFixed(2));
+
+      subtotal += (qty * price);
+      totalTax += taxAmount;
+
+      return {
+        lineNumber: idx + 1,
+        productId: item.productId && mongoose.Types.ObjectId.isValid(item.productId) ? item.productId : undefined,
+        productName: item.productName || `Item ${idx + 1}`,
+        productNameAr: item.productNameAr || item.productName || `بند ${idx + 1}`,
+        productType: item.productType || 'service',
+        description: item.description || '',
+        descriptionAr: item.descriptionAr || '',
+        quantity: qty,
+        unitCode: item.unitCode || '',
+        unitPrice: price,
+        discount: discount,
+        discountType: item.discountType || 'fixed',
+        taxCategory: item.taxCategory || (taxRate > 0 ? 'S' : 'Z'),
+        taxRate: taxRate,
+        taxAmount: taxAmount,
+        lineTotal: lineTotal,
+        lineTotalWithTax: lineTotalWithTax
+      };
+    });
+
+    const taxableAmount = Math.max(0, subtotal - totalDiscount);
+    const grandTotal = Number((taxableAmount + totalTax).toFixed(2));
+
+    // Sequential invoice numbering
+    let invoiceNumber = body.invoiceNumber;
+    if (!invoiceNumber || !String(invoiceNumber).trim()) {
+      const lastInv = await Invoice.findOne({ invoiceNumber: { $regex: /^INV-\d{4}-\d+$/ } })
+        .sort({ createdAt: -1 })
+        .select('invoiceNumber')
+        .lean();
+      
+      let nextSeq = 1;
+      if (lastInv?.invoiceNumber) {
+        const parts = lastInv.invoiceNumber.split('-');
+        const lastPart = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(lastPart)) nextSeq = lastPart + 1;
+      }
+      invoiceNumber = `INV-${new Date().getFullYear()}-${String(nextSeq).padStart(6, '0')}`;
+    }
+
+    const transactionType = body.transactionType === 'B2B' ? 'B2B' : (buyer.vatNumber ? 'B2B' : 'B2C');
+    const invoiceTypeCode = body.invoiceTypeCode || (transactionType === 'B2B' ? '0100000' : '0200000');
+    const issueDate = body.issueDate ? new Date(body.issueDate) : new Date();
+    const issueTime = body.issueTime || issueDate.toTimeString().split(' ')[0];
+
+    // ZATCA TLV QR Code generation
+    const qrData = await buildDraftInvoiceQr({
+      seller,
+      issueDate,
+      grandTotal,
+      totalTax,
+    });
+
+    const invoiceData = {
+      tenantId,
+      flow: 'sell',
+      businessContext: body.businessContext || 'trading',
+      invoiceNumber,
+      invoiceType: body.invoiceType || '388',
+      invoiceSubtype: body.invoiceSubtype || 'standard',
+      pdfTemplateId: body.pdfTemplateId || 1,
+      invoiceTypeCode,
+      transactionType,
+      issueDate,
+      issueTime,
+      supplyDate: body.supplyDate ? new Date(body.supplyDate) : issueDate,
+      dueDate: body.dueDate ? new Date(body.dueDate) : new Date(Date.now() + 30 * 86400000),
+      printFormat: body.printFormat || 'a4',
+      seller,
+      buyer,
+      lineItems,
+      subtotal: Number(subtotal.toFixed(2)),
+      invoiceDiscount: totalDiscount,
+      totalDiscount: totalDiscount,
+      taxableAmount: Number(taxableAmount.toFixed(2)),
+      totalTax: Number(totalTax.toFixed(2)),
+      grandTotal,
+      currency: body.currency || 'SAR',
+      exchangeRate: 1,
+      paymentMethod: body.paymentMethod || 'bank_transfer',
+      paymentStatus: body.paymentStatus || (body.paidAmount >= grandTotal ? 'paid' : (body.paidAmount > 0 ? 'partial' : 'pending')),
+      paidAmount: Number(body.paidAmount || 0),
+      notes: body.notes || '',
+      notesAr: body.notesAr || body.notes || '',
+      termsAndConditions: body.termsAndConditions || '',
+      termsAndConditionsAr: body.termsAndConditionsAr || body.termsAndConditions || '',
+      status: body.status || 'issued',
+      zatca: {
+        ...(qrData || {}),
+        submissionStatus: 'pending'
+      },
+      createdBy: req.user._id,
+      createdByName: req.user.name || 'Super Admin',
+      createdByUserType: 'super_admin'
+    };
+
+    const enriched = await enrichInvoiceArabicFields(invoiceData);
+    const invoice = await Invoice.create(enriched);
+
+    res.status(201).json(invoice);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   PUT /api/super-admin/invoices/:id
+// @desc    Update super admin sell invoice
+router.put('/invoices/:id', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid invoice ID' });
+    }
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+
+    const body = req.body || {};
+    
+    if (body.seller) invoice.seller = { ...invoice.seller.toObject(), ...body.seller };
+    if (body.buyer) invoice.buyer = { ...invoice.buyer.toObject(), ...body.buyer };
+    if (body.issueDate) invoice.issueDate = new Date(body.issueDate);
+    if (body.issueTime) invoice.issueTime = body.issueTime;
+    if (body.supplyDate) invoice.supplyDate = new Date(body.supplyDate);
+    if (body.dueDate) invoice.dueDate = new Date(body.dueDate);
+    if (body.paymentMethod) invoice.paymentMethod = body.paymentMethod;
+    if (body.paymentStatus) invoice.paymentStatus = body.paymentStatus;
+    if (body.paidAmount !== undefined) invoice.paidAmount = Number(body.paidAmount);
+    if (body.notes !== undefined) invoice.notes = body.notes;
+    if (body.notesAr !== undefined) invoice.notesAr = body.notesAr;
+    if (body.termsAndConditions !== undefined) invoice.termsAndConditions = body.termsAndConditions;
+    if (body.termsAndConditionsAr !== undefined) invoice.termsAndConditionsAr = body.termsAndConditionsAr;
+    if (body.pdfTemplateId) invoice.pdfTemplateId = body.pdfTemplateId;
+    if (body.status) invoice.status = body.status;
+    if (body.transactionType) invoice.transactionType = body.transactionType;
+    if (body.invoiceTypeCode) invoice.invoiceTypeCode = body.invoiceTypeCode;
+
+    if (Array.isArray(body.lineItems)) {
+      let subtotal = 0;
+      let totalTax = 0;
+      const totalDiscount = Math.max(0, Number(body.invoiceDiscount || body.totalDiscount || invoice.totalDiscount || 0));
+
+      invoice.lineItems = body.lineItems.map((item, idx) => {
+        const qty = Math.max(0.001, Number(item.quantity || 1));
+        const price = Math.max(0, Number(item.unitPrice || 0));
+        const discount = Math.max(0, Number(item.discount || 0));
+        const isPercent = item.discountType === 'percentage';
+        const lineDisc = isPercent ? (qty * price * (discount / 100)) : discount;
+        const taxable = Math.max(0, (qty * price) - lineDisc);
+        const taxRate = item.taxRate !== undefined ? Number(item.taxRate) : 15;
+        const taxAmount = Number(((taxable * taxRate) / 100).toFixed(2));
+        const lineTotal = Number(taxable.toFixed(2));
+        const lineTotalWithTax = Number((taxable + taxAmount).toFixed(2));
+
+        subtotal += (qty * price);
+        totalTax += taxAmount;
+
+        return {
+          lineNumber: idx + 1,
+          productId: item.productId && mongoose.Types.ObjectId.isValid(item.productId) ? item.productId : undefined,
+          productName: item.productName || `Item ${idx + 1}`,
+          productNameAr: item.productNameAr || item.productName || `بند ${idx + 1}`,
+          productType: item.productType || 'service',
+          description: item.description || '',
+          descriptionAr: item.descriptionAr || '',
+          quantity: qty,
+          unitCode: item.unitCode || '',
+          unitPrice: price,
+          discount: discount,
+          discountType: item.discountType || 'fixed',
+          taxCategory: item.taxCategory || (taxRate > 0 ? 'S' : 'Z'),
+          taxRate: taxRate,
+          taxAmount: taxAmount,
+          lineTotal: lineTotal,
+          lineTotalWithTax: lineTotalWithTax
+        };
+      });
+
+      const taxableAmount = Math.max(0, subtotal - totalDiscount);
+      const grandTotal = Number((taxableAmount + totalTax).toFixed(2));
+
+      invoice.subtotal = Number(subtotal.toFixed(2));
+      invoice.totalDiscount = totalDiscount;
+      invoice.taxableAmount = Number(taxableAmount.toFixed(2));
+      invoice.totalTax = Number(totalTax.toFixed(2));
+      invoice.grandTotal = grandTotal;
+    }
+
+    // Re-generate ZATCA QR
+    const qrData = await buildDraftInvoiceQr({
+      seller: invoice.seller,
+      issueDate: invoice.issueDate,
+      grandTotal: invoice.grandTotal,
+      totalTax: invoice.totalTax,
+    });
+    invoice.zatca = {
+      ...(invoice.zatca?.toObject?.() || invoice.zatca || {}),
+      ...(qrData || {})
+    };
+
+    await invoice.save();
+    res.json(invoice);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   DELETE /api/super-admin/invoices/:id
+// @desc    Delete super admin invoice
+router.delete('/invoices/:id', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid invoice ID' });
+    }
+    const invoice = await Invoice.findByIdAndDelete(req.params.id);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    res.json({ message: 'Invoice deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
