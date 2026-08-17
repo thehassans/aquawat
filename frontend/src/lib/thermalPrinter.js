@@ -247,13 +247,14 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       // They cause the white-page / invisible text bug because dark: classes get applied.
       // Instead, inject only a minimal clean stylesheet with explicit white background + black text.
 
-      // We need to copy all stylesheets from the parent to ensure Tailwind classes (flex, w-full) work.
-      // We will override colors to force black-on-white in the inline <style> block below.
+      // We copy parent stylesheets to maintain layout utilities, but sanitize any destructive rules
       let parentStyles = '';
       try {
         document.querySelectorAll('style, link[rel="stylesheet"]').forEach(node => {
           parentStyles += node.outerHTML;
         });
+        // Sanitize destructive visibility rules from copied parent stylesheets
+        parentStyles = parentStyles.replace(/visibility\s*:\s*hidden\s*!important/gi, 'visibility: visible !important');
       } catch (_) {}
 
       const htmlDir = document.documentElement.getAttribute('dir') || 'ltr';
@@ -261,7 +262,7 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
 <html dir="${htmlDir}">
 <head>
   <meta charset="utf-8" />
-  <title>Receipt</title>
+  <title>Thermal Receipt</title>
   ${parentStyles}
   <style>
     @page {
@@ -279,14 +280,22 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', Courier, monospace, 'Cairo', sans-serif !important;
       font-size: ${fontSize}px !important;
       line-height: ${lineHeight} !important;
+      visibility: visible !important;
     }
-    *, *::before, *::after {
+    body, body *, div, p, span, table, tbody, tr, td, th, h1, h2, h3, h4, svg, img, b, strong, i, em {
       box-sizing: border-box !important;
       visibility: visible !important;
       opacity: 1 !important;
       color: #000000 !important;
       -webkit-text-fill-color: #000000 !important;
-      background-color: transparent;
+    }
+    @media print {
+      body, body *, div, p, span, table, tbody, tr, td, th, h1, h2, h3, h4, svg, img, b, strong, i, em {
+        visibility: visible !important;
+        opacity: 1 !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+      }
     }
     .print-section, .order-receipt, .thermal-receipt, .kitchen-ticket {
       width: 100% !important;
@@ -299,6 +308,8 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       box-shadow: none !important;
       display: block !important;
       position: static !important;
+      visibility: visible !important;
+      opacity: 1 !important;
     }
     table {
       width: 100% !important;
@@ -312,6 +323,7 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
     svg {
       display: block !important;
       margin: 0 auto !important;
+      max-width: 100% !important;
     }
     /* Neutralize Tailwind dark mode classes */
     .dark, [class*="dark:"] { color: #000 !important; background: transparent !important; }

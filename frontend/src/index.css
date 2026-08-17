@@ -383,12 +383,13 @@ html.display-mode-desktop {
     box-shadow: none !important;
   }
 
-  body * {
+  /* Only hide elements if printing master report preview */
+  body.printing-master-report * {
     visibility: hidden !important;
   }
 
-  #master-report-preview-canvas,
-  #master-report-preview-canvas * {
+  body.printing-master-report #master-report-preview-canvas,
+  body.printing-master-report #master-report-preview-canvas * {
     visibility: visible !important;
   }
 
@@ -400,5 +401,18 @@ html.display-mode-desktop {
     min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
+  }
+
+  /* Ensure thermal receipts, print sections, and kitchen tickets are always fully visible */
+  .print-section,
+  .print-section *,
+  .thermal-receipt,
+  .thermal-receipt *,
+  .order-receipt,
+  .order-receipt *,
+  .kitchen-ticket,
+  .kitchen-ticket * {
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 }
