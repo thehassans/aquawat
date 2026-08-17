@@ -2,6 +2,7 @@ import express from 'express';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import Tenant from '../models/Tenant.js';
 import { AppAddon } from '../models/AppAddon.js';
+import AppReview from '../models/AppReview.js';
 import { WhatsAppConfig } from '../models/WhatsApp.js';
 import crypto from 'crypto';
 import { normalizeBusinessTypes } from '../utils/businessTypes.js';
@@ -2086,6 +2087,30 @@ router.get('/apps', protect, async (req, res) => {
       await tenant.save();
     }
 
+    // Aggregate real reviews & ratings across apps
+    let reviewMap = {};
+    try {
+      const reviewAgg = await AppReview.aggregate([
+        {
+          $group: {
+            _id: '$appId',
+            averageRating: { $avg: '$rating' },
+            reviewsCount: { $sum: 1 },
+          },
+        },
+      ]);
+      (reviewAgg || []).forEach((r) => {
+        if (r._id) {
+          reviewMap[r._id] = {
+            rating: Math.round(r.averageRating * 10) / 10,
+            reviewsCount: r.reviewsCount || 0,
+          };
+        }
+      });
+    } catch (err) {
+      console.warn('Failed to aggregate app reviews:', err.message);
+    }
+
     const isAppVisibleForCurrency = (app) => {
       const required = String(app.requiredCurrency || defaultCatalogMap.get(app.appId)?.requiredCurrency || '').trim().toUpperCase();
       if (required) return tenantCurrency === required;
@@ -2139,6 +2164,8 @@ router.get('/apps', protect, async (req, res) => {
       return {
         ...app,
         downloadSize: app.downloadSize || defApp?.downloadSize || '4.5 MB',
+        rating: reviewMap[app.appId]?.rating || app.rating || defApp?.rating || 5.0,
+        reviewsCount: reviewMap[app.appId]?.reviewsCount || app.reviewsCount || defApp?.reviewsCount || 0,
         monthlyPrice,
         yearlyPrice,
         trialDays: trial.trialDays,
@@ -2559,6 +2586,147 @@ router.put('/apps/:appId/settings', protect, async (req, res) => {
       appId,
       config: installedApps[appId].config,
       tenant: serializeAuthTenant(tenant)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── 6. Get App Reviews & Rating Stats ───
+router.get('/apps/:appId/reviews', protect, async (req, res) => {
+  try {
+    const { appId } = req.params;
+    const tenant = await getTenantForUser(req);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const reviews = await AppReview.find({ appId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const totalReviews = reviews.length;
+    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    let sumRating = 0;
+
+    reviews.forEach((r) => {
+      const score = Math.max(1, Math.min(5, Math.round(Number(r.rating) || 5)));
+      if (distribution[score] !== undefined) distribution[score] += 1;
+      sumRating += Number(r.rating) || 5;
+    });
+
+    const averageRating = totalReviews > 0 ? Math.round((sumRating / totalReviews) * 10) / 10 : 5.0;
+
+    const myReview = reviews.find((r) => String(r.tenantId) === String(tenant._id)) || null;
+
+    // Can only rate if admin/super_admin/manager and tenant has app installed
+    const record = tenant.settings?.installedApps?.[appId];
+    const isExplicitlyInstalled = !!record?.isInstalled;
+    const isGrandfathered = appId === PREMIUM_INVOICE_TEMPLATES_APP_ID && !isExplicitlyInstalled && hasPremiumTemplateAccess(tenant);
+    const accessValid = isAppAccessValid(record);
+    const isCoreAlwaysInstalled = appId === 'purchases';
+    const isInstalled = accessValid || isGrandfathered || isCoreAlwaysInstalled || isPaidOrGranted(tenant, appId);
+
+    const userRole = String(req.user?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin', 'manager', 'owner'].includes(userRole);
+    const canReview = Boolean(isAdmin && isInstalled);
+
+    res.json({
+      success: true,
+      appId,
+      reviews: reviews.map((r) => ({
+        ...r,
+        isOwnReview: String(r.tenantId) === String(tenant._id),
+      })),
+      stats: {
+        totalReviews,
+        averageRating,
+        distribution,
+      },
+      myReview,
+      canReview,
+      isInstalled: Boolean(isInstalled),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── 7. Submit / Update App Rating & Review (Installed Admins Only) ───
+router.post('/apps/:appId/reviews', protect, async (req, res) => {
+  try {
+    const { appId } = req.params;
+    const { rating, title, comment } = req.body;
+
+    const tenant = await getTenantForUser(req);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const userRole = String(req.user?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin', 'manager', 'owner'].includes(userRole);
+    if (!isAdmin) {
+      return res.status(403).json({
+        error: 'Only administrators can rate and review applications',
+        errorAr: 'المسؤولون فقط يمكنهم تقييم التطبيقات وكتابة المراجعات',
+      });
+    }
+
+    const record = tenant.settings?.installedApps?.[appId];
+    const isExplicitlyInstalled = !!record?.isInstalled;
+    const isGrandfathered = appId === PREMIUM_INVOICE_TEMPLATES_APP_ID && !isExplicitlyInstalled && hasPremiumTemplateAccess(tenant);
+    const accessValid = isAppAccessValid(record);
+    const isCoreAlwaysInstalled = appId === 'purchases';
+    const isInstalled = accessValid || isGrandfathered || isCoreAlwaysInstalled || isPaidOrGranted(tenant, appId);
+
+    if (!isInstalled) {
+      return res.status(403).json({
+        error: 'You can only rate applications that your organization has installed',
+        errorAr: 'يمكنك فقط تقييم التطبيقات المثبتة في منشأتك',
+      });
+    }
+
+    const numericRating = Math.max(1, Math.min(5, Math.round(Number(rating) || 5)));
+
+    const authorName = req.user.name || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || 'Admin';
+    const tenantName = tenant.business?.legalNameAr || tenant.business?.legalNameEn || tenant.name || 'Organization';
+
+    const review = await AppReview.findOneAndUpdate(
+      { appId, tenantId: tenant._id },
+      {
+        $set: {
+          appId,
+          tenantId: tenant._id,
+          userId: req.user._id,
+          authorName,
+          tenantName,
+          rating: numericRating,
+          title: String(title || '').trim(),
+          comment: String(comment || '').trim(),
+          isVerifiedInstaller: true,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Review submitted successfully',
+      review,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── 8. Delete App Review ───
+router.delete('/apps/:appId/reviews', protect, async (req, res) => {
+  try {
+    const { appId } = req.params;
+    const tenant = await getTenantForUser(req);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    await AppReview.findOneAndDelete({ appId, tenantId: tenant._id });
+
+    res.json({
+      success: true,
+      message: 'Review removed successfully',
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

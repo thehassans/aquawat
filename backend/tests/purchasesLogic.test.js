@@ -32,16 +32,18 @@ test('PO line totals recompute subtotal, tax, and grand total from qty/cost/tax'
   assert.equal(totals.lines[0].lineTotal, 1150);
 });
 
-test('GRN cannot over-receive remaining PO quantity', () => {
+test('GRN supports receiving extra quantity as gift or supplier bonus', () => {
   const first = applyGrnReceiveToPoLines(poLines(), [{ productId: 'g1', quantityReceived: 6 }]);
   assert.equal(first.lines[0].quantityReceived, 6);
   assert.equal(first.status, 'partially_received');
   assert.equal(remainingReceivable(first.lines[0]), 4);
 
-  assert.throws(
-    () => applyGrnReceiveToPoLines(first.lines, [{ productId: 'g1', quantityReceived: 5 }]),
-    (err) => err instanceof PurchasesValidationError && err.code === 'OVER_RECEIVE'
-  );
+  // Supplier sends 5 more (total 11 received on 10 ordered)
+  const second = applyGrnReceiveToPoLines(first.lines, [{ productId: 'g1', quantityReceived: 5 }]);
+  assert.equal(second.lines[0].quantityReceived, 11);
+  assert.equal(second.applied[0].quantity, 5);
+  assert.equal(second.status, 'received');
+  assert.equal(remainingReceivable(second.lines[0]), 0);
 });
 
 test('return cannot exceed received minus already returned', () => {

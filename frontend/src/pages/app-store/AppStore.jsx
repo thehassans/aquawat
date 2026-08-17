@@ -543,6 +543,17 @@ export default function AppStore() {
             <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
               {isAr ? app.taglineAr : app.taglineEn}
             </p>
+            <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-0.5 text-amber-500">
+                <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                <span className="font-bold text-slate-700 dark:text-slate-200">
+                  {typeof app.rating === 'number' ? app.rating.toFixed(1) : (app.rating || '5.0')}
+                </span>
+              </div>
+              {app.reviewsCount > 0 && (
+                <span className="text-slate-400">({app.reviewsCount})</span>
+              )}
+            </div>
           </div>
         </div>
 

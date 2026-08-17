@@ -209,11 +209,6 @@ export function applyGrnReceiveToPoLines(poLines, receiveLines) {
       throw new PurchasesValidationError('Received line does not match a purchase order line', 'PO_LINE_MISMATCH');
     }
 
-    const remaining = remainingReceivable(target);
-    if (qty > remaining + 1e-9) {
-      throw new PurchasesValidationError('Received quantity exceeds remaining quantity', 'OVER_RECEIVE');
-    }
-
     target.quantityReceived = round2(toNumber(target.quantityReceived) + qty);
     applied.push({
       productId: receiveLine.productId || target.productId,

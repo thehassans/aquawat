@@ -2331,19 +2331,21 @@ export default function PurchaseOrderForm() {
                           <input
                             type="number"
                             min="0"
-                            max={remaining}
                             value={currVal}
                             onChange={(e) => {
                               const val = e.target.value
                               setReceiveQty((prev) => ({ ...prev, [key]: val }))
                             }}
                             placeholder="0"
-                            className="w-20 rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-center font-bold text-slate-900 shadow-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-white/10 dark:bg-dark-800 dark:text-white mx-auto disabled:opacity-40"
-                            disabled={remaining <= 0}
+                            className="w-20 rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-center font-bold text-slate-900 shadow-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-white/10 dark:bg-dark-800 dark:text-white mx-auto"
                           />
                         </td>
                         <td className="p-3 text-center tabular-nums">
-                          {lineBackorder > 0 ? (
+                          {numVal > remaining ? (
+                            <span className="inline-flex rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-700 ring-1 ring-inset ring-teal-200 dark:bg-teal-500/10 dark:text-teal-300">
+                              +{numVal - remaining} {language === 'ar' ? 'هدية' : 'Gift'}
+                            </span>
+                          ) : lineBackorder > 0 ? (
                             <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300">
                               {lineBackorder}
                             </span>
