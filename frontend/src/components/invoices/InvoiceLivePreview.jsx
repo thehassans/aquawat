@@ -19,9 +19,9 @@ import AirTemplate from './AirTemplate'
 import LedgerTemplate from './LedgerTemplate'
 import SignatureTemplate from './SignatureTemplate'
 import LetterheadTemplate from './LetterheadTemplate'
-import DocumentExtras from './DocumentExtras'
 import {
   resolveCommercialDocumentNumber,
+  resolveInvoiceParties,
 } from '../../lib/commercialDocumentLabels'
 
 const joinClasses = (...classes) => classes.filter(Boolean).join(' ')

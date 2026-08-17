@@ -654,7 +654,7 @@ function App() {
         <Route path="invoices" element={<Invoices />} />
         <Route path="invoices/new" element={<InvoiceCreate />} />
         <Route path="invoices/new/sell" element={<InvoiceCreateSell />} />
-        <Route path="invoices/new/purchase" element={<BusinessTypeRoute allowedTypes={['trading', 'construction', 'travel_agency']}><InvoiceCreatePurchase /></BusinessTypeRoute>} />
+        <Route path="invoices/new/purchase" element={<InvoiceCreatePurchase />} />
         <Route path="invoices/:id/edit" element={<InvoiceEditPage />} />
         <Route path="invoices/:id" element={<InvoiceView />} />
         <Route path="quotations" element={<Quotations />} />
