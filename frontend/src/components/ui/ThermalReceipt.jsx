@@ -188,7 +188,17 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
             <img 
               src={logoSrc} 
               alt="Logo" 
-              className="w-20 h-20 mb-2 object-contain filter grayscale" 
+              style={{
+                maxHeight: '40px',
+                maxWidth: '85px',
+                width: 'auto',
+                height: 'auto',
+                objectFit: 'contain',
+                margin: '0 auto 6px auto',
+                display: 'block',
+                filter: 'grayscale(100%) contrast(120%)'
+              }}
+              className="max-h-10 max-w-[85px] mb-2 object-contain filter grayscale mx-auto" 
               onError={(e) => { e.target.style.display = 'none' }}
             />
           )}

@@ -212,11 +212,22 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       } else if (elementOrHtml && elementOrHtml.outerHTML) {
         contentHtml = elementOrHtml.outerHTML;
       } else {
-        // Fallback to window.print if no element
-        window.print();
-        resolve(true);
+        console.warn('printThermalElement: Invalid element provided, aborting.');
+        resolve(false);
         return;
       }
+
+      // *** GUARD: Check if content is empty before opening print dialog (prevents blank white page)
+      const rawText = contentHtml.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]*>/g, '').trim();
+      const hasMedia = /<(img|svg|canvas)/i.test(contentHtml);
+      if (!rawText && !hasMedia) {
+        console.warn('printThermalElement: Content is empty, aborting print to avoid blank page.');
+        resolve(false);
+        return;
+      }
+
+      // Strip all embedded <style> tags from the source element to prevent parent SPA visibility rules from hiding receipt
+      contentHtml = contentHtml.replace(/<style[\s\S]*?<\/style>/gi, '');
 
       // Remove any existing print iframes
       const existingIframe = document.getElementById('maqder-thermal-print-frame');
@@ -224,33 +235,32 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
         try { document.body.removeChild(existingIframe); } catch (_) {}
       }
 
-      // Create isolated invisible iframe
+      // Create isolated iframe with proper dimensions for Chromium print spooler
       const iframe = document.createElement('iframe');
       iframe.id = 'maqder-thermal-print-frame';
-      iframe.setAttribute('style', 'position: fixed; top: -9999px; left: -9999px; width: 0; height: 0; border: 0; visibility: hidden;');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = paperWidth;
+      iframe.style.height = '600px';
+      iframe.style.border = '0';
+      iframe.style.opacity = '0.001';
+      iframe.style.pointerEvents = 'none';
+      iframe.style.zIndex = '-9999';
       document.body.appendChild(iframe);
 
       const doc = iframe.contentWindow?.document || iframe.contentDocument;
       if (!doc) {
-        window.print();
-        resolve(true);
+        resolve(false);
         return;
       }
 
-      // Collect head styles from parent document for full Tailwind & font fidelity
-      let parentStyles = '';
-      try {
-        document.querySelectorAll('style, link[rel="stylesheet"]').forEach(node => {
-          parentStyles += node.outerHTML;
-        });
-      } catch (_) {}
-
+      const htmlDir = document.documentElement.getAttribute('dir') || 'ltr';
       const fullHtml = `<!DOCTYPE html>
-<html>
+<html dir="${htmlDir}">
 <head>
   <meta charset="utf-8" />
   <title>Receipt</title>
-  ${parentStyles}
   <style>
     @page {
       size: ${paperWidth} auto;
@@ -258,8 +268,8 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
     }
     *, *::before, *::after {
       box-sizing: border-box !important;
-      visibility: visible !important;
-      opacity: 1 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     html, body {
       margin: 0 !important;
@@ -269,11 +279,37 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       -webkit-text-fill-color: #000000 !important;
       width: ${paperWidth} !important;
       max-width: ${paperWidth} !important;
-      min-width: ${paperWidth} !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', Courier, monospace, 'Cairo', sans-serif !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Cairo', 'Tajawal', 'Helvetica Neue', Arial, sans-serif !important;
       font-size: ${fontSize}px !important;
       line-height: ${lineHeight} !important;
       visibility: visible !important;
+    }
+    body * {
+      visibility: visible !important;
+      opacity: 1 !important;
+      color: #000000 !important;
+      -webkit-text-fill-color: #000000 !important;
+    }
+    @media print {
+      @page {
+        size: ${paperWidth} auto;
+        margin: 0mm !important;
+      }
+      html, body {
+        width: ${paperWidth} !important;
+        max-width: ${paperWidth} !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Cairo', 'Tajawal', 'Helvetica Neue', Arial, sans-serif !important;
+      }
+      body * {
+        visibility: visible !important;
+        opacity: 1 !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+      }
     }
     .print-section, .order-receipt, .thermal-receipt, .kitchen-ticket {
       width: 100% !important;
@@ -282,30 +318,71 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       margin: 0 auto !important;
       background: #ffffff !important;
       color: #000000 !important;
-      -webkit-text-fill-color: #000000 !important;
       border: none !important;
       box-shadow: none !important;
       display: block !important;
-      visibility: visible !important;
       position: static !important;
-    }
-    .print-section *, .order-receipt *, .thermal-receipt *, .kitchen-ticket * {
-      color: #000000 !important;
-      -webkit-text-fill-color: #000000 !important;
+      visibility: visible !important;
       opacity: 1 !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Cairo', 'Tajawal', 'Helvetica Neue', Arial, sans-serif !important;
     }
     table {
       width: 100% !important;
       border-collapse: collapse !important;
     }
+    .flex { display: flex !important; }
+    .flex-col { flex-direction: column !important; }
+    .flex-row { flex-direction: row !important; }
+    .justify-between { justify-content: space-between !important; }
+    .justify-center { justify-content: center !important; }
+    .items-center { align-items: center !important; }
+    .text-center { text-align: center !important; }
+    .text-left { text-align: left !important; }
+    .text-right { text-align: right !important; }
+    .font-mono { font-variant-numeric: tabular-nums !important; }
+    .font-semibold { font-weight: 600 !important; }
+    .font-bold { font-weight: 700 !important; }
+    .font-extrabold, .font-black { font-weight: 900 !important; }
+    .w-full { width: 100% !important; }
+    .border { border: 1px solid #000 !important; }
+    .border-2 { border: 2px solid #000 !important; }
+    .border-t { border-top: 1px solid #000 !important; }
+    .border-b { border-bottom: 1px solid #000 !important; }
+    .border-t-2 { border-top: 2px solid #000 !important; }
+    .border-b-2 { border-bottom: 2px solid #000 !important; }
+    .border-dashed { border-style: dashed !important; }
+    .rounded { border-radius: 4px !important; }
+    .uppercase { text-transform: uppercase !important; }
+    .my-1 { margin-top: 4px !important; margin-bottom: 4px !important; }
+    .my-2 { margin-top: 8px !important; margin-bottom: 8px !important; }
+    .py-1 { padding-top: 4px !important; padding-bottom: 4px !important; }
+    .py-2 { padding-top: 8px !important; padding-bottom: 8px !important; }
+    .px-2 { padding-left: 8px !important; padding-right: 8px !important; }
+    .px-3 { padding-left: 10px !important; padding-right: 10px !important; }
+    .text-xs { font-size: 11px !important; }
+    .text-sm { font-size: 13px !important; }
+    .text-base { font-size: 14px !important; }
+    .text-lg { font-size: 16px !important; }
+    .text-xl { font-size: 18px !important; }
     img {
-      max-width: 100% !important;
+      max-height: 40px !important;
+      max-width: 85px !important;
+      width: auto !important;
       height: auto !important;
+      object-fit: contain !important;
+      display: block !important;
+      margin: 0 auto 4px auto !important;
+      filter: grayscale(100%) contrast(120%) !important;
     }
     svg {
       display: block !important;
       margin: 0 auto !important;
+      max-width: 100% !important;
     }
+    .dark, [class*="dark:"] { color: #000 !important; background: transparent !important; }
+    [class*="text-white"] { color: #000000 !important; }
+    [class*="bg-gray"], [class*="bg-slate"], [class*="bg-dark"] { background: transparent !important; }
+    hr, .divider, [class*="border-dashed"] { border-color: #333 !important; border-top-color: #333 !important; }
   </style>
 </head>
 <body style="margin: 0; padding: 0; background: #fff; color: #000; width: ${paperWidth};">
@@ -319,8 +396,14 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
 
       const triggerIframePrint = () => {
         try {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
+          const win = iframe.contentWindow;
+          if (!win) {
+            resolve(false);
+            return;
+          }
+          win.focus();
+          win.print();
+          // Clean up iframe after user completes print
           setTimeout(() => {
             try {
               if (document.body.contains(iframe)) {
@@ -328,11 +411,10 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
               }
             } catch (_) {}
             resolve(true);
-          }, 3000);
+          }, 30000);
         } catch (e) {
-          console.error('Iframe print failed, falling back to window.print:', e);
-          window.print();
-          resolve(true);
+          console.error('Thermal iframe print error:', e);
+          resolve(false);
         }
       };
 
@@ -340,11 +422,10 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
         setTimeout(triggerIframePrint, 250);
       } else {
         iframe.onload = () => setTimeout(triggerIframePrint, 250);
-        setTimeout(triggerIframePrint, 800);
+        setTimeout(triggerIframePrint, 600);
       }
     } catch (err) {
       console.error('printThermalElement error:', err);
-      window.print();
       resolve(false);
     }
   });

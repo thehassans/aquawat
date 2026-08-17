@@ -295,14 +295,14 @@ export default function RestaurantPOS() {
       setCompletedOrder(data)
       clearCart()
 
-      // Auto-open print dialog for thermal receipt ONLY if autoPrint is enabled in settings
-      const shouldAutoPrint = thermalSettings?.autoPrint === true || tenant?.settings?.restaurant?.autoPrintReceipt === true
+      // Auto-open print dialog for thermal receipt ONLY if autoPrint is explicitly enabled
+      const shouldAutoPrint = thermalSettings?.autoPrint === true
       if (shouldAutoPrint) {
         setTimeout(() => {
           if (receiptRef.current) {
             printThermalElement(receiptRef.current, thermalSettings)
           }
-        }, 400)
+        }, 600)
       }
 
       // Refresh tables if dine in to update status
@@ -359,14 +359,14 @@ export default function RestaurantPOS() {
       setCompletedOrder(data)
       clearCart()
 
-      // Auto-print kitchen ticket ONLY if setting enabled
-      const shouldAutoPrintKitchen = printKitchenReceipt && (thermalSettings?.autoPrint === true || tenant?.settings?.restaurant?.autoPrintKitchen === true)
+      // Auto-print kitchen ticket ONLY if setting explicitly enabled
+      const shouldAutoPrintKitchen = printKitchenReceipt && thermalSettings?.autoPrint === true
       if (shouldAutoPrintKitchen) {
         setTimeout(() => {
           if (receiptRef.current) {
             printThermalElement(receiptRef.current, thermalSettings)
           }
-        }, 400)
+        }, 600)
       }
 
       if (orderType === 'dine_in') fetchData()
@@ -437,13 +437,13 @@ export default function RestaurantPOS() {
       setCompletedOrder(data)
       clearCart()
 
-      const shouldAutoPrint = thermalSettings?.autoPrint === true || tenant?.settings?.restaurant?.autoPrintReceipt === true
+      const shouldAutoPrint = thermalSettings?.autoPrint === true
       if (shouldAutoPrint) {
         setTimeout(() => {
           if (receiptRef.current) {
             printThermalElement(receiptRef.current, thermalSettings)
           }
-        }, 400)
+        }, 600)
       }
 
       if (orderType === 'dine_in') fetchData()
