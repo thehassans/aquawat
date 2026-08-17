@@ -1,6 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -17,13 +17,8 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   
-  const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
-  const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
-  const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
-  
-  const sellerName = bilingual ? sellerNameEn : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
-  const buyerName = bilingual ? buyerNameEn : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
+  const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
+  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyPhone, counterpartyLabelEn } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -31,8 +26,8 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
     invoice,
     tenant,
     currency,
-    sellerName: sellerNameEn || sellerNameAr,
-    vatNumber: invoice?.seller?.vatNumber || tenant?.business?.vatNumber,
+    sellerName: companyNameEn || companyNameAr,
+    vatNumber: companyVat,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -65,7 +60,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
     )
   }
 
-  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { uppercase: language !== 'ar' })
+  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { uppercase: language !== 'ar', flow: invoice?.flow })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white shadow-xl flex font-sans min-h-[1056px]" style={{ fontFamily: 'Arial, Helvetica, "Almarai", sans-serif' }}>
@@ -85,7 +80,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
           <h1 className="text-2xl font-bold tracking-widest mb-8 uppercase text-slate-300 border-b border-slate-700 pb-4">{invoiceTitle}</h1>
           
           <div className="mb-8">
-            <p className="text-slate-400 text-xs tracking-widest uppercase mb-1">{getCommercialDocumentNumberLabel(documentType, 'en')}</p>
+            <p className="text-slate-400 text-xs tracking-widest uppercase mb-1">{getCommercialDocumentNumberLabel(documentType, 'en', invoice?.flow)}</p>
             <p className="text-lg font-bold">#{documentNumber}</p>
           </div>
           
@@ -113,21 +108,21 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
         <div className="flex justify-between items-start mb-12">
           <div className="w-[45%]">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-200 pb-2">From</p>
-            <h2 className="text-lg font-bold text-slate-900">{sellerNameEn}</h2>
-            {bilingual && <h2 className="text-md font-bold text-slate-700 mt-1" dir="rtl">{sellerNameAr}</h2>}
+            <h2 className="text-lg font-bold text-slate-900">{companyNameEn || headerCompanyName}</h2>
+            {bilingual && companyNameAr && <h2 className="text-md font-bold text-slate-700 mt-1" dir="rtl">{companyNameAr}</h2>}
             <div className="mt-3 text-sm text-slate-600 space-y-1">
-              {invoice?.seller?.vatNumber && <p>VAT: <span className="font-medium text-slate-900">{invoice.seller.vatNumber}</span></p>}
-              {invoice?.seller?.crNumber && <p>CR: <span className="font-medium text-slate-900">{invoice.seller.crNumber}</span></p>}
+              {companyVat && <p>VAT: <span className="font-medium text-slate-900">{companyVat}</span></p>}
+              {companyCr && <p>CR: <span className="font-medium text-slate-900">{companyCr}</span></p>}
             </div>
           </div>
           
           <div className="w-[45%] bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-bold text-blue-500 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">{getCommercialCounterpartyLabel(documentType, 'en')}</p>
-            <h3 className="text-lg font-bold text-slate-900">{buyerNameEn}</h3>
-            {bilingual && <h3 className="text-md font-bold text-slate-700 mt-1" dir="rtl">{buyerNameAr}</h3>}
+            <p className="text-xs font-bold text-blue-500 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">{counterpartyLabelEn}</p>
+            <h3 className="text-lg font-bold text-slate-900">{counterpartyNameEn || counterpartyName}</h3>
+            {bilingual && counterpartyNameAr && <h3 className="text-md font-bold text-slate-700 mt-1" dir="rtl">{counterpartyNameAr}</h3>}
             <div className="mt-3 text-sm text-slate-600 space-y-1">
-              {invoice?.buyer?.vatNumber && <p>VAT: <span className="font-medium text-slate-900">{invoice.buyer.vatNumber}</span></p>}
-              {invoice?.buyer?.contactPhone && <p>Tel: <span className="font-medium text-slate-900">{invoice.buyer.contactPhone}</span></p>}
+              {counterpartyVat && <p>VAT: <span className="font-medium text-slate-900">{counterpartyVat}</span></p>}
+              {counterpartyPhone && <p>Tel: <span className="font-medium text-slate-900">{counterpartyPhone}</span></p>}
             </div>
           </div>
         </div>

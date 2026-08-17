@@ -497,6 +497,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       if (!payload.sourcePurchaseOrderId) delete payload.sourcePurchaseOrderId
     }
     if (invoiceSubtype !== 'travel_ticket') delete payload.travelDetails
+    payload.showAuthorizedPerson = Boolean(showAuthorizedPerson)
+    payload.hasAuthorizedPerson = Boolean(showAuthorizedPerson)
     payload.authorizedPersonName = showAuthorizedPerson ? (data?.authorizedPersonName || '') : ''
     payload.authorizedPersonNameAr = showAuthorizedPerson ? (data?.authorizedPersonNameAr || '') : ''
     payload.authorizedPersonDesignation = showAuthorizedPerson ? (data?.authorizedPersonDesignation || '') : ''
@@ -521,6 +523,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
 
   const previewInvoice = {
     ...values,
+    showAuthorizedPerson: Boolean(showAuthorizedPerson),
+    hasAuthorizedPerson: Boolean(showAuthorizedPerson),
     authorizedPersonName: showAuthorizedPerson ? (values?.authorizedPersonName || '') : '',
     authorizedPersonNameAr: showAuthorizedPerson ? (values?.authorizedPersonNameAr || '') : '',
     authorizedPersonDesignation: showAuthorizedPerson ? (values?.authorizedPersonDesignation || '') : '',

@@ -386,6 +386,8 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             iban: data?.bankDetails?.iban || '',
           }
         : { bankName: '', accountName: '', accountNumber: '', iban: '' },
+      showAuthorizedPerson: Boolean(showAuthorizedPerson),
+      hasAuthorizedPerson: Boolean(showAuthorizedPerson),
       authorizedPersonName: showAuthorizedPerson ? (data?.authorizedPersonName || '') : '',
       authorizedPersonNameAr: showAuthorizedPerson ? (data?.authorizedPersonNameAr || '') : '',
       authorizedPersonDesignation: showAuthorizedPerson ? (data?.authorizedPersonDesignation || '') : '',
@@ -409,6 +411,8 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
 
   const previewQuotation = {
     ...values,
+    showAuthorizedPerson: Boolean(showAuthorizedPerson),
+    hasAuthorizedPerson: Boolean(showAuthorizedPerson),
     authorizedPersonName: showAuthorizedPerson ? (values?.authorizedPersonName || '') : '',
     authorizedPersonNameAr: showAuthorizedPerson ? (values?.authorizedPersonNameAr || '') : '',
     authorizedPersonDesignation: showAuthorizedPerson ? (values?.authorizedPersonDesignation || '') : '',

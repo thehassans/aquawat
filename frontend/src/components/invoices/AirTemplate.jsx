@@ -1,6 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -15,16 +15,10 @@ const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || '')
 export default function AirTemplate({ invoice, tenant, language = 'en', bilingual = false, documentType = 'invoice' }) {
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
-  
   const primaryColor = invoiceBranding.primaryColor || '#64748b'
   
-  const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
-  const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
-  const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
-  
-  const sellerName = bilingual ? sellerNameEn : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
-  const buyerName = bilingual ? buyerNameEn : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
+  const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
+  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyLabelEn } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -32,8 +26,8 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
     invoice,
     tenant,
     currency,
-    sellerName: sellerNameEn || sellerNameAr,
-    vatNumber: invoice?.seller?.vatNumber || tenant?.business?.vatNumber,
+    sellerName: companyNameEn || companyNameAr,
+    vatNumber: companyVat,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -66,8 +60,8 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
     )
   }
 
-  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en')
-  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar')
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { flow: invoice?.flow })
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white overflow-hidden font-sans rounded-3xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.05)] relative">
@@ -86,12 +80,12 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
                 <span className="text-xs text-slate-300 font-light tracking-widest uppercase">Logo</span>
               </div>
             )}
-            <h2 className="text-4xl font-extralight text-slate-900 tracking-tighter">{sellerNameEn}</h2>
-            {bilingual && sellerNameAr && <h2 className="text-2xl font-light text-slate-500 mt-2 tracking-wide" dir="rtl">{sellerNameAr}</h2>}
+            <h2 className="text-4xl font-extralight text-slate-900 tracking-tighter">{companyNameEn || headerCompanyName}</h2>
+            {bilingual && companyNameAr && <h2 className="text-2xl font-light text-slate-500 mt-2 tracking-wide" dir="rtl">{companyNameAr}</h2>}
             
             <div className="mt-8 text-sm text-slate-400 space-y-2 font-light">
-              {invoice?.seller?.vatNumber && <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>VAT {invoice.seller.vatNumber}</p>}
-              {invoice?.seller?.crNumber && <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>CR {invoice.seller.crNumber}</p>}
+              {companyVat && <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>VAT {companyVat}</p>}
+              {companyCr && <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>CR {companyCr}</p>}
             </div>
           </div>
 
@@ -103,7 +97,7 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
             
             <div className="mt-16 flex gap-12 text-right">
               <div>
-                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-medium mb-2">{getCommercialDocumentNumberLabel(documentType, 'en')}</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-medium mb-2">{getCommercialDocumentNumberLabel(documentType, 'en', invoice?.flow)}</p>
                 <p className="text-xl font-light text-slate-800">{documentNumber}</p>
               </div>
               <div>
@@ -117,10 +111,10 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
         {/* Bill To & QR */}
         <div className="flex justify-between items-end mb-24 bg-slate-50/50 rounded-3xl p-10 relative">
           <div className="pl-4">
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-medium mb-6">{getCommercialCounterpartyLabel(documentType, 'en')}</p>
-            <h3 className="text-3xl font-light text-slate-900 mb-2">{buyerNameEn}</h3>
-            {bilingual && buyerNameAr && <h3 className="text-xl font-light text-slate-500 mb-4" dir="rtl">{buyerNameAr}</h3>}
-            {invoice?.buyer?.vatNumber && <p className="text-sm text-slate-500 mt-2 font-light tracking-wide">VAT: {invoice.buyer.vatNumber}</p>}
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-medium mb-6">{counterpartyLabelEn}</p>
+            <h3 className="text-3xl font-light text-slate-900 mb-2">{counterpartyNameEn || counterpartyName}</h3>
+            {bilingual && counterpartyNameAr && <h3 className="text-xl font-light text-slate-500 mb-4" dir="rtl">{counterpartyNameAr}</h3>}
+            {counterpartyVat && <p className="text-sm text-slate-500 mt-2 font-light tracking-wide">VAT: {counterpartyVat}</p>}
           </div>
 
           <div>

@@ -1,6 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -18,13 +18,8 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
   
   const primaryColor = invoiceBranding.primaryColor || '#0f172a'
   
-  const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
-  const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
-  const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
-  
-  const sellerName = bilingual ? sellerNameEn : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
-  const buyerName = bilingual ? buyerNameEn : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
+  const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
+  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyLabelEn } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -32,8 +27,8 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
     invoice,
     tenant,
     currency,
-    sellerName: sellerNameEn || sellerNameAr,
-    vatNumber: invoice?.seller?.vatNumber || tenant?.business?.vatNumber,
+    sellerName: companyNameEn || companyNameAr,
+    vatNumber: companyVat,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -66,8 +61,8 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
     )
   }
 
-  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en')
-  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar')
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { flow: invoice?.flow })
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-200 overflow-hidden font-serif rounded-lg shadow-xl relative">
@@ -86,7 +81,7 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
             {bilingual && <h1 className="text-2xl font-normal text-slate-600 mt-2 tracking-wider" dir="rtl">{invoiceTitleAr}</h1>}
             <div className="mt-8 flex gap-12">
               <div>
-                <p className="text-[9px] text-slate-400 uppercase tracking-[0.2em] font-sans mb-1">{getCommercialDocumentNumberLabel(documentType, 'en')}</p>
+                <p className="text-[9px] text-slate-400 uppercase tracking-[0.2em] font-sans mb-1">{getCommercialDocumentNumberLabel(documentType, 'en', invoice?.flow)}</p>
                 <p className="text-base font-serif text-slate-900">{documentNumber}</p>
               </div>
               <div>
@@ -104,11 +99,11 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
                  <span className="text-xs font-sans text-slate-400 uppercase tracking-widest">Logo</span>
               </div>
             )}
-            <h2 className="text-xl font-normal text-slate-900 tracking-wide">{sellerNameEn}</h2>
-            {bilingual && sellerNameAr && <h2 className="text-lg font-normal text-slate-600 mt-1" dir="rtl">{sellerNameAr}</h2>}
+            <h2 className="text-xl font-normal text-slate-900 tracking-wide">{companyNameEn || headerCompanyName}</h2>
+            {bilingual && companyNameAr && <h2 className="text-lg font-normal text-slate-600 mt-1" dir="rtl">{companyNameAr}</h2>}
             <div className="mt-4 text-xs font-sans text-slate-500 tracking-wide space-y-1">
-              {invoice?.seller?.vatNumber && <p>VAT Registration: {invoice.seller.vatNumber}</p>}
-              {invoice?.seller?.crNumber && <p>Commercial Registry: {invoice.seller.crNumber}</p>}
+              {companyVat && <p>VAT Registration: {companyVat}</p>}
+              {companyCr && <p>Commercial Registry: {companyCr}</p>}
             </div>
           </div>
         </div>

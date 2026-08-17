@@ -15,12 +15,22 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
     bank && (bank.bankName || bank.accountName || bank.accountNumber || bank.iban)
   )
   
-  const stampImage = invoice?.stampImage || (signatoryFromDocumentOnly ? '' : invoiceBranding?.stampImage)
-  const signatureImage = invoice?.authorizedPersonSignature || (signatoryFromDocumentOnly ? '' : invoiceBranding?.signatureImage)
-  const authorizedName = invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr
-  const authorizedTitle = invoice?.authorizedPersonDesignation || invoice?.authorizedPersonDesignationAr
+  // If invoice explicitly specifies showAuthorizedPerson === false or hasAuthorizedPerson === false, or if signatory was not enabled
+  const isSignatoryDisabled = invoice?.showAuthorizedPerson === false || invoice?.hasAuthorizedPerson === false
   
-  const hasSignatory = Boolean(stampImage || signatureImage || authorizedName || authorizedTitle)
+  // Only use document signature/stamp when signatory is enabled; do not fallback to branding if sign is turned off
+  const stampImage = isSignatoryDisabled
+    ? ''
+    : (invoice?.stampImage || (invoice?.showAuthorizedPerson ? (invoiceBranding?.stampImage || '') : (signatoryFromDocumentOnly ? '' : '')))
+  
+  const signatureImage = isSignatoryDisabled
+    ? ''
+    : (invoice?.authorizedPersonSignature || (invoice?.showAuthorizedPerson ? (invoiceBranding?.signatureImage || '') : (signatoryFromDocumentOnly ? '' : '')))
+  
+  const authorizedName = isSignatoryDisabled ? '' : (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr)
+  const authorizedTitle = isSignatoryDisabled ? '' : (invoice?.authorizedPersonDesignation || invoice?.authorizedPersonDesignationAr)
+  
+  const hasSignatory = !isSignatoryDisabled && Boolean(stampImage || signatureImage || authorizedName || authorizedTitle)
   const hasTextExtras = Boolean(hasSubject || hasNotes || hasTerms || hasBank)
 
   if (!hasTextExtras && !hasSignatory) {

@@ -363,21 +363,20 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const effectiveCurrencyDisplay = currencyDisplay || resolvedCurrency.display
   const effectiveCurrencyPosition = currencyPosition || resolvedCurrency.position
   const styles = getTemplateClasses(Number(templateId || invoiceBranding.templateId || 1))
-  const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
-  const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || (documentType === 'purchase_order' ? 'Supplier' : 'Cash Customer')
-  const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
-  const sellerName = bilingual ? toBilingualText(sellerNameEn, sellerNameAr) : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
-  const buyerName = bilingual ? toBilingualText(buyerNameEn, buyerNameAr) : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
+  const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
+  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyData, counterpartyVat, counterpartyCr, counterpartyLabelEn, counterpartyLabelAr, isPurchaseFlow } = parties
+
+  const sellerName = headerCompanyName
+  const buyerName = counterpartyName
   const customerLabel = bilingual
-    ? (documentType === 'purchase_order'
+    ? (documentType === 'purchase_order' || isPurchaseFlow
       ? toBilingualText('Supplier', 'المورد')
-      : invoice?.flow === 'purchase' ? toBilingualText('Buyer', 'المشتري') : toBilingualText('Customer', 'العميل'))
-    : (documentType === 'purchase_order'
+      : toBilingualText('Customer', 'العميل'))
+    : (documentType === 'purchase_order' || isPurchaseFlow
       ? (language === 'ar' ? 'المورد' : 'Supplier')
-      : (invoice?.flow === 'purchase' ? (language === 'ar' ? 'المشتري' : 'Buyer') : (language === 'ar' ? 'العميل' : 'Customer')))
+      : (language === 'ar' ? 'العميل' : 'Customer'))
   const logoSrc = invoiceBranding.logoSrc
-  const vatNumber = invoice?.seller?.vatNumber || tenant?.business?.vatNumber
+  const vatNumber = companyVat || tenant?.business?.vatNumber
   // ZATCA is a Saudi-only requirement tied to SAR-denominated invoices.
   const isZatcaApplicable = String(currency || 'SAR').toUpperCase() === 'SAR'
   const isFbrApplicable = String(currency || 'SAR').toUpperCase() === 'PKR'
@@ -386,7 +385,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
     try {
       if (isZatcaApplicable) {
         return invoice?.zatca?.qrCodeData || generateZatcaQrValue({
-          sellerName: sellerNameEn || sellerNameAr,
+          sellerName: companyNameEn || companyNameAr,
           vatNumber,
           timestamp: invoice?.issueDate || new Date().toISOString(),
           totalWithVat: toNumber(invoice?.grandTotal),
@@ -395,7 +394,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
       }
       if (isFbrApplicable && tenant?.fbr?.autoGenerateQr !== false) {
         return invoice?.fbr?.qrCode || generateFbrQrValue({
-          sellerName: sellerNameEn || sellerNameAr,
+          sellerName: companyNameEn || companyNameAr,
           ntn: tenant?.fbr?.ntn || vatNumber,
           strn: tenant?.fbr?.strn || '',
           invoiceNumber: invoice?.invoiceNumber,
@@ -407,7 +406,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
       }
       if (isNbrApplicable && tenant?.nbr?.autoGenerateQr !== false) {
         return generateNbrQrValue({
-          sellerName: sellerNameEn || sellerNameAr,
+          sellerName: companyNameEn || companyNameAr,
           binNumber: tenant?.nbr?.binNumber || vatNumber,
           invoiceNumber: invoice?.invoiceNumber,
           timestamp: invoice?.issueDate || new Date().toISOString(),
@@ -422,13 +421,17 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
     }
   })()
   const totals = calculateInvoiceSummary(invoice)
-  const travelDetails = normalizeTravelDetails(invoice?.travelDetails || {}, buyerNameEn || buyerNameAr, language)
-  const travelDetailsEn = normalizeTravelDetails(invoice?.travelDetails || {}, buyerNameEn || buyerNameAr, 'en')
-  const travelDetailsAr = normalizeTravelDetails(invoice?.travelDetails || {}, buyerNameAr || buyerNameEn, 'ar')
+  const travelDetails = normalizeTravelDetails(invoice?.travelDetails || {}, counterpartyNameEn || counterpartyNameAr, language)
+  const travelDetailsEn = normalizeTravelDetails(invoice?.travelDetails || {}, counterpartyNameEn || counterpartyNameAr, 'en')
+  const travelDetailsAr = normalizeTravelDetails(invoice?.travelDetails || {}, counterpartyNameAr || counterpartyNameEn, 'ar')
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
-  const sellerDetails = bilingual ? getPartyDetailLinesBilingual(invoice?.seller || tenant?.business || {}, 'seller') : getPartyDetailLines(invoice?.seller || tenant?.business || {}, language, 'seller')
-  const buyerDetails = bilingual ? getPartyDetailLinesBilingual(invoice?.buyer || {}, 'buyer') : getPartyDetailLines(invoice?.buyer || {}, language, 'buyer')
-  const companyName = invoiceBranding.companyName || sellerNameEn || sellerNameAr || '—'
+  const sellerDetails = bilingual
+    ? getPartyDetailLinesBilingual(isPurchaseFlow ? (tenant?.business || {}) : (invoice?.seller || tenant?.business || {}), 'seller')
+    : getPartyDetailLines(isPurchaseFlow ? (tenant?.business || {}) : (invoice?.seller || tenant?.business || {}), language, 'seller')
+  const buyerDetails = bilingual
+    ? getPartyDetailLinesBilingual(counterpartyData || {}, isPurchaseFlow ? 'supplier' : 'buyer')
+    : getPartyDetailLines(counterpartyData || {}, language, isPurchaseFlow ? 'supplier' : 'buyer')
+  const companyName = invoiceBranding.companyName || companyNameEn || companyNameAr || '—'
   const headerLines = splitBrandingText(invoiceBranding.headerText)
   const footerLines = splitBrandingText(invoiceBranding.footerText)
   const showVisionLogo = invoiceBranding.showVision2030 && invoiceBranding.vision2030LogoSrc
@@ -722,7 +725,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className={`rounded-[1.5rem] p-5 ${styles.block}`} style={metaCardStyle}>
-                <p className={`text-xs font-semibold ${mutedText}`}>{renderStackedLabel('Seller', 'البائع', true)}</p>
+                <p className={`text-xs font-semibold ${mutedText}`}>{isPurchaseFlow ? renderStackedLabel('Company', 'الشركة', true) : renderStackedLabel('Seller', 'البائع', true)}</p>
                 <p className={`mt-3 text-[1.05rem] font-bold leading-7 ${titleText} whitespace-pre-line`}>{sellerName || '—'}</p>
                 <div className="mt-3 space-y-2">
                   {sellerDetails.map((detail, index) => (
@@ -734,7 +737,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
                 </div>
               </div>
               <div className={`rounded-[1.5rem] p-5 ${styles.block}`} style={metaCardStyle}>
-                <p className={`text-xs font-semibold ${mutedText}`}>{invoice?.flow === 'purchase' ? renderStackedLabel('Buyer', 'المشتري', true) : renderStackedLabel('Customer', 'العميل', true)}</p>
+                <p className={`text-xs font-semibold ${mutedText}`}>{isPurchaseFlow ? renderStackedLabel('Supplier', 'المورد', true) : renderStackedLabel('Customer', 'العميل', true)}</p>
                 <p className={`mt-3 text-[1.05rem] font-bold leading-7 ${titleText} whitespace-pre-line`}>{buyerName || '—'}</p>
                 <div className="mt-3 space-y-2">
                   {buyerDetails.map((detail, index) => (

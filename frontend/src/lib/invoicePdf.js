@@ -1076,16 +1076,25 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     return shapedLines.join('\n')
   }
 
-  const sellerNameEn = seller.name || seller.nameAr || ''
-  const sellerNameAr = seller.nameAr || (hasArabicText(seller.name) ? seller.name : '')
-  const buyerNameEn = buyer.name || buyer.nameAr || ''
-  const buyerNameAr = buyer.nameAr || (hasArabicText(buyer.name) ? buyer.name : '')
+  const isPurchaseFlowPdf = invoice?.flow === 'purchase' || documentType === 'purchase_invoice' || documentType === 'purchase_order'
+
+  const sellerNameEn = isPurchaseFlowPdf
+    ? (tenant?.business?.legalNameEn || tenant?.name || invoiceBranding?.legalNameEn || '')
+    : (seller.name || seller.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || '')
+  const sellerNameAr = isPurchaseFlowPdf
+    ? (tenant?.business?.legalNameAr || invoiceBranding?.legalNameAr || '')
+    : (seller.nameAr || (hasArabicText(seller.name) ? seller.name : '') || tenant?.business?.legalNameAr || '')
+  
+  const buyerParty = isPurchaseFlowPdf ? (invoice.seller || {}) : (invoice.buyer || {})
+  const buyerNameEn = buyerParty.name || buyerParty.nameAr || (isPurchaseFlowPdf ? 'Cash Supplier' : 'Cash Customer')
+  const buyerNameAr = buyerParty.nameAr || (hasArabicText(buyerParty.name) ? buyerParty.name : '') || (isPurchaseFlowPdf ? 'مورد نقدي' : 'عميل نقدي')
+  
   const sellerName = sellerNameEn || sellerNameAr
   const buyerName = buyerNameEn || buyerNameAr
   const sellerDisplayName = toBilingualText(sellerNameEn, sellerNameAr)
   const buyerDisplayName = toBilingualText(buyerNameEn, buyerNameAr)
-  const sellerDetailLines = getPartyDetailLines(seller, language, 'seller')
-  const buyerDetailLines = getPartyDetailLines(buyer, language, 'buyer')
+  const sellerDetailLines = getPartyDetailLines(isPurchaseFlowPdf ? (tenant?.business || {}) : seller, language, 'seller')
+  const buyerDetailLines = getPartyDetailLines(buyerParty, language, isPurchaseFlowPdf ? 'supplier' : 'buyer')
   const totals = calculateInvoiceSummary(invoice)
   const travelDetailsEn = normalizeTravelDetails(invoice.travelDetails || {}, buyerNameEn || buyerNameAr, 'en')
   const travelDetailsAr = normalizeTravelDetails(invoice.travelDetails || {}, buyerNameAr || buyerNameEn, 'ar')
@@ -1101,7 +1110,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
         tenant,
         currency,
         sellerName,
-        vatNumber: seller?.vatNumber || tenant?.business?.vatNumber,
+        vatNumber: isPurchaseFlowPdf ? (tenant?.business?.vatNumber || '') : (seller?.vatNumber || tenant?.business?.vatNumber),
       })
   const skipQr = !qrValue || skipDocumentQr
   // Travel agency invoices omit the tax QR from the printed document.
@@ -1120,16 +1129,16 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     ? getInvoiceTitle(invoice, language, documentType)
     : isPurchaseOrderPdf
     ? getInvoiceTitle(invoice, language, documentType)
+    : isPurchaseFlowPdf
+    ? (language === 'ar' ? 'فاتورة شراء' : 'Purchase Invoice')
     : invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency'
     ? ''
     : getInvoiceTitle(invoice, language, documentType)
-  const customerLabel = isPurchaseOrderPdf
+  const customerLabel = isPurchaseOrderPdf || isPurchaseFlowPdf
     ? toBilingualBlock('Supplier', 'المورد')
-    : invoice.flow === 'purchase'
-      ? toBilingualBlock('Buyer', 'المشتري')
-      : toBilingualBlock('Customer', 'العميل')
-  const sellerLabel = isPurchaseOrderPdf
-    ? toBilingualBlock('Buyer', 'المشتري')
+    : toBilingualBlock('Customer', 'العميل')
+  const sellerLabel = isPurchaseOrderPdf || isPurchaseFlowPdf
+    ? toBilingualBlock('Company', 'الشركة')
     : toBilingualBlock('Seller', 'البائع')
   const amountInWords = getAmountInWords(totals.grandTotal, currency, language)
   const typography = invoiceBranding.typography || {}

@@ -1,5 +1,5 @@
 import React from 'react'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -16,16 +16,10 @@ const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || '')
 export default function ModernTemplate({ invoice, tenant, language = 'en', bilingual = false, documentType = 'invoice' }) {
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
-  
   const primaryColor = invoiceBranding.primaryColor || '#0ea5e9'
   
-  const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
-  const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
-  const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
-  
-  const sellerName = bilingual ? sellerNameEn : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
-  const buyerName = bilingual ? buyerNameEn : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
+  const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
+  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyLabelEn, counterpartyLabelAr } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -33,8 +27,8 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
     invoice,
     tenant,
     currency,
-    sellerName: sellerNameEn || sellerNameAr,
-    vatNumber: invoice?.seller?.vatNumber || tenant?.business?.vatNumber,
+    sellerName: companyNameEn || companyNameAr,
+    vatNumber: companyVat,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -67,8 +61,8 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
     )
   }
 
-  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en')
-  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar')
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { flow: invoice?.flow })
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-200 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] overflow-hidden font-sans rounded-xl">
@@ -87,11 +81,11 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
               )}
             </div>
             <div className="pt-1">
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{sellerNameEn}</h2>
-              {bilingual && sellerNameAr && <h2 className="text-xl font-bold text-slate-900 mt-1" dir="rtl">{sellerNameAr}</h2>}
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{companyNameEn || headerCompanyName}</h2>
+              {bilingual && companyNameAr && <h2 className="text-xl font-bold text-slate-900 mt-1" dir="rtl">{companyNameAr}</h2>}
               <div className="mt-3 text-sm text-slate-500 space-y-1">
-                {invoice?.seller?.vatNumber && <p>VAT: <span className="text-slate-900 font-medium">{invoice.seller.vatNumber}</span></p>}
-                {invoice?.seller?.crNumber && <p>CR: <span className="text-slate-900 font-medium">{invoice.seller.crNumber}</span></p>}
+                {companyVat && <p>VAT: <span className="text-slate-900 font-medium">{companyVat}</span></p>}
+                {companyCr && <p>CR: <span className="text-slate-900 font-medium">{companyCr}</span></p>}
               </div>
             </div>
           </div>
@@ -102,7 +96,7 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
               </h1>
               {bilingual && <h1 className="text-3xl font-extrabold tracking-tighter mt-1" style={{ color: primaryColor }} dir="rtl">{invoiceTitleAr}</h1>}
               <div className="mt-6 inline-block bg-slate-50 px-5 py-3 rounded-lg border border-slate-200 shadow-sm">
-                <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">{getCommercialDocumentNumberLabel(documentType, 'en')}</p>
+                <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">{getCommercialDocumentNumberLabel(documentType, 'en', invoice?.flow)}</p>
                 <p className="text-xl font-bold text-slate-900 mt-0.5">#{documentNumber}</p>
               </div>
             </div>
@@ -112,10 +106,10 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
         {/* Info Grid */}
         <div className="grid grid-cols-3 gap-8 mb-12 border-y border-slate-200 py-8">
           <div>
-            <h3 className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-4">{getCommercialCounterpartyLabel(documentType, 'en')}</h3>
-            <p className="text-lg font-bold text-slate-900 leading-tight">{buyerNameEn}</p>
-            {bilingual && buyerNameAr && <p className="text-base font-bold text-slate-900 mt-1" dir="rtl">{buyerNameAr}</p>}
-            {invoice?.buyer?.vatNumber && <p className="text-sm text-slate-500 mt-3 font-medium">VAT: {invoice.buyer.vatNumber}</p>}
+            <h3 className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-4">{counterpartyLabelEn}</h3>
+            <p className="text-lg font-bold text-slate-900 leading-tight">{counterpartyNameEn || counterpartyName}</p>
+            {bilingual && counterpartyNameAr && <p className="text-base font-bold text-slate-900 mt-1" dir="rtl">{counterpartyNameAr}</p>}
+            {counterpartyVat && <p className="text-sm text-slate-500 mt-3 font-medium">VAT: {counterpartyVat}</p>}
           </div>
           <div>
             <h3 className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-4">Date & Time</h3>

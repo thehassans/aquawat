@@ -743,6 +743,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     } else {
       delete payload.travelDetails
     }
+    payload.showAuthorizedPerson = Boolean(showAuthorizedPerson)
+    payload.hasAuthorizedPerson = Boolean(showAuthorizedPerson)
     payload.authorizedPersonName = showAuthorizedPerson ? (data?.authorizedPersonName || '') : ''
     payload.authorizedPersonNameAr = showAuthorizedPerson ? (data?.authorizedPersonNameAr || '') : ''
     payload.authorizedPersonDesignation = showAuthorizedPerson ? (data?.authorizedPersonDesignation || '') : ''
@@ -776,6 +778,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
   const previewInvoice = {
     ...values,
+    showAuthorizedPerson: Boolean(showAuthorizedPerson),
+    hasAuthorizedPerson: Boolean(showAuthorizedPerson),
     authorizedPersonName: showAuthorizedPerson ? (values?.authorizedPersonName || '') : '',
     authorizedPersonNameAr: showAuthorizedPerson ? (values?.authorizedPersonNameAr || '') : '',
     authorizedPersonDesignation: showAuthorizedPerson ? (values?.authorizedPersonDesignation || '') : '',

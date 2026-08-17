@@ -1,6 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -18,13 +18,8 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
   
   const primaryColor = invoiceBranding.primaryColor || '#1e293b'
   
-  const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
-  const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
-  const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
-  
-  const sellerName = bilingual ? sellerNameEn : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
-  const buyerName = bilingual ? buyerNameEn : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
+  const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
+  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyLabelEn } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -32,8 +27,8 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
     invoice,
     tenant,
     currency,
-    sellerName: sellerNameEn || sellerNameAr,
-    vatNumber: invoice?.seller?.vatNumber || tenant?.business?.vatNumber,
+    sellerName: companyNameEn || companyNameAr,
+    vatNumber: companyVat,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -66,8 +61,8 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
     )
   }
 
-  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { uppercase: true })
-  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar')
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { uppercase: true, flow: invoice?.flow })
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-300 font-sans shadow-md rounded-none">
@@ -79,8 +74,8 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
             <img src={logoSrc} alt="Logo" className="h-14 object-contain" />
           )}
           <div>
-            <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">{sellerNameEn}</h2>
-            {bilingual && sellerNameAr && <h2 className="text-lg font-bold text-slate-800" dir="rtl">{sellerNameAr}</h2>}
+            <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">{companyNameEn || headerCompanyName}</h2>
+            {bilingual && companyNameAr && <h2 className="text-lg font-bold text-slate-800" dir="rtl">{companyNameAr}</h2>}
           </div>
         </div>
         <div className="w-1/3 p-6 flex flex-col justify-center items-end" style={{ backgroundColor: primaryColor }}>
@@ -95,7 +90,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
           <table className="w-full text-sm">
             <tbody>
               <tr>
-                <td className="py-1 font-bold text-slate-600 uppercase w-32">{getCommercialDocumentNumberLabel(documentType, 'en')}:</td>
+                <td className="py-1 font-bold text-slate-600 uppercase w-32">{getCommercialDocumentNumberLabel(documentType, 'en', invoice?.flow)}:</td>
                 <td className="py-1 font-medium text-slate-900">{documentNumber}</td>
               </tr>
               <tr>
@@ -115,12 +110,12 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
           <table className="text-sm">
             <tbody>
               <tr>
-                <td className="py-1 font-bold text-slate-600 uppercase w-32">Seller VAT:</td>
-                <td className="py-1 font-medium text-slate-900">{invoice?.seller?.vatNumber || tenant?.business?.vatNumber || '—'}</td>
+                <td className="py-1 font-bold text-slate-600 uppercase w-32">{parties.isPurchaseFlow ? 'Company VAT:' : 'Seller VAT:'}</td>
+                <td className="py-1 font-medium text-slate-900">{companyVat || '—'}</td>
               </tr>
               <tr>
-                <td className="py-1 font-bold text-slate-600 uppercase">Seller CR:</td>
-                <td className="py-1 font-medium text-slate-900">{invoice?.seller?.crNumber || '—'}</td>
+                <td className="py-1 font-bold text-slate-600 uppercase">{parties.isPurchaseFlow ? 'Company CR:' : 'Seller CR:'}</td>
+                <td className="py-1 font-medium text-slate-900">{companyCr || '—'}</td>
               </tr>
             </tbody>
           </table>
@@ -134,10 +129,10 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
 
       {/* Bill To */}
       <div className="p-6 border-b border-slate-300 bg-slate-50/50">
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 pb-1 w-fit">{getCommercialCounterpartyLabel(documentType, 'en')}</h3>
-        <p className="text-base font-bold text-slate-900">{buyerNameEn}</p>
-        {bilingual && buyerNameAr && <p className="text-sm font-bold text-slate-900 mt-1" dir="rtl">{buyerNameAr}</p>}
-        {invoice?.buyer?.vatNumber && <p className="text-sm text-slate-700 mt-2">VAT: {invoice.buyer.vatNumber}</p>}
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 pb-1 w-fit">{counterpartyLabelEn}</h3>
+        <p className="text-base font-bold text-slate-900">{counterpartyNameEn || counterpartyName}</p>
+        {bilingual && counterpartyNameAr && <p className="text-sm font-bold text-slate-900 mt-1" dir="rtl">{counterpartyNameAr}</p>}
+        {counterpartyVat && <p className="text-sm text-slate-700 mt-2">VAT: {counterpartyVat}</p>}
       </div>
 
       {/* Table */}

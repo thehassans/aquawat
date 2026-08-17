@@ -1,11 +1,12 @@
+import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import LetterheadChrome from './LetterheadChrome'
-import { getCommercialCounterpartyLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties } from '../../lib/commercialDocumentLabels'
 import { getUomLabel } from '../../lib/uomOptions'
-import { calculateInvoiceSummary } from '../../lib/invoiceDocument'
+import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
+import LetterheadChrome from './LetterheadChrome'
 import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
@@ -14,16 +15,15 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
 
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
-  const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
-  const buyerName = bilingual ? buyerNameEn : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
+  const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
+  const { counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyAddress, counterpartyPhone, counterpartyLabelEn, counterpartyLabelAr } = parties
 
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0
     ? totals.lines
     : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
-  const invoiceTitle = getCommercialDocumentTitle(documentType, language)
+  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { flow: invoice?.flow })
   const isQuotation = documentType === 'quotation' || Boolean(invoice?.quotationNumber)
 
   const formatDate = (dateString) => {
@@ -47,12 +47,12 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
     )
   }
 
-  const buyerAddress = [
-    invoice?.buyer?.address?.street,
-    invoice?.buyer?.address?.district,
-    invoice?.buyer?.address?.city,
-    invoice?.buyer?.address?.country,
-  ].filter(Boolean).join(', ')
+  const counterpartyAddressStr = counterpartyAddress ? [
+    counterpartyAddress?.street,
+    counterpartyAddress?.district,
+    counterpartyAddress?.city,
+    counterpartyAddress?.country,
+  ].filter(Boolean).join(', ') : ''
 
   return (
     <LetterheadChrome
@@ -93,14 +93,14 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-              {getCommercialCounterpartyLabel(documentType, 'en')} / {getCommercialCounterpartyLabel(documentType, 'ar')}
+              {counterpartyLabelEn} / {counterpartyLabelAr}
             </p>
-            <p className="mt-2 text-base font-bold">{buyerName || '—'}</p>
-            {bilingual && buyerNameAr && buyerNameAr !== buyerNameEn ? (
-              <p className="text-sm text-slate-600" dir="rtl">{buyerNameAr}</p>
+            <p className="mt-2 text-base font-bold">{counterpartyNameEn || counterpartyName || '—'}</p>
+            {bilingual && counterpartyNameAr && counterpartyNameAr !== counterpartyNameEn ? (
+              <p className="text-sm text-slate-600" dir="rtl">{counterpartyNameAr}</p>
             ) : null}
-            {buyerAddress ? <p className="mt-2 text-sm text-slate-600">{buyerAddress}</p> : null}
-            {invoice?.buyer?.contactPhone ? <p className="mt-1 text-sm text-slate-600">{invoice.buyer.contactPhone}</p> : null}
+            {counterpartyAddressStr ? <p className="mt-2 text-sm text-slate-600">{counterpartyAddressStr}</p> : null}
+            {counterpartyPhone ? <p className="mt-1 text-sm text-slate-600">{counterpartyPhone}</p> : null}
           </div>
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Details / التفاصيل</p>

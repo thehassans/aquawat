@@ -1,6 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -17,13 +17,8 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   
-  const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
-  const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
-  const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
-  
-  const sellerName = bilingual ? sellerNameEn : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
-  const buyerName = bilingual ? buyerNameEn : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
+  const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
+  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyPhone, counterpartyLabelEn } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -31,8 +26,8 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
     invoice,
     tenant,
     currency,
-    sellerName: sellerNameEn || sellerNameAr,
-    vatNumber: invoice?.seller?.vatNumber || tenant?.business?.vatNumber,
+    sellerName: companyNameEn || companyNameAr,
+    vatNumber: companyVat,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -65,7 +60,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
     )
   }
 
-  const invoiceTitle = getCommercialDocumentTitle(documentType, language)
+  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { flow: invoice?.flow })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border-double border-[6px] border-amber-900 shadow-2xl p-8 font-serif" style={{ fontFamily: '"Times New Roman", Times, "Almarai", serif' }}>
@@ -87,11 +82,11 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
         </div>
         
         <div className="w-1/3 text-right">
-          <h2 className="text-xl font-bold text-amber-900">{sellerNameEn}</h2>
-          {bilingual && <h2 className="text-lg font-bold text-amber-900" dir="rtl">{sellerNameAr}</h2>}
+          <h2 className="text-xl font-bold text-amber-900">{companyNameEn || headerCompanyName}</h2>
+          {bilingual && companyNameAr && <h2 className="text-lg font-bold text-amber-900" dir="rtl">{companyNameAr}</h2>}
           <div className="mt-2 text-sm text-gray-700">
-            {invoice?.seller?.vatNumber && <p>VAT: {invoice.seller.vatNumber}</p>}
-            {invoice?.seller?.crNumber && <p>CR: {invoice.seller.crNumber}</p>}
+            {companyVat && <p>VAT: {companyVat}</p>}
+            {companyCr && <p>CR: {companyCr}</p>}
           </div>
         </div>
       </div>
@@ -99,12 +94,12 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
       {/* Bill To & QR */}
       <div className="flex justify-between items-start mb-8">
         <div className="w-1/2">
-          <p className="text-sm font-semibold text-amber-900 uppercase tracking-widest mb-2 border-b border-amber-200 pb-1 inline-block">{getCommercialCounterpartyLabel(documentType, 'en')}</p>
-          <h3 className="text-lg font-bold text-gray-900">{buyerNameEn}</h3>
-          {bilingual && <h3 className="text-lg font-bold text-gray-900 mt-1" dir="rtl">{buyerNameAr}</h3>}
+          <p className="text-sm font-semibold text-amber-900 uppercase tracking-widest mb-2 border-b border-amber-200 pb-1 inline-block">{counterpartyLabelEn}</p>
+          <h3 className="text-lg font-bold text-gray-900">{counterpartyNameEn || counterpartyName}</h3>
+          {bilingual && counterpartyNameAr && <h3 className="text-lg font-bold text-gray-900 mt-1" dir="rtl">{counterpartyNameAr}</h3>}
           <div className="mt-2 text-sm text-gray-700">
-            {invoice?.buyer?.vatNumber && <p>VAT: {invoice.buyer.vatNumber}</p>}
-            {invoice?.buyer?.contactPhone && <p>Tel: {invoice.buyer.contactPhone}</p>}
+            {counterpartyVat && <p>VAT: {counterpartyVat}</p>}
+            {counterpartyPhone && <p>Tel: {counterpartyPhone}</p>}
           </div>
         </div>
         

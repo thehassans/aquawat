@@ -32,13 +32,50 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   const letterheadContact = getLetterheadContact(tenant, invoice)
   
-  const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
-  const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || getCounterpartyFallbackName(documentType, 'en')
-  const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
+  const isPurchaseFlow = invoice?.flow === 'purchase' || documentType === 'purchase_invoice' || documentType === 'purchase_order'
+
+  // Header Company Info:
+  // For sales/quotations, seller is the tenant/business.
+  // For purchase orders & purchase invoices, the company header is ALWAYS the Tenant (issuer).
+  const companyNameEn = isPurchaseFlow
+    ? (tenant?.business?.legalNameEn || tenant?.name || invoiceBranding?.legalNameEn || '')
+    : (invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || '')
   
-  const sellerName = bilingual ? sellerNameEn : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
-  const buyerName = bilingual ? buyerNameEn : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
+  const companyNameAr = isPurchaseFlow
+    ? (tenant?.business?.legalNameAr || invoiceBranding?.legalNameAr || '')
+    : (invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || '')
+
+  const companyAddress = isPurchaseFlow
+    ? (tenant?.business?.address || null)
+    : (invoice?.seller?.address || tenant?.business?.address || null)
+
+  const companyPhone = isPurchaseFlow
+    ? (tenant?.business?.contactPhone || tenant?.phone || '')
+    : (invoice?.seller?.contactPhone || tenant?.business?.contactPhone || tenant?.phone || '')
+
+  const companyEmail = isPurchaseFlow
+    ? (tenant?.business?.contactEmail || tenant?.email || '')
+    : (invoice?.seller?.contactEmail || tenant?.business?.contactEmail || tenant?.email || '')
+
+  const companyVat = isPurchaseFlow
+    ? (tenant?.business?.vatNumber || '')
+    : (invoice?.seller?.vatNumber || tenant?.business?.vatNumber || '')
+
+  const companyCr = isPurchaseFlow
+    ? (tenant?.business?.crNumber || '')
+    : (invoice?.seller?.crNumber || tenant?.business?.crNumber || '')
+
+  const headerCompanyName = bilingual ? companyNameEn : (language === 'ar' ? (companyNameAr || companyNameEn) : (companyNameEn || companyNameAr))
+
+  // Counterparty Info (Customer for sell/quotation, Supplier for purchase/PO):
+  const counterpartyData = isPurchaseFlow ? invoice?.seller : invoice?.buyer
+  const counterpartyNameEn = counterpartyData?.name || counterpartyData?.nameAr || (isPurchaseFlow ? (language === 'ar' ? 'مورد نقدي' : 'Cash Supplier') : getCounterpartyFallbackName(documentType, 'en'))
+  const counterpartyNameAr = counterpartyData?.nameAr || (hasArabicText(counterpartyData?.name) ? counterpartyData?.name : '') || (isPurchaseFlow ? 'مورد نقدي' : '')
+  const counterpartyName = bilingual ? counterpartyNameEn : (language === 'ar' ? (counterpartyNameAr || counterpartyNameEn) : (counterpartyNameEn || counterpartyNameAr))
+  const counterpartyAddress = counterpartyData?.address
+  const counterpartyPhone = counterpartyData?.contactPhone || counterpartyData?.phone
+  const counterpartyVat = counterpartyData?.vatNumber
+  const counterpartyCr = counterpartyData?.crNumber
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -47,8 +84,8 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
     invoice,
     tenant,
     currency,
-    sellerName: sellerNameEn || sellerNameAr,
-    vatNumber: invoice?.seller?.vatNumber || tenant?.business?.vatNumber,
+    sellerName: companyNameEn || companyNameAr,
+    vatNumber: companyVat,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -124,30 +161,30 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             </div>
             
             <div className="mt-2 space-y-1 text-sm">
-              {!isQuotation && (invoice?.seller?.address?.street || invoice?.seller?.address?.city) && (
+              {!isQuotation && (companyAddress?.street || companyAddress?.city) && (
                 <div className="flex flex-col gap-1">
                   <p className="flex items-start gap-2">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
-                    <span>{[invoice.seller.address.street, invoice.seller.address.district, invoice.seller.address.city, invoice.seller.address.country].filter(Boolean).join(', ')}</span>
+                    <span>{[companyAddress.street, companyAddress.district, companyAddress.city, companyAddress.country].filter(Boolean).join(', ')}</span>
                   </p>
-                  {bilingual && (invoice?.seller?.address?.streetAr || invoice?.seller?.address?.districtAr || invoice?.seller?.address?.cityAr) && (
+                  {bilingual && (companyAddress.streetAr || companyAddress.districtAr || companyAddress.cityAr) && (
                     <p className="flex items-start gap-2 text-gray-500" dir="rtl">
                       <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span>{[invoice.seller.address.streetAr, invoice.seller.address.districtAr, invoice.seller.address.cityAr, invoice.seller.address.country].filter(Boolean).join('، ')}</span>
+                      <span>{[companyAddress.streetAr, companyAddress.districtAr, companyAddress.cityAr, companyAddress.country].filter(Boolean).join('، ')}</span>
                     </p>
                   )}
                 </div>
               )}
-              {!isQuotation && invoice?.seller?.contactPhone && (
+              {!isQuotation && companyPhone && (
                 <p className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-gray-500" />
-                  {invoice.seller.contactPhone}
+                  {companyPhone}
                 </p>
               )}
-              {!isQuotation && invoice?.seller?.contactEmail && (
+              {!isQuotation && companyEmail && (
                 <p className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-gray-500" />
-                  {invoice.seller.contactEmail}
+                  {companyEmail}
                 </p>
               )}
             </div>
@@ -155,11 +192,11 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
 
           <div className="flex-1 flex flex-col items-center justify-center text-center mt-2">
             <h2 className="text-2xl font-bold tracking-normal text-slate-900 uppercase">
-              {sellerName}
+              {headerCompanyName}
             </h2>
-            {bilingual && sellerNameAr && (
+            {bilingual && companyNameAr && (
               <p className="text-2xl font-bold text-slate-900 mt-2" dir="rtl">
-                {sellerNameAr}
+                {companyNameAr}
               </p>
             )}
           </div>
@@ -167,6 +204,8 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
           <div className="flex flex-col gap-4 md:items-end">
             <div className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium w-fit ${
               isPurchaseOrder
+                ? 'bg-slate-900 text-white border-slate-900'
+                : isPurchaseFlow
                 ? 'bg-slate-900 text-white border-slate-900'
                 : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
                 ? 'bg-blue-50 text-blue-700 border-blue-200'
@@ -179,6 +218,8 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               <FileText className="mr-2 h-4 w-4" />
               {isPurchaseOrder
                 ? L('Purchase Order', 'طلب شراء')
+                : isPurchaseFlow
+                ? L('Purchase Invoice', 'فاتورة شراء')
                 : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
                 ? L('Furniture Sale Invoice', 'فاتورة بيع مفروشات')
                 : invoice?.businessContext === 'boutique'
@@ -191,30 +232,30 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             </div>
             
             <div className={`mt-2 space-y-1 text-sm md:text-right ${isQuotation ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
-              {!isQuotation && (invoice?.seller?.contactPhone || tenant?.business?.contactPhone || tenant?.phone) && (
+              {!isQuotation && companyPhone && (
                 <div className="flex items-center gap-2 md:justify-end mb-2">
                   <span className="font-semibold text-gray-900">Phone:</span>
-                  <span className="font-mono">{invoice?.seller?.contactPhone || tenant?.business?.contactPhone || tenant?.phone}</span>
+                  <span className="font-mono">{companyPhone}</span>
                 </div>
               )}
-              {(invoice?.seller?.vatNumber || tenant?.business?.vatNumber) && (
+              {companyVat && (
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center justify-end gap-2">
                     <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{isQuotation ? 'VAT #' : 'VAT No'}:</span>
-                    <span className={`font-mono ${isQuotation ? 'font-bold' : ''}`}>{invoice?.seller?.vatNumber || tenant?.business?.vatNumber}</span>
+                    <span className={`font-mono ${isQuotation ? 'font-bold' : ''}`}>{companyVat}</span>
                   </div>
                   {bilingual && S('الرقم الضريبي') && (
                     <div className="flex items-center justify-end gap-2" dir={secondaryDir}>
                       <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{S('الرقم الضريبي')}:</span>
-                      <span className={`font-sans ${isQuotation ? 'font-bold' : ''}`}>{isArabicSecondary ? toEasternArabicNumerals(invoice?.seller?.vatNumber || tenant?.business?.vatNumber) : (invoice?.seller?.vatNumber || tenant?.business?.vatNumber)}</span>
+                      <span className={`font-sans ${isQuotation ? 'font-bold' : ''}`}>{isArabicSecondary ? toEasternArabicNumerals(companyVat) : companyVat}</span>
                     </div>
                   )}
                 </div>
               )}
-              {(invoice?.seller?.crNumber || tenant?.business?.crNumber) && (
+              {companyCr && (
                 <div className="flex items-center gap-2 md:justify-end mt-2">
                   <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{isQuotation ? 'C.R #' : 'CR No'}:</span>
-                  <span className={`font-mono ${isQuotation ? 'font-bold' : ''}`}>{invoice?.seller?.crNumber || tenant?.business?.crNumber}</span>
+                  <span className={`font-mono ${isQuotation ? 'font-bold' : ''}`}>{companyCr}</span>
                 </div>
               )}
             </div>
@@ -228,57 +269,63 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
           <div className="rounded-xl border bg-gray-50 p-3">
             <h3 className="mb-2 flex items-center gap-2 font-semibold text-gray-900 border-b pb-1 text-sm">
               <User className="h-4 w-4 text-primary-600" />
-              {L(getCommercialCounterpartyLabel(documentType, 'en'), getCommercialCounterpartyLabel(documentType, 'ar'))}
+              {L(getCommercialCounterpartyLabel(documentType, 'en', invoice?.flow), getCommercialCounterpartyLabel(documentType, 'ar', invoice?.flow))}
             </h3>
             <div className="space-y-1 text-sm text-gray-700">
-              <p className="font-bold text-gray-900 text-base">{buyerName}</p>
-              {bilingual && buyerNameAr && (
-                <p className="font-bold text-gray-500" dir="rtl">{buyerNameAr}</p>
+              <p className="font-bold text-gray-900 text-base">{counterpartyName}</p>
+              {bilingual && counterpartyNameAr && (
+                <p className="font-bold text-gray-500" dir="rtl">{counterpartyNameAr}</p>
               )}
 
               <div className="mt-2 space-y-1.5">
-                {(invoice?.buyer?.address?.street || invoice?.buyer?.address?.city) && (
+                {(counterpartyAddress?.street || counterpartyAddress?.city) && (
                   <div className="flex flex-col gap-1">
-                    <p>{[invoice.buyer.address.street, invoice.buyer.address.district, invoice.buyer.address.city, invoice.buyer.address.country].filter(Boolean).join(', ')}</p>
-                    {bilingual && (invoice?.buyer?.address?.streetAr || invoice?.buyer?.address?.districtAr || invoice?.buyer?.address?.cityAr) && (
-                      <p className="text-gray-500" dir="rtl">{[invoice.buyer.address.streetAr, invoice.buyer.address.districtAr, invoice.buyer.address.cityAr, invoice.buyer.address.country].filter(Boolean).join('، ')}</p>
+                    <p>{[counterpartyAddress.street, counterpartyAddress.district, counterpartyAddress.city, counterpartyAddress.country].filter(Boolean).join(', ')}</p>
+                    {bilingual && (counterpartyAddress.streetAr || counterpartyAddress.districtAr || counterpartyAddress.cityAr) && (
+                      <p className="text-gray-500" dir="rtl">{[counterpartyAddress.streetAr, counterpartyAddress.districtAr, counterpartyAddress.cityAr, counterpartyAddress.country].filter(Boolean).join('، ')}</p>
                     )}
                   </div>
                 )}
-                {invoice?.buyer?.contactPhone && (
+                {counterpartyPhone && (
                   <p className="flex items-center gap-2">
                     <Phone className="h-3 w-3 text-gray-400" />
-                    {invoice.buyer.contactPhone}
+                    {counterpartyPhone}
                   </p>
                 )}
-                {(invoice?.buyer?.idNumber || invoice?.buyer?.customerIdNumber) && (
+                {(counterpartyData?.idNumber || counterpartyData?.customerIdNumber) && (
                   <div className="flex flex-col gap-1">
                     <p className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-900">{invoice?.buyer?.idType === 'vat' ? 'VAT No' : invoice?.buyer?.idType === 'id' ? 'ID' : 'Iqama'}:</span>
-                      <span className="font-mono">{invoice.buyer.idNumber || invoice.buyer.customerIdNumber}</span>
+                      <span className="font-semibold text-gray-900">{counterpartyData?.idType === 'vat' ? 'VAT No' : counterpartyData?.idType === 'id' ? 'ID' : 'Iqama'}:</span>
+                      <span className="font-mono">{counterpartyData.idNumber || counterpartyData.customerIdNumber}</span>
                     </p>
                     {bilingual && (
                       <p className="flex gap-2" dir={secondaryDir}>
                         <span className="font-semibold text-gray-900">
-                          {invoice?.buyer?.idType === 'vat' ? S('الرقم الضريبي') : invoice?.buyer?.idType === 'id' ? (isArabicSecondary ? 'الهوية' : 'ID') : (isArabicSecondary ? 'الإقامة' : 'Iqama')}:
+                          {counterpartyData?.idType === 'vat' ? S('الرقم الضريبي') : counterpartyData?.idType === 'id' ? (isArabicSecondary ? 'الهوية' : 'ID') : (isArabicSecondary ? 'الإقامة' : 'Iqama')}:
                         </span>
-                        <span className="font-sans">{isArabicSecondary ? toEasternArabicNumerals(invoice.buyer.idNumber || invoice.buyer.customerIdNumber) : (invoice.buyer.idNumber || invoice.buyer.customerIdNumber)}</span>
+                        <span className="font-sans">{isArabicSecondary ? toEasternArabicNumerals(counterpartyData.idNumber || counterpartyData.customerIdNumber) : (counterpartyData.idNumber || counterpartyData.customerIdNumber)}</span>
                       </p>
                     )}
                   </div>
                 )}
-                {invoice?.buyer?.vatNumber && (
+                {counterpartyVat && (
                   <div className="mt-2 flex flex-col gap-1">
                     <p>
                       <span className="font-semibold text-gray-900">VAT No:</span>{" "}
-                      <span className="font-mono">{invoice.buyer.vatNumber}</span>
+                      <span className="font-mono">{counterpartyVat}</span>
                     </p>
                     {bilingual && S('الرقم الضريبي') && (
                       <p className="flex gap-2" dir={secondaryDir}>
                         <span className="font-semibold text-gray-900">{S('الرقم الضريبي')}:</span>
-                        <span className="font-sans">{isArabicSecondary ? toEasternArabicNumerals(invoice.buyer.vatNumber) : invoice.buyer.vatNumber}</span>
+                        <span className="font-sans">{isArabicSecondary ? toEasternArabicNumerals(counterpartyVat) : counterpartyVat}</span>
                       </p>
                     )}
+                  </div>
+                )}
+                {counterpartyCr && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-gray-900">CR No:</span>
+                    <span className="font-mono">{counterpartyCr}</span>
                   </div>
                 )}
               </div>

@@ -1,4 +1,5 @@
 import React from 'react'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -8,7 +9,6 @@ import { formatCurrencyAmount } from '../../lib/currency'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { Building2 } from 'lucide-react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
 import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
@@ -17,13 +17,8 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   
-  const sellerNameEn = invoice?.seller?.name || invoice?.seller?.nameAr || tenant?.business?.legalNameEn || tenant?.business?.legalNameAr || ''
-  const sellerNameAr = invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || ''
-  const buyerNameEn = invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Cash Customer'
-  const buyerNameAr = invoice?.buyer?.nameAr || (hasArabicText(invoice?.buyer?.name) ? invoice?.buyer?.name : '')
-  
-  const sellerName = bilingual ? sellerNameEn : (language === 'ar' ? (sellerNameAr || sellerNameEn) : (sellerNameEn || sellerNameAr))
-  const buyerName = bilingual ? buyerNameEn : (language === 'ar' ? (buyerNameAr || buyerNameEn) : (buyerNameEn || buyerNameAr))
+  const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
+  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyLabelEn } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -31,8 +26,8 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
     invoice,
     tenant,
     currency,
-    sellerName: sellerNameEn || sellerNameAr,
-    vatNumber: invoice?.seller?.vatNumber || tenant?.business?.vatNumber,
+    sellerName: companyNameEn || companyNameAr,
+    vatNumber: companyVat,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -65,8 +60,8 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
     )
   }
 
-  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { uppercase: true })
-  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar')
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { uppercase: true, flow: invoice?.flow })
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border-2 border-black overflow-hidden font-sans rounded-none">
@@ -83,8 +78,8 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
               )}
             </div>
             <div>
-              <h2 className="text-2xl font-black text-black uppercase tracking-tight">{sellerNameEn}</h2>
-              {bilingual && sellerNameAr && <h2 className="text-xl font-bold text-black mt-1" dir="rtl">{sellerNameAr}</h2>}
+              <h2 className="text-2xl font-black text-black uppercase tracking-tight">{companyNameEn || headerCompanyName}</h2>
+              {bilingual && companyNameAr && <h2 className="text-xl font-bold text-black mt-1" dir="rtl">{companyNameAr}</h2>}
             </div>
           </div>
           <div className="flex-1 text-right">
@@ -98,15 +93,15 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
         {/* Info Grid */}
         <div className="flex border-b-2 border-black pb-6 mb-6">
           <div className="w-1/3 pr-6 border-r-2 border-black">
-            <h3 className="text-[10px] text-black uppercase font-black mb-2 tracking-widest">{getCommercialCounterpartyLabel(documentType, 'en').toUpperCase()}</h3>
-            <p className="text-base font-bold text-black uppercase">{buyerNameEn}</p>
-            {bilingual && buyerNameAr && <p className="text-sm font-bold text-black mt-1" dir="rtl">{buyerNameAr}</p>}
-            {invoice?.buyer?.vatNumber && <p className="text-xs font-mono text-black mt-2 font-bold">VAT: {invoice.buyer.vatNumber}</p>}
+            <h3 className="text-[10px] text-black uppercase font-black mb-2 tracking-widest">{counterpartyLabelEn.toUpperCase()}</h3>
+            <p className="text-base font-bold text-black uppercase">{counterpartyNameEn || counterpartyName}</p>
+            {bilingual && counterpartyNameAr && <p className="text-sm font-bold text-black mt-1" dir="rtl">{counterpartyNameAr}</p>}
+            {counterpartyVat && <p className="text-xs font-mono text-black mt-2 font-bold">VAT: {counterpartyVat}</p>}
           </div>
           
           <div className="w-1/3 px-6 border-r-2 border-black">
             <div className="mb-4">
-              <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">{getCommercialDocumentNumberLabel(documentType, 'en').toUpperCase()}</h3>
+              <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">{getCommercialDocumentNumberLabel(documentType, 'en', invoice?.flow).toUpperCase()}</h3>
               <p className="text-base font-mono font-bold text-black">#{documentNumber}</p>
             </div>
             <div>
@@ -117,10 +112,10 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
 
           <div className="w-1/3 pl-6 flex justify-between items-start">
              <div>
-               <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">SELLER VAT</h3>
-               <p className="text-sm font-mono font-bold text-black mb-2">{invoice?.seller?.vatNumber || tenant?.business?.vatNumber || '—'}</p>
-               <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">SELLER CR</h3>
-               <p className="text-sm font-mono font-bold text-black">{invoice?.seller?.crNumber || '—'}</p>
+               <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">{parties.isPurchaseFlow ? 'COMPANY VAT' : 'SELLER VAT'}</h3>
+               <p className="text-sm font-mono font-bold text-black mb-2">{companyVat || '—'}</p>
+               <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">{parties.isPurchaseFlow ? 'COMPANY CR' : 'SELLER CR'}</h3>
+               <p className="text-sm font-mono font-bold text-black">{companyCr || '—'}</p>
              </div>
              {shouldShowZatcaQr(documentType) && qrValue && (
                 <div className="p-1 border-2 border-black bg-white">
