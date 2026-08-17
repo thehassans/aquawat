@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, Fragment } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import Select from 'react-select'
+import CreatableSelect from 'react-select/creatable'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
@@ -136,11 +137,20 @@ export default function PurchaseOrderForm() {
     type: 'company',
   })
   const [warehouseForm, setWarehouseForm] = useState({
-    code: '',
-    nameEn: '',
-    nameAr: '',
     type: 'main',
     isPrimary: false,
+  })
+  const [showProductModal, setShowProductModal] = useState(false)
+  const [productModalTargetIndex, setProductModalTargetIndex] = useState(null)
+  const [productForm, setProductForm] = useState({
+    sku: '',
+    nameEn: '',
+    nameAr: '',
+    productType: 'goods',
+    unitOfMeasure: 'PCE',
+    costPrice: '',
+    sellingPrice: '',
+    taxRate: 15,
   })
 
   const toggleManualMode = (index) => {
@@ -309,6 +319,83 @@ export default function PurchaseOrderForm() {
       code: warehouseForm.code || `WH-${Math.floor(Date.now() / 1000).toString().slice(-5)}`,
     })
   }
+
+  const addProductMutation = useMutation({
+    mutationFn: (data) => api.post('/products', data),
+    onSuccess: (res) => {
+      toast.success(language === 'ar' ? 'تم إضافة المنتج بنجاح' : 'Product created successfully')
+      queryClient.invalidateQueries(['products-list'])
+      queryClient.invalidateQueries(['products'])
+      setShowProductModal(false)
+      const created = res.data
+      if (productModalTargetIndex !== null && productModalTargetIndex !== undefined) {
+        setValue(`lineItems.${productModalTargetIndex}.productId`, created._id, { shouldDirty: true, shouldValidate: true })
+        setValue(`lineItems.${productModalTargetIndex}.productType`, normalizeProductType(created.productType), { shouldDirty: true })
+        setValue(`lineItems.${productModalTargetIndex}.uom`, created.unitOfMeasure || created.unitCode || 'PCE', { shouldDirty: true })
+        if (created.costPrice != null && created.costPrice !== '') {
+          setValue(`lineItems.${productModalTargetIndex}.unitCost`, Number(created.costPrice) || 0, { shouldDirty: true })
+        }
+        setValue(`lineItems.${productModalTargetIndex}.manualName`, '')
+        setManualModes((prev) => {
+          const next = [...prev]
+          next[productModalTargetIndex] = false
+          return next
+        })
+      }
+      setProductForm({
+        sku: '',
+        nameEn: '',
+        nameAr: '',
+        productType: 'goods',
+        unitOfMeasure: 'PCE',
+        costPrice: '',
+        sellingPrice: '',
+        taxRate: 15,
+      })
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to create product'),
+  })
+
+  const submitInlineProduct = () => {
+    if (!productForm.nameEn?.trim() && !productForm.nameAr?.trim()) {
+      toast.error(language === 'ar' ? 'اسم المنتج مطلوب' : 'Product name is required')
+      return
+    }
+    const payload = {
+      ...productForm,
+      nameEn: productForm.nameEn?.trim() || productForm.nameAr?.trim(),
+      nameAr: productForm.nameAr?.trim() || productForm.nameEn?.trim(),
+      sku: productForm.sku?.trim() || `SKU-${Date.now().toString().slice(-6)}`,
+      productType: normalizeProductType(productForm.productType),
+      costPrice: productForm.costPrice !== '' ? Number(productForm.costPrice) : 0,
+      price: productForm.sellingPrice !== '' ? Number(productForm.sellingPrice) : 0,
+      taxRate: Number(productForm.taxRate) || 15,
+      unitOfMeasure: productForm.unitOfMeasure || 'PCE',
+    }
+    addProductMutation.mutate(payload)
+  }
+
+  useEffect(() => {
+    const s = productForm.nameEn?.trim()
+    if (!s || s.length < 2 || !showProductModal) return
+    const timer = setTimeout(() => {
+      if (productForm.nameAr?.trim()) return
+      const translated = autoTranslateText(s, 'en', 'ar')
+      if (translated) setProductForm((p) => ({ ...p, nameAr: translated }))
+    }, 120)
+    return () => clearTimeout(timer)
+  }, [productForm.nameEn, showProductModal])
+
+  useEffect(() => {
+    const s = productForm.nameAr?.trim()
+    if (!s || s.length < 2 || !showProductModal) return
+    const timer = setTimeout(() => {
+      if (productForm.nameEn?.trim()) return
+      const translated = autoTranslateText(s, 'ar', 'en')
+      if (translated) setProductForm((p) => ({ ...p, nameEn: translated }))
+    }, 120)
+    return () => clearTimeout(timer)
+  }, [productForm.nameAr, showProductModal])
 
   const uploadVendorBill = async (orderId, file) => {
     const body = new FormData()
@@ -1388,42 +1475,133 @@ export default function PurchaseOrderForm() {
                               language={language}
                             />
                             {!isLocked && (
-                              <button
-                                type="button"
-                                onClick={() => toggleManualMode(index)}
-                                className="text-[11px] font-medium text-slate-500 underline underline-offset-2 hover:text-slate-800 dark:text-slate-400"
-                              >
-                                {manualModes[index]
-                                  ? language === 'ar' ? 'اختر من قائمة' : 'List'
-                                  : language === 'ar' ? 'كتابة يدوية' : 'Custom'}
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setProductModalTargetIndex(index)
+                                    const typed = watch(`lineItems.${index}.manualName`) || ''
+                                    setProductForm({
+                                      sku: `SKU-${Date.now().toString().slice(-6)}`,
+                                      nameEn: typed,
+                                      nameAr: '',
+                                      productType: watch(`lineItems.${index}.productType`) || 'goods',
+                                      unitOfMeasure: watch(`lineItems.${index}.uom`) || 'PCE',
+                                      costPrice: watch(`lineItems.${index}.unitCost`) || '',
+                                      sellingPrice: '',
+                                      taxRate: watch(`lineItems.${index}.taxRate`) ?? 15,
+                                    })
+                                    setShowProductModal(true)
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400"
+                                  title={language === 'ar' ? 'إضافة منتج جديد للمخزون' : 'Add new product to catalog'}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  {language === 'ar' ? 'منتج جديد' : 'New Product'}
+                                </button>
+                                <span className="text-slate-300 dark:text-white/20">|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleManualMode(index)}
+                                  className="text-[11px] font-medium text-slate-500 underline underline-offset-2 hover:text-slate-800 dark:text-slate-400"
+                                >
+                                  {manualModes[index]
+                                    ? language === 'ar' ? 'اختر من قائمة' : 'List'
+                                    : language === 'ar' ? 'كتابة يدوية' : 'Custom'}
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
                         <input type="hidden" {...register(`lineItems.${index}.productType`)} />
+                        <input type="hidden" {...register(`lineItems.${index}.productId`)} />
+
                         {manualModes[index] ? (
-                          <input
-                            {...register(`lineItems.${index}.manualName`, { required: true })}
-                            placeholder={language === 'ar' ? 'اسم المنتج' : 'Product name'}
-                            className="input !py-1.5 text-xs"
-                            disabled={isLocked}
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              {...register(`lineItems.${index}.manualName`, { required: true })}
+                              placeholder={language === 'ar' ? 'اسم المنتج أو الصنف...' : 'Product or item name...'}
+                              className="input !py-1.5 text-xs flex-1"
+                              disabled={isLocked}
+                            />
+                            {!isLocked && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProductModalTargetIndex(index)
+                                  const typed = watch(`lineItems.${index}.manualName`) || ''
+                                  setProductForm({
+                                    sku: `SKU-${Date.now().toString().slice(-6)}`,
+                                    nameEn: typed,
+                                    nameAr: '',
+                                    productType: watch(`lineItems.${index}.productType`) || 'goods',
+                                    unitOfMeasure: watch(`lineItems.${index}.uom`) || 'PCE',
+                                    costPrice: watch(`lineItems.${index}.unitCost`) || '',
+                                    sellingPrice: '',
+                                    taxRate: watch(`lineItems.${index}.taxRate`) ?? 15,
+                                  })
+                                  setShowProductModal(true)
+                                }}
+                                className="rounded-lg border border-teal-200 bg-teal-50 px-2 py-1.5 text-[11px] font-medium text-teal-700 hover:bg-teal-100 whitespace-nowrap dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-300"
+                                title={language === 'ar' ? 'حفظ كمنتج جديد في المخزون' : 'Save to inventory products'}
+                              >
+                                + {language === 'ar' ? 'حفظ كمنتج' : 'Save as product'}
+                              </button>
+                            )}
+                          </div>
                         ) : (
-                          <select
-                            {...register(`lineItems.${index}.productId`, {
-                              required: !manualModes[index],
-                              onChange: (e) => applyProductToLine(index, e.target.value),
-                            })}
-                            className="select !py-1.5 text-xs"
-                            disabled={isLocked}
-                          >
-                            <option value="">{language === 'ar' ? 'اختر منتج' : 'Select product'}</option>
-                            {(products || []).map((p) => (
-                              <option key={p._id} value={p._id}>
-                                {productPickerLabel(p, language) || p.sku}
-                              </option>
-                            ))}
-                          </select>
+                          <CreatableSelect
+                            className="react-select-container text-xs"
+                            classNamePrefix="react-select"
+                            isDisabled={isLocked}
+                            isClearable
+                            isSearchable
+                            placeholder={language === 'ar' ? 'ابحث بالاسم أو الرمز، أو اكتب...' : 'Search product or type...'}
+                            formatCreateLabel={(inputValue) =>
+                              language === 'ar'
+                                ? `+ استخدام "${inputValue}" كبند مخصص`
+                                : `+ Use "${inputValue}" as custom item`
+                            }
+                            options={(products || []).map((p) => ({
+                              value: p._id,
+                              label: productPickerLabel(p, language) || p.nameEn || p.nameAr || p.sku,
+                              product: p,
+                            }))}
+                            value={
+                              watch(`lineItems.${index}.productId`)
+                                ? {
+                                    value: watch(`lineItems.${index}.productId`),
+                                    label:
+                                      productPickerLabel(
+                                        (products || []).find((p) => p._id === watch(`lineItems.${index}.productId`)),
+                                        language
+                                      ) ||
+                                      watch(`lineItems.${index}.manualName`) ||
+                                      '—',
+                                  }
+                                : watch(`lineItems.${index}.manualName`)
+                                ? {
+                                    value: '',
+                                    label: watch(`lineItems.${index}.manualName`),
+                                  }
+                                : null
+                            }
+                            onChange={(option) => {
+                              if (!option) {
+                                setValue(`lineItems.${index}.productId`, '', { shouldDirty: true, shouldValidate: true })
+                                setValue(`lineItems.${index}.manualName`, '', { shouldDirty: true })
+                                return
+                              }
+                              if (option.__isNew__) {
+                                setValue(`lineItems.${index}.productId`, '', { shouldDirty: true, shouldValidate: true })
+                                setValue(`lineItems.${index}.manualName`, option.value, { shouldDirty: true, shouldValidate: true })
+                                toggleManualMode(index)
+                              } else {
+                                setValue(`lineItems.${index}.productId`, option.value, { shouldDirty: true, shouldValidate: true })
+                                applyProductToLine(index, option.value)
+                              }
+                            }}
+                          />
                         )}
                       </div>
 
@@ -2116,6 +2294,146 @@ export default function PurchaseOrderForm() {
               <button type="button" onClick={() => setShowWarehouseModal(false)} className={ghostBtn}>{t('cancel')}</button>
               <button type="button" onClick={submitInlineWarehouse} disabled={addWarehouseMutation.isPending} className={primaryBtn}>
                 {addWarehouseMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : language === 'ar' ? 'حفظ المستودع' : 'Save warehouse'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Inline Quick Add Product Modal */}
+      {showProductModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className={`${shell} w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4`}>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/[0.08]">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-teal-600 dark:text-teal-400">
+                  {language === 'ar' ? 'المخزون والمنتجات' : 'Inventory Products'}
+                </p>
+                <h3 className="mt-0.5 text-base font-bold text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'إضافة منتج جديد للمخزون' : 'Quick Add Product'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowProductModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">{language === 'ar' ? 'اسم المنتج (EN)' : 'Product Name (EN)'} *</label>
+                  <input
+                    type="text"
+                    value={productForm.nameEn}
+                    onChange={(e) => setProductForm((p) => ({ ...p, nameEn: e.target.value }))}
+                    placeholder="e.g. Arabic Coffee 500g"
+                    className="input !py-1.5 text-xs"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'اسم المنتج (AR)' : 'Product Name (AR)'}</label>
+                  <input
+                    type="text"
+                    dir="rtl"
+                    value={productForm.nameAr}
+                    onChange={(e) => setProductForm((p) => ({ ...p, nameAr: e.target.value }))}
+                    placeholder="مثال: قهوة عربية 500 جرام"
+                    className="input !py-1.5 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">{language === 'ar' ? 'رمز المنتج / SKU' : 'SKU / Barcode'}</label>
+                  <input
+                    type="text"
+                    value={productForm.sku}
+                    onChange={(e) => setProductForm((p) => ({ ...p, sku: e.target.value }))}
+                    placeholder="SKU-XXXX"
+                    className="input !py-1.5 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'نوع المنتج' : 'Product Type'}</label>
+                  <select
+                    value={productForm.productType}
+                    onChange={(e) => setProductForm((p) => ({ ...p, productType: e.target.value }))}
+                    className="select !py-1.5 text-xs"
+                  >
+                    <option value="goods">{language === 'ar' ? 'بضائع / مخزون' : 'Goods / Stock'}</option>
+                    <option value="service">{language === 'ar' ? 'خدمة' : 'Service'}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="label">{language === 'ar' ? 'سعر الشراء / التكلفة' : 'Cost Price'} (SAR)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={productForm.costPrice}
+                    onChange={(e) => setProductForm((p) => ({ ...p, costPrice: e.target.value }))}
+                    placeholder="0.00"
+                    className="input !py-1.5 text-xs tabular-nums"
+                  />
+                </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'سعر البيع' : 'Selling Price'} (SAR)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={productForm.sellingPrice}
+                    onChange={(e) => setProductForm((p) => ({ ...p, sellingPrice: e.target.value }))}
+                    placeholder="0.00"
+                    className="input !py-1.5 text-xs tabular-nums"
+                  />
+                </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'الوحدة' : 'UOM'}</label>
+                  <select
+                    value={productForm.unitOfMeasure}
+                    onChange={(e) => setProductForm((p) => ({ ...p, unitOfMeasure: e.target.value }))}
+                    className="select !py-1.5 text-xs"
+                  >
+                    {uomOptions.map((u) => (
+                      <option key={u.code} value={u.code}>
+                        {language === 'ar' ? u.labelAr : u.labelEn}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-white/[0.08]">
+              <button
+                type="button"
+                onClick={() => setShowProductModal(false)}
+                className={ghostBtn}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={submitInlineProduct}
+                disabled={addProductMutation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-teal-600/20 hover:bg-teal-700 disabled:opacity-40"
+              >
+                {addProductMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+                {language === 'ar' ? 'إضافة واختيار المنتج' : 'Save & Select Product'}
               </button>
             </div>
           </motion.div>
