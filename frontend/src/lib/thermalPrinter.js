@@ -316,6 +316,38 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       width: 100% !important;
       border-collapse: collapse !important;
     }
+    .flex { display: flex !important; }
+    .flex-col { flex-direction: column !important; }
+    .flex-row { flex-direction: row !important; }
+    .justify-between { justify-content: space-between !important; }
+    .justify-center { justify-content: center !important; }
+    .items-center { align-items: center !important; }
+    .text-center { text-align: center !important; }
+    .text-left { text-align: left !important; }
+    .text-right { text-align: right !important; }
+    .font-mono { font-family: 'Courier New', Courier, monospace !important; }
+    .font-semibold { font-weight: 600 !important; }
+    .font-bold { font-weight: 700 !important; }
+    .font-extrabold, .font-black { font-weight: 900 !important; }
+    .w-full { width: 100% !important; }
+    .w-1\\/2 { width: 50% !important; }
+    .border { border: 1px solid #000 !important; }
+    .border-2 { border: 2px solid #000 !important; }
+    .border-t { border-top: 1px solid #000 !important; }
+    .border-b { border-bottom: 1px solid #000 !important; }
+    .border-t-2 { border-top: 2px solid #000 !important; }
+    .border-b-2 { border-bottom: 2px solid #000 !important; }
+    .border-dashed { border-style: dashed !important; }
+    .rounded { border-radius: 4px !important; }
+    .uppercase { text-transform: uppercase !important; }
+    .my-1 { margin-top: 4px !important; margin-bottom: 4px !important; }
+    .my-2 { margin-top: 8px !important; margin-bottom: 8px !important; }
+    .py-1 { padding-top: 4px !important; padding-bottom: 4px !important; }
+    .py-2 { padding-top: 8px !important; padding-bottom: 8px !important; }
+    .px-3 { padding-left: 10px !important; padding-right: 10px !important; }
+    .text-base { font-size: 14px !important; }
+    .text-lg { font-size: 16px !important; }
+    .text-xl { font-size: 18px !important; }
     img {
       max-width: 100% !important;
       height: auto !important;
