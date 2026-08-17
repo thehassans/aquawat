@@ -116,7 +116,7 @@ jobs:
             -o ServerAliveCountMax=20 \
             -p "${SSH_PORT}" \
             "${SSH_USER}@${SSH_HOST}" \
-            "chmod +x /var/www/vhosts/maqder.com/httpdocs/deploy.sh && /var/www/vhosts/maqder.com/httpdocs/deploy.sh"
+            "cd /var/www/vhosts/maqder.com/httpdocs && git fetch origin main && git reset --hard origin/main && chmod +x deploy.sh && ./deploy.sh"
           status=$?
           set -e
           if [ "$status" -ne 0 ]; then

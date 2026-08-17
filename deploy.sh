@@ -2,15 +2,6 @@
 set -e
 
 DEPLOY_PATH="/var/www/vhosts/maqder.com/httpdocs"
-LOCK_FILE="/var/lock/maqder-deploy.lock"
-mkdir -p /var/lock
-exec 9>"$LOCK_FILE"
-echo "Acquiring deployment lock..."
-if ! flock -w 600 9; then
-  echo "Timeout waiting for previous Maqder deploy to finish."
-  exit 1
-fi
-
 cd "$DEPLOY_PATH"
 
 echo "Pulling latest code..."
