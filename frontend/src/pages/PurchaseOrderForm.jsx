@@ -35,6 +35,7 @@ import PremiumFileDrop from '../components/ui/PremiumFileDrop'
 import { normalizeProductType, productPickerLabel } from '../lib/productType'
 import { computePurchaseLineTotals } from '../lib/purchaseLineTotals'
 import PurchaseReceivingLedger from './purchases/PurchaseReceivingLedger'
+import PurchaseOrderPreview from '../components/purchases/PurchaseOrderPreview'
 
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
@@ -57,7 +58,8 @@ const PAYMENT_STATUS_PILL = {
 export default function PurchaseOrderForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [previewMode, setPreviewMode] = useState(searchParams.get('preview') === '1')
 
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -386,7 +388,11 @@ export default function PurchaseOrderForm() {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders-open'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders-stats'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
-      navigate('/app/dashboard/purchases/orders', { replace: true })
+      if (!isEdit && createdId) {
+        navigate(`/app/dashboard/purchases/orders/${createdId}?preview=1`, { replace: true })
+      } else {
+        setPreviewMode(true)
+      }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -647,6 +653,43 @@ export default function PurchaseOrderForm() {
     return (
       <div className="flex justify-center p-12">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900 dark:border-slate-600 dark:border-t-white" />
+      </div>
+    )
+  }
+
+  const showPreview = previewMode || (existing && existing.status !== 'draft')
+
+  if (showPreview) {
+    return (
+      <div className="pb-24 pt-4 sm:pt-6">
+        <PurchaseOrderPreview
+          order={{ ...existing, ...watch() }}
+          supplier={suppliers?.find((s) => s._id === watch('supplierId')) || existing?.supplierId}
+          warehouse={warehouses?.find((w) => w._id === watch('warehouseId')) || existing?.warehouseId}
+          isApproving={approveMutation.isPending}
+          onEdit={() => {
+            setPreviewMode(false)
+            if (searchParams.get('preview')) {
+              setSearchParams({})
+            }
+          }}
+          onApprove={() => approveMutation.mutate()}
+          onPrint={async () => {
+            setPdfBusy('print')
+            try {
+              await printPurchaseOrderPdf(existing)
+            } finally {
+              setPdfBusy(null)
+            }
+          }}
+          onCreateGrn={() => navigate(`/app/dashboard/purchases/grn/new?poId=${existing._id}`)}
+        />
+        {/* Render the receiving ledger if it has receipts */}
+        {existing && (existing.status === 'partially_received' || existing.status === 'received' || existing.status === 'billed') && (
+          <div className="mx-auto mt-8 max-w-5xl">
+            <PurchaseReceivingLedger poId={existing._id} language={language} />
+          </div>
+        )}
       </div>
     )
   }
