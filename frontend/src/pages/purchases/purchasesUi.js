@@ -1,6 +1,8 @@
 export const PURCHASES_PATH = {
   root: '/app/dashboard/purchases',
   orders: '/app/dashboard/purchases/orders',
+  suppliers: '/app/dashboard/purchases/suppliers',
+  reports: '/app/dashboard/purchases/reports',
   grn: '/app/dashboard/purchases/grn',
   returns: '/app/dashboard/purchases/returns',
   landed: '/app/dashboard/purchases/landed-costs',

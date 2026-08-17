@@ -97,6 +97,8 @@ const SupplierPerformance = lazy(() => import('./pages/trading/SupplierPerforman
 const PurchaseOrders = lazy(() => import('./pages/PurchaseOrders'))
 const PurchaseOrderForm = lazy(() => import('./pages/PurchaseOrderForm'))
 const PurchasesLayout = lazy(() => import('./pages/purchases/PurchasesLayout'))
+const PurchasesSuppliers = lazy(() => import('./pages/purchases/PurchasesSuppliers'))
+const PurchasesReports = lazy(() => import('./pages/purchases/PurchasesReports'))
 const GrnList = lazy(() => import('./pages/purchases/GrnList'))
 const GrnForm = lazy(() => import('./pages/purchases/GrnForm'))
 const PurchaseReturnList = lazy(() => import('./pages/purchases/PurchaseReturnList'))
@@ -754,6 +756,8 @@ function App() {
           <Route path="orders" element={<PurchaseOrders />} />
           <Route path="orders/new" element={<PurchaseOrderForm />} />
           <Route path="orders/:id" element={<PurchaseOrderForm />} />
+          <Route path="suppliers" element={<PurchasesSuppliers />} />
+          <Route path="reports" element={<PurchasesReports />} />
           <Route path="grn" element={<GrnList />} />
           <Route path="grn/new" element={<GrnForm />} />
           <Route path="grn/:id" element={<GrnForm />} />

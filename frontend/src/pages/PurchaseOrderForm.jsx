@@ -31,7 +31,10 @@ import {
   ExternalLink,
   ChevronRight,
   Receipt,
-  AlertCircle
+  AlertCircle,
+  MessageCircle,
+  Mail,
+  Send
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
@@ -80,6 +83,13 @@ export default function PurchaseOrderForm() {
   const [showLivePreviewModal, setShowLivePreviewModal] = useState(false)
   const [createdOrderForPreview, setCreatedOrderForPreview] = useState(null)
   const [showQuickReceiveModal, setShowQuickReceiveModal] = useState(false)
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [whatsAppPhone, setWhatsAppPhone] = useState('')
+  const [whatsAppText, setWhatsAppText] = useState('')
+  const [emailTo, setEmailTo] = useState('')
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailBody, setEmailBody] = useState('')
 
   const paymentStatusLabel = (status) => {
     const ar = { pending: 'قيد الانتظار', partial: 'مدفوع جزئياً', paid: 'مدفوع', overdue: 'متأخر' }
@@ -579,6 +589,78 @@ export default function PurchaseOrderForm() {
     }
   }
 
+  const generatePoShareText = (targetOrder) => {
+    const o = targetOrder || order
+    if (!o) return ''
+    const tenantName = tenant?.business?.legalNameEn || tenant?.name || 'Company'
+    const suppName = o.supplierId?.nameEn || o.supplierId?.nameAr || 'Supplier'
+    const items = (o.lineItems || [])
+      .map((li, idx) => {
+        const pName = li.productId?.nameEn || li.productId?.nameAr || li.manualName || li.description || `Item ${idx + 1}`
+        const qty = Number(li.quantityOrdered || 0)
+        const unit = Number(li.unitCost || 0)
+        return `• ${pName}: ${qty} ${li.uom || 'PCE'} x ${unit} = ${(qty * unit).toFixed(2)} SAR`
+      })
+      .join('\n')
+
+    return (
+      `*طلب شراء / PURCHASE ORDER*\n` +
+      `🏢 *${tenantName}*\n\n` +
+      `📄 رقم الطلب / PO Number: *${o.poNumber || ''}*\n` +
+      `👤 المورد / Supplier: *${suppName}*\n` +
+      `📅 التاريخ / Date: *${formatDateForInput(o.orderDate) || ''}*\n` +
+      `📦 المستودع / Warehouse: *${o.warehouseId?.nameEn || o.warehouseId?.nameAr || ''}*\n\n` +
+      `*البنود / Order Items:*\n${items}\n\n` +
+      `💰 المجموع الفرعي / Subtotal: ${Number(o.subtotal || 0).toFixed(2)} SAR\n` +
+      `🧾 الضريبة / VAT (15%): ${Number(o.totalTax || 0).toFixed(2)} SAR\n` +
+      `⭐ *الإجمالي النهائي / Grand Total: ${Number(o.grandTotal || 0).toFixed(2)} SAR*\n\n` +
+      `شكراً لتعاملكم معنا / Thank you for your business.`
+    )
+  }
+
+  const openWhatsAppModal = (targetOrder) => {
+    const o = targetOrder || order
+    const phone = o?.supplierId?.phone || o?.supplierId?.mobile || ''
+    setWhatsAppPhone(phone)
+    setWhatsAppText(generatePoShareText(o))
+    setShowWhatsAppModal(true)
+  }
+
+  const sendWhatsAppMessage = () => {
+    const cleanPhone = whatsAppPhone.replace(/[^0-9]/g, '')
+    const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(whatsAppText)}`
+    window.open(url, '_blank')
+    if (order?.status === 'draft') {
+      sendMutation.mutate()
+    }
+    setShowWhatsAppModal(false)
+    toast.success(language === 'ar' ? 'تم فتح تطبيق واتساب' : 'Opening WhatsApp')
+  }
+
+  const openEmailModal = (targetOrder) => {
+    const o = targetOrder || order
+    const email = o?.supplierId?.email || ''
+    const tenantName = tenant?.business?.legalNameEn || tenant?.name || 'Company'
+    setEmailTo(email)
+    setEmailSubject(`[Purchase Order ${o?.poNumber || ''}] from ${tenantName}`)
+    setEmailBody(generatePoShareText(o))
+    setShowEmailModal(true)
+  }
+
+  const sendEmailMessage = () => {
+    if (!emailTo) {
+      toast.error(language === 'ar' ? 'أدخل البريد الإلكتروني للمورد' : 'Please enter supplier email')
+      return
+    }
+    const mailto = `mailto:${encodeURIComponent(emailTo)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
+    window.location.href = mailto
+    if (order?.status === 'draft') {
+      sendMutation.mutate()
+    }
+    setShowEmailModal(false)
+    toast.success(language === 'ar' ? 'تم فتح برنامج البريد الإلكتروني' : 'Opening email client')
+  }
+
   const openVendorBill = async (file, { download = false } = {}) => {
     if (!id || !file) return
     const toastId = toast.loading(
@@ -765,6 +847,24 @@ export default function PurchaseOrderForm() {
             >
               <FileText className="h-3.5 w-3.5 opacity-70" />
               {language === 'ar' ? 'فاتورة شراء' : 'Vendor bill'}
+            </button>
+            <button
+              type="button"
+              onClick={() => openWhatsAppModal(order)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-[12px] font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+              title={language === 'ar' ? 'إرسال عبر الواتساب' : 'Send via WhatsApp'}
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              {language === 'ar' ? 'واتساب' : 'WhatsApp'}
+            </button>
+            <button
+              type="button"
+              onClick={() => openEmailModal(order)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3 py-1.5 text-[12px] font-semibold text-blue-800 transition hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+              title={language === 'ar' ? 'إرسال عبر البريد الإلكتروني' : 'Send via Email'}
+            >
+              <Mail className="h-3.5 w-3.5" />
+              {language === 'ar' ? 'بريد' : 'Email'}
             </button>
             <button
               type="button"
@@ -1656,6 +1756,30 @@ export default function PurchaseOrderForm() {
                     type="button"
                     onClick={() => {
                       setShowLivePreviewModal(false)
+                      openWhatsAppModal(createdOrderForPreview || order)
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    {language === 'ar' ? 'واتساب' : 'WhatsApp'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLivePreviewModal(false)
+                      openEmailModal(createdOrderForPreview || order)
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                  >
+                    <Mail className="h-4 w-4" />
+                    {language === 'ar' ? 'بريد' : 'Email'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLivePreviewModal(false)
                       setIsViewMode(false)
                     }}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
@@ -1697,6 +1821,134 @@ export default function PurchaseOrderForm() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* SEND VIA WHATSAPP MODAL */}
+      {showWhatsAppModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-[#0c111a] border border-slate-200 dark:border-white/10 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/[0.08]">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                  <MessageCircle className="h-4 w-4" />
+                </span>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'إرسال طلب الشراء عبر الواتساب' : 'Send PO via WhatsApp'}
+                </h3>
+              </div>
+              <button type="button" onClick={() => setShowWhatsAppModal(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="label">{language === 'ar' ? 'رقم جوال المورد (مع مفتاح الدولة)' : 'Supplier Phone (with country code)'} *</label>
+                <input
+                  type="text"
+                  value={whatsAppPhone}
+                  onChange={(e) => setWhatsAppPhone(e.target.value)}
+                  placeholder="9665xxxxxxxx"
+                  className="input !py-2 text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="label">{language === 'ar' ? 'نص الرسالة' : 'Message Body'}</label>
+                <textarea
+                  rows={6}
+                  value={whatsAppText}
+                  onChange={(e) => setWhatsAppText(e.target.value)}
+                  className="input text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-white/[0.08]">
+              <button type="button" onClick={() => setShowWhatsAppModal(false)} className={ghostBtn}>
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={sendWhatsAppMessage}
+                disabled={!whatsAppPhone}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-40"
+              >
+                <Send className="h-3.5 w-3.5" />
+                {language === 'ar' ? 'فتح وإرسال بالواتساب' : 'Open in WhatsApp'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* SEND VIA EMAIL MODAL */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-[#0c111a] border border-slate-200 dark:border-white/10 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/[0.08]">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                  <Mail className="h-4 w-4" />
+                </span>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'إرسال طلب الشراء بالبريد' : 'Send PO via Email'}
+                </h3>
+              </div>
+              <button type="button" onClick={() => setShowEmailModal(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="label">{language === 'ar' ? 'البريد الإلكتروني للمورد' : 'Supplier Email'} *</label>
+                <input
+                  type="email"
+                  value={emailTo}
+                  onChange={(e) => setEmailTo(e.target.value)}
+                  placeholder="supplier@example.com"
+                  className="input !py-2 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="label">{language === 'ar' ? 'عنوان الرسالة' : 'Subject'}</label>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="input !py-2 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="label">{language === 'ar' ? 'محتوى الرسالة' : 'Email Content'}</label>
+                <textarea
+                  rows={6}
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  className="input text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-white/[0.08]">
+              <button type="button" onClick={() => setShowEmailModal(false)} className={ghostBtn}>
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={sendEmailMessage}
+                disabled={!emailTo}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-40"
+              >
+                <Send className="h-3.5 w-3.5" />
+                {language === 'ar' ? 'إرسال البريد الإلكتروني' : 'Send Email'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* QUICK RECEIVE MODAL */}
       {showQuickReceiveModal && order && (

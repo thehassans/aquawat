@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import multer from 'multer';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
@@ -175,6 +176,163 @@ router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) =
     ]);
 
     res.json(stats[0] || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/reports', checkPermission('supply_chain', 'read'), async (req, res) => {
+  try {
+    const { startDate, endDate, supplierId, warehouseId } = req.query;
+    const matchQuery = { ...req.tenantFilter };
+
+    if (supplierId) matchQuery.supplierId = new mongoose.Types.ObjectId(supplierId);
+    if (warehouseId) matchQuery.warehouseId = new mongoose.Types.ObjectId(warehouseId);
+
+    if (startDate || endDate) {
+      matchQuery.orderDate = {};
+      if (startDate) matchQuery.orderDate.$gte = new Date(startDate);
+      if (endDate) matchQuery.orderDate.$lte = new Date(endDate);
+    }
+
+    const [pos, summaryAgg, monthlyAgg, statusAgg] = await Promise.all([
+      PurchaseOrder.find(matchQuery)
+        .populate('supplierId', 'code nameEn nameAr phone email')
+        .populate('warehouseId', 'code nameEn nameAr')
+        .sort({ orderDate: -1 })
+        .lean(),
+      PurchaseOrder.aggregate([
+        { $match: matchQuery },
+        {
+          $group: {
+            _id: null,
+            totalOrders: { $sum: 1 },
+            totalSpend: { $sum: '$grandTotal' },
+            totalSubtotal: { $sum: '$subtotal' },
+            totalTax: { $sum: '$totalTax' },
+            totalPaid: { $sum: { $ifNull: ['$paidAmount', 0] } },
+            totalBalance: { $sum: { $ifNull: ['$balanceDue', '$grandTotal'] } },
+            openOrders: {
+              $sum: {
+                $cond: [{ $in: ['$status', ['draft', 'sent', 'approved', 'partially_received']] }, 1, 0]
+              }
+            },
+            receivedOrders: {
+              $sum: { $cond: [{ $eq: ['$status', 'received'] }, 1, 0] }
+            },
+            cancelledOrders: {
+              $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] }
+            }
+          }
+        }
+      ]),
+      PurchaseOrder.aggregate([
+        { $match: { ...matchQuery, status: { $ne: 'cancelled' } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m', date: '$orderDate' } },
+            spend: { $sum: '$grandTotal' },
+            paid: { $sum: { $ifNull: ['$paidAmount', 0] } },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]),
+      PurchaseOrder.aggregate([
+        { $match: matchQuery },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+            total: { $sum: '$grandTotal' }
+          }
+        }
+      ])
+    ]);
+
+    // Compute Product & Supplier breakdowns
+    const supplierMap = {};
+    const productMap = {};
+    let totalOrderedQty = 0;
+    let totalReceivedQty = 0;
+
+    for (const po of pos) {
+      if (po.status === 'cancelled') continue;
+      const sId = String(po.supplierId?._id || po.supplierId || 'unknown');
+      const sName = po.supplierId?.nameEn || po.supplierId?.nameAr || po.supplierId?.code || 'Unknown';
+      if (!supplierMap[sId]) {
+        supplierMap[sId] = {
+          supplierId: sId,
+          nameEn: po.supplierId?.nameEn || sName,
+          nameAr: po.supplierId?.nameAr || sName,
+          code: po.supplierId?.code || '',
+          totalSpend: 0,
+          totalPaid: 0,
+          balanceDue: 0,
+          poCount: 0,
+        };
+      }
+      supplierMap[sId].totalSpend += (po.grandTotal || 0);
+      supplierMap[sId].totalPaid += (po.paidAmount || 0);
+      supplierMap[sId].balanceDue += (po.balanceDue != null ? po.balanceDue : (po.grandTotal || 0));
+      supplierMap[sId].poCount += 1;
+
+      for (const li of po.lineItems || []) {
+        const pId = String(li.productId?._id || li.productId || li.manualName || 'other');
+        const pName = li.manualName || li.description || 'Item';
+        const ord = Number(li.quantityOrdered || 0);
+        const rec = Number(li.quantityReceived || 0);
+        const cost = Number(li.lineTotal || (ord * Number(li.unitCost || 0)));
+
+        totalOrderedQty += ord;
+        totalReceivedQty += rec;
+
+        if (!productMap[pId]) {
+          productMap[pId] = {
+            productId: pId,
+            name: pName,
+            uom: li.uom || 'PCE',
+            orderedQty: 0,
+            receivedQty: 0,
+            backorderQty: 0,
+            totalCost: 0,
+            orderCount: 0,
+          };
+        }
+        productMap[pId].orderedQty += ord;
+        productMap[pId].receivedQty += rec;
+        productMap[pId].backorderQty += Math.max(0, ord - rec);
+        productMap[pId].totalCost += cost;
+        productMap[pId].orderCount += 1;
+      }
+    }
+
+    const summary = summaryAgg[0] || {
+      totalOrders: pos.length,
+      totalSpend: 0,
+      totalPaid: 0,
+      totalBalance: 0,
+      openOrders: 0,
+      receivedOrders: 0,
+      cancelledOrders: 0,
+    };
+    summary.totalOrderedQty = totalOrderedQty;
+    summary.totalReceivedQty = totalReceivedQty;
+    summary.totalBackorderQty = Math.max(0, totalOrderedQty - totalReceivedQty);
+    summary.fulfillmentRate = totalOrderedQty > 0 ? Math.round((totalReceivedQty / totalOrderedQty) * 100) : 0;
+    summary.averageOrderValue = summary.totalOrders > 0 ? Math.round((summary.totalSpend / summary.totalOrders) * 100) / 100 : 0;
+
+    const suppliersList = Object.values(supplierMap).sort((a, b) => b.totalSpend - a.totalSpend);
+    const topProducts = Object.values(productMap).sort((a, b) => b.totalCost - a.totalCost);
+
+    res.json({
+      summary,
+      monthlyTrends: monthlyAgg.map(m => ({ month: m._id, spend: m.spend, paid: m.paid, count: m.count })),
+      byStatus: statusAgg.map(s => ({ status: s._id, count: s.count, total: s.total })),
+      bySupplier: suppliersList,
+      topProducts,
+      orders: pos.slice(0, 100),
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
