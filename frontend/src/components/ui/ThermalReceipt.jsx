@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { generateNbrQrValue } from '../../lib/nbrQr'
-import { getThermalPrinterSettings, getReceiptStyle, getPrintCss, getPageCss } from '../../lib/thermalPrinter'
+import { getThermalPrinterSettings, getReceiptStyle, getPageCss } from '../../lib/thermalPrinter'
 import { CURRENCY_CODE } from '../../lib/currency'
 import { isSaudiTenant, isBangladeshTenant, isPakistanTenant } from '../../lib/saudiTenant'
 import { generateFbrQrValue } from '../../lib/fbrQr'
@@ -40,8 +40,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
       ? (Number(tenant?.fbr?.defaultSalesTaxRate) || 18)
       : (bilingualAr ? 15 : null)
 
-  const lbl = (en, ar) => (bilingualAr ? `${en} / ${ar}` : (isRtl ? ar : en))
-  const money = (value) => `${currency} ${(Number(value) || 0).toFixed(2)}`
+  const money = (value) => `${(Number(value) || 0).toFixed(2)} ${currency}`
 
   if (!order) return null
 
@@ -52,9 +51,13 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
   const binNumber = tenant?.nbr?.binNumber || tenant?.business?.binNumber || ''
   const mushakForm = tenant?.nbr?.mushakForm || '6.3'
 
+  const grandTotal = Number(order.grandTotal || order.total || order.price || 0)
+  const totalTax = Number(order.totalVat || order.totalTax || (vatRate === 15 ? (grandTotal - grandTotal / 1.15) : 0))
+  const subtotal = Number(order.subtotal || (grandTotal - totalTax))
+
   const dateStr = formatReceiptDate(order.createdAt)
   const orderNumber = order.receiptNumber || order.orderNumber || order._id?.slice(-8) || 'N/A'
-  const customerName = order.customerId?.nameI18n?.[isRtl ? 'ar' : 'en'] || order.customerName || order.customer?.fullName || order.customerId?.name || (bilingualAr ? 'Cash Customer / عميل نقدي' : 'Cash Customer')
+  const customerName = order.customerId?.nameI18n?.[isRtl ? 'ar' : 'en'] || order.customerName || order.customer?.fullName || order.customerId?.name || (bilingualAr ? 'Cash Customer' : 'Cash Customer')
 
   let items = order.items || order.lineItems || []
   if (type === 'khayyat') {
@@ -82,24 +85,6 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
 
   const addressText = formatAddress(tenant?.business?.address)
 
-  const treatmentMap = {
-    'Wash & Fold': 'غسيل وطي',
-    'Dry Clean': 'تنظيف جاف',
-    'Wash & Iron': 'غسيل وكوي',
-    'Iron Only': 'كوي فقط',
-    'Pressing': 'كبس فقط',
-    'Wash': 'غسيل سجاد',
-    'None': 'بدون'
-  }
-
-  const customizationMap = {
-    folded: 'مطوي',
-    hanger: 'على الشماعة',
-    starch: 'نشاء',
-    perfume: 'تعطير',
-    no_crease: 'بدون كسرة'
-  }
-
   const logoSrc = tenant?.branding?.logo || tenant?.branding?.logoUrl || tenant?.settings?.invoiceBranding?.logo
 
   let zatcaQrPayload = isZatcaApplicable ? order.zatcaQrCode : null
@@ -109,8 +94,8 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
         sellerName: businessNameAr || businessNameEn,
         vatNumber: vatNumber,
         timestamp: new Date(order.createdAt || Date.now()).toISOString(),
-        totalWithVat: order.grandTotal || order.total || order.price || 0,
-        vatTotal: order.totalVat || order.totalTax || 0
+        totalWithVat: grandTotal,
+        vatTotal: totalTax
       })
     } catch (err) {
       console.error('Failed to generate ZATCA QR code value dynamically:', err)
@@ -125,8 +110,8 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
         binNumber: binNumber || vatNumber,
         invoiceNumber: orderNumber,
         timestamp: new Date(order.createdAt || Date.now()).toISOString(),
-        totalWithVat: order.grandTotal || order.total || 0,
-        vatTotal: order.totalVat || order.totalTax || 0,
+        totalWithVat: grandTotal,
+        vatTotal: totalTax,
         mushakForm,
       })
     } catch (err) {
@@ -144,8 +129,8 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
         invoiceNumber: orderNumber,
         fbrInvoiceNo: order?.fbr?.fbrInvoiceNo || '',
         timestamp: new Date(order.createdAt || Date.now()).toISOString(),
-        totalWithTax: order.grandTotal || order.total || 0,
-        salesTax: order.totalVat || order.totalTax || 0,
+        totalWithTax: grandTotal,
+        salesTax: totalTax,
       })
     } catch (err) {
       console.error('Failed to generate FBR QR code value:', err)
@@ -169,7 +154,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
     const pm = (order.paymentMethod || 'cash').toLowerCase()
     if (pm === 'cash') return bilingualAr ? 'Cash / نقدي' : 'Cash'
     if (pm === 'card') return bilingualAr ? 'Card / بطاقة مدى' : 'Card'
-    if (pm === 'split') return bilingualAr ? 'Split / دفع مقسم' : 'Split'
+    if (pm === 'split') return bilingualAr ? 'Split / مقسم' : 'Split'
     if (pm === 'khata') return bilingualAr ? 'Credit / آجل' : 'Credit'
     return order.paymentMethod
   })()
@@ -181,7 +166,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
       style={{
         ...receiptStyle,
         maxWidth: '100%',
-        fontFamily: "'Courier New', Courier, 'Segoe UI', Tahoma, 'Cairo', monospace, sans-serif",
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Cairo', 'Tajawal', 'Helvetica Neue', Arial, sans-serif",
         color: '#000000',
         backgroundColor: '#ffffff'
       }}
@@ -196,7 +181,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
             background: #ffffff !important;
             color: #000000 !important;
             -webkit-text-fill-color: #000000 !important;
-            font-family: 'Courier New', Courier, 'Segoe UI', Tahoma, 'Cairo', monospace, sans-serif !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Cairo', 'Tajawal', 'Helvetica Neue', Arial, sans-serif !important;
           }
           .thermal-receipt {
             width: 100% !important;
@@ -220,93 +205,97 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
         `}
       </style>
 
-      {/* ─── Header: Logo & Branding ──────────────────────────────────────── */}
+      {/* ─── Header: Brand, Tax & Legal Registration ──────────────────────── */}
       {!isKitchen ? (
-        <div className="text-center mb-3">
+        <div className="text-center mb-2.5">
           {thermalSettings.showLogo && logoSrc && (
-            <div className="flex justify-center mb-2">
+            <div className="flex justify-center mb-1.5">
               <img 
                 src={logoSrc} 
                 alt="Logo" 
-                className="max-h-14 max-w-[120px] object-contain filter grayscale" 
+                className="max-h-12 max-w-[110px] object-contain filter grayscale" 
                 onError={(e) => { e.target.style.display = 'none' }}
               />
             </div>
           )}
 
-          <div className="font-extrabold text-sm tracking-tight text-black leading-tight">
+          <div className="font-extrabold text-[13px] tracking-tight text-black leading-tight uppercase">
             {businessNameEn}
           </div>
-          {bilingualAr && businessNameAr && businessNameAr !== businessNameEn && (
-            <div className="font-extrabold text-sm text-black leading-tight mt-0.5" dir="rtl">
+          {bilingualAr && businessNameAr && (
+            <div className="font-bold text-[13px] text-black leading-tight mt-0.5" dir="rtl">
               {businessNameAr}
             </div>
           )}
-          <div className="text-[9px] text-black font-semibold mt-0.5">
-            Saudi Arabia - المملكة العربية السعودية
-          </div>
-
-          {/* Tax Invoice Badge */}
-          <div className="mt-2 pt-2 border-t border-black/80">
-            <div className="font-black text-[11px] uppercase tracking-wider text-black">
-              {bilingualAr
-                ? 'SIMPLIFIED TAX INVOICE | فاتورة ضريبية مبسطة'
-                : (isBangladesh ? `MUSHAK ${mushakForm} — VAT INVOICE` : 'TAX INVOICE')}
+          
+          {addressText && (
+            <div className="text-[8.5px] text-black leading-tight mt-1 px-2">
+              {addressText}
             </div>
-            {isUpdated && (
-              <div className="font-black text-[10px] text-black uppercase mt-0.5">
-                *** UPDATED / معدلة ***
-              </div>
-            )}
-          </div>
+          )}
 
-          {/* Tax & Registration Meta */}
-          <div className="text-[9px] text-black font-medium mt-1 space-y-0.5">
+          <div className="text-[9px] text-black font-semibold mt-1 space-y-0.5">
             {vatNumber && (
-              <div className="font-bold flex items-center justify-center gap-1">
-                <span>{bilingualAr ? 'VAT / الرقم الضريبي:' : 'VAT:'}</span>
-                <span className="font-mono">{vatNumber}</span>
+              <div>
+                <span>VAT / الرقم الضريبي: </span>
+                <span className="font-bold">{vatNumber}</span>
               </div>
             )}
             {crNumber && (
-              <div className="flex items-center justify-center gap-1">
-                <span>{bilingualAr ? 'CR / السجل التجاري:' : 'CR:'}</span>
-                <span className="font-mono">{crNumber}</span>
+              <div>
+                <span>CR / السجل التجاري: </span>
+                <span className="font-bold">{crNumber}</span>
               </div>
             )}
             {binNumber && isBangladesh && (
               <div className="font-bold">BIN: {binNumber}</div>
             )}
-            {addressText && (
-              <div className="text-[8.5px] leading-tight text-black px-1 mt-0.5">{addressText}</div>
+          </div>
+
+          {/* Tax Invoice Badge */}
+          <div className="mt-2 py-1 border-t border-b border-black text-center">
+            <div className="font-bold text-[11px] text-black uppercase tracking-wide">
+              {bilingualAr
+                ? 'فاتورة ضريبية مبسطة | SIMPLIFIED TAX INVOICE'
+                : (isBangladesh ? `MUSHAK ${mushakForm} — VAT INVOICE` : 'TAX INVOICE')}
+            </div>
+            {isUpdated && (
+              <div className="font-extrabold text-[9.5px] text-black uppercase mt-0.5">
+                *** UPDATED / معدلة ***
+              </div>
             )}
           </div>
 
           {/* Prominent Order Number Box */}
           {order.orderNumber && (
-            <div className="my-2.5 mx-auto py-1 px-3 border-2 border-black rounded text-center">
-              <div className="text-[8.5px] font-extrabold uppercase tracking-widest text-black mb-0.5">
-                {lbl('ORDER NO', 'رقم الطلب')}
+            <div className="mt-2 py-1 px-2 border-2 border-black rounded text-center">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-black">
+                ORDER / رقم الطلب
               </div>
-              <div className="font-mono font-black text-base text-black tracking-wide">
+              <div className="font-extrabold text-base text-black tracking-wider">
                 {order.orderNumber}
               </div>
+              {orderTypeDisplay && (
+                <div className="text-[9.5px] font-bold text-black border-t border-black/30 mt-0.5 pt-0.5">
+                  {orderTypeDisplay}
+                </div>
+              )}
             </div>
           )}
         </div>
       ) : (
         /* Kitchen Header */
         <div className="text-center mb-3">
-          <div className="font-black text-xl text-black uppercase tracking-wider border-b-2 border-black pb-1">
+          <div className="font-black text-lg text-black uppercase tracking-wider border-b-2 border-black pb-1">
             KITCHEN TICKET / طلب مطبخ
           </div>
           {isUpdated && (
-            <div className="font-black text-sm text-black uppercase mt-1">
+            <div className="font-bold text-xs text-black uppercase mt-1">
               *** MODIFIED / معدل ***
             </div>
           )}
           {order.orderNumber && (
-            <div className="my-2 py-1 border-2 border-black text-center font-mono font-black text-xl text-black">
+            <div className="my-2 py-1 border-2 border-black text-center font-extrabold text-xl text-black">
               {order.orderNumber}
             </div>
           )}
@@ -318,70 +307,60 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
         </div>
       )}
 
-      {/* ─── Structured 2-Column Metadata Block ──────────────────────────── */}
-      <div className="border-t border-b border-dashed border-black py-1.5 mb-2.5 text-[9.5px]">
-        <table className="w-full border-collapse">
+      {/* ─── Metadata Key-Value List ─────────────────────────────────────── */}
+      <div className="border-b border-dashed border-black pb-1.5 mb-2 text-[9.5px]">
+        <table className="w-full">
           <tbody>
             <tr>
-              <td className="font-bold text-black py-0.5 text-left w-1/2">
-                {lbl('Invoice #', 'الفاتورة')}
+              <td className="text-black font-semibold py-0.5 text-left w-[45%]">
+                Invoice / الفاتورة:
               </td>
-              <td className="font-mono font-bold text-black py-0.5 text-right w-1/2" dir="ltr">
+              <td className="font-bold text-black py-0.5 text-right w-[55%]" dir="ltr">
                 {orderNumber}
               </td>
             </tr>
             <tr>
-              <td className="font-bold text-black py-0.5 text-left w-1/2">
-                {lbl('Date & Time', 'التاريخ')}
+              <td className="text-black font-semibold py-0.5 text-left w-[45%]">
+                Date / التاريخ:
               </td>
-              <td className="font-mono text-black py-0.5 text-right w-1/2" dir="ltr">
+              <td className="font-medium text-black py-0.5 text-right w-[55%]" dir="ltr">
                 {dateStr}
               </td>
             </tr>
             <tr>
-              <td className="font-bold text-black py-0.5 text-left w-1/2">
-                {lbl('Customer', 'العميل')}
+              <td className="text-black font-semibold py-0.5 text-left w-[45%]">
+                Customer / العميل:
               </td>
-              <td className="font-bold text-black py-0.5 text-right w-1/2">
+              <td className="font-semibold text-black py-0.5 text-right w-[55%]">
                 {customerName}
               </td>
             </tr>
             {(order.customerPhone || order.customer?.phone || order.customerId?.phone) && (
               <tr>
-                <td className="font-bold text-black py-0.5 text-left w-1/2">
-                  {lbl('Phone', 'الهاتف')}
+                <td className="text-black font-semibold py-0.5 text-left w-[45%]">
+                  Phone / الهاتف:
                 </td>
-                <td className="font-mono text-black py-0.5 text-right w-1/2" dir="ltr">
+                <td className="font-medium text-black py-0.5 text-right w-[55%]" dir="ltr">
                   {order.customerPhone || order.customer?.phone || order.customerId?.phone}
-                </td>
-              </tr>
-            )}
-            {type === 'restaurant' && orderTypeDisplay && (
-              <tr>
-                <td className="font-bold text-black py-0.5 text-left w-1/2">
-                  {lbl('Order Type', 'نوع الطلب')}
-                </td>
-                <td className="font-bold text-black py-0.5 text-right w-1/2">
-                  {orderTypeDisplay}
                 </td>
               </tr>
             )}
             {!isKitchen && (
               <tr>
-                <td className="font-bold text-black py-0.5 text-left w-1/2">
-                  {lbl('Payment', 'طريقة الدفع')}
+                <td className="text-black font-semibold py-0.5 text-left w-[45%]">
+                  Payment / طريقة الدفع:
                 </td>
-                <td className="font-bold text-black py-0.5 text-right w-1/2">
+                <td className="font-bold text-black py-0.5 text-right w-[55%]">
                   {paymentDisplay}
                 </td>
               </tr>
             )}
             {order.notes && (
               <tr>
-                <td className="font-bold text-black py-0.5 text-left w-1/2">
-                  {lbl('Note', 'ملاحظات')}
+                <td className="text-black font-semibold py-0.5 text-left w-[45%]">
+                  Notes / ملاحظات:
                 </td>
-                <td className="font-semibold text-black py-0.5 text-right w-1/2">
+                <td className="font-semibold text-black py-0.5 text-right w-[55%]">
                   {order.notes}
                 </td>
               </tr>
@@ -391,18 +370,18 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
       </div>
 
       {/* ─── Line Items Table ────────────────────────────────────────────── */}
-      <table className="w-full text-[9.5px] mb-2.5 border-collapse">
+      <table className="w-full text-[9.5px] mb-2 border-collapse">
         <thead>
-          <tr className="border-b border-black text-black font-black">
+          <tr className="border-b border-black text-black font-bold">
             <th className={`py-1 text-left ${isKitchen ? 'w-[75%]' : 'w-[52%]'}`}>
-              {lbl('Item', 'الصنف')}
+              Item / الصنف
             </th>
             <th className={`py-1 text-center ${isKitchen ? 'w-[25%]' : 'w-[16%]'}`}>
-              {lbl('Qty', 'الكمية')}
+              Qty / الكمية
             </th>
             {!isKitchen && (
               <th className="py-1 text-right w-[32%]">
-                {lbl('Total', 'المجموع')}
+                Total / المجموع
               </th>
             )}
           </tr>
@@ -418,32 +397,27 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
 
             return (
               <tr key={idx} className="border-b border-dashed border-gray-300 last:border-b-0">
-                <td className="py-1.5 pr-1 text-left align-top">
-                  <div className={`font-black text-black leading-tight ${isKitchen ? 'text-xs' : 'text-[10px]'}`}>
+                <td className="py-1 pr-1 text-left align-top">
+                  <div className={`font-bold text-black leading-tight ${isKitchen ? 'text-xs font-black' : 'text-[10px]'}`}>
                     {nameEn}
                   </div>
                   {showArabic && (
-                    <div className="font-bold text-black text-[9px] leading-tight mt-0.5" dir="rtl">
+                    <div className="font-semibold text-black text-[9px] leading-tight mt-0.5" dir="rtl">
                       {nameAr}
                     </div>
                   )}
                   {!isKitchen && (
-                    <div className="text-[8.5px] font-mono text-black font-semibold mt-0.5">
-                      {money(unitPrice)} × {qty}
-                    </div>
-                  )}
-                  {type === 'laundry' && item.treatment && (
-                    <div className="text-[8.5px] text-black font-bold mt-0.5">
-                      [{item.treatment}{treatmentMap[item.treatment] ? ` / ${treatmentMap[item.treatment]}` : ''}]
+                    <div className="text-[8.5px] text-black font-medium mt-0.5">
+                      {unitPrice.toFixed(2)} × {qty}
                     </div>
                   )}
                 </td>
-                <td className={`py-1.5 text-center align-top font-mono font-black text-black ${isKitchen ? 'text-sm' : 'text-[10px]'}`}>
+                <td className={`py-1 text-center align-top font-bold text-black ${isKitchen ? 'text-sm font-black' : 'text-[10px]'}`}>
                   {qty}
                 </td>
                 {!isKitchen && (
-                  <td className="py-1.5 text-right align-top font-mono font-black text-black text-[10px]" dir="ltr">
-                    {money(total)}
+                  <td className="py-1 text-right align-top font-bold text-black text-[10px]" dir="ltr">
+                    {total.toFixed(2)}
                   </td>
                 )}
               </tr>
@@ -454,49 +428,49 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
 
       {/* ─── Financial Totals Summary ────────────────────────────────────── */}
       {!isKitchen && (
-        <div className="border-t border-black pt-1.5 text-[9.5px] space-y-1">
+        <div className="border-t border-black pt-1 text-[9.5px] space-y-0.5">
           <div className="flex justify-between items-center py-0.5">
-            <span className="font-bold text-black">{lbl('Subtotal', 'المجموع الفرعي')}:</span>
-            <span className="font-mono font-bold text-black" dir="ltr">
-              {money(order.subtotal || order.price || 0)}
+            <span className="font-semibold text-black">Subtotal (Excl. VAT) / المجموع:</span>
+            <span className="font-bold text-black" dir="ltr">
+              {money(subtotal)}
             </span>
           </div>
 
-          {Number(order.totalVat || order.totalTax || 0) > 0 && (
+          {totalTax > 0 && (
             <div className="flex justify-between items-center py-0.5">
-              <span className="font-bold text-black">
-                {lbl(bilingualAr ? `VAT (${vatRate || 15}%)` : 'VAT Tax', 'ضريبة القيمة المضافة')}:
+              <span className="font-semibold text-black">
+                {bilingualAr ? `VAT (${vatRate || 15}%) / ضريبة القيمة المضافة:` : 'VAT Tax:'}
               </span>
-              <span className="font-mono font-bold text-black" dir="ltr">
-                {money(order.totalVat || order.totalTax || 0)}
+              <span className="font-bold text-black" dir="ltr">
+                {money(totalTax)}
               </span>
             </div>
           )}
 
           {Number(order.discount || order.discountAmount || 0) > 0 && (
             <div className="flex justify-between items-center py-0.5 text-black">
-              <span className="font-bold">{lbl('Discount', 'الخصم')}:</span>
-              <span className="font-mono font-bold" dir="ltr">
+              <span className="font-semibold">Discount / الخصم:</span>
+              <span className="font-bold" dir="ltr">
                 - {money(order.discount || order.discountAmount || 0)}
               </span>
             </div>
           )}
 
           {/* Grand Total Highlight */}
-          <div className="border-t-2 border-b-2 border-black py-1.5 my-1.5 flex justify-between items-center">
-            <span className="font-black text-xs uppercase tracking-wider text-black">
-              {lbl('NET TOTAL', 'الإجمالي الصافي')}
+          <div className="border-t-2 border-b-2 border-black py-1.5 my-1 flex justify-between items-center">
+            <span className="font-extrabold text-xs uppercase tracking-wider text-black">
+              TOTAL / الإجمالي النهائي:
             </span>
-            <span className="font-mono font-black text-base text-black" dir="ltr">
-              {money(order.grandTotal || order.total || order.price || 0)}
+            <span className="font-extrabold text-sm text-black" dir="ltr">
+              {money(grandTotal)}
             </span>
           </div>
 
           {/* Payment & Balance */}
           {Number(order.paidAmount || 0) > 0 && (
             <div className="flex justify-between items-center py-0.5">
-              <span className="font-bold text-black">{lbl('Amount Paid', 'المبلغ المدفوع')}:</span>
-              <span className="font-mono font-bold text-black" dir="ltr">
+              <span className="font-semibold text-black">Amount Paid / المدفوع:</span>
+              <span className="font-bold text-black" dir="ltr">
                 {money(order.paidAmount)}
               </span>
             </div>
@@ -504,8 +478,8 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
 
           {Number(order.changeAmount || 0) > 0 && (
             <div className="flex justify-between items-center py-0.5">
-              <span className="font-bold text-black">{lbl('Change Due', 'المتبقي للعميل')}:</span>
-              <span className="font-mono font-bold text-black" dir="ltr">
+              <span className="font-semibold text-black">Change Due / المتبقي:</span>
+              <span className="font-bold text-black" dir="ltr">
                 {money(order.changeAmount)}
               </span>
             </div>
@@ -515,41 +489,41 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
 
       {/* ─── ZATCA / Regulatory QR Code ──────────────────────────────────── */}
       {!isKitchen && (
-        <div className="mt-4 pt-2 border-t border-dashed border-black text-center flex flex-col items-center">
+        <div className="mt-3 pt-2 border-t border-dashed border-black text-center flex flex-col items-center">
           {thermalSettings.showQrCode && zatcaQrPayload && (
             <div className="flex flex-col items-center justify-center">
-              <div className="text-[8px] font-extrabold tracking-wider text-black uppercase mb-1">
-                ZATCA QR CODE | هيئة الزكاة والضريبة والجمارك
-              </div>
-              <div className="bg-white p-1 border border-black inline-block rounded">
+              <div className="bg-white p-1 border border-black inline-block rounded mb-1">
                 <QRCodeSVG 
                   value={zatcaQrPayload} 
-                  size={96} 
+                  size={100} 
                   level="M" 
                   includeMargin={false}
                 />
+              </div>
+              <div className="text-[8px] font-bold text-black uppercase">
+                هيئة الزكاة والضريبة والجمارك | ZATCA
               </div>
             </div>
           )}
 
           {thermalSettings.showQrCode && nbrQrPayload && (
             <div className="flex flex-col items-center justify-center">
-              <div className="text-[8px] font-extrabold text-black uppercase mb-1">
-                NBR MUSHAK {mushakForm}
+              <div className="bg-white p-1 border border-black inline-block rounded mb-1">
+                <QRCodeSVG value={nbrQrPayload} size={100} level="M" includeMargin={false} />
               </div>
-              <div className="bg-white p-1 border border-black inline-block rounded">
-                <QRCodeSVG value={nbrQrPayload} size={96} level="M" includeMargin={false} />
+              <div className="text-[8px] font-bold text-black uppercase">
+                NBR MUSHAK {mushakForm}
               </div>
             </div>
           )}
 
           {thermalSettings.showQrCode && fbrQrPayload && (
             <div className="flex flex-col items-center justify-center">
-              <div className="text-[8px] font-extrabold text-black uppercase mb-1">
-                FBR DIGITAL INVOICE
+              <div className="bg-white p-1 border border-black inline-block rounded mb-1">
+                <QRCodeSVG value={fbrQrPayload} size={100} level="M" includeMargin={false} />
               </div>
-              <div className="bg-white p-1 border border-black inline-block rounded">
-                <QRCodeSVG value={fbrQrPayload} size={96} level="M" includeMargin={false} />
+              <div className="text-[8px] font-bold text-black uppercase">
+                FBR DIGITAL INVOICE
               </div>
             </div>
           )}
@@ -558,14 +532,14 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
 
       {/* ─── Footer Notes & Powered By ────────────────────────────────────── */}
       {!isKitchen && thermalSettings.showFooter && (
-        <div className="text-center text-[8.5px] mt-3 pt-2 border-t border-dashed border-black text-black space-y-0.5">
-          <p className="font-black text-[9.5px]">
+        <div className="text-center text-[8.5px] mt-2.5 pt-2 border-t border-dashed border-black text-black space-y-0.5">
+          <p className="font-bold text-[9px]">
             {isRtl ? thermalSettings.footerTextAr : thermalSettings.footerTextEn}
           </p>
-          <p className="font-bold">
-            {isRtl ? 'يرجى الاحتفاظ بالإيصال للاستبدال أو الاسترجاع.' : 'Please retain this receipt for your records.'}
+          <p className="text-black">
+            {isRtl ? 'جميع الأسعار تشمل ضريبة القيمة المضافة 15%' : 'All prices include 15% VAT'}
           </p>
-          <p className="text-[8px] font-mono text-black font-semibold mt-1">
+          <p className="text-[7.5px] text-gray-700 font-semibold mt-1">
             Maqder POS System
           </p>
         </div>

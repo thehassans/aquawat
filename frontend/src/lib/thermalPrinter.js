@@ -272,7 +272,7 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       -webkit-text-fill-color: #000000 !important;
       width: ${paperWidth} !important;
       max-width: ${paperWidth} !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', Courier, monospace, 'Cairo', sans-serif !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Cairo', 'Tajawal', 'Helvetica Neue', Arial, sans-serif !important;
       font-size: ${fontSize}px !important;
       line-height: ${lineHeight} !important;
       visibility: visible !important;
@@ -290,6 +290,7 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
         padding: 0 !important;
         background: #ffffff !important;
         color: #000000 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Cairo', 'Tajawal', 'Helvetica Neue', Arial, sans-serif !important;
       }
       body * {
         visibility: visible !important;
@@ -311,6 +312,7 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
       position: static !important;
       visibility: visible !important;
       opacity: 1 !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Cairo', 'Tajawal', 'Helvetica Neue', Arial, sans-serif !important;
     }
     table {
       width: 100% !important;
@@ -325,12 +327,11 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
     .text-center { text-align: center !important; }
     .text-left { text-align: left !important; }
     .text-right { text-align: right !important; }
-    .font-mono { font-family: 'Courier New', Courier, monospace !important; }
+    .font-mono { font-variant-numeric: tabular-nums !important; }
     .font-semibold { font-weight: 600 !important; }
     .font-bold { font-weight: 700 !important; }
     .font-extrabold, .font-black { font-weight: 900 !important; }
     .w-full { width: 100% !important; }
-    .w-1\\/2 { width: 50% !important; }
     .border { border: 1px solid #000 !important; }
     .border-2 { border: 2px solid #000 !important; }
     .border-t { border-top: 1px solid #000 !important; }
@@ -344,7 +345,10 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
     .my-2 { margin-top: 8px !important; margin-bottom: 8px !important; }
     .py-1 { padding-top: 4px !important; padding-bottom: 4px !important; }
     .py-2 { padding-top: 8px !important; padding-bottom: 8px !important; }
+    .px-2 { padding-left: 8px !important; padding-right: 8px !important; }
     .px-3 { padding-left: 10px !important; padding-right: 10px !important; }
+    .text-xs { font-size: 11px !important; }
+    .text-sm { font-size: 13px !important; }
     .text-base { font-size: 14px !important; }
     .text-lg { font-size: 16px !important; }
     .text-xl { font-size: 18px !important; }
