@@ -87,6 +87,9 @@ const purchaseOrderSchema = new mongoose.Schema({
     receiptUrl: { type: String, default: '' },
     receiptName: { type: String, default: '' },
     notes: { type: String, default: '' },
+    voucherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
+    voucherNumber: { type: String, default: '' },
+    journalEntryId: { type: mongoose.Schema.Types.ObjectId, ref: 'JournalEntry' },
     recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
 

@@ -5,6 +5,7 @@ import Customer from '../models/Customer.js';
 import Supplier from '../models/Supplier.js';
 import Voucher from '../models/Voucher.js';
 import Expense from '../models/Expense.js';
+import PurchaseOrder from '../models/PurchaseOrder.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -366,6 +367,76 @@ export async function postInvoicePaymentJournal({
     sourceModel: 'InvoicePayment',
     sourceId: invoice._id,
     sourceNumber: invoice.invoiceNumber,
+    status: 'posted',
+  });
+}
+
+/** Supplier payment against purchase order / vendor bill — AP (Accounts Payable) Dr, Cash/Bank Cr */
+export async function postSupplierPaymentJournal({
+  tenantId,
+  userId,
+  purchaseOrder,
+  amount,
+  paymentMethod = 'bank_transfer',
+  paymentDate = new Date(),
+  reference = '',
+  currency = 'SAR',
+  notes = '',
+}) {
+  const payAmt = round2(amount);
+  if (!purchaseOrder?._id || payAmt <= 0) return null;
+
+  const { byCode } = await getAccountMap(tenantId);
+  const cashCode = paymentAccountCode(paymentMethod);
+  const cash = byCode[cashCode] || byCode[ACCOUNT_CODE_MAP.bank] || byCode[ACCOUNT_CODE_MAP.cash];
+  const ap = byCode[ACCOUNT_CODE_MAP.ap];
+  if (!cash || !ap) return null;
+
+  const refKey = reference || (paymentDate instanceof Date ? paymentDate.toISOString() : String(paymentDate)) || String(Date.now());
+  const key = `POPayment:${purchaseOrder._id}:${payAmt}:${refKey}`;
+  const dup = await JournalEntry.findOne({
+    tenantId,
+    sourceModel: 'PurchaseOrderPayment',
+    sourceId: purchaseOrder._id,
+    reference: key,
+    status: { $ne: 'void' },
+  });
+  if (dup) return dup;
+
+  const poNumber = purchaseOrder.poNumber || 'PO';
+  const supplierName = purchaseOrder.supplierId?.nameAr || purchaseOrder.supplierId?.nameEn || purchaseOrder.supplierId?.name || '';
+  const desc = supplierName ? `${poNumber} (${supplierName})` : poNumber;
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: paymentDate,
+    type: 'payment',
+    memo: `Supplier payment for PO ${desc}`,
+    memoAr: `سداد دفعة للمورد لأمر الشراء ${desc}`,
+    reference: key,
+    currency,
+    lines: [
+      {
+        accountId: ap._id,
+        accountCode: ap.code,
+        accountName: ap.name,
+        debit: payAmt,
+        credit: 0,
+        description: `Settle AP / ${desc}${notes ? ` - ${notes}` : ''}`,
+      },
+      {
+        accountId: cash._id,
+        accountCode: cash.code,
+        accountName: cash.name,
+        debit: 0,
+        credit: payAmt,
+        description: `Payment via ${paymentMethod} / ${desc}`,
+      },
+    ],
+    sourceModel: 'PurchaseOrderPayment',
+    sourceId: purchaseOrder._id,
+    sourceNumber: poNumber,
     status: 'posted',
   });
 }
@@ -1031,14 +1102,14 @@ export async function buildSupplierAccountReport(tenantId, supplierId, { from, t
   if (!supplier) throw new Error('Supplier not found');
 
   const { start, end } = periodRange({ from, to });
-  const [invoices, payments, expenses] = await Promise.all([
+  const [invoices, payments, expenses, purchaseOrders] = await Promise.all([
     Invoice.find({
       tenantId,
       supplierId,
       flow: 'purchase',
       status: { $nin: ['draft', 'cancelled'] },
       issueDate: { $lte: end },
-    }).select('invoiceNumber issueDate grandTotal paidAmount').lean(),
+    }).select('invoiceNumber issueDate grandTotal paidAmount sourcePurchaseOrderId').lean(),
     Voucher.find({
       tenantId,
       partyId: supplierId,
@@ -1051,6 +1122,12 @@ export async function buildSupplierAccountReport(tenantId, supplierId, { from, t
       status: { $in: ['approved', 'paid'] },
       expenseDate: { $lte: end },
     }).select('expenseNumber expenseDate totalAmount amount taxAmount status description').lean().catch(() => []),
+    PurchaseOrder.find({
+      tenantId,
+      supplierId,
+      status: { $nin: ['draft', 'cancelled'] },
+      orderDate: { $lte: end },
+    }).select('poNumber orderDate grandTotal paidAmount payments billedInvoiceId').lean().catch(() => []),
   ]);
 
   const events = [];
@@ -1095,6 +1172,29 @@ export async function buildSupplierAccountReport(tenantId, supplierId, { from, t
       memo: expense.description || 'Expense',
     });
   }
+  const invoicedPoIds = new Set(invoices.map((inv) => String(inv.sourcePurchaseOrderId || '')).filter(Boolean));
+  for (const po of purchaseOrders || []) {
+    if (!invoicedPoIds.has(String(po._id))) {
+      events.push({
+        date: po.orderDate,
+        type: 'po',
+        ref: po.poNumber,
+        debit: 0,
+        credit: round2(po.grandTotal),
+        memo: `Purchase Order ${po.poNumber}`,
+      });
+      for (const p of po.payments || []) {
+        events.push({
+          date: p.date || po.orderDate,
+          type: 'payment',
+          ref: p.voucherNumber || p.reference || po.poNumber,
+          debit: round2(p.amount),
+          credit: 0,
+          memo: p.notes || `PO Payment ${po.poNumber}`,
+        });
+      }
+    }
+  }
   events.sort((a, b) => new Date(a.date) - new Date(b.date));
 
   let running = 0;
@@ -1114,7 +1214,7 @@ export async function buildSupplierAccountReport(tenantId, supplierId, { from, t
     from: start,
     to: end,
     openingBalance,
-    closingBalance: lines.length ? lines[lines.length - 1].balance : openingBalance,
+    closingBalance: running,
     lines,
   };
 }
@@ -1126,6 +1226,7 @@ export default {
   voidJournalEntry,
   postSalesInvoiceJournal,
   postInvoicePaymentJournal,
+  postSupplierPaymentJournal,
   postExpensePaidJournal,
   postVoucherJournal,
   postCreditNoteJournal,

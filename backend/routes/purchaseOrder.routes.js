@@ -774,6 +774,8 @@ router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBil
       receiptName = req.file.originalname || filename;
     }
 
+    const paymentMethodMapped = req.body.method === 'transfer' ? 'bank_transfer' : (req.body.method || 'bank_transfer');
+
     const payment = {
       amount,
       date: req.body.date ? new Date(req.body.date) : new Date(),
@@ -784,6 +786,59 @@ router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBil
       notes: String(req.body.notes || '').trim(),
       recordedBy: req.user._id,
     };
+
+    // 1. Auto-generate Payment Voucher (سند صرف)
+    try {
+      const Voucher = (await import('../models/Voucher.js')).default;
+      const Supplier = (await import('../models/Supplier.js')).default;
+      const year = new Date().getFullYear();
+      const count = await Voucher.countDocuments({ tenantId: req.user.tenantId });
+      const voucherNumber = `PV-${year}-${(count + 1).toString().padStart(4, '0')}`;
+
+      const supp = await Supplier.findOne({ _id: order.supplierId, tenantId: req.user.tenantId }).lean();
+      const supplierName = supp?.nameAr || supp?.nameEn || '';
+
+      const voucher = new Voucher({
+        tenantId: req.user.tenantId,
+        voucherNumber,
+        type: 'payment',
+        date: payment.date,
+        amount,
+        partyType: 'supplier',
+        partyId: order.supplierId,
+        partyName: supplierName,
+        paymentMethod: paymentMethodMapped,
+        reference: payment.reference || order.poNumber,
+        description: `Payment for PO ${order.poNumber}${supplierName ? ` (${supplierName})` : ''}${payment.notes ? ` - ${payment.notes}` : ''}`,
+        status: 'approved',
+        createdBy: req.user._id,
+      });
+      await voucher.save();
+      payment.voucherId = voucher._id;
+      payment.voucherNumber = voucherNumber;
+    } catch (vErr) {
+      console.warn('[purchase-order] auto-voucher creation warning:', vErr.message);
+    }
+
+    // 2. Post Double-Entry Journal Entry (Debit: AP, Credit: Bank/Cash)
+    try {
+      const { postSupplierPaymentJournal } = await import('../services/accountingService.js');
+      const journalEntry = await postSupplierPaymentJournal({
+        tenantId: req.user.tenantId,
+        userId: req.user._id,
+        purchaseOrder: order,
+        amount,
+        paymentMethod: paymentMethodMapped,
+        paymentDate: payment.date,
+        reference: payment.reference || payment.voucherNumber || order.poNumber,
+        notes: payment.notes,
+      });
+      if (journalEntry?._id) {
+        payment.journalEntryId = journalEntry._id;
+      }
+    } catch (glErr) {
+      console.warn('[purchase-order] GL journal creation warning:', glErr.message);
+    }
 
     order.payments = [...(order.payments || []), payment];
     const totalPaid = Math.round((order.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0) * 100) / 100;
@@ -799,6 +854,21 @@ router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBil
     }
 
     await order.save();
+
+    // 3. Sync linked purchase invoice if present
+    try {
+      if (order.billedInvoiceId) {
+        const Invoice = (await import('../models/Invoice.js')).default;
+        const inv = await Invoice.findOne({ _id: order.billedInvoiceId, tenantId: req.user.tenantId });
+        if (inv) {
+          inv.paidAmount = order.paidAmount;
+          inv.balanceDue = order.balanceDue;
+          inv.paymentStatus = order.paymentStatus;
+          await inv.save();
+        }
+      }
+    } catch {}
+
     const refreshed = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter })
       .populate('payments.recordedBy', 'name firstName lastName');
     res.json(refreshed);

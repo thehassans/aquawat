@@ -101,15 +101,16 @@ export default function PurchasePaymentsLedger({ order, isAr, onOpenRecordPaymen
                 <th className="px-3.5 py-2.5 text-start w-10">#</th>
                 <th className="px-3.5 py-2.5 text-start">{isAr ? 'تاريخ الدفعة' : 'Payment Date'}</th>
                 <th className="px-3.5 py-2.5 text-start">{isAr ? 'طريقة الدفع' : 'Method'}</th>
-                <th className="px-3.5 py-2.5 text-start">{isAr ? 'رقم المرجع / الحوالة' : 'Reference'}</th>
+                <th className="px-3.5 py-2.5 text-start">{isAr ? 'سند الصرف / المرجع' : 'Voucher / Reference'}</th>
                 <th className="px-3.5 py-2.5 text-center">{isAr ? 'مستند / إيصال التحويل' : 'Receipt / Screenshot'}</th>
-                <th className="px-3.5 py-2.5 text-start">{isAr ? 'ملاحظات' : 'Notes'}</th>
+                <th className="px-3.5 py-2.5 text-start">{isAr ? 'الأثر المحاسبي / ملاحظات' : 'Accounting & Notes'}</th>
                 <th className="px-3.5 py-2.5 text-end">{isAr ? 'مبلغ الدفعة' : 'Amount Paid'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06]">
               {payments.map((p, idx) => {
                 const methodInfo = METHOD_LABELS[p.method] || METHOD_LABELS.transfer
+                const isCash = p.method === 'cash'
                 return (
                   <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02]">
                     <td className="px-3.5 py-3 font-mono text-[11px] text-slate-400">{idx + 1}</td>
@@ -122,7 +123,14 @@ export default function PurchasePaymentsLedger({ order, isAr, onOpenRecordPaymen
                       </span>
                     </td>
                     <td className="px-3.5 py-3 font-mono font-semibold text-slate-700 dark:text-slate-300">
-                      {p.reference || '—'}
+                      <div>
+                        {p.voucherNumber && (
+                          <span className="inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-white/10 dark:text-slate-300 me-1.5">
+                            {p.voucherNumber}
+                          </span>
+                        )}
+                        <span>{p.reference || (p.voucherNumber ? '' : '—')}</span>
+                      </div>
                     </td>
                     <td className="px-3.5 py-3 text-center">
                       {p.receiptUrl ? (
@@ -130,7 +138,7 @@ export default function PurchasePaymentsLedger({ order, isAr, onOpenRecordPaymen
                           type="button"
                           onClick={() => {
                             setLightboxUrl(p.receiptUrl)
-                            setLightboxTitle(p.receiptName || (isAr ? `إيصال دفعة - ${p.reference || order.poNumber}` : `Payment Receipt - ${p.reference || order.poNumber}`))
+                            setLightboxTitle(p.receiptName || (isAr ? `إيصال دفعة - ${p.reference || p.voucherNumber || order.poNumber}` : `Payment Receipt - ${p.reference || p.voucherNumber || order.poNumber}`))
                           }}
                           className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50/70 px-2.5 py-1 text-[11px] font-bold text-teal-800 transition hover:bg-teal-100 dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-300"
                         >
@@ -141,8 +149,13 @@ export default function PurchasePaymentsLedger({ order, isAr, onOpenRecordPaymen
                         <span className="text-[11px] text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="px-3.5 py-3 text-slate-500 dark:text-slate-400 text-[11px] max-w-xs truncate">
-                      {p.notes || '—'}
+                    <td className="px-3.5 py-3 text-[11px] max-w-xs">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-700 dark:text-emerald-400">
+                          <span className="font-bold">Dr: 2000 AP</span> | <span className="font-bold">Cr: {isCash ? '1000' : '1100'}</span>
+                        </span>
+                        {p.notes && <span className="text-slate-500 dark:text-slate-400 truncate">{p.notes}</span>}
+                      </div>
                     </td>
                     <td className="px-3.5 py-3 text-end font-bold text-emerald-600 dark:text-emerald-400 tabular-nums text-xs">
                       <Money value={p.amount} />
@@ -160,6 +173,16 @@ export default function PurchasePaymentsLedger({ order, isAr, onOpenRecordPaymen
                   <Money value={paidAmount} />
                 </td>
               </tr>
+              {paidAmount > grandTotal && (
+                <tr className="bg-amber-50/50 dark:bg-amber-500/10 text-amber-900 dark:text-amber-300">
+                  <td colSpan={6} className="px-3.5 py-2 text-end text-[11px] uppercase font-bold">
+                    {isAr ? 'رصيد دفعة مقدمة للمورد (Advance Credit):' : 'Supplier Advance Credit Balance:'}
+                  </td>
+                  <td className="px-3.5 py-2 text-end font-mono font-bold tabular-nums">
+                    <Money value={paidAmount - grandTotal} />
+                  </td>
+                </tr>
+              )}
             </tfoot>
           </table>
         </div>

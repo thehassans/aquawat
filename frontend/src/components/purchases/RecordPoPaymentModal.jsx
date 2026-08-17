@@ -118,6 +118,17 @@ export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onS
     ? order.supplierId?.nameAr || order.supplierId?.nameEn || '—'
     : order.supplierId?.nameEn || order.supplierId?.nameAr || '—'
 
+  const enteredAmount = Number(amount || 0)
+  const isOverpayment = enteredAmount > balanceDue && balanceDue > 0
+  const advanceAmount = Math.max(0, Math.round((enteredAmount - balanceDue) * 100) / 100)
+  const accountCodeMap = {
+    transfer: { code: '1100', nameEn: 'Bank Accounts', nameAr: 'الحسابات البنكية' },
+    cash: { code: '1000', nameEn: 'Cash on Hand', nameAr: 'النقدية بالصندوق' },
+    card: { code: '1100', nameEn: 'Bank / POS Terminal', nameAr: 'الحساب البنكي / شبكة' },
+    check: { code: '1100', nameEn: 'Bank Cheque Clearing', nameAr: 'شيكات صادرة / البنك' },
+  }
+  const selectedCashAccount = accountCodeMap[method] || accountCodeMap.transfer
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md overflow-y-auto">
@@ -342,6 +353,62 @@ export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onS
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
               />
             </div>
+
+            {/* Double-Entry Ledger Preview (Debit / Credit) */}
+            {enteredAmount > 0 && (
+              <div className="rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50/50 via-white to-slate-50/50 p-3.5 dark:border-teal-500/20 dark:bg-white/[0.02] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-teal-800 dark:text-teal-300">
+                    <Sparkles className="h-3 w-3" />
+                    {isAr ? 'الأثر المحاسبي التلقائي (قيد اليومية وسند الصرف)' : 'Double-Entry Accounting & Ledger Impact'}
+                  </span>
+                  <span className="font-mono text-[10px] font-bold text-slate-500">
+                    {enteredAmount.toFixed(2)} SAR
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  {/* Debit Line */}
+                  <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-500/20 dark:bg-emerald-500/5">
+                    <div className="flex items-center justify-between text-emerald-800 dark:text-emerald-300 font-bold">
+                      <span>{isAr ? 'مدين (Debit Dr.)' : 'Debit (Dr.)'}</span>
+                      <span className="font-mono tabular-nums">+{enteredAmount.toFixed(2)}</span>
+                    </div>
+                    <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 text-[11px]">
+                      2000 • {isAr ? 'الذمم الدائنة للمورد' : 'Accounts Payable (AP)'}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {isAr ? 'تخفيض التزام المورد' : 'Reduces vendor liability'}
+                    </p>
+                  </div>
+
+                  {/* Credit Line */}
+                  <div className="rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-500/20 dark:bg-blue-500/5">
+                    <div className="flex items-center justify-between text-blue-800 dark:text-blue-300 font-bold">
+                      <span>{isAr ? 'دائن (Credit Cr.)' : 'Credit (Cr.)'}</span>
+                      <span className="font-mono tabular-nums">-{enteredAmount.toFixed(2)}</span>
+                    </div>
+                    <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 text-[11px]">
+                      {selectedCashAccount.code} • {isAr ? selectedCashAccount.nameAr : selectedCashAccount.nameEn}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {isAr ? 'صرف أموال من الحساب' : 'Disbursed from account'}
+                    </p>
+                  </div>
+                </div>
+
+                {isOverpayment && (
+                  <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {isAr
+                        ? `سيتم قيد الفائض (${advanceAmount.toFixed(2)} SAR) كرصيد دفع مقدم للمورد في كشف حسابه.`
+                        : `Excess payment (${advanceAmount.toFixed(2)} SAR) will be recorded as supplier advance credit.`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-white/10">
