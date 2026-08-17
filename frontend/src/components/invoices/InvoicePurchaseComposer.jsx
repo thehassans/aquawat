@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Clock3, PackageCheck, Plus, Save, Trash2, UploadCloud } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -158,7 +158,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
 
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'lineItems' })
   const values = watch()
-  const lineItems = Array.isArray(values.lineItems) ? values.lineItems : []
+  const watchedLineItems = useWatch({ control, name: 'lineItems' })
+  const watchedInvoiceDiscount = useWatch({ control, name: 'invoiceDiscount' })
+  const lineItems = (Array.isArray(watchedLineItems) && watchedLineItems.length > 0)
+    ? watchedLineItems
+    : (Array.isArray(values.lineItems) ? values.lineItems : [])
   const businessContext = values.businessContext || defaultBusinessContext
   const invoiceSubtype = values.invoiceSubtype || 'standard'
   const selectedTemplateId = Number(values.pdfTemplateId || getInvoiceTemplateId(tenant, businessContext))
@@ -409,14 +413,37 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const summary = useMemo(
     () => calculateInvoiceSummary({
       lineItems,
-      invoiceDiscount: toNumber(values.invoiceDiscount, 0),
+      invoiceDiscount: toNumber(watchedInvoiceDiscount ?? values.invoiceDiscount, 0),
     }),
-    [lineItems, values.invoiceDiscount]
+    [lineItems, watchedInvoiceDiscount, values.invoiceDiscount]
   )
   const totals = summary
   const summarizedLines = summary.lines || []
 
+  const getLineTotal = (index) => {
+    const calc = summarizedLines[index]
+    if (calc && typeof calc.lineTotalWithTax === 'number' && calc.lineTotalWithTax > 0) {
+      return calc.lineTotalWithTax
+    }
+    const line = lineItems[index] || {}
+    const q = toNumber(line.quantity, 1)
+    const p = toNumber(line.unitPrice, 0)
+    const tax = toNumber(line.taxRate, 15)
+    const sub = q * p
+    return Math.round((sub + (sub * tax / 100)) * 100) / 100
+  }
+
   const onSubmit = (data) => {
+    const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim() || toNumber(line?.unitPrice, 0) > 0)
+    if (!namedLines.length) {
+      toast.error(language === 'ar' ? 'أضف بنداً واحداً على الأقل قبل الحفظ' : 'Add at least one line item before saving')
+      return
+    }
+    const computedTotals = calculateInvoiceSummary({
+      lineItems: namedLines,
+      invoiceDiscount: toNumber(data.invoiceDiscount, 0),
+    })
+    const sellerName = String(data.seller?.name || data.seller?.nameAr || '').trim() || (language === 'ar' ? 'مورد نقدي' : 'Cash Supplier')
     const payload = {
       ...data,
       flow: 'purchase',
@@ -427,8 +454,12 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       invoiceTypeCode: transactionType === 'B2C' ? '0200000' : '0100000',
       status: 'approved',
       issueDate: isEdit ? (initialInvoice?.issueDate || new Date()) : new Date(),
-      lineItems: (data.lineItems || []).map((line, index) => {
-        const calc = summarizedLines[index] || {}
+      seller: {
+        ...(data.seller || {}),
+        name: sellerName,
+      },
+      lineItems: namedLines.map((line, index) => {
+        const calc = computedTotals.lines[index] || {}
         return {
           ...line,
           lineNumber: index + 1,
@@ -441,14 +472,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         }
       }),
       invoiceDiscount: toNumber(data.invoiceDiscount, 0),
-      subtotal: totals.subtotal,
-      totalTax: totals.totalTax,
-      grandTotal: totals.grandTotal,
+      subtotal: computedTotals.subtotal,
+      totalTax: computedTotals.totalTax,
+      grandTotal: computedTotals.grandTotal,
     }
     applyFormPaymentToPayload(payload, {
       paymentStatus: data?.paymentStatus,
       paidAmount: data?.paidAmount,
-      grandTotal: totals.grandTotal,
+      grandTotal: computedTotals.grandTotal,
     })
 
     if (!isTradingContext) {
@@ -580,8 +611,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     </div>
                   </div>
                   <div>
-                    <label className="label">{language === 'ar' ? 'المورد' : 'Supplier'} *</label>
-                    <select {...register('supplierId', { required: isTradingContext, onChange: (e) => onSelectSupplier(e.target.value) })} className="select"><option value="">{language === 'ar' ? 'اختر' : 'Select'}</option>{(suppliers || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
+                    <label className="label flex items-baseline justify-between gap-2">
+                      <span>{language === 'ar' ? 'المورد' : 'Supplier'}</span>
+                      <span className="text-xs font-normal text-gray-500">({language === 'ar' ? 'اختياري' : 'Optional'})</span>
+                    </label>
+                    <select {...register('supplierId', { onChange: (e) => onSelectSupplier(e.target.value) })} className="select">
+                      <option value="">{language === 'ar' ? 'اختر مورد (اختياري)' : 'Select supplier (Optional)'}</option>
+                      {(suppliers || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}
+                    </select>
                   </div>
                 </>
               )}
@@ -659,9 +696,9 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 <div>
                   <label className="label flex items-baseline justify-between gap-2" dir="ltr">
                     <span>Name / Company</span>
-                    <span dir="rtl" className="font-medium text-gray-500">الاسم / الشركة</span>
+                    <span dir="rtl" className="font-medium text-gray-500">الاسم / الشركة ({language === 'ar' ? 'اختياري' : 'Optional'})</span>
                   </label>
-                  <input {...register('seller.name', { required: true })} className="input" />
+                  <input {...register('seller.name')} className="input" placeholder={language === 'ar' ? 'اسم المورد أو الشركة' : 'Supplier or vendor name'} />
                 </div>
                 {showArabicFields ? (
                   <div>
@@ -877,7 +914,19 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     </div>
                     <div className="md:col-span-2"><label htmlFor={`price-${index}`} className="label">{t('unitPrice')}</label><input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className="input" /></div>
                     <div className="md:col-span-2"><label className="label">{t('tax')} %</label><select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className="select"><option value={15}>15%</option><option value={0}>0%</option></select></div>
-                    <div className="md:col-span-2 flex items-center gap-2"><div className="flex-1 text-end"><p className="mb-1 text-xs text-gray-500">{t('total')}</p><p className="font-semibold"><Money value={summarizedLines[index]?.lineTotalWithTax} /></p></div>{fields.length > 1 && <button type="button" onClick={() => remove(index)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4" /></button>}</div>
+                    <div className="md:col-span-2 flex items-center gap-2">
+                      <div className="flex-1 text-end">
+                        <p className="mb-1 text-xs text-gray-500">{t('total')}</p>
+                        <p className="font-bold text-gray-900 dark:text-white">
+                          <Money value={getLineTotal(index)} />
+                        </p>
+                      </div>
+                      {fields.length > 1 && (
+                        <button type="button" onClick={() => remove(index)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               ))}
