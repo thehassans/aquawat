@@ -365,10 +365,14 @@ export function printThermalElement(elementOrHtml, settings = DEFAULT_THERMAL_SE
     .text-lg { font-size: 16px !important; }
     .text-xl { font-size: 18px !important; }
     img {
-      max-width: 100% !important;
+      max-height: 40px !important;
+      max-width: 85px !important;
+      width: auto !important;
       height: auto !important;
-      display: block;
-      margin: 0 auto;
+      object-fit: contain !important;
+      display: block !important;
+      margin: 0 auto 4px auto !important;
+      filter: grayscale(100%) contrast(120%) !important;
     }
     svg {
       display: block !important;

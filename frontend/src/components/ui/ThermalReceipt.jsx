@@ -207,13 +207,23 @@ const ThermalReceipt = forwardRef(({ order, type = 'restaurant', isKitchen = fal
 
       {/* ─── Header: Brand, Tax & Legal Registration ──────────────────────── */}
       {!isKitchen ? (
-        <div className="text-center mb-2.5">
+        <div className="text-center mb-2">
           {thermalSettings.showLogo && logoSrc && (
-            <div className="flex justify-center mb-1.5">
+            <div className="flex justify-center mb-1">
               <img 
                 src={logoSrc} 
                 alt="Logo" 
-                className="max-h-12 max-w-[110px] object-contain filter grayscale" 
+                style={{
+                  maxHeight: '40px',
+                  maxWidth: '85px',
+                  width: 'auto',
+                  height: 'auto',
+                  objectFit: 'contain',
+                  display: 'block',
+                  margin: '0 auto',
+                  filter: 'grayscale(100%) contrast(120%)'
+                }}
+                className="max-h-10 max-w-[85px] object-contain mx-auto filter grayscale" 
                 onError={(e) => { e.target.style.display = 'none' }}
               />
             </div>
