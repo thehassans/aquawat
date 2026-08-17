@@ -758,9 +758,9 @@ function App() {
           <Route path="orders/:id" element={<PurchaseOrderForm />} />
           <Route path="suppliers" element={<PurchasesSuppliers />} />
           <Route path="reports" element={<PurchasesReports />} />
-          <Route path="grn" element={<GrnList />} />
-          <Route path="grn/new" element={<GrnForm />} />
-          <Route path="grn/:id" element={<GrnForm />} />
+          <Route path="grn" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
+          <Route path="grn/new" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
+          <Route path="grn/:id" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
           <Route path="returns" element={<PurchaseReturnList />} />
           <Route path="returns/new" element={<PurchaseReturnForm />} />
           <Route path="returns/:id" element={<PurchaseReturnForm />} />
@@ -771,9 +771,9 @@ function App() {
         <Route path="purchase-orders" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
         <Route path="purchase-orders/new" element={<Navigate to="/app/dashboard/purchases/orders/new" replace />} />
         <Route path="purchase-orders/:id" element={<PurchasesIdRedirect to="/app/dashboard/purchases/orders" />} />
-        <Route path="grn" element={<Navigate to="/app/dashboard/purchases/grn" replace />} />
-        <Route path="grn/new" element={<Navigate to="/app/dashboard/purchases/grn/new" replace />} />
-        <Route path="grn/:id" element={<PurchasesIdRedirect to="/app/dashboard/purchases/grn" />} />
+        <Route path="grn" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
+        <Route path="grn/new" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
+        <Route path="grn/:id" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
         <Route path="purchase-returns" element={<Navigate to="/app/dashboard/purchases/returns" replace />} />
         <Route path="purchase-returns/new" element={<Navigate to="/app/dashboard/purchases/returns/new" replace />} />
         <Route path="purchase-returns/:id" element={<PurchasesIdRedirect to="/app/dashboard/purchases/returns" />} />

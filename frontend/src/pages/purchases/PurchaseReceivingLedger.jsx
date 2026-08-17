@@ -1,10 +1,12 @@
-import { Clock3, PackageCheck } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { PURCHASES_PATH, shell, STATUS_PILL, formatDay, warehouseName } from './purchasesUi'
+import { Clock3, PackageCheck, Warehouse as WarehouseIcon } from 'lucide-react'
+import { shell, STATUS_PILL, formatDay, warehouseName } from './purchasesUi'
+import { autoTranslateText } from '../../lib/builtInTranslator'
 
 function productLabel(row, language) {
-  if (language === 'ar') return row.productNameAr || row.productName || '—'
-  return row.productName || row.productNameAr || '—'
+  if (language === 'ar') {
+    return row.productNameAr || (row.productName ? autoTranslateText(row.productName, 'en', 'ar') : '') || row.productName || '—'
+  }
+  return row.productName || (row.productNameAr ? autoTranslateText(row.productNameAr, 'ar', 'en') : '') || row.productNameAr || '—'
 }
 
 function Stat({ label, value, tone }) {
@@ -59,14 +61,10 @@ function EventCard({ event, language, delayed }) {
         <p className="mt-1 text-[13px] leading-6 text-slate-600 dark:text-slate-300">{event.notes}</p>
       ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
-        {event.grnId ? (
-          <Link
-            to={`${PURCHASES_PATH.grn}/${event.grnId}`}
-            onClick={(e) => e.stopPropagation()}
-            className="font-mono text-teal-700 hover:underline dark:text-teal-300"
-          >
+        {event.grnNumber || event.grnId ? (
+          <span className="font-mono font-bold text-teal-700 dark:text-teal-300">
             {event.grnNumber || 'GRN'}
-          </Link>
+          </span>
         ) : null}
         {event.warehouse ? <span>{warehouseName(event.warehouse, language)}</span> : null}
       </div>
@@ -74,7 +72,7 @@ function EventCard({ event, language, delayed }) {
   )
 }
 
-export default function PurchaseReceivingLedger({ order, language }) {
+export default function PurchaseReceivingLedger({ order, language, onOpenReceive }) {
   const ledger = order?.receivingLedger
   const lines = Array.isArray(ledger?.lines) ? ledger.lines : []
   const unmatched = Array.isArray(ledger?.unmatched) ? ledger.unmatched : []
@@ -88,12 +86,12 @@ export default function PurchaseReceivingLedger({ order, language }) {
       <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white/[0.08]">
         <div>
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
-            {language === 'ar' ? 'الاستلام' : 'Receiving'}
+            {language === 'ar' ? 'سجل الاستلام (GRN)' : 'Receiving Ledger (GRN)'}
           </p>
           <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
             {language === 'ar'
-              ? 'ما وصل، ومتى، وما تأخر مع السبب والملاحظة.'
-              : 'What arrived, when, and what is delayed — with reason and notes.'}
+              ? 'ما تم استلامه وترحيله للمخزون مع التواريخ والملاحظات.'
+              : 'What arrived, inventory postings, and delay records.'}
           </p>
         </div>
         <div className="grid grid-cols-4 gap-6">
@@ -118,13 +116,15 @@ export default function PurchaseReceivingLedger({ order, language }) {
                 ? 'عند استلام البنود أو تأخيرها ستظهر التواريخ والأسباب هنا.'
                 : 'Received quantities and delay reasons will appear here.'}
             </p>
-            {order?._id ? (
-              <Link
-                to={`${PURCHASES_PATH.grn}/new?poId=${order._id}`}
-                className="mt-3 inline-flex text-[13px] font-medium text-teal-700 hover:underline dark:text-teal-300"
+            {onOpenReceive && ['approved', 'partially_received', 'sent', 'draft'].includes(order?.status) ? (
+              <button
+                type="button"
+                onClick={onOpenReceive}
+                className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-teal-700 hover:underline dark:text-teal-300"
               >
-                {language === 'ar' ? 'إنشاء إشعار استلام' : 'Create GRN'}
-              </Link>
+                <WarehouseIcon className="h-4 w-4" />
+                {language === 'ar' ? 'استلام البضاعة الآن (GRN)' : 'Receive goods now (GRN)'}
+              </button>
             ) : null}
           </div>
         </div>

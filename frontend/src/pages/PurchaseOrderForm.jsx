@@ -68,6 +68,58 @@ const PAYMENT_STATUS_PILL = {
   overdue: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
 }
 
+export function formatLineItemName(li, language = 'en', productsList = []) {
+  if (!li) return '—'
+  const product = (li.productId && typeof li.productId === 'object')
+    ? li.productId
+    : (productsList.find((p) => String(p._id) === String(li.productId)) || null)
+
+  if (language === 'ar') {
+    if (product?.nameAr) return product.nameAr
+    if (product?.nameEn) {
+      const tr = autoTranslateText(product.nameEn, 'en', 'ar')
+      if (tr) return tr
+      return product.nameEn
+    }
+    if (li.manualNameAr) return li.manualNameAr
+    if (li.manualName) {
+      if (/[\u0600-\u06FF]/.test(li.manualName)) return li.manualName
+      const tr = autoTranslateText(li.manualName, 'en', 'ar')
+      if (tr) return tr
+      return li.manualName
+    }
+    if (li.description) {
+      if (/[\u0600-\u06FF]/.test(li.description)) return li.description
+      const tr = autoTranslateText(li.description, 'en', 'ar')
+      if (tr) return tr
+      return li.description
+    }
+    return '—'
+  }
+
+  // English
+  if (product?.nameEn) return product.nameEn
+  if (product?.nameAr) {
+    const tr = autoTranslateText(product.nameAr, 'ar', 'en')
+    if (tr) return tr
+    return product.nameAr
+  }
+  if (li.manualNameEn) return li.manualNameEn
+  if (li.manualName) {
+    if (!/[\u0600-\u06FF]/.test(li.manualName)) return li.manualName
+    const tr = autoTranslateText(li.manualName, 'ar', 'en')
+    if (tr) return tr
+    return li.manualName
+  }
+  if (li.description) {
+    if (!/[\u0600-\u06FF]/.test(li.description)) return li.description
+    const tr = autoTranslateText(li.description, 'ar', 'en')
+    if (tr) return tr
+    return li.description
+  }
+  return '—'
+}
+
 export default function PurchaseOrderForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
@@ -99,6 +151,7 @@ export default function PurchaseOrderForm() {
 
   const [receiveWarehouseId, setReceiveWarehouseId] = useState('')
   const [receiveQty, setReceiveQty] = useState({})
+  const [receiveNotes, setReceiveNotes] = useState('')
   const [manualModes, setManualModes] = useState([])
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [showWarehouseModal, setShowWarehouseModal] = useState(false)
@@ -662,12 +715,13 @@ export default function PurchaseOrderForm() {
   }
 
   const submitReceive = () => {
-    const items = (order?.lineItems || [])
-      .map((li) => {
+    const items = (orderLineItems || [])
+      .map((li, idx) => {
         const productId = li?.productId?._id || li?.productId
-        const qty = Number(receiveQty?.[productId] || 0)
-        if (!productId || !qty || qty <= 0) return null
-        return { productId, quantity: qty }
+        const key = productId || `line_${idx}`
+        const qty = Number(receiveQty?.[key] ?? receiveQty?.[productId] ?? 0)
+        if (qty <= 0) return null
+        return { productId: productId || undefined, lineIndex: idx, quantity: qty }
       })
       .filter(Boolean)
 
@@ -681,7 +735,7 @@ export default function PurchaseOrderForm() {
       return
     }
 
-    receiveMutation.mutate({ warehouseId: receiveWarehouseId, items })
+    receiveMutation.mutate({ warehouseId: receiveWarehouseId, items, notes: receiveNotes })
   }
 
   const resolveOrderForPdf = async () => {
@@ -975,12 +1029,12 @@ export default function PurchaseOrderForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(`/app/dashboard/purchases/grn/new?poId=${id}`)}
+              onClick={() => setShowQuickReceiveModal(true)}
               disabled={!['draft', 'approved', 'sent', 'partially_received'].includes(order?.status)}
               className={ghostBtn}
             >
               <WarehouseIcon className="h-3.5 w-3.5 opacity-70" />
-              {language === 'ar' ? 'إشعار استلام' : 'Create GRN'}
+              {language === 'ar' ? 'استلام البضاعة (GRN)' : 'Receive Goods (GRN)'}
             </button>
             <button
               type="button"
@@ -1223,9 +1277,7 @@ export default function PurchaseOrderForm() {
                     const taxRate = Number(li.taxRate ?? 15)
                     const lineSub = ordered * unit
                     const lineTot = lineSub + (lineSub * taxRate / 100)
-                    const name = language === 'ar'
-                      ? li.productId?.nameAr || li.productId?.nameEn || li.manualName || li.description
-                      : li.productId?.nameEn || li.productId?.nameAr || li.manualName || li.description
+                    const name = formatLineItemName(li, language, products)
 
                     return (
                       <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02]">
@@ -1300,14 +1352,12 @@ export default function PurchaseOrderForm() {
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {(order.related?.grns || []).map((g) => (
-                    <button
+                    <span
                       key={g._id}
-                      type="button"
-                      onClick={() => navigate(`/app/dashboard/purchases/grn/${g._id}`)}
-                      className="inline-flex rounded-lg bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-800 hover:bg-teal-100 dark:bg-teal-900/30 dark:text-teal-300"
+                      className="inline-flex rounded-lg bg-teal-50 px-2 py-0.5 text-[10px] font-mono font-semibold text-teal-800 dark:bg-teal-900/30 dark:text-teal-300"
                     >
                       {g.grnNumber}
-                    </button>
+                    </span>
                   ))}
                   {(order.related?.invoices || []).map((inv) => (
                     <button
@@ -1324,6 +1374,15 @@ export default function PurchaseOrderForm() {
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* INTEGRATED RECEIVING & GRN LEDGER */}
+            <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/[0.08]">
+              <PurchaseReceivingLedger
+                order={order}
+                language={language}
+                onOpenReceive={() => setShowQuickReceiveModal(true)}
+              />
             </div>
           </div>
         </motion.div>
@@ -1349,7 +1408,7 @@ export default function PurchaseOrderForm() {
                   className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-[12px] font-semibold text-teal-800 transition hover:bg-teal-100 dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-300"
                 >
                   <Eye className="h-3.5 w-3.5" />
-                  {language === 'ar' ? 'معاينة حية' : 'Live preview'}
+                  {language === 'ar' ? 'معاينة' : 'Preview'}
                 </button>
               </div>
             </div>
@@ -1771,20 +1830,16 @@ export default function PurchaseOrderForm() {
 
               <div className="flex gap-2">
                 <button
-                  type="button"
-                  onClick={() => setShowLivePreviewModal(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-teal-300 bg-teal-50 px-4 py-2 text-[13px] font-semibold text-teal-800 transition hover:bg-teal-100 dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-300"
+                  type="submit"
+                  disabled={saveMutation.isPending || isLocked}
+                  className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-6 py-2.5 text-[13px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(13,148,136,0.6)] transition hover:bg-teal-700 disabled:opacity-40"
                 >
-                  <Eye className="h-4 w-4" />
-                  {language === 'ar' ? 'معاينة حية' : 'Live preview'}
-                </button>
-                <button type="submit" disabled={saveMutation.isPending || isLocked} className={primaryBtn}>
                   {saveMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      <Save className="h-4 w-4 opacity-80" />
-                      {language === 'ar' ? 'حفظ طلب الشراء' : 'Save Purchase Order'}
+                      <Eye className="h-4 w-4 opacity-90" />
+                      {language === 'ar' ? 'معاينة' : 'Preview'}
                     </>
                   )}
                 </button>
@@ -1953,8 +2008,7 @@ export default function PurchaseOrderForm() {
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                       {(lineItems || []).map((li, idx) => {
-                        const product = products?.find(p => p._id === li.productId)
-                        const name = product ? (language === 'ar' ? product.nameAr || product.nameEn : product.nameEn || product.nameAr) : (li.manualName || li.description || '—')
+                        const name = formatLineItemName(li, language, products)
                         const qty = Number(li.quantityOrdered || 0)
                         const unit = Number(li.unitCost || 0)
                         const tax = Number(li.taxRate ?? 15)
@@ -2168,87 +2222,160 @@ export default function PurchaseOrderForm() {
         </div>
       )}
 
-      {/* QUICK RECEIVE MODAL */}
+      {/* INTEGRATED GOODS RECEIPT NOTE (GRN) MODAL */}
       {showQuickReceiveModal && order && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6 backdrop-blur-sm overflow-y-auto">
           <motion.div
-            initial={{ opacity: 0, scale: 0.97 }}
+            initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            className={`${shell} w-full max-w-lg p-6 space-y-4`}
+            className={`${shell} w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5 sm:p-6 space-y-4`}
           >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-white/[0.08]">
-              <div className="flex items-center gap-2">
-                <WarehouseIcon className="h-5 w-5 text-teal-700" />
-                <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white">
-                  {language === 'ar' ? 'استلام سريع للمخزون' : 'Quick Receive Stock'}
-                </h3>
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+                  <WarehouseIcon className="h-5 w-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    {language === 'ar' ? 'إشعار استلام البضاعة (GRN)' : 'Goods Receipt Note (GRN)'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {language === 'ar'
+                      ? `استلام وترحيل بنود الطلب ${order.poNumber || ''} مباشرة إلى المخزون`
+                      : `Receive & post line items for PO ${order.poNumber || ''} to inventory`}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowQuickReceiveModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-slate-300"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="space-y-3">
-              <label className="text-xs font-semibold text-slate-500">
-                {language === 'ar' ? 'مستودع الاستلام' : 'Receiving Warehouse'}
+            {/* Warehouse selector & Quick Fill */}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 bg-slate-50/70 p-3.5 rounded-2xl dark:bg-white/[0.03] border border-slate-100 dark:border-white/[0.06]">
+              <div className="flex-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  {language === 'ar' ? 'مستودع الاستلام والترحيل' : 'Receiving Warehouse'} *
+                </label>
                 <select
                   value={receiveWarehouseId}
                   onChange={(e) => setReceiveWarehouseId(e.target.value)}
-                  className="select mt-1.5 w-full text-xs"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-white/10 dark:bg-dark-800 dark:text-white"
                 >
                   {(warehouses || []).map((w) => (
                     <option key={w._id} value={w._id}>
-                      {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn}
+                      {language === 'ar' ? w.nameAr || w.nameEn : w.nameEn || w.nameAr}
                     </option>
                   ))}
                 </select>
-              </label>
-
-              <div className="rounded-xl border border-slate-100 p-2 dark:border-white/[0.08]">
-                <table className="w-full text-start text-xs">
-                  <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
-                    <tr>
-                      <th className="p-2 text-start">{language === 'ar' ? 'المنتج' : 'Product'}</th>
-                      <th className="p-2 text-center">{language === 'ar' ? 'المتبقي' : 'Remaining'}</th>
-                      <th className="p-2 text-center">{language === 'ar' ? 'الكمية المستلمة' : 'Receive Qty'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {orderLineItems.map((li) => {
-                      const productId = li?.productId?._id || li?.productId
-                      const name = language === 'ar' ? li.productId?.nameAr || li.productId?.nameEn : li.productId?.nameEn || li.productId?.nameAr || li.manualName
-                      const remaining = Math.max(0, Number(li.quantityOrdered || 0) - Number(li.quantityReceived || 0))
-                      const currVal = receiveQty[productId] ?? ''
-
-                      return (
-                        <tr key={productId}>
-                          <td className="p-2 font-medium text-slate-800 dark:text-slate-200">{name}</td>
-                          <td className="p-2 text-center font-bold tabular-nums text-amber-600">{remaining}</td>
-                          <td className="p-2 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              max={remaining}
-                              value={currVal}
-                              onChange={(e) => setReceiveQty(prev => ({ ...prev, [productId]: e.target.value }))}
-                              placeholder="0"
-                              className="input !py-1 text-center font-bold w-20 mx-auto"
-                              disabled={remaining <= 0}
-                            />
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const all = {}
+                  orderLineItems.forEach((li, idx) => {
+                    const productId = li?.productId?._id || li?.productId
+                    const key = productId || `line_${idx}`
+                    const rem = Math.max(0, Number(li.quantityOrdered || 0) - Number(li.quantityReceived || 0))
+                    all[key] = rem
+                  })
+                  setReceiveQty(all)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-2 text-xs font-bold text-teal-800 transition hover:bg-teal-100 dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-300 whitespace-nowrap"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {language === 'ar' ? 'استلام كل المتبقي' : 'Receive all remaining'}
+              </button>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-white/[0.08]">
+            {/* Items Table */}
+            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/10 dark:bg-transparent">
+              <table className="w-full text-start text-xs">
+                <thead className="bg-slate-50/80 font-bold uppercase tracking-wider text-slate-500 dark:bg-white/[0.04] dark:text-slate-400 border-b border-slate-100 dark:border-white/[0.06]">
+                  <tr>
+                    <th className="p-3 text-start">{language === 'ar' ? 'البند / المنتج' : 'Item / Product'}</th>
+                    <th className="p-3 text-center">{language === 'ar' ? 'المطلوب' : 'Ordered'}</th>
+                    <th className="p-3 text-center">{language === 'ar' ? 'المستلم' : 'Received'}</th>
+                    <th className="p-3 text-center">{language === 'ar' ? 'المتبقي' : 'Remaining'}</th>
+                    <th className="p-3 text-center">{language === 'ar' ? 'استلام الآن' : 'Receive Now'}</th>
+                    <th className="p-3 text-center">{language === 'ar' ? 'الطلب المؤجل' : 'Backorder'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06]">
+                  {orderLineItems.map((li, idx) => {
+                    const productId = li?.productId?._id || li?.productId
+                    const key = productId || `line_${idx}`
+                    const name = formatLineItemName(li, language, products)
+                    const ordered = Number(li.quantityOrdered || 0)
+                    const alreadyRec = Number(li.quantityReceived || 0)
+                    const remaining = Math.max(0, ordered - alreadyRec)
+                    const currVal = receiveQty[key] ?? ''
+                    const numVal = currVal === '' ? 0 : Number(currVal)
+                    const lineBackorder = Math.max(0, remaining - numVal)
+
+                    return (
+                      <tr key={key} className="hover:bg-slate-50/40 dark:hover:bg-white/[0.02]">
+                        <td className="p-3 font-medium text-slate-800 dark:text-slate-200">
+                          <p className="font-semibold text-slate-900 dark:text-white">{name}</p>
+                          <span className="text-[10px] text-slate-400 font-mono">{li.uom || 'PCE'}</span>
+                        </td>
+                        <td className="p-3 text-center font-bold tabular-nums text-slate-700 dark:text-slate-300">{ordered}</td>
+                        <td className="p-3 text-center font-bold tabular-nums text-teal-600 dark:text-teal-400">{alreadyRec}</td>
+                        <td className="p-3 text-center font-bold tabular-nums text-amber-600 dark:text-amber-400">{remaining}</td>
+                        <td className="p-3 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max={remaining}
+                            value={currVal}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setReceiveQty((prev) => ({ ...prev, [key]: val }))
+                            }}
+                            placeholder="0"
+                            className="w-20 rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-center font-bold text-slate-900 shadow-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-white/10 dark:bg-dark-800 dark:text-white mx-auto disabled:opacity-40"
+                            disabled={remaining <= 0}
+                          />
+                        </td>
+                        <td className="p-3 text-center tabular-nums">
+                          {lineBackorder > 0 ? (
+                            <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300">
+                              {lineBackorder}
+                            </span>
+                          ) : (
+                            <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300">
+                              0
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Notes / Delay reason */}
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                {language === 'ar' ? 'ملاحظات الاستلام / أسباب التأخير (اختياري)' : 'Receiving Notes / Delay Reason (Optional)'}
+              </label>
+              <textarea
+                rows={2}
+                value={receiveNotes}
+                onChange={(e) => setReceiveNotes(e.target.value)}
+                placeholder={language === 'ar' ? 'أي ملاحظات أو أسباب تخص الشحنة...' : 'Any notes or delay reasons...'}
+                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 shadow-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-white/10 dark:bg-dark-800 dark:text-white"
+              />
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-white/[0.08]">
               <button
                 type="button"
                 onClick={() => setShowQuickReceiveModal(false)}
@@ -2260,10 +2387,10 @@ export default function PurchaseOrderForm() {
                 type="button"
                 onClick={submitReceive}
                 disabled={receiveMutation.isPending}
-                className={primaryBtn}
+                className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-teal-600/20 hover:bg-teal-700 disabled:opacity-40"
               >
                 {receiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <WarehouseIcon className="h-4 w-4" />}
-                {language === 'ar' ? 'تسجيل الاستلام وتحديث المخزون' : 'Post Stock & Receive'}
+                {language === 'ar' ? 'اعتماد الاستلام وترحيل للمخزون' : 'Post Stock & Complete Receiving'}
               </button>
             </div>
           </motion.div>

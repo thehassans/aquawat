@@ -247,7 +247,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
           perm: { module: 'supply_chain', action: 'read' },
           children: [
             { path: '/app/dashboard/purchases/orders', label: language === 'ar' ? 'طلبات الشراء' : 'Purchase Orders' },
-            { path: '/app/dashboard/purchases/grn', label: language === 'ar' ? 'إشعار الاستلام' : 'GRN' },
+            { path: '/app/dashboard/purchases/suppliers', label: language === 'ar' ? 'الموردون وطلباتهم' : 'Suppliers & POs' },
+            { path: '/app/dashboard/purchases/reports', label: language === 'ar' ? 'تقارير المشتريات' : 'Purchases Reports' },
             { path: '/app/dashboard/purchases/returns', label: language === 'ar' ? 'مرتجع المشتريات' : 'Purchase Return' },
             { path: '/app/dashboard/purchases/landed-costs', label: language === 'ar' ? 'التكلفة المرسية' : 'Landed Cost' },
           ],

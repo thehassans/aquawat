@@ -619,17 +619,25 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
     }
 
     const lines = [];
-    for (const item of items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       const productId = item.productId;
+      const lineIndex = item.lineIndex !== undefined ? item.lineIndex : i;
       const qty = toNumber(item.quantity ?? item.qty, 0);
-      if (!productId || qty <= 0) continue;
-      const line = order.lineItems.find((li) => li.productId?.toString() === productId.toString());
+      if (qty <= 0) continue;
+      let line = null;
+      if (productId) {
+        line = order.lineItems.find((li) => li.productId?.toString() === productId.toString());
+      }
+      if (!line && order.lineItems[lineIndex]) {
+        line = order.lineItems[lineIndex];
+      }
       if (!line) {
         return res.status(400).json({ error: 'Invalid item in receive list' });
       }
       lines.push({
-        productId,
-        productName: line.manualName || '',
+        productId: line.productId || undefined,
+        productName: line.manualName || (line.productId?.nameEn || line.productId?.nameAr) || '',
         productType: line.productType || 'goods',
         uom: line.uom || '',
         quantityOrdered: line.quantityOrdered,

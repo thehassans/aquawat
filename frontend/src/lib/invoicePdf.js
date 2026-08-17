@@ -12,6 +12,7 @@ import { resolveTaxInvoiceQr } from './taxInvoiceQr'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, toEasternArabicNumerals } from './invoiceLanguage'
 import { LETTERHEAD_TEMPLATE_ID, resolveQuotationTemplateId } from './invoiceTemplates'
 import { formatProductTypeBilingual } from './productType'
+import { autoTranslateText } from './builtInTranslator'
 
 const sanitizeFileName = (value) => {
   return String(value || 'invoice')
@@ -1837,19 +1838,21 @@ export const mapPurchaseOrderForPdf = (purchaseOrder, tenant) => {
   const business = tenant?.business || {}
 
   const lineItems = (Array.isArray(purchaseOrder.lineItems) ? purchaseOrder.lineItems : []).map((li) => {
-    const product = li?.productId && typeof li.productId === 'object' ? li.productId : null
+    const rawManual = li?.manualName || li?.description || ''
+    const isManualArabic = /[\u0600-\u06FF]/.test(rawManual)
     const productName =
-      li?.manualName ||
-      li?.productName ||
       product?.nameEn ||
+      (!isManualArabic ? rawManual : autoTranslateText(rawManual, 'ar', 'en')) ||
+      li?.productName ||
       product?.nameAr ||
-      li?.description ||
       'Item'
     const productNameAr =
-      li?.productNameAr ||
       product?.nameAr ||
-      li?.manualName ||
-      ''
+      li?.productNameAr ||
+      li?.manualNameAr ||
+      (isManualArabic ? rawManual : autoTranslateText(rawManual, 'en', 'ar')) ||
+      (product?.nameEn ? autoTranslateText(product.nameEn, 'en', 'ar') : '') ||
+      productName
 
     return {
       productId: product?._id || (typeof li?.productId === 'string' ? li.productId : '') || '',
