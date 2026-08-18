@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle, XCircle, Search, Clock, Users, Calendar } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { CheckCircle, XCircle, Search, Clock, Users, Calendar, ArrowLeft, ArrowRight } from 'lucide-react'
 import api from '../../lib/api'
 
 export default function GymCheckin() {
@@ -70,6 +71,20 @@ export default function GymCheckin() {
       {/* Background Gradient & Pattern */}
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 opacity-90"></div>
       <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 mix-blend-overlay"></div>
+
+      {/* Top Header Controls */}
+      <div className="relative z-20 flex justify-between items-center p-6">
+        <Link 
+          to="/app/dashboard/gym/dashboard"
+          className="flex items-center gap-2 px-4 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 backdrop-blur-md"
+        >
+          {isAr ? <ArrowRight size={16} /> : <ArrowLeft size={16} />}
+          <span>{isAr ? 'العودة للوحة التحكم' : 'Exit Kiosk'}</span>
+        </Link>
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700/50">
+          {isAr ? 'كشك الدخول الذاتي' : 'Self Check-In Station'}
+        </span>
+      </div>
 
       {/* Main Content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-8">

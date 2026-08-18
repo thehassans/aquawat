@@ -254,6 +254,8 @@ const ICONS = {
 
 const APP_ID_MAP = {
   gym_fitness_club: 'dumbbell',
+  gym: 'dumbbell',
+  fitness: 'dumbbell',
   zatca_phase2_pro: 'zatca',
   zatca_phase2: 'zatca',
   gosi_mudad_compliance: 'gosi',

@@ -93,6 +93,19 @@ const APP_STYLE_MAP = {
   '/app/dashboard/tenant-settings/government-integrations/saber': { gradient: 'from-[#9D174D] to-[#EC4899]' },
   '/app/dashboard/tenant-settings/government-integrations/etimad': { gradient: 'from-[#1E3A5F] to-[#2563EB]' },
 
+  // Gym & Fitness Club (Emerald / Cyan / Indigo)
+  '/app/dashboard/gym/dashboard': { gradient: 'from-[#059669] to-[#10B981]' },
+  '/app/dashboard/gym/members': { gradient: 'from-[#059669] to-[#10B981]' },
+  '/app/dashboard/gym/plans': { gradient: 'from-[#059669] to-[#10B981]' },
+  '/app/dashboard/gym/subscriptions': { gradient: 'from-[#059669] to-[#10B981]' },
+  '/app/dashboard/gym/checkin': { gradient: 'from-[#059669] to-[#10B981]' },
+  '/app/dashboard/gym/classes': { gradient: 'from-[#059669] to-[#10B981]' },
+  '/app/dashboard/gym/trainers': { gradient: 'from-[#059669] to-[#10B981]' },
+  '/app/dashboard/gym/pt-packages': { gradient: 'from-[#059669] to-[#10B981]' },
+  '/app/dashboard/gym/measurements': { gradient: 'from-[#059669] to-[#10B981]' },
+  '/app/dashboard/gym/lockers': { gradient: 'from-[#059669] to-[#10B981]' },
+  '/app/dashboard/gym/analytics': { gradient: 'from-[#059669] to-[#10B981]' },
+
   // Dashboard (Cyan / Bright Blue)
   '/app/dashboard': { gradient: 'from-[#4facfe] to-[#00f2fe]' },
 }
