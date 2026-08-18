@@ -38,6 +38,14 @@ export function getPreferredAppIds(tenant) {
   if (market === 'bangladesh') {
     return [
       'bangladesh_nbr_einvoicing',
+      'nbr_mushak_registers',
+      'bkash_payment_gateway',
+      'nagad_payment_gateway',
+      'sslcommerz_bd_gateway',
+      'pathao_courier_logistics',
+      'steadfast_courier_api',
+      'redx_logistics_bd',
+      'bangladesh_sms_gateway',
       'invoice_template_2',
       'whatsapp_cloud_auto',
       'email_suite',

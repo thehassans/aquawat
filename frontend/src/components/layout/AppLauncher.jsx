@@ -671,6 +671,29 @@ export default function AppLauncher() {
                                 dispatch(setHideSidebar(true))
                                 dispatch(setMobileMenuOpen(false))
                                 dispatch(setAppLauncherOpen(false))
+                                navigate('/app/dashboard/profile')
+                              }}
+                              className={`${
+                                active ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-700 dark:text-slate-300'
+                              } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
+                            >
+                              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+                                <Building2 className="h-4 w-4" />
+                              </span>
+                              <span>{language === 'ar' ? 'ملف المنشأة والشركة' : 'Company Profile'}</span>
+                            </button>
+                          )}
+                        </Menu.Item>
+
+                        <Menu.Item>
+                          {({ active }) => (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
+                                dispatch(setHideSidebar(true))
+                                dispatch(setMobileMenuOpen(false))
+                                dispatch(setAppLauncherOpen(false))
                                 navigate('/app/dashboard/settings')
                               }}
                               className={`${

@@ -1972,6 +1972,304 @@ export const DEFAULT_APP_CATALOG = [
       { key: 'autoGenerateQr', labelEn: 'Auto-generate NBR QR on receipts', labelAr: 'توليد رمز QR تلقائياً على الإيصالات', type: 'boolean', defaultValue: true }
     ]
   },
+  {
+    appId: 'bkash_payment_gateway',
+    nameEn: 'bKash Merchant Payment Gateway',
+    nameAr: 'بوابة دفع بيكاش (بنغلاديش)',
+    taglineEn: 'Direct bKash QR Pay, Tokenized Checkout, and Instant MFS Settlement in BDT.',
+    taglineAr: 'دفع مباشر عبر رمز QR وcheckout توكيني وتسوية فورية عبر bKash بالتاكا.',
+    descriptionEn: 'Official bKash MFS payment gateway for Bangladesh businesses: Tokenized Web Checkout, Dynamic QR Code collection on POS invoices, instant payment verification, and automated refund reconciliation in BDT.',
+    descriptionAr: 'بوابة دفع bKash الرسمية للمنشآت في بنغلاديش: الدفع عبر الإنترنت، وتوليد رمز QR على إيصالات نقاط البيع، والتحقق الفوري من الدفع.',
+    category: 'bangladesh_compliance',
+    appType: 'payment_gateway',
+    requiredCurrency: 'BDT',
+    icon: 'bkash',
+    version: '2.1.0',
+    downloadSize: '3.2 MB',
+    author: 'Maqder Bangladesh Financial Suite',
+    rating: 4.95,
+    reviewsCount: 128,
+    pricingTier: 'free',
+    badge: 'bKash Official',
+    featuresEn: [
+      'Tokenized checkout for 1-click customer payments',
+      'Dynamic bKash QR generation on invoices & POS receipts',
+      'Instant Webhook callback for real-time payment reconciliation',
+      'Direct in-app refund & transaction reversal API',
+      'Supports BDT currency transactions natively'
+    ],
+    featuresAr: [
+      'دفع بنقرة واحدة للعملاء عبر Tokenized Checkout',
+      'توليد رمز QR ديناميكي لـ bKash على الفواتير وإيصالات الكاشير',
+      'إشعارات Webhook فورية للتسوية التلقائية للمدفوعات',
+      'إرجاع المبالغ مباشرة من داخل النظام',
+      'دعم كامل لعملة التاكا البنغلاديشية BDT'
+    ],
+    configSchema: [
+      { key: 'merchantNumber', labelEn: 'bKash Merchant Wallet Number', labelAr: 'رقم محفظة التاجر', type: 'string', placeholder: '01XXXXXXXXX' },
+      { key: 'appKey', labelEn: 'bKash App Key', labelAr: 'مفتاح التطبيق App Key', type: 'string' },
+      { key: 'appSecret', labelEn: 'bKash App Secret', labelAr: 'الرمز السري App Secret', type: 'password' },
+      { key: 'username', labelEn: 'bKash API Username', labelAr: 'اسم المستخدم', type: 'string' },
+      { key: 'password', labelEn: 'bKash API Password', labelAr: 'كلمة المرور', type: 'password' },
+      { key: 'isLive', labelEn: 'Live Production Mode', labelAr: 'البيئة الحية المباشرة', type: 'boolean', defaultValue: false }
+    ]
+  },
+  {
+    appId: 'nagad_payment_gateway',
+    nameEn: 'Nagad Business Gateway (Bangladesh)',
+    nameAr: 'بوابة نقود Nagad (بنغلاديش)',
+    taglineEn: 'Instant checkout & dynamic QR payments via Bangladesh Post Office DFS.',
+    taglineAr: 'دفع فوري ورمز QR ديناميكي عبر الخدمة المالية للبريد البنغلاديشي Nagad.',
+    descriptionEn: 'Accept instant mobile payments from Nagad (Bangladesh Post Office Digital Financial Service) with dynamic QR payment links, invoice checkout, and automated transaction verification.',
+    descriptionAr: 'قبول المدفوعات الفورية عبر محفظة Nagad التابعة للبريد البنغلاديشي مع روابط دفع ديناميكية وتحقق آلي.',
+    category: 'bangladesh_compliance',
+    appType: 'payment_gateway',
+    requiredCurrency: 'BDT',
+    icon: 'nagad',
+    version: '2.0.4',
+    downloadSize: '2.9 MB',
+    author: 'Maqder Bangladesh Financial Suite',
+    rating: 4.88,
+    reviewsCount: 84,
+    pricingTier: 'free',
+    badge: 'Nagad Direct',
+    featuresEn: [
+      'Instant payment callback and verification',
+      'Nagad Dynamic QR printed on POS receipts',
+      'Automated invoice marking as paid upon customer transfer',
+      'Zero monthly integration fee'
+    ],
+    featuresAr: [
+      'تحقق فوري من إتمام عمليات الدفع',
+      'طباعة رمز QR لـ Nagad على إيصالات نقاط البيع',
+      'تحديث حالة الفاتورة تلقائياً إلى مدفوعة',
+      'بدون أي رسوم اشتراك شهرية'
+    ],
+    configSchema: [
+      { key: 'merchantId', labelEn: 'Nagad Merchant ID', labelAr: 'معرف التاجر Merchant ID', type: 'string' },
+      { key: 'publicKey', labelEn: 'Nagad Public Key (PG Public Key)', labelAr: 'المفتاح العام Public Key', type: 'textarea' },
+      { key: 'privateKey', labelEn: 'Merchant Private Key', labelAr: 'المفتاح الخاص Private Key', type: 'textarea' },
+      { key: 'isLive', labelEn: 'Live Production Mode', labelAr: 'البيئة الحية المباشرة', type: 'boolean', defaultValue: false }
+    ]
+  },
+  {
+    appId: 'sslcommerz_bd_gateway',
+    nameEn: 'SSLCOMMERZ Gateway (Bangladesh)',
+    nameAr: 'بوابة SSLCOMMERZ (بنغلاديش)',
+    taglineEn: 'Accept Visa, Mastercard, AMEX, bKash, Nagad, Rocket, and 30+ BD banks.',
+    taglineAr: 'قبول فيزا وماستركارد وأمريكان إكسبريس وبيكاش ونقود وروكيت وأكثر من 30 بنك بنغلاديشي.',
+    descriptionEn: 'Bangladesh\'s largest digital payment gateway: Accept Visa, Mastercard, AMEX, bKash, Nagad, Rocket, Upay, and 30+ Bangladeshi internet banking channels in BDT.',
+    descriptionAr: 'أكبر بوابة دفع رقمية في بنغلاديش: قبول بطاقات الائتمان والمحافظ الإلكترونية وجميع البنوك البنغلاديشية.',
+    category: 'bangladesh_compliance',
+    appType: 'payment_gateway',
+    requiredCurrency: 'BDT',
+    icon: 'sslcommerz',
+    version: '3.0.1',
+    downloadSize: '3.6 MB',
+    author: 'SSL Wireless / Maqder',
+    rating: 4.92,
+    reviewsCount: 112,
+    pricingTier: 'free',
+    badge: 'Multi-Bank',
+    featuresEn: [
+      'Supports 30+ Bangladeshi banks and MFS wallets',
+      'EMI installments support for high-value invoices',
+      'Automated IPN (Instant Payment Notification) listener',
+      'Direct card tokenization for repeat customers'
+    ],
+    featuresAr: [
+      'دعم أكثر من 30 بنك ومحفظة إلكترونية بنغلاديشية',
+      'دعم خطط التقسيط EMI للفواتير الكبيرة',
+      'استقبال إشعارات الدفع الفوري IPN تلقائياً',
+      'حفظ البطاقات للعملاء المتكررين بأمان'
+    ],
+    configSchema: [
+      { key: 'storeId', labelEn: 'Store ID', labelAr: 'معرف المتجر Store ID', type: 'string' },
+      { key: 'storePassword', labelEn: 'Store Password', labelAr: 'كلمة مرور المتجر', type: 'password' },
+      { key: 'isLive', labelEn: 'Live Production Mode', labelAr: 'البيئة الحية المباشرة', type: 'boolean', defaultValue: false }
+    ]
+  },
+  {
+    appId: 'pathao_courier_logistics',
+    nameEn: 'Pathao Courier & Deliveries (Bangladesh)',
+    nameAr: 'شحن وتوصيل Pathao (بنغلاديش)',
+    taglineEn: 'Parcel shipping, Cash on Delivery (COD), and live tracking across 64 districts.',
+    taglineAr: 'شحن الطرود والتحصيل عند الاستلام والتتبع الحي في جميع الـ 64 محافظة بنغلاديشية.',
+    descriptionEn: 'Nationwide parcel delivery, next-day home delivery across all 64 districts in Bangladesh, automated consignment creation from invoices, Cash on Delivery (COD) collection, and live tracking webhooks.',
+    descriptionAr: 'توصيل الطرود لجميع محافظات بنغلاديش مع توليد بوالص الشحن تلقائياً وتحصيل الدفع عند الاستلام.',
+    category: 'bangladesh_compliance',
+    appType: 'logistics',
+    requiredCurrency: 'BDT',
+    icon: 'pathao',
+    version: '2.3.0',
+    downloadSize: '4.1 MB',
+    author: 'Pathao / Maqder Logistics',
+    rating: 4.91,
+    reviewsCount: 96,
+    pricingTier: 'free',
+    badge: 'Nationwide Courier',
+    featuresEn: [
+      'Auto-create Pathao consignment order from 1-click on Invoice/Order',
+      'Automatic Cash on Delivery (COD) amount calculation & reconciliation',
+      'Live parcel tracking with status milestones on customer receipt',
+      'Coverage across all 64 districts and upazilas in Bangladesh'
+    ],
+    featuresAr: [
+      'إنشاء بوليصة شحن Pathao بنقرة واحدة من الفاتورة',
+      'حساب وتحصيل مبالغ الدفع عند الاستلام COD وتوريدها',
+      'تتبع حي للطرود وتحديث مراحل التوصيل على إيصال العميل',
+      'تغطية كاملة لجميع محافظات بنغلاديش'
+    ],
+    configSchema: [
+      { key: 'clientId', labelEn: 'Pathao Client ID', labelAr: 'معرف العميل Client ID', type: 'string' },
+      { key: 'clientSecret', labelEn: 'Pathao Client Secret', labelAr: 'الرمز السري Client Secret', type: 'password' },
+      { key: 'username', labelEn: 'Pathao Account Email', labelAr: 'البريد الإلكتروني لحساب Pathao', type: 'string' },
+      { key: 'password', labelEn: 'Pathao Password', labelAr: 'كلمة المرور', type: 'password' },
+      { key: 'storeId', labelEn: 'Default Pickup Store ID', labelAr: 'معرف المتجر الافتراضي للاستلام', type: 'string' }
+    ]
+  },
+  {
+    appId: 'steadfast_courier_api',
+    nameEn: 'SteadFast Courier (Bangladesh)',
+    nameAr: 'شحن SteadFast (بنغلاديش)',
+    taglineEn: 'Next-day parcel pickup, automated consignment booking, and automated COD remittance.',
+    taglineAr: 'استلام الطرود في اليوم التالي وتوليد شحنات تلقائي وتوريد COD مباشر.',
+    descriptionEn: 'Fast e-commerce parcel pickup, automated consignment booking directly from sales orders, automated tracking updates, and automated COD remittance management in Bangladesh.',
+    descriptionAr: 'شحن طرود التجارة الإلكترونية مع ربط مباشر بالطلبات وتحديثات التتبع الفورية.',
+    category: 'bangladesh_compliance',
+    appType: 'logistics',
+    requiredCurrency: 'BDT',
+    icon: 'steadfast',
+    version: '1.9.0',
+    downloadSize: '3.0 MB',
+    author: 'Steadfast Courier / Maqder',
+    rating: 4.87,
+    reviewsCount: 73,
+    pricingTier: 'free',
+    badge: 'Next-Day Express',
+    featuresEn: [
+      '1-Click consignment booking directly from invoice',
+      'Real-time parcel delivery status sync',
+      'Instant COD remittance tracking into company ledger'
+    ],
+    featuresAr: [
+      'حجز الشحنات بنقرة واحدة من الفاتورة',
+      'مزامنة حالة توصيل الطرود في الوقت الحقيقي',
+      'تسجيل دفعات التحصيل عند الاستلام في الحسابات تلقائياً'
+    ],
+    configSchema: [
+      { key: 'apiKey', labelEn: 'SteadFast API Key', labelAr: 'مفتاح API', type: 'string' },
+      { key: 'secretKey', labelEn: 'SteadFast Secret Key', labelAr: 'الرمز السري Secret Key', type: 'password' }
+    ]
+  },
+  {
+    appId: 'redx_logistics_bd',
+    nameEn: 'RedX Express Delivery (Bangladesh)',
+    nameAr: 'توصيل RedX إكسبريس (بنغلاديش)',
+    taglineEn: 'Robi-backed logistics and supply chain delivery network across all 64 districts in Bangladesh.',
+    taglineAr: 'شبكة شحن وتوصيل الطرود وسلسلة الإمداد المدعومة من Robi في جميع محافظات بنغلاديش.',
+    descriptionEn: 'Enterprise parcel shipping, door-to-door delivery, and pickup dispatch in Bangladesh with automated AWB generation and delivery status sync.',
+    descriptionAr: 'شحن الطرود للشركات والتوصيل من الباب إلى الباب مع توليد بوالص AWB تلقائياً.',
+    category: 'bangladesh_compliance',
+    appType: 'logistics',
+    requiredCurrency: 'BDT',
+    icon: 'redx',
+    version: '2.0.0',
+    downloadSize: '3.4 MB',
+    author: 'RedX Logistics / Maqder',
+    rating: 4.85,
+    reviewsCount: 61,
+    pricingTier: 'free',
+    badge: 'Enterprise Logistics',
+    featuresEn: [
+      'Enterprise pickup dispatch scheduling',
+      'Door-to-door delivery with OTP delivery confirmation',
+      'Full API webhook integration for status updates'
+    ],
+    featuresAr: [
+      'جدولة مواعيد استلام الشحنات من المستودع',
+      'توصيل حتى باب العميل مع تأكيد برمز OTP',
+      'ربط كامل عبر Webhook لتحديث حالات الشحن'
+    ],
+    configSchema: [
+      { key: 'apiToken', labelEn: 'RedX API Token', labelAr: 'رمز RedX API Token', type: 'password' },
+      { key: 'pickupHubId', labelEn: 'Default Pickup Hub ID', labelAr: 'معرف مركز الاستلام Pickup Hub', type: 'string' }
+    ]
+  },
+  {
+    appId: 'bangladesh_sms_gateway',
+    nameEn: 'Bangladesh SMS Gateway (Greenweb / ElitBuzz)',
+    nameAr: 'بوابة الرسائل النصية SMS (بنغلاديش)',
+    taglineEn: 'High-speed local BTRC-approved SMS for OTPs, Mushak invoices, and customer receipts (+880).',
+    taglineAr: 'إرسال رسائل نصية معتمدة من هيئة الاتصالات البنغلاديشية BTRC لفواتير Mushak ورموز OTP.',
+    descriptionEn: 'High-speed local BTRC-approved SMS for OTPs, Mushak VAT invoices, POS customer receipts, and subscription renewal alerts across Grameenphone, Robi, Banglalink, and Teletalk.',
+    descriptionAr: 'إرسال إشعارات الفواتير وإيصالات البيع عبر الرسائل النصية القصيرة لجميع شبكات الاتصالات في بنغلاديش.',
+    category: 'bangladesh_compliance',
+    appType: 'automation_comm',
+    requiredCurrency: 'BDT',
+    icon: 'sms',
+    version: '2.4.0',
+    downloadSize: '2.5 MB',
+    author: 'Maqder Communication Hub',
+    rating: 4.93,
+    reviewsCount: 105,
+    pricingTier: 'free',
+    badge: 'BTRC Masked',
+    featuresEn: [
+      'Supports Greenweb, ElitBuzz, and BD Smart SMS gateways',
+      'Masked and non-masked SMS delivery support',
+      'Automatic Mushak invoice download link sent to customer phone (+880)',
+      'Gym & subscription expiry SMS reminders'
+    ],
+    featuresAr: [
+      'دعم بوابات Greenweb و ElitBuzz و BD Smart SMS',
+      'دعم الرسائل باسم المرسل Masked وبدونه',
+      'إرسال رابط تحميل فاتورة Mushak تلقائياً لرقم العميل',
+      'تنبيهات انتهاء اشتراكات النوادي والخدمات'
+    ],
+    configSchema: [
+      { key: 'provider', labelEn: 'SMS Provider', labelAr: 'مزود الخدمة', type: 'select', defaultValue: 'greenweb', options: [{ value: 'greenweb', labelEn: 'Greenweb Bangladesh', labelAr: 'جرين ويب بنغلاديش' }, { value: 'elitbuzz', labelEn: 'ElitBuzz Technologies', labelAr: 'إليت باظ' }, { value: 'bd_smart_sms', labelEn: 'BD Smart SMS', labelAr: 'بي دي سمارت' }] },
+      { key: 'apiKey', labelEn: 'API Key / Token', labelAr: 'مفتاح API', type: 'password' },
+      { key: 'senderId', labelEn: 'Approved Sender ID / Masking', labelAr: 'اسم المرسل المعتمد', type: 'string', placeholder: 'e.g. MAQDER' }
+    ]
+  },
+  {
+    appId: 'nbr_mushak_registers',
+    nameEn: 'NBR Mushak 6.1 / 6.2 / 9.1 VAT Return Suite',
+    nameAr: 'سجلات ضريبة NBR ونموذج Mushak 9.1 (بنغلاديش)',
+    taglineEn: 'VAT Purchase (6.1), Sales (6.2), Sub-contract (6.4), Branch Transfer (6.5), and Monthly VAT Return (9.1).',
+    taglineAr: 'سجل المشتريات 6.1 وسجل المبيعات 6.2 والتحويل بين الفروع 6.5 وإقرار ضريبة القيمة المضافة 9.1.',
+    descriptionEn: 'Automated Bangladesh National Board of Revenue VAT registers: Purchase Register (Mushak 6.1), Sales Register (Mushak 6.2), Sub-contract Register (Mushak 6.4), Branch Transfer (Mushak 6.5), and Monthly VAT Return (Mushak 9.1) generator for audits.',
+    descriptionAr: 'توليد تلقائي لكافة سجلات ضريبة القيمة المضافة الرسمية ونموذج الإقرار الضريبي الشهري Mushak 9.1 المعتمد من هيئة الإيرادات.',
+    category: 'bangladesh_compliance',
+    appType: 'bangladesh_compliance',
+    requiredCurrency: 'BDT',
+    icon: 'zatca',
+    version: '1.5.0',
+    downloadSize: '5.4 MB',
+    author: 'Maqder Bangladesh Tax & Audit',
+    rating: 4.96,
+    reviewsCount: 89,
+    pricingTier: 'free',
+    badge: 'NBR Audit Ready',
+    featuresEn: [
+      'Automatic compilation of Mushak 6.1 (Purchase Book)',
+      'Automatic compilation of Mushak 6.2 (Sales Book)',
+      'Export official Mushak 9.1 monthly VAT return spreadsheet',
+      'Reconciliation of input tax credit against output VAT'
+    ],
+    featuresAr: [
+      'تجميع آلي لسجل المشتريات الضريبية Mushak 6.1',
+      'تجميع آلي لسجل المبيعات الضريبية Mushak 6.2',
+      'تصدير إقرار ضريبة القيمة المضافة الشهري الرسمي Mushak 9.1',
+      'مطابقة رصيد ضريبة المدخلات مع ضريبة المخرجات'
+    ],
+    configSchema: [
+      { key: 'circleOffice', labelEn: 'NBR VAT Circle Office', labelAr: 'دائرة ضريبة القيمة المضافة', type: 'string', placeholder: 'e.g. Circle-12, Dhanmondi' },
+      { key: 'commissionerate', labelEn: 'VAT Commissionerate', labelAr: 'المفوضية الضريبية', type: 'string', placeholder: 'e.g. Dhaka South' },
+      { key: 'binNumber', labelEn: '13-digit BIN Number', labelAr: 'رقم التعريف التجاري BIN (13 رقماً)', type: 'string' }
+    ]
+  },
   // ══════════════════════════════════════════════════════════════════════════════
   // ── PAKISTAN FBR DIGITAL INVOICING ───────────────────────────────────────────
   // ══════════════════════════════════════════════════════════════════════════════

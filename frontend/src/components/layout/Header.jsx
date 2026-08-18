@@ -444,6 +444,22 @@ export default function Header() {
                   <HeadlessMenu.Item>
                     {({ active }) => (
                       <button
+                        onClick={() => navigate('/app/dashboard/profile')}
+                        className={`${
+                          active ? 'bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'
+                        } flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors`}
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+                          <Building2 className="h-4 w-4" />
+                        </span>
+                        <span>{language === 'ar' ? 'ملف المنشأة والشركة' : 'Company Profile'}</span>
+                      </button>
+                    )}
+                  </HeadlessMenu.Item>
+
+                  <HeadlessMenu.Item>
+                    {({ active }) => (
+                      <button
                         onClick={() => navigate('/app/dashboard/settings')}
                         className={`${
                           active ? 'bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'

@@ -250,6 +250,45 @@ const ICONS = {
       <rect x="46" y="25" width="4" height="14" rx="2" fill="#FED7AA" />
     </Tile>
   ),
+  bkash: (uid, className) => (
+    <Tile uid={uid} className={className} from="#E2136E" to="#9F074A" glow="#D12053" stroke="#FBCFE8">
+      <circle cx="32" cy="32" r="15" fill="#FFFFFF" />
+      <path d="M25 38L32 20L39 38L32 33L25 38Z" fill="#E2136E" />
+      <path d="M32 20L36 30L32 28Z" fill="#F43F5E" />
+    </Tile>
+  ),
+  nagad: (uid, className) => (
+    <Tile uid={uid} className={className} from="#F7941D" to="#ED1C24" glow="#EA580C" stroke="#FED7AA">
+      <circle cx="32" cy="32" r="14" fill="#FFFFFF" />
+      <path d="M26 36C24 30 26 24 32 20C34 26 38 27 38 31C38 35 34 38 30 38C28 38 27 37 26 36Z" fill="#ED1C24" />
+      <circle cx="33" cy="28" r="3" fill="#F7941D" />
+    </Tile>
+  ),
+  pathao: (uid, className) => (
+    <Tile uid={uid} className={className} from="#E02020" to="#8B0000" glow="#DC2626" stroke="#FECACA">
+      <circle cx="32" cy="32" r="14" fill="#FFFFFF" />
+      <path d="M26 40V24H33C36 24 38 26 38 29C38 32 36 34 33 34H29V40H26Z" fill="#E02020" />
+      <path d="M37 25L42 22L40 27" stroke="#E02020" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Tile>
+  ),
+  steadfast: (uid, className) => (
+    <Tile uid={uid} className={className} from="#0B63E5" to="#003585" glow="#0284C7" stroke="#BAE6FD">
+      <rect x="18" y="20" width="28" height="24" rx="5" fill="#FFFFFF" />
+      <path d="M24 32L30 26V30H38V34H30V38L24 32Z" fill="#0B63E5" />
+    </Tile>
+  ),
+  sslcommerz: (uid, className) => (
+    <Tile uid={uid} className={className} from="#023047" to="#219EBC" glow="#0284C7" stroke="#8ECAE6">
+      <rect x="16" y="20" width="32" height="24" rx="5" fill="#FFFFFF" />
+      <path d="M22 30C22 27 26 26 32 26C38 26 42 28 42 30C42 34 22 32 22 36C22 38 26 39 32 39C38 39 42 37 42 35" stroke="#023047" strokeWidth="2.8" strokeLinecap="round" />
+    </Tile>
+  ),
+  redx: (uid, className) => (
+    <Tile uid={uid} className={className} from="#E60000" to="#990000" glow="#DC2626" stroke="#FECACA">
+      <rect x="16" y="18" width="32" height="28" rx="6" fill="#18181B" />
+      <path d="M23 24L41 40M41 24L23 40" stroke="#EF4444" strokeWidth="4.5" strokeLinecap="round" />
+    </Tile>
+  ),
 }
 
 const APP_ID_MAP = {
@@ -266,6 +305,19 @@ const APP_ID_MAP = {
   etimad_procurement: 'etimad',
   pakistan_fbr_einvoicing: 'fbr',
   bangladesh_nbr_einvoicing: 'zatca',
+  nbr_mushak_registers: 'zatca',
+  bkash_payment_gateway: 'bkash',
+  bkash: 'bkash',
+  nagad_payment_gateway: 'nagad',
+  nagad: 'nagad',
+  pathao_courier_logistics: 'pathao',
+  pathao: 'pathao',
+  steadfast_courier_api: 'steadfast',
+  steadfast: 'steadfast',
+  sslcommerz_bd_gateway: 'sslcommerz',
+  sslcommerz: 'sslcommerz',
+  redx_logistics_bd: 'redx',
+  redx: 'redx',
   smsa_express: 'smsa',
   aramex_shipping: 'aramex',
   jnt_express: 'jnt',
@@ -289,6 +341,7 @@ const APP_ID_MAP = {
   delivery_platforms: 'hungerstation',
   email_suite: 'email',
   sms_marketing: 'sms',
+  bangladesh_sms_gateway: 'sms',
   whatsapp_cloud_auto: 'whatsapp',
 }
 

@@ -103,7 +103,7 @@ const CATEGORIES = [
   { id: 'all', en: 'All', ar: 'الكل' },
   { id: 'industry_verticals', en: 'Verticals', ar: 'القطاعات' },
   { id: 'saudi_compliance', en: 'Saudi Tax', ar: 'ضريبة السعودية', currencies: ['SAR'] },
-  { id: 'bangladesh_compliance', en: 'BD Tax', ar: 'ضريبة BD', currencies: ['BDT'] },
+  { id: 'bangladesh_compliance', en: 'BD Apps & Tax', ar: 'تطبيقات وضرائب BD', currencies: ['BDT'] },
   { id: 'pakistan_compliance', en: 'Pakistan Tax', ar: 'ضريبة باكستان', currencies: ['PKR'] },
   { id: 'manufacturing', en: 'Manufacturing', ar: 'التصنيع' },
   { id: 'pos_retail', en: 'Point of Sale', ar: 'نقاط البيع' },
