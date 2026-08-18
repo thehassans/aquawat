@@ -6,8 +6,8 @@ import { CheckCircle, XCircle, Search, Clock, Users, Calendar } from 'lucide-rea
 import api from '../../lib/api'
 
 export default function GymCheckin() {
-  const { tenant } = useSelector(s => s.auth)
-  const language = tenant?.settings?.language || 'en'
+  const { language = 'en' } = useSelector((state) => state.ui || {})
+  const { tenant } = useSelector((state) => state.auth || {})
   const isAr = language === 'ar'
   
   const [identifier, setIdentifier] = useState('')

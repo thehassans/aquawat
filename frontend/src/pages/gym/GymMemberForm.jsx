@@ -8,8 +8,8 @@ import { ArrowLeft, ArrowRight, Camera, Save, Download, QrCode } from 'lucide-re
 import { downloadGymMemberCardPdf } from '../../lib/gymMemberCardPdf'
 
 export default function GymMemberForm() {
-  const { tenant } = useSelector(s => s.auth)
-  const language = tenant?.settings?.language || 'en'
+  const { language = 'en' } = useSelector((state) => state.ui || {})
+  const { tenant } = useSelector((state) => state.auth || {})
   const isAr = language === 'ar'
   const { id } = useParams()
   const navigate = useNavigate()

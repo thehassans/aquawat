@@ -33,19 +33,20 @@ function MiniLineChart({ data, color = '#10b981', width = 280, height = 80 }) {
 }
 
 export default function GymMeasurements() {
-  const { tenant } = useSelector((s) => s.auth);
-  const language = tenant?.settings?.language || 'en';
+  const { language = 'en' } = useSelector((state) => state.ui || {})
+  const { tenant } = useSelector((state) => state.auth || {})
   const isAr = language === 'ar';
   const queryClient = useQueryClient();
 
   const [selectedMember, setSelectedMember] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // Mock Members Fetch
-  const { data: members = [] } = useQuery({
-    queryKey: ['gym', 'members-list'],
-    queryFn: async () => [{ id: '1', nameEn: 'John Doe', nameAr: 'جون دو' }, { id: '2', nameEn: 'Sarah Smith', nameAr: 'سارة سميث' }]
+  // Fetch real members from gym API
+  const { data: membersData } = useQuery({
+    queryKey: ['gym-members-select'],
+    queryFn: () => api.get('/api/gym/members?limit=100').then(res => res.data.data?.docs || res.data.data || [])
   });
+  const members = membersData || [];
 
   const { data: measurements = [], isLoading } = useQuery({
     queryKey: ['gym', 'measurements', selectedMember],

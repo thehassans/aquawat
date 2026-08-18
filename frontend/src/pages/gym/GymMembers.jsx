@@ -10,8 +10,8 @@ import { enUS, ar } from 'date-fns/locale'
 import { downloadGymMemberCardPdf } from '../../lib/gymMemberCardPdf'
 
 export default function GymMembers() {
-  const { tenant } = useSelector(s => s.auth)
-  const language = tenant?.settings?.language || 'en'
+  const { language = 'en' } = useSelector((state) => state.ui || {})
+  const { tenant } = useSelector((state) => state.auth || {})
   const isAr = language === 'ar'
   const navigate = useNavigate()
 

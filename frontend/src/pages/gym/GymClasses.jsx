@@ -7,8 +7,8 @@ import api from '../../lib/api'
 import { Calendar, Plus, Users, Clock, MapPin, Edit, Trash2, X, ChevronRight, ChevronLeft } from 'lucide-react'
 
 export default function GymClasses() {
-  const { tenant } = useSelector(s => s.auth)
-  const language = tenant?.settings?.language || 'en'
+  const { language = 'en' } = useSelector((state) => state.ui || {})
+  const { tenant } = useSelector((state) => state.auth || {})
   const isAr = language === 'ar'
   const queryClient = useQueryClient()
 

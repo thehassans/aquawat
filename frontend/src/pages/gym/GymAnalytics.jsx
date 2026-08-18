@@ -6,8 +6,8 @@ import { TrendingUp, Users, CalendarDays, Dumbbell, Award, CreditCard, Activity 
 import api from '../../lib/api';
 
 export default function GymAnalytics() {
-  const { tenant } = useSelector((s) => s.auth);
-  const language = tenant?.settings?.language || 'en';
+  const { language = 'en' } = useSelector((state) => state.ui || {})
+  const { tenant } = useSelector((state) => state.auth || {})
   const isAr = language === 'ar';
   const currency = tenant?.settings?.currency || 'SAR';
 
