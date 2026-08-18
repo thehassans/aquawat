@@ -72,6 +72,7 @@ import {
   getSubscriptionState,
   humanizeAppId,
 } from '../lib/subscriptionState'
+import RichTextNoteField from '../components/invoices/RichTextNoteField'
 
 const BUSINESS_TYPE_ICONS = {
   trading: Store,
@@ -2261,25 +2262,23 @@ export default function Profile() {
                   </div>
 
                   {/* Default Terms and Notes */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="label">{language === 'ar' ? 'الشروط والأحكام الافتراضية للفواتير' : 'Default Terms & Conditions'}</label>
-                      <textarea
-                        {...register('settings.termsAndConditions')}
-                        rows={3}
-                        className="input"
-                        placeholder={language === 'ar' ? '• البضاعة المباعة لا ترد ولا تستبدل بعد 7 أيام\n• الدفع خلال 30 يوماً من تاريخ الفاتورة' : '• Payment due within 30 days\n• Goods once sold cannot be returned'}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">{language === 'ar' ? 'الملاحظات الافتراضية للفواتير' : 'Default Invoice Notes'}</label>
-                      <textarea
-                        {...register('settings.notes')}
-                        rows={3}
-                        className="input"
-                        placeholder={language === 'ar' ? 'شكراً لتعاملكم معنا' : 'Thank you for your business'}
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <RichTextNoteField
+                      label={language === 'ar' ? 'الشروط والأحكام الافتراضية للفواتير' : 'Default Terms & Conditions'}
+                      value={watch('settings.termsAndConditions')}
+                      onChange={(val) => setValue('settings.termsAndConditions', val, { shouldDirty: true })}
+                      placeholder={language === 'ar' ? '• البضاعة المباعة لا ترد ولا تستبدل بعد 7 أيام\n• الدفع خلال 30 يوماً من تاريخ الفاتورة' : '• Payment due within 30 days\n• Goods once sold cannot be returned'}
+                      rows={4}
+                      language={language}
+                    />
+                    <RichTextNoteField
+                      label={language === 'ar' ? 'الملاحظات الافتراضية للفواتير' : 'Default Invoice Notes'}
+                      value={watch('settings.notes')}
+                      onChange={(val) => setValue('settings.notes', val, { shouldDirty: true })}
+                      placeholder={language === 'ar' ? 'شكراً لتعاملكم معنا' : 'Thank you for your business'}
+                      rows={4}
+                      language={language}
+                    />
                   </div>
                 </div>
 

@@ -2,6 +2,8 @@ import React from 'react'
 import NaturalStamp from './NaturalStamp'
 import { localizeSecondaryText } from '../../lib/invoiceLanguage'
 
+import { formatRichText } from '../../lib/formatRichText'
+
 export default function DocumentExtras({ invoice, invoiceBranding = {}, language = 'en', bilingual = false, hideSubject = false, signatoryFromDocumentOnly = false }) {
   const isAr = language === 'ar'
   const sectionTitle = (english, arabic) => (bilingual ? `${english} / ${localizeSecondaryText(arabic)}` : (isAr ? arabic : english))
@@ -48,12 +50,12 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
             </h4>
             {bilingual ? (
               <>
-                {invoice?.subject && <p className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed">{invoice.subject}</p>}
-                {invoice?.subjectAr && <p dir="rtl" className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed mt-1">{invoice.subjectAr}</p>}
+                {invoice?.subject && <p className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed">{formatRichText(invoice.subject)}</p>}
+                {invoice?.subjectAr && <p dir="rtl" className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed mt-1">{formatRichText(invoice.subjectAr)}</p>}
               </>
             ) : (
               <p dir={isAr ? 'rtl' : 'ltr'} className="text-sm font-medium text-gray-800 whitespace-pre-wrap leading-relaxed">
-                {isAr ? (invoice?.subjectAr || invoice?.subject) : (invoice?.subject || invoice?.subjectAr)}
+                {formatRichText(isAr ? (invoice?.subjectAr || invoice?.subject) : (invoice?.subject || invoice?.subjectAr))}
               </p>
             )}
           </div>
@@ -66,13 +68,13 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
             </h4>
             {bilingual ? (
               <>
-                {invoice?.notes && <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">{invoice.notes}</p>}
-                {invoice?.notesAr && <p dir="rtl" className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed mt-1">{invoice.notesAr}</p>}
+                {invoice?.notes && <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{formatRichText(invoice.notes)}</div>}
+                {invoice?.notesAr && <div dir="rtl" className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed mt-1">{formatRichText(invoice.notesAr)}</div>}
               </>
             ) : (
-              <p dir={isAr ? 'rtl' : 'ltr'} className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
-                {isAr ? (invoice?.notesAr || invoice?.notes) : (invoice?.notes || invoice?.notesAr)}
-              </p>
+              <div dir={isAr ? 'rtl' : 'ltr'} className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {formatRichText(isAr ? (invoice?.notesAr || invoice?.notes) : (invoice?.notes || invoice?.notesAr))}
+              </div>
             )}
           </div>
         )}
@@ -84,13 +86,13 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
             </h4>
             {bilingual ? (
               <>
-                {invoice?.termsAndConditions && <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">{invoice.termsAndConditions}</p>}
-                {invoice?.termsAndConditionsAr && <p dir="rtl" className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed mt-1">{invoice.termsAndConditionsAr}</p>}
+                {invoice?.termsAndConditions && <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{formatRichText(invoice.termsAndConditions)}</div>}
+                {invoice?.termsAndConditionsAr && <div dir="rtl" className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed mt-1">{formatRichText(invoice.termsAndConditionsAr)}</div>}
               </>
             ) : (
-              <p dir={isAr ? 'rtl' : 'ltr'} className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
-                {isAr ? (invoice?.termsAndConditionsAr || invoice?.termsAndConditions) : (invoice?.termsAndConditions || invoice?.termsAndConditionsAr)}
-              </p>
+              <div dir={isAr ? 'rtl' : 'ltr'} className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {formatRichText(isAr ? (invoice?.termsAndConditionsAr || invoice?.termsAndConditions) : (invoice?.termsAndConditions || invoice?.termsAndConditionsAr))}
+              </div>
             )}
           </div>
         )}

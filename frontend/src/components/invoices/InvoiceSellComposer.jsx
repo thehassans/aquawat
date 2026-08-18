@@ -26,6 +26,7 @@ import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uo
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { normalizeProductType, productPickerLabel } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
+import RichTextNoteField from './RichTextNoteField'
 
 const getEmptyLine = (tenant) => ({
   productId: '',
@@ -1712,13 +1713,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}</label>
-                    <button type="button" onClick={() => { setShowTermsPanel(false); setValue('termsAndConditions', '') }} className="text-xs font-semibold text-slate-500 hover:text-red-600">
-                      {language === 'ar' ? 'إزالة' : 'Remove'}
-                    </button>
-                  </div>
-                  <textarea {...register('termsAndConditions')} className={fieldControlClass} rows={5} placeholder={language === 'ar' ? 'أدخل الشروط والأحكام...' : 'Enter terms and conditions...'} />
+                  <RichTextNoteField
+                    label={language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}
+                    value={watch('termsAndConditions')}
+                    onChange={(val) => setValue('termsAndConditions', val, { shouldDirty: true })}
+                    onRemove={() => { setShowTermsPanel(false); setValue('termsAndConditions', '') }}
+                    placeholder={language === 'ar' ? 'أدخل الشروط والأحكام... حدد النص واضغط على عريض أو تمييز' : 'Enter terms and conditions... select text and click Bold or Highlight'}
+                    rows={5}
+                    language={language}
+                    fieldControlClass={fieldControlClass}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1731,13 +1735,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
-                    <button type="button" onClick={() => { setShowNotesPanel(false); setValue('notes', '') }} className="text-xs font-semibold text-slate-500 hover:text-red-600">
-                      {language === 'ar' ? 'إزالة' : 'Remove'}
-                    </button>
-                  </div>
-                  <textarea {...register('notes')} className={fieldControlClass} rows={4} />
+                  <RichTextNoteField
+                    label={language === 'ar' ? 'ملاحظات' : 'Notes'}
+                    value={watch('notes')}
+                    onChange={(val) => setValue('notes', val, { shouldDirty: true })}
+                    onRemove={() => { setShowNotesPanel(false); setValue('notes', '') }}
+                    placeholder={language === 'ar' ? 'أدخل ملاحظات الفاتورة...' : 'Enter invoice notes...'}
+                    rows={4}
+                    language={language}
+                    fieldControlClass={fieldControlClass}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>

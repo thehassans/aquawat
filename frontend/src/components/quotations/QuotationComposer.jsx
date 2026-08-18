@@ -20,6 +20,7 @@ import Select from 'react-select'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { normalizeProductType, productPickerLabel } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
+import RichTextNoteField from '../invoices/RichTextNoteField'
 
 const getEmptyLine = (tenant) => ({
   productId: '',
@@ -1131,11 +1132,15 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             <AnimatePresence>
               {showTermsPanel && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-5 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
-                  <div className="mb-3 flex items-center justify-between">
-                    <label className="label">{language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}</label>
-                    <button type="button" onClick={() => { setShowTermsPanel(false); setValue('termsAndConditions', '') }} className="text-xs font-semibold text-slate-500 hover:text-red-600">{language === 'ar' ? 'إزالة' : 'Remove'}</button>
-                  </div>
-                  <textarea {...register('termsAndConditions')} rows="5" className="input min-h-[140px]" placeholder={language === 'ar' ? 'أدخل الشروط والأحكام...' : 'Enter terms and conditions...'} />
+                  <RichTextNoteField
+                    label={language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}
+                    value={watch('termsAndConditions')}
+                    onChange={(val) => setValue('termsAndConditions', val, { shouldDirty: true })}
+                    onRemove={() => { setShowTermsPanel(false); setValue('termsAndConditions', '') }}
+                    placeholder={language === 'ar' ? 'أدخل الشروط والأحكام... حدد النص واضغط على عريض أو تمييز' : 'Enter terms and conditions... select text and click Bold or Highlight'}
+                    rows={5}
+                    language={language}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1143,11 +1148,15 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             <AnimatePresence>
               {showNotesPanel && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-5 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
-                  <div className="mb-3 flex items-center justify-between">
-                    <label className="label">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
-                    <button type="button" onClick={() => { setShowNotesPanel(false); setValue('notes', '') }} className="text-xs font-semibold text-slate-500 hover:text-red-600">{language === 'ar' ? 'إزالة' : 'Remove'}</button>
-                  </div>
-                  <textarea {...register('notes')} rows="4" className="input min-h-[120px]" />
+                  <RichTextNoteField
+                    label={language === 'ar' ? 'ملاحظات' : 'Notes'}
+                    value={watch('notes')}
+                    onChange={(val) => setValue('notes', val, { shouldDirty: true })}
+                    onRemove={() => { setShowNotesPanel(false); setValue('notes', '') }}
+                    placeholder={language === 'ar' ? 'أدخل ملاحظات عرض السعر...' : 'Enter quotation notes...'}
+                    rows={4}
+                    language={language}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>

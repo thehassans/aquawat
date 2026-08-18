@@ -13,6 +13,7 @@ import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, toEasternArabicNu
 import { LETTERHEAD_TEMPLATE_ID, resolveQuotationTemplateId } from './invoiceTemplates'
 import { formatProductTypeBilingual } from './productType'
 import { autoTranslateText } from './builtInTranslator'
+import { stripRichMarkup } from './formatRichText'
 
 const sanitizeFileName = (value) => {
   return String(value || 'invoice')
@@ -1644,7 +1645,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   if (invoice?.notes) {
     setBodyFont(Math.max(bodyFontSize - 1, 8), 'bold')
     doc.setTextColor(51, 65, 85)
-    const noteLines = doc.splitTextToSize(shape(invoice.notes), amountWordsW - 24)
+    const noteLines = doc.splitTextToSize(shape(stripRichMarkup(invoice.notes)), amountWordsW - 24)
     doc.text(noteLines, isRtl ? amountWordsLeft + amountWordsW - 12 : amountWordsLeft + 12, totalsTop + 68, { align, maxWidth: amountWordsW - 24 })
   }
 
@@ -1721,7 +1722,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   if (invoice?.termsAndConditions) {
     const tcY = extraBoxesY
     const tcW = contentW
-    const tcText = shape(invoice.termsAndConditions)
+    const tcText = shape(stripRichMarkup(invoice.termsAndConditions))
     setBodyFont(Math.max(bodyFontSize - 2, 7.5), 'normal')
     const tcLines = doc.splitTextToSize(tcText, tcW - 24)
     const tcHeight = Math.max(40, tcLines.length * (Math.max(bodyFontSize - 1, 8) * 1.3) + 28)

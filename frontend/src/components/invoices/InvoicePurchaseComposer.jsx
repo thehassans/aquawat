@@ -24,6 +24,7 @@ import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 import { normalizeProductType, productPickerLabel } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
+import RichTextNoteField from './RichTextNoteField'
 import PurchaseReceivingLedger from '../../pages/purchases/PurchaseReceivingLedger'
 import { PURCHASES_PATH, formatDay, ghostBtn, primaryBtn } from '../../pages/purchases/purchasesUi'
 
@@ -1229,13 +1230,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <label className="label font-semibold">{language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}</label>
-                    <button type="button" onClick={() => handleToggleTerms(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
-                      {language === 'ar' ? 'إزالة' : 'Remove'}
-                    </button>
-                  </div>
-                  <textarea {...register('termsAndConditions')} className="input" rows={5} placeholder={language === 'ar' ? 'أدخل الشروط والأحكام...' : 'Enter terms and conditions...'} />
+                  <RichTextNoteField
+                    label={language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}
+                    value={watch('termsAndConditions')}
+                    onChange={(val) => setValue('termsAndConditions', val, { shouldDirty: true })}
+                    onRemove={() => handleToggleTerms(false)}
+                    placeholder={language === 'ar' ? 'أدخل الشروط والأحكام... حدد النص واضغط على عريض أو تمييز' : 'Enter terms and conditions... select text and click Bold or Highlight'}
+                    rows={5}
+                    language={language}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1248,13 +1251,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <label className="label font-semibold">{language === 'ar' ? 'ملاحظات' : 'Notes'}</label>
-                    <button type="button" onClick={() => handleToggleNotes(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
-                      {language === 'ar' ? 'إزالة' : 'Remove'}
-                    </button>
-                  </div>
-                  <textarea {...register('notes')} className="input" rows={4} placeholder={language === 'ar' ? 'أدخل ملاحظات إضافية...' : 'Enter additional notes...'} />
+                  <RichTextNoteField
+                    label={language === 'ar' ? 'ملاحظات' : 'Notes'}
+                    value={watch('notes')}
+                    onChange={(val) => setValue('notes', val, { shouldDirty: true })}
+                    onRemove={() => handleToggleNotes(false)}
+                    placeholder={language === 'ar' ? 'أدخل ملاحظات إضافية...' : 'Enter additional notes...'}
+                    rows={4}
+                    language={language}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
