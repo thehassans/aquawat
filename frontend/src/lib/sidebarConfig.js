@@ -75,7 +75,8 @@ import {
   CalendarRange,
   Dumbbell,
   Flame,
-  Lock
+  Lock,
+  Award
 } from 'lucide-react'
 
 /**
@@ -163,6 +164,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/gym/kiosk', icon: QrCode, label: language === 'ar' ? 'كشك الدخول الذكي' : 'Access Kiosk' },
         { path: '/app/dashboard/gym/plans', icon: CreditCard, label: language === 'ar' ? 'باقات الاشتراك' : 'Membership Plans' },
         { path: '/app/dashboard/gym/classes', icon: Calendar, label: language === 'ar' ? 'الحصص الجماعية' : 'Group Classes' },
+        { path: '/app/dashboard/gym/pt-sessions', icon: Award, label: language === 'ar' ? 'التدريب الشخصي PT' : 'Personal Training' },
         { path: '/app/dashboard/gym/assessments', icon: Flame, label: language === 'ar' ? 'قياسات InBody' : 'InBody Assessments' },
         { path: '/app/dashboard/gym/lockers', icon: Lock, label: language === 'ar' ? 'إدارة الخزائن' : 'Lockers Matrix' },
       ]

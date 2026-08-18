@@ -6,6 +6,7 @@ import GymAttendance from '../models/GymAttendance.js';
 import GymClass from '../models/GymClass.js';
 import GymMeasurement from '../models/GymMeasurement.js';
 import GymLocker from '../models/GymLocker.js';
+import GymPTSession from '../models/GymPTSession.js';
 
 // ─── DASHBOARD STATS ──────────────────────────────────────────────────────────
 export const getDashboardStats = async (req, res) => {
@@ -959,3 +960,109 @@ export const releaseLocker = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+// ─── PERSONAL TRAINING (PT) SESSIONS ──────────────────────────────────────────
+export const getPTSessions = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { memberId, status } = req.query;
+
+    const query = { tenantId };
+    if (memberId) query.memberId = memberId;
+    if (status) query.status = status;
+
+    const sessions = await GymPTSession.find(query)
+      .sort({ sessionDate: -1, sessionTime: 1 })
+      .populate('memberId', 'memberNumber nameEn nameAr phone photoUrl');
+
+    res.json({ success: true, sessions });
+  } catch (error) {
+    console.error('Error fetching PT sessions:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const createPTSession = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const {
+      memberId,
+      trainerName,
+      sessionDate = new Date(),
+      sessionTime,
+      durationMinutes = 60,
+      workoutFocus = 'full_body',
+      trainerCommission = 0,
+      currency = 'SAR',
+      trainerNotes = '',
+    } = req.body;
+
+    if (!memberId || !trainerName || !sessionTime) {
+      return res.status(400).json({ success: false, error: 'Member, Trainer, and Session Time are required' });
+    }
+
+    const session = new GymPTSession({
+      tenantId,
+      memberId,
+      trainerName,
+      sessionDate: new Date(sessionDate),
+      sessionTime,
+      durationMinutes: Number(durationMinutes),
+      workoutFocus,
+      trainerCommission: Number(trainerCommission),
+      currency,
+      trainerNotes,
+      status: 'scheduled',
+    });
+
+    await session.save();
+
+    // Deduct 1 PT session from active subscription if available
+    const member = await GymMember.findOne({ _id: memberId, tenantId }).populate('activeSubscriptionId');
+    if (member?.activeSubscriptionId && member.activeSubscriptionId.remainingPtSessions > 0) {
+      member.activeSubscriptionId.remainingPtSessions -= 1;
+      await member.activeSubscriptionId.save();
+    }
+
+    res.status(201).json({ success: true, session });
+  } catch (error) {
+    console.error('Error creating PT session:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const updatePTSessionStatus = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { id } = req.params;
+    const { status, trainerNotes } = req.body;
+
+    const session = await GymPTSession.findOne({ _id: id, tenantId });
+    if (!session) return res.status(404).json({ success: false, error: 'Session not found' });
+
+    session.status = status || session.status;
+    if (trainerNotes !== undefined) session.trainerNotes = trainerNotes;
+
+    await session.save();
+    res.json({ success: true, session });
+  } catch (error) {
+    console.error('Error updating PT session status:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const deletePTSession = async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { id } = req.params;
+
+    const session = await GymPTSession.findOneAndDelete({ _id: id, tenantId });
+    if (!session) return res.status(404).json({ success: false, error: 'Session not found' });
+
+    res.json({ success: true, message: 'PT session deleted' });
+  } catch (error) {
+    console.error('Error deleting PT session:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
