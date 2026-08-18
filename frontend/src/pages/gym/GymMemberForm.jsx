@@ -5,6 +5,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { ArrowLeft, ArrowRight, Camera, Save, Download, QrCode } from 'lucide-react'
+import { downloadGymMemberCardPdf } from '../../lib/gymMemberCardPdf'
 
 export default function GymMemberForm() {
   const { tenant } = useSelector(s => s.auth)
@@ -59,7 +60,7 @@ export default function GymMemberForm() {
     onSuccess: () => {
       toast.success(isAr ? 'تم حفظ العضو بنجاح' : 'Member saved successfully')
       queryClient.invalidateQueries(['gym-members'])
-      navigate('/gym/members')
+      navigate('/app/dashboard/gym/members')
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || (isAr ? 'حدث خطأ' : 'An error occurred'))
@@ -91,14 +92,27 @@ export default function GymMemberForm() {
   return (
     <div className={`min-h-screen bg-slate-50/50 p-4 md:p-8 ${isAr ? 'rtl' : 'ltr'}`} dir={isAr ? 'rtl' : 'ltr'}>
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <Link to="/gym/members" className="p-2 hover:bg-slate-200 rounded-full transition-colors bg-slate-100 text-slate-600">
-            {isAr ? <ArrowRight size={24} /> : <ArrowLeft size={24} />}
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">{isEdit ? (isAr ? 'تعديل بيانات العضو' : 'Edit Member') : (isAr ? 'إضافة عضو جديد' : 'New Member')}</h1>
-            <p className="text-sm text-slate-500">{isAr ? 'يرجى تعبئة بيانات العضو بدقة' : 'Please fill in the member details accurately'}</p>
+        <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
+          <div className="flex items-center gap-4">
+            <Link to="/app/dashboard/gym/members" className="p-2 hover:bg-slate-200 rounded-full transition-colors bg-slate-100 text-slate-600">
+              {isAr ? <ArrowRight size={24} /> : <ArrowLeft size={24} />}
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">{isEdit ? (isAr ? 'تعديل بيانات العضو' : 'Edit Member') : (isAr ? 'إضافة عضو جديد' : 'New Member')}</h1>
+              <p className="text-sm text-slate-500">{isAr ? 'يرجى تعبئة بيانات العضو بدقة' : 'Please fill in the member details accurately'}</p>
+            </div>
           </div>
+
+          {isEdit && memberData && (
+            <button
+              type="button"
+              onClick={() => downloadGymMemberCardPdf({ member: memberData, subscription: memberData.activeSubscription, tenant, language })}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm flex items-center gap-2 transition-all"
+            >
+              <Download size={18} />
+              <span>{isAr ? 'طباعة بطاقة العضوية (QR Pass)' : 'Print Member Pass (PDF)'}</span>
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

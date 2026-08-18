@@ -4,9 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '../../lib/api'
-import { Search, Plus, User, Phone, MapPin, MoreVertical, Eye, Edit, ScanLine, Filter, AlertCircle } from 'lucide-react'
+import { Search, Plus, User, Phone, MapPin, MoreVertical, Eye, Edit, ScanLine, Filter, AlertCircle, Download } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { enUS, ar } from 'date-fns/locale'
+import { downloadGymMemberCardPdf } from '../../lib/gymMemberCardPdf'
 
 export default function GymMembers() {
   const { tenant } = useSelector(s => s.auth)
@@ -59,7 +60,7 @@ export default function GymMembers() {
           </h1>
           <p className="text-slate-500 mt-1">{isAr ? 'إدارة أعضاء النادي واشتراكاتهم' : 'Manage gym members and their subscriptions'}</p>
         </div>
-        <Link to="/gym/members/new" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors shadow-sm shadow-blue-200 flex items-center gap-2">
+        <Link to="/app/dashboard/gym/members/new" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors shadow-sm shadow-blue-200 flex items-center gap-2">
           <Plus size={20} />
           {isAr ? 'عضو جديد' : 'New Member'}
         </Link>
@@ -152,11 +153,16 @@ export default function GymMembers() {
                   </div>
 
                   <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
-                    <Link to={`/gym/members/${member._id}`} className="flex-1 flex justify-center items-center gap-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg text-sm font-medium transition-colors">
-                      <Eye size={16} /> {isAr ? 'عرض' : 'View'}
-                    </Link>
-                    <Link to={`/gym/members/${member._id}/edit`} className="flex-1 flex justify-center items-center gap-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors">
-                      <Edit size={16} /> {isAr ? 'تعديل' : 'Edit'}
+                    <button
+                      type="button"
+                      onClick={() => downloadGymMemberCardPdf({ member, subscription: member.activeSubscription, tenant, language })}
+                      className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium transition-colors"
+                      title={isAr ? 'طباعة بطاقة العضوية' : 'Print Membership Pass'}
+                    >
+                      <Download size={16} />
+                    </button>
+                    <Link to={`/app/dashboard/gym/members/${member._id}`} className="flex-1 flex justify-center items-center gap-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg text-sm font-medium transition-colors">
+                      <Edit size={16} /> {isAr ? 'تعديل / الملف' : 'Edit / Profile'}
                     </Link>
                   </div>
                 </motion.div>

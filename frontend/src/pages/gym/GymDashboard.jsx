@@ -75,18 +75,18 @@ export default function GymDashboard() {
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-4 mb-8">
-        <Link to="/gym/members/new" className="flex-1 min-w-[200px] bg-white hover:bg-slate-50 text-slate-700 p-4 rounded-xl shadow-sm border border-slate-200 transition-all flex items-center gap-3 justify-center group">
+        <Link to="/app/dashboard/gym/members/new" className="flex-1 min-w-[200px] bg-white hover:bg-slate-50 text-slate-700 p-4 rounded-xl shadow-sm border border-slate-200 transition-all flex items-center gap-3 justify-center group">
           <div className="bg-blue-100 text-blue-600 p-2 rounded-lg group-hover:scale-110 transition-transform"><Plus size={20} /></div>
           <span className="font-medium">{isAr ? 'عضو جديد' : 'New Member'}</span>
         </Link>
-        <button className="flex-1 min-w-[200px] bg-white hover:bg-slate-50 text-slate-700 p-4 rounded-xl shadow-sm border border-slate-200 transition-all flex items-center gap-3 justify-center group">
+        <Link to="/app/dashboard/gym/checkin" className="flex-1 min-w-[200px] bg-white hover:bg-slate-50 text-slate-700 p-4 rounded-xl shadow-sm border border-slate-200 transition-all flex items-center gap-3 justify-center group">
           <div className="bg-emerald-100 text-emerald-600 p-2 rounded-lg group-hover:scale-110 transition-transform"><QrCode size={20} /></div>
-          <span className="font-medium">{isAr ? 'تسجيل دخول سريع' : 'Quick Check-in'}</span>
-        </button>
-        <button className="flex-1 min-w-[200px] bg-white hover:bg-slate-50 text-slate-700 p-4 rounded-xl shadow-sm border border-slate-200 transition-all flex items-center gap-3 justify-center group">
+          <span className="font-medium">{isAr ? 'كشك تسجيل الدخول' : 'Check-In Kiosk'}</span>
+        </Link>
+        <Link to="/app/dashboard/gym/subscriptions" className="flex-1 min-w-[200px] bg-white hover:bg-slate-50 text-slate-700 p-4 rounded-xl shadow-sm border border-slate-200 transition-all flex items-center gap-3 justify-center group">
           <div className="bg-violet-100 text-violet-600 p-2 rounded-lg group-hover:scale-110 transition-transform"><ShoppingBag size={20} /></div>
-          <span className="font-medium">{isAr ? 'بيع باقة' : 'Sell Package'}</span>
-        </button>
+          <span className="font-medium">{isAr ? 'الاشتراكات والباقات' : 'Subscriptions & Plans'}</span>
+        </Link>
       </div>
 
       {/* KPIs Grid */}
@@ -123,8 +123,8 @@ export default function GymDashboard() {
               <ScanLine className="text-emerald-500" size={20} />
               {isAr ? 'أحدث التسجيلات' : 'Recent Check-ins'}
             </h3>
-            <Link to="/gym/checkins" className="text-blue-600 text-sm font-medium hover:underline">
-              {isAr ? 'عرض الكل' : 'View All'}
+            <Link to="/app/dashboard/gym/checkin" className="text-blue-600 text-sm font-medium hover:underline">
+              {isAr ? 'فتح الكشك' : 'Open Kiosk'}
             </Link>
           </div>
           <div className="p-0">
