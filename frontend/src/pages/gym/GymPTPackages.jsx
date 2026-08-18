@@ -27,11 +27,23 @@ export default function GymPTPackages() {
         const res = await api.get('/api/gym/pt-packages');
         return res.data?.data || [];
       } catch (err) {
-        return []; // Fallback empty
+        return [];
       }
     }
   });
 
+  const { data: membersData } = useQuery({
+    queryKey: ['gym-members-pt-select'],
+    queryFn: () => api.get('/api/gym/members?limit=100').then(res => res.data.data?.docs || res.data.data || [])
+  });
+
+  const { data: trainersData } = useQuery({
+    queryKey: ['gym-trainers-pt-select'],
+    queryFn: () => api.get('/api/gym/trainers').then(res => res.data.data || [])
+  });
+
+  const members = membersData || [];
+  const trainers = trainersData || [];
   const packages = packagesData || [];
 
   const filteredPackages = useMemo(() => {
@@ -355,18 +367,24 @@ export default function GymPTPackages() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'المتدرب' : 'Member'}</label>
-                    <select name="memberId" required className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 bg-white">
-                      <option value="">{isAr ? 'اختر المتدرب' : 'Select Member'}</option>
-                      <option value="1">John Doe</option>
-                      <option value="2">Ahmed Ali</option>
+                    <select name="memberId" required className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 bg-white text-sm">
+                      <option value="">{isAr ? '-- اختر المتدرب --' : '-- Select Member --'}</option>
+                      {members.map(m => (
+                        <option key={m._id} value={m._id}>
+                          {m.memberNumber} - {isAr ? (m.nameAr || m.nameEn || m.firstName) : (m.nameEn || m.nameAr || m.firstName)}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'المدرب' : 'Trainer'}</label>
-                    <select name="trainerId" required className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 bg-white">
-                      <option value="">{isAr ? 'اختر المدرب' : 'Select Trainer'}</option>
-                      <option value="1">Mike Johnson</option>
-                      <option value="2">Sara Smith</option>
+                    <select name="trainerId" required className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 bg-white text-sm">
+                      <option value="">{isAr ? '-- اختر المدرب --' : '-- Select Trainer --'}</option>
+                      {trainers.map(t => (
+                        <option key={t._id} value={t._id}>
+                          {isAr ? (t.nameAr || t.nameEn) : (t.nameEn || t.nameAr)}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>

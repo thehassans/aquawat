@@ -30,6 +30,12 @@ export default function GymLockers() {
     }
   });
 
+  const { data: membersData } = useQuery({
+    queryKey: ['gym-members-locker-select'],
+    queryFn: () => api.get('/api/gym/members?limit=100').then(res => res.data.data?.docs || res.data.data || [])
+  });
+  const members = membersData || [];
+
   const lockers = lockersData;
 
   const filteredLockers = useMemo(() => {
@@ -186,10 +192,14 @@ export default function GymLockers() {
                   }}>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'بحث عن متدرب' : 'Member'}</label>
-                        <select name="memberId" required className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20">
-                          <option value="">Select...</option>
-                          <option value="1">John Doe</option>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'اختر العضو' : 'Select Member'}</label>
+                        <select name="assignedMemberId" required className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20 text-sm bg-white">
+                          <option value="">{isAr ? '-- حدد العضو --' : '-- Select Member --'}</option>
+                          {members.map(m => (
+                            <option key={m._id} value={m._id}>
+                              {m.memberNumber} - {isAr ? (m.nameAr || m.nameEn || m.firstName) : (m.nameEn || m.nameAr || m.firstName)} ({m.phone})
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div className="grid grid-cols-2 gap-4">

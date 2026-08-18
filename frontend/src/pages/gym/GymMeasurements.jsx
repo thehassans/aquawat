@@ -48,6 +48,12 @@ export default function GymMeasurements() {
   });
   const members = membersData || [];
 
+  React.useEffect(() => {
+    if (!selectedMember && members.length > 0) {
+      setSelectedMember(members[0]._id || members[0].id);
+    }
+  }, [members, selectedMember]);
+
   const { data: measurements = [], isLoading } = useQuery({
     queryKey: ['gym', 'measurements', selectedMember],
     queryFn: async () => {
@@ -135,9 +141,11 @@ export default function GymMeasurements() {
             onChange={(e) => setSelectedMember(e.target.value)}
             className="w-full md:w-64 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 bg-white shadow-sm"
           >
-            <option value="">{isAr ? 'اختر متدرب...' : 'Select member...'}</option>
+            <option value="">{isAr ? '-- اختر متدرب --' : '-- Select Member --'}</option>
             {members.map(m => (
-              <option key={m.id} value={m.id}>{isAr ? m.nameAr || m.nameEn : m.nameEn}</option>
+              <option key={m._id || m.id} value={m._id || m.id}>
+                {m.memberNumber ? `${m.memberNumber} - ` : ''}{isAr ? (m.nameAr || m.nameEn || m.firstName) : (m.nameEn || m.nameAr || m.firstName)}
+              </option>
             ))}
           </select>
           <button

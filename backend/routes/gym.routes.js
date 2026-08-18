@@ -1002,6 +1002,33 @@ router.get('/lockers', async (req, res) => {
   }
 });
 
+router.post('/lockers/batch', async (req, res) => {
+  try {
+    const { zone = 'unisex', size = 'medium', prefix = '', start = 1, end = 20 } = req.body;
+    const lockersToInsert = [];
+    const s = Math.max(1, Number(start) || 1);
+    const e = Math.min(500, Number(end) || 20);
+    const cleanZone = String(zone).toLowerCase();
+    const cleanSize = String(size).toLowerCase() === 's' ? 'small' : (String(size).toLowerCase() === 'l' ? 'large' : 'medium');
+    
+    for (let i = s; i <= e; i++) {
+      const lockerNum = prefix ? `${prefix}-${String(i).padStart(3, '0')}` : String(i).padStart(3, '0');
+      lockersToInsert.push({
+        tenantId: req.user.tenantId,
+        lockerNumber: lockerNum,
+        zone: ['men', 'women', 'vip', 'unisex'].includes(cleanZone) ? cleanZone : 'unisex',
+        size: cleanSize,
+        status: 'available',
+      });
+    }
+
+    const created = await GymLocker.insertMany(lockersToInsert, { ordered: false });
+    res.status(201).json({ success: true, count: created.length });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.post('/lockers', async (req, res) => {
   try {
     const locker = new GymLocker({
