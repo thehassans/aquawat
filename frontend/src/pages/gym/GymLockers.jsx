@@ -1,449 +1,317 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Lock,
-  Unlock,
-  Plus,
-  Key,
-  Calendar,
-  User,
-  CheckCircle2,
-  X,
-  Shield,
-  Layers,
-  Sparkles,
-  Phone
-} from 'lucide-react';
+import { Plus, X, Lock, Unlock, AlertTriangle, Key, Search, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import { useTranslation } from '../../lib/translations';
 
 export default function GymLockers() {
-  const queryClient = useQueryClient();
-  const { language } = useSelector((state) => state.ui);
+  const { tenant } = useSelector((s) => s.auth);
+  const language = tenant?.settings?.language || 'en';
   const isAr = language === 'ar';
-  const { t } = useTranslation(language);
+  const currency = tenant?.settings?.currency || 'SAR';
+  const queryClient = useQueryClient();
 
-  const [sectionFilter, setSectionFilter] = useState('all');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [activeZone, setActiveZone] = useState('All');
   const [selectedLocker, setSelectedLocker] = useState(null);
+  const [isAddBatchOpen, setIsAddBatchOpen] = useState(false);
 
-  // Assign Form State
-  const [assignData, setAssignData] = useState({
-    memberId: '',
-    rentalDays: 30,
-    keyPinCode: '',
-    rentalFee: 100,
-    depositAmount: 50,
+  // Mock Queries
+  const { data: lockersData = [], isLoading } = useQuery({
+    queryKey: ['gym', 'lockers'],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/api/gym/lockers');
+        return res.data?.data || [];
+      } catch {
+        return [];
+      }
+    }
   });
 
-  // Create Locker Form State
-  const [createData, setCreateData] = useState({
-    lockerNumber: '',
-    section: 'mens_area',
-    size: 'standard',
-    keyPinCode: '',
+  const lockers = lockersData;
+
+  const filteredLockers = useMemo(() => {
+    if (activeZone === 'All') return lockers;
+    return lockers.filter(l => l.zone === activeZone);
+  }, [lockers, activeZone]);
+
+  const stats = useMemo(() => {
+    let available = 0, occupied = 0, maintenance = 0;
+    lockers.forEach(l => {
+      if (l.status === 'available') available++;
+      else if (l.status === 'occupied') occupied++;
+      else if (l.status === 'maintenance') maintenance++;
+    });
+    return { available, occupied, maintenance, total: lockers.length };
+  }, [lockers]);
+
+  const assignMutation = useMutation({
+    mutationFn: ({ id, data }) => api.put(`/api/gym/lockers/${id}/assign`, data),
+    onSuccess: () => { toast.success(isAr ? 'تم تعيين الخزانة' : 'Locker assigned'); queryClient.invalidateQueries(['gym', 'lockers']); setSelectedLocker(null); }
   });
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['gym-lockers'],
-    queryFn: () => api.get('/gym/lockers').then((res) => res.data),
+  const releaseMutation = useMutation({
+    mutationFn: (id) => api.put(`/api/gym/lockers/${id}/release`),
+    onSuccess: () => { toast.success(isAr ? 'تم إخلاء الخزانة' : 'Locker released'); queryClient.invalidateQueries(['gym', 'lockers']); setSelectedLocker(null); }
   });
 
-  const { data: membersData } = useQuery({
-    queryKey: ['gym-members-all'],
-    queryFn: () => api.get('/gym/members?limit=100').then((res) => res.data),
+  const toggleMaintenanceMutation = useMutation({
+    mutationFn: ({ id, isMaintenance }) => api.put(`/api/gym/lockers/${id}/maintenance`, { status: isMaintenance ? 'maintenance' : 'available' }),
+    onSuccess: () => { toast.success(isAr ? 'تم تحديث الحالة' : 'Status updated'); queryClient.invalidateQueries(['gym', 'lockers']); setSelectedLocker(null); }
   });
 
-  const lockers = data?.lockers || [];
-  const members = membersData?.members || [];
-
-  const filteredLockers = lockers.filter((l) => {
-    if (sectionFilter === 'all') return true;
-    return l.section === sectionFilter;
+  const batchAddMutation = useMutation({
+    mutationFn: (data) => api.post('/api/gym/lockers/batch', data),
+    onSuccess: () => { toast.success(isAr ? 'تم إضافة الخزائن' : 'Lockers added'); queryClient.invalidateQueries(['gym', 'lockers']); setIsAddBatchOpen(false); }
   });
 
-  const totalLockers = lockers.length;
-  const occupiedLockers = lockers.filter((l) => l.status === 'occupied').length;
-  const availableLockers = lockers.filter((l) => l.status === 'available').length;
+  const getLockerStyle = (locker) => {
+    if (locker.status === 'maintenance') return 'bg-slate-100 border-slate-200 text-slate-400';
+    if (locker.status === 'available') return 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:shadow-md cursor-pointer';
+    
+    // occupied
+    if (locker.assignedUntil) {
+      const daysLeft = (new Date(locker.assignedUntil) - new Date()) / (1000 * 60 * 60 * 24);
+      if (daysLeft < 7) return 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100 hover:shadow-md cursor-pointer';
+    }
+    return 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:shadow-md cursor-pointer';
+  };
 
-  const createLockerMutation = useMutation({
-    mutationFn: (payload) => api.post('/gym/lockers', payload),
-    onSuccess: () => {
-      toast.success(isAr ? 'تمت إضافة الخزانة بنجاح' : 'Locker created successfully');
-      queryClient.invalidateQueries({ queryKey: ['gym-lockers'] });
-      setShowAddModal(false);
-      setCreateData({
-        lockerNumber: '',
-        section: 'mens_area',
-        size: 'standard',
-        keyPinCode: '',
-      });
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.error || 'Failed to create locker');
-    },
-  });
-
-  const assignLockerMutation = useMutation({
-    mutationFn: ({ lockerId, payload }) => api.post(`/gym/lockers/${lockerId}/assign`, payload),
-    onSuccess: () => {
-      toast.success(isAr ? 'تم تأجير وتعيين الخزانة بنجاح' : 'Locker assigned successfully');
-      queryClient.invalidateQueries({ queryKey: ['gym-lockers'] });
-      setShowAssignModal(false);
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.error || 'Failed to assign locker');
-    },
-  });
-
-  const releaseLockerMutation = useMutation({
-    mutationFn: (lockerId) => api.post(`/gym/lockers/${lockerId}/release`),
-    onSuccess: () => {
-      toast.success(isAr ? 'تم إخلاء الخزانة وإعادتها للمتاح' : 'Locker released to available');
-      queryClient.invalidateQueries({ queryKey: ['gym-lockers'] });
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.error || 'Failed to release locker');
-    },
-  });
+  const zones = ['All', 'Men', 'Women', 'VIP', 'Unisex'];
 
   return (
-    <div className="space-y-6 pb-16 animate-fade-in">
-      {/* ── HEADER ─────────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className={`min-h-screen bg-slate-50 p-6 ${isAr ? 'rtl' : 'ltr'}`}>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <span className="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-300 flex items-center justify-center">
-              <Lock className="w-5 h-5" />
-            </span>
-            <div>
-              <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                {isAr ? 'مصفوفة وإدارة الخزائن الذكية' : 'Lockers Management Matrix'}
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {isAr
-                  ? 'إدارة تأجير الخزائن، الأرقام السرية، المفاتيح، وتواريخ الإخلاء'
-                  : 'Manage locker rentals, key/PIN codes, occupancy status, and security deposits'}
-              </p>
-            </div>
+          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600">
+            {isAr ? 'إدارة الخزائن' : 'Locker Management'}
+          </h1>
+          <div className="flex gap-4 mt-2 text-sm">
+            <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div> {isAr ? 'متاح' : 'Available'}: <b>{stats.available}</b></span>
+            <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-indigo-400"></div> {isAr ? 'مشغول' : 'Occupied'}: <b>{stats.occupied}</b></span>
+            <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-slate-300"></div> {isAr ? 'صيانة' : 'Maintenance'}: <b>{stats.maintenance}</b></span>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setShowAddModal(true)}
-          className="px-5 py-2.5 rounded-2xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-extrabold shadow-md shadow-cyan-600/20 transition-all flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{isAr ? 'إضافة خزانة جديدة' : 'Add Locker Unit'}</span>
+        <button onClick={() => setIsAddBatchOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all shadow-sm">
+          <Plus className="w-5 h-5" />
+          <span>{isAr ? 'إضافة خزائن' : 'Add Lockers'}</span>
         </button>
       </div>
 
-      {/* ── KPI METRIC PILLS ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="card p-5 rounded-3xl bg-white dark:bg-dark-800 border border-slate-100 dark:border-dark-700 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-slate-400 block">{isAr ? 'إجمالي الخزائن' : 'Total Lockers'}</span>
-            <p className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-1">{totalLockers}</p>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-600 dark:bg-dark-700 flex items-center justify-center">
-            <Layers className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="card p-5 rounded-3xl bg-white dark:bg-dark-800 border border-slate-100 dark:border-dark-700 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-slate-400 block">{isAr ? 'الخزائن الشاغرة' : 'Available'}</span>
-            <p className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1">{availableLockers}</p>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 flex items-center justify-center">
-            <Unlock className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="card p-5 rounded-3xl bg-white dark:bg-dark-800 border border-slate-100 dark:border-dark-700 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-slate-400 block">{isAr ? 'المؤجرة والمشغولة' : 'Occupied'}</span>
-            <p className="text-2xl font-black font-mono text-cyan-600 dark:text-cyan-400 mt-1">{occupiedLockers}</p>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-600 dark:bg-cyan-950/40 flex items-center justify-center">
-            <Lock className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* ── SECTION TABS ────────────────────────────────────────────────────────── */}
-      <div className="card p-3 rounded-2xl bg-white dark:bg-dark-800 border border-slate-100 dark:border-dark-700 shadow-sm flex items-center gap-2 overflow-x-auto scrollbar-none">
-        {[
-          { id: 'all', en: 'All Sections', ar: 'كل الأقسام' },
-          { id: 'mens_area', en: 'Men Section', ar: 'قسم الرجال' },
-          { id: 'womens_area', en: 'Women Section', ar: 'قسم السيدات' },
-          { id: 'vip_lounge', en: 'VIP Lounge', ar: 'صالة VIP' },
-          { id: 'main_hallway', en: 'Main Hallway', ar: 'الممر الرئيسي' },
-        ].map((sec) => (
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-6 flex overflow-x-auto hide-scrollbar gap-2">
+        {zones.map(zone => (
           <button
-            key={sec.id}
-            type="button"
-            onClick={() => setSectionFilter(sec.id)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-              sectionFilter === sec.id
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-dark-700'
+            key={zone}
+            onClick={() => setActiveZone(zone)}
+            className={`px-5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+              activeZone === zone ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
-            {isAr ? sec.ar : sec.en}
+            {isAr ? (zone === 'All' ? 'الكل' : zone === 'Men' ? 'رجال' : zone === 'Women' ? 'نساء' : zone === 'Unisex' ? 'مشترك' : zone) : zone}
           </button>
         ))}
       </div>
 
-      {/* ── LOCKER MATRIX VISUAL GRID ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {isLoading ? (
-          <div className="col-span-full py-16 text-center text-slate-400">
-            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent mb-2" />
-            <p className="text-xs">{isAr ? 'جاري تحميل الخزائن...' : 'Loading lockers matrix...'}</p>
-          </div>
-        ) : filteredLockers.length === 0 ? (
-          <div className="col-span-full py-20 text-center card p-8 rounded-3xl bg-white dark:bg-dark-800 border border-slate-100 dark:border-dark-700">
-            <Lock className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              {isAr ? 'لا توجد خزائن مسجلة في هذا القسم' : 'No Lockers in this Section'}
-            </h3>
-          </div>
-        ) : (
-          filteredLockers.map((locker) => {
-            const isOcc = locker.status === 'occupied';
-            const member = locker.currentMemberId || {};
-
-            return (
-              <div
-                key={locker._id}
-                className={`p-4 rounded-3xl border transition-all flex flex-col justify-between relative overflow-hidden ${
-                  isOcc
-                    ? 'bg-cyan-50/60 dark:bg-cyan-950/30 border-cyan-300 dark:border-cyan-800/60 shadow-sm'
-                    : 'bg-white dark:bg-dark-800 border-slate-200/80 dark:border-dark-700 hover:border-emerald-400 shadow-xs'
-                }`}
+      {isLoading ? (
+        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
+          {[...Array(40)].map((_, i) => <div key={i} className="aspect-square bg-slate-200 animate-pulse rounded-xl"></div>)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-3">
+          <AnimatePresence>
+            {filteredLockers.map(locker => (
+              <motion.div
+                layout
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                key={locker._id || Math.random()}
+                onClick={() => setSelectedLocker(locker)}
+                className={`relative aspect-square rounded-xl border flex flex-col items-center justify-center transition-all p-2 ${getLockerStyle(locker)}`}
+                title={locker.status === 'occupied' ? locker.member?.nameEn : ''}
               >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-lg font-black font-mono text-slate-900 dark:text-white">
-                      #{locker.lockerNumber}
-                    </span>
-                    <span className={`p-1 rounded-lg ${isOcc ? 'text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-900/50' : 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40'}`}>
-                      {isOcc ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                    </span>
+                {locker.status === 'maintenance' && <ShieldAlert className="absolute top-1.5 right-1.5 w-3.5 h-3.5 opacity-50" />}
+                {locker.status === 'occupied' && <Lock className="absolute top-1.5 right-1.5 w-3.5 h-3.5 opacity-75" />}
+                
+                <span className="font-bold text-lg leading-none mb-1">{locker.number}</span>
+                <span className="text-[10px] font-medium opacity-75 uppercase">{locker.size}</span>
+                
+                {locker.status === 'occupied' && (
+                  <div className="absolute bottom-1.5 inset-x-1.5 text-center truncate text-[10px] font-medium bg-white/30 rounded px-1 backdrop-blur-sm">
+                    {locker.member?.nameEn?.split(' ')[0] || 'User'}
                   </div>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
 
-                  {isOcc ? (
-                    <div className="space-y-1 text-xs">
-                      <p className="font-bold text-slate-900 dark:text-white truncate">
-                        {member.nameEn || 'Occupied'}
-                      </p>
-                      <p className="text-[10px] text-slate-500 font-mono">
-                        {member.memberNumber || member.phone}
-                      </p>
-                      {locker.rentalEndDate && (
-                        <p className="text-[10px] text-cyan-800 dark:text-cyan-300 font-medium">
-                          {isAr ? 'ينتهي:' : 'Ends:'} {new Date(locker.rentalEndDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-US')}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                      {isAr ? 'متاحة للتأجير' : 'Available'}
-                    </p>
-                  )}
-                </div>
-
-                <div className="pt-3 mt-3 border-t border-slate-200/60 dark:border-dark-700">
-                  {isOcc ? (
-                    <button
-                      type="button"
-                      onClick={() => releaseLockerMutation.mutate(locker._id)}
-                      className="w-full py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 text-[11px] font-bold"
-                    >
-                      {isAr ? 'إخلاء الخزانة' : 'Release Unit'}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedLocker(locker);
-                        setShowAssignModal(true);
-                      }}
-                      className="w-full py-1.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-[11px] font-bold"
-                    >
-                      {isAr ? 'تأجير لعضو' : 'Assign Locker'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* ── ASSIGN LOCKER MODAL ──────────────────────────────────────────────────── */}
+      {/* Locker Detail Modal */}
       <AnimatePresence>
-        {showAssignModal && selectedLocker && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        {selectedLocker && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/20 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-dark-700 w-full max-w-sm overflow-hidden p-6 space-y-4"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    {isAr ? `تأجير الخزانة #${selectedLocker.lockerNumber}` : `Assign Locker #${selectedLocker.lockerNumber}`}
-                  </h3>
-                  <p className="text-xs text-slate-500">{selectedLocker.section}</p>
+              <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg ${
+                    selectedLocker.status === 'available' ? 'bg-emerald-100 text-emerald-700' : 
+                    selectedLocker.status === 'occupied' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-500'
+                  }`}>
+                    {selectedLocker.number}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800">{isAr ? 'تفاصيل الخزانة' : 'Locker Details'}</h3>
+                    <p className="text-xs text-slate-500">{selectedLocker.zone} • Size {selectedLocker.size}</p>
+                  </div>
                 </div>
-                <button onClick={() => setShowAssignModal(false)} className="text-slate-400 hover:text-slate-600">
+                <button onClick={() => setSelectedLocker(null)} className="text-slate-400 hover:bg-slate-200 p-1.5 rounded-lg transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="label">{isAr ? 'اختر العضو المستأجر' : 'Select Member'}</label>
-                  <select
-                    value={assignData.memberId}
-                    onChange={(e) => setAssignData({ ...assignData, memberId: e.target.value })}
-                    className="select mt-1"
-                  >
-                    <option value="">{isAr ? '-- اختر العضو --' : '-- Select Member --'}</option>
-                    {members.map((m) => (
-                      <option key={m._id} value={m._id}>
-                        {m.nameEn} ({m.memberNumber})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+              <div className="p-5">
+                {selectedLocker.status === 'available' ? (
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    assignMutation.mutate({ id: selectedLocker._id, data: Object.fromEntries(formData) });
+                  }}>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'بحث عن متدرب' : 'Member'}</label>
+                        <select name="memberId" required className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20">
+                          <option value="">Select...</option>
+                          <option value="1">John Doe</option>
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'من تاريخ' : 'From Date'}</label>
+                          <input type="date" name="assignedFrom" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'إلى تاريخ' : 'Until Date'}</label>
+                          <input type="date" name="assignedUntil" required className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'رسوم الإيجار' : 'Rental Fee'} ({currency})</label>
+                          <input type="number" name="rentalFee" defaultValue={0} min={0} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'التأمين' : 'Deposit'} ({currency})</label>
+                          <input type="number" name="deposit" defaultValue={0} min={0} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-6 flex justify-between items-center">
+                      <button type="button" onClick={() => toggleMaintenanceMutation.mutate({ id: selectedLocker._id, isMaintenance: true })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium">
+                        <AlertTriangle className="w-4 h-4" /> {isAr ? 'تحويل للصيانة' : 'Set Maintenance'}
+                      </button>
+                      <button type="submit" disabled={assignMutation.isPending} className="px-5 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors">
+                        {isAr ? 'تعيين الخزانة' : 'Assign Locker'}
+                      </button>
+                    </div>
+                  </form>
+                ) : selectedLocker.status === 'occupied' ? (
                   <div>
-                    <label className="label">{isAr ? 'مدة التأجير (أيام)' : 'Rental Days'}</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={assignData.rentalDays}
-                      onChange={(e) => setAssignData({ ...assignData, rentalDays: Number(e.target.value) })}
-                      className="input mt-1 font-mono"
-                    />
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-slate-200"><User className="w-5 h-5 text-slate-400" /></div>
+                        <div>
+                          <h4 className="font-semibold text-slate-800">{selectedLocker.member?.nameEn || 'Unknown Member'}</h4>
+                          <p className="text-xs text-slate-500">{isAr ? 'معينة منذ' : 'Assigned since'} {new Date(selectedLocker.assignedFrom).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center pt-3 border-t border-slate-200">
+                        <span className="text-sm text-slate-600">{isAr ? 'تنتهي في' : 'Ends on'}:</span>
+                        <span className="text-sm font-semibold text-slate-800">{new Date(selectedLocker.assignedUntil).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => releaseMutation.mutate(selectedLocker._id)} className="flex-1 py-2.5 bg-rose-50 text-rose-600 rounded-xl font-medium hover:bg-rose-100 transition-colors border border-rose-100 flex items-center justify-center gap-2">
+                        <Unlock className="w-4 h-4" /> {isAr ? 'إخلاء' : 'Release'}
+                      </button>
+                      <button className="flex-1 py-2.5 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors border border-slate-900">
+                        {isAr ? 'تمديد' : 'Extend'}
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="label">{isAr ? 'رمز PIN / القفل' : 'Lock PIN Code'}</label>
-                    <input
-                      type="text"
-                      value={assignData.keyPinCode}
-                      onChange={(e) => setAssignData({ ...assignData, keyPinCode: e.target.value })}
-                      placeholder="e.g. 4821"
-                      className="input mt-1 font-mono"
-                    />
+                ) : (
+                  <div className="text-center py-8">
+                    <ShieldAlert className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <h4 className="font-medium text-slate-800 mb-1">{isAr ? 'الخزانة تحت الصيانة' : 'Locker in Maintenance'}</h4>
+                    <p className="text-sm text-slate-500 mb-6">{isAr ? 'هذه الخزانة غير متاحة للاستخدام حالياً.' : 'This locker is currently unavailable for use.'}</p>
+                    <button onClick={() => toggleMaintenanceMutation.mutate({ id: selectedLocker._id, isMaintenance: false })} className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors w-full">
+                      {isAr ? 'إتاحة الخزانة' : 'Make Available'}
+                    </button>
                   </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-dark-700">
-                <button
-                  type="button"
-                  onClick={() => setShowAssignModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold"
-                >
-                  {t('cancel')}
-                </button>
-                <button
-                  type="button"
-                  disabled={!assignData.memberId || assignLockerMutation.isPending}
-                  onClick={() =>
-                    assignLockerMutation.mutate({
-                      lockerId: selectedLocker._id,
-                      payload: assignData,
-                    })
-                  }
-                  className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold shadow-md disabled:opacity-50"
-                >
-                  {assignLockerMutation.isPending ? 'Assigning...' : isAr ? 'تأكيد التأجير' : 'Confirm Assignment'}
-                </button>
+                )}
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* ── CREATE LOCKER MODAL ──────────────────────────────────────────────────── */}
+      {/* Add Batch Modal */}
       <AnimatePresence>
-        {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        {isAddBatchOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/20 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-dark-700 w-full max-w-sm overflow-hidden p-6 space-y-4"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
             >
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  {isAr ? 'إضافة خزانة جديدة' : 'Add New Locker Unit'}
-                </h3>
-                <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-5 h-5" />
-                </button>
+              <div className="flex justify-between items-center p-5 border-b border-slate-100">
+                <h3 className="font-bold text-lg text-slate-800">{isAr ? 'إضافة خزائن' : 'Batch Add Lockers'}</h3>
+                <button onClick={() => setIsAddBatchOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
               </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  createLockerMutation.mutate(createData);
-                }}
-                className="space-y-3"
-              >
-                <div>
-                  <label className="label">{isAr ? 'رقم الخزانة *' : 'Locker Number *'}</label>
-                  <input
-                    type="text"
-                    required
-                    value={createData.lockerNumber}
-                    onChange={(e) => setCreateData({ ...createData, lockerNumber: e.target.value })}
-                    placeholder="e.g. 101, A-12"
-                    className="input mt-1 font-mono"
-                  />
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                batchAddMutation.mutate(Object.fromEntries(formData));
+              }} className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'المنطقة' : 'Zone'}</label>
+                    <select name="zone" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20">
+                      {zones.filter(z => z !== 'All').map(z => <option key={z} value={z}>{z}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'الحجم' : 'Size'}</label>
+                    <select name="size" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20">
+                      <option value="S">Small</option><option value="M">Medium</option><option value="L">Large</option>
+                    </select>
+                  </div>
                 </div>
-
                 <div>
-                  <label className="label">{isAr ? 'القسم / الموقع' : 'Section'}</label>
-                  <select
-                    value={createData.section}
-                    onChange={(e) => setCreateData({ ...createData, section: e.target.value })}
-                    className="select mt-1"
-                  >
-                    <option value="mens_area">{isAr ? 'قسم الرجال' : 'Men Section'}</option>
-                    <option value="womens_area">{isAr ? 'قسم السيدات' : 'Women Section'}</option>
-                    <option value="vip_lounge">{isAr ? 'صالة VIP' : 'VIP Lounge'}</option>
-                    <option value="main_hallway">{isAr ? 'الممر الرئيسي' : 'Main Hallway'}</option>
-                  </select>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'بادئة الرقم' : 'Prefix (Optional)'}</label>
+                  <input type="text" name="prefix" placeholder="e.g. A" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20" />
                 </div>
-
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-dark-700">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold"
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={createLockerMutation.isPending}
-                    className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold shadow-md"
-                  >
-                    {createLockerMutation.isPending ? 'Saving...' : isAr ? 'حفظ الخزانة' : 'Save Locker'}
-                  </button>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'رقم البداية' : 'Start Number'}</label>
+                    <input type="number" name="start" required min={1} defaultValue={1} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'رقم النهاية' : 'End Number'}</label>
+                    <input type="number" name="end" required min={1} defaultValue={50} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20" />
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                  <button type="button" onClick={() => setIsAddBatchOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors">Cancel</button>
+                  <button type="submit" disabled={batchAddMutation.isPending} className="px-5 py-2 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors">Generate</button>
                 </div>
               </form>
             </motion.div>

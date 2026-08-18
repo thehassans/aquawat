@@ -1,463 +1,227 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSelector } from 'react-redux';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Calendar,
-  Plus,
-  Clock,
-  Users,
-  CheckCircle2,
-  X,
-  Trash2,
-  Sparkles,
-  Flame,
-  Dumbbell,
-  UserCheck,
-  Tag
-} from 'lucide-react';
-import toast from 'react-hot-toast';
-import api from '../../lib/api';
-import { useTranslation } from '../../lib/translations';
-
-const DAYS_OF_WEEK = [
-  { id: 0, en: 'Sunday', ar: 'الأحد' },
-  { id: 1, en: 'Monday', ar: 'الاثنين' },
-  { id: 2, en: 'Tuesday', ar: 'الثلاثاء' },
-  { id: 3, en: 'Wednesday', ar: 'الأربعاء' },
-  { id: 4, en: 'Thursday', ar: 'الخميس' },
-  { id: 5, en: 'Friday', ar: 'الجمعة' },
-  { id: 6, en: 'Saturday', ar: 'السبت' },
-];
+import React, { useState } from 'react'
+import { useSelector } from 'react-redux'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
+import api from '../../lib/api'
+import { Calendar, Plus, Users, Clock, MapPin, Edit, Trash2, X, ChevronRight, ChevronLeft } from 'lucide-react'
 
 export default function GymClasses() {
-  const queryClient = useQueryClient();
-  const { language } = useSelector((state) => state.ui);
-  const isAr = language === 'ar';
-  const { t } = useTranslation(language);
+  const { tenant } = useSelector(s => s.auth)
+  const language = tenant?.settings?.language || 'en'
+  const isAr = language === 'ar'
+  const queryClient = useQueryClient()
 
-  const [selectedDay, setSelectedDay] = useState(new Date().getDay());
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showBookModal, setShowBookModal] = useState(false);
-  const [selectedClass, setSelectedClass] = useState(null);
-  const [bookMemberId, setBookMemberId] = useState('');
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const daysAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+  
+  const [selectedDay, setSelectedDay] = useState(new Date().getDay()) // 0 = Sunday
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedClass, setSelectedClass] = useState(null)
 
-  // Class Form State
-  const [formData, setFormData] = useState({
-    titleEn: '',
-    titleAr: '',
-    category: 'hiit',
-    instructorName: '',
-    room: 'Main Studio',
-    capacity: 20,
-    startTime: '18:00',
-    endTime: '19:00',
-    durationMinutes: 60,
-    daysOfWeek: [0, 1, 2, 3, 4],
-    color: '#10B981',
-  });
-
-  const { data, isLoading } = useQuery({
+  const { data: classesData, isLoading } = useQuery({
     queryKey: ['gym-classes'],
-    queryFn: () => api.get('/gym/classes').then((res) => res.data),
-  });
+    queryFn: () => api.get('/api/gym/classes').then(res => res.data)
+  })
 
-  const { data: membersData } = useQuery({
-    queryKey: ['gym-members-active'],
-    queryFn: () => api.get('/gym/members?status=active&limit=100').then((res) => res.data),
-  });
-
-  const classes = data?.classes || [];
-  const activeMembers = membersData?.members || [];
-
-  const filteredClasses = classes.filter((cls) => {
-    const matchesDay = cls.daysOfWeek?.includes(selectedDay);
-    const matchesCat = selectedCategory === 'all' || cls.category === selectedCategory;
-    return matchesDay && matchesCat;
-  });
-
-  const createClassMutation = useMutation({
-    mutationFn: (payload) => api.post('/gym/classes', payload),
+  const deleteMutation = useMutation({
+    mutationFn: (id) => api.delete(`/api/gym/classes/${id}`),
     onSuccess: () => {
-      toast.success(isAr ? 'تمت إضافة الحصة بنجاح' : 'Class added successfully');
-      queryClient.invalidateQueries({ queryKey: ['gym-classes'] });
-      setShowAddModal(false);
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.error || 'Failed to add class');
-    },
-  });
+      toast.success(isAr ? 'تم الحذف' : 'Class deleted')
+      queryClient.invalidateQueries(['gym-classes'])
+      setIsModalOpen(false)
+    }
+  })
 
-  const bookMemberMutation = useMutation({
-    mutationFn: ({ classId, memberId }) =>
-      api.post(`/gym/classes/${classId}/book`, { memberId }),
-    onSuccess: () => {
-      toast.success(isAr ? 'تم حجز المقعد بنجاح' : 'Class booked successfully');
-      queryClient.invalidateQueries({ queryKey: ['gym-classes'] });
-      setShowBookModal(false);
-      setBookMemberId('');
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.error || 'Failed to book class');
-    },
-  });
+  const classes = classesData?.data || []
+  
+  const dayClasses = classes.filter(c => c.dayOfWeek === selectedDay)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
 
-  const deleteClassMutation = useMutation({
-    mutationFn: (id) => api.delete(`/gym/classes/${id}`),
-    onSuccess: () => {
-      toast.success(isAr ? 'تم حذف الحصة' : 'Class deleted');
-      queryClient.invalidateQueries({ queryKey: ['gym-classes'] });
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.error || 'Failed to delete class');
-    },
-  });
+  const getColor = (type) => {
+    const colors = {
+      yoga: 'bg-teal-100 text-teal-800 border-teal-200',
+      boxing: 'bg-red-100 text-red-800 border-red-200',
+      crossfit: 'bg-orange-100 text-orange-800 border-orange-200',
+      spinning: 'bg-blue-100 text-blue-800 border-blue-200',
+      hiit: 'bg-rose-100 text-rose-800 border-rose-200',
+      zumba: 'bg-purple-100 text-purple-800 border-purple-200',
+      pilates: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+      default: 'bg-indigo-100 text-indigo-800 border-indigo-200'
+    }
+    return colors[type?.toLowerCase()] || colors.default
+  }
 
   return (
-    <div className="space-y-6 pb-16 animate-fade-in">
-      {/* ── HEADER ─────────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className={`p-6 max-w-7xl mx-auto space-y-6 ${isAr ? 'rtl' : 'ltr'}`} dir={isAr ? 'rtl' : 'ltr'}>
+      {/* Hero Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-gradient-to-r from-slate-50 to-white p-6 rounded-2xl shadow-sm border border-slate-100 backdrop-blur">
         <div>
-          <div className="flex items-center gap-2.5">
-            <span className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300 flex items-center justify-center">
-              <Calendar className="w-5 h-5" />
-            </span>
-            <div>
-              <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                {isAr ? 'جدول الحصص والتمارين الجماعية' : 'Group Classes & Timetable'}
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {isAr
-                  ? 'إدارة جدول الحصص، سعة المقاعد، المدربين، وحجز المشتركين'
-                  : 'Manage studio schedule, trainers, seat capacity, and member bookings'}
-              </p>
-            </div>
-          </div>
+          <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
+            <Calendar className="w-8 h-8 text-indigo-600" />
+            {isAr ? 'جدول الحصص' : 'Class Schedule'}
+          </h1>
+          <p className="text-slate-500 mt-2">
+            {isAr ? 'إدارة حصص النادي والمواعيد' : 'Manage gym classes and timetables'}
+          </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setShowAddModal(true)}
-          className="px-5 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold shadow-md shadow-amber-600/20 transition-all flex items-center gap-2"
+        <button 
+          className="mt-4 md:mt-0 flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition-all shadow-md font-medium"
         >
-          <Plus className="w-4 h-4" />
-          <span>{isAr ? 'إضافة حصة تدريبية' : 'Add New Class'}</span>
+          <Plus className="w-5 h-5" />
+          {isAr ? 'إضافة حصة' : 'Add Class'}
         </button>
       </div>
 
-      {/* ── DAYS OF WEEK SELECTOR TABS ───────────────────────────────────────────── */}
-      <div className="card p-3 rounded-2xl bg-white dark:bg-dark-800 border border-slate-100 dark:border-dark-700 shadow-sm flex items-center gap-2 overflow-x-auto scrollbar-none">
-        {DAYS_OF_WEEK.map((d) => (
+      {/* Days Tabs */}
+      <div className="flex bg-white rounded-2xl shadow-sm border border-slate-100 p-2 overflow-x-auto hide-scrollbar">
+        {days.map((day, index) => (
           <button
-            key={d.id}
-            type="button"
-            onClick={() => setSelectedDay(d.id)}
-            className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap ${
-              selectedDay === d.id
-                ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-dark-700'
+            key={day}
+            onClick={() => setSelectedDay(index)}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold text-center transition-all whitespace-nowrap min-w-[100px] ${
+              selectedDay === index 
+                ? 'bg-indigo-600 text-white shadow-md' 
+                : 'text-slate-500 hover:bg-slate-50'
             }`}
           >
-            {isAr ? d.ar : d.en}
+            {isAr ? daysAr[index] : day}
           </button>
         ))}
       </div>
 
-      {/* ── CLASSES GRID ─────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {/* Schedule Grid */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[500px]">
         {isLoading ? (
-          <div className="col-span-full py-16 text-center text-slate-400">
-            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent mb-2" />
-            <p className="text-xs">{isAr ? 'جاري تحميل الحصص...' : 'Loading classes...'}</p>
+          <div className="flex items-center justify-center h-64 text-slate-400">
+            {isAr ? 'جاري التحميل...' : 'Loading...'}
           </div>
-        ) : filteredClasses.length === 0 ? (
-          <div className="col-span-full py-20 text-center card p-8 rounded-3xl bg-white dark:bg-dark-800 border border-slate-100 dark:border-dark-700">
-            <Calendar className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              {isAr ? 'لا توجد حصص مجدولة لهذا اليوم' : 'No Classes Scheduled for This Day'}
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              {isAr ? 'أضف حصة جديدة أو اختر يوماً آخر من الأسبوع.' : 'Add a new group class or select another day of the week.'}
-            </p>
+        ) : dayClasses.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-4">
+            <Calendar className="w-16 h-16 opacity-20" />
+            <p className="text-lg">{isAr ? 'لا توجد حصص في هذا اليوم' : 'No classes scheduled for this day'}</p>
           </div>
         ) : (
-          filteredClasses.map((cls) => {
-            const booked = cls.attendees?.length || 0;
-            const cap = cls.capacity || 20;
-            const pct = Math.min(100, Math.round((booked / cap) * 100));
-            const isFull = booked >= cap;
-
-            return (
-              <div
-                key={cls._id}
-                className="card p-5 rounded-3xl bg-white dark:bg-dark-800 border border-slate-100 dark:border-dark-700 shadow-sm hover:shadow-md transition-all space-y-4"
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {dayClasses.map((c, i) => (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.05 }}
+                key={c._id}
+                onClick={() => { setSelectedClass(c); setIsModalOpen(true); }}
+                className={`p-5 rounded-2xl border cursor-pointer hover:shadow-lg transition-all ${getColor(c.type)}`}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-12 h-12 rounded-2xl flex flex-col items-center justify-center text-white font-mono font-bold shadow-xs"
-                      style={{ backgroundColor: cls.color || '#10B981' }}
-                    >
-                      <span className="text-xs leading-none">{cls.startTime}</span>
-                      <span className="text-[9px] opacity-80 mt-0.5">{cls.durationMinutes}m</span>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                        {isAr ? cls.titleAr || cls.titleEn : cls.titleEn}
-                      </h3>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {cls.instructorName} • {cls.room}
-                      </p>
-                    </div>
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-xl font-bold">{isAr ? c.nameAr : c.nameEn}</h3>
+                  <span className="bg-white/50 px-2 py-1 rounded-md text-xs font-bold uppercase backdrop-blur-sm">
+                    {c.difficulty || 'All Levels'}
+                  </span>
+                </div>
+                
+                <div className="space-y-2 text-sm font-medium opacity-90">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    {c.startTime} - {c.endTime}
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => deleteClassMutation.mutate(cls._id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 transition"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    {c.trainer?.nameEn || 'Trainer'}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    {c.room || 'Main Studio'}
+                  </div>
                 </div>
 
-                {/* Seat Capacity Bar */}
-                <div className="space-y-1.5 p-3 rounded-2xl bg-slate-50 dark:bg-dark-700/40 border border-slate-100 dark:border-dark-600/50">
-                  <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-                    <span>{isAr ? 'حجز المقاعد:' : 'Seats Booked:'}</span>
-                    <span className="font-mono">{booked} / {cap}</span>
+                <div className="mt-4 pt-4 border-t border-black/10">
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span>{isAr ? 'التسجيل' : 'Enrolled'}</span>
+                    <span>{c.enrolledCount || 0} / {c.capacity}</span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-dark-600 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${isFull ? 'bg-rose-500' : 'bg-emerald-500'}`}
-                      style={{ width: `${pct}%` }}
+                  <div className="w-full h-2 bg-black/10 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-current rounded-full" 
+                      style={{ width: `${Math.min(((c.enrolledCount || 0) / c.capacity) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-dark-700">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-dark-700 dark:text-slate-300 uppercase font-bold">
-                    {cls.category}
-                  </span>
-
-                  <button
-                    type="button"
-                    disabled={isFull}
-                    onClick={() => {
-                      setSelectedClass(cls);
-                      setShowBookModal(true);
-                    }}
-                    className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                      isFull
-                        ? 'bg-slate-100 text-slate-400 dark:bg-dark-700 cursor-not-allowed'
-                        : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900'
-                    }`}
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>{isFull ? (isAr ? 'مكتمل' : 'Full') : (isAr ? 'حجز عضو' : 'Book Member')}</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })
+              </motion.div>
+            ))}
+          </div>
         )}
       </div>
 
-      {/* ── BOOK MEMBER MODAL ─────────────────────────────────────────────────────── */}
+      {/* Class Details Modal */}
       <AnimatePresence>
-        {showBookModal && selectedClass && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-dark-700 w-full max-w-sm overflow-hidden p-6 space-y-4"
+        {isModalOpen && selectedClass && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    {isAr ? 'حجز مقعد في الحصة' : 'Book Member into Class'}
-                  </h3>
-                  <p className="text-xs text-slate-500">{selectedClass.titleEn} ({selectedClass.startTime})</p>
-                </div>
-                <button onClick={() => setShowBookModal(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div>
-                <label className="label">{isAr ? 'اختر العضو المسجل' : 'Select Active Member'}</label>
-                <select
-                  value={bookMemberId}
-                  onChange={(e) => setBookMemberId(e.target.value)}
-                  className="select mt-1"
-                >
-                  <option value="">{isAr ? '-- اختر العضو --' : '-- Select Member --'}</option>
-                  {activeMembers.map((m) => (
-                    <option key={m._id} value={m._id}>
-                      {m.nameEn} ({m.memberNumber}) - {m.phone}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-dark-700">
-                <button
-                  type="button"
-                  onClick={() => setShowBookModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold"
-                >
-                  {t('cancel')}
-                </button>
-                <button
-                  type="button"
-                  disabled={!bookMemberId || bookMemberMutation.isPending}
-                  onClick={() =>
-                    bookMemberMutation.mutate({
-                      classId: selectedClass._id,
-                      memberId: bookMemberId,
-                    })
-                  }
-                  className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md disabled:opacity-50"
-                >
-                  {bookMemberMutation.isPending ? 'Booking...' : isAr ? 'تأكيد الحجز' : 'Confirm Booking'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ── ADD CLASS MODAL ──────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-dark-700 w-full max-w-md overflow-hidden my-8"
-            >
-              <div className="p-5 border-b border-slate-100 dark:border-dark-700 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <Plus className="w-5 h-5" />
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    {isAr ? 'إضافة حصة تدريبية جديدة' : 'Add Group Class'}
-                  </h3>
-                </div>
-                <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  createClassMutation.mutate(formData);
-                }}
-                className="p-6 space-y-4 max-h-[75vh] overflow-y-auto"
-              >
-                <div>
-                  <label className="label">{isAr ? 'اسم الحصة (English) *' : 'Class Title (English) *'}</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.titleEn}
-                    onChange={(e) => setFormData({ ...formData, titleEn: e.target.value })}
-                    placeholder="e.g. Morning CrossFit WOD"
-                    className="input mt-1"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+              <div className={`p-6 text-white ${getColor(selectedClass.type).replace('text-', 'bg-').replace('100', '600')}`}>
+                <div className="flex justify-between items-start">
                   <div>
-                    <label className="label">{isAr ? 'النوع / التصنيف' : 'Category'}</label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="select mt-1"
-                    >
-                      <option value="crossfit">CrossFit</option>
-                      <option value="yoga">Yoga</option>
-                      <option value="spinning">Spinning / Cycling</option>
-                      <option value="boxing">Boxing / Kickboxing</option>
-                      <option value="hiit">HIIT</option>
-                      <option value="pilates">Pilates</option>
-                      <option value="bodypump">BodyPump</option>
-                      <option value="zumba">Zumba</option>
-                    </select>
+                    <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase backdrop-blur-md">
+                      {selectedClass.type}
+                    </span>
+                    <h2 className="text-3xl font-black mt-3 mb-1">
+                      {isAr ? selectedClass.nameAr : selectedClass.nameEn}
+                    </h2>
+                    <p className="opacity-90">{selectedClass.trainer?.nameEn}</p>
                   </div>
-                  <div>
-                    <label className="label">{isAr ? 'اسم المدرب *' : 'Instructor Name *'}</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.instructorName}
-                      onChange={(e) => setFormData({ ...formData, instructorName: e.target.value })}
-                      placeholder="e.g. Coach Alex"
-                      className="input mt-1"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">{isAr ? 'وقت البدء (HH:MM)' : 'Start Time'}</label>
-                    <input
-                      type="time"
-                      required
-                      value={formData.startTime}
-                      onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                      className="input mt-1 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">{isAr ? 'سعة المقاعد' : 'Max Capacity'}</label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      value={formData.capacity}
-                      onChange={(e) => setFormData({ ...formData, capacity: Number(e.target.value) })}
-                      className="input mt-1 font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="label">{isAr ? 'الصالة / القاعة' : 'Studio / Room'}</label>
-                  <input
-                    type="text"
-                    value={formData.room}
-                    onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                    placeholder="e.g. Studio A, Boxing Arena"
-                    className="input mt-1"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-dark-700">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold"
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={createClassMutation.isPending}
-                    className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md"
-                  >
-                    {createClassMutation.isPending ? 'Saving...' : isAr ? 'حفظ الحصة' : 'Save Class'}
+                  <button onClick={() => setIsModalOpen(false)} className="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-colors">
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
-              </form>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl flex items-center gap-3 border border-slate-100">
+                    <Clock className="w-8 h-8 text-indigo-500" />
+                    <div>
+                      <div className="text-xs text-slate-500 font-bold uppercase">{isAr ? 'الوقت' : 'Time'}</div>
+                      <div className="font-semibold text-slate-800">{selectedClass.startTime}</div>
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl flex items-center gap-3 border border-slate-100">
+                    <MapPin className="w-8 h-8 text-rose-500" />
+                    <div>
+                      <div className="text-xs text-slate-500 font-bold uppercase">{isAr ? 'القاعة' : 'Room'}</div>
+                      <div className="font-semibold text-slate-800">{selectedClass.room || 'Studio 1'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-slate-800 mb-2">{isAr ? 'الوصف' : 'Description'}</h4>
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    {isAr ? selectedClass.descriptionAr : selectedClass.descriptionEn || (isAr ? 'لا يوجد وصف متاح.' : 'No description available.')}
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-slate-100">
+                  <button className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold transition-colors">
+                    {isAr ? 'حجز عضو' : 'Book Member'}
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('Are you sure?')) deleteMutation.mutate(selectedClass._id)
+                    }}
+                    className="p-3 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-colors"
+                  >
+                    <Trash2 className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
     </div>
-  );
+  )
 }

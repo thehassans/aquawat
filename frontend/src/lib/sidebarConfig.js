@@ -74,9 +74,11 @@ import {
   Smartphone, 
   CalendarRange,
   Dumbbell,
-  Flame,
-  Lock,
-  Award
+  Activity,
+  ScanLine,
+  Crown,
+  UserCircle,
+  Lock
 } from 'lucide-react'
 
 /**
@@ -156,21 +158,6 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       ]
     },
     {
-      title: language === 'ar' ? 'النادي الرياضي' : 'Gym & Fitness',
-      businessTypes: ['gym'],
-      items: [
-        { path: '/app/dashboard/gym', icon: Dumbbell, label: language === 'ar' ? 'لوحة النادي' : 'Gym Dashboard', end: true },
-        { path: '/app/dashboard/gym/members', icon: Users, label: language === 'ar' ? 'سجل الأعضاء' : 'Members' },
-        { path: '/app/dashboard/gym/kiosk', icon: QrCode, label: language === 'ar' ? 'كشك الدخول الذكي' : 'Access Kiosk' },
-        { path: '/app/dashboard/gym/plans', icon: CreditCard, label: language === 'ar' ? 'باقات الاشتراك' : 'Membership Plans' },
-        { path: '/app/dashboard/gym/classes', icon: Calendar, label: language === 'ar' ? 'الحصص الجماعية' : 'Group Classes' },
-        { path: '/app/dashboard/gym/pt-sessions', icon: Award, label: language === 'ar' ? 'التدريب الشخصي PT' : 'Personal Training' },
-        { path: '/app/dashboard/gym/assessments', icon: Flame, label: language === 'ar' ? 'قياسات InBody' : 'InBody Assessments' },
-        { path: '/app/dashboard/gym/lockers', icon: Lock, label: language === 'ar' ? 'إدارة الخزائن' : 'Lockers Matrix' },
-        { path: '/app/dashboard/gym/pos', icon: ShoppingBag, label: language === 'ar' ? 'متجر المكملات والبار' : 'Supplements & Bar POS' },
-      ]
-    },
-    {
       title: language === 'ar' ? 'المتجر الإلكتروني' : 'E-Commerce',
       businessTypes: ['ecommerce'],
       items: [
@@ -235,6 +222,23 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       items: [
         { path: '/app/dashboard/furniture/pos', icon: Sparkles, label: language === 'ar' ? 'نقطة البيع' : 'POS', perm: { module: 'boutique', action: 'create' } },
         { path: '/app/dashboard/furniture/products', icon: Package, label: language === 'ar' ? 'المنتجات' : 'Products', perm: { module: 'boutique', action: 'read' } },
+      ]
+    },
+    {
+      title: language === 'ar' ? 'الصالة الرياضية' : 'Gym & Fitness',
+      businessTypes: ['gym'],
+      items: [
+        { path: '/app/dashboard/gym/dashboard', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/members', icon: Users, label: language === 'ar' ? 'الأعضاء' : 'Members', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/plans', icon: CreditCard, label: language === 'ar' ? 'خطط العضوية' : 'Plans & Pricing', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/subscriptions', icon: CalendarRange, label: language === 'ar' ? 'الاشتراكات' : 'Subscriptions', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/checkin', icon: ScanLine, label: language === 'ar' ? 'تسجيل الدخول' : 'Check-In Kiosk', perm: { module: 'gym', action: 'create' } },
+        { path: '/app/dashboard/gym/classes', icon: Calendar, label: language === 'ar' ? 'الحصص الجماعية' : 'Class Schedule', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/trainers', icon: Dumbbell, label: language === 'ar' ? 'المدربون' : 'Trainers', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/pt-packages', icon: Crown, label: language === 'ar' ? 'التدريب الشخصي' : 'Personal Training', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/measurements', icon: Activity, label: language === 'ar' ? 'القياسات البدنية' : 'Body Measurements', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/lockers', icon: Lock, label: language === 'ar' ? 'الخزائن' : 'Lockers', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/analytics', icon: TrendingUp, label: language === 'ar' ? 'التحليلات' : 'Analytics', perm: { module: 'gym', action: 'read' } },
       ]
     },
     {

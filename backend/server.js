@@ -81,7 +81,6 @@ import profitMarginRoutes from './routes/profitMargin.routes.js';
 import reorderRoutes from './routes/reorder.routes.js';
 import dailyPnlRoutes from './routes/dailyPnl.routes.js';
 import bookstoreRoutes from './routes/bookstore.routes.js';
-import gymRoutes from './routes/gym.routes.js';
 import ecommerceRoutes from './routes/ecommerce.routes.js';
 import ecommerceProductRoutes from './routes/ecommerceProduct.routes.js';
 import ecommerceOrderRoutes from './routes/ecommerceOrder.routes.js';
@@ -145,6 +144,7 @@ import furnitureRoutes from './routes/furniture.routes.js';
 import branchRoutes from './routes/branch.routes.js';
 import appStoreRoutes from './routes/appStore.routes.js';
 import manufacturingRoutes from './routes/manufacturing.routes.js';
+import gymRoutes from './routes/gym.routes.js';
 import calendarRoutes from './routes/calendar.routes.js';
 
 import { checkIqamaExpiry } from './jobs/iqamaChecker.js';
@@ -838,7 +838,6 @@ app.use('/api/bakala/promotions', ensureDatabaseReady, promotionRoutes);
 app.use('/api/bakala/margins', ensureDatabaseReady, profitMarginRoutes);
 app.use('/api/bakala/reorder', ensureDatabaseReady, reorderRoutes);
 app.use('/api/bookstore', ensureDatabaseReady, bookstoreRoutes);
-app.use('/api/gym', ensureDatabaseReady, gymRoutes);
 app.use('/api/ecommerce', ensureDatabaseReady, ecommerceRoutes);
 app.use('/api/ecommerce/products', ensureDatabaseReady, ecommerceProductRoutes);
 app.use('/api/ecommerce/orders', ensureDatabaseReady, ecommerceOrderRoutes);
@@ -907,6 +906,7 @@ app.use('/api/furniture', ensureDatabaseReady, furnitureRoutes);
 app.use('/api/branches', ensureDatabaseReady, branchRoutes);
 app.use('/api/app-store', ensureDatabaseReady, appStoreRoutes);
 app.use('/api/manufacturing', ensureDatabaseReady, manufacturingRoutes);
+app.use('/api/gym', ensureDatabaseReady, gymRoutes);
 
 // Serve static frontend files in production
 const resolveFrontendBuild = () => {

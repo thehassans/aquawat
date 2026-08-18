@@ -1,108 +1,38 @@
 import mongoose from 'mongoose';
 
-const gymPlanSchema = new mongoose.Schema(
-  {
-    tenantId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Tenant',
-      required: true,
-      index: true,
-    },
-    planCode: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    nameEn: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    nameAr: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-    description: {
-      type: String,
-      default: '',
-    },
-    // Duration in days or months
-    durationDays: {
-      type: Number,
-      default: 30,
-    },
-    durationMonths: {
-      type: Number,
-      default: 1,
-    },
-    price: {
-      type: Number,
-      required: true,
-      default: 0,
-    },
-    currency: {
-      type: String,
-      default: 'SAR',
-      trim: true,
-    },
-    taxRate: {
-      type: Number,
-      default: 15,
-    },
-    accessType: {
-      type: String,
-      enum: ['all_day', 'morning_offpeak', 'evening_peak', 'ladies_only', 'vip_all_access', 'weekend_only'],
-      default: 'all_day',
-    },
-    allowedFreezeDays: {
-      type: Number,
-      default: 7, // Allowed pause/freeze days per subscription cycle
-    },
-    branchAccess: {
-      type: String,
-      enum: ['single_branch', 'all_branches', 'vip_network'],
-      default: 'single_branch',
-    },
-    includedPtSessions: {
-      type: Number,
-      default: 0, // Number of complimentary 1-on-1 PT sessions
-    },
-    includedClasses: {
-      type: Number,
-      default: -1, // -1 means unlimited group classes
-    },
-    includedLocker: {
-      type: Boolean,
-      default: false,
-    },
-    features: [
-      {
-        type: String,
-        trim: true,
-      }
-    ],
-    sortOrder: {
-      type: Number,
-      default: 0,
-    },
-    isPopular: {
-      type: Boolean,
-      default: false,
-    },
-    isActive: {
-      type: Boolean,
-      default: true,
-      index: true,
-    },
+const gymPlanSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+  nameEn: { type: String, required: true },
+  nameAr: { type: String },
+  descriptionEn: { type: String },
+  descriptionAr: { type: String },
+  durationDays: { type: Number, enum: [1, 7, 30, 90, 180, 365], required: true },
+  price: { type: Number, required: true },
+  currency: { type: String, default: 'SAR' },
+  taxRate: { type: Number, default: 15 },
+  planType: { 
+    type: String, 
+    enum: ['day_pass', 'weekly', 'monthly', 'quarterly', 'semi_annual', 'annual', 'vip', 'student', 'corporate', 'family', 'off_peak', 'custom'],
+    default: 'monthly'
   },
-  {
-    timestamps: true,
-  }
-);
+  maxFreezeDays: { type: Number, default: 0 },
+  includesClasses: { type: Boolean, default: false },
+  includesLocker: { type: Boolean, default: false },
+  includesPool: { type: Boolean, default: false },
+  includesPTSessions: { type: Number, default: 0 },
+  branchAccess: { type: String, enum: ['single', 'all'], default: 'single' },
+  isActive: { type: Boolean, default: true },
+  sortOrder: { type: Number, default: 0 },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+}, { timestamps: true });
 
-gymPlanSchema.index({ tenantId: 1, planCode: 1 }, { unique: true });
+gymPlanSchema.pre('save', function (next) {
+  if (this.price !== undefined) {
+    this.price = Math.round(this.price * 100) / 100;
+  }
+  next();
+});
+
 gymPlanSchema.index({ tenantId: 1, isActive: 1 });
 
-export const GymPlan = mongoose.model('GymPlan', gymPlanSchema);
-export default GymPlan;
+export default mongoose.models.GymPlan || mongoose.model('GymPlan', gymPlanSchema);

@@ -7,6 +7,11 @@ export const getBusinessTypeOptions = (language = 'en') => [
     description: language === 'ar' ? 'المخزون والمستودعات والمشتريات' : 'Inventory, warehouses, and purchasing',
   },
   {
+    id: 'gym',
+    label: language === 'ar' ? 'الصالة الرياضية واللياقة' : 'Gym & Fitness Center',
+    description: language === 'ar' ? 'إدارة الأعضاء، الاشتراكات، الحصص، التدريب الشخصي، قياسات الجسم والخزائن' : 'Members, subscriptions, group classes, personal training, InBody tracking & lockers',
+  },
+  {
     id: 'manufacturing',
     label: language === 'ar' ? 'التصنيع والإنتاج' : 'Manufacturing & MES',
     description: language === 'ar' ? 'شجرة المواد BOM، تخطيط الإنتاج MRP، أوامر الشغل، الجودة والتكاليف' : 'Multi-level BOM, MRP II, Work Orders, Shop Floor Control & QA/QC',
@@ -85,11 +90,6 @@ export const getBusinessTypeOptions = (language = 'en') => [
     id: 'furniture_shop',
     label: language === 'ar' ? 'معرض أثاث' : 'Furniture Shop',
     description: language === 'ar' ? 'نقطة بيع وإدارة مخزون لمعارض الأثاث والمفروشات' : 'POS and inventory management for furniture and carpet shops',
-  },
-  {
-    id: 'gym',
-    label: language === 'ar' ? 'صالات ونوادي رياضية' : 'Gym & Fitness Club',
-    description: language === 'ar' ? 'إدارة اشتراكات الأعضاء، كشك الدخول الذكي، الحصص الجماعية، وفحوصات InBody' : 'Member subscriptions, turnstile check-in kiosk, group classes, InBody, and lockers',
   },
 ]
 

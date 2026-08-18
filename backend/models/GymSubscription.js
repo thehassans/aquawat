@@ -1,115 +1,51 @@
 import mongoose from 'mongoose';
 
-const gymSubscriptionSchema = new mongoose.Schema(
-  {
-    tenantId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Tenant',
-      required: true,
-      index: true,
-    },
-    branchId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Branch',
-    },
-    subscriptionNumber: {
-      type: String,
-      required: true,
-      index: true,
-    },
-    memberId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'GymMember',
-      required: true,
-      index: true,
-    },
-    planId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'GymPlan',
-      required: true,
-      index: true,
-    },
-    startDate: {
-      type: Date,
-      required: true,
-      default: Date.now,
-    },
-    endDate: {
-      type: Date,
-      required: true,
-      index: true,
-    },
-    pricePaid: {
-      type: Number,
-      required: true,
-      default: 0,
-    },
-    currency: {
-      type: String,
-      default: 'SAR',
-      trim: true,
-    },
-    discountAmount: {
-      type: Number,
-      default: 0,
-    },
-    taxAmount: {
-      type: Number,
-      default: 0,
-    },
-    paymentMethod: {
-      type: String,
-      enum: ['cash', 'card', 'bank_transfer', 'mada', 'tabby', 'tamara', 'bkash', 'nagad', 'easypaisa', 'jazzcash', 'online'],
-      default: 'card',
-    },
-    invoiceId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Invoice',
-    },
-    status: {
-      type: String,
-      enum: ['active', 'expiring_soon', 'expired', 'frozen', 'cancelled'],
-      default: 'active',
-      index: true,
-    },
-    // Freeze / Pause Tracking
-    freezeStartDate: {
-      type: Date,
-    },
-    freezeEndDate: {
-      type: Date,
-    },
-    freezeDaysUsed: {
-      type: Number,
-      default: 0,
-    },
-    freezeReason: {
-      type: String,
-      default: '',
-    },
-    // Personal Training Credits
-    remainingPtSessions: {
-      type: Number,
-      default: 0,
-    },
-    // Auto-renewal flag
-    autoRenew: {
-      type: Boolean,
-      default: false,
-    },
-    notes: {
-      type: String,
-      default: '',
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+const freezeHistorySchema = new mongoose.Schema({
+  freezeStart: { type: Date },
+  freezeEnd: { type: Date },
+  reason: { type: String },
+  daysUsed: { type: Number }
+});
 
-gymSubscriptionSchema.index({ tenantId: 1, subscriptionNumber: 1 }, { unique: true });
+const gymSubscriptionSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+  memberId: { type: mongoose.Schema.Types.ObjectId, ref: 'GymMember', required: true },
+  planId: { type: mongoose.Schema.Types.ObjectId, ref: 'GymPlan', required: true },
+  subscriptionNumber: { type: String, required: true },
+  startDate: { type: Date, required: true },
+  endDate: { type: Date, required: true },
+  status: { type: String, enum: ['active', 'expired', 'frozen', 'cancelled'], default: 'active', index: true },
+  freezeHistory: [freezeHistorySchema],
+  totalFreezeDaysUsed: { type: Number, default: 0 },
+  remainingFreezeDays: { type: Number, default: 0 },
+  paymentMethod: { 
+    type: String, 
+    enum: ['cash', 'card', 'transfer', 'mada', 'apple_pay', 'stc_pay', 'bkash', 'jazzcash', 'easypaisa', 'other'],
+    default: 'cash'
+  },
+  amountPaid: { type: Number, default: 0 },
+  discount: { type: Number, default: 0 },
+  currency: { type: String },
+  taxRate: { type: Number },
+  invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
+  renewedFromId: { type: mongoose.Schema.Types.ObjectId, ref: 'GymSubscription' },
+  autoRenew: { type: Boolean, default: false },
+  notes: { type: String },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+}, { timestamps: true });
+
+gymSubscriptionSchema.pre('save', function (next) {
+  if (this.amountPaid !== undefined) {
+    this.amountPaid = Math.round(this.amountPaid * 100) / 100;
+  }
+  if (this.discount !== undefined) {
+    this.discount = Math.round(this.discount * 100) / 100;
+  }
+  next();
+});
+
 gymSubscriptionSchema.index({ tenantId: 1, memberId: 1, status: 1 });
 gymSubscriptionSchema.index({ tenantId: 1, endDate: 1 });
+gymSubscriptionSchema.index({ tenantId: 1, subscriptionNumber: 1 }, { unique: true });
 
-export const GymSubscription = mongoose.model('GymSubscription', gymSubscriptionSchema);
-export default GymSubscription;
+export default mongoose.models.GymSubscription || mongoose.model('GymSubscription', gymSubscriptionSchema);

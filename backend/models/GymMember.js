@@ -1,122 +1,35 @@
 import mongoose from 'mongoose';
 
-const gymMemberSchema = new mongoose.Schema(
-  {
-    tenantId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Tenant',
-      required: true,
-      index: true,
-    },
-    branchId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Branch',
-    },
-    memberNumber: {
-      type: String,
-      required: true,
-      index: true,
-    },
-    nameEn: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    nameAr: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-    email: {
-      type: String,
-      trim: true,
-      lowercase: true,
-      default: '',
-    },
-    phone: {
-      type: String,
-      required: true,
-      trim: true,
-      index: true,
-    },
-    gender: {
-      type: String,
-      enum: ['male', 'female', 'other'],
-      default: 'male',
-    },
-    dob: {
-      type: Date,
-    },
-    // Multi-country identity support (Saudi Iqama / National ID, Bangladesh NID, Pakistan CNIC, Global Passport)
-    identityType: {
-      type: String,
-      enum: ['national_id', 'iqama', 'nid', 'cnic', 'passport', 'other'],
-      default: 'national_id',
-    },
-    identityNumber: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-    photoUrl: {
-      type: String,
-      default: '',
-    },
-    barcode: {
-      type: String,
-      index: true,
-    },
-    rfidCardNumber: {
-      type: String,
-      trim: true,
-      index: true,
-    },
-    emergencyContact: {
-      name: { type: String, default: '' },
-      relationship: { type: String, default: '' },
-      phone: { type: String, default: '' },
-    },
-    medicalConditions: {
-      type: String,
-      default: '',
-    },
-    fitnessGoal: {
-      type: String,
-      enum: ['weight_loss', 'muscle_gain', 'endurance', 'strength', 'flexibility', 'general_fitness', 'rehab'],
-      default: 'general_fitness',
-    },
-    preferredLanguage: {
-      type: String,
-      enum: ['en', 'ar', 'bn', 'ur'],
-      default: 'en',
-    },
-    assignedTrainerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-    },
-    activeSubscriptionId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'GymSubscription',
-    },
-    status: {
-      type: String,
-      enum: ['active', 'expired', 'frozen', 'inactive'],
-      default: 'active',
-      index: true,
-    },
-    notes: {
-      type: String,
-      default: '',
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+const gymMemberSchema = new mongoose.Schema({
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+  memberNumber: { type: String, required: true },
+  firstName: { type: String, required: true },
+  lastName: { type: String },
+  firstNameAr: { type: String },
+  lastNameAr: { type: String },
+  email: { type: String },
+  phone: { type: String, required: true },
+  gender: { type: String, enum: ['male', 'female'], required: true },
+  dateOfBirth: { type: Date },
+  nationalId: { type: String },
+  photoUrl: { type: String },
+  emergencyContactName: { type: String },
+  emergencyContactPhone: { type: String },
+  healthNotes: { type: String },
+  bloodType: { type: String, enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', ''] },
+  status: { type: String, enum: ['active', 'inactive', 'blacklisted'], default: 'active', index: true },
+  qrCode: { type: String },
+  branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch' },
+  source: { type: String, enum: ['walk_in', 'referral', 'social_media', 'website', 'corporate', 'other'], default: 'walk_in' },
+  referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'GymMember' },
+  notes: { type: String },
+  isActive: { type: Boolean, default: true },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+}, { timestamps: true });
 
 gymMemberSchema.index({ tenantId: 1, memberNumber: 1 }, { unique: true });
 gymMemberSchema.index({ tenantId: 1, phone: 1 });
-gymMemberSchema.index({ tenantId: 1, status: 1 });
+gymMemberSchema.index({ tenantId: 1, qrCode: 1 });
+gymMemberSchema.index({ tenantId: 1, nationalId: 1 }, { sparse: true });
 
-export const GymMember = mongoose.model('GymMember', gymMemberSchema);
-export default GymMember;
+export default mongoose.models.GymMember || mongoose.model('GymMember', gymMemberSchema);

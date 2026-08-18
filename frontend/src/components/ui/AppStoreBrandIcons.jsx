@@ -236,9 +236,24 @@ const ICONS = {
       <path d="M26 34c2 4 10 4 12 0M26 27h2M36 27h2" stroke="#E11D48" strokeWidth="2.4" strokeLinecap="round" />
     </Tile>
   ),
+  dumbbell: (uid, className) => (
+    <Tile uid={uid} className={className} from="#F97316" to="#EA580C" glow="#C2410C" stroke="#FED7AA">
+      {/* 3D Dumbbell Bar */}
+      <rect x="22" y="30" width="20" height="4" rx="2" fill="#FFFFFF" />
+      {/* Left Inner Weight */}
+      <rect x="18" y="22" width="4" height="20" rx="2" fill="#FFFFFF" />
+      {/* Left Outer Weight */}
+      <rect x="14" y="25" width="4" height="14" rx="2" fill="#FED7AA" />
+      {/* Right Inner Weight */}
+      <rect x="42" y="22" width="4" height="20" rx="2" fill="#FFFFFF" />
+      {/* Right Outer Weight */}
+      <rect x="46" y="25" width="4" height="14" rx="2" fill="#FED7AA" />
+    </Tile>
+  ),
 }
 
 const APP_ID_MAP = {
+  gym_fitness_club: 'dumbbell',
   zatca_phase2_pro: 'zatca',
   zatca_phase2: 'zatca',
   gosi_mudad_compliance: 'gosi',

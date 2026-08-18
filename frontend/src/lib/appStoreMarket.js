@@ -21,7 +21,6 @@ export function getPreferredAppIds(tenant) {
       'gosi_mudad_compliance',
       'elm_identity_pro',
       'qiwa_hr_integration',
-      'gym_fitness_club',
       'invoice_template_2',
       'whatsapp_cloud_auto',
       'email_suite',
@@ -32,13 +31,13 @@ export function getPreferredAppIds(tenant) {
       'tamara_bnpl',
       'crm_sales_pipeline',
       'hr_payroll_pro',
+      'gym_fitness_club',
     ]
   }
 
   if (market === 'bangladesh') {
     return [
       'bangladesh_nbr_einvoicing',
-      'gym_fitness_club',
       'invoice_template_2',
       'whatsapp_cloud_auto',
       'email_suite',
@@ -49,13 +48,13 @@ export function getPreferredAppIds(tenant) {
       'crm_sales_pipeline',
       'hr_payroll_pro',
       'ecommerce_store',
+      'gym_fitness_club',
     ]
   }
 
   if (market === 'pakistan') {
     return [
       'pakistan_fbr_einvoicing',
-      'gym_fitness_club',
       'invoice_template_2',
       'whatsapp_cloud_auto',
       'email_suite',
@@ -66,20 +65,21 @@ export function getPreferredAppIds(tenant) {
       'ecommerce_store',
       'crm_sales_pipeline',
       'hr_payroll_pro',
+      'gym_fitness_club',
     ]
   }
 
   return [
-    'gym_fitness_club',
-    'invoice_template_2',
-    'invoice_template_3',
-    'whatsapp_cloud_auto',
+      'invoice_template_2',
+      'invoice_template_3',
+      'whatsapp_cloud_auto',
     'email_suite',
     'sms_marketing',
     'thermal_printer_driver',
     'crm_sales_pipeline',
     'ecommerce_store',
     'hr_payroll_pro',
+    'gym_fitness_club',
   ]
 }
 

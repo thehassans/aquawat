@@ -124,7 +124,7 @@ function appMatchesCategory(app, categoryId) {
       app.category === 'industry_vertical' ||
       app.appType === 'core_vertical' ||
       app.appType === 'industry_vertical' ||
-      ['manufacturing', 'boutique', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'manpower', 'bakala', 'pharmacy', 'trading'].some(
+      ['manufacturing', 'boutique', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'manpower', 'bakala', 'pharmacy', 'trading', 'gym'].some(
         (v) => app.appId.includes(v)
       )
     );
