@@ -803,6 +803,48 @@ export const DEFAULT_APP_CATALOG = [
     ]
   },
   {
+    appId: 'gym_fitness_club',
+    nameEn: 'Gym & Fitness Club ERP',
+    nameAr: 'إدارة الصالات والنوادي الرياضية',
+    taglineEn: 'Member subscriptions, turnstile check-in kiosk, group classes, InBody assessments, and locker rentals.',
+    taglineAr: 'إدارة اشتراكات الأعضاء، تسجيل الحضور والكشك الذكي، الحصص الجماعية، قياسات InBody، وتأجير الخزائن.',
+    descriptionEn: 'End-to-end fitness center & sports club management: digital membership cards with QR/RFID turnstile check-in, flexible subscription plans with pause/freeze allowances, group class scheduling (CrossFit, Yoga, Spinning, HIIT), InBody bio-impedance fitness tracking, personal training sessions, locker matrix management, and automatic renewal reminders with localized tax compliance (ZATCA, NBR, FBR).',
+    descriptionAr: 'منظومة شاملة لإدارة الأندية والصالات الرياضية ومراكز اللياقة: بطاقات عضوية رقمية برمز QR وبوابات الدخول الذكية، باقات اشتراكات مرنة مع ميزة تجميد وتمديد الاشتراك، جداول الحصص الجماعية (كروس فيت، يوجا، بوكسينج، سبينينج)، متابعة القياسات البدنية و InBody، باقات التدريب الشخصي PT، مصفوفة تأجير الخزائن، وتنبيهات التجديد التلقائي عبر الواتساب متوافقة مع الأنظمة الضريبية المحلية.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'dumbbell',
+    version: '2.0.0',
+    downloadSize: '12.8 MB',
+    author: 'Maqder Core',
+    rating: 4.98,
+    reviewsCount: 240,
+    pricingTier: 'free',
+    badge: 'Gym & Fitness',
+    defaultRoute: '/app/dashboard/gym',
+    businessTypeGrant: 'gym',
+    featuresEn: [
+      'Member profiles with digital ID pass, QR/RFID turnstile check-in',
+      'Flexible membership plans (Monthly, VIP, Off-Peak) with freeze/pause days',
+      'Group class timetable (CrossFit, Yoga, Boxing, Spinning, HIIT) with capacity booking',
+      'InBody & bio-impedance measurement tracker with visual progress charts',
+      'Personal Training (PT) packages with coach credit bank',
+      'Visual Locker rental matrix grid with status tracking'
+    ],
+    featuresAr: [
+      'ملفات الأعضاء وبطاقات العضوية الرقمية مع كشك الدخول بـ QR وبوابات الدخول',
+      'خطط وباقات اشتراكات مرنة (شهرية، سنوية، VIP، صباحية) مع رصيد أيام التجميد',
+      'جدول الحصص والتمارين الجماعية (كروس فيت، يوجا، ملاكمة، سبينينج) مع حجز السعة',
+      'متابعة قياسات InBody والكتلة العضلية ونسبة الدهون مع رسوم بيانية للتطور',
+      'باقات التدريب الشخصي (PT) ورصيد الحصص وعمولات المدربين',
+      'مصفوفة بصرية تفاعلية لإدارة تأجير الخزائن والمفاتيح'
+    ],
+    configSchema: [
+      { key: 'enableKioskSound', labelEn: 'Play Audio Cues on Check-In Kiosk', labelAr: 'تشغيل تنبيهات صوتية عند تسجيل الدخول بالكشك', type: 'boolean', defaultValue: true },
+      { key: 'autoExpireSubscriptions', labelEn: 'Auto-Expire subscriptions past end date', labelAr: 'إنهاء الاشتراكات تلقائياً عند تجاوز التاريخ', type: 'boolean', defaultValue: true },
+      { key: 'defaultFreezeDays', labelEn: 'Default allowed freeze days', labelAr: 'الأيام الافتراضية المسموح بها للتجميد', type: 'number', defaultValue: 14 }
+    ]
+  },
+  {
     appId: 'car_workshop',
     nameEn: 'Auto Garage & Car Workshop ERP',
     nameAr: 'مراكز صيانة السيارات والورش المعتمدة',

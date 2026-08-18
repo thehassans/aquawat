@@ -21,6 +21,7 @@ export function getPreferredAppIds(tenant) {
       'gosi_mudad_compliance',
       'elm_identity_pro',
       'qiwa_hr_integration',
+      'gym_fitness_club',
       'invoice_template_2',
       'whatsapp_cloud_auto',
       'email_suite',
@@ -37,6 +38,7 @@ export function getPreferredAppIds(tenant) {
   if (market === 'bangladesh') {
     return [
       'bangladesh_nbr_einvoicing',
+      'gym_fitness_club',
       'invoice_template_2',
       'whatsapp_cloud_auto',
       'email_suite',
@@ -53,6 +55,7 @@ export function getPreferredAppIds(tenant) {
   if (market === 'pakistan') {
     return [
       'pakistan_fbr_einvoicing',
+      'gym_fitness_club',
       'invoice_template_2',
       'whatsapp_cloud_auto',
       'email_suite',
@@ -67,9 +70,10 @@ export function getPreferredAppIds(tenant) {
   }
 
   return [
-      'invoice_template_2',
-      'invoice_template_3',
-      'whatsapp_cloud_auto',
+    'gym_fitness_club',
+    'invoice_template_2',
+    'invoice_template_3',
+    'whatsapp_cloud_auto',
     'email_suite',
     'sms_marketing',
     'thermal_printer_driver',

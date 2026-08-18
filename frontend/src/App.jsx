@@ -171,6 +171,13 @@ const BookStoreBuyBack = lazy(() => import('./pages/bookstore/BookStoreBuyBack')
 const BookStoreRentals = lazy(() => import('./pages/bookstore/BookStoreRentals'))
 const BookStoreCourseEnrollments = lazy(() => import('./pages/bookstore/BookStoreCourseEnrollments'))
 const BookStoreReports = lazy(() => import('./pages/bookstore/BookStoreReports'))
+const GymDashboard = lazy(() => import('./pages/gym/GymDashboard'))
+const GymMembers = lazy(() => import('./pages/gym/GymMembers'))
+const GymCheckInKiosk = lazy(() => import('./pages/gym/GymCheckInKiosk'))
+const GymPlans = lazy(() => import('./pages/gym/GymPlans'))
+const GymClasses = lazy(() => import('./pages/gym/GymClasses'))
+const GymAssessments = lazy(() => import('./pages/gym/GymAssessments'))
+const GymLockers = lazy(() => import('./pages/gym/GymLockers'))
 const EcommerceDashboard = lazy(() => import('./pages/ecommerce/EcommerceDashboard'))
 const EcommerceOrders = lazy(() => import('./pages/ecommerce/EcommerceOrders'))
 const EcommerceProducts = lazy(() => import('./pages/ecommerce/EcommerceProducts'))
@@ -843,6 +850,15 @@ function App() {
         <Route path="bookstore/rentals" element={<BusinessTypeRoute allowedTypes={['bookstore']}><BookStoreRentals /></BusinessTypeRoute>} />
         <Route path="bookstore/courses/:courseId/enrollments" element={<BusinessTypeRoute allowedTypes={['bookstore']}><BookStoreCourseEnrollments /></BusinessTypeRoute>} />
         <Route path="bookstore/reports" element={<BusinessTypeRoute allowedTypes={['bookstore']}><BookStoreReports /></BusinessTypeRoute>} />
+
+        {/* Gym & Fitness Routes */}
+        <Route path="gym" element={<BusinessTypeRoute allowedTypes={['gym']}><GymDashboard /></BusinessTypeRoute>} />
+        <Route path="gym/members" element={<BusinessTypeRoute allowedTypes={['gym']}><GymMembers /></BusinessTypeRoute>} />
+        <Route path="gym/kiosk" element={<BusinessTypeRoute allowedTypes={['gym']}><GymCheckInKiosk /></BusinessTypeRoute>} />
+        <Route path="gym/plans" element={<BusinessTypeRoute allowedTypes={['gym']}><GymPlans /></BusinessTypeRoute>} />
+        <Route path="gym/classes" element={<BusinessTypeRoute allowedTypes={['gym']}><GymClasses /></BusinessTypeRoute>} />
+        <Route path="gym/assessments" element={<BusinessTypeRoute allowedTypes={['gym']}><GymAssessments /></BusinessTypeRoute>} />
+        <Route path="gym/lockers" element={<BusinessTypeRoute allowedTypes={['gym']}><GymLockers /></BusinessTypeRoute>} />
 
         {/* E-Commerce */}
         <Route path="ecommerce" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceDashboard /></BusinessTypeRoute>} end />

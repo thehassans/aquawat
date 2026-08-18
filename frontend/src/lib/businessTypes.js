@@ -1,4 +1,4 @@
-export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing']
+export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing', 'gym']
 
 export const getBusinessTypeOptions = (language = 'en') => [
   {
@@ -85,6 +85,11 @@ export const getBusinessTypeOptions = (language = 'en') => [
     id: 'furniture_shop',
     label: language === 'ar' ? 'معرض أثاث' : 'Furniture Shop',
     description: language === 'ar' ? 'نقطة بيع وإدارة مخزون لمعارض الأثاث والمفروشات' : 'POS and inventory management for furniture and carpet shops',
+  },
+  {
+    id: 'gym',
+    label: language === 'ar' ? 'صالات ونوادي رياضية' : 'Gym & Fitness Club',
+    description: language === 'ar' ? 'إدارة اشتراكات الأعضاء، كشك الدخول الذكي، الحصص الجماعية، وفحوصات InBody' : 'Member subscriptions, turnstile check-in kiosk, group classes, InBody, and lockers',
   },
 ]
 

@@ -2397,6 +2397,53 @@ export function App3DIcon({
     )
   }
 
+  // ─── GYM & FITNESS 3D ICON ───────────────────────────────────────────────
+  if (
+    cleanAppId.includes('gym') ||
+    cleanIcon === 'dumbbell' ||
+    cleanLabel.includes('gym') ||
+    cleanLabel.includes('نادي') ||
+    cleanLabel.includes('رياض') ||
+    segments.includes('gym')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#10B981" />
+            <stop offset="50%" stopColor="#059669" />
+            <stop offset="100%" stopColor="#047857" />
+          </linearGradient>
+          <linearGradient id={`gym_metal_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="50%" stopColor="#E2E8F0" />
+            <stop offset="100%" stopColor="#94A3B8" />
+          </linearGradient>
+          <filter id={`gym_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#059669" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="14" fill={`url(#gym_bg_${uid})`} filter={`url(#gym_flt_${uid})`} stroke="#6EE7B7" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* Central Hex Dumbbell Handle */}
+        <line x1="22" y1="42" x2="42" y2="22" stroke={`url(#gym_metal_${uid})`} strokeWidth="5" strokeLinecap="round" />
+        <line x1="28" y1="36" x2="36" y2="28" stroke="#1E293B" strokeWidth="6" strokeLinecap="round" opacity="0.4" />
+
+        {/* Left Heavy Plate Group */}
+        <rect x="14" y="36" width="6" height="14" rx="2" transform="rotate(-45 14 36)" fill={`url(#gym_metal_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        <rect x="10" y="40" width="6" height="10" rx="2" transform="rotate(-45 10 40)" fill="#0F172A" />
+
+        {/* Right Heavy Plate Group */}
+        <rect x="36" y="14" width="6" height="14" rx="2" transform="rotate(-45 36 14)" fill={`url(#gym_metal_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        <rect x="40" y="18" width="6" height="10" rx="2" transform="rotate(-45 40 18)" fill="#0F172A" />
+
+        {/* Neon Pulse Sparkle */}
+        <circle cx="48" cy="16" r="3" fill="#34D399" />
+      </svg>
+    )
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════════
   // ─── 60. COMPANY PROFILE & HEADQUARTERS ───────────────────────────────────────
   // ═══════════════════════════════════════════════════════════════════════════════

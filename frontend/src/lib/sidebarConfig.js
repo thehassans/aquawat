@@ -72,7 +72,10 @@ import {
   Globe2,
   Store,
   Smartphone, 
-  CalendarRange
+  CalendarRange,
+  Dumbbell,
+  Flame,
+  Lock
 } from 'lucide-react'
 
 /**
@@ -149,6 +152,19 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/bookstore/shift', icon: Wallet, label: language === 'ar' ? 'إدارة الوردية' : 'Shift Management' },
         { path: '/app/dashboard/khata', icon: Users, label: language === 'ar' ? 'العملاء (خاتا)' : 'Khata', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/bookstore/dashboard', icon: ShieldCheck, label: language === 'ar' ? 'لوحة التحكم' : 'Administration' },
+      ]
+    },
+    {
+      title: language === 'ar' ? 'النادي الرياضي' : 'Gym & Fitness',
+      businessTypes: ['gym'],
+      items: [
+        { path: '/app/dashboard/gym', icon: Dumbbell, label: language === 'ar' ? 'لوحة النادي' : 'Gym Dashboard', end: true },
+        { path: '/app/dashboard/gym/members', icon: Users, label: language === 'ar' ? 'سجل الأعضاء' : 'Members' },
+        { path: '/app/dashboard/gym/kiosk', icon: QrCode, label: language === 'ar' ? 'كشك الدخول الذكي' : 'Access Kiosk' },
+        { path: '/app/dashboard/gym/plans', icon: CreditCard, label: language === 'ar' ? 'باقات الاشتراك' : 'Membership Plans' },
+        { path: '/app/dashboard/gym/classes', icon: Calendar, label: language === 'ar' ? 'الحصص الجماعية' : 'Group Classes' },
+        { path: '/app/dashboard/gym/assessments', icon: Flame, label: language === 'ar' ? 'قياسات InBody' : 'InBody Assessments' },
+        { path: '/app/dashboard/gym/lockers', icon: Lock, label: language === 'ar' ? 'إدارة الخزائن' : 'Lockers Matrix' },
       ]
     },
     {
