@@ -4,12 +4,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { showArabicFields } from '../../lib/saudiTenant'
 import { Calendar, Plus, Users, Clock, MapPin, Edit, Trash2, X, ChevronRight, ChevronLeft, Check, AlertCircle } from 'lucide-react'
 
 export default function GymClasses() {
   const { language = 'en' } = useSelector((state) => state.ui || {})
   const { tenant } = useSelector((state) => state.auth || {})
   const isAr = language === 'ar'
+  const isMiddleEast = showArabicFields(tenant)
   const queryClient = useQueryClient()
 
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -344,9 +346,11 @@ export default function GymClasses() {
               </div>
 
               <form onSubmit={handleCreateSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`grid grid-cols-1 ${isMiddleEast ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4`}>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">{isAr ? 'اسم الحصة (بالإنجليزية) *' : 'Class Name (En) *'}</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      {isMiddleEast ? (isAr ? 'اسم الحصة (بالإنجليزية) *' : 'Class Name (English) *') : (isAr ? 'اسم الحصة *' : 'Class Name *')}
+                    </label>
                     <input
                       type="text"
                       required
@@ -356,16 +360,18 @@ export default function GymClasses() {
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">{isAr ? 'اسم الحصة (بالعربية)' : 'Class Name (Ar)'}</label>
-                    <input
-                      type="text"
-                      placeholder="مثال: حصة حرق دهون الصباحية"
-                      value={formData.nameAr}
-                      onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
+                  {isMiddleEast && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">{isAr ? 'اسم الحصة (بالعربية)' : 'Class Name (Arabic)'}</label>
+                      <input
+                        type="text"
+                        placeholder="مثال: حصة حرق دهون الصباحية"
+                        value={formData.nameAr}
+                        onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -376,15 +382,15 @@ export default function GymClasses() {
                       onChange={(e) => setFormData({ ...formData, classType: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     >
-                      <option value="hiit">HIIT / كارديو مكثف</option>
-                      <option value="crossfit">CrossFit / كروس فيت</option>
-                      <option value="spinning">Spinning / دراجات</option>
-                      <option value="yoga">Yoga / يوغا</option>
-                      <option value="pilates">Pilates / بيلاتس</option>
-                      <option value="boxing">Boxing / ملاكمة</option>
-                      <option value="zumba">Zumba / زومبا</option>
-                      <option value="swimming">Swimming / سباحة</option>
-                      <option value="body_pump">Body Pump / تقوية</option>
+                      <option value="hiit">{isAr ? 'كارديو مكثف (HIIT)' : 'HIIT'}</option>
+                      <option value="crossfit">{isAr ? 'كروس فيت (CrossFit)' : 'CrossFit'}</option>
+                      <option value="spinning">{isAr ? 'دراجات (Spinning)' : 'Spinning'}</option>
+                      <option value="yoga">{isAr ? 'يوغا (Yoga)' : 'Yoga'}</option>
+                      <option value="pilates">{isAr ? 'بيلاتس (Pilates)' : 'Pilates'}</option>
+                      <option value="boxing">{isAr ? 'ملاكمة (Boxing)' : 'Boxing'}</option>
+                      <option value="zumba">{isAr ? 'زومبا (Zumba)' : 'Zumba'}</option>
+                      <option value="swimming">{isAr ? 'سباحة (Swimming)' : 'Swimming'}</option>
+                      <option value="body_pump">{isAr ? 'تقوية (Body Pump)' : 'Body Pump'}</option>
                     </select>
                   </div>
                   <div>

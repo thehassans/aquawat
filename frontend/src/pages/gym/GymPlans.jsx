@@ -4,12 +4,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { showArabicFields } from '../../lib/saudiTenant'
 import { Sun, Calendar, Crown, Gem, GraduationCap, Building, Users, Check, X, Plus, Edit2, Trash2, ShieldCheck, Zap } from 'lucide-react'
 
 export default function GymPlans() {
   const { language = 'en' } = useSelector((state) => state.ui || {})
   const { tenant } = useSelector((state) => state.auth || {})
   const isAr = language === 'ar'
+  const isMiddleEast = showArabicFields(tenant)
   const currency = tenant?.settings?.currency || 'SAR'
   const queryClient = useQueryClient()
 
@@ -312,9 +314,11 @@ export default function GymPlans() {
                 </div>
                 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`grid grid-cols-1 ${isMiddleEast ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4`}>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">{isAr ? 'اسم الباقة (بالإنجليزية) *' : 'Plan Name (English) *'}</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        {isMiddleEast ? (isAr ? 'اسم الباقة (بالإنجليزية) *' : 'Plan Name (English) *') : (isAr ? 'اسم الباقة *' : 'Plan Name *')}
+                      </label>
                       <input
                         type="text"
                         required
@@ -324,16 +328,18 @@ export default function GymPlans() {
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-900"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">{isAr ? 'اسم الباقة (بالعربية)' : 'Plan Name (Arabic)'}</label>
-                      <input
-                        type="text"
-                        placeholder="مثال: اشتراك شهر ذهبي"
-                        value={formData.nameAr}
-                        onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-900"
-                      />
-                    </div>
+                    {isMiddleEast && (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{isAr ? 'اسم الباقة (بالعربية)' : 'Plan Name (Arabic)'}</label>
+                        <input
+                          type="text"
+                          placeholder="مثال: اشتراك شهر ذهبي"
+                          value={formData.nameAr}
+                          onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
+                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-900"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -344,16 +350,16 @@ export default function GymPlans() {
                         onChange={(e) => handlePlanTypeChange(e.target.value)}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-900"
                       >
-                        <option value="day_pass">Day Pass / يومي</option>
-                        <option value="weekly">Weekly / أسبوعي</option>
-                        <option value="monthly">Monthly / شهري (30d)</option>
-                        <option value="quarterly">Quarterly / 3 أشهر (90d)</option>
-                        <option value="semi_annual">Semi-Annual / 6 أشهر (180d)</option>
-                        <option value="annual">Annual / سنوي (365d)</option>
-                        <option value="vip">VIP / في آي بي</option>
-                        <option value="student">Student / طلاب</option>
-                        <option value="corporate">Corporate / شركات</option>
-                        <option value="family">Family / عائلي</option>
+                        <option value="day_pass">{isAr ? 'يومي (Day Pass)' : 'Day Pass'}</option>
+                        <option value="weekly">{isAr ? 'أسبوعي (Weekly)' : 'Weekly'}</option>
+                        <option value="monthly">{isAr ? 'شهري (Monthly 30d)' : 'Monthly (30 Days)'}</option>
+                        <option value="quarterly">{isAr ? '3 أشهر (Quarterly 90d)' : 'Quarterly (90 Days)'}</option>
+                        <option value="semi_annual">{isAr ? '6 أشهر (Semi-Annual 180d)' : 'Semi-Annual (180 Days)'}</option>
+                        <option value="annual">{isAr ? 'سنوي (Annual 365d)' : 'Annual (365 Days)'}</option>
+                        <option value="vip">{isAr ? 'في آي بي (VIP)' : 'VIP Tier'}</option>
+                        <option value="student">{isAr ? 'طلاب (Student)' : 'Student Discount'}</option>
+                        <option value="corporate">{isAr ? 'شركات (Corporate)' : 'Corporate Pass'}</option>
+                        <option value="family">{isAr ? 'عائلي (Family)' : 'Family Plan'}</option>
                       </select>
                     </div>
                     <div>

@@ -5,12 +5,14 @@ import { useNavigate, useParams, Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { ArrowLeft, ArrowRight, Camera, Save, Download, QrCode } from 'lucide-react'
+import { showArabicFields } from '../../lib/saudiTenant'
 import { downloadGymMemberCardPdf } from '../../lib/gymMemberCardPdf'
 
 export default function GymMemberForm() {
   const { language = 'en' } = useSelector((state) => state.ui || {})
   const { tenant } = useSelector((state) => state.auth || {})
   const isAr = language === 'ar'
+  const isMiddleEast = showArabicFields(tenant)
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -70,11 +72,11 @@ export default function GymMemberForm() {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!formData.nameEn && !formData.nameAr) {
-      toast.error(isAr ? 'الرجاء إدخال الاسم' : 'Please enter a name')
+      toast.error(isAr ? 'الرجاء إدخال الاسم' : 'Please enter member name')
       return
     }
     if (!formData.phone) {
-      toast.error(isAr ? 'الرجاء إدخال رقم الجوال' : 'Please enter a phone number')
+      toast.error(isAr ? 'الرجاء إدخال رقم الجوال' : 'Please enter phone number')
       return
     }
     mutation.mutate(formData)
@@ -135,15 +137,38 @@ export default function GymMemberForm() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className={`grid grid-cols-1 ${isMiddleEast ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-5`}>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'الاسم الأول (إنجليزي)' : 'First Name (En)'}</label>
-                  <input type="text" name="nameEn" value={formData.nameEn} onChange={handleChange} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {isMiddleEast ? (isAr ? 'الاسم بالكامل (إنجليزي) *' : 'Full Name (English) *') : (isAr ? 'الاسم بالكامل *' : 'Full Name *')}
+                  </label>
+                  <input 
+                    type="text" 
+                    name="nameEn" 
+                    required 
+                    placeholder="e.g. John Doe"
+                    value={formData.nameEn} 
+                    onChange={handleChange} 
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" 
+                  />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'الاسم الأول (عربي)' : 'First Name (Ar)'}</label>
-                  <input type="text" name="nameAr" value={formData.nameAr} onChange={handleChange} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
+
+                {isMiddleEast && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'الاسم بالكامل (عربي)' : 'Full Name (Arabic)'}</label>
+                    <input 
+                      type="text" 
+                      name="nameAr" 
+                      placeholder="مثال: جون دو"
+                      value={formData.nameAr} 
+                      onChange={handleChange} 
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" 
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'الجنس' : 'Gender'}</label>
                   <select name="gender" value={formData.gender} onChange={handleChange} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
@@ -156,7 +181,9 @@ export default function GymMemberForm() {
                   <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">{isAr ? 'الهوية الوطنية / الإقامة' : 'National ID / Iqama'}</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {isMiddleEast ? (isAr ? 'الهوية الوطنية / الإقامة' : 'National ID / Iqama') : (isAr ? 'رقم الهوية الوطنية / جواز السفر' : 'National ID / Passport / NID')}
+                  </label>
                   <input type="text" name="nationalId" value={formData.nationalId} onChange={handleChange} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div>

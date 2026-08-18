@@ -4,12 +4,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { showArabicFields } from '../../lib/saudiTenant'
 import { Users, Plus, Star, Phone, Mail, Award, Activity, X, Check, Camera } from 'lucide-react'
 
 export default function GymTrainers() {
   const { language = 'en' } = useSelector((state) => state.ui || {})
   const { tenant } = useSelector((state) => state.auth || {})
   const isAr = language === 'ar'
+  const isMiddleEast = showArabicFields(tenant)
   const queryClient = useQueryClient()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -219,9 +221,11 @@ export default function GymTrainers() {
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`grid grid-cols-1 ${isMiddleEast ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4`}>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">{isAr ? 'الاسم بالإنجليزية' : 'Name (English) *'}</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      {isMiddleEast ? (isAr ? 'الاسم بالإنجليزية *' : 'Name (English) *') : (isAr ? 'اسم المدرب *' : 'Trainer Name *')}
+                    </label>
                     <input
                       type="text"
                       required
@@ -231,16 +235,18 @@ export default function GymTrainers() {
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">{isAr ? 'الاسم بالعربية' : 'Name (Arabic)'}</label>
-                    <input
-                      type="text"
-                      placeholder="مثال: أحمد علي"
-                      value={formData.nameAr}
-                      onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
+                  {isMiddleEast && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">{isAr ? 'الاسم بالعربية' : 'Name (Arabic)'}</label>
+                      <input
+                        type="text"
+                        placeholder="مثال: أحمد علي"
+                        value={formData.nameAr}
+                        onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
