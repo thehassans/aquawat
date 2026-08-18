@@ -78,6 +78,8 @@ import {
   ScanLine,
   Crown,
   UserCircle,
+  Award,
+  KeyRound,
   Lock
 } from 'lucide-react'
 
@@ -228,24 +230,24 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       title: language === 'ar' ? 'الصالة الرياضية' : 'Gym & Fitness',
       businessTypes: ['gym'],
       items: [
-        { path: '/app/dashboard/gym/dashboard', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', perm: { module: 'gym', action: 'read' } },
-        { path: '/app/dashboard/gym/members', icon: Users, label: language === 'ar' ? 'الأعضاء' : 'Members', perm: { module: 'gym', action: 'read' } },
-        { path: '/app/dashboard/gym/plans', icon: CreditCard, label: language === 'ar' ? 'خطط العضوية' : 'Plans & Pricing', perm: { module: 'gym', action: 'read' } },
-        { path: '/app/dashboard/gym/subscriptions', icon: CalendarRange, label: language === 'ar' ? 'الاشتراكات' : 'Subscriptions', perm: { module: 'gym', action: 'read' } },
-        { path: '/app/dashboard/gym/checkin', icon: ScanLine, label: language === 'ar' ? 'تسجيل الدخول' : 'Check-In Kiosk', perm: { module: 'gym', action: 'create' } },
-        { path: '/app/dashboard/gym/classes', icon: Calendar, label: language === 'ar' ? 'الحصص الجماعية' : 'Class Schedule', perm: { module: 'gym', action: 'read' } },
-        { path: '/app/dashboard/gym/trainers', icon: Dumbbell, label: language === 'ar' ? 'المدربون' : 'Trainers', perm: { module: 'gym', action: 'read' } },
-        { path: '/app/dashboard/gym/pt-packages', icon: Crown, label: language === 'ar' ? 'التدريب الشخصي' : 'Personal Training', perm: { module: 'gym', action: 'read' } },
-        { path: '/app/dashboard/gym/measurements', icon: Activity, label: language === 'ar' ? 'القياسات البدنية' : 'Body Measurements', perm: { module: 'gym', action: 'read' } },
-        { path: '/app/dashboard/gym/lockers', icon: Lock, label: language === 'ar' ? 'الخزائن' : 'Lockers', perm: { module: 'gym', action: 'read' } },
-        { path: '/app/dashboard/gym/analytics', icon: TrendingUp, label: language === 'ar' ? 'التحليلات' : 'Analytics', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/dashboard', icon: Dumbbell, label: language === 'ar' ? 'لوحة تحكم النادي' : 'Gym Dashboard', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/members', icon: Users, label: language === 'ar' ? 'الأعضاء' : 'Members Directory', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/plans', icon: Sparkles, label: language === 'ar' ? 'باقات الاشتراك' : 'Membership Plans', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/subscriptions', icon: CreditCard, label: language === 'ar' ? 'الاشتراكات' : 'Subscriptions', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/checkin', icon: ScanLine, label: language === 'ar' ? 'كشك الدخول' : 'Check-In Kiosk', perm: { module: 'gym', action: 'create' } },
+        { path: '/app/dashboard/gym/classes', icon: CalendarDays, label: language === 'ar' ? 'جدول الحصص' : 'Class Timetable', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/trainers', icon: Award, label: language === 'ar' ? 'المدربون' : 'Coaches & Trainers', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/pt-packages', icon: Target, label: language === 'ar' ? 'التدريب الشخصي' : 'Personal Training (PT)', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/measurements', icon: Scale, label: language === 'ar' ? 'القياسات البدنية' : 'InBody & Metrics', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/lockers', icon: KeyRound, label: language === 'ar' ? 'خزائن الملابس' : 'Locker Rooms', perm: { module: 'gym', action: 'read' } },
+        { path: '/app/dashboard/gym/analytics', icon: BarChart3, label: language === 'ar' ? 'التحليلات والذروة' : 'Analytics & Heatmap', perm: { module: 'gym', action: 'read' } },
       ]
     },
     {
       title: language === 'ar' ? 'الرئيسية' : 'Main',
-      excludeBusinessTypes: ['khayyat'],
+      excludeBusinessTypes: ['khayyat', 'gym'],
       items: [
-        { path: '/app/dashboard', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', end: true, excludeBusinessTypes: ['khayyat'] },
+        { path: '/app/dashboard', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', end: true, excludeBusinessTypes: ['khayyat', 'gym'] },
         { path: '/app/dashboard/invoices', icon: FileText, label: t('invoices'), perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['khayyat'] },
         { path: '/app/dashboard/quotations', icon: FileSignature, label: language === 'ar' ? 'عروض الأسعار' : 'Quotations', perm: { module: 'sales', action: 'read' }, excludeBusinessTypes: ['bakala'] },
         { path: '/app/dashboard/letterhead', icon: FileText, label: language === 'ar' ? 'منشئ الخطابات' : 'Letterhead', perm: { module: 'invoicing', action: 'read' } },

@@ -34,8 +34,485 @@ export function App3DIcon({
   if (brandIcon) return brandIcon
 
   // ═══════════════════════════════════════════════════════════════════════════════
-  // ─── 0. DYNAMIC LIVE 3D APPLE / MAQDER CALENDAR (DATE SYNCED TO REAL TIME) ─────
+  // ─── 0. GYM & FITNESS CLUB ULTRA-PREMIUM 3D GLOWING ICONS ─────────────────────
   // ═══════════════════════════════════════════════════════════════════════════════
+
+  // 1. Gym Dashboard (3D Metallic Hexagonal Dumbbell with Neon Aura)
+  if (
+    (last === 'dashboard' && second === 'gym') ||
+    (last === 'gym' && second !== 'dashboard') ||
+    cleanIcon === 'dumbbell' ||
+    cleanLabel.includes('gym dashboard') ||
+    cleanLabel.includes('لوحة تحكم النادي') ||
+    cleanLabel.includes('لوحة تحكم الصالة') ||
+    cleanLabel === 'gym & fitness' ||
+    cleanLabel === 'الصالة الرياضية'
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_db_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#059669" />
+            <stop offset="50%" stopColor="#0D9488" />
+            <stop offset="100%" stopColor="#064E3B" />
+          </linearGradient>
+          <linearGradient id={`gym_db_metal_${uid}`} x1="14" y1="14" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="25%" stopColor="#CBD5E1" />
+            <stop offset="50%" stopColor="#64748B" />
+            <stop offset="75%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#0F172A" />
+          </linearGradient>
+          <linearGradient id={`gym_db_glow_${uid}`} x1="10" y1="20" x2="54" y2="44" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#34D399" />
+            <stop offset="100%" stopColor="#06B6D4" />
+          </linearGradient>
+          <filter id={`gym_db_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#059669" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_db_bg_${uid})`} filter={`url(#gym_db_flt_${uid})`} stroke="#6EE7B7" strokeWidth="1.2" strokeOpacity="0.6" />
+        
+        {/* Glow Aura */}
+        <circle cx="32" cy="32" r="18" fill={`url(#gym_db_glow_${uid})`} fillOpacity="0.25" />
+
+        {/* 3D Dumbbell Bar */}
+        <rect x="18" y="30" width="28" height="4" rx="2" fill="url(#gym_db_metal_uid)" stroke="#FFFFFF" strokeWidth="0.8" />
+        {/* Knurling Grips */}
+        <line x1="26" y1="29" x2="26" y2="35" stroke="#10B981" strokeWidth="1" />
+        <line x1="32" y1="29" x2="32" y2="35" stroke="#10B981" strokeWidth="1" />
+        <line x1="38" y1="29" x2="38" y2="35" stroke="#10B981" strokeWidth="1" />
+
+        {/* Left Inner Weight Plate */}
+        <rect x="16" y="22" width="4" height="20" rx="2" fill={`url(#gym_db_metal_${uid})`} stroke="#6EE7B7" strokeWidth="0.8" />
+        {/* Left Outer Weight Plate */}
+        <rect x="11" y="20" width="4" height="24" rx="2" fill={`url(#gym_db_metal_${uid})`} stroke="#FFFFFF" strokeWidth="0.8" />
+
+        {/* Right Inner Weight Plate */}
+        <rect x="44" y="22" width="4" height="20" rx="2" fill={`url(#gym_db_metal_${uid})`} stroke="#6EE7B7" strokeWidth="0.8" />
+        {/* Right Outer Weight Plate */}
+        <rect x="49" y="20" width="4" height="24" rx="2" fill={`url(#gym_db_metal_${uid})`} stroke="#FFFFFF" strokeWidth="0.8" />
+
+        {/* Center Sparkle Accent */}
+        <circle cx="32" cy="18" r="1.5" fill="#FDE047" />
+        <circle cx="46" cy="16" r="2" fill="#6EE7B7" />
+      </svg>
+    )
+  }
+
+  // 2. Gym Members Directory (3D Holographic NFC Card & Smart Member Badge)
+  if (
+    (last === 'members' && second === 'gym') ||
+    cleanLabel.includes('members directory') ||
+    cleanLabel.includes('دليل الأعضاء')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_mem_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#4F46E5" />
+            <stop offset="100%" stopColor="#312E81" />
+          </linearGradient>
+          <linearGradient id={`gym_card_grad_${uid}`} x1="14" y1="16" x2="50" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="60%" stopColor="#E0E7FF" />
+            <stop offset="100%" stopColor="#C7D2FE" />
+          </linearGradient>
+          <filter id={`gym_mem_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#4F46E5" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_mem_bg_${uid})`} filter={`url(#gym_mem_flt_${uid})`} stroke="#A5B4FC" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* Member Badge Body */}
+        <rect x="14" y="16" width="36" height="34" rx="6" fill={`url(#gym_card_grad_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        
+        {/* Lanyard Clip */}
+        <rect x="28" y="12" width="8" height="6" rx="2" fill="#94A3B8" stroke="#FFFFFF" strokeWidth="0.8" />
+        <circle cx="32" cy="15" r="1.5" fill="#475569" />
+
+        {/* Avatar Silhouette */}
+        <circle cx="24" cy="27" r="5" fill="#4F46E5" />
+        <path d="M17 38C17 34 20 33 24 33C28 33 31 34 31 38" fill="#4F46E5" />
+
+        {/* Info Lines */}
+        <rect x="34" y="24" width="12" height="2.5" rx="1.2" fill="#312E81" />
+        <rect x="34" y="29" width="8" height="2" rx="1" fill="#6366F1" />
+        <rect x="34" y="34" width="10" height="2" rx="1" fill="#94A3B8" />
+
+        {/* Active Badge Status Beacon */}
+        <circle cx="43" cy="42" r="3" fill="#10B981" stroke="#FFFFFF" strokeWidth="1" />
+      </svg>
+    )
+  }
+
+  // 3. Gym Membership Plans & Pricing (3D Gold Tier Crown & Diamond Shield)
+  if (
+    (last === 'plans' && second === 'gym') ||
+    cleanLabel.includes('membership plans') ||
+    cleanLabel.includes('باقات الاشتراك')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_pln_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#EA580C" />
+            <stop offset="100%" stopColor="#9A3412" />
+          </linearGradient>
+          <linearGradient id={`gym_gold_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FEF08A" />
+            <stop offset="40%" stopColor="#FACC15" />
+            <stop offset="100%" stopColor="#CA8A04" />
+          </linearGradient>
+          <filter id={`gym_pln_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#EA580C" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_pln_bg_${uid})`} filter={`url(#gym_pln_flt_${uid})`} stroke="#FDBA74" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* VIP Shield */}
+        <path d="M32 15L45 20V32C45 40 39 46 32 49C25 46 19 40 19 32V20L32 15Z" fill="#7C2D12" stroke={`url(#gym_gold_${uid})`} strokeWidth="1.5" />
+
+        {/* 3D Crown */}
+        <path d="M25 34L23 25L28 28L32 23L36 28L41 25L39 34H25Z" fill={`url(#gym_gold_${uid})`} stroke="#FFFFFF" strokeWidth="0.8" />
+        <circle cx="23" cy="24" r="1.2" fill="#FFFFFF" />
+        <circle cx="32" cy="22" r="1.5" fill="#FFFFFF" />
+        <circle cx="41" cy="24" r="1.2" fill="#FFFFFF" />
+
+        {/* 3 Rating Stars */}
+        <circle cx="27" cy="40" r="1.5" fill="#FDE047" />
+        <circle cx="32" cy="42" r="2" fill="#FDE047" />
+        <circle cx="37" cy="40" r="1.5" fill="#FDE047" />
+      </svg>
+    )
+  }
+
+  // 4. Gym Subscriptions Lifecycle (3D Auto-Renew Infinite Calendar & Snowflake Freeze)
+  if (
+    (last === 'subscriptions' && second === 'gym') ||
+    cleanLabel.includes('subscriptions') ||
+    cleanLabel.includes('الاشتراكات')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_sub_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0284C7" />
+            <stop offset="100%" stopColor="#0369A1" />
+          </linearGradient>
+          <linearGradient id={`gym_sub_card_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#38BDF8" />
+            <stop offset="100%" stopColor="#0284C7" />
+          </linearGradient>
+          <filter id={`gym_sub_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#0284C7" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_sub_bg_${uid})`} filter={`url(#gym_sub_flt_${uid})`} stroke="#7DD3FC" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* Glowing Credit Card */}
+        <rect x="15" y="19" width="34" height="22" rx="4" fill="#0C4A6E" stroke="#38BDF8" strokeWidth="1.2" />
+        <rect x="15" y="24" width="34" height="4" fill="#0369A1" />
+        
+        {/* Golden EMV Chip */}
+        <rect x="20" y="30" width="6" height="5" rx="1" fill="#FACC15" stroke="#FFFFFF" strokeWidth="0.5" />
+
+        {/* Sync / Renewal Rotating Ring */}
+        <path d="M38 31C39.5 32.5 40 34.5 39 36.5L42 38" stroke="#34D399" strokeWidth="2" strokeLinecap="round" />
+        <path d="M36 41C34.5 39.5 34 37.5 35 35.5L32 34" stroke="#34D399" strokeWidth="2" strokeLinecap="round" />
+        
+        {/* Active Pulse */}
+        <circle cx="44" cy="22" r="3" fill="#34D399" stroke="#FFFFFF" strokeWidth="1" />
+      </svg>
+    )
+  }
+
+  // 5. Gym Check-In Kiosk (3D Laser Optical Scanner & Biometric Gate)
+  if (
+    (last === 'checkin' && second === 'gym') ||
+    cleanLabel.includes('check-in kiosk') ||
+    cleanLabel.includes('كشك الدخول')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_chk_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#1E1B4B" />
+            <stop offset="100%" stopColor="#312E81" />
+          </linearGradient>
+          <linearGradient id={`gym_laser_${uid}`} x1="16" y1="32" x2="48" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#06B6D4" />
+            <stop offset="50%" stopColor="#22D3EE" />
+            <stop offset="100%" stopColor="#06B6D4" />
+          </linearGradient>
+          <filter id={`gym_chk_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#4338CA" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_chk_bg_${uid})`} filter={`url(#gym_chk_flt_${uid})`} stroke="#818CF8" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* Viewfinder Corners */}
+        <path d="M18 24V18H24" stroke="#22D3EE" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M46 24V18H40" stroke="#22D3EE" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M18 40V46H24" stroke="#22D3EE" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M46 40V46H40" stroke="#22D3EE" strokeWidth="2.5" strokeLinecap="round" />
+
+        {/* QR Code Nodes */}
+        <rect x="23" y="23" width="6" height="6" rx="1" fill="#FFFFFF" />
+        <rect x="35" y="23" width="6" height="6" rx="1" fill="#FFFFFF" />
+        <rect x="23" y="35" width="6" height="6" rx="1" fill="#FFFFFF" />
+        <rect x="35" y="35" width="3" height="3" fill="#22D3EE" />
+        <rect x="38" y="38" width="3" height="3" fill="#FFFFFF" />
+
+        {/* Luminous Red/Cyan Laser Scan Bar */}
+        <line x1="16" y1="32" x2="48" y2="32" stroke={`url(#gym_laser_${uid})`} strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="16" y1="32" x2="48" y2="32" stroke="#FFFFFF" strokeWidth="1" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // 6. Gym Group Classes Timetable (3D Aerobic Fitness Waves & Stopwatch Calendar)
+  if (
+    (last === 'classes' && second === 'gym') ||
+    cleanLabel.includes('class timetable') ||
+    cleanLabel.includes('جدول الحصص')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_cls_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#DB2777" />
+            <stop offset="100%" stopColor="#9D174D" />
+          </linearGradient>
+          <filter id={`gym_cls_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#DB2777" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_cls_bg_${uid})`} filter={`url(#gym_cls_flt_${uid})`} stroke="#F472B6" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* Calendar / Timetable Slate */}
+        <rect x="15" y="16" width="34" height="32" rx="5" fill="#831843" stroke="#FBCFE8" strokeWidth="1.2" />
+        <rect x="15" y="16" width="34" height="8" rx="5" fill="#F43F5E" />
+
+        {/* Stopwatch Bezel */}
+        <circle cx="32" cy="34" r="9" fill="#500724" stroke="#FDE047" strokeWidth="1.5" />
+        <line x1="32" y1="34" x2="32" y2="29" stroke="#FDE047" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="32" y1="34" x2="36" y2="34" stroke="#FDE047" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="32" cy="34" r="1.5" fill="#FFFFFF" />
+
+        {/* Top Binder Pins */}
+        <rect x="22" y="13" width="3" height="6" rx="1.5" fill="#FFFFFF" />
+        <rect x="39" y="13" width="3" height="6" rx="1.5" fill="#FFFFFF" />
+      </svg>
+    )
+  }
+
+  // 7. Gym Coaches & Trainers (3D Gold Medal & Whistle of Excellence)
+  if (
+    (last === 'trainers' && second === 'gym') ||
+    cleanLabel.includes('coaches & trainers') ||
+    cleanLabel.includes('المدربون')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_trn_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#D97706" />
+            <stop offset="100%" stopColor="#78350F" />
+          </linearGradient>
+          <linearGradient id={`gym_trn_gold_${uid}`} x1="20" y1="20" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FEF08A" />
+            <stop offset="50%" stopColor="#FACC15" />
+            <stop offset="100%" stopColor="#B45309" />
+          </linearGradient>
+          <filter id={`gym_trn_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#D97706" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_trn_bg_${uid})`} filter={`url(#gym_trn_flt_${uid})`} stroke="#FDE68A" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* Award Ribbon */}
+        <path d="M26 15L32 25L38 15" stroke="#EF4444" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Gold Medal Body */}
+        <circle cx="32" cy="34" r="13" fill={`url(#gym_trn_gold_${uid})`} stroke="#FFFFFF" strokeWidth="1.2" />
+        <circle cx="32" cy="34" r="10" stroke="#78350F" strokeWidth="0.8" strokeDasharray="2 1" />
+
+        {/* Star in Center */}
+        <path d="M32 28L34 32.5L38.5 33L35 36.5L36 41L32 38.5L28 41L29 36.5L25.5 33L30 32.5L32 28Z" fill="#78350F" stroke="#FFFFFF" strokeWidth="0.5" />
+      </svg>
+    )
+  }
+
+  // 8. Gym Personal Training (PT) Packages (3D Bullseye Target & Lightning Surge)
+  if (
+    (last === 'pt-packages' && second === 'gym') ||
+    cleanLabel.includes('personal training') ||
+    cleanLabel.includes('التدريب الشخصي')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_pt_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#DC2626" />
+            <stop offset="100%" stopColor="#7F1D1D" />
+          </linearGradient>
+          <filter id={`gym_pt_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#DC2626" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_pt_bg_${uid})`} filter={`url(#gym_pt_flt_${uid})`} stroke="#FCA5A5" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* Target Outer Rings */}
+        <circle cx="32" cy="32" r="16" fill="#450A0A" stroke="#FCA5A5" strokeWidth="1.5" />
+        <circle cx="32" cy="32" r="11" fill="#DC2626" stroke="#FFFFFF" strokeWidth="1.2" />
+        <circle cx="32" cy="32" r="6" fill="#FACC15" />
+
+        {/* 3D Lightning Energy Bolt */}
+        <path d="M35 16L24 33H33L29 48L42 29H33L35 16Z" fill="#FFFFFF" stroke="#FEF08A" strokeWidth="1" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  // 9. Gym InBody & Measurements (3D Bio-Impedance Smart Scale & Biometric Wave)
+  if (
+    (last === 'measurements' && second === 'gym') ||
+    cleanLabel.includes('inbody') ||
+    cleanLabel.includes('القياسات البدنية')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_mes_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#7C3AED" />
+            <stop offset="100%" stopColor="#4C1D95" />
+          </linearGradient>
+          <linearGradient id={`gym_scale_glass_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="100%" stopColor="#DDD6FE" />
+          </linearGradient>
+          <filter id={`gym_mes_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#7C3AED" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_mes_bg_${uid})`} filter={`url(#gym_mes_flt_${uid})`} stroke="#C4B5FD" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* Smart Scale Glass Platform */}
+        <rect x="14" y="15" width="36" height="34" rx="8" fill={`url(#gym_scale_glass_${uid})`} stroke="#FFFFFF" strokeWidth="1.5" />
+
+        {/* Digital OLED Display */}
+        <rect x="22" y="19" width="20" height="8" rx="3" fill="#0F172A" stroke="#38BDF8" strokeWidth="0.8" />
+        <text x="32" y="25" fill="#38BDF8" fontSize="5" fontWeight="900" fontFamily="monospace" textAnchor="middle">72.5 kg</text>
+
+        {/* 4 Corner Chrome Electrodes */}
+        <circle cx="20" cy="32" r="3" fill="#94A3B8" stroke="#FFFFFF" strokeWidth="0.8" />
+        <circle cx="44" cy="32" r="3" fill="#94A3B8" stroke="#FFFFFF" strokeWidth="0.8" />
+        <circle cx="20" cy="42" r="3" fill="#94A3B8" stroke="#FFFFFF" strokeWidth="0.8" />
+        <circle cx="44" cy="42" r="3" fill="#94A3B8" stroke="#FFFFFF" strokeWidth="0.8" />
+
+        {/* Biometric Pulse Wave */}
+        <path d="M26 37L29 37L31 34L33 40L35 37L38 37" stroke="#8B5CF6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  // 10. Gym Locker Rooms (3D Smart Titanium Locker & Keyless Lock)
+  if (
+    (last === 'lockers' && second === 'gym') ||
+    cleanLabel.includes('locker rooms') ||
+    cleanLabel.includes('خزائن الملابس')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_lok_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#0F172A" />
+          </linearGradient>
+          <linearGradient id={`gym_door_metal_${uid}`} x1="16" y1="14" x2="48" y2="50" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#64748B" />
+            <stop offset="100%" stopColor="#334155" />
+          </linearGradient>
+          <filter id={`gym_lok_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#334155" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_lok_bg_${uid})`} filter={`url(#gym_lok_flt_${uid})`} stroke="#94A3B8" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* Locker Door */}
+        <rect x="18" y="14" width="28" height="36" rx="4" fill={`url(#gym_door_metal_${uid})`} stroke="#E2E8F0" strokeWidth="1.2" />
+
+        {/* Ventilation Louvers */}
+        <line x1="24" y1="20" x2="40" y2="20" stroke="#0F172A" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="24" y1="23" x2="40" y2="23" stroke="#0F172A" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="24" y1="26" x2="40" y2="26" stroke="#0F172A" strokeWidth="1.5" strokeLinecap="round" />
+
+        {/* Digital Keypad Handle */}
+        <rect x="36" y="32" width="6" height="10" rx="1.5" fill="#0F172A" stroke="#38BDF8" strokeWidth="0.8" />
+        <circle cx="39" cy="35" r="1" fill="#34D399" />
+        <circle cx="39" cy="38" r="1" fill="#38BDF8" />
+
+        {/* Locker Number Plate */}
+        <rect x="24" y="34" width="8" height="5" rx="1" fill="#FEF08A" stroke="#0F172A" strokeWidth="0.5" />
+        <text x="28" y="38" fill="#0F172A" fontSize="3.5" fontWeight="900" textAnchor="middle">01</text>
+      </svg>
+    )
+  }
+
+  // 11. Gym Analytics & Heatmap (3D 24/7 Peak Hours Spectrum & Rising Momentum)
+  if (
+    (last === 'analytics' && second === 'gym') ||
+    cleanLabel.includes('analytics & heatmap') ||
+    cleanLabel.includes('التحليلات والذروة')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`gym_ana_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0F766E" />
+            <stop offset="100%" stopColor="#115E59" />
+          </linearGradient>
+          <linearGradient id={`gym_bar1_${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#34D399" />
+            <stop offset="100%" stopColor="#059669" />
+          </linearGradient>
+          <linearGradient id={`gym_bar2_${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#38BDF8" />
+            <stop offset="100%" stopColor="#0284C7" />
+          </linearGradient>
+          <linearGradient id={`gym_bar3_${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#FACC15" />
+            <stop offset="100%" stopColor="#EA580C" />
+          </linearGradient>
+          <filter id={`gym_ana_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#0F766E" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#gym_ana_bg_${uid})`} filter={`url(#gym_ana_flt_${uid})`} stroke="#5EEAD4" strokeWidth="1.2" strokeOpacity="0.6" />
+
+        {/* Rising 3D Bar Columns */}
+        <rect x="16" y="34" width="6" height="14" rx="2" fill={`url(#gym_bar1_${uid})`} stroke="#FFFFFF" strokeWidth="0.8" />
+        <rect x="25" y="27" width="6" height="21" rx="2" fill={`url(#gym_bar2_${uid})`} stroke="#FFFFFF" strokeWidth="0.8" />
+        <rect x="34" y="20" width="6" height="28" rx="2" fill={`url(#gym_bar3_${uid})`} stroke="#FFFFFF" strokeWidth="0.8" />
+        <rect x="43" y="16" width="6" height="32" rx="2" fill="#F43F5E" stroke="#FFFFFF" strokeWidth="0.8" />
+
+        {/* Upward Momentum Trend Arrow */}
+        <path d="M16 30L26 23L34 16L45 12" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M41 12H45V16" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
   if (
     last === 'calendar' ||
     cleanIcon === 'calendar' ||
