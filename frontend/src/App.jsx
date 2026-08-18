@@ -179,6 +179,7 @@ const GymClasses = lazy(() => import('./pages/gym/GymClasses'))
 const GymAssessments = lazy(() => import('./pages/gym/GymAssessments'))
 const GymLockers = lazy(() => import('./pages/gym/GymLockers'))
 const GymPTSessions = lazy(() => import('./pages/gym/GymPTSessions'))
+const GymPOS = lazy(() => import('./pages/gym/GymPOS'))
 const EcommerceDashboard = lazy(() => import('./pages/ecommerce/EcommerceDashboard'))
 const EcommerceOrders = lazy(() => import('./pages/ecommerce/EcommerceOrders'))
 const EcommerceProducts = lazy(() => import('./pages/ecommerce/EcommerceProducts'))
@@ -861,6 +862,7 @@ function App() {
         <Route path="gym/assessments" element={<BusinessTypeRoute allowedTypes={['gym']}><GymAssessments /></BusinessTypeRoute>} />
         <Route path="gym/lockers" element={<BusinessTypeRoute allowedTypes={['gym']}><GymLockers /></BusinessTypeRoute>} />
         <Route path="gym/pt-sessions" element={<BusinessTypeRoute allowedTypes={['gym']}><GymPTSessions /></BusinessTypeRoute>} />
+        <Route path="gym/pos" element={<BusinessTypeRoute allowedTypes={['gym']}><GymPOS /></BusinessTypeRoute>} />
 
         {/* E-Commerce */}
         <Route path="ecommerce" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceDashboard /></BusinessTypeRoute>} end />

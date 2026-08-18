@@ -74,8 +74,10 @@ const APP_STYLE_MAP = {
   '/app/dashboard/gym/kiosk': { gradient: 'from-[#0F172A] to-[#059669]' },
   '/app/dashboard/gym/plans': { gradient: 'from-[#4F46E5] to-[#7C3AED]' },
   '/app/dashboard/gym/classes': { gradient: 'from-[#D97706] to-[#F59E0B]' },
+  '/app/dashboard/gym/pt-sessions': { gradient: 'from-[#4F46E5] to-[#6366F1]' },
   '/app/dashboard/gym/assessments': { gradient: 'from-[#E11D48] to-[#F43F5E]' },
   '/app/dashboard/gym/lockers': { gradient: 'from-[#0891B2] to-[#06B6D4]' },
+  '/app/dashboard/gym/pos': { gradient: 'from-[#10B981] to-[#059669]' },
 
   // Manufacturing & Industrial Group (Orange / Amber)
   '/app/dashboard/manufacturing': { gradient: 'from-[#F97316] to-[#EA580C]' },

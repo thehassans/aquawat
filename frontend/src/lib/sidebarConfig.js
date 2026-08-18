@@ -167,6 +167,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/gym/pt-sessions', icon: Award, label: language === 'ar' ? 'التدريب الشخصي PT' : 'Personal Training' },
         { path: '/app/dashboard/gym/assessments', icon: Flame, label: language === 'ar' ? 'قياسات InBody' : 'InBody Assessments' },
         { path: '/app/dashboard/gym/lockers', icon: Lock, label: language === 'ar' ? 'إدارة الخزائن' : 'Lockers Matrix' },
+        { path: '/app/dashboard/gym/pos', icon: ShoppingBag, label: language === 'ar' ? 'متجر المكملات والبار' : 'Supplements & Bar POS' },
       ]
     },
     {
