@@ -223,12 +223,27 @@ export const checkSmsAddon = (req, res, next) => {
 
 export const requireBusinessType = (...allowedTypes) => {
   return (req, res, next) => {
-    if (req.user.role === 'super_admin') {
+    if (req.user?.role === 'super_admin') {
       return next();
     }
 
+    // If demo mode is active, allow exploring all business apps & modules
+    if (req.tenant?.isDemo === true) {
+      return next();
+    }
+
+    const flatAllowed = allowedTypes.flat();
     const businessTypes = getTenantBusinessTypes(req.tenant);
-    if (allowedTypes.length > 0 && !allowedTypes.some((type) => businessTypes.includes(type))) {
+    if (flatAllowed.length > 0 && !flatAllowed.some((type) => businessTypes.includes(type))) {
+      // Also check if app is installed in settings.installedApps
+      const installedApps = req.tenant?.settings?.installedApps || {};
+      const isAppInstalled = flatAllowed.some((type) => {
+        if (type === 'gym' && (installedApps.gym_fitness_club?.isInstalled || installedApps.gym?.isInstalled)) return true;
+        if (installedApps[type]?.isInstalled) return true;
+        return false;
+      });
+      if (isAppInstalled) return next();
+
       return res.status(403).json({ error: 'Not available for this business type' });
     }
 

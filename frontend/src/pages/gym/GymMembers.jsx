@@ -20,15 +20,16 @@ export default function GymMembers() {
   const [page, setPage] = useState(1)
   const limit = 12
 
-  const { data, isLoading, isError } = useQuery({
+  const { data: responseData, isLoading, isError, refetch } = useQuery({
     queryKey: ['gym-members', search, status, page],
-    queryFn: () => api.get(`/api/gym/members?search=${search}&status=${status}&page=${page}&limit=${limit}`).then(res => res.data.data),
+    queryFn: () => api.get(`/api/gym/members?search=${encodeURIComponent(search)}&status=${status}&page=${page}&limit=${limit}`).then(res => res.data),
     keepPreviousData: true
   })
 
-  const members = data?.members || []
-  const totalPages = data?.totalPages || 1
-  const totalDocs = data?.totalDocs || 0
+  const rawData = responseData?.data
+  const members = Array.isArray(rawData) ? rawData : (Array.isArray(rawData?.members) ? rawData.members : (Array.isArray(rawData?.docs) ? rawData.docs : []))
+  const totalPages = responseData?.pagination?.pages || rawData?.totalPages || 1
+  const totalDocs = responseData?.pagination?.total ?? (rawData?.totalDocs ?? members.length)
 
   const statusTabs = [
     { id: '', labelEn: 'All', labelAr: 'الكل' },
@@ -97,9 +98,15 @@ export default function GymMembers() {
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
         </div>
       ) : isError ? (
-        <div className="text-center py-20 text-rose-500 flex flex-col items-center gap-2">
-          <AlertCircle size={40} />
-          <p>{isAr ? 'حدث خطأ أثناء تحميل البيانات' : 'Error loading members data'}</p>
+        <div className="text-center py-20 text-rose-500 flex flex-col items-center gap-3">
+          <AlertCircle size={44} />
+          <p className="font-bold text-base">{isAr ? 'تعذر تحميل بيانات الأعضاء' : 'Could not load members data'}</p>
+          <button 
+            onClick={() => refetch()} 
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-sm"
+          >
+            {isAr ? 'إعادة المحاولة' : 'Try Again'}
+          </button>
         </div>
       ) : members.length === 0 ? (
         <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-16 text-center flex flex-col items-center justify-center">
