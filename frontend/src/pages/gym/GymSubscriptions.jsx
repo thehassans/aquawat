@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
-import { Search, Plus, Snowflake, RefreshCw, Eye, X, Activity, User, Calendar, DollarSign, Clock, ShieldAlert } from 'lucide-react'
+import { Search, Plus, Snowflake, RefreshCw, Eye, X, Activity, User, Calendar, DollarSign, Clock, ShieldAlert, CreditCard, Check } from 'lucide-react'
 
 export default function GymSubscriptions() {
   const { language = 'en' } = useSelector((state) => state.ui || {})
@@ -38,8 +38,8 @@ export default function GymSubscriptions() {
   })
 
   const { data: membersData } = useQuery({
-    queryKey: ['gym-members'],
-    queryFn: () => api.get('/api/gym/members').then(res => res.data)
+    queryKey: ['gym-members-sub-select'],
+    queryFn: () => api.get('/api/gym/members?limit=100').then(res => res.data)
   })
 
   const { data: plansData } = useQuery({
@@ -55,7 +55,7 @@ export default function GymSubscriptions() {
       queryClient.invalidateQueries(['gym-subscriptions'])
       setIsFreezeModalOpen(false)
     },
-    onError: (err) => toast.error(err?.response?.data?.message || 'Error freezing subscription')
+    onError: (err) => toast.error(err?.response?.data?.message || (isAr ? 'فشل تجميد الاشتراك' : 'Error freezing subscription'))
   })
 
   const unfreezeMutation = useMutation({
@@ -64,38 +64,40 @@ export default function GymSubscriptions() {
       toast.success(isAr ? 'تم إلغاء التجميد' : 'Subscription unfrozen')
       queryClient.invalidateQueries(['gym-subscriptions'])
     },
-    onError: (err) => toast.error(err?.response?.data?.message || 'Error unfreezing subscription')
+    onError: (err) => toast.error(err?.response?.data?.message || (isAr ? 'فشل إلغاء التجميد' : 'Error unfreezing subscription'))
   })
 
   const renewMutation = useMutation({
     mutationFn: (id) => api.put(`/api/gym/subscriptions/${id}/renew`),
     onSuccess: () => {
-      toast.success(isAr ? 'تم التجديد' : 'Subscription renewed')
+      toast.success(isAr ? 'تم تجديد الاشتراك بنجاح' : 'Subscription renewed successfully')
       queryClient.invalidateQueries(['gym-subscriptions'])
     },
-    onError: (err) => toast.error(err?.response?.data?.message || 'Error renewing subscription')
+    onError: (err) => toast.error(err?.response?.data?.message || (isAr ? 'فشل تجديد الاشتراك' : 'Error renewing subscription'))
   })
 
   const createMutation = useMutation({
     mutationFn: (data) => api.post('/api/gym/subscriptions', data),
     onSuccess: () => {
-      toast.success(isAr ? 'تم إنشاء الاشتراك' : 'Subscription created')
+      toast.success(isAr ? 'تم إنشاء الاشتراك بنجاح' : 'Subscription created successfully')
       queryClient.invalidateQueries(['gym-subscriptions'])
       setIsNewModalOpen(false)
       setNewSubForm({ memberId: '', planId: '', paymentMethod: 'cash', discount: 0, startDate: new Date().toISOString().split('T')[0] })
     },
-    onError: (err) => toast.error(err?.response?.data?.message || 'Error creating subscription')
+    onError: (err) => toast.error(err?.response?.data?.message || (isAr ? 'فشل إنشاء الاشتراك' : 'Error creating subscription'))
   })
 
-  const subscriptions = subsData?.data || []
-  const members = membersData?.data || []
-  const plans = plansData?.data || []
+  const subscriptions = Array.isArray(subsData?.data) ? subsData.data : (subsData?.data?.docs || [])
+  const members = Array.isArray(membersData?.data) ? membersData.data : (membersData?.data?.docs || [])
+  const plans = Array.isArray(plansData?.data) ? plansData.data : (plansData?.data?.docs || [])
 
   const filteredSubs = useMemo(() => {
     return subscriptions.filter(sub => {
-      const matchSearch = sub.member?.nameEn?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          sub.member?.nameAr?.includes(searchTerm) ||
-                          sub.member?.memberNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+      const memberObj = sub.memberId || sub.member || {}
+      const memberName = isAr ? (memberObj.nameAr || memberObj.nameEn || '') : (memberObj.nameEn || memberObj.nameAr || '')
+      const matchSearch = memberName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (memberObj.memberNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (memberObj.phone || '').includes(searchTerm)
       
       if (!matchSearch) return false
       
@@ -106,7 +108,7 @@ export default function GymSubscriptions() {
       if (activeTab === 'Cancelled') return sub.status === 'cancelled'
       return true
     })
-  }, [subscriptions, searchTerm, activeTab])
+  }, [subscriptions, searchTerm, activeTab, isAr])
 
   const activeCount = subscriptions.filter(s => s.status === 'active').length
 
@@ -223,29 +225,50 @@ export default function GymSubscriptions() {
                     className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"
                   >
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
-                          {sub.member?.nameEn?.charAt(0) || <User className="w-5 h-5" />}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-slate-800">{isAr ? sub.member?.nameAr : sub.member?.nameEn}</div>
-                          <div className="text-xs text-slate-500">{sub.member?.memberNumber}</div>
-                        </div>
-                      </div>
+                      {(() => {
+                        const memberObj = sub.memberId || sub.member || {}
+                        const memberNameEn = memberObj.nameEn || `${memberObj.firstName || ''} ${memberObj.lastName || ''}`.trim()
+                        const memberNameAr = memberObj.nameAr || `${memberObj.firstNameAr || ''} ${memberObj.lastNameAr || ''}`.trim()
+                        const memberName = isAr ? (memberNameAr || memberNameEn) : (memberNameEn || memberNameAr) || 'Member'
+                        return (
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                              {memberObj.photoUrl ? (
+                                <img src={memberObj.photoUrl} alt="avatar" className="w-full h-full object-cover rounded-full" />
+                              ) : (
+                                memberName.charAt(0)
+                              )}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-slate-800">{memberName}</div>
+                              <div className="text-xs text-slate-500 font-mono">{memberObj.memberNumber || sub.subscriptionNumber}</div>
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-700">
-                      {isAr ? sub.plan?.nameAr : sub.plan?.nameEn}
+                      {(() => {
+                        const planObj = sub.planId || sub.plan || {}
+                        return isAr ? (planObj.nameAr || planObj.nameEn) : (planObj.nameEn || planObj.nameAr) || 'Plan'
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm">
-                        <div className="text-slate-800">{new Date(sub.startDate).toLocaleDateString()}</div>
+                        <div className="text-slate-800 font-medium">{new Date(sub.startDate).toLocaleDateString()}</div>
                         <div className="text-slate-500 text-xs">→ {new Date(sub.endDate).toLocaleDateString()}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className={`font-bold ${getDaysColor(sub.remainingDays)}`}>
-                        {sub.remainingDays} {isAr ? 'يوم' : 'days'}
-                      </div>
+                      {(() => {
+                        const diffDays = Math.ceil((new Date(sub.endDate) - new Date()) / (1000 * 60 * 60 * 24))
+                        const remDays = Math.max(0, sub.remainingDays ?? diffDays)
+                        return (
+                          <div className={`font-bold ${getDaysColor(remDays)}`}>
+                            {remDays} {isAr ? 'يوم' : 'days'}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(sub.status)}`}>
