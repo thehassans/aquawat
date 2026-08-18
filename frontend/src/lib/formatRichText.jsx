@@ -1,85 +1,94 @@
 import React from 'react'
+import { sanitizeHtml } from './sanitizeHtml'
 
 /**
- * Safely parses and renders text with Markdown-style bold (**text**)
- * and highlight (==text== or <mark>text</mark>) and bullet points.
+ * Safely converts Markdown markers to clean HTML:
+ * - **bold** -> <strong>bold</strong>
+ * - ==highlight== -> <mark class="bg-amber-200 text-amber-950 font-semibold px-1 py-0.5 rounded">highlight</mark>
  */
-export function formatRichText(rawText) {
-  if (!rawText) return null
-  const text = String(rawText)
+export function convertMarkdownToHtml(raw) {
+  if (!raw) return ''
+  let html = String(raw)
 
-  // Split by newlines to preserve structure
-  const lines = text.split('\n')
+  // Convert **text** to <strong>text</strong>
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
 
-  return lines.map((line, lineIdx) => {
-    // Check if line starts with bullet
-    const isBullet = line.trim().startsWith('•') || line.trim().startsWith('- ') || line.trim().startsWith('* ')
-    const cleanLine = isBullet ? line.replace(/^(\s*)[•\-\*]\s*/, '$1') : line
+  // Convert ==text== or <mark>text</mark> to styled mark
+  html = html.replace(
+    /==([^=]+)==/g,
+    '<mark class="bg-amber-200 text-amber-950 font-bold px-1 py-0.5 rounded">$1</mark>'
+  )
 
-    // Regex to match **bold** or ==highlight== or <mark>highlight</mark> or <b>bold</b>
-    const regex = /(\*\*[^*]+\*\*|==[^=]+==|<mark>[^<]+<\/mark>|<b>[^<]+<\/b>)/g
-    const parts = cleanLine.split(regex)
-
-    const renderedLine = parts.map((part, partIdx) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        const content = part.slice(2, -2)
-        return (
-          <strong key={partIdx} className="font-extrabold text-slate-950 dark:text-white underline decoration-slate-400 decoration-1 underline-offset-2">
-            {content}
-          </strong>
-        )
-      }
-      if (part.startsWith('<b>') && part.endsWith('</b>')) {
-        const content = part.slice(3, -4)
-        return (
-          <strong key={partIdx} className="font-extrabold text-slate-950 dark:text-white underline decoration-slate-400 decoration-1 underline-offset-2">
-            {content}
-          </strong>
-        )
-      }
-      if (part.startsWith('==') && part.endsWith('==')) {
-        const content = part.slice(2, -2)
-        return (
-          <mark
-            key={partIdx}
-            className="rounded bg-amber-200/90 px-1 py-0.5 font-bold text-amber-950 shadow-xs dark:bg-amber-400/30 dark:text-amber-100 dark:ring-1 dark:ring-amber-400/50"
-          >
-            {content}
-          </mark>
-        )
-      }
-      if (part.startsWith('<mark>') && part.endsWith('</mark>')) {
-        const content = part.slice(6, -7)
-        return (
-          <mark
-            key={partIdx}
-            className="rounded bg-amber-200/90 px-1 py-0.5 font-bold text-amber-950 shadow-xs dark:bg-amber-400/30 dark:text-amber-100 dark:ring-1 dark:ring-amber-400/50"
-          >
-            {content}
-          </mark>
-        )
-      }
-      return <React.Fragment key={partIdx}>{part}</React.Fragment>
-    })
-
-    return (
-      <span key={lineIdx} className={isBullet ? 'flex items-start gap-1.5' : 'block'}>
-        {isBullet && <span className="text-emerald-600 dark:text-emerald-400 font-bold">•</span>}
-        <span className="flex-1">{renderedLine}</span>
-      </span>
-    )
-  })
+  return html
 }
 
 /**
- * Strips formatting markup (** and == and <mark>) for plain-text outputs like PDF/TXT.
+ * Renders rich text safely. Handles both HTML from WYSIWYG editor
+ * and legacy markdown/plain text with line breaks.
  */
-export function stripRichMarkup(text) {
-  if (!text) return ''
-  return String(text)
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/==([^=]+)==/g, '$1')
-    .replace(/<mark>([^<]+)<\/mark>/g, '$1')
-    .replace(/<b>([^<]+)<\/b>/g, '$1')
-    .replace(/<\/?[^>]+(>|$)/g, '')
+export function formatRichText(rawText) {
+  if (!rawText) return null
+  const text = String(rawText).trim()
+  if (!text) return null
+
+  // Check if content already contains HTML tags or markdown tags
+  const hasHtml = /<[a-z][\s\S]*>/i.test(text)
+  const hasMarkdown = /\*\*|==/.test(text)
+
+  if (hasHtml || hasMarkdown) {
+    const htmlWithConvertedMarkdown = convertMarkdownToHtml(text)
+    const cleanHtml = sanitizeHtml(htmlWithConvertedMarkdown)
+
+    return (
+      <div
+        className="rich-text-content leading-relaxed space-y-1 text-slate-800 dark:text-slate-200 [&_ul]:list-disc [&_ul]:ps-5 [&_ol]:list-decimal [&_ol]:ps-5 [&_li]:mt-0.5 [&_strong]:font-extrabold [&_strong]:text-slate-950 dark:[&_strong]:text-white [&_mark]:bg-amber-200/90 [&_mark]:text-amber-950 [&_mark]:font-bold [&_mark]:px-1 [&_mark]:py-0.5 [&_mark]:rounded dark:[&_mark]:bg-amber-400/30 dark:[&_mark]:text-amber-100"
+        dangerouslySetInnerHTML={{ __html: cleanHtml }}
+      />
+    )
+  }
+
+  // Plain text: preserve newlines
+  return (
+    <div className="whitespace-pre-wrap leading-relaxed text-slate-800 dark:text-slate-200">
+      {text}
+    </div>
+  )
+}
+
+/**
+ * Strips all HTML and markdown markup for plain-text outputs like PDF/TXT.
+ * Converts block tags and list items to clean newlines.
+ */
+export function stripRichMarkup(raw) {
+  if (!raw) return ''
+  let text = String(raw)
+
+  // Replace <br>, </p>, </div>, </tr> with newline
+  text = text.replace(/<br\s*\/?>/gi, '\n')
+  text = text.replace(/<\/p>/gi, '\n')
+  text = text.replace(/<\/div>/gi, '\n')
+  text = text.replace(/<\/tr>/gi, '\n')
+  text = text.replace(/<li>/gi, '• ')
+  text = text.replace(/<\/li>/gi, '\n')
+
+  // Strip Markdown
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1')
+  text = text.replace(/==([^=]+)==/g, '$1')
+
+  // Strip all remaining HTML tags
+  text = text.replace(/<[^>]+>/g, '')
+
+  // Decode common HTML entities
+  text = text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+
+  // Collapse 3+ newlines into 2
+  text = text.replace(/\n{3,}/g, '\n\n')
+
+  return text.trim()
 }
