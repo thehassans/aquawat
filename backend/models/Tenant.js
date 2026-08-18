@@ -183,6 +183,7 @@ const invoiceBrandingProfileSchema = new mongoose.Schema({
   footerTextEn: { type: String, default: '' },
   footerTextAr: { type: String, default: '' },
   headingSize: { type: Number, min: 10, max: 72 },
+  crVatSize: { type: Number, min: 8, max: 48 },
   singleLineHeading: { type: Boolean, default: false },
   logoSize: { type: Number, min: 20, max: 300 },
 }, { _id: false });
@@ -431,6 +432,7 @@ const tenantSchema = new mongoose.Schema({
       footerTextAr: { type: String, default: '' },
       logoSize: { type: Number, min: 10, max: 300, default: 112 },
       headingSize: { type: Number, min: 10, max: 72, default: 24 },
+      crVatSize: { type: Number, min: 8, max: 48, default: 14 },
       singleLineHeading: { type: Boolean, default: false },
       typography: { type: invoiceTypographySchema, default: () => ({}) },
       showVision2030: { type: Boolean, default: true },

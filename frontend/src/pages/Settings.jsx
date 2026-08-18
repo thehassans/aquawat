@@ -269,6 +269,7 @@ export default function Settings() {
   const [invoiceHeadingFontSize, setInvoiceHeadingFontSize] = useState(18)
   const [invoiceLogoSize, setInvoiceLogoSize] = useState(112)
   const [invoiceHeadingSize, setInvoiceHeadingSize] = useState(24)
+  const [invoiceCrVatSize, setInvoiceCrVatSize] = useState(14)
   const [invoiceSingleLineHeading, setInvoiceSingleLineHeading] = useState(false)
   const [presetAuthorizedPersonName, setPresetAuthorizedPersonName] = useState('')
   const [presetAuthorizedPersonNameAr, setPresetAuthorizedPersonNameAr] = useState('')
@@ -344,6 +345,7 @@ export default function Settings() {
     setInvoiceFooterTextAr(tenant.settings?.invoiceBranding?.footerTextAr || '')
     setInvoiceLogoSize(tenant.settings?.invoiceBranding?.logoSize || 112)
     setInvoiceHeadingSize(tenant.settings?.invoiceBranding?.headingSize || 24)
+    setInvoiceCrVatSize(tenant.settings?.invoiceBranding?.crVatSize || 14)
     setInvoiceSingleLineHeading(tenant.settings?.invoiceBranding?.singleLineHeading || false)
     setPresetAuthorizedPersonName(tenant.settings?.invoiceBranding?.presetAuthorizedPersonName || '')
     setPresetAuthorizedPersonNameAr(tenant.settings?.invoiceBranding?.presetAuthorizedPersonNameAr || '')
@@ -679,6 +681,18 @@ export default function Settings() {
                     />
                     <p className="text-xs text-gray-500 mt-1">{language === 'ar' ? 'الافتراضي 24' : 'Default 24'}</p>
                   </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'حجم خط السجل الضريبي والتجاري (CR / VAT)' : 'CR & VAT Font Size (px)'}</label>
+                    <input
+                      type="number"
+                      value={invoiceCrVatSize}
+                      onChange={(e) => setInvoiceCrVatSize(Number(e.target.value))}
+                      className="input"
+                      min="8"
+                      max="48"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">{language === 'ar' ? 'الافتراضي 14 - يتم تطبيق الحجم بالتساوي للغتين العربية والإنجليزية' : 'Default 14 - Resizes both English and Arabic labels & numbers equally'}</p>
+                  </div>
                   <div className="md:col-span-2">
                     <label className="flex items-center gap-3">
                       <input
@@ -835,6 +849,7 @@ export default function Settings() {
                             ...tenant?.settings?.invoiceBranding,
                             logoSize: invoiceLogoSize,
                             headingSize: invoiceHeadingSize,
+                            crVatSize: invoiceCrVatSize,
                             singleLineHeading: invoiceSingleLineHeading
                           }
                         }
@@ -856,6 +871,7 @@ export default function Settings() {
                         ...(tenant?.settings?.invoiceBranding || {}),
                         logoSize: invoiceLogoSize,
                         headingSize: invoiceHeadingSize,
+                        crVatSize: invoiceCrVatSize,
                         singleLineHeading: invoiceSingleLineHeading,
                         presetSignature: signatureDataUrl,
                         presetStamp: stampDataUrl,

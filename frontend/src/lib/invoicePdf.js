@@ -1184,7 +1184,10 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       const vatY = 74
       const nameMaxW = (contentW / 2) - 52
 
-      setHeadingFont(13, 'bold')
+      const headingPdfSize = Math.max(10, Math.min(24, Math.round((invoiceBranding.headingSize || 24) * 0.55)))
+      const crVatPdfSize = Math.max(7, Math.min(14, Math.round((invoiceBranding.crVatSize || 14) * 0.6)))
+
+      setHeadingFont(headingPdfSize, 'bold')
       doc.setTextColor(15, 23, 42)
       const leftNameLines = splitCompanyNameLines(contact.companyEn || companyName)
       const rightNameLines = splitCompanyNameLines(contact.companyAr)
@@ -1195,7 +1198,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
         doc.text(shape(line), contentRightEdge, nameY + index * 14, { align: 'right', maxWidth: nameMaxW })
       })
 
-      setBodyFont(9, 'bold')
+      setBodyFont(crVatPdfSize, 'bold')
       doc.setTextColor(15, 23, 42)
       if (contact.crNumber) {
         doc.text(shape(`C.R # : ${contact.crNumber}`), contentLeft, crY, { align: 'left' })

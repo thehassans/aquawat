@@ -21,6 +21,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
   const invoiceBranding = tenant?.settings?.invoiceBranding || {}
   const logoHeight = invoiceBranding.logoSize || 112 // 112px default
   const headingFontSize = invoiceBranding.headingSize || 24 // 24px default
+  const crVatFontSize = invoiceBranding.crVatSize || 14 // 14px default
   const isSingleLine = invoiceBranding.singleLineHeading || false
 
   return (
@@ -36,7 +37,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
           <div className="min-w-0 w-full text-left">
             {showEn ? (
               <>
-                <h1 className="min-h-16 font-bold leading-8 print:text-black" style={{ fontSize: `${headingFontSize}px` }}>
+                <h1 className="min-h-16 font-bold leading-tight print:text-black" style={{ fontSize: `${headingFontSize}px` }}>
                   {isSingleLine ? (
                     <span className="block whitespace-nowrap">{contact.companyEn || '—'}</span>
                   ) : (
@@ -45,7 +46,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
                     ))
                   )}
                 </h1>
-                <div className="mt-1 space-y-1 text-sm font-bold leading-5">
+                <div className="mt-2 space-y-1 font-bold leading-snug" style={{ fontSize: `${crVatFontSize}px` }}>
                   {contact.crNumber ? <p>C.R # : {contact.crNumber}</p> : null}
                   {contact.vatNumber ? <p>VAT # : {contact.vatNumber}</p> : null}
                 </div>
@@ -66,7 +67,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
           <div className="min-w-0 w-full text-right font-['Almarai']" dir="rtl">
             {showAr ? (
               <>
-                <h1 className="min-h-16 w-full font-bold leading-8 print:text-black" style={{ fontSize: `${headingFontSize}px` }}>
+                <h1 className="min-h-16 w-full font-bold leading-tight print:text-black font-['Almarai']" style={{ fontSize: `${headingFontSize}px` }}>
                   {isSingleLine ? (
                     <span className="block whitespace-nowrap">{contact.companyAr}</span>
                   ) : (
@@ -75,7 +76,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
                     ))
                   )}
                 </h1>
-                <div className="mt-1 w-full space-y-1 text-sm font-bold leading-5">
+                <div className="mt-2 w-full space-y-1 font-bold leading-snug font-['Almarai']" style={{ fontSize: `${crVatFontSize}px` }}>
                   {contact.crNumber ? <p>س.ت : {crAr}</p> : null}
                   {contact.vatNumber ? <p>الرقم الضريبي : {vatAr}</p> : null}
                 </div>

@@ -22,6 +22,15 @@ export const createDeliveryNoteFromPO = async (req, res) => {
       carrier,
       trackingNumber,
       deliveryDate,
+      dispatchDate,
+      dispatchTime,
+      estimatedDeliveryDate,
+      estimatedDeliveryTime,
+      deliveryWindow,
+      shippingAddress,
+      destinationCity,
+      recipientName,
+      recipientPhone,
       notes
     } = req.body;
 
@@ -176,6 +185,15 @@ export const createDeliveryNoteFromPO = async (req, res) => {
       carrier,
       trackingNumber,
       deliveryDate: deliveryDate ? new Date(deliveryDate) : new Date(),
+      dispatchDate: dispatchDate ? new Date(dispatchDate) : undefined,
+      dispatchTime,
+      estimatedDeliveryDate: estimatedDeliveryDate ? new Date(estimatedDeliveryDate) : undefined,
+      estimatedDeliveryTime,
+      deliveryWindow: deliveryWindow || 'same_day',
+      shippingAddress,
+      destinationCity,
+      recipientName,
+      recipientPhone,
       notes,
       createdBy: req.user._id
     });

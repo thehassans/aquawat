@@ -268,6 +268,15 @@ export default function DeliveryNoteForm() {
   const [trackingNumber, setTrackingNumber] = useState('')
   const [notes, setNotes] = useState('')
   const [deliveryDate, setDeliveryDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [dispatchDate, setDispatchDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [dispatchTime, setDispatchTime] = useState(() => new Date().toTimeString().slice(0, 5))
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [estimatedDeliveryTime, setEstimatedDeliveryTime] = useState('14:00')
+  const [deliveryWindow, setDeliveryWindow] = useState('same_day')
+  const [shippingAddress, setShippingAddress] = useState('')
+  const [destinationCity, setDestinationCity] = useState('')
+  const [recipientName, setRecipientName] = useState('')
+  const [recipientPhone, setRecipientPhone] = useState('')
 
   // Fetch Delivery Note if viewing/editing
   const { data: dn, isLoading: dnLoading } = useQuery({
@@ -281,15 +290,6 @@ export default function DeliveryNoteForm() {
     queryKey: ['purchase-order-for-dn', poId],
     queryFn: () => api.get(`/purchase-orders/${poId}`).then((res) => res.data),
     enabled: !isEdit && Boolean(poId),
-    onSuccess: (data) => {
-      const initialQtys = {}
-      ;(data?.lineItems || []).forEach((li) => {
-        const itemObjId = li._id || li.productId?._id || li.productId
-        const remaining = Math.max(0, Number(li.quantityOrdered || 0) - Number(li.quantityDelivered || 0))
-        initialQtys[itemObjId] = remaining > 0 ? remaining : Number(li.quantityOrdered || 1)
-      })
-      setQuantities(initialQtys)
-    },
   })
 
   // Fetch Quotation if creating from Quotation
@@ -297,15 +297,57 @@ export default function DeliveryNoteForm() {
     queryKey: ['quotation-for-dn', quotationId],
     queryFn: () => api.get(`/quotations/${quotationId}`).then((res) => res.data),
     enabled: !isEdit && Boolean(quotationId),
-    onSuccess: (data) => {
-      const initialQtys = {}
-      ;(data?.lineItems || []).forEach((li) => {
-        const itemObjId = li._id || li.productId?._id || li.productId
-        initialQtys[itemObjId] = Number(li.quantity || 1)
-      })
-      setQuantities(initialQtys)
-    },
   })
+
+  // Auto-fill from Quotation
+  useEffect(() => {
+    if (!quotation) return
+    const initialQtys = {}
+    ;(quotation?.lineItems || []).forEach((li, idx) => {
+      const itemObjId = li._id || li.productId?._id || li.productId || idx
+      initialQtys[itemObjId] = Number(li.quantity || 1)
+    })
+    setQuantities(initialQtys)
+
+    if (quotation.buyer?.name || quotation.buyer?.nameAr) {
+      setRecipientName(prev => prev || quotation.buyer?.name || quotation.buyer?.nameAr || '')
+    }
+    if (quotation.buyer?.contactPhone) {
+      setRecipientPhone(prev => prev || quotation.buyer.contactPhone)
+    }
+    if (quotation.buyer?.address) {
+      const addr = quotation.buyer.address
+      const parts = [addr.buildingNumber, addr.street, addr.district, addr.city].filter(Boolean)
+      if (parts.length) setShippingAddress(prev => prev || parts.join(', '))
+      if (addr.city) setDestinationCity(prev => prev || addr.city)
+    }
+    if (quotation.notes) {
+      setNotes(prev => prev || quotation.notes)
+    }
+  }, [quotation])
+
+  // Auto-fill from PO
+  useEffect(() => {
+    if (!po) return
+    const initialQtys = {}
+    ;(po?.lineItems || []).forEach((li, idx) => {
+      const itemObjId = li._id || li.productId?._id || li.productId || idx
+      const remaining = Math.max(0, Number(li.quantityOrdered || 0) - Number(li.quantityDelivered || 0))
+      initialQtys[itemObjId] = remaining > 0 ? remaining : Number(li.quantityOrdered || 1)
+    })
+    setQuantities(initialQtys)
+
+    const customer = po.customerId || {}
+    if (customer.nameEn || customer.nameAr) {
+      setRecipientName(prev => prev || customer.nameEn || customer.nameAr || '')
+    }
+    if (customer.phone) {
+      setRecipientPhone(prev => prev || customer.phone)
+    }
+    if (po.notes) {
+      setNotes(prev => prev || po.notes)
+    }
+  }, [po])
 
   const saveMutation = useMutation({
     mutationFn: (payload) => api.post('/delivery-notes', payload),
@@ -372,7 +414,7 @@ export default function DeliveryNoteForm() {
       poId: poId || undefined,
       quotationId: quotationId || undefined,
       customerId: po?.customerId?._id || po?.customerId || quotation?.customerId?._id || quotation?.customerId || undefined,
-      customerName: po?.customerId?.nameEn || po?.customerId?.nameAr || quotation?.buyer?.name || quotation?.buyer?.nameAr || '',
+      customerName: po?.customerId?.nameEn || po?.customerId?.nameAr || quotation?.buyer?.name || quotation?.buyer?.nameAr || recipientName || '',
       lineItems,
       driverName,
       driverPhone,
@@ -380,6 +422,15 @@ export default function DeliveryNoteForm() {
       carrier,
       trackingNumber,
       deliveryDate,
+      dispatchDate,
+      dispatchTime,
+      estimatedDeliveryDate,
+      estimatedDeliveryTime,
+      deliveryWindow,
+      shippingAddress,
+      destinationCity,
+      recipientName,
+      recipientPhone,
       notes,
     }
 
@@ -480,15 +531,33 @@ export default function DeliveryNoteForm() {
                 {language === 'ar' ? 'المستلم / العميل' : 'Delivered To (Customer)'}
               </p>
               <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{customerName}</p>
-              {customer.phone && <p className="text-xs text-slate-500 mt-0.5">{customer.phone}</p>}
+              {dn.recipientName && dn.recipientName !== customerName && (
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5"><span className="text-slate-400">{language === 'ar' ? 'الشخص المستلم:' : 'Attn:'}</span> {dn.recipientName}</p>
+              )}
+              {(dn.recipientPhone || customer.phone) && (
+                <p className="text-xs text-slate-500 mt-0.5">{dn.recipientPhone || customer.phone}</p>
+              )}
+              {(dn.shippingAddress || customer.address) && (
+                <p className="text-xs text-slate-500 mt-0.5">{dn.shippingAddress || (typeof customer.address === 'string' ? customer.address : '')}</p>
+              )}
               {customer.vatNumber && <p className="font-mono text-[11px] text-slate-400 mt-0.5">VAT: {customer.vatNumber}</p>}
             </div>
 
             <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 dark:border-white/5 dark:bg-white/[0.02]">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                {language === 'ar' ? 'بيانات الشحن والسائق' : 'Logistics & Dispatch'}
+                {language === 'ar' ? 'بيانات الشحن وموعد التسليم' : 'Logistics, Dispatch & Delivery Time'}
               </p>
               <div className="mt-1 text-xs space-y-1 text-slate-700 dark:text-slate-300">
+                {(dn.estimatedDeliveryDate || dn.estimatedDeliveryTime) && (
+                  <p className="font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="text-slate-400">{language === 'ar' ? 'الوقت المتوقع للتسليم:' : 'Estimated Delivery:'}</span>{' '}
+                    {dn.estimatedDeliveryDate ? new Date(dn.estimatedDeliveryDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : ''}{' '}
+                    {dn.estimatedDeliveryTime ? `(${dn.estimatedDeliveryTime})` : ''}
+                  </p>
+                )}
+                {dn.dispatchTime && (
+                  <p><span className="text-slate-400">{language === 'ar' ? 'وقت الانطلاق:' : 'Dispatch Time:'}</span> {dn.dispatchTime}</p>
+                )}
                 {dn.driverName && <p><span className="text-slate-400">{language === 'ar' ? 'السائق:' : 'Driver:'}</span> {dn.driverName} {dn.driverPhone ? `(${dn.driverPhone})` : ''}</p>}
                 {dn.vehicleNumber && <p><span className="text-slate-400">{language === 'ar' ? 'المركبة:' : 'Vehicle:'}</span> {dn.vehicleNumber}</p>}
                 {(dn.carrier || dn.trackingNumber) && (
@@ -576,6 +645,22 @@ export default function DeliveryNoteForm() {
 
   const lines = quotation?.lineItems || po?.lineItems || []
 
+  const handleFillAll = () => {
+    const allQtys = {}
+    lines.forEach((li, index) => {
+      const itemObjId = li._id || li.productId?._id || li.productId || index
+      const ordered = Number(li.quantityOrdered || li.quantity || 1)
+      allQtys[itemObjId] = ordered
+    })
+    setQuantities(allQtys)
+    toast.success(language === 'ar' ? 'تمت تعبئة كامل الكميات تلقائياً' : 'All quantities auto-filled')
+  }
+
+  const handleClearAll = () => {
+    setQuantities({})
+    toast(language === 'ar' ? 'تم تفريغ الكميات' : 'Quantities cleared')
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6 pb-12">
       {/* Header */}
@@ -601,28 +686,128 @@ export default function DeliveryNoteForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Logistics & Driver Details Card */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-dark-800 space-y-4">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-300">
-              <Truck className="h-4 w-4" />
-            </span>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              {language === 'ar' ? 'بيانات الشحن والسائق والتسليم' : 'Logistics & Dispatch Details'}
-            </h3>
+        {/* Logistics & Estimated Delivery Details Card */}
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-dark-800 space-y-5">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/10 pb-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-300">
+                <Truck className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'بيانات الشحن والتسليم وموعد الوصول المتوقع' : 'Logistics, Dispatch & Estimated Delivery'}
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {language === 'ar' ? 'حدد وقت الإرسال، الموعد والوقت المتوقع للتسليم، وبيانات السائق وشركة النقل' : 'Configure dispatch time, estimated arrival, driver, and courier tracking'}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {/* Timing Grid */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
             <div>
-              <label className="label">{language === 'ar' ? 'تاريخ التسليم' : 'Delivery Date'}</label>
+              <label className="label">{language === 'ar' ? 'تاريخ الإرسال / التسليم' : 'Dispatch Date'} *</label>
               <input
                 type="date"
                 value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
-                className="input mt-1"
+                onChange={(e) => {
+                  setDeliveryDate(e.target.value)
+                  setDispatchDate(e.target.value)
+                  if (!estimatedDeliveryDate) setEstimatedDeliveryDate(e.target.value)
+                }}
+                className="input mt-1 font-mono"
                 required
               />
             </div>
+
+            <div>
+              <label className="label">{language === 'ar' ? 'وقت الانطلاق (Dispatch Time)' : 'Dispatch Time'}</label>
+              <input
+                type="time"
+                value={dispatchTime}
+                onChange={(e) => setDispatchTime(e.target.value)}
+                className="input mt-1 font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="label">{language === 'ar' ? 'تاريخ الوصول المتوقع' : 'Estimated Arrival Date'}</label>
+              <input
+                type="date"
+                value={estimatedDeliveryDate}
+                onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
+                className="input mt-1 font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="label">{language === 'ar' ? 'الوقت المتوقع للتسليم' : 'Estimated Delivery Time'}</label>
+              <input
+                type="text"
+                value={estimatedDeliveryTime}
+                onChange={(e) => setEstimatedDeliveryTime(e.target.value)}
+                placeholder={language === 'ar' ? 'مثال: 14:30 أو 2-4 ساعات' : 'e.g. 14:00 or 2-4 hours'}
+                className="input mt-1"
+              />
+            </div>
+          </div>
+
+          {/* Delivery Window & Destination */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <label className="label">{language === 'ar' ? 'فترة التسليم (Delivery Window)' : 'Delivery Window'}</label>
+              <select
+                value={deliveryWindow}
+                onChange={(e) => setDeliveryWindow(e.target.value)}
+                className="select mt-1 font-medium"
+              >
+                <option value="same_day">{language === 'ar' ? 'نفس اليوم (Same Day)' : 'Same Day'}</option>
+                <option value="morning">{language === 'ar' ? 'صباحي (8:00 ص - 12:00 ظ)' : 'Morning (8:00 AM - 12:00 PM)'}</option>
+                <option value="afternoon">{language === 'ar' ? 'مسائي (1:00 ظ - 5:00 ع)' : 'Afternoon (1:00 PM - 5:00 PM)'}</option>
+                <option value="evening">{language === 'ar' ? 'ليلي (6:00 م - 10:00 م)' : 'Evening (6:00 PM - 10:00 PM)'}</option>
+                <option value="urgent">{language === 'ar' ? 'عاجل / فوري (خلال ساعتين)' : 'Urgent / Express (Within 2 hrs)'}</option>
+                <option value="next_day">{language === 'ar' ? 'يوم العمل التالي (Next Day)' : 'Next Business Day'}</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="label">{language === 'ar' ? 'الشخص المستلم / المستلم المسجل' : 'Recipient Person'}</label>
+              <input
+                type="text"
+                value={recipientName}
+                onChange={(e) => setRecipientName(e.target.value)}
+                placeholder={language === 'ar' ? 'اسم المستلم' : 'Recipient Name'}
+                className="input mt-1"
+              />
+            </div>
+
+            <div>
+              <label className="label">{language === 'ar' ? 'هاتف المستلم' : 'Recipient Phone'}</label>
+              <input
+                type="tel"
+                value={recipientPhone}
+                onChange={(e) => setRecipientPhone(e.target.value)}
+                placeholder="05xxxxxxxx"
+                className="input mt-1 font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Shipping Address */}
+          <div>
+            <label className="label">{language === 'ar' ? 'عنوان التسليم والوجهة (Destination Address)' : 'Destination / Shipping Address'}</label>
+            <input
+              type="text"
+              value={shippingAddress}
+              onChange={(e) => setShippingAddress(e.target.value)}
+              placeholder={language === 'ar' ? 'العنوان التفصيلي، المبنى، الشارع، الحي، المدينة' : 'Building No, Street, District, City'}
+              className="input mt-1"
+            />
+          </div>
+
+          {/* Driver & Courier Details Grid */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 pt-2 border-t border-slate-100 dark:border-white/5">
             <div>
               <label className="label">{language === 'ar' ? 'اسم السائق' : 'Driver Name'}</label>
               <input
@@ -640,7 +825,7 @@ export default function DeliveryNoteForm() {
                 value={driverPhone}
                 onChange={(e) => setDriverPhone(e.target.value)}
                 placeholder="05xxxxxxxx"
-                className="input mt-1"
+                className="input mt-1 font-mono"
               />
             </div>
             <div>
@@ -654,38 +839,59 @@ export default function DeliveryNoteForm() {
               />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'شركة الشحن' : 'Carrier / Courier'}</label>
-              <input
-                type="text"
-                value={carrier}
-                onChange={(e) => setCarrier(e.target.value)}
-                placeholder={language === 'ar' ? 'أرامكس، سمسا، نقل داخلي...' : 'Aramex, SMSA, Internal Fleet...'}
-                className="input mt-1"
-              />
-            </div>
-            <div>
-              <label className="label">{language === 'ar' ? 'رقم التتبع / البوليصة' : 'Tracking Number'}</label>
-              <input
-                type="text"
-                value={trackingNumber}
-                onChange={(e) => setTrackingNumber(e.target.value)}
-                placeholder="AWB-xxxxxxxx"
-                className="input mt-1 font-mono"
-              />
+              <label className="label">{language === 'ar' ? 'شركة الشحن / التتبع' : 'Carrier & Tracking'}</label>
+              <div className="flex gap-1.5 mt-1">
+                <input
+                  type="text"
+                  value={carrier}
+                  onChange={(e) => setCarrier(e.target.value)}
+                  placeholder={language === 'ar' ? 'الناقل' : 'Carrier'}
+                  className="input w-1/2"
+                />
+                <input
+                  type="text"
+                  value={trackingNumber}
+                  onChange={(e) => setTrackingNumber(e.target.value)}
+                  placeholder="AWB-xxx"
+                  className="input w-1/2 font-mono"
+                />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Line Items Card */}
         <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-dark-800 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/10 pb-3">
             <div className="flex items-center gap-2.5">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">
                 <FileCheck className="h-4 w-4" />
               </span>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                {language === 'ar' ? 'بنود التسليم والكميات' : 'Delivery Items & Quantities'}
-              </h3>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'بنود التسليم والكميات (معبأة تلقائياً)' : 'Delivery Items & Quantities (Auto-filled)'}
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {language === 'ar' ? 'تمت تعبئة الكميات تلقائياً، يمكنك تعديل أي كمية للتسليم الجزئي' : 'Quantities auto-filled from source document. Adjust for partial deliveries.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleFillAll}
+                className="rounded-xl bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 transition"
+              >
+                {language === 'ar' ? 'تعبئة الكل 100%' : 'Auto-fill All'}
+              </button>
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 transition"
+              >
+                {language === 'ar' ? 'تفريغ' : 'Clear'}
+              </button>
             </div>
           </div>
 
@@ -731,7 +937,7 @@ export default function DeliveryNoteForm() {
                             onChange={(e) =>
                               setQuantities((prev) => ({ ...prev, [itemObjId]: e.target.value }))
                             }
-                            className="input w-28 text-end font-bold"
+                            className="input w-28 text-end font-bold font-mono"
                           />
                           <button
                             type="button"
