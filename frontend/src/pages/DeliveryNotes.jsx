@@ -37,10 +37,13 @@ import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import { getUomLabel } from '../lib/uomOptions'
+import { getDeliveryWindowLabel } from '../lib/deliveryWindows'
+import { downloadDeliveryNotePdf } from '../lib/deliveryNotePdf'
 
 export default function DeliveryNotes() {
   const navigate = useNavigate()
   const { language } = useSelector((state) => state.ui)
+  const tenant = useSelector((state) => state.auth?.tenant || state.auth?.user?.tenant)
   const isAr = language === 'ar'
   const { t } = useTranslation(language)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -583,6 +586,16 @@ export default function DeliveryNotes() {
                             <Eye className="w-3.5 h-3.5" />
                           </button>
 
+                          {/* Download PDF Button */}
+                          <button
+                            type="button"
+                            onClick={() => downloadDeliveryNotePdf({ deliveryNote: dn, tenant, language })}
+                            className="p-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300 transition-colors shadow-xs"
+                            title={isAr ? 'تنزيل ملف PDF' : 'Download PDF'}
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+
                           {/* Convert to Invoice Button */}
                           <button
                             type="button"
@@ -672,40 +685,66 @@ export default function DeliveryNotes() {
 
               {/* Modal Body */}
               <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-                {/* Logistics Info Box */}
-                <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50/70 dark:bg-dark-700/40 border border-slate-100 dark:border-dark-600/50 text-xs">
+                {/* Logistics & Parties Box */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50/70 dark:bg-dark-700/40 border border-slate-100 dark:border-dark-600/50 text-xs">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-                      {isAr ? 'المستلم / العميل' : 'Customer'}
+                      {isAr ? 'المستلم / العميل والوجهة' : 'Customer & Destination'}
                     </span>
                     <p className="font-bold text-slate-900 dark:text-white text-sm">
                       {quickViewDn.customerName || quickViewDn.customerId?.nameEn || quickViewDn.customerId?.nameAr}
                     </p>
-                    {quickViewDn.destinationCity && (
-                      <p className="text-slate-500 mt-0.5 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-rose-400" />
-                        {quickViewDn.destinationCity} {quickViewDn.shippingAddress ? `• ${quickViewDn.shippingAddress}` : ''}
+                    {quickViewDn.recipientName && quickViewDn.recipientName !== quickViewDn.customerName && (
+                      <p className="text-slate-600 dark:text-slate-300 mt-0.5"><span className="text-slate-400">{isAr ? 'المستلم:' : 'Attn:'}</span> {quickViewDn.recipientName}</p>
+                    )}
+                    {quickViewDn.recipientPhone && (
+                      <p className="text-slate-500 mt-0.5 flex items-center gap-1 font-mono">
+                        <Phone className="w-3 h-3 text-slate-400" />
+                        {quickViewDn.recipientPhone}
+                      </p>
+                    )}
+                    {(quickViewDn.destinationCity || quickViewDn.shippingAddress) && (
+                      <p className="text-slate-500 mt-1 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+                        <span>{quickViewDn.destinationCity ? `${quickViewDn.destinationCity} • ` : ''}{quickViewDn.shippingAddress || ''}</span>
                       </p>
                     )}
                   </div>
 
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-                      {isAr ? 'موعد التسليم والشحن' : 'Timing & Carrier'}
+                      {isAr ? 'بيانات الشحن والسائق والموعد' : 'Logistics, Driver & Timing'}
                     </span>
-                    {quickViewDn.estimatedDeliveryTime && (
+                    {(quickViewDn.estimatedDeliveryDate || quickViewDn.estimatedDeliveryTime) && (
                       <p className="font-bold text-emerald-600 dark:text-emerald-400">
-                        {isAr ? 'الوقت المتوقع:' : 'Arrival:'} {quickViewDn.estimatedDeliveryTime}
+                        {isAr ? 'تاريخ التسليم المتوقع:' : 'Est. Delivered:'}{' '}
+                        {quickViewDn.estimatedDeliveryDate ? new Date(quickViewDn.estimatedDeliveryDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-US') : ''}{' '}
+                        {quickViewDn.estimatedDeliveryTime ? `(${quickViewDn.estimatedDeliveryTime})` : ''}
+                      </p>
+                    )}
+                    {quickViewDn.deliveryWindow && (
+                      <p className="text-slate-600 dark:text-slate-300 mt-0.5">
+                        <span className="text-slate-400">{isAr ? 'فترة التسليم:' : 'Window:'}</span> {getDeliveryWindowLabel(quickViewDn.deliveryWindow, language)}
+                      </p>
+                    )}
+                    {quickViewDn.dispatchTime && (
+                      <p className="text-slate-600 dark:text-slate-300 mt-0.5">
+                        <span className="text-slate-400">{isAr ? 'وقت الانطلاق:' : 'Dispatch:'}</span> {quickViewDn.dispatchTime}
                       </p>
                     )}
                     {quickViewDn.driverName && (
-                      <p className="text-slate-600 dark:text-slate-300 mt-0.5">
-                        {isAr ? 'السائق:' : 'Driver:'} {quickViewDn.driverName} {quickViewDn.driverPhone ? `(${quickViewDn.driverPhone})` : ''}
+                      <p className="text-slate-700 dark:text-slate-200 mt-0.5 font-medium">
+                        <span className="text-slate-400">{isAr ? 'السائق:' : 'Driver:'}</span> {quickViewDn.driverName} {quickViewDn.driverPhone ? `(${quickViewDn.driverPhone})` : ''}
+                      </p>
+                    )}
+                    {quickViewDn.vehicleNumber && (
+                      <p className="text-slate-600 dark:text-slate-400 mt-0.5">
+                        <span className="text-slate-400">{isAr ? 'المركبة:' : 'Vehicle:'}</span> {quickViewDn.vehicleNumber}
                       </p>
                     )}
                     {quickViewDn.carrier && (
                       <p className="text-slate-600 dark:text-slate-300 mt-0.5">
-                        {quickViewDn.carrier} {quickViewDn.trackingNumber ? `• AWB: ${quickViewDn.trackingNumber}` : ''}
+                        <span className="text-slate-400">{isAr ? 'شركة الشحن:' : 'Carrier:'}</span> {quickViewDn.carrier} {quickViewDn.trackingNumber ? `• AWB: ${quickViewDn.trackingNumber}` : ''}
                       </p>
                     )}
                   </div>
@@ -723,7 +762,7 @@ export default function DeliveryNotes() {
                           <th className="px-3 py-2 text-start">#</th>
                           <th className="px-3 py-2 text-start">{isAr ? 'الوصف' : 'Description'}</th>
                           <th className="px-3 py-2 text-center">{isAr ? 'الوحدة' : 'UOM'}</th>
-                          <th className="px-3 py-2 text-end">{isAr ? 'الكمية' : 'Qty'}</th>
+                          <th className="px-3 py-2 text-end">{isAr ? 'الكمية المسلمة' : 'Qty Delivered'}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -731,7 +770,7 @@ export default function DeliveryNotes() {
                           <tr key={idx}>
                             <td className="px-3 py-2 text-slate-400 font-mono">{idx + 1}</td>
                             <td className="px-3 py-2 font-semibold text-slate-900 dark:text-white">
-                              {item.description || item.productName || 'Item'}
+                              {item.description || item.productName || item.productNameAr || 'Item'}
                             </td>
                             <td className="px-3 py-2 text-center font-mono text-slate-500">
                               {getUomLabel(item.unitCode || 'PCE', language)}
@@ -755,7 +794,7 @@ export default function DeliveryNotes() {
               </div>
 
               {/* Modal Footer */}
-              <div className="p-4 border-t border-slate-100 dark:border-dark-700 flex items-center justify-between bg-slate-50/50 dark:bg-dark-900/30">
+              <div className="p-4 border-t border-slate-100 dark:border-dark-700 flex items-center justify-between bg-slate-50/50 dark:bg-dark-900/30 flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => navigate(`/app/dashboard/delivery-notes/${quickViewDn._id}`)}
@@ -765,6 +804,15 @@ export default function DeliveryNotes() {
                 </button>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => downloadDeliveryNotePdf({ deliveryNote: quickViewDn, tenant, language })}
+                    className="px-4 py-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'تنزيل PDF' : 'Download PDF'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => navigate(`/app/dashboard/invoices/new?deliveryNoteId=${quickViewDn._id}`)}

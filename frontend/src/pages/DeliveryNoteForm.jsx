@@ -29,6 +29,8 @@ import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import { getUomLabel } from '../lib/uomOptions'
+import { DELIVERY_WINDOWS, getDeliveryWindowLabel } from '../lib/deliveryWindows'
+import { downloadDeliveryNotePdf } from '../lib/deliveryNotePdf'
 
 function DeliveryNoteSourcePicker({ language, navigate }) {
   const [activeTab, setActiveTab] = useState('quotations')
@@ -481,6 +483,14 @@ export default function DeliveryNoteForm() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => downloadDeliveryNotePdf({ deliveryNote: dn, tenant, language })}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>{language === 'ar' ? 'تنزيل PDF' : 'Download PDF'}</span>
+            </button>
+            <button
+              type="button"
               onClick={() => window.print()}
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200"
             >
@@ -732,7 +742,7 @@ export default function DeliveryNoteForm() {
             </div>
 
             <div>
-              <label className="label">{language === 'ar' ? 'تاريخ الوصول المتوقع' : 'Estimated Arrival Date'}</label>
+              <label className="label">{language === 'ar' ? 'تاريخ التسليم المتوقع (Est. Delivered Date)' : 'Estimated Delivered Date'}</label>
               <input
                 type="date"
                 value={estimatedDeliveryDate}
@@ -762,12 +772,11 @@ export default function DeliveryNoteForm() {
                 onChange={(e) => setDeliveryWindow(e.target.value)}
                 className="select mt-1 font-medium"
               >
-                <option value="same_day">{language === 'ar' ? 'نفس اليوم (Same Day)' : 'Same Day'}</option>
-                <option value="morning">{language === 'ar' ? 'صباحي (8:00 ص - 12:00 ظ)' : 'Morning (8:00 AM - 12:00 PM)'}</option>
-                <option value="afternoon">{language === 'ar' ? 'مسائي (1:00 ظ - 5:00 ع)' : 'Afternoon (1:00 PM - 5:00 PM)'}</option>
-                <option value="evening">{language === 'ar' ? 'ليلي (6:00 م - 10:00 م)' : 'Evening (6:00 PM - 10:00 PM)'}</option>
-                <option value="urgent">{language === 'ar' ? 'عاجل / فوري (خلال ساعتين)' : 'Urgent / Express (Within 2 hrs)'}</option>
-                <option value="next_day">{language === 'ar' ? 'يوم العمل التالي (Next Day)' : 'Next Business Day'}</option>
+                {DELIVERY_WINDOWS.map((win) => (
+                  <option key={win.value} value={win.value}>
+                    {language === 'ar' ? win.labelAr : win.labelEn}
+                  </option>
+                ))}
               </select>
             </div>
 
