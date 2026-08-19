@@ -454,6 +454,7 @@ router.put('/config', checkPermission('settings', 'update'), async (req, res) =>
     assignIf('autoReplyMessageAr');
     assignIf('businessHoursOnly');
     assignIf('autoSendInvoices');
+    assignIf('autoSendQuotations');
     assignIf('autoNotifyOrderStatus');
     assignIf('invoiceTemplateName');
     assignIf('invoiceTemplateLanguage');

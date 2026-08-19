@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { ArrowLeft, Download, Mail, Printer, Edit, FileSpreadsheet, FileText, CheckCircle, XCircle, PenLine, Truck } from 'lucide-react'
+import { ArrowLeft, Download, Mail, Printer, Edit, FileSpreadsheet, FileText, CheckCircle, XCircle, PenLine, Truck, MessageCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -109,6 +109,27 @@ export default function QuotationView() {
     onError: (error) => {
       toast.error(error?.response?.data?.error || error?.message || 'Failed to send quotation email')
     },
+  })
+
+  const sendWhatsAppMutation = useMutation({
+    mutationFn: async () => {
+      if (!quotation) throw new Error(language === 'ar' ? 'عرض السعر غير متاح' : 'Quotation is unavailable')
+      return await api.post(`/quotations/${id}/send-whatsapp`, { language })
+    },
+    onSuccess: (res) => {
+      const data = res?.data || {}
+      if (data?.channel === 'direct_whatsapp') {
+        toast.success(language === 'ar' ? 'تم إرسال عرض السعر عبر واتساب بنجاح' : 'Quotation sent via WhatsApp successfully')
+      } else if (data?.waLink) {
+        window.open(data.waLink, '_blank')
+        toast.success(language === 'ar' ? 'جاري فتح واتساب لإرسال عرض السعر...' : 'Opening WhatsApp...')
+      } else {
+        toast.success(language === 'ar' ? 'تم إرسال عرض السعر عبر واتساب' : 'Quotation sent via WhatsApp')
+      }
+    },
+    onError: (error) => {
+      toast.error(error?.response?.data?.error || error?.message || (language === 'ar' ? 'فشل إرسال واتساب' : 'Failed to send WhatsApp'))
+    }
   })
 
   const approveMutation = useMutation({
@@ -358,6 +379,20 @@ export default function QuotationView() {
               {language === 'ar' ? 'إرسال بالبريد' : 'Send Email'}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => sendWhatsAppMutation.mutate()}
+            disabled={sendWhatsAppMutation.isPending}
+            className="btn btn-secondary border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+            title={language === 'ar' ? 'إرسال عرض السعر عبر واتساب' : 'Send quotation via WhatsApp'}
+          >
+            {sendWhatsAppMutation.isPending ? (
+              <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            )}
+            <span>{language === 'ar' ? 'إرسال عبر واتساب' : 'Send WhatsApp'}</span>
+          </button>
         </div>
       </div>
 

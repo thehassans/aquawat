@@ -21,6 +21,7 @@ const whatsappConfigSchema = new mongoose.Schema({
   lastHealthError: { type: String, default: '' },
 
   autoSendInvoices: { type: Boolean, default: true },
+  autoSendQuotations: { type: Boolean, default: true },
   autoNotifyOrderStatus: { type: Boolean, default: true },
   invoiceTemplateName: { type: String, default: 'maqder_invoice' },
   invoiceTemplateLanguage: { type: String, default: 'en_US' },

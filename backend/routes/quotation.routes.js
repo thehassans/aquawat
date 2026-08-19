@@ -14,6 +14,8 @@ import { clampTemplateId } from '../utils/premiumTemplates.js';
 import { buildPremiumEmailShell, getTenantLoginUrl, getTenantWorkspaceHost, getTenantWorkspaceUrl } from '../utils/premiumEmailShell.js';
 import { tenantHasEmailAddon } from '../middleware/auth.js';
 import { normalizeProductType, stampLineProductTypes } from '../utils/productType.js';
+import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
+import { getWhatsAppConfig } from '../services/whatsappCloudService.js';
 
 const router = express.Router();
 
@@ -713,6 +715,64 @@ router.post('/:id/send-email', checkPermission('invoicing', 'update'), async (re
     }
 
     res.json({ success: true, delivery });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/quotations/:id/send-whatsapp
+// @desc    Send quotation via WhatsApp with wa.me link fallback
+router.post('/:id/send-whatsapp', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const quotation = await Quotation.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!quotation) {
+      return res.status(404).json({ error: 'Quotation not found' });
+    }
+
+    const tenant = await Tenant.findById(req.user.tenantId);
+    let customer = null;
+    if (quotation.customerId) {
+      customer = await Customer.findOne({ _id: quotation.customerId, tenantId: tenant._id });
+    }
+
+    const phone = req.body?.phone || customer?.phone || customer?.mobile || quotation?.buyer?.contactPhone || quotation?.buyer?.phone;
+    const cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
+
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const baseUrl = process.env.APP_URL || `${protocol}://${tenant.domain || 'app.maqder.com'}`;
+    const link = `${baseUrl}/app/dashboard/quotations/${quotation._id}`;
+    const amountLabel = `${Number(quotation.grandTotal || 0).toFixed(2)} ${quotation.currency || 'SAR'}`;
+    const customerName = customer?.name || customer?.nameAr || quotation?.buyer?.name || quotation?.buyer?.nameAr || 'Customer';
+
+    const textEn = `Dear ${customerName}, quotation ${quotation.quotationNumber} (${amountLabel}) from ${tenant?.name || 'us'} is ready: ${link}`;
+    const textAr = `عزيزي ${customerName}، عرض السعر رقم ${quotation.quotationNumber} بقيمة (${amountLabel}) من ${tenant?.nameAr || tenant?.name || 'مؤسستنا'} متاح عبر الرابط: ${link}`;
+    const messageText = req.body?.language === 'ar' ? textAr : textEn;
+    const waLink = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}` : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+
+    // Try sending directly if WhatsApp service is connected
+    if (cleanPhone) {
+      try {
+        const sendResult = await sendRestaurantWhatsApp({
+          tenantId: tenant._id,
+          phone: cleanPhone,
+          messageEn: textEn,
+          messageAr: textAr,
+          replacements: { quotationNumber: quotation.quotationNumber, total: quotation.grandTotal, link, customer_name: customerName }
+        });
+        if (sendResult?.sent) {
+          return res.json({ success: true, channel: 'direct_whatsapp', message: 'Quotation sent via WhatsApp successfully', waLink });
+        }
+      } catch (e) {
+        console.warn('[Quotation] Direct WhatsApp send failed, returning wa.me fallback:', e.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      channel: 'web_link',
+      message: 'WhatsApp Web link prepared',
+      waLink
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

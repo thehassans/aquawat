@@ -26,6 +26,8 @@ import {
   ArrowLeft,
   Smartphone,
   Link2,
+  Send,
+  MessageCircle,
 } from 'lucide-react'
 import api from '../../lib/api'
 import { App3DIcon } from '../../components/ui/App3DIcon'
@@ -114,6 +116,7 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
     appSecret: '',
     metaAppId: '',
     autoSendInvoices: true,
+    autoSendQuotations: true,
     autoNotifyOrderStatus: true,
   })
 
@@ -145,6 +148,7 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
       businessAccountId: config.businessAccountId || '',
       metaAppId: config.metaAppId || '',
       autoSendInvoices: config.autoSendInvoices !== false,
+      autoSendQuotations: config.autoSendQuotations !== false,
       autoNotifyOrderStatus: config.autoNotifyOrderStatus !== false,
     }))
   }, [config])
@@ -167,7 +171,7 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
     { id: 'connect', icon: ShieldCheck, en: 'Connect & test', ar: 'الربط والاختبار' },
     { id: 'webhook', icon: Webhook, en: 'Webhooks', ar: 'الويب هوك' },
     { id: 'templates', icon: FileText, en: 'Invoice templates', ar: 'قوالب الفواتير' },
-    { id: 'auto', icon: Receipt, en: 'Auto-send invoices', ar: 'إرسال الفواتير تلقائياً' },
+    { id: 'auto', icon: Receipt, en: 'Auto-send & settings', ar: 'الإرسال التلقائي والإعدادات' },
   ]
 
   const qrSteps = [
@@ -175,6 +179,7 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
     { id: 'phone', icon: Phone, en: 'Open WhatsApp on your phone', ar: 'افتح واتساب على الجوال' },
     { id: 'linked', icon: Link2, en: 'Linked devices', ar: 'الأجهزة المرتبطة' },
     { id: 'scan', icon: QrCode, en: 'Scan the QR code', ar: 'امسح رمز QR' },
+    { id: 'auto', icon: Receipt, en: 'Auto-send & settings', ar: 'الإرسال التلقائي والإعدادات' },
   ]
 
   const officialDone = {
@@ -192,69 +197,84 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
     1: qrStep > 0 || qrConnected,
     2: qrStep > 1 || qrConnected,
     3: qrConnected,
+    4: Boolean(form.autoSendInvoices || form.autoSendQuotations),
   }
 
   const selectMode = (next) => {
     setMode(next)
     setStep(0)
     setQrStep(0)
-    try { localStorage.setItem(MODE_KEY, next) } catch { /* ignore */ }
+    try { localStorage.setItem(MODE_KEY, next) } catch {}
   }
 
   const saveConfig = useMutation({
     mutationFn: (payload) => api.put('/whatsapp/config', payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['whatsapp-config'] }),
+    onSuccess: (res) => {
+      queryClient.setQueryData(['whatsapp-config'], res.data)
+      queryClient.invalidateQueries(['whatsapp-config'])
+    },
   })
 
   const testConnection = useMutation({
     mutationFn: () => api.post('/whatsapp/config/test'),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-config'] })
+      toast.success(isAr ? 'تم الاتصال بنجاح' : 'Connected successfully')
+      queryClient.setQueryData(['whatsapp-config'], res.data.config)
+      queryClient.invalidateQueries(['whatsapp-config'])
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || (isAr ? 'فشل الاتصال' : 'Connection failed'))
+    },
+  })
+
+  const createTemplates = useMutation({
+    mutationFn: () => api.post('/whatsapp/cloud/ensure-default-templates'),
+    onSuccess: (res) => {
+      const created = res.data?.results?.filter((r) => r.status === 'created')?.length || 0
+      const existing = res.data?.results?.filter((r) => r.status === 'exists')?.length || 0
       toast.success(
         isAr
-          ? `تم الاتصال: ${res.data?.displayPhone || ''}`
-          : `Connected: ${res.data?.displayPhone || 'WhatsApp Cloud API'}`
+          ? `تم إرسال ${created} قالب إلى ميتا (الموجود سابقاً: ${existing})`
+          : `Submitted ${created} templates to Meta (${existing} already existed)`
       )
+      queryClient.invalidateQueries(['whatsapp-templates'])
     },
-    onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل الاختبار' : 'Connection test failed')),
+    onError: (err) => {
+      toast.error(err.response?.data?.error || (isAr ? 'تعذر إنشاء القوالب' : 'Could not create templates'))
+    },
   })
 
   const syncTemplates = useMutation({
     mutationFn: () => api.post('/whatsapp/cloud/sync-templates'),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-templates'] })
-      toast.success(isAr ? `تمت مزامنة ${res.data?.synced || 0} قالباً` : `Synced ${res.data?.synced || 0} templates`)
+      toast.success(isAr ? `تمت المزامنة: ${res.data?.count || 0} قالب` : `Synced ${res.data?.count || 0} templates`)
+      queryClient.invalidateQueries(['whatsapp-templates'])
     },
-    onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشلت المزامنة' : 'Sync failed')),
-  })
-
-  const createTemplates = useMutation({
-    mutationFn: () => api.post('/whatsapp/cloud/create-invoice-templates'),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-templates'] })
-      const n = res.data?.created?.length || 0
-      toast.success(isAr ? `تم إنشاء / العثور على ${n} قالب فاتورة` : `Created or found ${n} invoice templates`)
+    onError: (err) => {
+      toast.error(err.response?.data?.error || (isAr ? 'تعذر المزامنة' : 'Could not sync templates'))
     },
-    onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'تعذر إنشاء القوالب' : 'Could not create templates')),
   })
 
   const sendTest = useMutation({
-    mutationFn: () => api.post('/whatsapp/cloud/send-test-invoice', { phone: testPhone, language: isAr ? 'ar' : 'en' }),
-    onSuccess: (res) => toast.success(isAr ? `أُرسلت عبر ${res.data?.channel || 'Cloud API'}` : `Sent via ${res.data?.channel || 'Cloud API'}`),
-    onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل الإرسال' : 'Send failed')),
+    mutationFn: () => api.post('/whatsapp/cloud/send-test-invoice', { phone: testPhone }),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم إرسال الفاتورة التجريبية' : 'Test invoice sent')
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || (isAr ? 'تعذر الإرسال' : 'Could not send'))
+    },
   })
 
-  const rotateToken = async () => {
-    try {
-      await api.put('/whatsapp/config', { rotateVerifyToken: true })
-      await queryClient.invalidateQueries({ queryKey: ['whatsapp-config'] })
-      toast.success(isAr ? 'تم توليد رمز تحقق جديد' : 'New verify token generated')
-    } catch (err) {
-      toast.error(err.response?.data?.error || (isAr ? 'تعذر التدوير' : 'Could not rotate token'))
-    }
-  }
+  const rotateWebhook = useMutation({
+    mutationFn: () => api.put('/whatsapp/config', { rotateVerifyToken: true }),
+    onSuccess: (res) => {
+      toast.success(isAr ? 'تم تجديد الرمز' : 'Token rotated')
+      queryClient.setQueryData(['whatsapp-config'], res.data)
+      queryClient.invalidateQueries(['whatsapp-config'])
+    },
+  })
 
-  const persistAndTest = async () => {
+  const handleSaveAndTest = async () => {
     try {
       await saveConfig.mutateAsync({
         phoneNumberId: form.phoneNumberId.trim(),
@@ -278,9 +298,10 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
     try {
       await saveConfig.mutateAsync({
         autoSendInvoices: next.autoSendInvoices,
+        autoSendQuotations: next.autoSendQuotations,
         autoNotifyOrderStatus: next.autoNotifyOrderStatus,
       })
-      toast.success(isAr ? 'حُفظت الأتمتة' : 'Automation saved')
+      toast.success(isAr ? 'حُفظت إعدادات الإرسال التلقائي' : 'Automation settings saved')
     } catch (err) {
       toast.error(err.response?.data?.error || (isAr ? 'تعذر الحفظ' : 'Could not save'))
     }
@@ -288,17 +309,28 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[70vh] items-center justify-center rounded-[28px] border border-slate-200/80 bg-white shadow-sm">
+      <div className="flex min-h-[70vh] items-center justify-center rounded-[28px] border border-slate-200/80 bg-white shadow-sm dark:border-white/10 dark:bg-[#0c111a]">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
       </div>
     )
   }
 
+  const changeMethodButton = (
+    <button
+      type="button"
+      onClick={() => selectMode('choose')}
+      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 shadow-sm transition-all hover:bg-slate-100 hover:border-slate-400 hover:shadow-md dark:border-white/15 dark:bg-dark-800 dark:text-slate-100 dark:hover:bg-dark-700"
+    >
+      <ArrowLeft className={`h-4 w-4 stroke-[2.5] text-slate-600 dark:text-slate-300 ${isAr ? 'rotate-180' : ''}`} />
+      <span>{isAr ? 'تغيير طريقة الربط' : 'Change Connection Method'}</span>
+    </button>
+  )
+
   const shell = (sidebar, body) => (
-    <div className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-white text-slate-900 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.28)]">
+    <div className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-white text-slate-900 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.28)] dark:border-white/10 dark:bg-[#0c111a] dark:text-white">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(16,185,129,0.08),transparent_42%)]" />
-      <div className="relative grid gap-0 lg:grid-cols-[280px_1fr]">
-        <aside className="border-b border-slate-100 bg-slate-50/70 p-6 lg:border-b-0 lg:border-e lg:border-slate-100">
+      <div className="relative grid gap-0 lg:grid-cols-[290px_1fr]">
+        <aside className="border-b border-slate-100 bg-slate-50/70 p-6 lg:border-b-0 lg:border-e lg:border-slate-100 dark:border-white/5 dark:bg-dark-900/50">
           {sidebar}
         </aside>
         <section className="min-h-[70vh] p-6 sm:p-8">{body}</section>
@@ -307,111 +339,132 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
   )
 
   const brandHeader = (
-    <div className="flex items-center gap-3">
-      <div className="h-12 w-12 shrink-0">
-        <App3DIcon appId="whatsapp_cloud_auto" icon="whatsapp" label="WhatsApp" className="h-12 w-12" />
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <div className="h-12 w-12 shrink-0">
+          <App3DIcon appId="whatsapp_cloud_auto" icon="whatsapp" label="WhatsApp" className="h-12 w-12" />
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700/80 dark:text-emerald-400">
+            {isAr ? 'متجر التطبيقات' : 'App Store'}
+          </p>
+          <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">{isAr ? 'واتساب' : 'WhatsApp'}</h1>
+        </div>
       </div>
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700/80">
-          {isAr ? 'متجر التطبيقات' : 'App Store'}
-        </p>
-        <h1 className="text-lg font-semibold tracking-tight text-slate-900">{isAr ? 'واتساب' : 'WhatsApp'}</h1>
-      </div>
+
+      <button
+        type="button"
+        onClick={() => selectMode('choose')}
+        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-100 hover:text-slate-950 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300 dark:hover:bg-dark-700 transition"
+      >
+        <ArrowLeft className={`h-3.5 w-3.5 stroke-[2.5] ${isAr ? 'rotate-180' : ''}`} />
+        <span>{isAr ? 'تغيير طريقة الربط' : 'Change Method'}</span>
+      </button>
     </div>
   )
 
   if (mode === 'choose') {
     return (
-      <div className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-white px-6 py-10 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.28)] sm:px-10">
+      <div className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-white px-6 py-10 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.28)] sm:px-10 dark:border-white/10 dark:bg-[#0c111a]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.09),transparent_50%)]" />
         <div className="relative mx-auto max-w-3xl text-center">
           <div className="mx-auto h-16 w-16">
             <App3DIcon appId="whatsapp_cloud_auto" icon="whatsapp" label="WhatsApp" className="h-16 w-16" />
           </div>
-          <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700/80">
+          <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700/80 dark:text-emerald-400">
             {isAr ? 'الخطوة الأولى' : 'Step 1 · Choose how to connect'}
           </p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
             {isAr ? 'كيف تريد ربط واتساب؟' : 'How do you want to connect WhatsApp?'}
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-500">
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-500 dark:text-slate-400">
             {isAr
-              ? 'اختر المسار المناسب. واجهة ميتا الرسمية للفواتير التلقائية، أو رمز QR للربط السريع من الجوال.'
-              : 'Pick a path. Official Meta Cloud API for auto invoices, or a QR scan to link the WhatsApp app on your phone.'}
+              ? 'اختر المسار المناسب. واجهة ميتا الرسمية لإرسال الفواتير وعروض الأسعار التلقائية، أو رمز QR للربط السريع من تطبيق الجوال.'
+              : 'Pick your path. Official Meta Cloud API for automated invoices & quotations, or a QR scan to link your phone directly.'}
           </p>
         </div>
 
         <div className="relative mx-auto mt-10 grid max-w-3xl gap-4 md:grid-cols-2">
+          {/* Official Meta API */}
           <button
             type="button"
             onClick={() => selectMode('official')}
-            className="group rounded-[24px] border border-emerald-200 bg-gradient-to-b from-emerald-50/80 to-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-[0_20px_40px_-28px_rgba(5,150,105,0.55)]"
+            className="group rounded-[24px] border border-emerald-200 bg-gradient-to-b from-emerald-50/80 to-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-[0_20px_40px_-28px_rgba(5,150,105,0.55)] dark:border-emerald-500/20 dark:from-emerald-950/20 dark:to-dark-800"
           >
-            <span className="inline-flex rounded-full bg-emerald-700 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-              {isAr ? 'موصى به للفواتير' : 'Recommended for invoices'}
-            </span>
-            <div className="mt-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white ring-1 ring-emerald-100">
-              <ShieldCheck className="h-5 w-5 text-emerald-700" />
+            <div className="flex items-center justify-between">
+              <span className="inline-flex rounded-full bg-emerald-700 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                {isAr ? 'المعتمد والموصى به' : 'Official · Recommended'}
+              </span>
+              <Building2 className="h-5 w-5 text-emerald-600" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-slate-900">{isAr ? 'واجهة ميتا الرسمية' : 'Official Meta Cloud API'}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-500">
+            <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">
+              {isAr ? 'واجهة Meta Cloud API الرسمية' : 'Official Meta Cloud API'}
+            </h3>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
               {isAr
-                ? 'حساب واتساب للأعمال، قوالب معتمدة، ويب هوك، وإرسال PDF تلقائي بعد الاعتماد أو التوقيع.'
-                : 'WhatsApp Business Account, approved templates, webhooks, and automatic PDF send after approval or ZATCA signing.'}
+                ? 'اربط حساب WhatsApp Business الرسمي عبر ميتا. يتيح إرسال الفواتير وعروض الأسعار تلقائياً ومزامنة القوالب المعتمدة.'
+                : 'Connect via Meta developer app & permanent token. Auto-sends invoices, quotations, and syncs approved templates.'}
             </p>
-            <span className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-emerald-800">
-              {isAr ? 'ابدأ الدليل' : 'Start guided setup'} <ChevronRight className="h-4 w-4" />
-            </span>
+            <div className="mt-5 flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+              <span>{isAr ? 'بدء إعداد Cloud API' : 'Setup Cloud API'}</span>
+              <ChevronRight className={`h-4 w-4 transition group-hover:translate-x-1 ${isAr ? 'rotate-180' : ''}`} />
+            </div>
           </button>
 
+          {/* QR Scan */}
           <button
             type="button"
             onClick={() => selectMode('qr')}
-            className="group rounded-[24px] border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_20px_40px_-28px_rgba(15,23,42,0.35)]"
+            className="group rounded-[24px] border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-dark-800"
           >
-            <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
-              {isAr ? 'ربط سريع' : 'Quick personal link'}
-            </span>
-            <div className="mt-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-50 ring-1 ring-slate-100">
-              <QrCode className="h-5 w-5 text-slate-700" />
+            <div className="flex items-center justify-between">
+              <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                {isAr ? 'ربط سريع' : 'Fast Setup'}
+              </span>
+              <QrCode className="h-5 w-5 text-slate-600 dark:text-slate-300" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-slate-900">{isAr ? 'رمز QR من الجوال' : 'QR code from your phone'}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-500">
+            <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">
+              {isAr ? 'مسح رمز QR من الجوال' : 'Scan QR code from phone'}
+            </h3>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
               {isAr
-                ? 'امسح الرمز من واتساب → الأجهزة المرتبطة. مناسب للمحادثات اليدوية، وليس لإرسال فواتير الأعمال التلقائي.'
-                : 'Scan from WhatsApp → Linked devices. Best for a personal inbox — not for automatic business invoices.'}
+                ? 'امسح الرمز من تطبيق واتساب على هاتفك مباشرة. بدون الحاجة لحساب مطوّرين في ميتا، مع دعم صندوق المحادثات والإرسال الفوري.'
+                : 'Scan directly from your phone’s Linked Devices. No Meta developer account needed; supports inbox chat and direct sending.'}
             </p>
-            <span className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-slate-800">
-              {isAr ? 'عرض خطوات المسح' : 'Show scan steps'} <ChevronRight className="h-4 w-4" />
-            </span>
+            <div className="mt-5 flex items-center gap-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <span>{isAr ? 'بدء ربط رمز QR' : 'Setup via QR'}</span>
+              <ChevronRight className={`h-4 w-4 transition group-hover:translate-x-1 ${isAr ? 'rotate-180' : ''}`} />
+            </div>
           </button>
         </div>
       </div>
     )
   }
 
+  // QR Mode Shell
   if (mode === 'qr') {
     return shell(
       <>
         {brandHeader}
-        <p className="mt-4 text-sm leading-relaxed text-slate-500">
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
           {isAr
-            ? 'ربط عبر واتساب على جوالك. هذا المسار لا يرسل فواتير PDF تلقائياً.'
-            : 'Link the WhatsApp app on your phone. This path does not auto-send invoice PDFs.'}
+            ? 'اربط تطبيق واتساب على جوالك مباشرة لمحادثات الصندوق والإرسال السريع.'
+            : 'Link the WhatsApp app on your phone for inbox messaging and fast sharing.'}
         </p>
         {qrConnected ? (
-          <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-emerald-800">
+          <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/20 dark:bg-emerald-950/20">
+            <div className="flex items-center gap-2 text-sm font-medium text-emerald-800 dark:text-emerald-300">
               <BadgeCheck className="h-4 w-4" />
-              {isAr ? 'الجوال متصل' : 'Phone linked'}
+              {isAr ? 'الجوال متصل بنجاح' : 'Phone linked & ready'}
             </div>
             {onOpenInbox ? (
-              <button type="button" onClick={onOpenInbox} className="mt-3 w-full rounded-xl bg-emerald-800 px-3 py-2 text-sm font-semibold text-white">
+              <button type="button" onClick={onOpenInbox} className="mt-3 w-full rounded-xl bg-emerald-800 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
                 {isAr ? 'فتح صندوق الوارد' : 'Open inbox'}
               </button>
             ) : null}
           </div>
         ) : null}
+
         <ol className="mt-6 space-y-1">
           {qrSteps.map((item, index) => {
             const Icon = item.icon
@@ -422,91 +475,173 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
                   type="button"
                   onClick={() => setQrStep(index)}
                   className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                    active ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                    active
+                      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-dark-800 dark:text-white dark:ring-white/10'
+                      : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-dark-800/60 dark:hover:text-white'
                   }`}
                 >
-                  <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${qrDone[index] ? 'bg-emerald-50 text-emerald-700' : 'bg-white text-slate-400'}`}>
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${qrDone[index] ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-white text-slate-400 dark:bg-dark-700 dark:text-slate-400'}`}>
                     {qrDone[index] ? <Check className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
                   </span>
-                  <span className="flex-1">{isAr ? item.ar : item.en}</span>
+                  <span className="flex-1 font-medium">{isAr ? item.ar : item.en}</span>
                 </button>
               </li>
             )
           })}
         </ol>
-        <button type="button" onClick={() => selectMode('choose')} className="mt-6 inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          {isAr ? 'تغيير طريقة الربط' : 'Change connection method'}
-        </button>
+
+        {/* Change Method Action */}
+        <div className="mt-8 pt-4 border-t border-slate-200/80 dark:border-white/10">
+          {changeMethodButton}
+        </div>
       </>,
       <>
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-700/80">
-          {isAr ? `الخطوة ${qrStep + 1} من ${qrSteps.length}` : `Step ${qrStep + 1} of ${qrSteps.length}`}
-        </p>
-        <h2 className="mt-1 text-2xl font-semibold tracking-tight">{isAr ? qrSteps[qrStep].ar : qrSteps[qrStep].en}</h2>
-        <div className="mt-6">
-          <AnimateStep step={qrStep}>
-            {qrStep === 0 && (
-              <GuideCard title={isAr ? 'ربط سريع من الجوال' : 'A quick link from your phone'}>
-                <p className="text-sm leading-relaxed text-slate-600">
-                  {isAr
-                    ? 'يستخدم مقدر جلسة واتساب ويب على الخادم. تمسح الرمز مرة واحدة من الجوال، ثم يمكنك المحادثة يدوياً. لإرسال الفواتير تلقائياً استخدم واجهة ميتا الرسمية.'
-                    : 'Maqder keeps a WhatsApp Web session on the server. You scan once from your phone, then you can chat manually. For automatic invoices, use the official Meta Cloud API instead.'}
-                </p>
-                <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                  <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{isAr ? 'لا تحتاج حساب مطوّرين في ميتا' : 'No Meta developer account required'}</li>
-                  <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{isAr ? 'مناسب للمحادثات والمزامنة اليدوية' : 'Fine for inbox chat and manual PDFs'}</li>
-                  <li className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />{isAr ? 'قد ينقطع إذا فُصل الجهاز أو أعيد تشغيل الخادم' : 'The session can drop if the phone unlinks or the server restarts'}</li>
-                </ul>
-              </GuideCard>
-            )}
-            {qrStep === 1 && (
-              <GuideCard title={isAr ? 'جهّز الجوال' : 'Prepare your phone'}>
-                <ol className="list-decimal space-y-3 ps-5 text-sm leading-relaxed text-slate-600">
-                  <li>{isAr ? 'افتح تطبيق واتساب على نفس الرقم الذي تريد ربطه.' : 'Open the WhatsApp app on the phone number you want to link.'}</li>
-                  <li>{isAr ? 'تأكد أن الجوال متصل بالإنترنت.' : 'Keep the phone online on Wi-Fi or mobile data.'}</li>
-                  <li>{isAr ? 'لا تغلق واتساب أثناء المسح.' : 'Do not close WhatsApp while scanning.'}</li>
-                </ol>
-              </GuideCard>
-            )}
-            {qrStep === 2 && (
-              <GuideCard title={isAr ? 'افتح الأجهزة المرتبطة' : 'Open Linked devices'}>
-                <ol className="list-decimal space-y-3 ps-5 text-sm leading-relaxed text-slate-600">
-                  <li>{isAr ? 'اضغط القائمة ⋮ أو الإعدادات.' : 'Tap the menu ⋮ or Settings.'}</li>
-                  <li>{isAr ? 'اختر الأجهزة المرتبطة.' : 'Choose Linked devices.'}</li>
-                  <li>{isAr ? 'اضغط ربط جهاز ثم امسح الرمز في الخطوة التالية.' : 'Tap Link a device, then scan the code on the next step.'}</li>
-                </ol>
-              </GuideCard>
-            )}
-            {qrStep === 3 && (
-              <GuideCard title={isAr ? 'امسح الرمز أدناه' : 'Scan the code below'}>
-                <p className="mb-4 text-sm text-slate-600">
-                  {isAr
-                    ? 'اضغط توليد الرمز إن لم يظهر، ثم امسحه من الجوال. يبقى الرمز صالحاً لمدة قصيرة.'
-                    : 'Generate the code if it is not visible, then scan it from your phone. Codes expire after a short time.'}
-                </p>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
-                  <WhatsAppConnect variant="setup" />
-                </div>
-              </GuideCard>
-            )}
-          </AnimateStep>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-700/80 dark:text-emerald-400">
+              {isAr ? `الخطوة ${qrStep + 1} من ${qrSteps.length}` : `Step ${qrStep + 1} of ${qrSteps.length}`}
+            </p>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{isAr ? qrSteps[qrStep].ar : qrSteps[qrStep].en}</h2>
+          </div>
         </div>
+
+        <AnimateStep step={qrStep}>
+          {qrStep === 0 && (
+            <GuideCard title={isAr ? 'ربط سريع من الجوال' : 'A quick link from your phone'}>
+              <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                {isAr
+                  ? 'يستخدم مقدر جلسة واتساب ويب على الخادم. تمسح الرمز مرة واحدة من الجوال، ثم يمكنك إرسال الفواتير وعروض الأسعار والتواصل مع العملاء.'
+                  : 'Maqder keeps a WhatsApp session on the server. Scan once from your phone to send invoices, quotations, and chat with clients.'}
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{isAr ? 'لا تحتاج حساب مطوّرين في ميتا' : 'No Meta developer account required'}</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{isAr ? 'مناسب للمحادثات، الفواتير وعروض الأسعار' : 'Instant invoice & quotation dispatching'}</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />{isAr ? 'إرسال بنقرة واحدة من صفحة الفاتورة وعرض السعر' : '1-click send from Invoice and Quotation views'}</li>
+              </ul>
+            </GuideCard>
+          )}
+
+          {qrStep === 1 && (
+            <GuideCard title={isAr ? 'جهّز الجوال' : 'Prepare your phone'}>
+              <ol className="list-decimal space-y-3 ps-5 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                <li>{isAr ? 'افتح تطبيق واتساب على نفس الرقم الذي تريد ربطه.' : 'Open the WhatsApp app on the phone number you want to link.'}</li>
+                <li>{isAr ? 'تأكد أن الجوال متصل بالإنترنت بشكل جيد.' : 'Keep the phone online on Wi-Fi or mobile data.'}</li>
+                <li>{isAr ? 'لا تغلق واتساب أثناء المسح.' : 'Do not close WhatsApp while scanning.'}</li>
+              </ol>
+            </GuideCard>
+          )}
+
+          {qrStep === 2 && (
+            <GuideCard title={isAr ? 'افتح الأجهزة المرتبطة' : 'Open Linked devices'}>
+              <ol className="list-decimal space-y-3 ps-5 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                <li>{isAr ? 'اضغط القائمة ⋮ أو الإعدادات في واتساب.' : 'Tap the menu ⋮ or Settings in WhatsApp.'}</li>
+                <li>{isAr ? 'اختر الأجهزة المرتبطة (Linked Devices).' : 'Choose Linked Devices.'}</li>
+                <li>{isAr ? 'اضغط "ربط جهاز" ثم وجّه الكاميرا نحو الرمز في الخطوة التالية.' : 'Tap "Link a device", then scan the code on the next step.'}</li>
+              </ol>
+            </GuideCard>
+          )}
+
+          {qrStep === 3 && (
+            <GuideCard title={isAr ? 'امسح الرمز أدناه' : 'Scan the code below'}>
+              <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+                {isAr
+                  ? 'اضغط توليد الرمز إن لم يظهر، ثم امسحه من الجوال. يتم التحديث فورياً.'
+                  : 'Generate the code if it is not visible, then scan it from your phone.'}
+              </p>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-dark-800/80">
+                <WhatsAppConnect variant="setup" />
+              </div>
+            </GuideCard>
+          )}
+
+          {qrStep === 4 && (
+            <GuideCard title={isAr ? 'إعدادات الإرسال التلقائي' : 'Auto-send & notification settings'}>
+              <label className="flex items-center justify-between gap-6 border-b border-slate-100 py-4 dark:border-white/10">
+                <span>
+                  <span className="block text-sm font-medium text-slate-900 dark:text-white">
+                    {isAr ? 'إرسال الفاتورة تلقائياً عند الإصدار أو التوقيع' : 'Auto-send Invoice on approval or ZATCA sign'}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-slate-400">
+                    {isAr ? 'إرسال رابط الفاتورة والبيانات تلقائياً لرقم العميل عبر واتساب.' : 'Automatically dispatch invoice link to customer via WhatsApp.'}
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={form.autoSendInvoices}
+                  onChange={(e) => persistAutomation({ autoSendInvoices: e.target.checked })}
+                  className="h-4 w-4 accent-emerald-800"
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-6 border-b border-slate-100 py-4 dark:border-white/10">
+                <span>
+                  <span className="block text-sm font-medium text-slate-900 dark:text-white">
+                    {isAr ? 'إرسال عرض السعر تلقائياً عند الإنشاء أو الاعتماد' : 'Auto-send Quotation on creation or approval'}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-slate-400">
+                    {isAr ? 'إرسال رابط عرض السعر للمراجعة مباشرة للعميل.' : 'Automatically dispatch quotation review link to customer.'}
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={form.autoSendQuotations}
+                  onChange={(e) => persistAutomation({ autoSendQuotations: e.target.checked })}
+                  className="h-4 w-4 accent-emerald-800"
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-6 py-4">
+                <span>
+                  <span className="block text-sm font-medium text-slate-900 dark:text-white">
+                    {isAr ? 'إشعارات الطلبات المباشرة' : 'Order-status notifications'}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-slate-400">
+                    {isAr ? 'إرسال إشعار عند استلام أو جاهزية الطلب.' : 'When an order is placed, ready, or served.'}
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={form.autoNotifyOrderStatus}
+                  onChange={(e) => persistAutomation({ autoNotifyOrderStatus: e.target.checked })}
+                  className="h-4 w-4 accent-emerald-800"
+                />
+              </label>
+            </GuideCard>
+          )}
+        </AnimateStep>
+
         <div className="mt-8 flex items-center justify-between">
-          <button type="button" disabled={qrStep === 0} onClick={() => setQrStep((s) => Math.max(0, s - 1))} className="rounded-xl px-4 py-2 text-sm text-slate-400 hover:text-slate-700 disabled:opacity-30">
+          <button
+            type="button"
+            disabled={qrStep === 0}
+            onClick={() => setQrStep((s) => Math.max(0, s - 1))}
+            className="rounded-xl px-4 py-2 text-sm font-bold text-slate-400 hover:text-slate-700 disabled:opacity-30 dark:text-slate-400 dark:hover:text-white"
+          >
             {isAr ? 'السابق' : 'Back'}
           </button>
           {qrStep < qrSteps.length - 1 ? (
-            <button type="button" onClick={() => setQrStep((s) => s + 1)} className="rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white">
+            <button
+              type="button"
+              onClick={() => setQrStep((s) => s + 1)}
+              className="rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+            >
               {isAr ? 'التالي' : 'Continue'}
             </button>
           ) : qrConnected && onOpenInbox ? (
-            <button type="button" onClick={onOpenInbox} className="rounded-2xl bg-emerald-800 px-5 py-2.5 text-sm font-semibold text-white">
+            <button
+              type="button"
+              onClick={onOpenInbox}
+              className="rounded-2xl bg-emerald-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
               {isAr ? 'الذهاب إلى الصندوق' : 'Go to inbox'}
             </button>
           ) : (
-            <button type="button" onClick={() => selectMode('official')} className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-800">
-              {isAr ? 'التبديل إلى الربط الرسمي' : 'Switch to official API'}
+            <button
+              type="button"
+              onClick={() => selectMode('official')}
+              className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-300"
+            >
+              {isAr ? 'التبديل إلى الربط الرسمي (Cloud API)' : 'Switch to official Cloud API'}
             </button>
           )}
         </div>
@@ -514,35 +649,37 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
     )
   }
 
+  // Official Meta Cloud API Shell
   return shell(
     <>
       {brandHeader}
       <p className="mt-1 text-xs text-slate-400">{isAr ? 'واجهة Cloud API الرسمية · Graph v21.0' : 'Official Cloud API · Graph v21.0'}</p>
       {config?.connected ? (
-        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-emerald-800">
+        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/20 dark:bg-emerald-950/20">
+          <div className="flex items-center gap-2 text-sm font-medium text-emerald-800 dark:text-emerald-300">
             <BadgeCheck className="h-4 w-4" />
             {isAr ? 'متصل' : 'Connected'}
           </div>
-          <p className="mt-1 font-mono text-sm text-slate-900">{config.displayPhoneNumber || config.phoneNumberId}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{config.verifiedName || config.businessName}</p>
-          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+          <p className="mt-1 font-mono text-sm text-slate-900 dark:text-white">{config.displayPhoneNumber || config.phoneNumberId}</p>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{config.verifiedName || config.businessName}</p>
+          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
             <span>{isAr ? 'الجودة' : 'Quality'}</span>
             <QualityChip rating={config.qualityRating} />
           </div>
           {onOpenInbox ? (
-            <button type="button" onClick={onOpenInbox} className="mt-3 w-full rounded-xl bg-emerald-800 px-3 py-2 text-sm font-semibold text-white">
+            <button type="button" onClick={onOpenInbox} className="mt-3 w-full rounded-xl bg-emerald-800 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
               {isAr ? 'فتح صندوق الوارد' : 'Open inbox'}
             </button>
           ) : null}
         </div>
       ) : (
-        <p className="mt-5 text-sm leading-relaxed text-slate-500">
+        <p className="mt-5 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
           {isAr
-            ? 'اتبع وثائق ميتا الرسمية. هذا المسار هو المعتمد لإرسال فواتير الأعمال.'
-            : 'Follow Meta’s official docs. This is the supported path for business invoice delivery.'}
+            ? 'اتبع وثائق ميتا الرسمية. هذا المسار هو المعتمد لإرسال فواتير وعروض أسعار الأعمال.'
+            : 'Follow Meta’s official docs. This is the supported path for automated invoice delivery.'}
         </p>
       )}
+
       <ol className="mt-6 space-y-1">
         {officialSteps.map((item, index) => {
           const Icon = item.icon
@@ -553,36 +690,39 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
                 type="button"
                 onClick={() => setStep(index)}
                 className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                  active ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                  active
+                    ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-dark-800 dark:text-white dark:ring-white/10'
+                    : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-dark-800/60 dark:hover:text-white'
                 }`}
               >
-                <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${officialDone[index] ? 'bg-emerald-50 text-emerald-700' : 'bg-white text-slate-400'}`}>
+                <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${officialDone[index] ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-white text-slate-400 dark:bg-dark-700 dark:text-slate-400'}`}>
                   {officialDone[index] ? <Check className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
                 </span>
-                <span className="flex-1">{isAr ? item.ar : item.en}</span>
+                <span className="flex-1 font-medium">{isAr ? item.ar : item.en}</span>
               </button>
             </li>
           )
         })}
       </ol>
-      <button type="button" onClick={() => selectMode('choose')} className="mt-6 inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700">
-        <ArrowLeft className="h-3.5 w-3.5" />
-        {isAr ? 'تغيير طريقة الربط' : 'Change connection method'}
-      </button>
+
+      {/* Change Method Action */}
+      <div className="mt-8 pt-4 border-t border-slate-200/80 dark:border-white/10">
+        {changeMethodButton}
+      </div>
     </>,
     <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-700/80">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-700/80 dark:text-emerald-400">
             {isAr ? `الخطوة ${step + 1} من ${officialSteps.length}` : `Step ${step + 1} of ${officialSteps.length}`}
           </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">{isAr ? officialSteps[step].ar : officialSteps[step].en}</h2>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{isAr ? officialSteps[step].ar : officialSteps[step].en}</h2>
         </div>
         <DocLink href={DOCS.getStarted}><BookOpen className="h-3.5 w-3.5" /> {isAr ? 'وثائق Cloud API' : 'Cloud API docs'}</DocLink>
       </div>
 
       {config?.lastHealthError && step === 3 ? (
-        <div className="mb-5 flex gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <div className="mb-5 flex gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-500/30 dark:bg-rose-950/30 dark:text-rose-300">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           {config.lastHealthError}
         </div>
@@ -591,7 +731,7 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
       <AnimateStep step={step}>
         {step === 0 && (
           <GuideCard title={isAr ? 'أنشئ محفظة أعمال وتطبيق مطوّرين' : 'Create a Meta Business portfolio and developer app'}>
-            <ol className="list-decimal space-y-3 ps-5 text-sm leading-relaxed text-slate-600">
+            <ol className="list-decimal space-y-3 ps-5 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
               <li>
                 {isAr ? 'افتح إعدادات Business Manager وأكمل التحقق من النشاط.' : 'Open Meta Business settings and complete business verification.'}
                 {' '}<DocLink href={DOCS.business}>{isAr ? 'إعدادات الأعمال' : 'Business settings'}</DocLink>
@@ -600,203 +740,221 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
                 {isAr ? 'من لوحة المطوّرين أنشئ تطبيقاً من نوع Business وأضف منتج WhatsApp.' : 'In Meta for Developers create a Business-type app and add the WhatsApp product.'}
                 {' '}<DocLink href={DOCS.apps}>{isAr ? 'تطبيقاتي' : 'My Apps'}</DocLink>
               </li>
-              <li>
-                {isAr ? 'لا تستخدم وضع الاختبار لإرسال فواتير العملاء الحقيقيين — انقل التطبيق إلى Live بعد الموافقة.' : 'Do not send live customer invoices from test numbers. Move the app Live after review.'}
-              </li>
+              <li>{isAr ? 'لا ترسل فواتير حقيقية من أرقام الاختبار التجريبية. انقل التطبيق إلى Live بعد مراجعته.' : 'Do not send live customer invoices from test numbers. Move the app Live after review.'}</li>
             </ol>
             <p className="mt-4 text-xs text-slate-400">
-              {isAr
-                ? 'الصلاحيات المطلوبة لاحقاً: whatsapp_business_messaging و whatsapp_business_management.'
-                : 'You will later grant whatsapp_business_messaging and whatsapp_business_management.'}
+              {isAr ? 'الصلاحيات المطلوبة: whatsapp_business_messaging و whatsapp_business_management.' : 'You will grant whatsapp_business_messaging and whatsapp_business_management.'}
             </p>
           </GuideCard>
         )}
 
         {step === 1 && (
-          <GuideCard title={isAr ? 'أضف رقم واتساب للأعمال وانسخ المعرّفات' : 'Add a WhatsApp Business phone and copy the IDs'}>
-            <p className="text-sm text-slate-600">
+          <GuideCard title={isAr ? 'أدخل معرّف رقم الهاتف وحساب الأعمال' : 'Enter Phone Number ID and Business Account ID'}>
+            <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
               {isAr
-                ? 'من لوحة WhatsApp في التطبيق: أضف رقماً أو اربط حساب واتساب للأعمال (WABA). انسخ Phone Number ID و WhatsApp Business Account ID.'
-                : 'In the app’s WhatsApp dashboard, add a phone or link a WhatsApp Business Account (WABA). Copy the Phone Number ID and WhatsApp Business Account ID.'}
+                ? 'تجد هذه المعرّفات في صفحة WhatsApp > API Setup داخل تطبيق المطوّرين في ميتا.'
+                : 'Find these IDs under WhatsApp > API Setup in your Meta developer app.'}
             </p>
-            <div className="mt-4"><DocLink href={DOCS.phone}>{isAr ? 'إضافة رقم هاتف' : 'Add a phone number'}</DocLink></div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelClass}>Phone Number ID</label>
-                <input className={inputClass} value={form.phoneNumberId} onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })} placeholder="123456789012345" />
+                <label className={labelClass}>{isAr ? 'Phone Number ID' : 'Phone Number ID'}</label>
+                <input className={inputClass} value={form.phoneNumberId} onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })} placeholder="10xxxxxxxxxxxxxxx" />
               </div>
               <div>
-                <label className={labelClass}>WhatsApp Business Account ID</label>
-                <input className={inputClass} value={form.businessAccountId} onChange={(e) => setForm({ ...form, businessAccountId: e.target.value })} placeholder="WABA ID" />
+                <label className={labelClass}>{isAr ? 'WhatsApp Business Account ID' : 'Business Account ID'}</label>
+                <input className={inputClass} value={form.businessAccountId} onChange={(e) => setForm({ ...form, businessAccountId: e.target.value })} placeholder="10xxxxxxxxxxxxxxx" />
               </div>
+            </div>
+            <div className="mt-4">
+              <label className={labelClass}>{isAr ? 'App ID (اختياري)' : 'Meta App ID (optional)'}</label>
+              <input className={inputClass} value={form.metaAppId} onChange={(e) => setForm({ ...form, metaAppId: e.target.value })} placeholder="xxxxxxxxxxxxxxx" />
+            </div>
+            <div className="mt-6 flex items-center justify-between">
+              <DocLink href={DOCS.phone}>{isAr ? 'إضافة رقم هاتف' : 'Add phone number'}</DocLink>
+              <button type="button" onClick={handleSaveAndTest} disabled={saveConfig.isPending} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+                {saveConfig.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (isAr ? 'حفظ' : 'Save')}
+              </button>
             </div>
           </GuideCard>
         )}
 
         {step === 2 && (
-          <GuideCard title={isAr ? 'أنشئ رمز نظام دائم — ليس رمز الاختبار المؤقت' : 'Create a permanent system-user token — not the temporary test token'}>
-            <ol className="list-decimal space-y-3 ps-5 text-sm leading-relaxed text-slate-600">
-              <li>
-                {isAr ? 'من Business settings افتح System users وأنشئ مستخدم نظام Admin.' : 'In Business settings open System users and create an Admin system user.'}
-                {' '}<DocLink href={DOCS.systemUsers}>System users</DocLink>
-              </li>
-              <li>{isAr ? 'أضف تطبيق واتساب ومنح الأصول: WABA ورقم الهاتف.' : 'Assign your WhatsApp app and assets: the WABA and the phone number.'}</li>
-              <li>{isAr ? 'ولّد توكن بصلاحيات whatsapp_business_messaging و whatsapp_business_management. لا تنتهِ صلاحيته.' : 'Generate a token with whatsapp_business_messaging and whatsapp_business_management. It must not expire.'}</li>
-              <li>{isAr ? 'انسخ App Secret من إعدادات التطبيق — يُستخدم للتحقق من توقيع الويب هوك.' : 'Copy the App Secret from App settings — used to verify webhook HMAC signatures.'}</li>
+          <GuideCard title={isAr ? 'أنشئ رمز وصول دائم عبر System User' : 'Generate a permanent token via a System User'}>
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              {isAr
+                ? 'رموز الاختبار المؤقتة تنتهي خلال 24 ساعة. لفواتير مستقرة، أنشئ مستخدم نظام (System User) بصلاحية Admin ثم ولّد رمزا غير منتهي.'
+                : 'Temporary tokens expire in 24 hours. For reliable invoicing, create an Admin System User and generate a permanent token.'}
+            </p>
+            <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm text-slate-600 dark:text-slate-300">
+              <li>{isAr ? 'افتح إعدادات الأعمال > System Users.' : 'Open Business Settings > System Users.'}</li>
+              <li>{isAr ? 'أضف مستخدماً وعيّن له التطبيق بصلاحية Full Control.' : 'Add a user and assign the app with Full Control.'}</li>
+              <li>{isAr ? 'اضغط Generate New Token واختر الصلاحيتين: whatsapp_business_messaging و whatsapp_business_management.' : 'Click Generate Token and select whatsapp_business_messaging and whatsapp_business_management.'}</li>
             </ol>
-            <div className="mt-4"><DocLink href={DOCS.tokens}>{isAr ? 'رموز الوصول' : 'Access tokens'}</DocLink></div>
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className={labelClass}>{isAr ? 'رمز الوصول الدائم (EAAG...)' : 'Permanent access token (EAAG...)'}</label>
+                <input type="password" className={inputClass} value={form.accessToken} onChange={(e) => setForm({ ...form, accessToken: e.target.value })} placeholder={config?.hasAccessToken ? '•••••••• (محفوظ)' : 'EAAG...'} />
+              </div>
+              <div>
+                <label className={labelClass}>{isAr ? 'App Secret للتحقق من توقيع الويب هوك' : 'App Secret (for webhook signature verification)'}</label>
+                <input type="password" className={inputClass} value={form.appSecret} onChange={(e) => setForm({ ...form, appSecret: e.target.value })} placeholder={config?.hasAppSecret ? '•••••••• (محفوظ)' : 'App secret from App Settings > Basic'} />
+              </div>
+            </div>
+            <div className="mt-6 flex items-center justify-between">
+              <DocLink href={DOCS.systemUsers}>{isAr ? 'مستخدمو النظام' : 'System users'}</DocLink>
+              <button type="button" onClick={handleSaveAndTest} disabled={saveConfig.isPending} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+                {saveConfig.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (isAr ? 'حفظ' : 'Save')}
+              </button>
+            </div>
           </GuideCard>
         )}
 
         {step === 3 && (
-          <GuideCard title={isAr ? 'الصق بيانات Cloud API واختبر الاتصال' : 'Paste Cloud API credentials and test the connection'}>
-            <div className="grid gap-4">
-              <div>
-                <label className={labelClass}>Phone Number ID</label>
-                <input className={inputClass} value={form.phoneNumberId} onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })} />
-              </div>
-              <div>
-                <label className={labelClass}>WhatsApp Business Account ID</label>
-                <input className={inputClass} value={form.businessAccountId} onChange={(e) => setForm({ ...form, businessAccountId: e.target.value })} />
-              </div>
-              <div>
-                <label className={labelClass}>{isAr ? 'رمز الوصول الدائم' : 'Permanent access token'}</label>
-                <input type="password" className={inputClass} value={form.accessToken} onChange={(e) => setForm({ ...form, accessToken: e.target.value })} placeholder={config?.hasAccessToken ? config.accessToken : 'EAAG…'} />
-                {config?.hasAccessToken ? <p className="mt-1 text-[11px] text-slate-400">{isAr ? 'رمز محفوظ. اتركه فارغاً للإبقاء عليه.' : 'A token is stored. Leave blank to keep it.'}</p> : null}
-              </div>
-              <div>
-                <label className={labelClass}>{isAr ? 'App Secret (للويب هوك)' : 'App Secret (webhook HMAC)'}</label>
-                <input type="password" className={inputClass} value={form.appSecret} onChange={(e) => setForm({ ...form, appSecret: e.target.value })} placeholder={config?.hasAppSecret ? config.appSecret : ''} />
-              </div>
-              <div>
-                <label className={labelClass}>{isAr ? 'معرّف تطبيق ميتا (اختياري)' : 'Meta App ID (optional)'}</label>
-                <input className={inputClass} value={form.metaAppId} onChange={(e) => setForm({ ...form, metaAppId: e.target.value })} placeholder={isAr ? 'يُستنتج من التوكن إن أمكن' : 'Resolved from the token when possible'} />
+          <GuideCard title={isAr ? 'التحقق من الاتصال برقم واتساب' : 'Verify connection to your WhatsApp phone'}>
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              {isAr
+                ? 'يفحص مقدر صحة الرمز والمعرّفات عبر واجهة ميتا الرسمية ويجلب اسم الحساب وجودة الرقم.'
+                : 'Maqder queries Meta Graph API to verify the token, phone ID, quality rating, and verified display name.'}
+            </p>
+            <div className="mt-5 rounded-2xl border border-slate-100 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
+              <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                <div>
+                  <span className="block text-xs text-slate-400">{isAr ? 'حالة الاتصال' : 'Status'}</span>
+                  <span className="font-semibold text-slate-900 dark:text-white">{config?.connected ? (isAr ? 'متصل بنجاح' : 'Connected') : (isAr ? 'غير متصل' : 'Not connected')}</span>
+                </div>
+                <div>
+                  <span className="block text-xs text-slate-400">{isAr ? 'الرقم المعروض' : 'Display phone'}</span>
+                  <span className="font-mono text-slate-900 dark:text-white">{config?.displayPhoneNumber || '—'}</span>
+                </div>
+                <div>
+                  <span className="block text-xs text-slate-400">{isAr ? 'الاسم المعتمد' : 'Verified name'}</span>
+                  <span className="font-medium text-slate-900 dark:text-white">{config?.verifiedName || config?.businessName || '—'}</span>
+                </div>
+                <div>
+                  <span className="block text-xs text-slate-400">{isAr ? 'تقييم الجودة' : 'Quality'}</span>
+                  <QualityChip rating={config?.qualityRating} />
+                </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={persistAndTest}
-              disabled={saveConfig.isPending || testConnection.isPending}
-              className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-emerald-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-            >
-              {(saveConfig.isPending || testConnection.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-              {isAr ? 'حفظ واختبار الاتصال' : 'Save & test connection'}
-            </button>
+            <div className="mt-6 flex items-center justify-between">
+              <DocLink href={DOCS.getStarted}>{isAr ? 'دليل البدء' : 'Get started guide'}</DocLink>
+              <button type="button" onClick={() => testConnection.mutate()} disabled={testConnection.isPending} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+                {testConnection.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {isAr ? 'إعادة الاختبار' : 'Test connection'}
+              </button>
+            </div>
           </GuideCard>
         )}
 
         {step === 4 && (
-          <GuideCard title={isAr ? 'اشترك في الويب هوك: messages' : 'Subscribe the webhook to messages'}>
-            <p className="text-sm text-slate-600">
+          <GuideCard title={isAr ? 'تهيئة الويب هوك لاستقبال الرسائل وحالات التسليم' : 'Configure webhooks for inbound messages and delivery receipts'}>
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
               {isAr
-                ? 'في منتج واتساب داخل تطبيق ميتا: Configuration → Callback URL. الصق الرابط ورمز التحقق، ثم اشترك في حقل messages و message_template_status_update.'
-                : 'In the WhatsApp product → Configuration, set Callback URL and Verify token, then subscribe to messages and message_template_status_update.'}
+                ? 'في تطبيق المطوّرين > WhatsApp > Configuration، أضف الرابط ورمز التحقق، ثم اشترك في حقل messages.'
+                : 'In Meta Developer app > WhatsApp > Configuration, paste the Callback URL and Verify Token, then subscribe to the messages field.'}
             </p>
-            <div className="mt-4"><DocLink href={DOCS.webhooks}>{isAr ? 'مكوّنات الويب هوك' : 'Webhook components'}</DocLink></div>
-            <div className="mt-5 grid gap-4">
-              <CopyField language={language} label="Callback URL" ar="رابط الويب هوك" value={config?.webhookUrl} />
-              <CopyField language={language} label="Verify token" ar="رمز التحقق" value={config?.webhookVerifyToken} />
+            <div className="mt-4 space-y-3">
+              <CopyField language={language} label="Callback URL" ar="رابط الاستدعاء (Callback URL)" value={config?.webhookCallbackUrl} />
+              <CopyField language={language} label="Verify Token" ar="رمز التحقق (Verify Token)" value={config?.webhookVerifyToken} />
             </div>
-            <button type="button" onClick={rotateToken} className="mt-4 text-xs font-medium text-emerald-700 hover:text-emerald-900">
-              {isAr ? 'توليد رمز تحقق جديد' : 'Rotate verify token'}
-            </button>
-            <p className="mt-3 flex items-start gap-2 text-xs text-slate-400">
-              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {isAr
-                ? 'ميتا يوقّع الطلبات بـ X-Hub-Signature-256 باستخدام App Secret. أضف السر في الخطوة السابقة.'
-                : 'Meta signs POST bodies with X-Hub-Signature-256 using your App Secret. Add it in the previous step.'}
-            </p>
+            <div className="mt-6 flex items-center justify-between">
+              <DocLink href={DOCS.webhooks}>{isAr ? 'وثائق الويب هوك' : 'Webhook docs'}</DocLink>
+              <button type="button" onClick={() => rotateWebhook.mutate()} disabled={rotateWebhook.isPending} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-dark-800">
+                {isAr ? 'تجديد Verify Token' : 'Rotate verify token'}
+              </button>
+            </div>
           </GuideCard>
         )}
 
         {step === 5 && (
-          <GuideCard title={isAr ? 'قوالب الفواتير المعتمدة (خارج نافذة 24 ساعة)' : 'Approved invoice templates (outside the 24-hour window)'}>
-            <p className="text-sm text-slate-600">
+          <GuideCard title={isAr ? 'قوالب الفواتير المعتمدة (Utility)' : 'Approved invoice utility templates'}>
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
               {isAr
-                ? 'رسائل الأعمال التي تبدأها أنت تتطلب قالباً من فئة UTILITY بعد موافقة ميتا. ينشئ مقدر maqder_invoice و maqder_invoice_ar برأس DOCUMENT لملف PDF.'
-                : 'Business-initiated messages require an approved UTILITY template. Maqder creates maqder_invoice and maqder_invoice_ar with a DOCUMENT header for the PDF.'}
+                ? 'خارج نافذة 24 ساعة للخدمة، تشترط ميتا قالب UTILITY معتمد لإرسال الفواتير. يمكنك إنشاء القوالب الافتراضية بنقرة واحدة ومزامنتها.'
+                : 'Outside the 24-hour service window, Meta requires an approved UTILITY template to deliver invoice PDFs.'}
             </p>
-            <div className="mt-4"><DocLink href={DOCS.templates}>{isAr ? 'قوالب الرسائل' : 'Message templates'}</DocLink></div>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button type="button" onClick={() => createTemplates.mutate()} disabled={createTemplates.isPending} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={() => createTemplates.mutate()} disabled={createTemplates.isPending} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
                 {createTemplates.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {isAr ? 'إنشاء قوالب الفاتورة' : 'Create invoice templates'}
+                {isAr ? 'إنشاء قوالب مقدر الافتراضية' : 'Create default templates'}
               </button>
-              <button type="button" onClick={() => syncTemplates.mutate()} disabled={syncTemplates.isPending} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">
+              <button type="button" onClick={() => syncTemplates.mutate()} disabled={syncTemplates.isPending} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-dark-800">
                 {syncTemplates.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                {isAr ? 'مزامنة الحالة' : 'Sync status'}
+                {isAr ? 'مزامنة القوالب من ميتا' : 'Sync templates from Meta'}
               </button>
             </div>
             <div className="mt-5 space-y-2">
-              {invoiceTemplates.length === 0 ? (
-                <p className="text-sm text-slate-400">{isAr ? 'لا توجد قوالب فاتورة بعد.' : 'No invoice templates yet.'}</p>
-              ) : invoiceTemplates.map((t) => (
-                <div key={`${t.name}-${t.language}`} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+              {invoiceTemplates.map((t) => (
+                <div key={t.id || t.name} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-3.5 py-2.5 text-xs dark:border-white/10 dark:bg-dark-800">
                   <div>
-                    <p className="font-mono text-sm text-slate-800">{t.name}</p>
-                    <p className="text-xs text-slate-400">{t.language}</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{t.name}</p>
+                    <p className="text-[11px] text-slate-400">{t.language} · {t.category}</p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                    t.status === 'approved' ? 'bg-emerald-50 text-emerald-700' : t.status === 'rejected' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    t.status === 'approved' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : t.status === 'rejected' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'
                   }`}>
                     {t.status}
                   </span>
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-xs text-slate-400">
-              {isAr
-                ? 'داخل 24 ساعة من رسالة العميل يُرسل PDF كمستند جلسة دون انتظار القالب.'
-                : 'Inside the 24-hour customer service window, the PDF is sent as a session document without a template.'}
-            </p>
           </GuideCard>
         )}
 
         {step === 6 && (
-          <GuideCard title={isAr ? 'تشغيل الإرسال التلقائي وتجربة فاتورة' : 'Turn on auto-send and try a live invoice'}>
-            <label className="flex items-center justify-between gap-6 border-b border-slate-100 py-4">
+          <GuideCard title={isAr ? 'تشغيل الإرسال التلقائي وتجربة الإرسال' : 'Turn on auto-send and try a live test'}>
+            <label className="flex items-center justify-between gap-6 border-b border-slate-100 py-4 dark:border-white/10">
               <span>
-                <span className="block text-sm font-medium text-slate-900">{isAr ? 'إرسال PDF عند اعتماد أو توقيع الفاتورة' : 'Send PDF when an invoice is approved or ZATCA-signed'}</span>
-                <span className="mt-0.5 block text-xs text-slate-400">{isAr ? 'يتطلب Cloud API متصل وقالب معتمد خارج نافذة 24 ساعة.' : 'Requires a live Cloud API connection and an approved template outside the 24h window.'}</span>
+                <span className="block text-sm font-medium text-slate-900 dark:text-white">{isAr ? 'إرسال PDF عند اعتماد أو توقيع الفاتورة' : 'Auto-send Invoice PDF on approval or ZATCA sign'}</span>
+                <span className="mt-0.5 block text-xs text-slate-400">{isAr ? 'إرسال الفاتورة تلقائياً للعميل عبر واتساب.' : 'Automatically dispatch invoice PDF link to customer on WhatsApp.'}</span>
               </span>
               <input type="checkbox" checked={form.autoSendInvoices} onChange={(e) => persistAutomation({ autoSendInvoices: e.target.checked })} className="h-4 w-4 accent-emerald-800" />
             </label>
+
+            <label className="flex items-center justify-between gap-6 border-b border-slate-100 py-4 dark:border-white/10">
+              <span>
+                <span className="block text-sm font-medium text-slate-900 dark:text-white">{isAr ? 'إرسال عرض السعر تلقائياً عند الإنشاء أو الاعتماد' : 'Auto-send Quotation on creation or approval'}</span>
+                <span className="mt-0.5 block text-xs text-slate-400">{isAr ? 'إرسال رابط عرض السعر للمراجعة مباشرة للعميل.' : 'Automatically dispatch quotation review link to customer.'}</span>
+              </span>
+              <input type="checkbox" checked={form.autoSendQuotations} onChange={(e) => persistAutomation({ autoSendQuotations: e.target.checked })} className="h-4 w-4 accent-emerald-800" />
+            </label>
+
             <label className="flex items-center justify-between gap-6 py-4">
               <span>
-                <span className="block text-sm font-medium text-slate-900">{isAr ? 'إشعار حالة الطلب' : 'Order-status notifications'}</span>
+                <span className="block text-sm font-medium text-slate-900 dark:text-white">{isAr ? 'إشعار حالة الطلب' : 'Order-status notifications'}</span>
                 <span className="mt-0.5 block text-xs text-slate-400">{isAr ? 'عند استلام الطلب أو جاهزيته أو تقديمه.' : 'When an order is placed, ready, or served.'}</span>
               </span>
               <input type="checkbox" checked={form.autoNotifyOrderStatus} onChange={(e) => persistAutomation({ autoNotifyOrderStatus: e.target.checked })} className="h-4 w-4 accent-emerald-800" />
             </label>
-            <div className="mt-4">
+
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/10">
               <label className={labelClass}>{isAr ? 'رقم تجريبي (مثل 05xxxxxxxx)' : 'Test mobile (e.g. 05xxxxxxxx)'}</label>
               <div className="flex gap-2">
                 <input className={inputClass} value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="9665…" />
-                <button type="button" onClick={() => sendTest.mutate()} disabled={sendTest.isPending || !testPhone} className="shrink-0 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50">
+                <button type="button" onClick={() => sendTest.mutate()} disabled={sendTest.isPending || !testPhone} className="shrink-0 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
                   {sendTest.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (isAr ? 'إرسال تجربة' : 'Send test')}
                 </button>
               </div>
               <p className="mt-2 text-xs text-slate-400">{isAr ? 'يُستخدم آخر فاتورة لديك كمرفق PDF.' : 'Uses your latest invoice as the PDF attachment.'}</p>
             </div>
-            <div className="mt-6"><DocLink href={DOCS.send}>{isAr ? 'إرسال الرسائل' : 'Send messages'}</DocLink></div>
           </GuideCard>
         )}
       </AnimateStep>
 
       <div className="mt-8 flex items-center justify-between">
-        <button type="button" disabled={step === 0} onClick={() => setStep((s) => Math.max(0, s - 1))} className="rounded-xl px-4 py-2 text-sm text-slate-400 hover:text-slate-700 disabled:opacity-30">
+        <button type="button" disabled={step === 0} onClick={() => setStep((s) => Math.max(0, s - 1))} className="rounded-xl px-4 py-2 text-sm font-bold text-slate-400 hover:text-slate-700 disabled:opacity-30 dark:text-slate-400 dark:hover:text-white">
           {isAr ? 'السابق' : 'Back'}
         </button>
         {step < officialSteps.length - 1 ? (
-          <button type="button" onClick={() => setStep((s) => Math.min(officialSteps.length - 1, s + 1))} className="rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white">
+          <button type="button" onClick={() => setStep((s) => Math.min(officialSteps.length - 1, s + 1))} className="rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
             {isAr ? 'التالي' : 'Continue'}
           </button>
         ) : config?.connected && onOpenInbox ? (
-          <button type="button" onClick={onOpenInbox} className="rounded-2xl bg-emerald-800 px-5 py-2.5 text-sm font-semibold text-white">
+          <button type="button" onClick={onOpenInbox} className="rounded-2xl bg-emerald-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
             {isAr ? 'الذهاب إلى الصندوق' : 'Go to inbox'}
           </button>
         ) : (
-          <Link to="/app/dashboard/app-store" className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          <Link to="/app/dashboard/app-store" className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-dark-800">
             {isAr ? 'متجر التطبيقات' : 'App Store'}
           </Link>
         )}
@@ -807,8 +965,8 @@ export default function WhatsAppCloudSetup({ language, onOpenInbox }) {
 
 function GuideCard({ title, children }) {
   return (
-    <div className="rounded-3xl border border-slate-100 bg-slate-50/60 p-6">
-      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+    <div className="rounded-3xl border border-slate-100 bg-slate-50/60 p-6 dark:border-white/10 dark:bg-dark-800/50">
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h3>
       <div className="mt-4">{children}</div>
     </div>
   )

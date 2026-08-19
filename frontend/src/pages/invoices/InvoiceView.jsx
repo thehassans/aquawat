@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote, Smartphone } from 'lucide-react'
+import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote, Smartphone, MessageCircle } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -212,6 +212,27 @@ export default function InvoiceView() {
     }
   })
 
+  const sendWhatsAppMutation = useMutation({
+    mutationFn: async () => {
+      if (!invoice) throw new Error(language === 'ar' ? 'الفاتورة غير متاحة' : 'Invoice is unavailable')
+      return await api.post(`/invoices/${id}/send-whatsapp`, { language })
+    },
+    onSuccess: (res) => {
+      const data = res?.data || {}
+      if (data?.channel === 'cloud_api' || data?.channel === 'qr_session') {
+        toast.success(language === 'ar' ? 'تم إرسال الفاتورة عبر واتساب بنجاح' : 'Invoice sent via WhatsApp successfully')
+      } else if (data?.waLink) {
+        window.open(data.waLink, '_blank')
+        toast.success(language === 'ar' ? 'جاري فتح واتساب لإرسال الفاتورة...' : 'Opening WhatsApp...')
+      } else {
+        toast.success(language === 'ar' ? 'تم إرسال الفاتورة عبر واتساب' : 'Invoice sent via WhatsApp')
+      }
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || error.message || (language === 'ar' ? 'فشل إرسال واتساب' : 'Failed to send WhatsApp'))
+    }
+  })
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -402,6 +423,22 @@ export default function InvoiceView() {
                 <Smartphone className="w-4 h-4" />
               )}
               {language === 'ar' ? 'إرسال برسالة' : 'Send SMS'}
+            </button>
+          )}
+          {invoice?.flow !== 'purchase' && (
+            <button
+              type="button"
+              onClick={() => sendWhatsAppMutation.mutate()}
+              disabled={sendWhatsAppMutation.isPending}
+              className="btn btn-secondary border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+              title={language === 'ar' ? 'إرسال الفاتورة عبر واتساب' : 'Send invoice via WhatsApp'}
+            >
+              {sendWhatsAppMutation.isPending ? (
+                <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              )}
+              <span>{language === 'ar' ? 'إرسال عبر واتساب' : 'Send WhatsApp'}</span>
             </button>
           )}
           {String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR' && ['draft', 'pending'].includes(invoice?.status) && !invoice?.zatca?.signedXml && invoice?.flow !== 'purchase' && invoice?.invoiceSubtype !== 'proforma' && (

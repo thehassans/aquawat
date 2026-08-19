@@ -14,6 +14,7 @@ import {
   Download,
   Printer,
   Truck,
+  MessageCircle,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -98,8 +99,29 @@ export default function Quotations() {
   const [statusFilter, setStatusFilter] = useState('')
   const [pdfLoadingId, setPdfLoadingId] = useState(null)
   const [printLoadingId, setPrintLoadingId] = useState(null)
+  const [waLoadingId, setWaLoadingId] = useState(null)
   const [approveModalQ, setApproveModalQ] = useState(null)
   const [rejectModalQ, setRejectModalQ] = useState(null)
+
+  const handleWaClick = async (q) => {
+    try {
+      setWaLoadingId(q._id)
+      const res = await api.post(`/quotations/${q._id}/send-whatsapp`, { language })
+      const resData = res?.data || {}
+      if (resData?.channel === 'direct_whatsapp') {
+        toast.success(language === 'ar' ? 'تم إرسال عرض السعر عبر واتساب بنجاح' : 'Quotation sent via WhatsApp successfully')
+      } else if (resData?.waLink) {
+        window.open(resData.waLink, '_blank')
+        toast.success(language === 'ar' ? 'جاري فتح واتساب لإرسال عرض السعر...' : 'Opening WhatsApp...')
+      } else {
+        toast.success(language === 'ar' ? 'تم إرسال عرض السعر عبر واتساب' : 'Quotation sent via WhatsApp')
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.error || e?.message || (language === 'ar' ? 'فشل إرسال واتساب' : 'Failed to send WhatsApp'))
+    } finally {
+      setWaLoadingId(null)
+    }
+  }
 
   // Debounce search
   useEffect(() => {
@@ -628,6 +650,21 @@ export default function Quotations() {
                                 <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                               ) : (
                                 <Download className="w-4 h-4" />
+                              )}
+                            </button>
+
+                            {/* WhatsApp Send */}
+                            <button
+                              type="button"
+                              onClick={() => handleWaClick(q)}
+                              disabled={waLoadingId === q._id}
+                              className="btn btn-ghost btn-icon text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                              title={language === 'ar' ? 'إرسال عبر واتساب' : 'Send via WhatsApp'}
+                            >
+                              {waLoadingId === q._id ? (
+                                <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <MessageCircle className="w-4 h-4" />
                               )}
                             </button>
                           </div>

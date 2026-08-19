@@ -2441,4 +2441,77 @@ router.post('/:id/convert-proforma', checkPermission('invoicing', 'create'), asy
   }
 });
 
+// @route   POST /api/invoices/:id/send-whatsapp
+// @desc    Send invoice via WhatsApp (Official Cloud API or QR Baileys with wa.me link fallback)
+router.post('/:id/send-whatsapp', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const tenant = req.tenant || (await Tenant.findById(req.user.tenantId));
+    let customer = null;
+    if (invoice.customerId) {
+      customer = await Customer.findOne({ _id: invoice.customerId, tenantId: tenant._id });
+    }
+
+    const phone = req.body?.phone || customer?.phone || customer?.mobile || invoice?.buyer?.phone || invoice?.buyer?.contactPhone;
+    const cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
+
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const baseUrl = process.env.APP_URL || `${protocol}://${tenant.domain || 'app.maqder.com'}`;
+    const link = `${baseUrl}/app/dashboard/invoices/${invoice._id}`;
+    const amountLabel = `${Number(invoice.grandTotal || 0).toFixed(2)} ${invoice.currency || 'SAR'}`;
+    const customerName = customer?.name || customer?.nameAr || invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Customer';
+
+    const textEn = `Dear ${customerName}, your invoice ${invoice.invoiceNumber} (${amountLabel}) is available here: ${link}`;
+    const textAr = `عزيزي ${customerName}، فاتورتكم رقم ${invoice.invoiceNumber} بقيمة (${amountLabel}) متاحة عبر الرابط: ${link}`;
+    const messageText = req.body?.language === 'ar' ? textAr : textEn;
+    const waLink = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}` : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+
+    // Try Cloud API
+    const config = await getWhatsAppConfig(tenant._id, { requireActive: true });
+    const cloudReady = Boolean(config?.isActive && config?.accessToken && config?.phoneNumberId);
+    if (cloudReady && cleanPhone) {
+      try {
+        const result = await sendInvoiceOnWhatsApp({ tenant, invoice, customer, language: req.body?.language || 'ar' });
+        if (result?.sent) {
+          return res.json({ success: true, channel: 'cloud_api', message: 'Invoice sent via WhatsApp Cloud API successfully', waLink });
+        }
+      } catch (e) {
+        console.warn('[Invoice] WhatsApp Cloud send failed, trying QR fallback:', e.message);
+      }
+    }
+
+    // Try QR Web / Baileys
+    if (cleanPhone) {
+      try {
+        const qrResult = await sendRestaurantWhatsApp({
+          tenantId: tenant._id,
+          phone: cleanPhone,
+          messageEn: textEn,
+          messageAr: textAr,
+          replacements: { invoiceNumber: invoice.invoiceNumber, total: invoice.grandTotal, link, customer_name: customerName }
+        });
+        if (qrResult?.sent) {
+          return res.json({ success: true, channel: 'qr_session', message: 'Invoice sent via WhatsApp session successfully', waLink });
+        }
+      } catch (e) {
+        console.warn('[Invoice] WhatsApp QR session send failed:', e.message);
+      }
+    }
+
+    // Return waLink fallback
+    res.json({
+      success: true,
+      channel: 'web_link',
+      message: 'WhatsApp Web link prepared',
+      waLink
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
