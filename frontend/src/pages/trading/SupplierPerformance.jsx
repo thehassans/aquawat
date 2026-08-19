@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   TrendingUp, TrendingDown, Package, DollarSign, Clock,
-  Award, AlertTriangle, X, ShoppingCart, RotateCcw, Phone, Mail,
+  Award, AlertTriangle, X, ShoppingCart, RotateCcw, Phone, Mail, ExternalLink,
 } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -79,9 +80,20 @@ function SupplierDetailModal({ supplierId, onClose }) {
               </h3>
               <p className="text-xs text-gray-500">{data?.supplier?.code} · {data?.supplier?.vatNumber || 'No VAT'}</p>
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-700">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              {supplierId && (
+                <Link
+                  to={`/app/dashboard/suppliers/${supplierId}`}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-white/10 dark:bg-dark-700 dark:text-slate-200 dark:hover:bg-dark-600"
+                >
+                  <span>View Full Hub</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              )}
+              <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-700">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {isLoading ? (

@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Supplier from '../models/Supplier.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import PurchaseReturn from '../models/PurchaseReturn.js';
@@ -122,75 +123,6 @@ router.get('/financials', checkPermission('supply_chain', 'read'), async (req, r
   }
 });
 
-// @route   GET /api/suppliers/:id
-router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => {
-  try {
-    const supplier = await Supplier.findOne({ _id: req.params.id, ...req.tenantFilter });
-
-    if (!supplier) {
-      return res.status(404).json({ error: 'Supplier not found' });
-    }
-
-    res.json(supplier);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// @route   POST /api/suppliers
-router.post('/', checkTrialLimits('suppliers'), checkPermission('supply_chain', 'create'), async (req, res) => {
-  try {
-    const data = {
-      ...req.body,
-      tenantId: req.user.tenantId,
-      createdBy: req.user._id
-    };
-
-    const supplier = await Supplier.create(data);
-    res.status(201).json(supplier);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// @route   PUT /api/suppliers/:id
-router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) => {
-  try {
-    const supplier = await Supplier.findOneAndUpdate(
-      { _id: req.params.id, ...req.tenantFilter },
-      req.body,
-      { new: true, runValidators: true }
-    );
-
-    if (!supplier) {
-      return res.status(404).json({ error: 'Supplier not found' });
-    }
-
-    res.json(supplier);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// @route   DELETE /api/suppliers/:id
-router.delete('/:id', checkPermission('supply_chain', 'delete'), async (req, res) => {
-  try {
-    const supplier = await Supplier.findOneAndUpdate(
-      { _id: req.params.id, ...req.tenantFilter },
-      { isActive: false },
-      { new: true }
-    );
-
-    if (!supplier) {
-      return res.status(404).json({ error: 'Supplier not found' });
-    }
-
-    res.json({ message: 'Supplier deactivated', supplier });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // @route   GET /api/suppliers/performance
 // @desc    Get supplier performance dashboard with scoring
 router.get('/performance', checkPermission('supply_chain', 'read'), async (req, res) => {
@@ -309,10 +241,124 @@ router.get('/performance', checkPermission('supply_chain', 'read'), async (req, 
   }
 });
 
+// @route   GET /api/suppliers/:id/dashboard
+// @desc    Get complete supplier dashboard with profile, orders, GRNs, returns, financials, and performance
+router.get('/:id/dashboard', checkPermission('supply_chain', 'read'), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    const supplier = await Supplier.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    if (!supplier) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    const [orders, returns, grns] = await Promise.all([
+      PurchaseOrder.find({
+        ...req.tenantFilter,
+        supplierId: supplier._id,
+      })
+        .sort({ orderDate: -1, createdAt: -1 })
+        .lean(),
+      PurchaseReturn.find({
+        ...req.tenantFilter,
+        supplierId: supplier._id,
+      })
+        .sort({ dateReturned: -1, createdAt: -1 })
+        .lean(),
+      GRN.find({
+        ...req.tenantFilter,
+        supplierId: supplier._id,
+      })
+        .sort({ dateReceived: -1, createdAt: -1 })
+        .lean(),
+    ]);
+
+    // Financials calculation
+    const totalCredit = orders.reduce((sum, o) => {
+      if (['approved', 'issued', 'partially_received', 'received', 'closed'].includes(o.status)) {
+        return sum + (o.grandTotal || 0);
+      }
+      return sum;
+    }, 0);
+
+    const totalDebit = returns.reduce((sum, r) => {
+      return sum + (r.grandTotal || r.totalAmount || 0);
+    }, 0);
+
+    const balance = totalCredit - totalDebit;
+
+    // Performance metrics calculation
+    const totalOrders = orders.length;
+    const totalSpend = orders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
+    const receivedOrders = orders.filter(o => ['received', 'closed', 'partially_received'].includes(o.status));
+
+    const onTimeDeliveries = receivedOrders.filter(o => {
+      if (!o.expectedDate) return true;
+      const lastReceive = o.receiving?.length ? o.receiving[o.receiving.length - 1].receivedAt : o.updatedAt;
+      return new Date(lastReceive) <= new Date(o.expectedDate);
+    });
+
+    const onTimeRate = receivedOrders.length > 0
+      ? Math.round((onTimeDeliveries.length / receivedOrders.length) * 1000) / 10
+      : 100;
+
+    const totalReturnQty = returns.reduce((sum, r) =>
+      sum + (r.lines || []).reduce((ls, l) => ls + (l.quantityReturned || 0), 0), 0);
+    const totalReceivedQty = receivedOrders.reduce((sum, o) =>
+      sum + (o.lineItems || []).reduce((ls, l) => ls + (l.quantityReceived || 0), 0), 0);
+    const returnRate = totalReceivedQty > 0
+      ? Math.round((totalReturnQty / totalReceivedQty) * 1000) / 10
+      : 0;
+
+    const onTimeScore = Math.min(onTimeRate, 100);
+    const returnScore = Math.max(100 - returnRate * 2, 0);
+    const volumeScore = Math.min(totalOrders * 5, 25);
+    const totalScore = Math.round((onTimeScore * 0.4 + returnScore * 0.35 + volumeScore * 0.25));
+
+    let grade = 'C';
+    if (totalScore >= 80) grade = 'A';
+    else if (totalScore >= 60) grade = 'B';
+
+    const performance = {
+      score: totalScore,
+      grade,
+      onTimeRate,
+      returnRate,
+      totalOrders,
+      totalSpend: Math.round(totalSpend * 100) / 100,
+      avgOrderValue: totalOrders > 0 ? Math.round((totalSpend / totalOrders) * 100) / 100 : 0,
+      totalReturns: returns.length,
+      totalGRNs: grns.length,
+    };
+
+    res.json({
+      supplier,
+      orders: orders.slice(0, 50),
+      returns: returns.slice(0, 50),
+      grns: grns.slice(0, 50),
+      financials: {
+        totalCredit: Math.round(totalCredit * 100) / 100,
+        totalDebit: Math.round(totalDebit * 100) / 100,
+        balance: Math.round(balance * 100) / 100,
+        totalPO: totalOrders,
+      },
+      performance,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // @route   GET /api/suppliers/:id/performance-detail
 // @desc    Get detailed performance for a single supplier
 router.get('/:id/performance-detail', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
     const { months = 6 } = req.query;
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - parseInt(months));
@@ -403,6 +449,87 @@ router.get('/:id/performance-detail', checkPermission('supply_chain', 'read'), a
           : 0,
       },
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/suppliers/:id
+router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    const supplier = await Supplier.findOne({ _id: req.params.id, ...req.tenantFilter });
+
+    if (!supplier) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    res.json(supplier);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/suppliers
+router.post('/', checkTrialLimits('suppliers'), checkPermission('supply_chain', 'create'), async (req, res) => {
+  try {
+    const data = {
+      ...req.body,
+      tenantId: req.user.tenantId,
+      createdBy: req.user._id
+    };
+
+    const supplier = await Supplier.create(data);
+    res.status(201).json(supplier);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   PUT /api/suppliers/:id
+router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    const supplier = await Supplier.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    if (!supplier) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    res.json(supplier);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   DELETE /api/suppliers/:id
+router.delete('/:id', checkPermission('supply_chain', 'delete'), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    const supplier = await Supplier.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
+      { isActive: false },
+      { new: true }
+    );
+
+    if (!supplier) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    res.json({ message: 'Supplier deactivated', supplier });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
