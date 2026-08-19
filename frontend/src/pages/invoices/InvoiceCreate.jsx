@@ -1,33 +1,30 @@
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft,
-  ArrowRight,
   ShoppingCart,
   Package,
   FileClock,
-  RotateCcw,
-  FileText,
+  ArrowUpRight,
   Sparkles,
   ShieldCheck,
+  Check,
   Zap,
-  CheckCircle2,
-  Printer,
-  QrCode,
+  Receipt,
+  FileText,
+  ChevronRight,
   Layers,
-  Coins,
-  Repeat,
-  FilePlus2,
-  BadgeCheck,
+  Plane,
   Building2,
-  FileCheck,
-  ArrowUpRight,
-  TrendingUp,
+  RefreshCw,
+  Percent,
+  Compass,
 } from 'lucide-react'
 import { useTranslation } from '../../lib/translations'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
+import { isSarCurrency } from '../../lib/currency'
 
 export default function InvoiceCreate() {
   const navigate = useNavigate()
@@ -36,341 +33,347 @@ export default function InvoiceCreate() {
   const { t } = useTranslation(language)
   const isAr = language === 'ar'
 
-  const currency = tenant?.currency || 'SAR'
-  const isKsa = currency === 'SAR'
-  const isBd = currency === 'BDT'
-  const isPk = currency === 'PKR'
-
   const businessTypes = getTenantBusinessTypes(tenant)
   const canCreatePurchase = businessTypes.some((type) =>
-    ['trading', 'construction', 'travel_agency', 'bakala', 'pharmacy', 'restaurant'].includes(type)
+    ['trading', 'construction', 'travel_agency', 'bakala', 'pharmacy', 'furniture_shop', 'supermarket'].includes(type)
   )
   const canCreateProforma = businessTypes.some((type) =>
-    ['trading', 'construction', 'manpower', 'travel_agency', 'service'].includes(type)
+    ['trading', 'construction', 'manpower', 'travel_agency', 'real_estate'].includes(type)
   )
+  const hasTravel = businessTypes.includes('travel_agency')
+  const isSaudi = (tenant?.currency || 'SAR') === 'SAR'
 
-  const taxAuthorityBadge = isKsa
-    ? { name: isAr ? 'هيئة الزكاة والضريبة والجمارك (ZATCA)' : 'ZATCA Phase 2 Ready', icon: ShieldCheck }
-    : isBd
-    ? { name: isAr ? 'هيئة الإيرادات NBR Mushak 6.3' : 'NBR Mushak 6.3 Ready', icon: ShieldCheck }
-    : isPk
-    ? { name: isAr ? 'هيئة الإيرادات FBR Digital Invoicing' : 'FBR Digital Invoicing Ready', icon: ShieldCheck }
-    : { name: isAr ? 'معايير الفوترة الدولية' : 'Global Tax Standards', icon: ShieldCheck }
+  const [activeFilter, setActiveFilter] = useState('all')
 
-  const primaryCards = [
+  // Keyboard shortcut listener (1: Sales, 2: Purchase, 3: Proforma)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if typing in an input
+      if (['input', 'textarea'].includes(e.target.tagName.toLowerCase())) return
+      if (e.key === '1') navigate('/app/dashboard/invoices/new/sell')
+      if (e.key === '2' && canCreatePurchase) navigate('/app/dashboard/invoices/new/purchase')
+      if (e.key === '3' && canCreateProforma) navigate('/app/dashboard/invoices/new/sell?proforma=1')
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [navigate, canCreatePurchase, canCreateProforma])
+
+  const DOCUMENT_CARDS = [
     {
       id: 'sell',
-      route: '/app/dashboard/invoices/new/sell',
-      titleEn: 'Sales Tax Invoice',
+      category: 'sales',
+      titleEn: 'Sales & Tax Invoice',
       titleAr: 'فاتورة مبيعات ضريبية',
-      badgeEn: 'Most Popular',
-      badgeAr: 'الأكثر استخداماً',
-      descEn:
-        'Issue a compliant sales invoice to a customer or business. Generates real-time tax QR codes, updates accounts receivable, and automatically reconciles inventory.',
-      descAr:
-        'إصدار فاتورة مبيعات ضريبية متوافقة لعميل أو شركة. توليد فوري لرمز QR الضريبي، تحديث دفتر المدينين ومزامنة المخزون فورياً.',
-      accent: 'emerald',
-      gradient: 'from-emerald-500/15 via-teal-500/5 to-transparent',
-      borderHover: 'hover:border-emerald-500/50 hover:shadow-emerald-500/10',
-      iconBg: 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/25',
+      taglineEn: 'Standard B2B & Simplified B2C tax invoice with live QR code and ZATCA compliance.',
+      taglineAr: 'فاتورة ضريبية قياسية (B2B) أو مبسطة (B2C) مع رمز QR التفاعلي والتوقيع الرقمي.',
       icon: ShoppingCart,
-      bullets: [
-        isAr ? 'متوافق مع المرحلة الثانية ومتطلبات الضريبة' : 'Certified Tax & E-Invoicing Compliant',
-        isAr ? 'توليد تلقائي لرمز QR الضريبي المعتمد' : 'Instant Verification QR Code Generation',
-        isAr ? 'دعم معاملات الأفراد B2C والشركات B2B' : 'Full Support for B2B & B2C Customers',
-        isAr ? 'معاينة فورية وطباعة حرارية وPDF فخم' : 'Live Preview, Custom PDF & Thermal POS Receipts',
+      gradient: 'from-emerald-500 via-teal-500 to-emerald-600',
+      glowColor: 'rgba(16, 185, 129, 0.18)',
+      badgeEn: 'ZATCA Phase 2 Ready',
+      badgeAr: 'معتمد للمرحلة الثانية',
+      badgeColor: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20',
+      keyShortcut: '1',
+      route: '/app/dashboard/invoices/new/sell',
+      highlightsEn: [
+        'Automatic 15% VAT calculation with bilingual titles',
+        'Cryptographic QR code generation for thermal & A4',
+        'Real-time inventory deduction & cost of goods ledger',
+        'Direct PDF, WhatsApp & thermal receipt sharing'
       ],
-      tags: [
-        { en: 'B2B & B2C', ar: 'أفراد وشركات' },
-        { en: 'Live QR Code', ar: 'رمز QR فوري' },
-        { en: 'Auto Inventory', ar: 'تحديث المخزون' },
-        { en: 'Multi-Currency', ar: 'متعدد العملات' },
+      highlightsAr: [
+        'حساب تلقائي لضريبة 15% مع عناوين ثنائية اللغة',
+        'توليد رمز QR المعتمد لإيصالات الكاشير وA4',
+        'خصم فوري من المخزون وقيد تكلفة المبيعات',
+        'مشاركة عبر واتساب والبريد وطباعة فورية'
       ],
+      tags: ['B2B / B2C', isSaudi ? 'ZATCA Phase 2' : 'Tax Compliant', 'Live Stock Sync', 'POS & Thermal'],
     },
     {
       id: 'purchase',
-      route: '/app/dashboard/invoices/new/purchase',
-      titleEn: 'Purchase / Vendor Bill',
-      titleAr: 'فاتورة مشتريات وتوريد',
-      badgeEn: 'Inbound Supply',
-      badgeAr: 'توريد ومشتريات',
-      descEn:
-        'Record goods and services received from suppliers. Instantly increases warehouse stock, records VAT input credits, and updates supplier balance ledgers.',
-      descAr:
-        'تسجيل البضائع والخدمات المستلمة من الموردين. زيادة فورية للمخزون في المستودعات، واحتساب رصيد ضريبة المدخلات وتحديث كشف حساب المورد.',
-      accent: 'amber',
-      gradient: 'from-amber-500/15 via-orange-500/5 to-transparent',
-      borderHover: 'hover:border-amber-500/50 hover:shadow-amber-500/10',
-      iconBg: 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-amber-500/25',
+      category: 'procurement',
+      visible: canCreatePurchase,
+      titleEn: 'Vendor Purchase Bill',
+      titleAr: 'فاتورة مشتريات وتكاليف',
+      taglineEn: 'Record incoming supplier purchases, receive goods, and record input VAT deductions.',
+      taglineAr: 'تسجيل فواتير المشتريات من الموردين وتحديث المخزون وخصم ضريبة المدخلات.',
       icon: Package,
-      bullets: [
-        isAr ? 'تحديث فوري لأرصدة وتكاليف المنتجات بالمستودعات' : 'Instant Warehouse Stock & Landed Cost Updates',
-        isAr ? 'مطابقة مع أوامر الشراء (PO) وسندات الاستلام (GRN)' : 'Match with Purchase Orders & Receiving Slips',
-        isAr ? 'حساب دقيق لضريبة المدخلات القابلة للاسترداد' : 'Reconcile Input Tax Credit & Expenses',
-        isAr ? 'تتبع الدفعات وتواريخ استحقاق الموردين' : 'Track Supplier Balances & Due Payment Terms',
+      gradient: 'from-amber-500 via-orange-500 to-amber-600',
+      glowColor: 'rgba(245, 158, 11, 0.18)',
+      badgeEn: 'Procurement & Stock',
+      badgeAr: 'مشتريات ومخزون',
+      badgeColor: 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20',
+      keyShortcut: '2',
+      route: '/app/dashboard/invoices/new/purchase',
+      highlightsEn: [
+        'Supplier payable balance & ledger reconciliation',
+        'Weighted Average Cost (WAC) warehouse auto-update',
+        'Multi-currency and freight landed cost tracking',
+        'Input VAT recovery for periodic tax returns'
       ],
-      tags: [
-        { en: 'Supplier Ledger', ar: 'كشف الموردين' },
-        { en: 'Inventory Restock', ar: 'تغذية المخزون' },
-        { en: 'Tax Credit', ar: 'ضريبة المدخلات' },
+      highlightsAr: [
+        'تسوية حسابات الموردين وجداول الأرصدة الدائنة',
+        'تحديث المتوسط المرجح لتكلفة الأصناف بالمستودع',
+        'دعم العملات الأجنبية وتكاليف الشحن والتخليص',
+        'استرداد ضريبة المدخلات في الإقرار الضريبي'
       ],
+      tags: ['Supplier PO', 'Input Tax', 'Weighted Cost', 'GRN & Receiving'],
     },
     {
       id: 'proforma',
-      route: '/app/dashboard/invoices/new/sell?proforma=1',
-      titleEn: 'Proforma Invoice (Quote Bill)',
+      category: 'sales',
+      visible: canCreateProforma,
+      titleEn: 'Proforma & Advance Invoice',
       titleAr: 'فاتورة مبدئية (Proforma)',
-      badgeEn: 'Non-Taxable Draft',
-      badgeAr: 'مسودة تقديرية',
-      descEn:
-        'Provide customers with a binding preliminary estimate before delivery or payment. Converts seamlessly into a signed tax invoice with 1 click.',
-      descAr:
-        'تقديم مستند تقديري تمهيدي للعميل قبل التوريد أو الدفع. يمكن تحويلها بنقرة واحدة إلى فاتورة ضريبية رسمية نهائية عند تأكيد الاتفاق.',
-      accent: 'indigo',
-      gradient: 'from-indigo-500/15 via-blue-500/5 to-transparent',
-      borderHover: 'hover:border-indigo-500/50 hover:shadow-indigo-500/10',
-      iconBg: 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-indigo-500/25',
+      taglineEn: 'Commercial estimate for advance deposits and customs clearance. 1-click convert to Tax Invoice.',
+      taglineAr: 'فاتورة تجارية مبدئية لطلب الدفع المسبق والتخليص. قابلة للتحويل لفاتورة ضريبية بنقرة واحدة.',
       icon: FileClock,
-      bullets: [
-        isAr ? 'لا تؤثر على الإقرار الضريبي لحين تأكيد التحويل' : 'Zero Tax Liability Until Formally Approved',
-        isAr ? 'لا تخصم من كميات المخزون في المستودعات' : 'Does Not Deduct Real-Time Warehouse Inventory',
-        isAr ? 'تحويل فوري بنقرة زر إلى فاتورة مبيعات نهائية' : '1-Click Fast Conversion to Official Tax Invoice',
-        isAr ? 'مثالية للطلبات المؤكدة والاعتمادات البنكية' : 'Ideal for Advance Deposits & Commercial Approvals',
+      gradient: 'from-blue-600 via-indigo-600 to-violet-600',
+      glowColor: 'rgba(99, 102, 241, 0.18)',
+      badgeEn: 'Non-Fiscal Estimate',
+      badgeAr: 'غير ملزمة للضريبة',
+      badgeColor: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20',
+      keyShortcut: '3',
+      route: '/app/dashboard/invoices/new/sell?proforma=1',
+      highlightsEn: [
+        'Zero tax commitment until formal sales execution',
+        'Does not hold or reduce warehouse stock balances',
+        'Professional commercial quotation & payment terms',
+        'Instant conversion to final ZATCA tax invoice'
       ],
-      tags: [
-        { en: 'Convertible', ar: 'قابلة للتحويل' },
-        { en: 'No Tax Impact', ar: 'بدون أثر ضريبي' },
-        { en: 'Draft Quote', ar: 'مسودة عرض' },
+      highlightsAr: [
+        'بدون أي التزام ضريبي حتى اعتماد البيع الفعلي',
+        'لا تخصم المخزون ولا تؤثر على المستودعات',
+        'عرض تجاري احترافي مع بيانات الحساب البنكي',
+        'تحويل فوري إلى فاتورة ضريبية معتمدة'
       ],
+      tags: ['Commercial Draft', 'Advance Payment', '1-Click Convert', 'Non-ZATCA'],
+    },
+    {
+      id: 'quotation',
+      category: 'offers',
+      titleEn: 'Price Quotation / Offer',
+      titleAr: 'عرض سعر رسمي',
+      taglineEn: 'Present proposals with itemized breakdown, validity expiry, and company terms.',
+      taglineAr: 'إعداد عروض أسعار رسمية مع تفصيل البنود وفترة الصلاحية وشروط الدفع.',
+      icon: FileText,
+      gradient: 'from-purple-600 via-pink-600 to-purple-700',
+      glowColor: 'rgba(168, 85, 247, 0.18)',
+      badgeEn: 'Commercial Offer',
+      badgeAr: 'عرض تجاري',
+      badgeColor: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20',
+      route: '/app/dashboard/quotations/new',
+      highlightsEn: [
+        'Itemized discounts, warranty & validity periods',
+        'Digital client acceptance & signature pad',
+        'Convert to Sales Invoice with 1 single click',
+        'Modern branded PDF with company letterhead'
+      ],
+      highlightsAr: [
+        'خصومات مفصلة وفترات صلاحية وضمان واضحة',
+        'توقيع إلكتروني للعميل واعتماد العرض',
+        'تحويل مباشر إلى فاتورة مبيعات بنقرة واحدة',
+        'تصدير PDF بتصميم الهوية والترويسة الرسمية'
+      ],
+      tags: ['Price Proposal', 'Valid Period', 'Convertible', 'Letterhead'],
     },
   ]
 
-  const secondaryShortcuts = [
-    {
-      titleEn: 'Credit Note (Return)',
-      titleAr: 'إشعار دائن (مرتجع)',
-      descEn: 'Issue a credit note against an invoice for customer refunds or returns.',
-      descAr: 'إصدار إشعار دائن لمعالجة مرتجعات المبيعات واسترداد المبالغ.',
-      icon: RotateCcw,
-      route: '/app/dashboard/invoices/new/sell?invoiceType=credit_note',
-      color: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20',
-    },
-    {
-      titleEn: 'Debit Note (Adjustment)',
-      titleAr: 'إشعار مدين (تعديل إضافي)',
-      descEn: 'Issue a debit note to increase the invoice value or add extra charges.',
-      descAr: 'إصدار إشعار مدين لزيادة قيمة الفاتورة أو تطبيق رسوم إضافية.',
-      icon: FileText,
-      route: '/app/dashboard/invoices/new/sell?invoiceType=debit_note',
-      color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20',
-    },
-    {
-      titleEn: 'Price Quotation',
-      titleAr: 'عرض سعر رسمي',
-      descEn: 'Create and send branded price quotations with line item proposals.',
-      descAr: 'إنشاء عروض أسعار رسمية متكاملة وإرسالها للعملاء للتوقيع.',
-      icon: FilePlus2,
-      route: '/app/dashboard/quotations/new',
-      color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/20',
-    },
-  ]
+  const visibleCards = DOCUMENT_CARDS.filter((card) => card.visible !== false)
+  const filteredCards =
+    activeFilter === 'all'
+      ? visibleCards
+      : visibleCards.filter((card) => card.category === activeFilter)
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 pb-12">
-      {/* Ultra-Premium Hero Header */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/70 p-6 shadow-xs dark:border-white/10 dark:from-[#0c111a] dark:to-[#080d14] sm:p-8">
-        {/* Glow ambient background element */}
-        <div className="pointer-events-none absolute -end-24 -top-24 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl dark:bg-emerald-500/15" />
-        <div className="pointer-events-none absolute -bottom-24 -start-24 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl dark:bg-blue-500/15" />
-
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate('/app/dashboard/invoices')}
-                title={isAr ? 'العودة للفواتير' : 'Back to Invoices'}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:shadow-xs dark:border-white/10 dark:bg-dark-800 dark:text-slate-300 dark:hover:bg-dark-700"
-              >
-                <ArrowLeft className={`h-4 w-4 ${isAr ? 'rotate-180' : ''}`} />
-              </button>
-
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-50/80 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
-                <taxAuthorityBadge.icon className="h-3.5 w-3.5" />
-                <span>{taxAuthorityBadge.name}</span>
-              </div>
-            </div>
-
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-              {isAr ? 'إنشاء فاتورة ومستند مالي جديد' : 'Create New Invoice & Commercial Document'}
-            </h1>
-            <p className="max-w-2xl text-xs font-medium text-slate-500 dark:text-slate-400 sm:text-sm">
-              {isAr
-                ? 'اختر نوع الفاتورة المناسب لعمليتك التجارية. يضمن النظام الالتزام الضريبي الكامل، الحساب التلقائي للضريبة، وتحديث الأرصدة والمخازن فورياً.'
-                : 'Select the invoice type to initiate. Guaranteed tax compliance, automatic VAT calculation, real-time ledger posting, and warehouse stock synchronization.'}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              to="/app/dashboard/invoices"
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200 dark:hover:bg-dark-700"
-            >
-              <FileCheck className="h-4 w-4 text-slate-400" />
-              <span>{isAr ? 'سجل الفواتير' : 'View All Invoices'}</span>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Main 3 Invoicing Cards Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {primaryCards.map((card, index) => {
-          const Icon = card.icon
-          return (
-            <motion.div
-              key={card.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.08 }}
-              onClick={() => navigate(card.route)}
-              className={`group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-[#0c111a] cursor-pointer ${card.borderHover}`}
-            >
-              {/* Subtle top ambient glow inside card */}
-              <div
-                className={`pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b ${card.gradient} opacity-70 transition-opacity group-hover:opacity-100`}
-              />
-
-              <div className="relative space-y-5">
-                {/* Header of card: Icon + Badge */}
-                <div className="flex items-center justify-between">
-                  <div
-                    className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-transform duration-300 group-hover:scale-110 ${card.iconBg}`}
-                  >
-                    <Icon className="h-7 w-7" />
-                  </div>
-
-                  <span className="rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-[11px] font-bold text-slate-700 shadow-2xs dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                    {isAr ? card.badgeAr : card.badgeEn}
-                  </span>
-                </div>
-
-                {/* Title and Description */}
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 transition-colors group-hover:text-slate-950 dark:text-white dark:group-hover:text-white">
-                    {isAr ? card.titleAr : card.titleEn}
-                  </h2>
-                  <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                    {isAr ? card.descAr : card.descEn}
-                  </p>
-                </div>
-
-                {/* Feature Bullet Points */}
-                <div className="space-y-2 border-t border-slate-100 pt-4 dark:border-white/5">
-                  {card.bullets.map((bullet, bIdx) => (
-                    <div key={bIdx} className="flex items-start gap-2 text-[11.5px] font-medium text-slate-700 dark:text-slate-300">
-                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                      <span>{bullet}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Pill Tags */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {card.tags.map((tag, tIdx) => (
-                    <span
-                      key={tIdx}
-                      className="rounded-lg bg-slate-100/90 px-2 py-0.5 text-[10.5px] font-bold text-slate-600 dark:bg-white/[0.06] dark:text-slate-300"
-                    >
-                      {isAr ? tag.ar : tag.en}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Bottom Action Button Trigger */}
-              <div className="relative mt-8 pt-4 border-t border-slate-100 dark:border-white/5">
-                <div className="flex items-center justify-between rounded-2xl bg-slate-950 px-5 py-3 text-xs font-bold text-white shadow-md transition-all group-hover:bg-emerald-600 dark:bg-white dark:text-slate-950 dark:group-hover:bg-emerald-400 dark:group-hover:text-slate-950">
-                  <span>{isAr ? 'ابدأ الإنشاء الآن' : 'Create Document'}</span>
-                  <ArrowRight className={`h-4 w-4 transition-transform duration-300 group-hover:translate-x-1 ${isAr ? 'rotate-180 group-hover:-translate-x-1' : ''}`} />
-                </div>
-              </div>
-            </motion.div>
-          )
-        })}
-      </div>
-
-      {/* Secondary Quick Commercial Actions */}
-      <div className="space-y-4 pt-2">
-        <div className="flex items-center justify-between">
+      {/* Top Breadcrumb & Clean Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3.5">
+          <button
+            onClick={() => navigate('/app/dashboard/invoices')}
+            title={isAr ? 'العودة لقائمة الفواتير' : 'Back to Invoices'}
+            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200/90 bg-white text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200 dark:hover:bg-dark-700"
+          >
+            <ArrowLeft className={`h-5 w-5 ${isAr ? 'rotate-180' : ''}`} />
+          </button>
           <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              {isAr ? 'مستندات ووثائق تجارية مرافقة' : 'Associated Commercial Documents'}
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {isAr
-                ? 'إشعارات التسوية والمرتجعات وتوليد عروض الأسعار التمهيدية'
-                : 'Credit/Debit settlement adjustments and quotation proposal creators'}
-            </p>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-50/80 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+                <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                {isAr ? 'مركز إصدار المستندات' : 'Document Studio'}
+              </span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">•</span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                {isSaudi ? 'ZATCA Phase 2 E-Invoicing' : 'Enterprise ERP'}
+              </span>
+            </div>
+            <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+              {isAr ? 'إنشاء مستند فوترة جديد' : 'Create Billing Document'}
+            </h1>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {secondaryShortcuts.map((sec, idx) => {
-            const SecIcon = sec.icon
+        {/* Minimal Category Tabs Filter */}
+        <div className="inline-flex items-center gap-1 rounded-2xl border border-slate-200/90 bg-slate-100/80 p-1 dark:border-white/10 dark:bg-dark-800">
+          {[
+            { id: 'all', en: 'All Documents', ar: 'كافة المستندات' },
+            { id: 'sales', en: 'Sales & Revenue', ar: 'المبيعات والإيرادات' },
+            { id: 'procurement', en: 'Procurement', ar: 'المشتريات' },
+            { id: 'offers', en: 'Quotations', ar: 'عروض الأسعار' },
+          ].map((tab) => {
+            const active = activeFilter === tab.id
             return (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.25 + idx * 0.05 }}
-                onClick={() => navigate(sec.route)}
-                className="group flex items-start gap-4 rounded-3xl border border-slate-200/90 bg-white p-5 shadow-2xs transition-all hover:border-slate-300 hover:shadow-md dark:border-white/10 dark:bg-[#0c111a] dark:hover:border-white/20 cursor-pointer"
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveFilter(tab.id)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                  active
+                    ? 'bg-white text-slate-950 shadow-2xs dark:bg-white/15 dark:text-white'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
               >
-                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition-transform group-hover:scale-110 ${sec.color}`}>
-                  <SecIcon className="h-5 w-5" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white text-xs">
-                    <span>{isAr ? sec.titleAr : sec.titleEn}</span>
-                    <ArrowUpRight className="h-3.5 w-3.5 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                  </div>
-                  <p className="text-[11.5px] leading-relaxed text-slate-500 dark:text-slate-400">
-                    {isAr ? sec.descAr : sec.descEn}
-                  </p>
-                </div>
-              </motion.div>
+                {isAr ? tab.ar : tab.en}
+              </button>
             )
           })}
         </div>
       </div>
 
-      {/* Trust & Enterprise Compliance Footer Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-6 py-4 dark:border-white/5 dark:bg-white/[0.02]">
+      {/* Main Luxury Bento Cards Grid */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2">
+        <AnimatePresence mode="popLayout">
+          {filteredCards.map((card, idx) => {
+            const Icon = card.icon
+            return (
+              <motion.div
+                key={card.id}
+                layout
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.25, delay: idx * 0.05 }}
+                onClick={() => navigate(card.route)}
+                className="group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-7 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:border-slate-400 hover:shadow-xl dark:border-white/10 dark:bg-[#0c111a] dark:hover:border-white/25 dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.7)]"
+                style={{
+                  boxShadow: `0 10px 30px -15px ${card.glowColor}`,
+                }}
+              >
+                {/* Subtle Ambient Background Gradient on Hover */}
+                <div
+                  className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-40"
+                  style={{ background: `radial-gradient(circle, ${card.glowColor} 0%, transparent 70%)` }}
+                />
+
+                <div>
+                  {/* Card Header: Icon, Badge, and Shortcut Pill */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3.5">
+                      <div
+                        className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${card.gradient} text-white shadow-md transition-transform duration-300 group-hover:scale-108`}
+                      >
+                        <Icon className="h-7 w-7 stroke-[2.2]" />
+                      </div>
+                      <div>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${card.badgeColor}`}
+                        >
+                          <ShieldCheck className="h-3 w-3 shrink-0" />
+                          {isAr ? card.badgeAr : card.badgeEn}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Quick Keyboard Shortcut Key */}
+                    {card.keyShortcut && (
+                      <span
+                        title={isAr ? `اضغط ${card.keyShortcut} للمتابعة` : `Press ${card.keyShortcut} to launch`}
+                        className="flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 font-mono text-xs font-black text-slate-500 shadow-2xs transition group-hover:border-slate-400 group-hover:bg-white group-hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:group-hover:text-white"
+                      >
+                        {card.keyShortcut}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Title & Tagline */}
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-black text-slate-900 transition-colors group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-400">
+                        {isAr ? card.titleAr : card.titleEn}
+                      </h3>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all duration-300 group-hover:translate-x-1 group-hover:bg-slate-900 group-hover:text-white dark:bg-white/10 dark:text-slate-300 dark:group-hover:bg-white dark:group-hover:text-slate-950">
+                        <ArrowUpRight className={`h-4 w-4 ${isAr ? '-scale-x-100' : ''}`} />
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                      {isAr ? card.taglineAr : card.taglineEn}
+                    </p>
+                  </div>
+
+                  {/* Bullet Highlights List */}
+                  <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 dark:border-white/5">
+                    {(isAr ? card.highlightsAr : card.highlightsEn).map((item, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
+                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+                          <Check className="h-2.5 w-2.5 stroke-[3]" />
+                        </div>
+                        <span className="leading-snug">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Footer Tag Chips */}
+                <div className="mt-6 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-4 dark:border-white/5">
+                  {card.tags.map((tag, tIdx) => (
+                    <span
+                      key={tIdx}
+                      className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-600 dark:bg-white/5 dark:text-slate-400"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
+      </div>
+
+      {/* Quick Status Bar & Quick Actions Strip */}
+      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200/90 bg-slate-50/90 p-5 shadow-2xs sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-dark-800/60">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-            <Zap className="h-4 w-4" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <Zap className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-              {isAr ? 'محرك الفوترة الذكي السريع' : 'High-Speed Enterprise Billing Engine'}
+            <p className="text-xs font-bold text-slate-900 dark:text-white">
+              {isAr ? 'نظام الفوترة السريع والمتوافق' : 'Instant & Compliant Billing Hub'}
             </p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
               {isAr
-                ? 'توليد فوري للبيانات، دقة محاسبية 100%، وتشفير آمن للبيانات والمعاملات.'
-                : 'Instant data processing, 100% double-entry accuracy, and cryptographically verified tax compliance.'}
+                ? 'تدعم جميع الفواتير رموز الاستجابة السريعة (QR) وتوليد ملفات PDF الفورية وتعدد العملات.'
+                : 'All documents support real-time QR generation, multi-currency pricing, and A4/Thermal printing.'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-semibold text-slate-600 dark:text-slate-400">
-          <span className="flex items-center gap-1.5">
-            <Printer className="h-3.5 w-3.5 text-slate-400" />
-            {isAr ? 'طباعة حرارية A4/80mm' : 'A4 & 80mm Thermal Print'}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <QrCode className="h-3.5 w-3.5 text-slate-400" />
-            {isAr ? 'رمز QR مشفر' : 'Encrypted QR Code'}
-          </span>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/app/dashboard/invoices"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-dark-700 dark:text-slate-200 dark:hover:bg-dark-600"
+          >
+            <Receipt className="h-3.5 w-3.5 text-slate-500" />
+            <span>{isAr ? 'سجل الفواتير السابقة' : 'Invoice Archive'}</span>
+          </Link>
+
+          <Link
+            to="/app/dashboard/vat-returns"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-white/10 dark:bg-dark-700 dark:text-slate-200 dark:hover:bg-dark-600"
+          >
+            <Percent className="h-3.5 w-3.5 text-amber-500" />
+            <span>{isAr ? 'الإقرار الضريبي (VAT)' : 'VAT Ledger'}</span>
+          </Link>
         </div>
       </div>
     </div>
