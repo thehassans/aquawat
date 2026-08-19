@@ -392,17 +392,24 @@ router.get('/search', checkPermission('invoicing', 'read'), async (req, res) => 
 // @desc    Get customer statistics
 router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
+    const match = {};
+    if (req.user?.role !== 'super_admin' && req.user?.tenantId) {
+      match.tenantId = new mongoose.Types.ObjectId(String(req.user.tenantId));
+    }
+
     const stats = await Customer.aggregate([
-      { $match: req.tenantFilter },
+      { $match: match },
       {
         $facet: {
           total: [{ $count: 'count' }],
           byType: [{ $group: { _id: '$type', count: { $sum: 1 } } }],
-          active: [{ $match: { isActive: true } }, { $count: 'count' }],
+          active: [{ $match: { isActive: { $ne: false } } }, { $count: 'count' }],
+          withVat: [{ $match: { vatNumber: { $exists: true, $nin: ['', null] } } }, { $count: 'count' }],
+          revenue: [{ $group: { _id: null, totalRevenue: { $sum: '$totalRevenue' }, totalInvoices: { $sum: '$totalInvoices' } } }],
           topByRevenue: [
             { $sort: { totalRevenue: -1 } },
             { $limit: 5 },
-            { $project: { name: 1, totalRevenue: 1, totalInvoices: 1 } }
+            { $project: { name: 1, nameAr: 1, totalRevenue: 1, totalInvoices: 1 } }
           ]
         }
       }
@@ -411,6 +418,9 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
     res.json({
       total: stats[0]?.total[0]?.count || 0,
       active: stats[0]?.active[0]?.count || 0,
+      withVat: stats[0]?.withVat[0]?.count || 0,
+      totalRevenue: stats[0]?.revenue[0]?.totalRevenue || 0,
+      totalInvoices: stats[0]?.revenue[0]?.totalInvoices || 0,
       byType: stats[0]?.byType || [],
       topByRevenue: stats[0]?.topByRevenue || []
     });
