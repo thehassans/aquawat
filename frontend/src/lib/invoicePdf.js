@@ -763,15 +763,11 @@ const formatAddress = (address = {}) => {
     .join(', ')
 }
 
-const getPartyDetailLines = (party = {}, language = 'en', role = 'party') => {
+const getPartyDetailLines = (party = {}, language = 'en', role = 'party', isPk = false) => {
   const lines = []
   const vatLabel = role === 'seller'
-    ? (language === 'ar' ? 'الرقم الضريبي للشركة' : 'Company VAT')
-    : (language === 'ar' ? 'الرقم الضريبي' : 'VAT')
-
-  if (role !== 'seller' && party?.vatNumber) {
-    lines.push({ label: vatLabel, value: party.vatNumber })
-  }
+    ? (language === 'ar' ? 'الرقم الضريبي للشركة' : (isPk ? 'Company GST / STRN' : 'Company VAT'))
+    : (language === 'ar' ? 'الرقم الضريبي' : (isPk ? 'GST / STRN' : 'VAT'))
 
   if (party?.ntn) {
     lines.push({ label: 'NTN', value: party.ntn })
@@ -783,6 +779,10 @@ const getPartyDetailLines = (party = {}, language = 'en', role = 'party') => {
 
   if (party?.cnic) {
     lines.push({ label: 'CNIC', value: party.cnic })
+  }
+
+  if (role !== 'seller' && party?.vatNumber) {
+    lines.push({ label: vatLabel, value: party.vatNumber })
   }
 
   if (role !== 'seller' && party?.crNumber) {
@@ -1106,8 +1106,9 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const buyerName = buyerNameEn || buyerNameAr
   const sellerDisplayName = toBilingualText(sellerNameEn, sellerNameAr)
   const buyerDisplayName = toBilingualText(buyerNameEn, buyerNameAr)
-  const sellerDetailLines = getPartyDetailLines(isPurchaseFlowPdf ? (tenant?.business || {}) : seller, language, 'seller')
-  const buyerDetailLines = getPartyDetailLines(buyerParty, language, isPurchaseFlowPdf ? 'supplier' : 'buyer')
+  const isPk = String(currency || '').toUpperCase() === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
+  const sellerDetailLines = getPartyDetailLines(isPurchaseFlowPdf ? (tenant?.business || {}) : seller, language, 'seller', isPk)
+  const buyerDetailLines = getPartyDetailLines(buyerParty, language, isPurchaseFlowPdf ? 'supplier' : 'buyer', isPk)
   const totals = calculateInvoiceSummary(invoice)
   const travelDetailsEn = normalizeTravelDetails(invoice.travelDetails || {}, buyerNameEn || buyerNameAr, 'en')
   const travelDetailsAr = normalizeTravelDetails(invoice.travelDetails || {}, buyerNameAr || buyerNameEn, 'ar')
@@ -1556,7 +1557,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       'Description\nالوصف',
       'Qty\nالكمية',
       'Unit Price\nسعر الوحدة',
-      'Tax\nالضريبة',
+      isPk ? 'GST\nالضريبة' : 'Tax\nالضريبة',
       'Total\nالإجمالي',
     ]],
     body: bodyRows,
@@ -1637,7 +1638,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     ['Subtotal', 'الإجمالي الفرعي', money(totals.subtotal)],
     ['Discount', 'الخصم', money(totals.totalDiscount)],
     ['Taxable Amount', 'الإجمالي قبل الضريبة', money(taxable)],
-    ['Tax', 'الضريبة', money(totalTax)],
+    [isPk ? 'GST' : 'Tax', 'الضريبة', money(totalTax)],
     ['Total', 'الإجمالي', money(grandTotal)],
   ]
 

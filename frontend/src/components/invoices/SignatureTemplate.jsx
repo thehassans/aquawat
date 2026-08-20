@@ -19,7 +19,11 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
   const primaryColor = invoiceBranding.primaryColor || '#0f172a'
   
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
-  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyLabelEn } = parties
+  const {
+    headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
+    counterpartyLabelEn, taxLabel, taxIdLabel
+  } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -28,7 +32,7 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
     tenant,
     currency,
     sellerName: companyNameEn || companyNameAr,
-    vatNumber: companyVat,
+    vatNumber: companyVat || companyNtn,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -102,7 +106,8 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
             <h2 className="text-xl font-normal text-slate-900 tracking-wide">{companyNameEn || headerCompanyName}</h2>
             {bilingual && companyNameAr && <h2 className="text-lg font-normal text-slate-600 mt-1" dir="rtl">{companyNameAr}</h2>}
             <div className="mt-4 text-xs font-sans text-slate-500 tracking-wide space-y-1">
-              {companyVat && <p>VAT Registration: {companyVat}</p>}
+              {companyNtn ? <p>NTN: {companyNtn}</p> : (companyVat ? <p>{taxIdLabel}: {companyVat}</p> : null)}
+              {companyStrn && <p>STRN: {companyStrn}</p>}
               {companyCr && <p>Commercial Registry: {companyCr}</p>}
             </div>
           </div>
@@ -111,10 +116,11 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
         {/* Bill To & QR */}
         <div className="flex justify-between items-start mb-16">
           <div className="w-1/2">
-            <h3 className="text-[9px] text-slate-400 uppercase tracking-[0.2em] font-sans mb-4 border-b border-slate-100 pb-2 w-fit">{getCommercialCounterpartyLabel(documentType, 'en')}</h3>
-            <p className="text-2xl font-normal text-slate-900 mb-1">{buyerNameEn}</p>
-            {bilingual && buyerNameAr && <p className="text-xl font-normal text-slate-600 mb-2" dir="rtl">{buyerNameAr}</p>}
-            {invoice?.buyer?.vatNumber && <p className="text-sm font-sans text-slate-500 mt-2">VAT: {invoice.buyer.vatNumber}</p>}
+            <h3 className="text-[9px] text-slate-400 uppercase tracking-[0.2em] font-sans mb-4 border-b border-slate-100 pb-2 w-fit">{counterpartyLabelEn || getCommercialCounterpartyLabel(documentType, 'en')}</h3>
+            <p className="text-2xl font-normal text-slate-900 mb-1">{counterpartyNameEn || counterpartyName}</p>
+            {bilingual && counterpartyNameAr && <p className="text-xl font-normal text-slate-600 mb-2" dir="rtl">{counterpartyNameAr}</p>}
+            {counterpartyNtn ? <p className="text-sm font-sans text-slate-500 mt-2">NTN: {counterpartyNtn}</p> : (counterpartyVat ? <p className="text-sm font-sans text-slate-500 mt-2">{taxIdLabel}: {counterpartyVat}</p> : null)}
+            {counterpartyStrn && <p className="text-sm font-sans text-slate-500 mt-1">STRN: {counterpartyStrn}</p>}
           </div>
           <div>
              {shouldShowZatcaQr(documentType) && qrValue && (
@@ -170,7 +176,7 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
               <span className="text-slate-700">{renderMoney(totals.subtotal)}</span>
             </div>
             <div className="flex justify-between py-3 border-b border-slate-100">
-              <span className="text-[10px] font-sans text-slate-500 uppercase tracking-[0.2em]">VAT (15%)</span>
+              <span className="text-[10px] font-sans text-slate-500 uppercase tracking-[0.2em]">{taxLabel}</span>
               <span className="text-slate-700">{renderMoney(totals.totalTax)}</span>
             </div>
             <div className="flex justify-between py-6 mt-2 border-y border-slate-200">

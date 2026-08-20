@@ -18,7 +18,11 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
   const primaryColor = invoiceBranding.primaryColor || '#64748b'
   
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
-  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyLabelEn } = parties
+  const {
+    headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
+    counterpartyLabelEn, taxLabel, taxIdLabel
+  } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -27,7 +31,7 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
     tenant,
     currency,
     sellerName: companyNameEn || companyNameAr,
-    vatNumber: companyVat,
+    vatNumber: companyVat || companyNtn,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -54,8 +58,8 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
     })
     return (
       <span className="inline-flex items-center gap-[0.3em] whitespace-nowrap">
-        <span className="tabular-nums font-light">{amount}</span>
-        <span className="text-[0.65em] text-slate-400 font-medium uppercase tracking-widest">{currency}</span>
+        <span className="tabular-nums font-extralight tracking-tight">{amount}</span>
+        <span className="text-[0.7em] text-slate-400 font-light">{currency}</span>
       </span>
     )
   }
@@ -64,9 +68,9 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
   const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow })
 
   return (
-    <div dir="ltr" className="mx-auto max-w-5xl bg-white overflow-hidden font-sans rounded-3xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.05)] relative">
+    <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-100 overflow-hidden font-sans rounded-none shadow-sm relative selection:bg-slate-100">
       
-      {/* Super thin accent line on top */}
+      {/* Delicate Top Line */}
       <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ backgroundColor: primaryColor }}></div>
 
       <div className="p-16">
@@ -84,7 +88,8 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
             {bilingual && companyNameAr && <h2 className="text-2xl font-light text-slate-500 mt-2 tracking-wide" dir="rtl">{companyNameAr}</h2>}
             
             <div className="mt-8 text-sm text-slate-400 space-y-2 font-light">
-              {companyVat && <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>VAT {companyVat}</p>}
+              {companyNtn ? <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>NTN {companyNtn}</p> : (companyVat ? <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>{taxIdLabel} {companyVat}</p> : null)}
+              {companyStrn && <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>STRN {companyStrn}</p>}
               {companyCr && <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>CR {companyCr}</p>}
             </div>
           </div>
@@ -114,7 +119,8 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
             <p className="text-[10px] text-slate-400 uppercase tracking-widest font-medium mb-6">{counterpartyLabelEn}</p>
             <h3 className="text-3xl font-light text-slate-900 mb-2">{counterpartyNameEn || counterpartyName}</h3>
             {bilingual && counterpartyNameAr && <h3 className="text-xl font-light text-slate-500 mb-4" dir="rtl">{counterpartyNameAr}</h3>}
-            {counterpartyVat && <p className="text-sm text-slate-500 mt-2 font-light tracking-wide">VAT: {counterpartyVat}</p>}
+            {counterpartyNtn ? <p className="text-sm text-slate-500 mt-2 font-light tracking-wide">NTN: {counterpartyNtn}</p> : (counterpartyVat ? <p className="text-sm text-slate-500 mt-2 font-light tracking-wide">{taxIdLabel}: {counterpartyVat}</p> : null)}
+            {counterpartyStrn && <p className="text-sm text-slate-500 mt-1 font-light tracking-wide">STRN: {counterpartyStrn}</p>}
           </div>
 
           <div>
@@ -171,7 +177,7 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
               <span className="text-slate-600 text-lg font-light">{renderMoney(totals.subtotal)}</span>
             </div>
             <div className="flex justify-between py-5 border-b border-slate-50">
-              <span className="text-sm font-light text-slate-400 uppercase tracking-widest">Tax (15%)</span>
+              <span className="text-sm font-light text-slate-400 uppercase tracking-widest">{taxLabel}</span>
               <span className="text-slate-600 text-lg font-light">{renderMoney(totals.totalTax)}</span>
             </div>
             <div className="flex justify-between items-end py-10 mt-4">

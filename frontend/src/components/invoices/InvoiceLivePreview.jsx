@@ -149,11 +149,23 @@ const formatAddress = (address = {}) => {
     .join(', ')
 }
 
-const getPartyDetailLines = (party = {}, language = 'en', role = 'party') => {
+const getPartyDetailLines = (party = {}, language = 'en', role = 'party', isPk = false) => {
   const lines = []
   const vatLabel = role === 'seller'
-    ? (language === 'ar' ? 'الرقم الضريبي للشركة' : 'Company VAT')
-    : (language === 'ar' ? 'الرقم الضريبي' : 'VAT')
+    ? (language === 'ar' ? 'الرقم الضريبي للشركة' : (isPk ? 'Company GST / STRN' : 'Company VAT'))
+    : (language === 'ar' ? 'الرقم الضريبي' : (isPk ? 'GST / STRN' : 'VAT'))
+
+  if (party?.ntn) {
+    lines.push({ label: 'NTN', value: party.ntn })
+  }
+
+  if (party?.strn) {
+    lines.push({ label: 'STRN', value: party.strn })
+  }
+
+  if (party?.cnic) {
+    lines.push({ label: 'CNIC', value: party.cnic })
+  }
 
   if (party?.vatNumber) {
     lines.push({ label: vatLabel, value: party.vatNumber })
@@ -179,11 +191,29 @@ const getPartyDetailLines = (party = {}, language = 'en', role = 'party') => {
   return lines.length > 0 ? lines : [{ label: '', value: '—' }]
 }
 
-const getPartyDetailLinesBilingual = (party = {}, role = 'party') => {
+const getPartyDetailLinesBilingual = (party = {}, role = 'party', isPk = false) => {
   const lines = []
 
+  if (party?.ntn) {
+    lines.push({ label: 'NTN', value: party.ntn, dir: 'ltr' })
+  }
+
+  if (party?.strn) {
+    lines.push({ label: 'STRN', value: party.strn, dir: 'ltr' })
+  }
+
+  if (party?.cnic) {
+    lines.push({ label: 'CNIC', value: party.cnic, dir: 'ltr' })
+  }
+
   if (party?.vatNumber) {
-    lines.push({ label: role === 'seller' ? toBilingualText('Company VAT', 'الرقم الضريبي للشركة') : toBilingualText('VAT', 'الرقم الضريبي'), value: party.vatNumber, dir: 'ltr' })
+    lines.push({
+      label: role === 'seller'
+        ? toBilingualText(isPk ? 'Company GST' : 'Company VAT', 'الرقم الضريبي للشركة')
+        : toBilingualText(isPk ? 'GST' : 'VAT', 'الرقم الضريبي'),
+      value: party.vatNumber,
+      dir: 'ltr',
+    })
   }
 
   if (party?.crNumber) {
@@ -425,12 +455,13 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const travelDetailsEn = normalizeTravelDetails(invoice?.travelDetails || {}, counterpartyNameEn || counterpartyNameAr, 'en')
   const travelDetailsAr = normalizeTravelDetails(invoice?.travelDetails || {}, counterpartyNameAr || counterpartyNameEn, 'ar')
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
+  const isPk = isFbrApplicable || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
   const sellerDetails = bilingual
-    ? getPartyDetailLinesBilingual(isPurchaseFlow ? (tenant?.business || {}) : (invoice?.seller || tenant?.business || {}), 'seller')
-    : getPartyDetailLines(isPurchaseFlow ? (tenant?.business || {}) : (invoice?.seller || tenant?.business || {}), language, 'seller')
+    ? getPartyDetailLinesBilingual(isPurchaseFlow ? (tenant?.business || {}) : (invoice?.seller || tenant?.business || {}), 'seller', isPk)
+    : getPartyDetailLines(isPurchaseFlow ? (tenant?.business || {}) : (invoice?.seller || tenant?.business || {}), language, 'seller', isPk)
   const buyerDetails = bilingual
-    ? getPartyDetailLinesBilingual(counterpartyData || {}, isPurchaseFlow ? 'supplier' : 'buyer')
-    : getPartyDetailLines(counterpartyData || {}, language, isPurchaseFlow ? 'supplier' : 'buyer')
+    ? getPartyDetailLinesBilingual(counterpartyData || {}, isPurchaseFlow ? 'supplier' : 'buyer', isPk)
+    : getPartyDetailLines(counterpartyData || {}, language, isPurchaseFlow ? 'supplier' : 'buyer', isPk)
   const companyName = invoiceBranding.companyName || companyNameEn || companyNameAr || '—'
   const headerLines = splitBrandingText(invoiceBranding.headerText)
   const footerLines = splitBrandingText(invoiceBranding.footerText)
@@ -706,11 +737,24 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
                 </div>
               )}
               <div className="w-full max-w-[132px] space-y-1 text-[11px] leading-4 text-slate-600 text-center">
-                {(invoice?.seller?.vatNumber || invoiceBranding.vatNumber) && (
-                  <p><span className="font-medium text-slate-900">{language === 'ar' ? 'الرقم الضريبي' : 'VAT'}:</span> {invoice?.seller?.vatNumber || invoiceBranding.vatNumber}</p>
-                )}
-                {(invoice?.seller?.crNumber || invoiceBranding.crNumber) && (
-                  <p><span className="font-medium text-slate-900">{language === 'ar' ? 'السجل التجاري' : 'CR'}:</span> {invoice?.seller?.crNumber || invoiceBranding.crNumber}</p>
+                {isPk ? (
+                  <>
+                    {(invoice?.seller?.ntn || tenant?.fbr?.ntn || tenant?.business?.ntn) && (
+                      <p><span className="font-medium text-slate-900">NTN:</span> {invoice?.seller?.ntn || tenant?.fbr?.ntn || tenant?.business?.ntn}</p>
+                    )}
+                    {(invoice?.seller?.strn || tenant?.fbr?.strn || tenant?.business?.strn) && (
+                      <p><span className="font-medium text-slate-900">STRN:</span> {invoice?.seller?.strn || tenant?.fbr?.strn || tenant?.business?.strn}</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {(invoice?.seller?.vatNumber || invoiceBranding.vatNumber) && (
+                      <p><span className="font-medium text-slate-900">{language === 'ar' ? 'الرقم الضريبي' : 'VAT'}:</span> {invoice?.seller?.vatNumber || invoiceBranding.vatNumber}</p>
+                    )}
+                    {(invoice?.seller?.crNumber || invoiceBranding.crNumber) && (
+                      <p><span className="font-medium text-slate-900">{language === 'ar' ? 'السجل التجاري' : 'CR'}:</span> {invoice?.seller?.crNumber || invoiceBranding.crNumber}</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -869,7 +913,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
             </div>
             {!hideTaxOnInvoice && (
               <div className="mt-2 flex items-center justify-between text-sm font-bold text-slate-800">
-                <span className="whitespace-pre-line">{bilingual ? toBilingualText('Tax', 'الضريبة') : (language === 'ar' ? 'الضريبة' : 'VAT')}</span>
+                <span className="whitespace-pre-line">{bilingual ? toBilingualText(isPk ? 'GST' : 'Tax', 'الضريبة') : (language === 'ar' ? 'الضريبة' : (isPk ? 'GST' : 'VAT'))}</span>
                 <span>{renderMoney(totals.totalTax)}</span>
               </div>
             )}

@@ -18,7 +18,11 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
-  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyPhone, counterpartyLabelEn } = parties
+  const {
+    headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
+    counterpartyPhone, counterpartyLabelEn, taxLabel, taxIdLabel
+  } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -27,7 +31,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
     tenant,
     currency,
     sellerName: companyNameEn || companyNameAr,
-    vatNumber: companyVat,
+    vatNumber: companyVat || companyNtn,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -85,7 +89,8 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
           <h2 className="text-xl font-bold text-amber-900">{companyNameEn || headerCompanyName}</h2>
           {bilingual && companyNameAr && <h2 className="text-lg font-bold text-amber-900" dir="rtl">{companyNameAr}</h2>}
           <div className="mt-2 text-sm text-gray-700">
-            {companyVat && <p>VAT: {companyVat}</p>}
+            {companyNtn ? <p>NTN: {companyNtn}</p> : (companyVat ? <p>{taxIdLabel}: {companyVat}</p> : null)}
+            {companyStrn && <p>STRN: {companyStrn}</p>}
             {companyCr && <p>CR: {companyCr}</p>}
           </div>
         </div>
@@ -98,7 +103,8 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
           <h3 className="text-lg font-bold text-gray-900">{counterpartyNameEn || counterpartyName}</h3>
           {bilingual && counterpartyNameAr && <h3 className="text-lg font-bold text-gray-900 mt-1" dir="rtl">{counterpartyNameAr}</h3>}
           <div className="mt-2 text-sm text-gray-700">
-            {counterpartyVat && <p>VAT: {counterpartyVat}</p>}
+            {counterpartyNtn ? <p>NTN: {counterpartyNtn}</p> : (counterpartyVat ? <p>{taxIdLabel}: {counterpartyVat}</p> : null)}
+            {counterpartyStrn && <p>STRN: {counterpartyStrn}</p>}
             {counterpartyPhone && <p>Tel: {counterpartyPhone}</p>}
           </div>
         </div>
@@ -118,7 +124,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
             <th className="py-3 px-2 font-bold">Item Description</th>
             <th className="py-3 px-2 font-bold text-center w-24">Qty</th>
             <th className="py-3 px-2 font-bold text-right w-32">Unit Price</th>
-            <th className="py-3 px-2 font-bold text-right w-32">Tax</th>
+            <th className="py-3 px-2 font-bold text-right w-32">{taxLabel}</th>
             <th className="py-3 px-2 font-bold text-right w-32">Total</th>
           </tr>
         </thead>
@@ -161,7 +167,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
             <span>{renderMoney(totals.totalDiscount)}</span>
           </div>
           <div className="flex justify-between py-2 text-gray-700 border-b border-amber-200">
-            <span>VAT (15%)</span>
+            <span>{taxLabel}</span>
             <span>{renderMoney(totals.totalTax)}</span>
           </div>
           <div className="flex justify-between py-4 text-2xl font-bold text-amber-900">

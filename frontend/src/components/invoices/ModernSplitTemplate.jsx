@@ -18,7 +18,11 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
-  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyPhone, counterpartyLabelEn } = parties
+  const {
+    headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
+    counterpartyPhone, counterpartyLabelEn, taxLabel, taxIdLabel
+  } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -27,7 +31,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
     tenant,
     currency,
     sellerName: companyNameEn || companyNameAr,
-    vatNumber: companyVat,
+    vatNumber: companyVat || companyNtn,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -111,7 +115,8 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
             <h2 className="text-lg font-bold text-slate-900">{companyNameEn || headerCompanyName}</h2>
             {bilingual && companyNameAr && <h2 className="text-md font-bold text-slate-700 mt-1" dir="rtl">{companyNameAr}</h2>}
             <div className="mt-3 text-sm text-slate-600 space-y-1">
-              {companyVat && <p>VAT: <span className="font-medium text-slate-900">{companyVat}</span></p>}
+              {companyNtn ? <p>NTN: <span className="font-medium text-slate-900">{companyNtn}</span></p> : (companyVat ? <p>{taxIdLabel}: <span className="font-medium text-slate-900">{companyVat}</span></p> : null)}
+              {companyStrn && <p>STRN: <span className="font-medium text-slate-900">{companyStrn}</span></p>}
               {companyCr && <p>CR: <span className="font-medium text-slate-900">{companyCr}</span></p>}
             </div>
           </div>
@@ -121,7 +126,8 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
             <h3 className="text-lg font-bold text-slate-900">{counterpartyNameEn || counterpartyName}</h3>
             {bilingual && counterpartyNameAr && <h3 className="text-md font-bold text-slate-700 mt-1" dir="rtl">{counterpartyNameAr}</h3>}
             <div className="mt-3 text-sm text-slate-600 space-y-1">
-              {counterpartyVat && <p>VAT: <span className="font-medium text-slate-900">{counterpartyVat}</span></p>}
+              {counterpartyNtn ? <p>NTN: <span className="font-medium text-slate-900">{counterpartyNtn}</span></p> : (counterpartyVat ? <p>{taxIdLabel}: <span className="font-medium text-slate-900">{counterpartyVat}</span></p> : null)}
+              {counterpartyStrn && <p>STRN: <span className="font-medium text-slate-900">{counterpartyStrn}</span></p>}
               {counterpartyPhone && <p>Tel: <span className="font-medium text-slate-900">{counterpartyPhone}</span></p>}
             </div>
           </div>
@@ -178,7 +184,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
               <span className="text-white">{renderMoney(totals.totalDiscount)}</span>
             </div>
             <div className="flex justify-between py-2 text-slate-400 text-sm border-b border-slate-700">
-              <span>VAT (15%)</span>
+              <span>{taxLabel}</span>
               <span className="text-white">{renderMoney(totals.totalTax)}</span>
             </div>
             <div className="flex justify-between pt-4 text-2xl font-bold">

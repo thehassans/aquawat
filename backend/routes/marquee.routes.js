@@ -1,12 +1,19 @@
 import express from 'express';
+import multer from 'multer';
+import sharp from 'sharp';
 import MarqueePackage from '../models/MarqueePackage.js';
 import MarqueeAppointment from '../models/MarqueeAppointment.js';
 import Customer from '../models/Customer.js';
 import Tenant from '../models/Tenant.js';
 import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../middleware/auth.js';
 import { recordUserActivity } from '../utils/auditLogger.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 // ─── Public endpoint for scanning QR Digital Menu at tables/hall entrance ─────
 router.get('/public/menu/:tenantSlug', async (req, res) => {
@@ -24,6 +31,7 @@ router.get('/public/menu/:tenantSlug', async (req, res) => {
       branding: tenant.branding,
       business: tenant.business,
       currency: tenant.settings?.currency || 'SAR',
+      qrMenu: tenant.settings?.marquee?.qrMenu || {},
       packages,
     });
   } catch (error) {
@@ -546,6 +554,99 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
       monthAdvanceReceived: totalRevenueAgg[0]?.advance || 0,
       monthTotalGuests: totalGuestsAgg[0]?.totalGuests || 0,
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/marquee/upload-image
+// @desc    Upload package banner / photo
+router.post('/upload-image', checkPermission('invoicing', 'write'), upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+
+    const tenantIdStr = req.user.tenantId.toString();
+    const filename = `marquee-pkg-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
+    const key = `marquee/${tenantIdStr}/${filename}`;
+
+    const buffer = await sharp(req.file.buffer)
+      .resize({ width: 1200, withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
+
+    res.json({ imageUrl });
+  } catch (error) {
+    console.error('Marquee image upload error:', error);
+    res.status(500).json({ error: 'Failed to process image' });
+  }
+});
+
+// @route   POST /api/marquee/upload-hero
+// @desc    Upload marquee public QR hero banner
+router.post('/upload-hero', checkPermission('invoicing', 'write'), upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+
+    const tenantIdStr = req.user.tenantId.toString();
+    const filename = `marquee-hero-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
+    const key = `marquee/${tenantIdStr}/${filename}`;
+
+    const buffer = await sharp(req.file.buffer)
+      .resize({ width: 1600, withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    const { url: imageUrl } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
+
+    res.json({ imageUrl });
+  } catch (error) {
+    console.error('Marquee hero upload error:', error);
+    res.status(500).json({ error: 'Failed to process image' });
+  }
+});
+
+// @route   GET /api/marquee/qr-settings
+// @desc    Get marquee QR menu customization settings
+router.get('/qr-settings', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.user.tenantId).select('settings.marquee');
+    res.json(tenant?.settings?.marquee?.qrMenu || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   PUT /api/marquee/qr-settings
+// @desc    Update marquee QR menu customization settings
+router.put('/qr-settings', checkPermission('invoicing', 'write'), async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.user.tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    if (!tenant.settings) tenant.settings = {};
+    if (!tenant.settings.marquee) tenant.settings.marquee = {};
+    
+    tenant.settings.marquee.qrMenu = {
+      ...(tenant.settings.marquee.qrMenu || {}),
+      ...req.body,
+    };
+
+    tenant.markModified('settings.marquee');
+    await tenant.save();
+
+    res.json(tenant.settings.marquee.qrMenu);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

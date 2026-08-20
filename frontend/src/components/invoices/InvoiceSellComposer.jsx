@@ -29,9 +29,10 @@ import ProductTypeToggle from '../ui/ProductTypeToggle'
 import RichTextNoteField from './RichTextNoteField'
 import MarqueeEventFields from '../marquee/MarqueeEventFields'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
+import { isPakistanTenant, getTaxLabel, getTaxIdLabel } from '../../lib/saudiTenant'
 
 const getEmptyLine = (tenant) => {
-  const isPk = String(tenant?.settings?.currency || '').toUpperCase() === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
+  const isPk = isPakistanTenant(tenant)
   const defaultRate = isPk ? Number(tenant?.fbr?.defaultSalesTaxRate || 18) : Number(tenant?.settings?.taxRate ?? 15)
   return {
     productId: '',
@@ -221,6 +222,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const showArabicFields = isGccArabicMarket(tenant)
+  const isPk = isPakistanTenant(tenant)
+  const taxLabel = getTaxLabel(tenant)
+  const taxIdLabel = getTaxIdLabel(tenant)
   const [invoiceType, setInvoiceType] = useState('B2B')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
@@ -1174,8 +1178,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </div>
               </div>
               <div>
-                <BilingualLabel en="VAT Number" ar="الرقم الضريبي" as="p" />
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.vatNumber || '—'}</p>
+                <BilingualLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" as="p" />
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.fbr?.ntn || tenant?.business?.ntn || tenant?.business?.vatNumber || '—'}</p>
               </div>
               <div>
                 <BilingualLabel en="CR Number" ar="السجل التجاري" as="p" />
@@ -1240,7 +1244,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 {invoiceType === 'B2B' && (
                   <div className={`mt-2 ${bilingualPairGridClass}`} dir="ltr">
                     <div>
-                      <BilingualLabel en="VAT Number" ar="الرقم الضريبي" />
+                      <BilingualLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" />
                       <input {...register('buyer.vatNumber')} className={`mt-1.5 ${fieldControlClass}`} />
                     </div>
                     <div>
@@ -1309,7 +1313,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   </div>
                 ) : null}
                 <div>
-                  <BilingualLabel en="VAT Number" ar="الرقم الضريبي" />
+                  <BilingualLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" />
                   <input {...register('buyer.vatNumber', { required: invoiceType === 'B2B' })} className={`mt-1.5 ${fieldControlClass}`} />
                 </div>
                 <div>
@@ -1986,7 +1990,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{t('subtotal')}</span><span><Money value={totals.subtotal} /></span></div>
                   <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{t('discount')}</span><span><Money value={totals.totalDiscount} /></span></div>
                   <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{language === 'ar' ? 'المبلغ الخاضع للضريبة' : 'Taxable Amount'}</span><span><Money value={totals.taxableAmount} /></span></div>
-                  <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
+                  <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{isPk ? 'GST' : t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
                   <div className="flex justify-between border-t border-white/15 pt-3 text-lg font-semibold dark:border-slate-200"><span>{t('total')}</span><span><Money value={totals.grandTotal} /></span></div>
                 </div>
               </div>

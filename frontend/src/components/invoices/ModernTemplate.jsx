@@ -19,7 +19,11 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
   const primaryColor = invoiceBranding.primaryColor || '#0ea5e9'
   
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
-  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyLabelEn, counterpartyLabelAr } = parties
+  const {
+    headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
+    counterpartyLabelEn, counterpartyLabelAr, taxLabel, taxIdLabel
+  } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -28,7 +32,7 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
     tenant,
     currency,
     sellerName: companyNameEn || companyNameAr,
-    vatNumber: companyVat,
+    vatNumber: companyVat || companyNtn,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -84,7 +88,8 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
               <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{companyNameEn || headerCompanyName}</h2>
               {bilingual && companyNameAr && <h2 className="text-xl font-bold text-slate-900 mt-1" dir="rtl">{companyNameAr}</h2>}
               <div className="mt-3 text-sm text-slate-500 space-y-1">
-                {companyVat && <p>VAT: <span className="text-slate-900 font-medium">{companyVat}</span></p>}
+                {companyNtn ? <p>NTN: <span className="text-slate-900 font-medium">{companyNtn}</span></p> : (companyVat ? <p>{taxIdLabel}: <span className="text-slate-900 font-medium">{companyVat}</span></p> : null)}
+                {companyStrn && <p>STRN: <span className="text-slate-900 font-medium">{companyStrn}</span></p>}
                 {companyCr && <p>CR: <span className="text-slate-900 font-medium">{companyCr}</span></p>}
               </div>
             </div>
@@ -109,7 +114,8 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
             <h3 className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-4">{counterpartyLabelEn}</h3>
             <p className="text-lg font-bold text-slate-900 leading-tight">{counterpartyNameEn || counterpartyName}</p>
             {bilingual && counterpartyNameAr && <p className="text-base font-bold text-slate-900 mt-1" dir="rtl">{counterpartyNameAr}</p>}
-            {counterpartyVat && <p className="text-sm text-slate-500 mt-3 font-medium">VAT: {counterpartyVat}</p>}
+            {counterpartyNtn ? <p className="text-sm text-slate-500 mt-3 font-medium">NTN: {counterpartyNtn}</p> : (counterpartyVat ? <p className="text-sm text-slate-500 mt-3 font-medium">{taxIdLabel}: {counterpartyVat}</p> : null)}
+            {counterpartyStrn && <p className="text-sm text-slate-500 mt-1 font-medium">STRN: {counterpartyStrn}</p>}
           </div>
           <div>
             <h3 className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-4">Date & Time</h3>
@@ -139,7 +145,7 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
                 <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Description</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Qty</th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">Unit Price</th>
-                <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">Tax</th>
+                <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">{taxLabel}</th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">Total</th>
               </tr>
             </thead>
@@ -177,7 +183,7 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
               <span>{renderMoney(totals.subtotal)}</span>
             </div>
             <div className="flex justify-between py-2 border-b border-slate-200/60 mt-2">
-              <span className="text-sm font-semibold text-slate-500 uppercase tracking-wide">VAT (15%)</span>
+              <span className="text-sm font-semibold text-slate-500 uppercase tracking-wide">{taxLabel}</span>
               <span>{renderMoney(totals.totalTax)}</span>
             </div>
             <div className="flex justify-between py-4 mt-4 border-t-2 border-slate-800">

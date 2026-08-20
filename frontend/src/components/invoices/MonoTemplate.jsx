@@ -18,7 +18,11 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
-  const { headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyLabelEn } = parties
+  const {
+    headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
+    counterpartyLabelEn, taxLabel, taxIdLabel
+  } = parties
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -27,7 +31,7 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
     tenant,
     currency,
     sellerName: companyNameEn || companyNameAr,
-    vatNumber: companyVat,
+    vatNumber: companyVat || companyNtn,
   })
 
   const totals = calculateInvoiceSummary(invoice)
@@ -96,7 +100,8 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
             <h3 className="text-[10px] text-black uppercase font-black mb-2 tracking-widest">{counterpartyLabelEn.toUpperCase()}</h3>
             <p className="text-base font-bold text-black uppercase">{counterpartyNameEn || counterpartyName}</p>
             {bilingual && counterpartyNameAr && <p className="text-sm font-bold text-black mt-1" dir="rtl">{counterpartyNameAr}</p>}
-            {counterpartyVat && <p className="text-xs font-mono text-black mt-2 font-bold">VAT: {counterpartyVat}</p>}
+            {counterpartyNtn ? <p className="text-xs font-mono text-black mt-2 font-bold">NTN: {counterpartyNtn}</p> : (counterpartyVat ? <p className="text-xs font-mono text-black mt-2 font-bold">{taxIdLabel}: {counterpartyVat}</p> : null)}
+            {counterpartyStrn && <p className="text-xs font-mono text-black mt-1 font-bold">STRN: {counterpartyStrn}</p>}
           </div>
           
           <div className="w-1/3 px-6 border-r-2 border-black">
@@ -112,10 +117,29 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
 
           <div className="w-1/3 pl-6 flex justify-between items-start">
              <div>
-               <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">{parties.isPurchaseFlow ? 'COMPANY VAT' : 'SELLER VAT'}</h3>
-               <p className="text-sm font-mono font-bold text-black mb-2">{companyVat || '—'}</p>
-               <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">{parties.isPurchaseFlow ? 'COMPANY CR' : 'SELLER CR'}</h3>
-               <p className="text-sm font-mono font-bold text-black">{companyCr || '—'}</p>
+               {companyNtn ? (
+                 <>
+                   <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">COMPANY NTN</h3>
+                   <p className="text-sm font-mono font-bold text-black mb-2">{companyNtn}</p>
+                   {companyStrn && (
+                     <>
+                       <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">COMPANY STRN</h3>
+                       <p className="text-sm font-mono font-bold text-black mb-2">{companyStrn}</p>
+                     </>
+                   )}
+                 </>
+               ) : (
+                 <>
+                   <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">{parties.isPurchaseFlow ? 'COMPANY VAT' : 'SELLER VAT'}</h3>
+                   <p className="text-sm font-mono font-bold text-black mb-2">{companyVat || '—'}</p>
+                 </>
+               )}
+               {companyCr && (
+                 <>
+                   <h3 className="text-[10px] text-black uppercase font-black mb-1 tracking-widest">{parties.isPurchaseFlow ? 'COMPANY CR' : 'SELLER CR'}</h3>
+                   <p className="text-sm font-mono font-bold text-black">{companyCr}</p>
+                 </>
+               )}
              </div>
              {shouldShowZatcaQr(documentType) && qrValue && (
                 <div className="p-1 border-2 border-black bg-white">
@@ -134,7 +158,7 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
                 <th className="px-4 py-2 text-left text-[10px] font-black text-white uppercase tracking-widest">Description</th>
                 <th className="px-4 py-2 text-center text-[10px] font-black text-white uppercase tracking-widest w-20">Qty</th>
                 <th className="px-4 py-2 text-right text-[10px] font-black text-white uppercase tracking-widest w-32">Price</th>
-                <th className="px-4 py-2 text-right text-[10px] font-black text-white uppercase tracking-widest w-24">Tax</th>
+                <th className="px-4 py-2 text-right text-[10px] font-black text-white uppercase tracking-widest w-24">{taxLabel}</th>
                 <th className="px-4 py-2 text-right text-[10px] font-black text-white uppercase tracking-widest w-32">Total</th>
               </tr>
             </thead>
@@ -176,7 +200,7 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
               <span className="text-right flex-1 font-mono font-bold">{renderMoney(totals.subtotal)}</span>
             </div>
             <div className="flex justify-between p-3 border-b divide-x-2 divide-black">
-              <span className="text-[10px] font-black text-black uppercase tracking-widest flex-1">VAT (15%)</span>
+              <span className="text-[10px] font-black text-black uppercase tracking-widest flex-1">{taxLabel}</span>
               <span className="text-right flex-1 font-mono font-bold">{renderMoney(totals.totalTax)}</span>
             </div>
             <div className="flex justify-between p-4 bg-black text-white">
