@@ -5,8 +5,8 @@ const defaultPlanFeaturesAr = ['الفوترة الإلكترونية', 'الم�
 
 /** Clean psychological list prices — set independently per currency (no FX conversion). */
 export const STANDARD_PLAN_PRICES = {
-  starter: { monthlySar: 49.99, yearlySar: 499.99, monthlyUsd: 29.99, yearlyUsd: 299.99 },
-  professional: { monthlySar: 99.99, yearlySar: 999.99, monthlyUsd: 59.99, yearlyUsd: 599.99 },
+  starter: { monthlySar: 49.99, yearlySar: 499, monthlyUsd: 29.99, yearlyUsd: 299 },
+  professional: { monthlySar: 99.99, yearlySar: 999, monthlyUsd: 59.99, yearlyUsd: 599 },
   enterprise: { monthlySar: 0, yearlySar: 0, monthlyUsd: 0, yearlyUsd: 0 },
 }
 
@@ -31,11 +31,11 @@ const planSchema = new mongoose.Schema({
   nameEn: { type: String, default: 'Starter' },
   nameAr: { type: String, default: 'البداية' },
   priceMonthly: { type: Number, default: 49.99 },
-  priceYearly: { type: Number, default: 499.99 },
+  priceYearly: { type: Number, default: 499 },
   priceMonthlySar: { type: Number, default: 49.99 },
-  priceYearlySar: { type: Number, default: 499.99 },
+  priceYearlySar: { type: Number, default: 499 },
   priceMonthlyUsd: { type: Number, default: 29.99 },
-  priceYearlyUsd: { type: Number, default: 299.99 },
+  priceYearlyUsd: { type: Number, default: 299 },
   popular: { type: Boolean, default: false },
   featuresEn: { type: [String], default: defaultPlanFeaturesEn },
   featuresAr: { type: [String], default: defaultPlanFeaturesAr }

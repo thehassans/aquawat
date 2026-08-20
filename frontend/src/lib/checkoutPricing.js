@@ -10,8 +10,8 @@ export const CHECKOUT_CURRENCY = 'USD'
 
 /** ZATCA Phase 2 addon — clean dual list prices */
 export const ZATCA_ADDON = {
-  USD: { monthly: 14.99, yearly: 149.99 },
-  SAR: { monthly: 49.99, yearly: 499.99 },
+  USD: { monthly: 14.99, yearly: 149 },
+  SAR: { monthly: 49.99, yearly: 499 },
 }
 
 /** List-price lane: SAR for SAR tenants, USD otherwise. No FX between the two. */
@@ -56,10 +56,10 @@ export function normalizeCheckoutPlan(plan, fallback = {}, displayCurrency = 'US
 
   // Defaults when Super Admin has not set dual prices yet
   const defaults = {
-    starter: { monthlyUsd: 29.99, yearlyUsd: 299.99, monthlySar: 49.99, yearlySar: 499.99 },
-    professional: { monthlyUsd: 59.99, yearlyUsd: 599.99, monthlySar: 99.99, yearlySar: 999.99 },
+    starter: { monthlyUsd: 29.99, yearlyUsd: 299, monthlySar: 49.99, yearlySar: 499 },
+    professional: { monthlyUsd: 59.99, yearlyUsd: 599, monthlySar: 99.99, yearlySar: 999 },
     enterprise: { monthlyUsd: 0, yearlyUsd: 0, monthlySar: 0, yearlySar: 0 },
-  }[id] || { monthlyUsd: 29.99, yearlyUsd: 299.99, monthlySar: 49.99, yearlySar: 499.99 }
+  }[id] || { monthlyUsd: 29.99, yearlyUsd: 299, monthlySar: 49.99, yearlySar: 499 }
 
   const hasUsd = Number.isFinite(monthlyUsd) && (merged.priceMonthlyUsd != null || fallback.priceMonthlyUsd != null)
   const hasSar = Number.isFinite(monthlySar)
