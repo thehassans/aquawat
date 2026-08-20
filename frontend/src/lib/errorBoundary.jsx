@@ -1,13 +1,20 @@
 import { Component } from 'react'
 
 const isChunkLoadError = (error) => {
-  const msg = String(error?.message || error || '').toLowerCase()
+  const msg = String(error?.message || error?.name || error || '').toLowerCase()
   return (
     msg.includes('failed to fetch dynamically imported module') ||
     msg.includes('importing a module script failed') ||
     msg.includes('loading chunk') ||
     msg.includes('unexpected token <') ||
-    msg.includes('error loading dynamically imported module')
+    msg.includes('error loading dynamically imported module') ||
+    msg.includes('dynamically imported') ||
+    msg.includes('failed to load module script') ||
+    msg.includes('chunkloaderror') ||
+    msg.includes('load failed') ||
+    msg.includes('mime type') ||
+    msg.includes('is not defined') ||
+    msg.includes('failed to fetch')
   )
 }
 
@@ -34,7 +41,7 @@ const purgeAndReload = async () => {
 }
 
 const refreshPage = () => {
-  window.location.reload()
+  purgeAndReload()
 }
 
 const isArabicUi = () => {

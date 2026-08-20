@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Boxes, Calendar, Clock, Users, DollarSign,
-  Sparkles, CheckCircle2, AlertTriangle, Building, ArrowDownToLine
+  Sparkles, CheckCircle2, AlertTriangle, Building, RefreshCw
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -113,7 +113,7 @@ export default function MarqueeEventFields({
               }}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-amber-500 px-3.5 py-2.5 text-xs font-black text-slate-950 shadow-md transition hover:bg-amber-400"
             >
-              <ArrowDownToLine className="h-4 w-4" />
+              <RefreshCw className="h-4 w-4" />
               <span>{isAr ? 'إعادة تعبئة الأصناف' : 'Re-fill Package Items'}</span>
             </button>
           )}

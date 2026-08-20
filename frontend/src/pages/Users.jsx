@@ -12,7 +12,7 @@ import {
   FolderKanban, Wallet, Landmark, HardHat, Cog, Cpu, Settings,
   Anchor, FileText, Activity, Clock, ShieldCheck, History,
   Filter, Download, RefreshCw, KeyRound, MessageCircle,
-  ExternalLink, Layers, Check, ArrowRight
+  ExternalLink, Layers, Check, ArrowRight, Boxes
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
