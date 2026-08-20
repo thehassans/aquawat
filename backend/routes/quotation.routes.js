@@ -17,6 +17,7 @@ import { normalizeProductType, stampLineProductTypes } from '../utils/productTyp
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
 import { getWhatsAppConfig } from '../services/whatsappCloudService.js';
 import { recordUserActivity } from '../utils/auditLogger.js';
+import { syncMarqueeBookingFromDocument } from '../utils/marqueeSync.js';
 
 const router = express.Router();
 
@@ -478,6 +479,14 @@ router.post('/', checkTrialLimits('quotations'), checkPermission('invoicing', 'c
         total: quotation.grandTotal,
         customerName: quotation.buyer?.name || quotation.buyer?.nameAr,
       },
+    }).catch(() => {});
+
+    syncMarqueeBookingFromDocument({
+      tenant: req.tenant,
+      user: req.user,
+      documentType: 'quotation',
+      document: quotation,
+      body: req.body,
     }).catch(() => {});
 
     res.status(201).json(quotation);

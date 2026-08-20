@@ -27,6 +27,8 @@ import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { normalizeProductType, productPickerLabel } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
 import RichTextNoteField from './RichTextNoteField'
+import MarqueeEventFields from '../marquee/MarqueeEventFields'
+import { isAppAccessValid } from '../../lib/appStoreTrial'
 
 const getEmptyLine = (tenant) => ({
   productId: '',
@@ -79,7 +81,7 @@ const mapSellLineItems = (invoice, tenant) => {
   }).filter((line) => line.productName || line.unitPrice > 0 || line.productId)
   return mapped.length ? mapped : [{ ...empty }]
 }
-const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
+const selectableContexts = ['trading', 'marquee', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
 
 /** High-contrast premium ERP form tokens */
 const fieldLabelClass = 'mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200'
@@ -290,11 +292,50 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const isTravelContext = businessContext === 'travel_agency'
   const isRestaurantContext = businessContext === 'restaurant'
   const isManpowerContext = businessContext === 'manpower'
+  const isMarqueeContext =
+    businessContext === 'marquee' ||
+    tenantBusinessTypes.includes('marquee') ||
+    isAppAccessValid(tenant?.settings?.installedApps?.marquee_management)
   const [sourceId, setSourceId] = useState('')
   const skipBusinessContextResetRef = useRef(false)
   const isSubmittedRef = useRef(false)
   const hydratedInvoiceIdRef = useRef('')
   const recoveredLinesRef = useRef(false)
+
+  const handleApplyMarqueePackage = (pkg) => {
+    const count = Number(getValues('guestCount') || 100)
+    const defaultTaxRate = Number(tenant?.settings?.taxRate ?? 15)
+
+    if (Array.isArray(pkg.items) && pkg.items.length > 0) {
+      const lines = pkg.items.map((item, idx) => ({
+        ...getEmptyLine(tenant),
+        productId: '',
+        productName: idx === 0 ? `${pkg.name} — ${item.itemName}` : item.itemName,
+        productNameAr: idx === 0 && pkg.nameAr ? `${pkg.nameAr} — ${item.itemNameAr || item.itemName}` : (item.itemNameAr || ''),
+        productType: 'services',
+        quantity: count,
+        unitPrice: idx === 0 ? Number(pkg.ratePerHead || 0) : 0,
+        taxRate: defaultTaxRate,
+        description: item.portionSize ? `Portion: ${item.portionSize}` : '',
+      }))
+
+      if (pkg.hallBaseRent > 0) {
+        lines.push({
+          ...getEmptyLine(tenant),
+          productId: '',
+          productName: 'Hall Base Rental & Stage Setup',
+          productNameAr: 'إيجار وتجهيز القاعة الأساسي',
+          productType: 'services',
+          quantity: 1,
+          unitPrice: Number(pkg.hallBaseRent || 0),
+          taxRate: defaultTaxRate,
+          description: 'Fixed Hall Rent',
+        })
+      }
+
+      replace(lines)
+    }
+  }
 
   const handleToggleBankDetails = (enable) => {
     setShowBankPanel(enable)
@@ -787,6 +828,17 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       })
     } else {
       delete payload.travelDetails
+    }
+    if (data?.eventDate || data?.marqueePackageId || isMarqueeContext) {
+      payload.eventDate = data?.eventDate || ''
+      payload.eventShift = data?.eventShift || 'dinner'
+      payload.guestCount = Number(data?.guestCount || 100)
+      payload.hallName = data?.hallName || ''
+      payload.advancePaid = Number(data?.advancePaid || 0)
+      payload.marqueePackageId = data?.marqueePackageId || ''
+      payload.packageName = data?.packageName || ''
+      payload.ratePerHead = Number(data?.ratePerHead || 0)
+      payload.hallBaseRent = Number(data?.hallBaseRent || 0)
     }
     payload.showAuthorizedPerson = Boolean(showAuthorizedPerson)
     payload.hasAuthorizedPerson = Boolean(showAuthorizedPerson)
@@ -1315,6 +1367,17 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
             )}
           </div>
+
+          {isMarqueeContext && (
+            <MarqueeEventFields
+              values={values}
+              setValue={setValue}
+              register={register}
+              currency={tenant?.settings?.currency || 'SAR'}
+              language={language}
+              onApplyPackageItems={handleApplyMarqueePackage}
+            />
+          )}
 
           <div className={`${sectionCardClass} space-y-5`}>
             <div className="flex items-end justify-between gap-3">

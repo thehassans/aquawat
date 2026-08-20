@@ -40,6 +40,7 @@ import { resolvePaymentStatus, applyPaidAmountStatus, isOverpay, paymentExceedsR
 import { makeRateLimitStore } from '../utils/hybridRateLimitStore.js';
 import { isStockTrackedProductType, normalizeProductType, stampLineProductTypes } from '../utils/productType.js';
 import { recordUserActivity } from '../utils/auditLogger.js';
+import { syncMarqueeBookingFromDocument } from '../utils/marqueeSync.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -1688,6 +1689,14 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
         customerName: invoice.buyer?.name || invoice.buyer?.nameAr,
         status: invoice.status,
       },
+    }).catch(() => {});
+
+    syncMarqueeBookingFromDocument({
+      tenant,
+      user: req.user,
+      documentType: 'invoice',
+      document: invoice,
+      body: req.body,
     }).catch(() => {});
 
     res.status(201).json({ ...invoice.toObject(), emailDelivery, whatsappDelivery });

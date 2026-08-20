@@ -331,9 +331,12 @@ const SaloonServices = lazy(() => import('./pages/saloon/SaloonServices'))
 const SaloonBarbers = lazy(() => import('./pages/saloon/SaloonBarbers'))
 const QRServices = lazy(() => import('./pages/saloon/QRServices'))
 const SaloonQueue = lazy(() => import('./pages/saloon/SaloonQueue'))
-const Letterhead = lazy(() => import('./pages/Letterhead'))
 const PublicMenu = lazy(() => import('./pages/public/PublicMenu'))
 const PublicServices = lazy(() => import('./pages/public/PublicServices'))
+const MarqueePackages = lazy(() => import('./pages/marquee/MarqueePackages'))
+const MarqueeAppointments = lazy(() => import('./pages/marquee/MarqueeAppointments'))
+const MarqueeQRMenu = lazy(() => import('./pages/marquee/MarqueeQRMenu'))
+const PublicMarqueeMenu = lazy(() => import('./pages/marquee/PublicMarqueeMenu'))
 
 import PageLoader from './components/ui/PageLoader'
 import LoadingScreen from './components/ui/LoadingScreen'
@@ -549,6 +552,7 @@ function App() {
 
       {/* Public Application Routes */}
       <Route path="/public/menu" element={<Suspense fallback={<PageLoader />}><PublicMenu /></Suspense>} />
+      <Route path="/public/marquee/:tenantSlug" element={<Suspense fallback={<PageLoader />}><PublicMarqueeMenu /></Suspense>} />
       <Route path="/public/services" element={<Suspense fallback={<PageLoader />}><PublicServices /></Suspense>} />
       <Route path="/payment-result" element={<Suspense fallback={<PageLoader />}><PaymentResult /></Suspense>} />
       <Route path="/demo-checkout" element={<Suspense fallback={<PageLoader />}><DemoCheckout /></Suspense>} />
@@ -911,6 +915,11 @@ function App() {
         <Route path="restaurant/kds" element={<BusinessTypeRoute allowedTypes={['restaurant']}><RestaurantKDS /></BusinessTypeRoute>} />
         <Route path="restaurant/mess" element={<BusinessTypeRoute allowedTypes={['restaurant']}><RestaurantMess /></BusinessTypeRoute>} />
         <Route path="restaurant/delivery" element={<BusinessTypeRoute allowedTypes={['restaurant']}><RestaurantDelivery /></BusinessTypeRoute>} />
+
+        {/* Marquee Management Routes */}
+        <Route path="marquee/packages" element={<AppStoreOrTypeRoute grantBusinessTypes={['marquee']} requireAnyApp={['marquee_management']}><MarqueePackages /></AppStoreOrTypeRoute>} />
+        <Route path="marquee/appointments" element={<AppStoreOrTypeRoute grantBusinessTypes={['marquee']} requireAnyApp={['marquee_management']}><MarqueeAppointments /></AppStoreOrTypeRoute>} />
+        <Route path="marquee/qr-menu" element={<AppStoreOrTypeRoute grantBusinessTypes={['marquee']} requireAnyApp={['marquee_management']}><MarqueeQRMenu /></AppStoreOrTypeRoute>} />
 
         <Route path="iot" element={<BusinessTypeRoute allowedTypes={['trading']}><IoT /></BusinessTypeRoute>} />
         <Route path="iot/devices/new" element={<BusinessTypeRoute allowedTypes={['trading']}><IoTDeviceForm /></BusinessTypeRoute>} />

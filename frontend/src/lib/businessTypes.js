@@ -1,10 +1,15 @@
-export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing', 'gym']
+export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing', 'gym', 'marquee']
 
 export const getBusinessTypeOptions = (language = 'en') => [
   {
     id: 'trading',
     label: language === 'ar' ? 'التجارة' : 'Trading',
     description: language === 'ar' ? 'المخزون والمستودعات والمشتريات' : 'Inventory, warehouses, and purchasing',
+  },
+  {
+    id: 'marquee',
+    label: language === 'ar' ? 'قاعات الأفراح والمناسبات' : 'Marquee & Event Hall',
+    description: language === 'ar' ? 'باقات المناسبات، تسعير للشخص، تقويم الحجوزات وقائمة طعام QR' : 'Event packages, per-head pricing, booking appointments, and table QR menus',
   },
   {
     id: 'gym',

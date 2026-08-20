@@ -51,6 +51,7 @@ const ALL_MODULE_DEFINITIONS = [
   { key: 'laundry', labelEn: 'Laundry & Dry Clean', labelAr: 'المغسلة والتنظيف', Icon: Sparkles, group: 'vertical' },
   { key: 'boutique', labelEn: 'Boutique & Tailor', labelAr: 'البوتيك والخياطة', Icon: Sparkles, group: 'vertical' },
   { key: 'ecommerce', labelEn: 'Online Storefront', labelAr: 'المتجر الإلكتروني', Icon: FileText, group: 'vertical' },
+  { key: 'marquee', labelEn: 'Marquee & Event Halls', labelAr: 'قاعات الأفراح والمناسبات', Icon: Boxes, group: 'vertical' },
 
   // Installed Add-ons & Apps
   { key: 'crm', labelEn: 'CRM & Leads', labelAr: 'إدارة العملاء والفرص', Icon: UsersIcon, group: 'apps' },
@@ -190,6 +191,10 @@ export function getTenantActiveModules(tenant) {
 
   if (businessTypes.includes('ecommerce') || isAppOn('ecommerce_store') || isAppOn('ecommerce')) {
     activeKeys.add('ecommerce')
+  }
+
+  if (businessTypes.includes('marquee') || isAppOn('marquee_management') || isAppOn('marquee')) {
+    activeKeys.add('marquee')
   }
 
   // Extension Apps

@@ -244,6 +244,16 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       ]
     },
     {
+      title: language === 'ar' ? 'إدارة القاعات والمناسبات' : 'Marquee Management',
+      businessTypes: ['marquee'],
+      requireAnyApp: ['marquee_management'],
+      items: [
+        { path: '/app/dashboard/marquee/packages', icon: Boxes, label: language === 'ar' ? 'باقات المناسبات والوجبات' : 'Event Packages', perm: { module: 'invoicing', action: 'read' } },
+        { path: '/app/dashboard/marquee/appointments', icon: CalendarDays, label: language === 'ar' ? 'حجوزات القاعات والمواعيد' : 'Bookings & Calendar', perm: { module: 'invoicing', action: 'read' } },
+        { path: '/app/dashboard/marquee/qr-menu', icon: QrCode, label: language === 'ar' ? 'قائمة الطاولات (QR)' : 'Table QR Menu', perm: { module: 'invoicing', action: 'read' } },
+      ]
+    },
+    {
       title: language === 'ar' ? 'الرئيسية' : 'Main',
       excludeBusinessTypes: ['khayyat', 'gym'],
       items: [

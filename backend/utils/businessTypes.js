@@ -1,4 +1,4 @@
-export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing', 'gym']
+export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing', 'gym', 'marquee']
 
 export const normalizeBusinessTypes = (input, fallback = 'trading') => {
   const values = Array.isArray(input) ? input : [input]

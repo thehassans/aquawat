@@ -157,6 +157,10 @@ export const getTenantPermissibleModules = (tenant) => {
     modules.add('ecommerce');
   }
 
+  if (businessTypes.includes('marquee') || isAppOn('marquee_management') || isAppOn('marquee')) {
+    modules.add('marquee');
+  }
+
   // Add-on Apps
   if (isAppOn('crm_sales_pipeline') || isAppOn('crm') || isAppOn('queries_crm')) {
     modules.add('crm');

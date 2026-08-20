@@ -138,6 +138,7 @@ import khayyatStitchingRoutes from './routes/khayyat/stitching.js';
 import khayyatPaymentRoutes from './routes/khayyat/payment.js';
 import khayyatUserRoutes from './routes/khayyat/user.js';
 import khayyatCustomerRoutes from './routes/khayyat/customer.js';
+import marqueeRoutes from './routes/marquee.routes.js';
 import khayyatCustomizationRoutes from './routes/khayyat/customization.js';
 import boutiqueRoutes from './routes/boutique.routes.js';
 import furnitureRoutes from './routes/furniture.routes.js';
@@ -877,6 +878,7 @@ app.use('/api/backup', ensureDatabaseReady, backupRoutes);
 app.use('/api/inventory-adjustments', ensureDatabaseReady, inventoryAdjustmentsRoutes);
 app.use('/api/stock-transfers', ensureDatabaseReady, stockTransferRoutes);
 app.use('/api/delivery-notes', ensureDatabaseReady, deliveryNoteRoutes);
+app.use('/api/marquee', ensureDatabaseReady, marqueeRoutes);
 
 app.use('/api/laundry/services', ensureDatabaseReady, laundryServiceRoutes);
 app.use('/api/laundry/customers', ensureDatabaseReady, laundryCustomerRoutes);

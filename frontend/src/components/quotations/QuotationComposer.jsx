@@ -21,6 +21,8 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { normalizeProductType, productPickerLabel } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
 import RichTextNoteField from '../invoices/RichTextNoteField'
+import MarqueeEventFields from '../marquee/MarqueeEventFields'
+import { isAppAccessValid } from '../../lib/appStoreTrial'
 
 const getEmptyLine = (tenant) => ({
   productId: '',
@@ -37,10 +39,11 @@ const getEmptyLine = (tenant) => ({
   discountType: 'fixed',
 })
 
-const selectableContexts = ['trading', 'construction', 'travel_agency', 'restaurant']
+const selectableContexts = ['trading', 'marquee', 'construction', 'travel_agency', 'restaurant']
 
 const CONTEXT_META = {
   trading: { Icon: Store, descEn: 'Products & inventory quotes', descAr: 'عروض للمنتجات والمخزون', accent: 'from-emerald-500 to-teal-600' },
+  marquee: { Icon: Sparkles, descEn: 'Wedding, hall & banquet packages', descAr: 'عروض قاعات الأفراح والمناسبات', accent: 'from-amber-500 to-yellow-600' },
   construction: { Icon: HardHat, descEn: 'Project & service quotes', descAr: 'عروض المشاريع والخدمات', accent: 'from-amber-500 to-orange-600' },
   travel_agency: { Icon: Plane, descEn: 'Travel & ticket quotes', descAr: 'عروض السفر والتذاكر', accent: 'from-sky-500 to-blue-600' },
   restaurant: { Icon: UtensilsCrossed, descEn: 'F&B and catering quotes', descAr: 'عروض المطاعم والضيافة', accent: 'from-rose-500 to-red-600' },
@@ -222,13 +225,52 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     }
   }
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' })
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'lineItems' })
   const values = watch()
   const lineItems = Array.isArray(values?.lineItems) ? values.lineItems : []
   const businessContext = values?.businessContext || defaultBusinessContext
   const selectedTemplateId = resolveQuotationTemplateId(values?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID)
   const isTradingContext = businessContext === 'trading'
+  const isMarqueeContext =
+    businessContext === 'marquee' ||
+    tenantBusinessTypes.includes('marquee') ||
+    isAppAccessValid(tenant?.settings?.installedApps?.marquee_management)
   const [customerLookupId, setCustomerLookupId] = useState('')
+
+  const handleApplyMarqueePackage = (pkg) => {
+    const count = Number(getValues('guestCount') || 100)
+    const defaultTaxRate = Number(tenant?.settings?.taxRate ?? 15)
+
+    if (Array.isArray(pkg.items) && pkg.items.length > 0) {
+      const lines = pkg.items.map((item, idx) => ({
+        ...getEmptyLine(tenant),
+        productId: '',
+        productName: idx === 0 ? `${pkg.name} — ${item.itemName}` : item.itemName,
+        productNameAr: idx === 0 && pkg.nameAr ? `${pkg.nameAr} — ${item.itemNameAr || item.itemName}` : (item.itemNameAr || ''),
+        productType: 'services',
+        quantity: count,
+        unitPrice: idx === 0 ? Number(pkg.ratePerHead || 0) : 0,
+        taxRate: defaultTaxRate,
+        description: item.portionSize ? `Portion: ${item.portionSize}` : '',
+      }))
+
+      if (pkg.hallBaseRent > 0) {
+        lines.push({
+          ...getEmptyLine(tenant),
+          productId: '',
+          productName: 'Hall Base Rental & Stage Setup',
+          productNameAr: 'إيجار وتجهيز القاعة الأساسي',
+          productType: 'services',
+          quantity: 1,
+          unitPrice: Number(pkg.hallBaseRent || 0),
+          taxRate: defaultTaxRate,
+          description: 'Fixed Hall Rent',
+        })
+      }
+
+      replace(lines)
+    }
+  }
 
   useLiveTranslation({
     control, watch, setValue,
@@ -429,6 +471,15 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       authorizedPersonDesignationAr: showAuthorizedPerson ? (data?.authorizedPersonDesignationAr || '') : '',
       authorizedPersonSignature: showAuthorizedPerson ? (data?.authorizedPersonSignature || '') : '',
       stampImage: showAuthorizedPerson ? (data?.stampImage || '') : '',
+      eventDate: data?.eventDate || undefined,
+      eventShift: data?.eventShift || undefined,
+      guestCount: data?.guestCount ? Number(data.guestCount) : undefined,
+      hallName: data?.hallName || undefined,
+      advancePaid: data?.advancePaid ? Number(data.advancePaid) : undefined,
+      marqueePackageId: data?.marqueePackageId || undefined,
+      packageName: data?.packageName || undefined,
+      ratePerHead: data?.ratePerHead ? Number(data.ratePerHead) : undefined,
+      hallBaseRent: data?.hallBaseRent ? Number(data.hallBaseRent) : undefined,
       status: initialQuotation?.status || 'draft',
     }
   }
@@ -867,6 +918,17 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
               </div>
             </div>
           </div>
+
+          {isMarqueeContext && (
+            <MarqueeEventFields
+              values={values}
+              setValue={setValue}
+              register={register}
+              currency={tenant?.settings?.currency || 'SAR'}
+              language={language}
+              onApplyPackageItems={handleApplyMarqueePackage}
+            />
+          )}
 
           <div className={sectionShell}>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">

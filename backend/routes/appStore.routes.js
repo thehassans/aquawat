@@ -1003,6 +1003,52 @@ export const DEFAULT_APP_CATALOG = [
       { key: 'defaultFreezeQuotaDays', labelEn: 'Default Freeze Quota (Days per Subscription)', labelAr: 'حصة التجميد الافتراضية (أيام لكل اشتراك)', type: 'number', defaultValue: 14 }
     ]
   },
+  {
+    appId: 'marquee_management',
+    nameEn: 'Marquee, Wedding & Banquet Hall Management',
+    nameAr: 'إدارة قاعات الأفراح والمناسبات والمخيمات',
+    taglineEn: 'Event packages with per-head pricing, booking calendar with conflict check, QR digital tables menu & auto-sync with invoices & quotations.',
+    taglineAr: 'باقات المناسبات مع تسعير للشخص، تقويم الحجوزات مع منع التعارض، قائمة QR رقمية، وتكامل فوري مع الفواتير وعروض الأسعار.',
+    descriptionEn: 'Ultra-comprehensive Marquee and Event Hall Management system for wedding halls, banquets, and convention centers worldwide. Includes customizable event packages (food, BBQ, desserts, stage decor, sound/lighting, valet) with automatic per-head rate calculation, interactive booking appointments with double-booking prevention, table QR digital menu experience, and automatic 2-way sync with invoices and quotations (auto-populating menu items, guest count, advance paid & remaining balance). Works seamlessly in any currency (SAR, PKR, BDT, USD, AED, EUR, etc.) with international VAT and tax compliance.',
+    descriptionAr: 'نظام إدارة شامل لقاعات الأفراح والمناسبات والفعاليات في جميع أنحاء العالم. يشمل باقات المناسبات القابلة للتخصيص (الأطعمة، المشاوي، الحلويات، ديكور المسرح، الإضاءة والصوتيات، خدمة صف السيارات) مع حساب سعر الشخص تلقائياً، تقويم حجوزات تفاعلي يمنع تعارض المواعيد، قائمة طعام رقمية QR لطاولات الضيوف، ومزامنة تلقائية مع الفواتير وعروض الأسعار مع تعبئة تلقائية لبنود الباقة وعدد الضيوف والدفعة المقدمة والمتبقي. يدعم جميع العملات والأنظمة الضريبية عالمياً.',
+    category: 'industry_verticals',
+    appType: 'core_vertical',
+    icon: 'sparkles',
+    version: '1.0.0',
+    downloadSize: '15.8 MB',
+    author: 'Maqder Core',
+    rating: 4.98,
+    reviewsCount: 312,
+    pricingTier: 'free',
+    badge: 'Marquee',
+    defaultRoute: '/app/dashboard/marquee/packages',
+    businessTypeGrant: 'marquee',
+    featuresEn: [
+      'Customizable Event Packages with Multi-Category Items (Starters, BBQ, Mains, Desserts, Stage Decor, Sound)',
+      'Smart Per-Head / Per-Person Rate Calculator with Base Hall Rent',
+      'Interactive Booking Calendar with Shift Management (Lunch / Dinner / Full Day)',
+      'Automated Double-Booking & Hall Conflict Prevention',
+      'Table QR Digital Menu for live guest itinerary, catering menu, and hall services',
+      'Instant Auto-Sync with Invoices & Quotations: Auto-populates all package items, guest count, and advance payments',
+      'Multi-Currency & International Tax Engine (SAR, PKR, BDT, USD, AED, EUR, GBP)',
+      'Guest Count Capacity Limits and Advance Security Deposit Tracking'
+    ],
+    featuresAr: [
+      'باقات مناسبات مخصصة متعددة الأصناف (مقبلات، مشاوي، أطباق رئيسية، حلويات، ديكور مسرح، صوتيات)',
+      'حاسبة ذكية لسعر الشخص الواحد مع إيجار القاعة الأساسي',
+      'تقويم حجوزات ومواعيد تفاعلي مع إدارة الفترات (غداء / عشاء / يوم كامل)',
+      'منع تلقائي لتعارض المواعيد والحجوزات المزدوجة لنفس القاعة',
+      'قائمة طعام رقمية عبر رمز QR لطاولات الضيوف وجدول الفعالية',
+      'مزامنة فورية مع الفواتير وعروض الأسعار: تعبئة تلقائية لجميع بنود الباقة وعدد الضيوف والدفعات',
+      'دعم كامل لجميع العملات العالمية والضرائب (ريال، روبية، تاكا، دولار، درهم، يورو)',
+      'تتبع سعة الضيوف والدفعات المقدمة والمبالغ المتبقية'
+    ],
+    configSchema: [
+      { key: 'defaultEventShift', labelEn: 'Default Event Shift', labelAr: 'الفترة الافتراضية', type: 'select', options: ['lunch', 'dinner', 'full_day'], defaultValue: 'dinner' },
+      { key: 'defaultHallName', labelEn: 'Default Main Hall Name', labelAr: 'اسم القاعة الرئيسية الافتراضي', type: 'string', defaultValue: 'Grand Ballroom' },
+      { key: 'minAdvancePercent', labelEn: 'Minimum Advance Percentage (%)', labelAr: 'النسبة المئوية للدفعة المقدمة (%)', type: 'number', defaultValue: 25 }
+    ]
+  },
 
   // ══════════════════════════════════════════════════════════════════════════════
   // ── 2. CORE BUSINESS & OPERATIONS ADD-ONS ─────────────────────────────────────
