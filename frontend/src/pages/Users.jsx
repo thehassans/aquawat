@@ -18,6 +18,7 @@ import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
+import { isAppAccessValid } from '../lib/appStoreTrial'
 import ExportMenu from '../components/ui/ExportMenu'
 
 const ALL_MODULE_DEFINITIONS = [
@@ -60,58 +61,159 @@ const ALL_MODULE_DEFINITIONS = [
 export function getTenantActiveModules(tenant) {
   const businessTypes = getTenantBusinessTypes(tenant)
   const installedApps = tenant?.settings?.installedApps || {}
-  const isAppOn = (id) => Boolean(installedApps[id]?.isInstalled && installedApps[id]?.isEnabled !== false)
+  const isAppOn = (id) => isAppAccessValid(installedApps[id])
 
-  const activeKeys = new Set(['invoicing', 'inventory', 'supply_chain', 'finance', 'settings'])
+  // Core base modules that all tenants have
+  const activeKeys = new Set(['invoicing', 'inventory', 'settings'])
+
+  // Supply chain / Purchases
+  if (
+    businessTypes.some((t) =>
+      ['trading', 'bakala', 'pharmacy', 'furniture_shop', 'manufacturing', 'construction'].includes(t)
+    ) ||
+    isAppOn('purchases')
+  ) {
+    activeKeys.add('supply_chain')
+  }
+
+  // Finance / Accounting
+  if (
+    isAppOn('accounting') ||
+    isAppOn('finance') ||
+    isAppOn('etimad_procurement') ||
+    tenant?.subscription?.hasAccountingAddon === true ||
+    tenant?.settings?.enableFinanceModule === true ||
+    tenant?.settings?.hasAccounting === true
+  ) {
+    activeKeys.add('finance')
+  }
 
   // Landed costs
-  if (businessTypes.includes('trading') || businessTypes.includes('manufacturing')) {
+  if (
+    isAppOn('landed_costs') ||
+    isAppOn('multicourier_shipping') ||
+    tenant?.settings?.enableLandedCosts === true
+  ) {
     activeKeys.add('landed_costs')
   }
 
-  // HR & Payroll
-  if (
-    businessTypes.includes('manpower') ||
+  // HR & Payroll (App Store app: hr_payroll_pro, qiwa_hr_integration, gosi_mudad_compliance, or manpower business)
+  const hasHrInstalled =
+    isAppOn('hr_payroll_pro') ||
+    isAppOn('qiwa_hr_integration') ||
     isAppOn('hr_suite') ||
-    isAppOn('payroll') ||
-    tenant?.subscription?.features?.includes('hr')
-  ) {
+    isAppOn('hr') ||
+    businessTypes.includes('manpower') ||
+    tenant?.subscription?.hasHrAddon === true
+
+  if (hasHrInstalled) {
     activeKeys.add('hr')
+  }
+
+  const hasPayrollInstalled =
+    isAppOn('hr_payroll_pro') ||
+    isAppOn('gosi_mudad_compliance') ||
+    isAppOn('payroll') ||
+    businessTypes.includes('manpower') ||
+    tenant?.subscription?.hasPayrollAddon === true
+
+  if (hasPayrollInstalled) {
     activeKeys.add('payroll')
   }
 
   // Projects & Job Costing
   if (
     businessTypes.includes('construction') ||
-    businessTypes.includes('manpower') ||
-    isAppOn('projects') ||
-    isAppOn('job_costing')
+    isAppOn('construction_projects') ||
+    isAppOn('projects')
   ) {
     activeKeys.add('project_management')
+  }
+
+  if (
+    businessTypes.includes('construction') ||
+    isAppOn('construction_projects') ||
+    isAppOn('job_costing') ||
+    isAppOn('manufacturing_mes')
+  ) {
     activeKeys.add('job_costing')
   }
 
   // Manufacturing / MRP
-  if (businessTypes.includes('manufacturing') || isAppOn('mrp_manufacturing')) {
+  if (businessTypes.includes('manufacturing') || isAppOn('manufacturing_mes') || isAppOn('mrp_manufacturing')) {
     activeKeys.add('mrp')
-    activeKeys.add('job_costing')
   }
 
   // Industry Vertical Suites
-  if (businessTypes.includes('restaurant') || isAppOn('restaurant_pos')) activeKeys.add('restaurant')
-  if (businessTypes.includes('travel_agency') || isAppOn('travel_agency')) activeKeys.add('travel')
-  if (businessTypes.includes('gym') || isAppOn('gym_fitness_club') || isAppOn('gym')) activeKeys.add('gym')
-  if (businessTypes.includes('bakala') || isAppOn('bakala_pos')) activeKeys.add('bakala')
-  if (businessTypes.includes('car_workshop') || isAppOn('car_workshop')) activeKeys.add('car_workshop')
-  if (businessTypes.includes('car_rental') || isAppOn('car_rental')) activeKeys.add('car_rental')
-  if (businessTypes.includes('laundry') || isAppOn('laundry_suite')) activeKeys.add('laundry')
-  if (businessTypes.includes('boutique') || businessTypes.includes('khayyat')) activeKeys.add('boutique')
-  if (businessTypes.includes('ecommerce') || isAppOn('ecommerce')) activeKeys.add('ecommerce')
+  if (
+    businessTypes.includes('restaurant') ||
+    isAppOn('restaurant_cafe') ||
+    isAppOn('restaurant_pos') ||
+    isAppOn('restaurant_mess') ||
+    isAppOn('qr_menu_ordering')
+  ) {
+    activeKeys.add('restaurant')
+  }
+
+  if (businessTypes.includes('travel_agency') || isAppOn('travel_agency')) {
+    activeKeys.add('travel')
+  }
+
+  if (businessTypes.includes('gym') || isAppOn('gym_fitness_club') || isAppOn('gym')) {
+    activeKeys.add('gym')
+  }
+
+  if (businessTypes.includes('bakala') || isAppOn('bakala_supermarket') || isAppOn('bakala_pos')) {
+    activeKeys.add('bakala')
+  }
+
+  if (businessTypes.includes('car_workshop') || isAppOn('car_workshop')) {
+    activeKeys.add('car_workshop')
+  }
+
+  if (businessTypes.includes('car_rental') || isAppOn('car_rental')) {
+    activeKeys.add('car_rental')
+  }
+
+  if (businessTypes.includes('laundry') || isAppOn('laundry_cleaning') || isAppOn('laundry_suite')) {
+    activeKeys.add('laundry')
+  }
+
+  if (
+    businessTypes.includes('boutique') ||
+    businessTypes.includes('khayyat') ||
+    isAppOn('boutique_rental') ||
+    isAppOn('tailor_khayyat')
+  ) {
+    activeKeys.add('boutique')
+  }
+
+  if (businessTypes.includes('ecommerce') || isAppOn('ecommerce_store') || isAppOn('ecommerce')) {
+    activeKeys.add('ecommerce')
+  }
 
   // Extension Apps
-  if (isAppOn('crm') || isAppOn('queries_crm') || tenant?.settings?.crm?.enabled) activeKeys.add('crm')
-  if (isAppOn('whatsapp_cloud_auto') || Boolean(tenant?.settings?.invoiceWhatsappAutoSend)) activeKeys.add('whatsapp')
-  if (isAppOn('iot') || isAppOn('pos_hardware')) activeKeys.add('iot')
+  if (isAppOn('crm_sales_pipeline') || isAppOn('crm') || isAppOn('queries_crm')) {
+    activeKeys.add('crm')
+  }
+
+  const isWhatsAppConfigured =
+    Boolean(tenant?.settings?.whatsappAccessToken && tenant?.settings?.whatsappPhoneNumberId) ||
+    tenant?.settings?.whatsappConnectionStatus === 'connected' ||
+    tenant?.settings?.whatsappQrConnected === true
+
+  if (isAppOn('whatsapp_cloud_auto') || isAppOn('whatsapp') || isWhatsAppConfigured) {
+    activeKeys.add('whatsapp')
+  }
+
+  if (
+    isAppOn('iot_devices') ||
+    isAppOn('payment_terminal') ||
+    isAppOn('thermal_printer_driver') ||
+    isAppOn('weight_scale_driver')
+  ) {
+    activeKeys.add('iot')
+  }
 
   return ALL_MODULE_DEFINITIONS.filter((m) => activeKeys.has(m.key))
 }
