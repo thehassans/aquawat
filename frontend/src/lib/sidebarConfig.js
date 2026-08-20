@@ -91,6 +91,8 @@ import {
 export function getNavSections({ language, t, tenant, businessTypes, govChildren }) {
   const si = tenant?.settings?.saudiIntegrations || {};
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR';
+  const isPkrCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'PKR';
+  const isBdtCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'BDT';
   const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1;
   const business = tenant?.business || {};
   const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country);
@@ -494,6 +496,23 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
         { path: '/app/dashboard/logistics', icon: Truck, label: language === 'ar' ? 'شركات الشحن' : 'Couriers & Labels', perm: { module: 'settings', action: 'read' } },
       ]
     },
+    ...(govChildrenResolved.length > 0
+      ? [
+          {
+            title: isPkrCurrencyTenant
+              ? (language === 'ar' ? 'الضرائب والفوترة FBR' : 'FBR Digital Invoicing')
+              : isBdtCurrencyTenant
+              ? (language === 'ar' ? 'الضرائب NBR / Mushak' : 'NBR Digital Invoicing')
+              : (language === 'ar' ? 'الربط الحكومي والفوترة' : 'Government & Compliance'),
+            items: govChildrenResolved.map((child) => ({
+              path: child.path,
+              icon: ShieldCheck,
+              label: child.label,
+              perm: { module: 'settings', action: 'read' },
+            })),
+          },
+        ]
+      : []),
     {
       title: language === 'ar' ? 'متجر التطبيقات' : 'App Store',
       items: [

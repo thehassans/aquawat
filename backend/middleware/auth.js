@@ -239,6 +239,7 @@ export const requireBusinessType = (...allowedTypes) => {
       const installedApps = req.tenant?.settings?.installedApps || {};
       const isAppInstalled = flatAllowed.some((type) => {
         if (type === 'gym' && (installedApps.gym_fitness_club?.isInstalled || installedApps.gym?.isInstalled)) return true;
+        if (type === 'marquee' && (installedApps.marquee_management?.isInstalled || installedApps.marquee?.isInstalled)) return true;
         if (installedApps[type]?.isInstalled) return true;
         return false;
       });

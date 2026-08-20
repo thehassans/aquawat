@@ -339,10 +339,20 @@ export default function AppLauncher() {
     return allApps.filter(app => app.label?.toLowerCase().includes(query))
   }, [allApps, searchQuery])
 
-  // Prevent background scrolling when open
+  // Prevent background scrolling when open and support ESC key
   useEffect(() => {
     if (appLauncherOpen) {
       document.body.style.overflow = 'hidden'
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          dispatch(setAppLauncherOpen(false))
+        }
+      }
+      window.addEventListener('keydown', handleKeyDown)
+      return () => {
+        document.body.style.overflow = ''
+        window.removeEventListener('keydown', handleKeyDown)
+      }
     } else {
       document.body.style.overflow = ''
       setSearchQuery('')
@@ -350,33 +360,17 @@ export default function AppLauncher() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [appLauncherOpen])
-
-  useEffect(() => {
-    // If the path changes, and we were navigating, close the launcher
-    if (appLauncherOpen && navigatingTo) {
-      dispatch(setAppLauncherOpen(false))
-      setNavigatingTo(null)
-    }
-  }, [location.pathname, appLauncherOpen, navigatingTo, dispatch])
+  }, [appLauncherOpen, dispatch])
 
   const handleAppClick = (path) => {
-    // When opening any page from here, shift to launcher mode so sidebar is hidden across screens
-    dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
-    dispatch(setHideSidebar(true))
+    dispatch(setAppLauncherOpen(false))
     dispatch(setMobileMenuOpen(false))
+    setNavigatingTo(null)
     
     if (path) {
-      // If we are already on the path, just close the launcher.
-      if (location.pathname === path) {
-        dispatch(setAppLauncherOpen(false))
-      } else {
-        // Show loading spinner on the icon, and wait for useEffect to close the launcher when route changes
-        setNavigatingTo(path)
+      if (location.pathname !== path) {
         navigate(path)
       }
-    } else {
-      dispatch(setAppLauncherOpen(false))
     }
   }
 
