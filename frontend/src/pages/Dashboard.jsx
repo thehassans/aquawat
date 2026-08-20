@@ -35,13 +35,26 @@ import {
   ExternalLink,
   Utensils,
   Car,
-  Hammer
+  Hammer,
+  Dumbbell,
+  Scissors,
+  Shirt,
+  ShoppingBag,
+  Store,
+  Pill,
+  Wrench,
+  BookOpen,
+  Globe,
+  MessageSquare,
+  QrCode,
+  CalendarDays
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
+import { isAppAccessValid } from '../lib/appStoreTrial'
 
 const DashboardCharts = lazy(() => import('../components/dashboard/DashboardCharts'))
 
@@ -55,13 +68,16 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const isAr = language === 'ar'
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
+  const isPkrCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'PKR'
+  const isBdtCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'BDT'
 
   const businessTypes = getTenantBusinessTypes(tenant)
   const isTrading = businessTypes.includes('trading')
-  const isRestaurant = businessTypes.includes('restaurant') || businessTypes.includes('food_beverage')
-  const isCarRental = businessTypes.includes('car_rental')
-  const isTravel = businessTypes.includes('travel_agency')
-  const isConstruction = businessTypes.includes('construction')
+  const isRestaurant = businessTypes.includes('restaurant') || businessTypes.includes('food_beverage') || Boolean(tenant?.settings?.installedApps?.restaurant_cafe?.isInstalled || tenant?.settings?.installedApps?.restaurant?.isInstalled)
+  const isCarRental = businessTypes.includes('car_rental') || Boolean(tenant?.settings?.installedApps?.car_rental?.isInstalled)
+  const isTravel = businessTypes.includes('travel_agency') || Boolean(tenant?.settings?.installedApps?.travel_agency?.isInstalled)
+  const isConstruction = businessTypes.includes('construction') || Boolean(tenant?.settings?.installedApps?.construction_projects?.isInstalled)
+  const isMarquee = businessTypes.includes('marquee') || Boolean(tenant?.settings?.installedApps?.marquee_management?.isInstalled || tenant?.settings?.installedApps?.marquee?.isInstalled)
   const mrpApp = tenant?.settings?.installedApps?.manufacturing_mes
   const isMrpInstalled = Boolean(mrpApp?.isInstalled && mrpApp?.isEnabled !== false)
 
@@ -175,6 +191,31 @@ export default function Dashboard() {
     enabled: isConstruction
   })
 
+  // Marquee Specific Stats & Appointments
+  const { data: marqueeStats } = useQuery({
+    queryKey: ['dashboard-marquee-stats'],
+    queryFn: () => api.get('/marquee/stats').then(res => res.data),
+    refetchInterval: DASHBOARD_REFRESH_MS,
+    retry: false,
+    enabled: isMarquee
+  })
+
+  const { data: marqueeAppointments = [] } = useQuery({
+    queryKey: ['dashboard-marquee-appointments'],
+    queryFn: () => api.get('/marquee/appointments').then(res => Array.isArray(res.data) ? res.data : []),
+    refetchInterval: DASHBOARD_REFRESH_MS,
+    retry: false,
+    enabled: isMarquee
+  })
+
+  const { data: marqueePackages = [] } = useQuery({
+    queryKey: ['dashboard-marquee-packages'],
+    queryFn: () => api.get('/marquee/packages').then(res => Array.isArray(res.data) ? res.data : []),
+    refetchInterval: DASHBOARD_REFRESH_MS,
+    retry: false,
+    enabled: isMarquee
+  })
+
   const payrollPaidNet = (dashboard?.payroll?.stats || []).find((s) => s._id === 'paid')?.totalNet || 0
   const openPoCount = poStats?.totals?.[0]?.openCount || 0
   const inTransitShipments = shipmentStats?.totals?.[0]?.inTransit || 0
@@ -240,12 +281,12 @@ export default function Dashboard() {
             label: isAr ? 'طلبات شراء مفتوحة' : 'Open Purchase Orders',
             value: openPoCount,
             icon: ShoppingCart,
-            color: 'from-sky-500 to-sky-600',
-            change: isAr ? 'تحت التنفيذ' : 'In progress',
+            color: 'from-emerald-500 to-emerald-600',
+            change: isAr ? 'تحت المعالجة' : 'In process',
             positive: true
           },
           {
-            label: isAr ? 'شحنات قيد النقل' : 'Shipments In Transit',
+            label: isAr ? 'شحنات قيد التوصيل' : 'In-Transit Shipments',
             value: inTransitShipments,
             icon: Truck,
             color: 'from-indigo-500 to-indigo-600',
@@ -270,6 +311,43 @@ export default function Dashboard() {
                 positive: true
               }]
             : []),
+        ]
+      : []),
+    ...(isMarquee
+      ? [
+          {
+            label: isAr ? 'حجوزات القاعات القادمة' : 'Upcoming Marquee Events',
+            value: marqueeStats?.upcomingEvents || 0,
+            icon: Calendar,
+            color: 'from-emerald-500 to-teal-600',
+            change: isAr ? `${marqueeStats?.monthBookings || 0} هذا الشهر` : `${marqueeStats?.monthBookings || 0} this month`,
+            positive: true
+          },
+          {
+            label: isAr ? 'إيرادات الحجوزات (الشهر)' : 'Banquet Revenue (Month)',
+            value: marqueeStats?.monthRevenue || 0,
+            format: 'currency',
+            icon: Wallet,
+            color: 'from-amber-500 to-emerald-600',
+            change: isAr ? `مقدم: ${marqueeStats?.monthAdvanceReceived || 0}` : `Advance: ${marqueeStats?.monthAdvanceReceived || 0}`,
+            positive: true
+          },
+          {
+            label: isAr ? 'باقات المناسبات النشطة' : 'Active Event Packages',
+            value: marqueeStats?.activePackages || marqueePackages.length || 0,
+            icon: Boxes,
+            color: 'from-purple-500 to-indigo-600',
+            change: isAr ? 'باقات جاهزة' : 'Ready Menu',
+            positive: true
+          },
+          {
+            label: isAr ? 'إجمالي الضيوف المتوقعين' : 'Month Event Guests',
+            value: marqueeStats?.monthTotalGuests || 0,
+            icon: Users,
+            color: 'from-sky-500 to-blue-600',
+            change: isAr ? 'سعة مناسبات' : 'Capacity',
+            positive: true
+          },
         ]
       : []),
     ...(isRestaurant
@@ -338,7 +416,293 @@ export default function Dashboard() {
           },
         ]
       : []),
-  ], [dashboard, payrollPaidNet, openPoCount, inTransitShipments, overdueTasks, mrpSuggestions, isTrading, isMrpInstalled, isRestaurant, restaurantStats, isCarRental, carRentalStats, isTravel, travelStats, isConstruction, projectStats, isAr, t])
+  ], [dashboard, payrollPaidNet, openPoCount, inTransitShipments, overdueTasks, mrpSuggestions, isTrading, isMrpInstalled, isMarquee, marqueeStats, marqueePackages, isRestaurant, restaurantStats, isCarRental, carRentalStats, isTravel, travelStats, isConstruction, projectStats, isAr, t])
+
+  const installedAppsList = useMemo(() => {
+    const apps = tenant?.settings?.installedApps || {}
+    const list = []
+
+    const addIf = (condition, item) => {
+      if (condition && !list.some(x => x.id === item.id)) {
+        list.push(item)
+      }
+    }
+
+    addIf(
+      isMarquee,
+      {
+        id: 'marquee_management',
+        nameEn: 'Marquee & Events',
+        nameAr: 'قاعات ومناسبات',
+        descEn: 'Banquet & packages',
+        descAr: 'باقات وحجوزات القاعات',
+        route: '/app/dashboard/marquee/packages',
+        icon: Boxes,
+      }
+    )
+
+    addIf(
+      isRestaurant,
+      {
+        id: 'restaurant_cafe',
+        nameEn: 'Restaurant & POS',
+        nameAr: 'المطاعم والمقاهي',
+        descEn: 'Orders & kitchen POS',
+        descAr: 'الطلبات والمطبخ',
+        route: '/app/dashboard/restaurant',
+        icon: Utensils,
+      }
+    )
+
+    addIf(
+      isPkrCurrencyTenant || isAppAccessValid(apps.pakistan_fbr_einvoicing),
+      {
+        id: 'pakistan_fbr_einvoicing',
+        nameEn: 'FBR Digital Invoicing',
+        nameAr: 'بوابة FBR للفوترة',
+        descEn: 'Pakistan FBR Compliance',
+        descAr: 'الامتثال الضريبي الرقمي',
+        route: '/app/dashboard/tenant-settings/fbr-dashboard',
+        icon: ShieldCheck,
+      }
+    )
+
+    addIf(
+      isBdtCurrencyTenant || isAppAccessValid(apps.bangladesh_nbr_einvoicing),
+      {
+        id: 'bangladesh_nbr_einvoicing',
+        nameEn: 'NBR / Mushak Portal',
+        nameAr: 'بوابة NBR / Mushak',
+        descEn: 'Bangladesh NBR Compliance',
+        descAr: 'الامتثال الضريبي لبنغلاديش',
+        route: '/app/dashboard/tenant-settings/nbr-dashboard',
+        icon: ShieldCheck,
+      }
+    )
+
+    addIf(
+      isSarCurrencyTenant && isAppAccessValid(apps.zatca_phase2_pro),
+      {
+        id: 'zatca_phase2_pro',
+        nameEn: 'ZATCA Portal',
+        nameAr: 'بوابة زاتكا',
+        descEn: 'Saudi Phase 2 E-Invoicing',
+        descAr: 'المرحلة الثانية للفوترة',
+        route: '/app/dashboard/tenant-settings/government-integrations/zatca',
+        icon: ShieldCheck,
+      }
+    )
+
+    addIf(
+      businessTypes.includes('gym') || isAppAccessValid(apps.gym_fitness_club),
+      {
+        id: 'gym_fitness_club',
+        nameEn: 'Gym & Fitness',
+        nameAr: 'النادي الرياضي',
+        descEn: 'Memberships & check-in',
+        descAr: 'الاشتراكات والدخول الذكي',
+        route: '/app/dashboard/gym/dashboard',
+        icon: Dumbbell,
+      }
+    )
+
+    addIf(
+      isMrpInstalled || businessTypes.includes('manufacturing') || isAppAccessValid(apps.manufacturing_mes),
+      {
+        id: 'manufacturing_mes',
+        nameEn: 'Manufacturing & MES',
+        nameAr: 'التصنيع والإنتاج',
+        descEn: 'BOM, MRP II & shop floor',
+        descAr: 'شجرة المواد وتخطيط الإنتاج',
+        route: '/app/dashboard/manufacturing',
+        icon: Factory,
+      }
+    )
+
+    addIf(
+      isConstruction || isAppAccessValid(apps.construction_projects) || isAppAccessValid(apps.projects),
+      {
+        id: 'construction_projects',
+        nameEn: 'Projects & Contracts',
+        nameAr: 'المشاريع والمقاولات',
+        descEn: 'Project management',
+        descAr: 'إدارة وتكاليف المشاريع',
+        route: '/app/dashboard/projects',
+        icon: Hammer,
+      }
+    )
+
+    addIf(
+      isTravel || isAppAccessValid(apps.travel_agency),
+      {
+        id: 'travel_agency',
+        nameEn: 'Travel Agency',
+        nameAr: 'وكالة السفر',
+        descEn: 'Bookings & itineraries',
+        descAr: 'حجوزات التذاكر والرحلات',
+        route: '/app/dashboard/travel',
+        icon: Plane,
+      }
+    )
+
+    addIf(
+      isCarRental || isAppAccessValid(apps.car_rental),
+      {
+        id: 'car_rental',
+        nameEn: 'Car Rental',
+        nameAr: 'تأجير السيارات',
+        descEn: 'Fleet & contracts',
+        descAr: 'إدارة الأسطول والعقود',
+        route: '/app/dashboard/rental',
+        icon: Car,
+      }
+    )
+
+    addIf(
+      businessTypes.includes('laundry') || isAppAccessValid(apps.laundry_cleaning),
+      {
+        id: 'laundry_cleaning',
+        nameEn: 'Laundry & Cleaning',
+        nameAr: 'المغاسل والتنظيف',
+        descEn: 'Laundry POS',
+        descAr: 'نقاط بيع وتسليم الملابس',
+        route: '/app/dashboard/laundry',
+        icon: Shirt,
+      }
+    )
+
+    addIf(
+      businessTypes.includes('saloon') || isAppAccessValid(apps.saloon_barber),
+      {
+        id: 'saloon_barber',
+        nameEn: 'Saloon & Spa',
+        nameAr: 'الصالون والسبا',
+        descEn: 'Saloon & barber POS',
+        descAr: 'المواعيد وخدمات الصالون',
+        route: '/app/dashboard/saloon',
+        icon: Scissors,
+      }
+    )
+
+    addIf(
+      businessTypes.includes('khayyat') || isAppAccessValid(apps.tailor_khayyat),
+      {
+        id: 'tailor_khayyat',
+        nameEn: 'Tailor & Atelier',
+        nameAr: 'الخياط والمشغل',
+        descEn: 'Measurements & tailoring',
+        descAr: 'المقاسات وتفصيل الأقمشة',
+        route: '/app/dashboard/khayyat',
+        icon: Scissors,
+      }
+    )
+
+    addIf(
+      businessTypes.includes('boutique') || isAppAccessValid(apps.boutique_rental),
+      {
+        id: 'boutique_rental',
+        nameEn: 'Boutique & Rental',
+        nameAr: 'البوتيك وتأجير الفساتين',
+        descEn: 'Dress bookings',
+        descAr: 'حجوزات وتأجير الفساتين',
+        route: '/app/dashboard/boutique',
+        icon: ShoppingBag,
+      }
+    )
+
+    addIf(
+      businessTypes.includes('bakala') || isAppAccessValid(apps.bakala_supermarket),
+      {
+        id: 'bakala_supermarket',
+        nameEn: 'Bakala & Supermarket',
+        nameAr: 'البقالة والسوبرماركت',
+        descEn: 'Barcode scanning POS',
+        descAr: 'نقطة بيع سريعة مع الباركود',
+        route: '/app/dashboard/bakala',
+        icon: Store,
+      }
+    )
+
+    addIf(
+      businessTypes.includes('pharmacy') || isAppAccessValid(apps.pharmacy),
+      {
+        id: 'pharmacy',
+        nameEn: 'Pharmacy POS',
+        nameAr: 'الصيدلية والأدوية',
+        descEn: 'Prescriptions & expiry logs',
+        descAr: 'الوصفات وتواريخ الصلاحية',
+        route: '/app/dashboard/pharmacy',
+        icon: Pill,
+      }
+    )
+
+    addIf(
+      businessTypes.includes('car_workshop') || isAppAccessValid(apps.car_workshop),
+      {
+        id: 'car_workshop',
+        nameEn: 'Car Workshop',
+        nameAr: 'مركز صيانة السيارات',
+        descEn: 'Job cards & repair quotes',
+        descAr: 'بطاقات الإصلاح والتقديرات',
+        route: '/app/dashboard/workshop',
+        icon: Wrench,
+      }
+    )
+
+    addIf(
+      businessTypes.includes('bookstore') || isAppAccessValid(apps.bookstore_stationery),
+      {
+        id: 'bookstore_stationery',
+        nameEn: 'Bookstore & POS',
+        nameAr: 'المكتبة والقرطاسية',
+        descEn: 'Books & stationery POS',
+        descAr: 'الكتب والقرطاسية والباركود',
+        route: '/app/dashboard/bookstore',
+        icon: BookOpen,
+      }
+    )
+
+    addIf(
+      businessTypes.includes('ecommerce') || isAppAccessValid(apps.ecommerce_store),
+      {
+        id: 'ecommerce_store',
+        nameEn: 'E-Commerce Store',
+        nameAr: 'المتجر الإلكتروني',
+        descEn: 'Online storefront',
+        descAr: 'المتجر الإلكتروني وبوابات الدفع',
+        route: '/app/dashboard/ecommerce',
+        icon: Globe,
+      }
+    )
+
+    addIf(
+      isAppAccessValid(apps.whatsapp_cloud_auto),
+      {
+        id: 'whatsapp_cloud_auto',
+        nameEn: 'WhatsApp Cloud',
+        nameAr: 'واتساب السحابي',
+        descEn: 'Automated invoice notifications',
+        descAr: 'إرسال الفواتير والإشعارات',
+        route: '/app/dashboard/communicate/whatsapp',
+        icon: MessageSquare,
+      }
+    )
+
+    addIf(
+      isAppAccessValid(apps.crm_sales_pipeline),
+      {
+        id: 'crm_sales_pipeline',
+        nameEn: 'CRM & Pipeline',
+        nameAr: 'إدارة العملاء CRM',
+        descEn: 'Leads & pipeline',
+        descAr: 'متابعة الصفقات والعملاء',
+        route: '/app/dashboard/crm',
+        icon: TrendingUp,
+      }
+    )
+
+    return list
+  }, [tenant, businessTypes, isMarquee, isRestaurant, isPkrCurrencyTenant, isBdtCurrencyTenant, isSarCurrencyTenant, isMrpInstalled, isConstruction, isTravel, isCarRental])
 
   const zatcaStatusData = dashboard?.invoices?.zatcaStatus?.map(s => ({
     name: s._id || 'Pending',
@@ -494,7 +858,98 @@ export default function Dashboard() {
               </div>
             </motion.div>
 
-            {/* Removed Installed Apps Live Command Grid as per user request to use unified KPIs */}
+            {/* Installed Apps & Active Workspace Modules */}
+            {installedAppsList.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-[#0c111a]"
+              >
+                <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-slate-100 dark:border-white/5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-black text-slate-900 dark:text-white">
+                        {isAr ? 'التطبيقات والأنظمة المثبتة' : 'Installed Apps & Modules'}
+                      </h2>
+                      <p className="text-[11px] text-slate-400">
+                        {isAr ? 'وصول مباشر وسريع للأنظمة المثبتة في مساحة العمل' : 'Quick launch & operational access for your installed apps'}
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    to="/app/dashboard/app-store"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline dark:text-emerald-400"
+                  >
+                    <span>{isAr ? 'متجر التطبيقات' : 'App Store'}</span>
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {installedAppsList.map((app) => (
+                    <Link
+                      key={app.id}
+                      to={app.route}
+                      className="group relative flex flex-col items-center justify-between rounded-2xl border border-slate-200/70 bg-slate-50/60 p-3.5 text-center transition-all hover:border-emerald-500/50 hover:bg-white hover:shadow-md dark:border-white/5 dark:bg-dark-800/60 dark:hover:bg-dark-700/80"
+                    >
+                      <div className="relative mb-2 flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-xs group-hover:scale-110 transition-transform dark:bg-dark-900">
+                        <app.icon className="h-5 w-5 text-slate-800 dark:text-white" />
+                        <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-dark-800" />
+                      </div>
+                      <span className="line-clamp-1 text-xs font-bold text-slate-800 group-hover:text-emerald-600 dark:text-slate-200 dark:group-hover:text-emerald-400">
+                        {isAr ? app.nameAr : app.nameEn}
+                      </span>
+                      <span className="mt-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9.5px] font-bold text-emerald-700 dark:text-emerald-300">
+                        {isAr ? 'نشط' : 'Active'}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Pakistan FBR Compliance Quick Banner */}
+            {isPkrCurrencyTenant && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-3xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/40 via-emerald-900/20 to-teal-950/40 p-5 shadow-sm text-white"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/30">
+                      <ShieldCheck className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-black text-white">
+                          {isAr ? 'الفوترة الإلكترونية FBR باكستان' : 'FBR Digital Invoicing'}
+                        </h3>
+                        <span className="rounded-full bg-emerald-500/20 border border-emerald-400/30 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                          {tenant?.fbr?.environment === 'production' ? 'Production' : 'Sandbox Mode'}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-emerald-200/80">
+                        {tenant?.fbr?.ntn ? `NTN: ${tenant.fbr.ntn} ${tenant?.fbr?.strn ? `• STRN: ${tenant.fbr.strn}` : ''}` : (isAr ? 'يرجى إكمال تهيئة بيانات NTN والربط الفيدرالي' : 'Configure NTN and digital tax credentials')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5">
+                    <Link
+                      to="/app/dashboard/tenant-settings/fbr-dashboard"
+                      className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition"
+                    >
+                      <span>{isAr ? 'لوحة تحكم FBR' : 'Open FBR Portal'}</span>
+                      <ArrowUpRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
             {/* Master Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
@@ -534,6 +989,166 @@ export default function Dashboard() {
                 zatcaStatusLabel={t('zatcaStatus')}
               />
             </Suspense>
+
+            {/* Marquee & Banquet Management Operations Hub */}
+            {isMarquee && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-3xl border border-amber-500/20 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#0c111a] space-y-5"
+              >
+                {/* Section Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100 dark:border-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      <Boxes className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-black text-slate-900 dark:text-white">
+                          {isAr ? 'إدارة قاعات الأفراح والمناسبات' : 'Marquee & Banquet Management'}
+                        </h3>
+                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                          {marqueeAppointments.length} {isAr ? 'حجز مسجل' : 'Bookings'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400">
+                        {isAr ? 'متابعة حجوزات القاعات، باقات الأطعمة، وقوائم الطاولات الرقمية' : 'Live overview of hall appointments, per-head packages & digital QR menu'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      to="/app/dashboard/marquee/packages"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200 transition"
+                    >
+                      <Boxes className="h-3.5 w-3.5 text-amber-600" />
+                      <span>{isAr ? 'الباقات' : 'Packages'}</span>
+                    </Link>
+                    <Link
+                      to="/app/dashboard/marquee/appointments"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200 transition"
+                    >
+                      <CalendarDays className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>{isAr ? 'الحجوزات والتقويم' : 'Bookings & Calendar'}</span>
+                    </Link>
+                    <Link
+                      to="/app/dashboard/marquee/qr-menu"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200 transition"
+                    >
+                      <QrCode className="h-3.5 w-3.5 text-blue-600" />
+                      <span>{isAr ? 'قائمة QR' : 'Table QR Menu'}</span>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Bookings & Packages Bento Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                  {/* Upcoming Bookings Table (7 cols) */}
+                  <div className="lg:col-span-7 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        {isAr ? 'أحدث حجوزات المناسبات' : 'Upcoming Event Bookings'}
+                      </h4>
+                      <Link to="/app/dashboard/marquee/appointments" className="text-[11px] font-bold text-emerald-600 hover:underline">
+                        {isAr ? 'عرض الكل' : 'View All'} →
+                      </Link>
+                    </div>
+
+                    {marqueeAppointments.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-400 dark:border-white/10">
+                        <Calendar className="mx-auto h-8 w-8 opacity-40 mb-2" />
+                        <p className="font-bold text-slate-700 dark:text-slate-300">{isAr ? 'لا توجد حجوزات مناسبات مسجلة بعد' : 'No Marquee Bookings Scheduled'}</p>
+                        <Link to="/app/dashboard/marquee/appointments" className="mt-2 inline-block font-bold text-emerald-600">
+                          {isAr ? '+ حجز قاعة جديد' : '+ Book First Event'}
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {marqueeAppointments.slice(0, 4).map((b) => (
+                          <div key={b._id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-white/5 dark:bg-dark-800/60 transition hover:border-slate-300">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-800 font-black text-xs dark:bg-amber-500/10 dark:text-amber-300">
+                                {b.hallName ? b.hallName.charAt(0).toUpperCase() : 'H'}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-bold text-xs text-slate-900 dark:text-white">{b.title || b.clientName}</p>
+                                  <span className="rounded-md bg-slate-200/70 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                                    {b.hallName || 'Main Hall'}
+                                  </span>
+                                </div>
+                                <p className="mt-0.5 text-[11px] text-slate-400">
+                                  {new Date(b.eventDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-US')} • {b.eventShift || 'Evening'} • {b.guestCount || 0} {isAr ? 'ضيف' : 'guests'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="text-end">
+                              <p className="text-xs font-black text-slate-900 dark:text-white font-mono">
+                                <Money value={b.totalAmount || 0} />
+                              </p>
+                              <span className={`inline-block mt-0.5 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${
+                                b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' :
+                                b.status === 'advance_paid' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400' :
+                                'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'
+                              }`}>
+                                {b.status || 'Pending'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Packages Showcase (5 cols) */}
+                  <div className="lg:col-span-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        {isAr ? 'باقات المناسبات الجاهزة' : 'Available Banquet Packages'}
+                      </h4>
+                      <Link to="/app/dashboard/marquee/packages" className="text-[11px] font-bold text-amber-600 hover:underline">
+                        {isAr ? 'إدارة الباقات' : 'Manage'} →
+                      </Link>
+                    </div>
+
+                    {marqueePackages.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-400 dark:border-white/10">
+                        <Boxes className="mx-auto h-8 w-8 opacity-40 mb-2" />
+                        <p className="font-bold text-slate-700 dark:text-slate-300">{isAr ? 'لم يتم إنشاء أي باقة بعد' : 'No Packages Created'}</p>
+                        <Link to="/app/dashboard/marquee/packages" className="mt-2 inline-block font-bold text-amber-600">
+                          {isAr ? '+ إنشاء باقة جديدة' : '+ Create Package'}
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {marqueePackages.slice(0, 3).map((pkg) => (
+                          <div key={pkg._id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-white/5 dark:bg-dark-800/60">
+                            <div className="flex items-center gap-2.5">
+                              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300">
+                                <Sparkles className="h-4 w-4" />
+                              </span>
+                              <div>
+                                <p className="text-xs font-bold text-slate-900 dark:text-white">{isAr ? pkg.nameAr || pkg.name : pkg.name}</p>
+                                <p className="text-[10px] text-slate-400 capitalize">{pkg.category} • {pkg.items?.length || 0} items</p>
+                              </div>
+                            </div>
+                            <div className="text-end">
+                              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                                <Money value={pkg.ratePerHead} />
+                              </span>
+                              <p className="text-[9px] text-slate-400">/ {isAr ? 'شخص' : 'head'}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
             {/* Bottom Row: Recent Invoices & Expiring Documents */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

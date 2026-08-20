@@ -62,6 +62,8 @@ export function getPreferredAppIds(tenant) {
 
   if (market === 'pakistan') {
     return [
+      'marquee_management',
+      'restaurant_cafe',
       'pakistan_fbr_einvoicing',
       'invoice_template_2',
       'whatsapp_cloud_auto',
@@ -69,7 +71,6 @@ export function getPreferredAppIds(tenant) {
       'sms_marketing',
       'thermal_printer_driver',
       'bakala_supermarket',
-      'restaurant_cafe',
       'ecommerce_store',
       'crm_sales_pipeline',
       'hr_payroll_pro',
@@ -78,9 +79,11 @@ export function getPreferredAppIds(tenant) {
   }
 
   return [
-      'invoice_template_2',
-      'invoice_template_3',
-      'whatsapp_cloud_auto',
+    'marquee_management',
+    'restaurant_cafe',
+    'invoice_template_2',
+    'invoice_template_3',
+    'whatsapp_cloud_auto',
     'email_suite',
     'sms_marketing',
     'thermal_printer_driver',
