@@ -99,12 +99,14 @@ export default function ZatcaHealthPanel() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-500">{t('Phase', 'المرحلة')}</span>
-              <span className="font-medium text-gray-900 dark:text-white">Phase {health.tenant.phase}</span>
+              <span className="font-medium text-gray-900 dark:text-white">
+                {health.tenant.phase === 1 ? 'Phase 1 (Standard TLV)' : `Phase ${health.tenant.phase}`}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">{t('Onboarded', 'تم الربط')}</span>
               <span className={`font-medium ${health.tenant.isOnboarded ? 'text-emerald-600' : 'text-gray-400'}`}>
-                {health.tenant.isOnboarded ? t('Yes', 'نعم') : t('No', 'لا')}
+                {health.tenant.phase === 1 ? t('Phase 1 Active', 'مفعّل (المرحلة 1)') : (health.tenant.isOnboarded ? t('Yes', 'نعم') : t('No', 'لا'))}
               </span>
             </div>
             <div className="flex justify-between">
@@ -112,9 +114,9 @@ export default function ZatcaHealthPanel() {
               <span className="font-medium text-gray-900 dark:text-white capitalize">{health.tenant.environment}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">{t('Key Encrypted', 'المفتاح مشفر')}</span>
+              <span className="text-gray-500">{health.tenant.phase === 1 ? t('QR Engine', 'محرك QR') : t('Key Encrypted', 'المفتاح مشفر')}</span>
               <span className={`font-medium ${health.tenant.keyEncrypted ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {health.tenant.keyEncrypted ? t('Yes', 'نعم') : t('No', 'لا')}
+                {health.tenant.phase === 1 ? t('TLV Ready', 'جاهز (TLV)') : (health.tenant.keyEncrypted ? t('Yes', 'نعم') : t('No', 'لا'))}
               </span>
             </div>
             {health.tenant.onboardedAt && (
@@ -149,8 +151,8 @@ export default function ZatcaHealthPanel() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">{t('Status', 'الحالة')}</span>
-                <span className={`font-medium capitalize ${health.lastInvoice.zatca?.submissionStatus === 'reported' || health.lastInvoice.zatca?.submissionStatus === 'cleared' ? 'text-emerald-600' : health.lastInvoice.zatca?.submissionStatus === 'failed' || health.lastInvoice.zatca?.submissionStatus === 'rejected' ? 'text-red-600' : 'text-amber-600'}`}>
-                  {health.lastInvoice.zatca?.submissionStatus || 'pending'}
+                <span className={`font-medium capitalize ${health.tenant.phase === 1 || health.lastInvoice.zatca?.submissionStatus === 'reported' || health.lastInvoice.zatca?.submissionStatus === 'cleared' ? 'text-emerald-600' : health.lastInvoice.zatca?.submissionStatus === 'failed' || health.lastInvoice.zatca?.submissionStatus === 'rejected' ? 'text-red-600' : 'text-amber-600'}`}>
+                  {health.tenant.phase === 1 ? t('Phase 1 Compliant (QR)', 'متوافقة (المرحلة 1)') : (health.lastInvoice.zatca?.submissionStatus || 'pending')}
                 </span>
               </div>
               {health.qrIntegrity && (

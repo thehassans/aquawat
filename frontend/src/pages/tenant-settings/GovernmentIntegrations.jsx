@@ -12,9 +12,10 @@ import { updateTenant } from '../../store/slices/authSlice'
 import {
   Shield, Key, Lock, Users, Server, Globe, ExternalLink,
   CheckCircle2, AlertTriangle, AlertCircle, RefreshCw,
-  Building, Sliders, Play, Check, X, FileText, WifiOff, HelpCircle, Eye
+  Building, Sliders, Play, Check, X, FileText, WifiOff, HelpCircle, Eye, ShoppingBag
 } from 'lucide-react'
 import ZatcaHealthPanel from '../../components/zatca/ZatcaHealthPanel'
+import { isAppAccessValid } from '../../lib/appStoreTrial'
 
 // ── ZOD VALIDATION SCHEMA (Saudi Structural Rules) ───────────────────────────
 const schema = z.object({
@@ -418,14 +419,22 @@ export default function GovernmentIntegrations() {
     }
   }
 
-  // Tabs mapping config
+  const installedApps = tenant?.settings?.installedApps || {}
+  const hasElmApp = isAppAccessValid(installedApps.elm_identity_pro) || isAppAccessValid(installedApps.car_rental) || isAppAccessValid(installedApps.car_rental_management) || tenant?.settings?.saudiIntegrations?.elmConnectionStatus === 'connected' || config?.elm?.connectionStatus === 'connected'
+  const hasQiwaApp = isAppAccessValid(installedApps.qiwa_hr_integration) || isAppAccessValid(installedApps.manpower_agency) || tenant?.settings?.saudiIntegrations?.qiwaConnectionStatus === 'connected' || config?.qiwa?.connectionStatus === 'connected'
+  const hasGosiApp = isAppAccessValid(installedApps.gosi_mudad_compliance) || isAppAccessValid(installedApps.wps_payroll) || tenant?.settings?.saudiIntegrations?.gosiConnectionStatus === 'connected' || config?.gosi?.connectionStatus === 'connected'
+  const hasIndustryApp = isAppAccessValid(installedApps.balady_municipal) || isAppAccessValid(installedApps.saber_conformity) || isAppAccessValid(installedApps.etimad_procurement) || hasIndustrySpecificConfig()
+
+  // Tabs mapping config — only display integrations that exist in the tenant's installed apps
   const tabs = [
-    { id: 'zatca', label: t('ZATCA (Fatoora)', 'هيئة الزكاة (فاتورة)'), icon: Shield, highlight: industryType === 'trading' || industryType === 'restaurant' || industryType === 'bakala' },
-    { id: 'elm', label: t('Elm / Yakeen / Tamm', 'علم / يقين / تم'), icon: Key, highlight: industryType === 'car_rental' },
-    { id: 'qiwa', label: t('Qiwa & MHRSD', 'قوى والموارد البشرية'), icon: Users, highlight: industryType === 'construction' || industryType === 'manpower' },
-    { id: 'gosi', label: t('GOSI & Mudad (WPS)', 'التأمينات ومدد (WPS)'), icon: Building, highlight: industryType === 'construction' || industryType === 'manpower' },
-    { id: 'industry', label: t('Industry Specific', 'خاص بالقطاع'), icon: Sliders, highlight: true }
+    { id: 'zatca', label: t('ZATCA (Fatoora)', 'هيئة الزكاة (فاتورة)'), icon: Shield, highlight: true },
+    ...(hasElmApp ? [{ id: 'elm', label: t('Elm / Yakeen / Tamm', 'علم / يقين / تم'), icon: Key, highlight: industryType === 'car_rental' }] : []),
+    ...(hasQiwaApp ? [{ id: 'qiwa', label: t('Qiwa & MHRSD', 'قوى والموارد البشرية'), icon: Users, highlight: industryType === 'construction' || industryType === 'manpower' }] : []),
+    ...(hasGosiApp ? [{ id: 'gosi', label: t('GOSI & Mudad (WPS)', 'التأمينات ومدد (WPS)'), icon: Building, highlight: industryType === 'construction' || industryType === 'manpower' }] : []),
+    ...(hasIndustryApp ? [{ id: 'industry', label: t('Industry Specific', 'خاص بالقطاع'), icon: Sliders, highlight: false }] : []),
   ]
+
+  const selectedTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : 'zatca'
 
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   if (!isSarCurrencyTenant) {
@@ -597,7 +606,7 @@ export default function GovernmentIntegrations() {
             {tabs.map((tab) => {
               const Icon = tab.icon
               const status = getStatus(tab.id)
-              const isSelected = activeTab === tab.id
+              const isSelected = selectedTab === tab.id
               
               return (
                 <button
@@ -638,6 +647,25 @@ export default function GovernmentIntegrations() {
               )
             })}
           </div>
+
+          <div className="mt-4 p-3.5 rounded-2xl bg-gradient-to-br from-primary-50/70 to-emerald-50/70 dark:from-dark-800 dark:to-dark-750 border border-primary-100 dark:border-dark-650 text-xs space-y-2">
+            <div className="flex items-center gap-2 text-gray-800 dark:text-white font-bold">
+              <ShoppingBag className="w-4 h-4 text-primary-600" />
+              <span>{t('Need More Integrations?', 'هل تحتاج تكاملات إضافية؟')}</span>
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 text-[11px] leading-relaxed">
+              {t(
+                'Install Elm (Yakeen/Tamm), Qiwa, GOSI/Mudad, or municipal platforms from the App Store.',
+                'قم بتثبيت بوابات علم (يقين/تم)، قوى، التأمينات/مدد أو البلدية من متجر التطبيقات.'
+              )}
+            </p>
+            <Link
+              to="/app/dashboard/app-store?category=government_saudi"
+              className="inline-flex items-center gap-1 font-bold text-primary-600 dark:text-primary-400 hover:underline text-[11px] pt-1"
+            >
+              {t('Browse App Store →', 'تصفح متجر التطبيقات ←')}
+            </Link>
+          </div>
         </div>
 
         {/* MAIN CONFIGURATION FORMS */}
@@ -645,7 +673,7 @@ export default function GovernmentIntegrations() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <fieldset disabled={user?.role !== 'super_admin' && user?.role !== 'superadmin' && user?.role !== 'admin'} className="space-y-6">
             {/* TAB CONTENT: ZATCA */}
-            {activeTab === 'zatca' && (
+            {selectedTab === 'zatca' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card p-6 space-y-6">
                 <div className="border-b border-gray-150 dark:border-dark-750 pb-4">
                   <div className="flex items-center justify-between">
@@ -824,7 +852,7 @@ export default function GovernmentIntegrations() {
             )}
 
             {/* TAB CONTENT: ELM (Yakeen, Tamm, NAJM, Wathiq, SMS) */}
-            {activeTab === 'elm' && (
+            {selectedTab === 'elm' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 
                 {/* 1. Elm DevPortal (Yakeen) */}
@@ -1205,7 +1233,7 @@ export default function GovernmentIntegrations() {
             )}
 
             {/* TAB CONTENT: QIWA */}
-            {activeTab === 'qiwa' && (
+            {selectedTab === 'qiwa' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card p-6 space-y-6">
                 <div className="border-b border-gray-150 dark:border-dark-750 pb-4">
                   <div className="flex items-center justify-between">
@@ -1296,7 +1324,7 @@ export default function GovernmentIntegrations() {
             )}
 
             {/* TAB CONTENT: GOSI / MUDAD */}
-            {activeTab === 'gosi' && (
+            {selectedTab === 'gosi' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card p-6 space-y-6">
                 <div className="border-b border-gray-150 dark:border-dark-750 pb-4">
                   <div className="flex items-center justify-between">
@@ -1375,7 +1403,7 @@ export default function GovernmentIntegrations() {
             )}
 
             {/* TAB CONTENT: INDUSTRY SPECIFIC */}
-            {activeTab === 'industry' && (
+            {selectedTab === 'industry' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card p-6 space-y-6">
                 <div className="border-b border-gray-150 dark:border-dark-750 pb-4">
                   <h3 className="text-xl font-bold flex items-center gap-2">
