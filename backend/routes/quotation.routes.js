@@ -16,6 +16,7 @@ import { tenantHasEmailAddon } from '../middleware/auth.js';
 import { normalizeProductType, stampLineProductTypes } from '../utils/productType.js';
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
 import { getWhatsAppConfig } from '../services/whatsappCloudService.js';
+import { recordUserActivity } from '../utils/auditLogger.js';
 
 const router = express.Router();
 
@@ -464,6 +465,21 @@ router.post('/', checkTrialLimits('quotations'), checkPermission('invoicing', 'c
 
     const enrichedQuotationData = await enrichInvoiceArabicFields(quotationData);
     const quotation = await Quotation.create(enrichedQuotationData);
+
+    recordUserActivity(req, {
+      action: 'create',
+      module: 'quotations',
+      resourceType: 'Quotation',
+      resourceId: quotation._id,
+      resourceName: quotation.quotationNumber,
+      description: `Created quotation ${quotation.quotationNumber} (${quotation.grandTotal} SAR)`,
+      descriptionAr: `أنشأ عرض سعر رقم ${quotation.quotationNumber} بقيمة ${quotation.grandTotal} ريال`,
+      details: {
+        total: quotation.grandTotal,
+        customerName: quotation.buyer?.name || quotation.buyer?.nameAr,
+      },
+    }).catch(() => {});
+
     res.status(201).json(quotation);
   } catch (error) {
     const statusCode = /invalid|not found/i.test(error.message) ? 400 : 500;

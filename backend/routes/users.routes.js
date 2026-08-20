@@ -1,10 +1,12 @@
 import express from 'express';
 import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
+import UserActivityLog from '../models/UserActivityLog.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { getTenantBusinessTypes } from '../utils/businessTypes.js';
 import { sendUserWelcomeEmail } from '../utils/tenantEmailService.js';
+import { recordUserActivity } from '../utils/auditLogger.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
@@ -20,17 +22,78 @@ const sanitizeUserForClient = (u) => {
   return rest;
 };
 
-const sanitizePermissionsForTenant = (permissions = [], tenant) => {
+export const getTenantPermissibleModules = (tenant) => {
   const businessTypes = getTenantBusinessTypes(tenant);
-  const blockedModules = new Set();
+  const installedApps = tenant?.settings?.installedApps || {};
+  const isAppOn = (key) => Boolean(installedApps[key]?.isInstalled && installedApps[key]?.isEnabled !== false);
 
-  if (!businessTypes.includes('travel_agency')) blockedModules.add('travel');
-  if (!businessTypes.includes('restaurant')) blockedModules.add('restaurant');
+  const modules = new Set(['invoicing', 'inventory', 'supply_chain', 'settings']);
 
-  return (Array.isArray(permissions) ? permissions : [])
-    .filter((permission) => permission?.module && !blockedModules.has(String(permission.module)));
+  // Finance / Accounting
+  modules.add('finance');
+
+  // Landed Costs
+  if (businessTypes.includes('trading') || businessTypes.includes('manufacturing')) {
+    modules.add('landed_costs');
+  }
+
+  // HR & Payroll
+  if (
+    businessTypes.includes('manpower') ||
+    isAppOn('hr_suite') ||
+    isAppOn('payroll') ||
+    tenant?.subscription?.features?.includes('hr')
+  ) {
+    modules.add('hr');
+    modules.add('payroll');
+  }
+
+  // Projects & Job Costing
+  if (
+    businessTypes.includes('construction') ||
+    businessTypes.includes('manpower') ||
+    isAppOn('projects') ||
+    isAppOn('job_costing')
+  ) {
+    modules.add('project_management');
+    modules.add('job_costing');
+  }
+
+  // Manufacturing / MRP
+  if (businessTypes.includes('manufacturing') || isAppOn('mrp_manufacturing')) {
+    modules.add('mrp');
+    modules.add('job_costing');
+  }
+
+  // Vertical suites
+  if (businessTypes.includes('restaurant') || isAppOn('restaurant_pos')) modules.add('restaurant');
+  if (businessTypes.includes('travel_agency') || isAppOn('travel_agency')) modules.add('travel');
+  if (businessTypes.includes('gym') || isAppOn('gym_fitness_club') || isAppOn('gym')) modules.add('gym');
+  if (businessTypes.includes('bakala') || isAppOn('bakala_pos')) modules.add('bakala');
+  if (businessTypes.includes('car_workshop') || isAppOn('car_workshop')) modules.add('car_workshop');
+  if (businessTypes.includes('car_rental') || isAppOn('car_rental')) modules.add('car_rental');
+  if (businessTypes.includes('laundry') || isAppOn('laundry_suite')) modules.add('laundry');
+  if (businessTypes.includes('boutique') || businessTypes.includes('khayyat')) modules.add('boutique');
+  if (businessTypes.includes('ecommerce') || isAppOn('ecommerce')) modules.add('ecommerce');
+
+  // Add-on Apps
+  if (isAppOn('crm') || isAppOn('queries_crm') || tenant?.settings?.crm?.enabled) modules.add('crm');
+  if (isAppOn('whatsapp_cloud_auto') || Boolean(tenant?.settings?.invoiceWhatsappAutoSend)) modules.add('whatsapp');
+  if (isAppOn('iot') || isAppOn('pos_hardware')) modules.add('iot');
+
+  return Array.from(modules);
 };
 
+const sanitizePermissionsForTenant = (permissions = [], tenant) => {
+  const allowed = new Set(getTenantPermissibleModules(tenant));
+
+  return (Array.isArray(permissions) ? permissions : []).filter(
+    (permission) => permission?.module && allowed.has(String(permission.module))
+  );
+};
+
+// @route   GET /api/users
+// @desc    Get all users for tenant
 router.get('/', checkPermission('settings', 'read'), async (req, res) => {
   try {
     const { page = 1, limit = 50, search, role, isActive } = req.query;
@@ -79,6 +142,8 @@ router.get('/', checkPermission('settings', 'read'), async (req, res) => {
   }
 });
 
+// @route   GET /api/users/stats
+// @desc    Get user counts & seat limits
 router.get('/stats', checkPermission('settings', 'read'), async (req, res) => {
   try {
     const tenantId = req.user?.tenantId;
@@ -100,6 +165,133 @@ router.get('/stats', checkPermission('settings', 'read'), async (req, res) => {
   }
 });
 
+// @route   GET /api/users/logs
+// @desc    Get audit and activity logs for tenant
+router.get('/logs', checkPermission('settings', 'read'), async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: 'No tenant context' });
+
+    const { page = 1, limit = 30, search, userId, module, action, startDate, endDate } = req.query;
+
+    const query = { tenantId };
+
+    if (userId) query.userId = userId;
+    if (module) query.module = module;
+    if (action) query.action = action;
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    if (search) {
+      const q = String(search).trim();
+      query.$or = [
+        { userName: { $regex: q, $options: 'i' } },
+        { userEmail: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } },
+        { descriptionAr: { $regex: q, $options: 'i' } },
+        { resourceName: { $regex: q, $options: 'i' } },
+      ];
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [logs, total] = await Promise.all([
+      UserActivityLog.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .lean(),
+      UserActivityLog.countDocuments(query),
+    ]);
+
+    res.json({
+      logs,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/users/logs/stats
+// @desc    Get activity summary metrics
+router.get('/logs/stats', checkPermission('settings', 'read'), async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: 'No tenant context' });
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [totalLogs, todayLogs, distinctUsersToday, topModules] = await Promise.all([
+      UserActivityLog.countDocuments({ tenantId }),
+      UserActivityLog.countDocuments({ tenantId, createdAt: { $gte: todayStart } }),
+      UserActivityLog.distinct('userId', { tenantId, createdAt: { $gte: todayStart } }),
+      UserActivityLog.aggregate([
+        { $match: { tenantId } },
+        { $group: { _id: '$module', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 6 },
+      ]),
+    ]);
+
+    res.json({
+      totalLogs,
+      todayLogs,
+      activeUsersToday: distinctUsersToday.length,
+      topModules,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/users/:id/logs
+// @desc    Get activity logs for specific user
+router.get('/:id/logs', checkPermission('settings', 'read'), async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: 'No tenant context' });
+
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const query = { tenantId, userId: req.params.id };
+
+    const [logs, total] = await Promise.all([
+      UserActivityLog.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .lean(),
+      UserActivityLog.countDocuments(query),
+    ]);
+
+    res.json({
+      logs,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/users
+// @desc    Create a new user with tenant-specific permissions
 router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'), async (req, res) => {
   try {
     const tenantId = req.user?.tenantId;
@@ -123,7 +315,8 @@ router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'
     const sendWelcomeEmail = req.body?.sendWelcomeEmail !== false;
 
     if (!email) return res.status(400).json({ error: 'Email is required' });
-    if (!password || password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (!password || password.length < 6)
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
     if (!firstName) return res.status(400).json({ error: 'First name is required' });
     if (!lastName) return res.status(400).json({ error: 'Last name is required' });
 
@@ -161,6 +354,19 @@ router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'
     });
 
     const saved = await User.findById(created._id).select('-password');
+
+    // Audit log
+    await recordUserActivity(req, {
+      action: 'create',
+      module: 'users',
+      resourceType: 'User',
+      resourceId: saved._id,
+      resourceName: `${saved.firstName} ${saved.lastName} (${saved.email})`,
+      description: `Created user account for ${saved.firstName} ${saved.lastName} with role ${saved.role}`,
+      descriptionAr: `تم إنشاء حساب مستخدم جديد لـ ${saved.firstName} ${saved.lastName} بدور ${saved.role}`,
+      details: { role: saved.role, permissionsCount: saved.permissions?.length || 0 },
+    });
+
     let inviteEmailSent = false;
     let inviteEmailError = null;
     if (sendWelcomeEmail) {
@@ -169,7 +375,9 @@ router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'
           tenant,
           user: saved,
           temporaryPassword: password,
-          language: String(req.body?.inviteLanguage || req.headers['accept-language'] || 'en').startsWith('ar') ? 'ar' : 'en',
+          language: String(req.body?.inviteLanguage || req.headers['accept-language'] || 'en').startsWith('ar')
+            ? 'ar'
+            : 'en',
         });
         inviteEmailSent = true;
       } catch (mailError) {
@@ -191,6 +399,8 @@ router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'
   }
 });
 
+// @route   PUT /api/users/:id
+// @desc    Update user details and permissions
 router.put('/:id', checkPermission('settings', 'update'), async (req, res) => {
   try {
     const tenantId = req.user?.tenantId;
@@ -248,12 +458,27 @@ router.put('/:id', checkPermission('settings', 'update'), async (req, res) => {
     await existing.save();
 
     const saved = await User.findById(existing._id).select('-password');
+
+    // Audit log
+    await recordUserActivity(req, {
+      action: 'update',
+      module: 'users',
+      resourceType: 'User',
+      resourceId: saved._id,
+      resourceName: `${saved.firstName} ${saved.lastName} (${saved.email})`,
+      description: `Updated user profile and permissions for ${saved.firstName} ${saved.lastName}`,
+      descriptionAr: `تم تحديث بيانات وصلاحيات المستخدم ${saved.firstName} ${saved.lastName}`,
+      details: { role: saved.role, isActive: saved.isActive, permissionsCount: saved.permissions?.length || 0 },
+    });
+
     res.json(sanitizeUserForClient(saved));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
+// @route   DELETE /api/users/:id
+// @desc    Deactivate user
 router.delete('/:id', checkPermission('settings', 'delete'), async (req, res) => {
   try {
     const tenantId = req.user?.tenantId;
@@ -268,6 +493,17 @@ router.delete('/:id', checkPermission('settings', 'delete'), async (req, res) =>
 
     existing.isActive = false;
     await existing.save();
+
+    // Audit log
+    await recordUserActivity(req, {
+      action: 'delete',
+      module: 'users',
+      resourceType: 'User',
+      resourceId: existing._id,
+      resourceName: `${existing.firstName} ${existing.lastName} (${existing.email})`,
+      description: `Deactivated user account for ${existing.firstName} ${existing.lastName}`,
+      descriptionAr: `تم تعطيل حساب المستخدم ${existing.firstName} ${existing.lastName}`,
+    });
 
     res.json({ success: true });
   } catch (error) {

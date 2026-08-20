@@ -8,6 +8,7 @@ import { sendPasswordResetEmail } from '../utils/emailService.js';
 import { provisionTenantApps } from '../utils/appProvisioning.js';
 import { serializeAuthTenant } from '../utils/authSerialize.js';
 import { emitPlatformEvent } from '../utils/platformEvents.js';
+import { recordUserActivity } from '../utils/auditLogger.js';
 
 const router = express.Router();
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000);
@@ -342,6 +343,21 @@ router.post('/login', async (req, res) => {
       userId: String(user._id),
       tenantId: user.tenantId ? String(user.tenantId) : (tenant?._id ? String(tenant._id) : undefined),
     });
+
+    recordUserActivity(req, {
+      action: 'login',
+      module: 'auth',
+      resourceType: 'User',
+      resourceId: user._id,
+      resourceName: `${user.firstName || ''} ${user.lastName || ''} (${user.email})`.trim(),
+      description: `User logged into system`,
+      descriptionAr: `تسجيل دخول ناجح إلى النظام`,
+      userId: user._id,
+      userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+      userEmail: user.email,
+      userRole: user.role,
+      tenantId: user.tenantId || tenant?._id,
+    }).catch(() => {});
 
     res.json({
       token,

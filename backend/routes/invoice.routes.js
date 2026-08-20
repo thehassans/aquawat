@@ -39,6 +39,7 @@ import { statsRead } from '../utils/mongoReadPreference.js';
 import { resolvePaymentStatus, applyPaidAmountStatus, isOverpay, paymentExceedsRemaining, canRecordPayment } from '../utils/invoicePaymentStatus.js';
 import { makeRateLimitStore } from '../utils/hybridRateLimitStore.js';
 import { isStockTrackedProductType, normalizeProductType, stampLineProductTypes } from '../utils/productType.js';
+import { recordUserActivity } from '../utils/auditLogger.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -1673,6 +1674,21 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
         // SMS failure must not block invoice issuance
       }
     }
+
+    recordUserActivity(req, {
+      action: 'create',
+      module: 'invoicing',
+      resourceType: 'Invoice',
+      resourceId: invoice._id,
+      resourceName: invoice.invoiceNumber,
+      description: `Issued sales invoice ${invoice.invoiceNumber} (${invoice.grandTotal} SAR)`,
+      descriptionAr: `أصدر فاتورة مبيعات رقم ${invoice.invoiceNumber} بقيمة ${invoice.grandTotal} ريال`,
+      details: {
+        total: invoice.grandTotal,
+        customerName: invoice.buyer?.name || invoice.buyer?.nameAr,
+        status: invoice.status,
+      },
+    }).catch(() => {});
 
     res.status(201).json({ ...invoice.toObject(), emailDelivery, whatsappDelivery });
   } catch (error) {

@@ -87,23 +87,40 @@ export default function Sidebar() {
         return { ...section, items: [] }
       }
 
-      const items = (Array.isArray(section.items) ? section.items : []).filter((item) => {
-        if (item.path && hiddenMenuSet.has(item.path)) return false
-        const childPath = item.children?.[0]?.path
-        if (childPath && hiddenMenuSet.has(childPath)) return false
-        if (Array.isArray(item?.businessTypes) && !item.businessTypes.some((type) => businessTypes.includes(type))) {
-          return false
-        }
-        if (Array.isArray(item?.excludeBusinessTypes) && item.excludeBusinessTypes.some((type) => businessTypes.includes(type))) {
-          return false
-        }
-        if (item.requireAddon && !tenant?.subscription?.[item.requireAddon]) {
-          return false
-        }
-        if (!isNavItemAppVisible(tenant, businessTypes, item)) return false
-        if (!item?.perm) return true
-        return hasAccess(item.perm.module, item.perm.action)
-      })
+      const items = (Array.isArray(section.items) ? section.items : [])
+        .map((item) => {
+          if (!Array.isArray(item.children) || item.children.length === 0) return item
+          const validChildren = item.children.filter((child) => {
+            if (child.path && hiddenMenuSet.has(child.path)) return false
+            if (child.perm && !hasAccess(child.perm.module, child.perm.action)) return false
+            if (Array.isArray(child.businessTypes) && !child.businessTypes.some((type) => businessTypes.includes(type))) {
+              return false
+            }
+            if (Array.isArray(child.excludeBusinessTypes) && child.excludeBusinessTypes.some((type) => businessTypes.includes(type))) {
+              return false
+            }
+            return true
+          })
+          return { ...item, children: validChildren }
+        })
+        .filter((item) => {
+          if (item.path && hiddenMenuSet.has(item.path)) return false
+          if (Array.isArray(item.children) && item.children.length === 0 && !item.path) return false
+          const childPath = item.children?.[0]?.path
+          if (childPath && hiddenMenuSet.has(childPath) && !item.path) return false
+          if (Array.isArray(item?.businessTypes) && !item.businessTypes.some((type) => businessTypes.includes(type))) {
+            return false
+          }
+          if (Array.isArray(item?.excludeBusinessTypes) && item.excludeBusinessTypes.some((type) => businessTypes.includes(type))) {
+            return false
+          }
+          if (item.requireAddon && !tenant?.subscription?.[item.requireAddon]) {
+            return false
+          }
+          if (!isNavItemAppVisible(tenant, businessTypes, item)) return false
+          if (!item?.perm) return true
+          return hasAccess(item.perm.module, item.perm.action)
+        })
 
       return { ...section, items }
     })

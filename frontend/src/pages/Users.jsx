@@ -10,40 +10,122 @@ import {
   Lock, Fingerprint, Sliders, Sparkles,
   Receipt, Package, Truck, Plane, UtensilsCrossed,
   FolderKanban, Wallet, Landmark, HardHat, Cog, Cpu, Settings,
-  Anchor, FileText
+  Anchor, FileText, Activity, Clock, ShieldCheck, History,
+  Filter, Download, RefreshCw, KeyRound, MessageCircle,
+  ExternalLink, Layers, Check, ArrowRight
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
+import ExportMenu from '../components/ui/ExportMenu'
 
-const MODULES = [
-  { key: 'invoicing', labelEn: 'Invoicing', labelAr: 'الفوترة', Icon: Receipt },
-  { key: 'inventory', labelEn: 'Inventory', labelAr: 'المخزون', Icon: Package },
-  { key: 'supply_chain', labelEn: 'Supply Chain', labelAr: 'سلسلة التوريد', Icon: Truck },
-  { key: 'landed_costs', labelEn: 'Landed Costs', labelAr: 'التكاليف المرسية', Icon: Anchor },
-  { key: 'travel', labelEn: 'Travel', labelAr: 'السفر', Icon: Plane },
-  { key: 'restaurant', labelEn: 'Restaurant', labelAr: 'المطعم', Icon: UtensilsCrossed },
-  { key: 'project_management', labelEn: 'Projects', labelAr: 'المشاريع', Icon: FolderKanban },
-  { key: 'hr', labelEn: 'HR', labelAr: 'الموارد البشرية', Icon: UsersIcon },
-  { key: 'payroll', labelEn: 'Payroll', labelAr: 'الرواتب', Icon: Wallet },
-  { key: 'finance', labelEn: 'Finance', labelAr: 'المالية', Icon: Landmark },
-  { key: 'job_costing', labelEn: 'Job Costing', labelAr: 'تكلفة الأعمال', Icon: HardHat },
-  { key: 'mrp', labelEn: 'MRP', labelAr: 'MRP', Icon: Cog },
-  { key: 'iot', labelEn: 'IoT', labelAr: 'إنترنت الأشياء', Icon: Cpu },
-  { key: 'settings', labelEn: 'Settings', labelAr: 'الإعدادات', Icon: Settings },
+const ALL_MODULE_DEFINITIONS = [
+  // Core Operations
+  { key: 'invoicing', labelEn: 'Invoicing & ZATCA', labelAr: 'الفوترة والضريبة', Icon: Receipt, group: 'core' },
+  { key: 'inventory', labelEn: 'Inventory & Stock', labelAr: 'المخزون والمنتجات', Icon: Package, group: 'core' },
+  { key: 'supply_chain', labelEn: 'Supply Chain & POs', labelAr: 'المشتريات والموردين', Icon: Truck, group: 'core' },
+  { key: 'landed_costs', labelEn: 'Landed Costs', labelAr: 'التكاليف الإضافية', Icon: Anchor, group: 'core' },
+  { key: 'finance', labelEn: 'Finance & Accounts', labelAr: 'المالية والحسابات', Icon: Landmark, group: 'core' },
+  { key: 'settings', labelEn: 'Settings & Security', labelAr: 'الإعدادات والأمان', Icon: Settings, group: 'core' },
+
+  // HR & Payroll
+  { key: 'hr', labelEn: 'HR & Employees', labelAr: 'الموارد البشرية', Icon: UsersIcon, group: 'hr' },
+  { key: 'payroll', labelEn: 'Payroll & Wages', labelAr: 'الرواتب والأجور', Icon: Wallet, group: 'hr' },
+
+  // Projects & Job Costing
+  { key: 'project_management', labelEn: 'Projects', labelAr: 'إدارة المشاريع', Icon: FolderKanban, group: 'projects' },
+  { key: 'job_costing', labelEn: 'Job Costing', labelAr: 'تكلفة الأعمال والبطاقات', Icon: HardHat, group: 'projects' },
+
+  // Manufacturing / MRP
+  { key: 'mrp', labelEn: 'Manufacturing & MRP', labelAr: 'التصنيع والإنتاج', Icon: Cog, group: 'manufacturing' },
+
+  // Industry Vertical Suites
+  { key: 'restaurant', labelEn: 'Restaurant & Kitchen', labelAr: 'المطعم والمطبخ', Icon: UtensilsCrossed, group: 'vertical' },
+  { key: 'travel', labelEn: 'Travel & Bookings', labelAr: 'السياحة والحجوزات', Icon: Plane, group: 'vertical' },
+  { key: 'gym', labelEn: 'Gym & Fitness', labelAr: 'الصالة الرياضية', Icon: Sparkles, group: 'vertical' },
+  { key: 'bakala', labelEn: 'Supermarket POS', labelAr: 'نقطة بيع السوبرماركت', Icon: Package, group: 'vertical' },
+  { key: 'car_workshop', labelEn: 'Car Workshop', labelAr: 'صيانة السيارات', Icon: HardHat, group: 'vertical' },
+  { key: 'car_rental', labelEn: 'Car Rental', labelAr: 'تأجير السيارات', Icon: Truck, group: 'vertical' },
+  { key: 'laundry', labelEn: 'Laundry & Dry Clean', labelAr: 'المغسلة والتنظيف', Icon: Sparkles, group: 'vertical' },
+  { key: 'boutique', labelEn: 'Boutique & Tailor', labelAr: 'البوتيك والخياطة', Icon: Sparkles, group: 'vertical' },
+  { key: 'ecommerce', labelEn: 'Online Storefront', labelAr: 'المتجر الإلكتروني', Icon: FileText, group: 'vertical' },
+
+  // Installed Add-ons & Apps
+  { key: 'crm', labelEn: 'CRM & Leads', labelAr: 'إدارة العملاء والفرص', Icon: UsersIcon, group: 'apps' },
+  { key: 'whatsapp', labelEn: 'WhatsApp Hub', labelAr: 'مركز الواتساب', Icon: MessageCircle, group: 'apps' },
+  { key: 'iot', labelEn: 'Hardware & IoT', labelAr: 'الأجهزة وإنترنت الأشياء', Icon: Cpu, group: 'apps' },
 ]
+
+export function getTenantActiveModules(tenant) {
+  const businessTypes = getTenantBusinessTypes(tenant)
+  const installedApps = tenant?.settings?.installedApps || {}
+  const isAppOn = (id) => Boolean(installedApps[id]?.isInstalled && installedApps[id]?.isEnabled !== false)
+
+  const activeKeys = new Set(['invoicing', 'inventory', 'supply_chain', 'finance', 'settings'])
+
+  // Landed costs
+  if (businessTypes.includes('trading') || businessTypes.includes('manufacturing')) {
+    activeKeys.add('landed_costs')
+  }
+
+  // HR & Payroll
+  if (
+    businessTypes.includes('manpower') ||
+    isAppOn('hr_suite') ||
+    isAppOn('payroll') ||
+    tenant?.subscription?.features?.includes('hr')
+  ) {
+    activeKeys.add('hr')
+    activeKeys.add('payroll')
+  }
+
+  // Projects & Job Costing
+  if (
+    businessTypes.includes('construction') ||
+    businessTypes.includes('manpower') ||
+    isAppOn('projects') ||
+    isAppOn('job_costing')
+  ) {
+    activeKeys.add('project_management')
+    activeKeys.add('job_costing')
+  }
+
+  // Manufacturing / MRP
+  if (businessTypes.includes('manufacturing') || isAppOn('mrp_manufacturing')) {
+    activeKeys.add('mrp')
+    activeKeys.add('job_costing')
+  }
+
+  // Industry Vertical Suites
+  if (businessTypes.includes('restaurant') || isAppOn('restaurant_pos')) activeKeys.add('restaurant')
+  if (businessTypes.includes('travel_agency') || isAppOn('travel_agency')) activeKeys.add('travel')
+  if (businessTypes.includes('gym') || isAppOn('gym_fitness_club') || isAppOn('gym')) activeKeys.add('gym')
+  if (businessTypes.includes('bakala') || isAppOn('bakala_pos')) activeKeys.add('bakala')
+  if (businessTypes.includes('car_workshop') || isAppOn('car_workshop')) activeKeys.add('car_workshop')
+  if (businessTypes.includes('car_rental') || isAppOn('car_rental')) activeKeys.add('car_rental')
+  if (businessTypes.includes('laundry') || isAppOn('laundry_suite')) activeKeys.add('laundry')
+  if (businessTypes.includes('boutique') || businessTypes.includes('khayyat')) activeKeys.add('boutique')
+  if (businessTypes.includes('ecommerce') || isAppOn('ecommerce')) activeKeys.add('ecommerce')
+
+  // Extension Apps
+  if (isAppOn('crm') || isAppOn('queries_crm') || tenant?.settings?.crm?.enabled) activeKeys.add('crm')
+  if (isAppOn('whatsapp_cloud_auto') || Boolean(tenant?.settings?.invoiceWhatsappAutoSend)) activeKeys.add('whatsapp')
+  if (isAppOn('iot') || isAppOn('pos_hardware')) activeKeys.add('iot')
+
+  return ALL_MODULE_DEFINITIONS.filter((m) => activeKeys.has(m.key))
+}
 
 const ACTIONS = ['create', 'read', 'update', 'delete', 'approve', 'export']
 
 const fieldClass =
-  'w-full rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 text-[13px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 dark:border-white/10 dark:bg-[#0c111a] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-white/25'
+  'w-full rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 text-[13px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:border-white/10 dark:bg-[#0c111a] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-white'
 
 const inkBtn =
-  'inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-bold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100'
 
 const ghostBtn =
-  'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition hover:border-slate-300 disabled:opacity-50 dark:border-white/10 dark:bg-[#0c111a] dark:text-slate-200 dark:hover:border-white/20'
+  'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 text-[13px] font-bold text-slate-700 transition hover:border-slate-300 disabled:opacity-50 dark:border-white/10 dark:bg-[#0c111a] dark:text-slate-200 dark:hover:border-white/20'
 
 function generateInvitePassword() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
@@ -68,7 +150,8 @@ const ROLE_PRESETS = {
     finance: ['create', 'read', 'update', 'approve', 'export'],
     job_costing: ['create', 'read', 'update', 'export'],
     mrp: ['read', 'update'],
-    iot: ['read'],
+    crm: ['create', 'read', 'update', 'export'],
+    whatsapp: ['create', 'read', 'update'],
     settings: ['read'],
   },
   accountant: {
@@ -92,6 +175,8 @@ const ROLE_PRESETS = {
   sales: {
     invoicing: ['create', 'read', 'update', 'export'],
     inventory: ['read'],
+    crm: ['create', 'read', 'update'],
+    whatsapp: ['read', 'create'],
     travel: ['create', 'read', 'update'],
   },
   kitchen_staff: {
@@ -109,7 +194,9 @@ function Avatar({ user, size = 'md' }) {
   const sizes = { sm: 'h-8 w-8 text-[11px]', md: 'h-10 w-10 text-sm', lg: 'h-12 w-12 text-base' }
   const initials = `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.trim() || 'U'
   return (
-    <div className={`${sizes[size]} flex flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-white font-semibold tracking-tight dark:bg-white dark:text-slate-900`}>
+    <div
+      className={`${sizes[size]} flex flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 to-slate-700 text-white font-bold tracking-tight shadow-2xs dark:from-white dark:to-slate-200 dark:text-slate-950`}
+    >
       {initials}
     </div>
   )
@@ -120,9 +207,9 @@ function PermToggle({ active, label, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
+      className={`rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] transition-all ${
         active
-          ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+          ? 'border-slate-900 bg-slate-900 text-white shadow-2xs dark:border-white dark:bg-white dark:text-slate-900'
           : 'border-slate-200/80 bg-white text-slate-400 hover:border-slate-300 dark:border-white/10 dark:bg-[#0c111a] dark:text-slate-500'
       }`}
     >
@@ -136,19 +223,37 @@ export default function Users() {
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const isAr = language === 'ar'
 
+  const [mainTab, setMainTab] = useState('directory') // 'directory' | 'logs'
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [panelOpen, setPanelOpen] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [activeSection, setActiveSection] = useState('info') // 'info' | 'permissions'
+  const [activeSection, setActiveSection] = useState('info') // 'info' | 'permissions' | 'userLogs'
+  const [selectedLogDetail, setSelectedLogDetail] = useState(null)
+
+  // Logs filters
+  const [logSearch, setLogSearch] = useState('')
+  const [logPage, setLogPage] = useState(1)
+  const [logModuleFilter, setLogModuleFilter] = useState('')
+  const [logActionFilter, setLogActionFilter] = useState('')
+  const [logUserFilter, setLogUserFilter] = useState('')
 
   const { register, handleSubmit, reset, watch, setValue } = useForm({
     defaultValues: {
-      firstName: '', lastName: '', firstNameAr: '', lastNameAr: '',
-      email: '', phone: '', password: '', role: 'viewer',
-      isActive: true, permissions: [], sendWelcomeEmail: true,
+      firstName: '',
+      lastName: '',
+      firstNameAr: '',
+      lastNameAr: '',
+      email: '',
+      phone: '',
+      password: '',
+      role: 'viewer',
+      isActive: true,
+      permissions: [],
+      sendWelcomeEmail: true,
     },
   })
 
@@ -157,14 +262,49 @@ export default function Users() {
   const watchedFirstName = watch('firstName')
   const watchedLastName = watch('lastName')
 
+  // Fetch tenant users
   const { data, isLoading } = useQuery({
     queryKey: ['tenant-users', page, search],
     queryFn: () => api.get('/users', { params: { page, limit: 25, search } }).then((res) => res.data),
   })
 
+  // Fetch users stats
   const { data: stats } = useQuery({
     queryKey: ['tenant-users-stats'],
     queryFn: () => api.get('/users/stats').then((res) => res.data),
+  })
+
+  // Fetch audit logs
+  const { data: logsData, isLoading: loadingLogs } = useQuery({
+    queryKey: ['tenant-audit-logs', logPage, logSearch, logModuleFilter, logActionFilter, logUserFilter],
+    queryFn: () =>
+      api
+        .get('/users/logs', {
+          params: {
+            page: logPage,
+            limit: 25,
+            search: logSearch || undefined,
+            module: logModuleFilter || undefined,
+            action: logActionFilter || undefined,
+            userId: logUserFilter || undefined,
+          },
+        })
+        .then((res) => res.data),
+    enabled: mainTab === 'logs',
+  })
+
+  // Fetch audit log stats
+  const { data: logStats } = useQuery({
+    queryKey: ['tenant-audit-log-stats'],
+    queryFn: () => api.get('/users/logs/stats').then((res) => res.data),
+    enabled: mainTab === 'logs',
+  })
+
+  // Fetch per-user logs when drawer is open on logs tab
+  const { data: userLogsData, isLoading: loadingUserLogs } = useQuery({
+    queryKey: ['single-user-logs', editingUser?._id],
+    queryFn: () => api.get(`/users/${editingUser._id}/logs`).then((res) => res.data),
+    enabled: Boolean(editingUser?._id && activeSection === 'userLogs'),
   })
 
   const users = data?.users || []
@@ -175,26 +315,24 @@ export default function Users() {
   const isAtLimit = isLimitEnabled && activeUsers >= maxUsers
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
 
+  // Dynamically resolve ONLY active modules for this tenant
   const enabledModules = useMemo(() => {
-    const blocked = new Set()
-    if (!tenantBusinessTypes.includes('travel_agency')) blocked.add('travel')
-    if (!tenantBusinessTypes.includes('restaurant')) blocked.add('restaurant')
-    return MODULES.filter((module) => !blocked.has(module.key))
-  }, [tenantBusinessTypes])
+    return getTenantActiveModules(tenant)
+  }, [tenant])
 
   const roles = useMemo(
     () =>
       [
-        { key: 'admin', label: language === 'ar' ? 'مشرف' : 'Admin' },
-        { key: 'manager', label: language === 'ar' ? 'مدير' : 'Manager' },
-        { key: 'accountant', label: language === 'ar' ? 'محاسب' : 'Accountant' },
-        { key: 'hr_manager', label: language === 'ar' ? 'مدير موارد بشرية' : 'HR Manager' },
-        { key: 'inventory_manager', label: language === 'ar' ? 'مدير مخزون' : 'Inventory Manager' },
-        { key: 'kitchen_staff', label: language === 'ar' ? 'طاقم مطبخ' : 'Kitchen Staff' },
-        { key: 'sales', label: language === 'ar' ? 'مبيعات' : 'Sales' },
-        { key: 'viewer', label: language === 'ar' ? 'مشاهدة فقط' : 'Viewer' },
+        { key: 'admin', label: isAr ? 'مشرف عام' : 'Admin' },
+        { key: 'manager', label: isAr ? 'مدير عمليات' : 'Manager' },
+        { key: 'accountant', label: isAr ? 'محاسب مالي' : 'Accountant' },
+        { key: 'hr_manager', label: isAr ? 'مدير موارد بشرية' : 'HR Manager' },
+        { key: 'inventory_manager', label: isAr ? 'مدير مخزون' : 'Inventory Manager' },
+        { key: 'kitchen_staff', label: isAr ? 'طاقم مطبخ' : 'Kitchen Staff' },
+        { key: 'sales', label: isAr ? 'مبيعات' : 'Sales' },
+        { key: 'viewer', label: isAr ? 'مشاهدة فقط' : 'Viewer' },
       ].filter((role) => role.key !== 'kitchen_staff' || tenantBusinessTypes.includes('restaurant')),
-    [language, tenantBusinessTypes]
+    [isAr, tenantBusinessTypes]
   )
 
   const openPanel = (u = null) => {
@@ -202,9 +340,13 @@ export default function Users() {
     setActiveSection('info')
     if (u) {
       reset({
-        firstName: u?.firstName || '', lastName: u?.lastName || '',
-        firstNameAr: u?.firstNameAr || '', lastNameAr: u?.lastNameAr || '',
-        email: u?.email || '', phone: String(u?.phone || '').replace(/^\+966\s?/, ''), password: '',
+        firstName: u?.firstName || '',
+        lastName: u?.lastName || '',
+        firstNameAr: u?.firstNameAr || '',
+        lastNameAr: u?.lastNameAr || '',
+        email: u?.email || '',
+        phone: String(u?.phone || '').replace(/^\+966\s?/, ''),
+        password: '',
         role: u?.role || 'viewer',
         isActive: typeof u?.isActive === 'boolean' ? u.isActive : true,
         permissions: Array.isArray(u?.permissions) ? u.permissions : [],
@@ -212,8 +354,13 @@ export default function Users() {
       })
     } else {
       reset({
-        firstName: '', lastName: '', firstNameAr: '', lastNameAr: '',
-        email: '', phone: '', password: '',
+        firstName: '',
+        lastName: '',
+        firstNameAr: '',
+        lastNameAr: '',
+        email: '',
+        phone: '',
+        password: '',
         role: roles[0]?.key || 'viewer',
         isActive: true,
         permissions: [],
@@ -226,605 +373,1041 @@ export default function Users() {
   const closePanel = () => {
     setPanelOpen(false)
     setEditingUser(null)
-    reset({ firstName: '', lastName: '', firstNameAr: '', lastNameAr: '', email: '', phone: '', password: '', role: roles[0]?.key || 'viewer', isActive: true, permissions: [], sendWelcomeEmail: true })
   }
 
   const mutation = useMutation({
-    mutationFn: (payload) => (editingUser ? api.put(`/users/${editingUser._id}`, payload) : api.post('/users', payload)),
+    mutationFn: (payload) =>
+      editingUser ? api.put(`/users/${editingUser._id}`, payload) : api.post('/users', payload),
     onSuccess: (res) => {
       const data = res?.data || res
       if (editingUser) {
-        toast.success(language === 'ar' ? 'تم تحديث المستخدم' : 'User updated')
+        toast.success(isAr ? 'تم تحديث بيانات وصلاحيات المستخدم بنجاح' : 'User updated successfully')
       } else if (data?.inviteEmailSent) {
-        toast.success(language === 'ar' ? 'تم إنشاء المستخدم وإرسال دعوة بالبريد' : 'User created and welcome email sent')
-      } else if (data?.inviteEmailError) {
-        toast.success(language === 'ar' ? 'تم إنشاء المستخدم (تعذر إرسال البريد)' : 'User created (welcome email failed)')
+        toast.success(isAr ? 'تم إنشاء المستخدم وإرسال دعوة بالبريد' : 'User created & welcome email sent')
       } else {
-        toast.success(language === 'ar' ? 'تم إنشاء المستخدم' : 'User created')
+        toast.success(isAr ? 'تم إنشاء المستخدم بنجاح' : 'User created successfully')
       }
       queryClient.invalidateQueries(['tenant-users'])
       queryClient.invalidateQueries(['tenant-users-stats'])
+      queryClient.invalidateQueries(['tenant-audit-logs'])
       closePanel()
     },
-    onError: (err) => toast.error(err.response?.data?.error || (language === 'ar' ? 'حدث خطأ' : 'Error')),
+    onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'حدث خطأ' : 'Error')),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/users/${id}`),
     onSuccess: () => {
-      toast.success(language === 'ar' ? 'تم إلغاء تفعيل المستخدم' : 'User deactivated')
+      toast.success(isAr ? 'تم إلغاء تفعيل المستخدم' : 'User deactivated')
       queryClient.invalidateQueries(['tenant-users'])
       queryClient.invalidateQueries(['tenant-users-stats'])
+      queryClient.invalidateQueries(['tenant-audit-logs'])
     },
-    onError: (err) => toast.error(err.response?.data?.error || (language === 'ar' ? 'حدث خطأ' : 'Error')),
+    onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'حدث خطأ' : 'Error')),
   })
 
-  const permMap = useMemo(() => {
-    const list = Array.isArray(permissions) ? permissions : []
-    const map = new Map()
-    for (const p of list) {
-      if (!p?.module) continue
-      map.set(String(p.module), new Set(Array.isArray(p.actions) ? p.actions : []))
+  const handleRolePreset = (roleKey) => {
+    setValue('role', roleKey)
+    const preset = ROLE_PRESETS[roleKey]
+    if (preset === 'ALL') {
+      const allPerms = enabledModules.map((m) => ({ module: m.key, actions: [...ACTIONS] }))
+      setValue('permissions', allPerms)
+    } else if (preset) {
+      const mapped = []
+      enabledModules.forEach((m) => {
+        if (preset[m.key]) {
+          mapped.push({ module: m.key, actions: preset[m.key] })
+        }
+      })
+      setValue('permissions', mapped)
+    } else {
+      setValue('permissions', [])
     }
-    return map
-  }, [permissions])
+  }
 
-  const setPermMap = (nextMap) => {
-    const next = []
-    for (const [module, actionsSet] of nextMap.entries()) {
-      const actions = [...actionsSet]
-      if (actions.length === 0) continue
-      next.push({ module, actions })
+  const toggleAction = (moduleKey, action) => {
+    const list = Array.isArray(permissions) ? [...permissions] : []
+    const idx = list.findIndex((p) => p.module === moduleKey)
+    if (idx === -1) {
+      list.push({ module: moduleKey, actions: [action] })
+    } else {
+      const actions = Array.isArray(list[idx].actions) ? [...list[idx].actions] : []
+      const aIdx = actions.indexOf(action)
+      if (aIdx === -1) actions.push(action)
+      else actions.splice(aIdx, 1)
+
+      if (actions.length === 0) list.splice(idx, 1)
+      else list[idx] = { ...list[idx], actions }
     }
-    setValue('permissions', next, { shouldDirty: true })
+    setValue('permissions', list)
   }
 
-  const toggleAction = (module, action) => {
-    const next = new Map(permMap)
-    const set = next.get(module) ? new Set(next.get(module)) : new Set()
-    if (set.has(action)) set.delete(action)
-    else set.add(action)
-    if (set.size === 0) next.delete(module)
-    else next.set(module, set)
-    setPermMap(next)
+  const toggleAllModuleActions = (moduleKey) => {
+    const list = Array.isArray(permissions) ? [...permissions] : []
+    const idx = list.findIndex((p) => p.module === moduleKey)
+    if (idx !== -1 && list[idx]?.actions?.length === ACTIONS.length) {
+      list.splice(idx, 1)
+    } else {
+      if (idx === -1) list.push({ module: moduleKey, actions: [...ACTIONS] })
+      else list[idx] = { module: moduleKey, actions: [...ACTIONS] }
+    }
+    setValue('permissions', list)
   }
 
-  const toggleAllForModule = (module, enabled) => {
-    const next = new Map(permMap)
-    if (!enabled) next.delete(module)
-    else next.set(module, new Set(ACTIONS))
-    setPermMap(next)
+  const hasModuleAction = (moduleKey, action) => {
+    if (watchedRole === 'admin') return true
+    const perm = (permissions || []).find((p) => p.module === moduleKey)
+    return Boolean(perm?.actions?.includes(action))
   }
 
-  const totalPermCount = useMemo(() => {
-    let count = 0
-    for (const set of permMap.values()) count += set.size
-    return count
-  }, [permMap])
+  const isModuleAllActive = (moduleKey) => {
+    if (watchedRole === 'admin') return true
+    const perm = (permissions || []).find((p) => p.module === moduleKey)
+    return perm?.actions?.length === ACTIONS.length
+  }
 
-  const onSubmit = (form) => {
-    const rawPhone = String(form.phone || '').trim()
-    const phone = !rawPhone
-      ? ''
-      : rawPhone.startsWith('+')
-        ? rawPhone
-        : `+966${rawPhone.replace(/^0+/, '')}`
+  const onSubmit = (formData) => {
     const payload = {
-      ...form,
-      phone,
-      email: String(form.email || '').trim().toLowerCase(),
-      permissions: Array.isArray(form.permissions) ? form.permissions : [],
-      sendWelcomeEmail: editingUser ? false : Boolean(form.sendWelcomeEmail),
-      inviteLanguage: language === 'ar' ? 'ar' : 'en',
+      ...formData,
+      phone: formData.phone ? `+966${formData.phone}` : undefined,
     }
     if (!payload.password) delete payload.password
     mutation.mutate(payload)
   }
 
-  const displayName = [watchedFirstName, watchedLastName].filter(Boolean).join(' ')
-    || (editingUser ? `${editingUser.firstName || ''} ${editingUser.lastName || ''}`.trim() : '')
-
   return (
-    <div className="h-full flex flex-col space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-6 pb-12">
+      {/* Top Header & Mode Navigation */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
-            {language === 'ar' ? 'الوصول' : 'Access'}
-          </p>
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.03em] text-slate-900 dark:text-white sm:text-[28px]">
-            {t('users')}
-          </h1>
-          <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">
-            {language === 'ar' ? 'إدارة المستخدمين والصلاحيات' : 'Manage users and permissions'}
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+              {isAr ? 'المستخدمين والصلاحيات وسجلات النشاط' : 'Users, Access & Audit Logs'}
+            </h1>
+            <span className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300">
+              {activeUsers} / {isLimitEnabled ? maxUsers : '∞'}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {isAr
+              ? 'إدارة صلاحيات الوصول بحسب التطبيقات المثبتة للمنشأة، ومتابعة سجلات النشاط والعمليات الفورية.'
+              : 'Role-based access control scoped to installed tenant apps with comprehensive real-time audit logging.'}
           </p>
         </div>
-        <button
-          onClick={() => openPanel()}
-          disabled={isAtLimit}
-          className={inkBtn}
-        >
-          <UserPlus className="h-4 w-4" />
-          {language === 'ar' ? 'إضافة مستخدم' : 'Add User'}
-        </button>
+
+        {/* Top Actions & Tab Switcher */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Glass Segmented Switcher */}
+          <div className="inline-flex rounded-2xl border border-slate-200/90 bg-slate-100/80 p-1.5 shadow-2xs backdrop-blur-md dark:border-white/10 dark:bg-dark-800/80">
+            <button
+              type="button"
+              onClick={() => setMainTab('directory')}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                mainTab === 'directory'
+                  ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-950'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <UsersIcon className="h-3.5 w-3.5" />
+              <span>{isAr ? 'فريق العمل' : 'Team Directory'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMainTab('logs')}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                mainTab === 'logs'
+                  ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-950'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              <Activity className="h-3.5 w-3.5" />
+              <span>{isAr ? 'سجل العمليات' : 'Audit Logs'}</span>
+            </button>
+          </div>
+
+          {mainTab === 'directory' && (
+            <button
+              type="button"
+              onClick={() => openPanel(null)}
+              disabled={isAtLimit}
+              className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white shadow-md transition-all hover:bg-slate-800 hover:shadow-lg disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+            >
+              <UserPlus className="h-4 w-4 stroke-[2.5]" />
+              <span>{isAr ? 'إضافة مستخدم جديد' : 'Add User'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: language === 'ar' ? 'النشطون' : 'Active', value: activeUsers, Icon: UserCheck },
-          { label: language === 'ar' ? 'الحد' : 'Seat limit', value: isLimitEnabled ? maxUsers : '∞', Icon: Shield },
-          {
-            label: language === 'ar' ? 'الحالة' : 'Seats',
-            value: isAtLimit ? (language === 'ar' ? 'مكتمل' : 'Full') : (language === 'ar' ? 'متاح' : 'Open'),
-            Icon: isAtLimit ? AlertTriangle : CheckCircle2,
-            warn: isAtLimit,
-          },
-        ].map((item) => (
-          <div key={item.label} className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 dark:border-white/10 dark:bg-[#0c111a]">
-            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400">{item.label}</p>
-            <div className="mt-1.5 flex items-center justify-between gap-2">
-              <p className={`text-xl font-semibold tracking-tight ${item.warn ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
-                {item.value}
-              </p>
-              <item.Icon className={`h-4 w-4 ${item.warn ? 'text-amber-500' : 'text-slate-300 dark:text-slate-600'}`} />
+      {/* ─── TAB 1: TEAM DIRECTORY ─── */}
+      {mainTab === 'directory' && (
+        <div className="space-y-6">
+          {/* Top KPI Bento Metrics */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-[#0c111a]">
+              <div className="flex items-center justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-sm">
+                  <UsersIcon className="h-5 w-5 stroke-[2.2]" />
+                </div>
+                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                  {isAr ? 'المستخدمين النشطين' : 'Active Seats'}
+                </span>
+              </div>
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {isAr ? 'المستخدمين الفعليين' : 'Active Accounts'}
+                </p>
+                <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                  {activeUsers}
+                </p>
+                <p className="mt-1 text-[11px] font-medium text-slate-400">
+                  {isAr ? 'حسابات مسجلة ومفعلة' : 'Verified active logins'}
+                </p>
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-[#0c111a]">
+              <div className="flex items-center justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm">
+                  <ShieldCheck className="h-5 w-5 stroke-[2.2]" />
+                </div>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                  {isAr ? 'الحد المسموح' : 'Seat Limit'}
+                </span>
+              </div>
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {isAr ? 'السعة الإجمالية للباقة' : 'Max Allowed Seats'}
+                </p>
+                <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                  {isLimitEnabled ? maxUsers : (isAr ? 'غير محدود' : 'Unlimited')}
+                </p>
+                <p className="mt-1 text-[11px] font-medium text-slate-400">
+                  {isAtLimit
+                    ? isAr
+                      ? 'تم الوصول إلى الحد الأقصى'
+                      : 'Seat limit reached'
+                    : isAr
+                    ? `متبقي ${isLimitEnabled ? maxUsers - activeUsers : '∞'} مقعد متاح`
+                    : `${isLimitEnabled ? maxUsers - activeUsers : '∞'} available seats`}
+                </p>
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-[#0c111a]">
+              <div className="flex items-center justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 text-white shadow-sm">
+                  <Layers className="h-5 w-5 stroke-[2.2]" />
+                </div>
+                <span className="rounded-full bg-purple-50 px-2.5 py-0.5 text-[11px] font-bold text-purple-700 dark:bg-purple-500/10 dark:text-purple-300">
+                  {isAr ? 'التطبيقات المتاحة' : 'Active Modules'}
+                </span>
+              </div>
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {isAr ? 'الوحدات والتطبيقات المفعلة' : 'Scoped Tenant Modules'}
+                </p>
+                <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                  {enabledModules.length}
+                </p>
+                <p className="mt-1 text-[11px] font-medium text-slate-400">
+                  {isAr ? 'مطابقة لباقة وتطبيقات المنشأة' : 'Filtered to installed apps'}
+                </p>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1">
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="lg:col-span-3 space-y-4">
-          <div className="relative">
-            <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder={`${t('search')}...`}
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              className={`${fieldClass} ps-10`}
-            />
+          {/* Search Box */}
+          <div className="rounded-3xl border border-slate-200/90 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-[#0c111a]">
+            <div className="relative flex-1">
+              <Search className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 ${isAr ? 'right-3.5' : 'left-3.5'}`} />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setPage(1)
+                }}
+                placeholder={
+                  isAr ? 'بحث بالاسم، البريد الإلكتروني، أو الهاتف...' : 'Search by name, email, or phone...'
+                }
+                className={`h-11 w-full rounded-2xl border border-slate-200 bg-slate-50/70 text-xs font-medium text-slate-900 placeholder:text-slate-400 transition-all focus:border-slate-900 focus:bg-white focus:outline-none dark:border-white/10 dark:bg-dark-800/60 dark:text-white dark:focus:border-white ${
+                  isAr ? 'pr-10 pl-9' : 'pl-10 pr-9'
+                }`}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className={`absolute top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white ${
+                    isAr ? 'left-3.5' : 'right-3.5'
+                  }`}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-[#0c111a]">
+          {/* Users Table */}
+          <div className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-xs dark:border-white/10 dark:bg-[#0c111a]">
             {isLoading ? (
-              <div className="space-y-0 divide-y divide-slate-100 dark:divide-white/5">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-3.5 animate-pulse">
-                    <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-white/10" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-3.5 w-1/3 rounded bg-slate-100 dark:bg-white/10" />
-                      <div className="h-3 w-1/2 rounded bg-slate-50 dark:bg-white/5" />
-                    </div>
-                  </div>
-                ))}
+              <div className="flex h-64 flex-col items-center justify-center gap-3">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-950 dark:border-slate-700 dark:border-t-white" />
+                <p className="text-xs text-slate-400">{isAr ? 'جاري تحميل المستخدمين...' : 'Loading users...'}</p>
               </div>
             ) : users.length === 0 ? (
-              <div className="px-6 py-16 text-center">
-                <UsersIcon className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-600" />
-                <p className="mt-3 text-[13px] font-medium text-slate-600 dark:text-slate-300">
-                  {language === 'ar' ? 'لا يوجد مستخدمون' : 'No users yet'}
+              <div className="flex flex-col items-center justify-center p-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-400 dark:bg-dark-800 dark:text-slate-500">
+                  <UsersIcon className="h-8 w-8 stroke-[1.8]" />
+                </div>
+                <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">
+                  {isAr ? 'لم يتم العثور على أي مستخدمين' : 'No Users Found'}
+                </h3>
+                <p className="mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400">
+                  {search
+                    ? isAr
+                      ? 'لا توجد نتائج تطابق بحثك. جرب كلمة بحث أخرى.'
+                      : 'No user accounts match your search.'
+                    : isAr
+                    ? 'ابدأ بإضافة أول عضو في فريق العمل وحدد صلاحياته.'
+                    : 'Get started by inviting your first team member.'}
                 </p>
-                <button onClick={() => openPanel()} className={`${inkBtn} mt-4`}>
-                  <UserPlus className="h-4 w-4" />
-                  {language === 'ar' ? 'إضافة مستخدم' : 'Add User'}
-                </button>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100 dark:divide-white/5">
-                {users.map((u) => {
-                  const selected = panelOpen && editingUser?._id === u._id
-                  return (
-                    <button
-                      key={u._id}
-                      type="button"
-                      onClick={() => openPanel(u)}
-                      className={`group flex w-full items-center gap-3 px-4 py-3.5 text-start transition ${
-                        selected ? 'bg-slate-50 dark:bg-white/[0.04]' : 'hover:bg-slate-50/80 dark:hover:bg-white/[0.03]'
-                      }`}
-                    >
-                      <Avatar user={u} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
-                            {u.firstName} {u.lastName}
-                          </p>
-                          <span className="flex-shrink-0 rounded-md border border-slate-200/80 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500 dark:border-white/10 dark:text-slate-400">
-                            {u.role?.replace('_', ' ')}
-                          </span>
-                        </div>
-                        <p className="truncate text-[12px] text-slate-400">{u.email}</p>
-                      </div>
-                      <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${u.isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
-                      <span
-                        role="button"
-                        tabIndex={-1}
-                        onClick={(e) => { e.stopPropagation(); if (u.isActive) deleteMutation.mutate(u._id) }}
-                        className="rounded-lg p-1.5 text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100 dark:hover:bg-rose-500/10"
-                        title={language === 'ar' ? 'إلغاء تفعيل' : 'Deactivate'}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </span>
-                      <ChevronRight className={`h-4 w-4 flex-shrink-0 text-slate-300 transition ${selected ? 'rotate-90 text-slate-500' : ''}`} />
-                    </button>
-                  )
-                })}
+              <div className="overflow-x-auto">
+                <table className="w-full text-start text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/80 font-bold uppercase tracking-wider text-slate-500 dark:border-white/5 dark:bg-white/[0.02] dark:text-slate-400">
+                      <th className="py-3.5 px-5 text-start">{isAr ? 'المستخدم' : 'User'}</th>
+                      <th className="py-3.5 px-4 text-start">{isAr ? 'الدور الوظيفي' : 'Role'}</th>
+                      <th className="py-3.5 px-4 text-start">{isAr ? 'الصلاحيات النشطة' : 'Permissions'}</th>
+                      <th className="py-3.5 px-4 text-start">{isAr ? 'الحالة' : 'Status'}</th>
+                      <th className="py-3.5 px-5 text-end">{isAr ? 'الإجراءات' : 'Actions'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium">
+                    {users.map((u) => {
+                      const name = isAr
+                        ? [u.firstNameAr, u.lastNameAr].filter(Boolean).join(' ') || `${u.firstName} ${u.lastName}`
+                        : `${u.firstName} ${u.lastName}`
+                      const roleMeta = roles.find((r) => r.key === u.role) || { label: u.role }
+                      const permCount = u.role === 'admin' ? enabledModules.length : (u.permissions || []).length
+
+                      return (
+                        <tr
+                          key={u._id}
+                          onClick={() => openPanel(u)}
+                          className="group cursor-pointer transition-colors hover:bg-slate-50/90 dark:hover:bg-white/[0.03]"
+                        >
+                          <td className="py-3.5 px-5">
+                            <div className="flex items-center gap-3">
+                              <Avatar user={u} size="md" />
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-900 group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-400 transition-colors">
+                                  {name}
+                                </p>
+                                <p className="text-[11px] text-slate-400">{u.email}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${
+                                u.role === 'admin'
+                                  ? 'border-purple-500/20 bg-purple-50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300'
+                                  : 'border-slate-200 bg-slate-100 text-slate-700 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300'
+                              }`}
+                            >
+                              {roleMeta.label}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {u.role === 'admin' ? (isAr ? 'وصول شامل' : 'Full Access') : `${permCount} ${isAr ? 'وحدة' : 'modules'}`}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                                u.isActive !== false
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                  : 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300'
+                              }`}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${u.isActive !== false ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                              {u.isActive !== false ? (isAr ? 'نشط' : 'Active') : (isAr ? 'معطل' : 'Inactive')}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-5 text-end whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => openPanel(u)}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300"
+                              >
+                                {isAr ? 'تعديل الصلاحيات' : 'Edit Access'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
+        </div>
+      )}
 
-          {pagination?.pages > 1 && (
-            <div className="flex items-center justify-between pt-1">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className={ghostBtn}>
-                {language === 'ar' ? 'السابق' : 'Previous'}
-              </button>
-              <span className="text-[12px] text-slate-400">
-                {pagination.page} / {pagination.pages}
-              </span>
-              <button onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))} disabled={page >= pagination.pages} className={ghostBtn}>
-                {language === 'ar' ? 'التالي' : 'Next'}
-              </button>
+      {/* ─── TAB 2: AUDIT & ACTIVITY LOGS ─── */}
+      {mainTab === 'logs' && (
+        <div className="space-y-6">
+          {/* Logs Bento Metrics */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-[#0c111a]">
+              <div className="flex items-center justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-sm">
+                  <Activity className="h-5 w-5 stroke-[2.2]" />
+                </div>
+                <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+                  {isAr ? 'السجل الشامل' : 'Total Logs'}
+                </span>
+              </div>
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {isAr ? 'إجمالي العمليات المسجلة' : 'Recorded Operations'}
+                </p>
+                <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                  {logStats?.totalLogs || logsData?.pagination?.total || 0}
+                </p>
+              </div>
             </div>
-          )}
-        </motion.div>
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="lg:col-span-2">
-          <div className="sticky top-6 overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-[#0c111a]">
-            <AnimatePresence mode="wait">
-              {!panelOpen ? (
-                <motion.div
-                  key="empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="px-8 py-14 text-center"
+            <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-[#0c111a]">
+              <div className="flex items-center justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm">
+                  <Clock className="h-5 w-5 stroke-[2.2]" />
+                </div>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                  {isAr ? 'اليوم' : 'Today'}
+                </span>
+              </div>
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {isAr ? 'عمليات اليوم' : 'Operations Today'}
+                </p>
+                <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                  {logStats?.todayLogs || 0}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs dark:border-white/10 dark:bg-[#0c111a]">
+              <div className="flex items-center justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 text-white shadow-sm">
+                  <UsersIcon className="h-5 w-5 stroke-[2.2]" />
+                </div>
+                <span className="rounded-full bg-purple-50 px-2.5 py-0.5 text-[11px] font-bold text-purple-700 dark:bg-purple-500/10 dark:text-purple-300">
+                  {isAr ? 'نشاط الفريق' : 'Active Users'}
+                </span>
+              </div>
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {isAr ? 'المستخدمين النشطين اليوم' : 'Active Users Today'}
+                </p>
+                <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                  {logStats?.activeUsersToday || 0}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="rounded-3xl border border-slate-200/90 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-[#0c111a]">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative flex-1">
+                <Search className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 ${isAr ? 'right-3.5' : 'left-3.5'}`} />
+                <input
+                  type="text"
+                  value={logSearch}
+                  onChange={(e) => {
+                    setLogSearch(e.target.value)
+                    setLogPage(1)
+                  }}
+                  placeholder={isAr ? 'بحث في سجل العمليات...' : 'Search activity logs...'}
+                  className={`h-10 w-full rounded-2xl border border-slate-200 bg-slate-50/70 text-xs font-medium text-slate-900 placeholder:text-slate-400 transition-all focus:border-slate-900 focus:bg-white focus:outline-none dark:border-white/10 dark:bg-dark-800/60 dark:text-white ${
+                    isAr ? 'pr-10 pl-9' : 'pl-10 pr-9'
+                  }`}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={logModuleFilter}
+                  onChange={(e) => {
+                    setLogModuleFilter(e.target.value)
+                    setLogPage(1)
+                  }}
+                  className="h-10 rounded-2xl border border-slate-200 bg-slate-50/70 px-3 text-xs font-bold text-slate-700 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300"
                 >
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-slate-200/80 dark:border-white/10">
-                    <Fingerprint className="h-5 w-5 text-slate-400" />
-                  </div>
-                  <p className="mt-4 text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white">
-                    {language === 'ar' ? 'مستخدم جديد' : 'Invite a teammate'}
-                  </p>
-                  <p className="mx-auto mt-1.5 max-w-[240px] text-[13px] leading-relaxed text-slate-400">
-                    {language === 'ar'
-                      ? 'أضف مستخدماً بالهوية الثنائية والصلاحيات الدقيقة، أو اختر شخصاً من القائمة للتعديل.'
-                      : 'Create a bilingual identity, assign a role, then fine-tune access — or pick someone from the list.'}
-                  </p>
-                  <button onClick={() => openPanel()} disabled={isAtLimit} className={`${inkBtn} mt-6 w-full`}>
-                    <UserPlus className="h-4 w-4" />
-                    {language === 'ar' ? 'إضافة مستخدم' : 'Add User'}
-                  </button>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="panel"
-                  initial={{ opacity: 0, x: 12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 12 }}
+                  <option value="">{isAr ? 'جميع الوحدات' : 'All Modules'}</option>
+                  <option value="invoicing">{isAr ? 'الفوترة' : 'Invoicing'}</option>
+                  <option value="quotations">{isAr ? 'عروض الأسعار' : 'Quotations'}</option>
+                  <option value="customers">{isAr ? 'العملاء' : 'Customers'}</option>
+                  <option value="users">{isAr ? 'المستخدمين' : 'Users'}</option>
+                  <option value="auth">{isAr ? 'تسجيل الدخول' : 'Authentication'}</option>
+                </select>
+
+                <select
+                  value={logActionFilter}
+                  onChange={(e) => {
+                    setLogActionFilter(e.target.value)
+                    setLogPage(1)
+                  }}
+                  className="h-10 rounded-2xl border border-slate-200 bg-slate-50/70 px-3 text-xs font-bold text-slate-700 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300"
                 >
-                  <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/10">
-                    <div className="flex items-center gap-3 min-w-0">
-                      {editingUser ? (
-                        <Avatar user={{ ...editingUser, firstName: watchedFirstName || editingUser.firstName, lastName: watchedLastName || editingUser.lastName }} />
-                      ) : (
-                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900">
-                          <UserPlus className="h-4 w-4" />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">
-                          {editingUser ? (language === 'ar' ? 'تعديل' : 'Edit') : (language === 'ar' ? 'دعوة' : 'Invite')}
-                        </p>
-                        <p className="truncate text-[15px] font-semibold tracking-tight text-slate-900 dark:text-white">
-                          {displayName || (language === 'ar' ? 'مستخدم جديد' : 'New user')}
-                        </p>
-                      </div>
-                    </div>
-                    <button type="button" onClick={closePanel} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:hover:bg-white/5">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
+                  <option value="">{isAr ? 'جميع الإجراءات' : 'All Actions'}</option>
+                  <option value="login">{isAr ? 'دخول' : 'Login'}</option>
+                  <option value="create">{isAr ? 'إنشاء' : 'Create'}</option>
+                  <option value="update">{isAr ? 'تعديل' : 'Update'}</option>
+                  <option value="delete">{isAr ? 'حذف / تعطيل' : 'Delete'}</option>
+                  <option value="sign">{isAr ? 'توقيع' : 'Sign'}</option>
+                  <option value="approve">{isAr ? 'اعتماد' : 'Approve'}</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
-                  <div className="grid grid-cols-2 border-b border-slate-100 dark:border-white/10">
-                    <button
-                      type="button"
-                      onClick={() => setActiveSection('info')}
-                      className={`flex items-center justify-center gap-2 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition ${
-                        activeSection === 'info'
-                          ? 'border-b-2 border-slate-900 text-slate-900 dark:border-white dark:text-white'
-                          : 'border-b-2 border-transparent text-slate-400 hover:text-slate-600'
-                      }`}
-                    >
-                      <Mail className="h-3.5 w-3.5" />
-                      {language === 'ar' ? 'الهوية' : 'Identity'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveSection('permissions')}
-                      className={`flex items-center justify-center gap-2 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition ${
-                        activeSection === 'permissions'
-                          ? 'border-b-2 border-slate-900 text-slate-900 dark:border-white dark:text-white'
-                          : 'border-b-2 border-transparent text-slate-400 hover:text-slate-600'
-                      }`}
-                    >
-                      <Sliders className="h-3.5 w-3.5" />
-                      {language === 'ar' ? 'الصلاحيات' : 'Access'}
-                      {totalPermCount > 0 && (
-                        <span className="rounded-full bg-slate-900 px-1.5 py-0.5 text-[9px] font-bold text-white dark:bg-white dark:text-slate-900">
-                          {totalPermCount}
-                        </span>
-                      )}
-                    </button>
-                  </div>
+          {/* Logs Stream Table */}
+          <div className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-xs dark:border-white/10 dark:bg-[#0c111a]">
+            {loadingLogs ? (
+              <div className="flex h-64 flex-col items-center justify-center gap-3">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-950 dark:border-slate-700 dark:border-t-white" />
+                <p className="text-xs text-slate-400">{isAr ? 'جاري تحميل سجل النشاط...' : 'Loading audit logs...'}</p>
+              </div>
+            ) : logsData?.logs?.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-400 dark:bg-dark-800 dark:text-slate-500">
+                  <History className="h-8 w-8 stroke-[1.8]" />
+                </div>
+                <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">
+                  {isAr ? 'لا توجد سجلات نشاط مسجلة' : 'No Activity Logs'}
+                </h3>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-start text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/80 font-bold uppercase tracking-wider text-slate-500 dark:border-white/5 dark:bg-white/[0.02] dark:text-slate-400">
+                      <th className="py-3.5 px-5 text-start">{isAr ? 'المستخدم' : 'User'}</th>
+                      <th className="py-3.5 px-4 text-start">{isAr ? 'الإجراء' : 'Action'}</th>
+                      <th className="py-3.5 px-4 text-start">{isAr ? 'الوحدة / المورد' : 'Module / Target'}</th>
+                      <th className="py-3.5 px-4 text-start">{isAr ? 'التفاصيل' : 'Description'}</th>
+                      <th className="py-3.5 px-4 text-start">{isAr ? 'الوقت والتاريخ' : 'Timestamp'}</th>
+                      <th className="py-3.5 px-5 text-end">{isAr ? 'IP الجهاز' : 'IP'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium">
+                    {logsData?.logs?.map((log) => {
+                      const isCreate = log.action === 'create' || log.action === 'sign' || log.action === 'approve'
+                      const isDelete = log.action === 'delete' || log.action === 'reject'
+                      const isLogin = log.action === 'login'
 
-                  <form onSubmit={handleSubmit(onSubmit)}>
-                    <div className="max-h-[60vh] overflow-y-auto scrollbar-thin">
-                      <AnimatePresence mode="wait">
-                        {activeSection === 'info' ? (
-                          <motion.div
-                            key="info"
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            className="space-y-5 p-5"
-                          >
+                      return (
+                        <tr
+                          key={log._id}
+                          onClick={() => setSelectedLogDetail(log)}
+                          className="group cursor-pointer transition-colors hover:bg-slate-50/90 dark:hover:bg-white/[0.03]"
+                        >
+                          <td className="py-3.5 px-5">
                             <div>
-                              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
-                                {language === 'ar' ? 'الاسم' : 'Name'}
-                              </p>
-                              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2" dir="ltr">
-                                <div>
-                                  <label className="mb-1.5 flex items-baseline justify-between text-[11px] font-medium text-slate-500">
-                                    <span>First name</span>
-                                    <span dir="rtl">الاسم الأول</span>
-                                  </label>
-                                  <input {...register('firstName', { required: true })} className={fieldClass} placeholder="Ahmed" />
-                                </div>
-                                <div>
-                                  <label className="mb-1.5 flex items-baseline justify-between text-[11px] font-medium text-slate-500">
-                                    <span>First name (AR)</span>
-                                    <span dir="rtl">بالعربية</span>
-                                  </label>
-                                  <input {...register('firstNameAr')} className={fieldClass} dir="rtl" placeholder="أحمد" />
-                                </div>
-                                <div>
-                                  <label className="mb-1.5 flex items-baseline justify-between text-[11px] font-medium text-slate-500">
-                                    <span>Last name</span>
-                                    <span dir="rtl">اسم العائلة</span>
-                                  </label>
-                                  <input {...register('lastName', { required: true })} className={fieldClass} placeholder="Alharbi" />
-                                </div>
-                                <div>
-                                  <label className="mb-1.5 flex items-baseline justify-between text-[11px] font-medium text-slate-500">
-                                    <span>Last name (AR)</span>
-                                    <span dir="rtl">بالعربية</span>
-                                  </label>
-                                  <input {...register('lastNameAr')} className={fieldClass} dir="rtl" placeholder="الحربي" />
-                                </div>
-                              </div>
+                              <p className="font-bold text-slate-900 dark:text-white">{log.userName}</p>
+                              <p className="text-[11px] text-slate-400">{log.userEmail}</p>
                             </div>
+                          </td>
 
-                            <div>
-                              <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
-                                <Mail className="h-3.5 w-3.5" />
-                                {language === 'ar' ? 'البريد (تسجيل الدخول)' : 'Email (login)'}
-                              </label>
-                              <input type="email" {...register('email', { required: true })} className={fieldClass} placeholder="name@company.com" autoComplete="off" />
-                            </div>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10.5px] font-bold uppercase ${
+                                isCreate
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                  : isDelete
+                                  ? 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300'
+                                  : isLogin
+                                  ? 'bg-purple-50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300'
+                                  : 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
+                              }`}
+                            >
+                              {log.action}
+                            </span>
+                          </td>
 
-                            <div>
-                              <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
-                                <Phone className="h-3.5 w-3.5" />
-                                {language === 'ar' ? 'الهاتف' : 'Phone'}
-                              </label>
-                              <div className="flex overflow-hidden rounded-xl border border-slate-200/80 dark:border-white/10">
-                                <span className="flex items-center border-e border-slate-200/80 bg-slate-50 px-3 text-[12px] font-medium text-slate-500 dark:border-white/10 dark:bg-white/5">+966</span>
-                                <input {...register('phone')} className="w-full bg-transparent px-3.5 py-2.5 text-[13px] text-slate-900 outline-none placeholder:text-slate-400 dark:text-white" placeholder="5xxxxxxxx" />
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="mb-1.5 flex items-center justify-between">
-                                <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
-                                  <Lock className="h-3.5 w-3.5" />
-                                  {language === 'ar' ? 'كلمة المرور' : 'Password'}{editingUser ? '' : ' *'}
-                                </label>
-                                {!editingUser && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setValue('password', generateInvitePassword(), { shouldDirty: true })
-                                      setShowPassword(true)
-                                    }}
-                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                  >
-                                    <Sparkles className="h-3 w-3" />
-                                    {language === 'ar' ? 'توليد' : 'Generate'}
-                                  </button>
-                                )}
-                              </div>
-                              <div className="relative">
-                                <input
-                                  type={showPassword ? 'text' : 'password'}
-                                  {...register('password', { required: !editingUser })}
-                                  className={`${fieldClass} pe-10`}
-                                  autoComplete="new-password"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setShowPassword((v) => !v)}
-                                  className="absolute end-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                >
-                                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                </button>
-                              </div>
-                              {editingUser && (
-                                <p className="mt-1 text-[11px] text-slate-400">
-                                  {language === 'ar' ? 'اتركها فارغة للحفاظ على كلمة المرور الحالية.' : 'Leave empty to keep the current password.'}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="space-y-0.5">
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                                {log.module}
+                              </span>
+                              {log.resourceName && (
+                                <p className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                                  {log.resourceName}
                                 </p>
                               )}
                             </div>
+                          </td>
 
-                            {!editingUser && (
-                              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200/80 p-3.5 dark:border-white/10">
-                                <input type="checkbox" {...register('sendWelcomeEmail')} className="mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-slate-400" />
-                                <span>
-                                  <span className="block text-[13px] font-medium text-slate-900 dark:text-white">
-                                    {language === 'ar' ? 'إرسال دعوة بالبريد' : 'Send welcome email'}
-                                  </span>
-                                  <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-400">
-                                    {language === 'ar'
-                                      ? 'دعوة من بريد المنشأة مع رابط الدخول وكلمة المرور المؤقتة.'
-                                      : 'Invite from your company email with login link and temporary password.'}
-                                  </span>
-                                </span>
-                              </label>
-                            )}
+                          <td className="py-3.5 px-4">
+                            <p className="text-xs text-slate-700 dark:text-slate-300">
+                              {isAr ? log.descriptionAr || log.description : log.description}
+                            </p>
+                          </td>
 
-                            <div>
-                              <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
-                                {language === 'ar' ? 'الدور' : 'Role'}
-                              </p>
-                              <div className="grid grid-cols-2 gap-2">
-                                {roles.map((r) => {
-                                  const isActive = watchedRole === r.key
-                                  return (
-                                    <label
-                                      key={r.key}
-                                      className={`cursor-pointer rounded-xl border px-3 py-2.5 text-[12px] font-medium transition ${
-                                        isActive
-                                          ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
-                                          : 'border-slate-200/80 text-slate-600 hover:border-slate-300 dark:border-white/10 dark:text-slate-300'
-                                      }`}
-                                    >
-                                      <input
-                                        type="radio"
-                                        value={r.key}
-                                        {...register('role', {
-                                          onChange: (e) => {
-                                            const nextRole = e.target.value
-                                            const preset = ROLE_PRESETS[nextRole]
-                                            if (!preset) return
-                                            if (preset === 'ALL') {
-                                              const all = enabledModules.map((m) => ({ module: m.key, actions: [...ACTIONS] }))
-                                              setValue('permissions', all, { shouldDirty: true })
-                                              return
-                                            }
-                                            const next = Object.entries(preset)
-                                              .map(([module, actions]) => ({ module, actions: [...actions] }))
-                                              .filter((p) => enabledModules.some((m) => m.key === p.module))
-                                            setValue('permissions', next, { shouldDirty: true })
-                                          }
-                                        })}
-                                        className="sr-only"
-                                      />
-                                      {r.label}
-                                    </label>
-                                  )
-                                })}
-                              </div>
-                              <p className="mt-2 text-[11px] text-slate-400">
-                                {language === 'ar'
-                                  ? 'تغيير الدور يضبط الصلاحيات الافتراضية. يمكنك تعديلها من تبويب الوصول.'
-                                  : 'Role sets a default access map. Refine it in Access.'}
-                              </p>
-                            </div>
+                          <td className="py-3.5 px-4 whitespace-nowrap text-[11px] text-slate-400 font-mono">
+                            {new Date(log.createdAt).toLocaleString(isAr ? 'ar-SA' : 'en-US')}
+                          </td>
 
-                            <div className="flex items-center justify-between rounded-xl border border-slate-200/80 px-3.5 py-3 dark:border-white/10">
-                              <div>
-                                <p className="text-[13px] font-medium text-slate-900 dark:text-white">{language === 'ar' ? 'الحساب نشط' : 'Account active'}</p>
-                                <p className="text-[11px] text-slate-400">{language === 'ar' ? 'يمكن للمستخدم تسجيل الدخول' : 'Can sign in to this tenant'}</p>
-                              </div>
-                              <label className="relative inline-flex cursor-pointer items-center">
-                                <input type="checkbox" {...register('isActive')} className="peer sr-only" />
-                                <div className="h-6 w-10 rounded-full bg-slate-200 after:absolute after:start-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:bg-slate-900 peer-checked:after:translate-x-4 dark:bg-white/10 dark:peer-checked:bg-white dark:peer-checked:after:bg-slate-900" />
-                              </label>
-                            </div>
-                          </motion.div>
-                        ) : (
-                          <motion.div
-                            key="permissions"
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            className="space-y-2.5 p-5"
-                          >
-                            <div className="flex items-center justify-between">
-                              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
-                                {language === 'ar' ? 'الصلاحيات' : 'Modules'}
-                              </p>
-                              <span className="text-[11px] text-slate-400">{totalPermCount} {language === 'ar' ? 'صلاحية' : 'grants'}</span>
-                            </div>
-                            {enabledModules.map((m) => {
-                              const set = permMap.get(m.key) || new Set()
-                              const allOn = ACTIONS.every((a) => set.has(a))
-                              const someOn = ACTIONS.some((a) => set.has(a))
-                              const label = language === 'ar' ? m.labelAr : m.labelEn
-                              const Icon = m.Icon || FileText
-                              return (
-                                <div
-                                  key={m.key}
-                                  className={`rounded-xl border p-3.5 ${
-                                    someOn
-                                      ? 'border-slate-900/20 bg-slate-50/80 dark:border-white/20 dark:bg-white/[0.04]'
-                                      : 'border-slate-200/80 dark:border-white/10'
-                                  }`}
-                                >
-                                  <div className="mb-2.5 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <Icon className="h-3.5 w-3.5 text-slate-400" />
-                                      <p className="text-[13px] font-medium text-slate-900 dark:text-white">{label}</p>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleAllForModule(m.key, !allOn)}
-                                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${
-                                        allOn
-                                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                                          : 'text-slate-400 hover:text-slate-700'
-                                      }`}
-                                    >
-                                      {language === 'ar' ? 'الكل' : 'All'}
-                                    </button>
-                                  </div>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {ACTIONS.map((a) => (
-                                      <PermToggle
-                                        key={a}
-                                        active={set.has(a)}
-                                        label={a}
-                                        onClick={() => toggleAction(m.key, a)}
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-
-                    <div className="flex gap-2 border-t border-slate-100 p-4 dark:border-white/10">
-                      <button type="button" onClick={closePanel} className={`${ghostBtn} flex-1`}>
-                        {t('cancel')}
-                      </button>
-                      <button type="submit" disabled={mutation.isPending} className={`${inkBtn} flex-1`}>
-                        {mutation.isPending ? (
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white dark:border-slate-400 dark:border-t-slate-900" />
-                        ) : (
-                          <>
-                            <Save className="h-4 w-4" />
-                            {editingUser ? (language === 'ar' ? 'حفظ' : 'Save') : (language === 'ar' ? 'إنشاء المستخدم' : 'Create user')}
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                          <td className="py-3.5 px-5 text-end whitespace-nowrap font-mono text-[11px] text-slate-400">
+                            {log.ipAddress || '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </motion.div>
-      </div>
+        </div>
+      )}
+
+      {/* ─── SLIDE-OVER DRAWER (Create / Edit User & Access & Logs) ─── */}
+      <AnimatePresence>
+        {panelOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closePanel}
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ x: isAr ? -560 : 560 }}
+              animate={{ x: 0 }}
+              exit={{ x: isAr ? -560 : 560 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className={`fixed top-0 bottom-0 z-50 flex w-full max-w-xl flex-col bg-white shadow-2xl dark:bg-[#0c111a] ${
+                isAr ? 'left-0 border-r border-slate-200 dark:border-white/10' : 'right-0 border-l border-slate-200 dark:border-white/10'
+              }`}
+            >
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-slate-100 p-6 dark:border-white/10">
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                    {editingUser
+                      ? isAr
+                        ? `تعديل المستخدم: ${editingUser.firstName} ${editingUser.lastName}`
+                        : `Edit User: ${editingUser.firstName} ${editingUser.lastName}`
+                      : isAr
+                      ? 'إضافة مستخدم جديد'
+                      : 'Invite New User'}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {isAr
+                      ? 'الوصول محدد بحسب التطبيقات المفعلة للمنشأة.'
+                      : 'Permissions are strictly scoped to installed tenant modules.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closePanel}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Drawer Tabs */}
+              <div className="flex border-b border-slate-100 px-6 dark:border-white/10">
+                {[
+                  { id: 'info', en: 'Identity', ar: 'البيانات الشخصية' },
+                  { id: 'permissions', en: 'Access & Permissions', ar: 'الصلاحيات والوصول' },
+                  ...(editingUser ? [{ id: 'userLogs', en: 'Activity Logs', ar: 'سجل النشاط' }] : []),
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setActiveSection(t.id)}
+                    className={`border-b-2 py-3 px-4 text-xs font-bold transition-all ${
+                      activeSection === t.id
+                        ? 'border-slate-900 text-slate-900 dark:border-white dark:text-white'
+                        : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-white'
+                    }`}
+                  >
+                    {isAr ? t.ar : t.en}
+                  </button>
+                ))}
+              </div>
+
+              {/* Drawer Content */}
+              <form onSubmit={handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                  {/* SECTION 1: IDENTITY */}
+                  {activeSection === 'info' && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {isAr ? 'الاسم الأول (En)' : 'First Name (En)'}
+                          </label>
+                          <input {...register('firstName', { required: true })} className={fieldClass} placeholder="John" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {isAr ? 'اسم العائلة (En)' : 'Last Name (En)'}
+                          </label>
+                          <input {...register('lastName', { required: true })} className={fieldClass} placeholder="Doe" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {isAr ? 'الاسم الأول (عربي)' : 'First Name (Ar)'}
+                          </label>
+                          <input {...register('firstNameAr')} className={fieldClass} placeholder="محمد" dir="rtl" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {isAr ? 'اسم العائلة (عربي)' : 'Last Name (Ar)'}
+                          </label>
+                          <input {...register('lastNameAr')} className={fieldClass} placeholder="الغامدي" dir="rtl" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {isAr ? 'البريد الإلكتروني' : 'Email Address'}
+                        </label>
+                        <input
+                          type="email"
+                          {...register('email', { required: true })}
+                          className={fieldClass}
+                          placeholder="user@company.com"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {isAr ? 'رقم الهاتف' : 'Phone Number'}
+                        </label>
+                        <div className="flex gap-2">
+                          <span className="flex items-center rounded-xl border border-slate-200/80 bg-slate-50 px-3 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-dark-800">
+                            +966
+                          </span>
+                          <input {...register('phone')} className={fieldClass} placeholder="5xxxxxxxx" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {editingUser
+                              ? isAr
+                                ? 'كلمة المرور الجديدة (اتركها فارغة للإبقاء على الحالية)'
+                                : 'New Password (leave empty to keep current)'
+                              : isAr
+                              ? 'كلمة المرور'
+                              : 'Password'}
+                          </label>
+                          {!editingUser && (
+                            <button
+                              type="button"
+                              onClick={() => setValue('password', generateInvitePassword())}
+                              className="text-[11px] font-bold text-emerald-600 hover:underline"
+                            >
+                              {isAr ? 'توليد تلقائي' : 'Generate'}
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            {...register('password', { required: !editingUser })}
+                            className={fieldClass}
+                            placeholder="••••••••"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute top-1/2 end-3 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Active Status */}
+                      {editingUser && (
+                        <div className="pt-2">
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" {...register('isActive')} className="h-4 w-4 accent-slate-900" />
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                              {isAr ? 'الحساب نشط ويمكنه تسجيل الدخول' : 'Account is active'}
+                            </span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SECTION 2: PERMISSIONS & ACCESS */}
+                  {activeSection === 'permissions' && (
+                    <div className="space-y-6">
+                      {/* Role Presets Bar */}
+                      <div>
+                        <label className="mb-2 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {isAr ? 'الدور الوظيفي المحدد مسبقاً' : 'Role Preset'}
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {roles.map((r) => {
+                            const isSelected = watchedRole === r.key
+                            return (
+                              <button
+                                key={r.key}
+                                type="button"
+                                onClick={() => handleRolePreset(r.key)}
+                                className={`rounded-xl border p-2.5 text-center text-xs font-bold transition-all ${
+                                  isSelected
+                                    ? 'border-slate-900 bg-slate-900 text-white shadow-2xs dark:border-white dark:bg-white dark:text-slate-950'
+                                    : 'border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300'
+                                }`}
+                              >
+                                {r.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Scoped Modules Checklist */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                            {isAr ? 'الصلاحيات بحسب التطبيقات المفعلة' : 'Installed Tenant Module Permissions'}
+                          </p>
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            {enabledModules.length} {isAr ? 'تطبيق مفعل' : 'modules'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {enabledModules.map((m) => {
+                            const Icon = m.Icon
+                            const allActive = isModuleAllActive(m.key)
+
+                            return (
+                              <div
+                                key={m.key}
+                                className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-white/10 dark:bg-dark-800"
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-white">
+                                      <Icon className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                      <p className="text-xs font-bold text-slate-900 dark:text-white">
+                                        {isAr ? m.labelAr : m.labelEn}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleAllModuleActions(m.key)}
+                                    className={`rounded-lg px-2.5 py-1 text-[10.5px] font-bold uppercase transition ${
+                                      allActive
+                                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-400'
+                                    }`}
+                                  >
+                                    {allActive ? (isAr ? 'الكل مفعل' : 'All') : isAr ? 'تحديد الكل' : 'Select All'}
+                                  </button>
+                                </div>
+
+                                {/* Action Pills */}
+                                <div className="mt-3 flex flex-wrap gap-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
+                                  {ACTIONS.map((act) => {
+                                    const active = hasModuleAction(m.key, act)
+                                    return (
+                                      <PermToggle
+                                        key={act}
+                                        label={act}
+                                        active={active}
+                                        onClick={() => toggleAction(m.key, act)}
+                                      />
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SECTION 3: USER AUDIT LOGS */}
+                  {activeSection === 'userLogs' && editingUser && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold text-slate-500">
+                        {isAr ? 'سجل العمليات والنشاطات الأخيرة لهذا المستخدم' : 'Recent audit history for this user'}
+                      </p>
+
+                      {loadingUserLogs ? (
+                        <div className="flex h-32 items-center justify-center">
+                          <RefreshCw className="h-5 w-5 animate-spin text-slate-400" />
+                        </div>
+                      ) : userLogsData?.logs?.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-slate-400">
+                          {isAr ? 'لا توجد عمليات مسجلة لهذا المستخدم حتى الآن.' : 'No recorded activity yet.'}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {userLogsData?.logs?.map((l) => (
+                            <div
+                              key={l._id}
+                              className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3 text-xs dark:border-white/5 dark:bg-dark-800"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold uppercase text-slate-900 dark:text-white">
+                                  {l.action} · {l.module}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {new Date(l.createdAt).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-slate-600 dark:text-slate-300">
+                                {isAr ? l.descriptionAr || l.description : l.description}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Drawer Footer */}
+                <div className="flex items-center justify-between border-t border-slate-100 p-6 dark:border-white/10">
+                  <button type="button" onClick={closePanel} className={ghostBtn}>
+                    {isAr ? 'إلغاء' : 'Cancel'}
+                  </button>
+
+                  <button type="submit" disabled={mutation.isPending} className={inkBtn}>
+                    {mutation.isPending ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    <span>{editingUser ? (isAr ? 'حفظ التعديلات' : 'Save Changes') : isAr ? 'إنشاء المستخدم' : 'Create User'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ─── LOG DETAIL MODAL ─── */}
+      <AnimatePresence>
+        {selectedLogDetail && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedLogDetail(null)}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-[#0c111a]"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {isAr ? 'تفاصيل العملية وسجل النشاط' : 'Audit Log Detail'}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLogDetail(null)}
+                    className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-dark-800"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-3 text-xs">
+                  <div className="rounded-2xl bg-slate-50 p-3 dark:bg-dark-800">
+                    <p className="font-bold text-slate-900 dark:text-white">
+                      {isAr ? selectedLogDetail.descriptionAr || selectedLogDetail.description : selectedLogDetail.description}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="block text-slate-400">{isAr ? 'المستخدم' : 'User'}</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{selectedLogDetail.userName}</span>
+                    </div>
+                    <div>
+                      <span className="block text-slate-400">{isAr ? 'الوحدة' : 'Module'}</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{selectedLogDetail.module}</span>
+                    </div>
+                    <div>
+                      <span className="block text-slate-400">{isAr ? 'الإجراء' : 'Action'}</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{selectedLogDetail.action}</span>
+                    </div>
+                    <div>
+                      <span className="block text-slate-400">{isAr ? 'عنوان IP' : 'IP Address'}</span>
+                      <span className="font-mono text-slate-800 dark:text-slate-200">{selectedLogDetail.ipAddress || '—'}</span>
+                    </div>
+                  </div>
+
+                  {selectedLogDetail.details && Object.keys(selectedLogDetail.details).length > 0 && (
+                    <div className="pt-2">
+                      <span className="block mb-1 text-slate-400">{isAr ? 'بيانات إضافية (Metadata)' : 'Metadata'}</span>
+                      <pre className="max-h-40 overflow-auto rounded-xl bg-slate-900 p-3 font-mono text-[11px] text-slate-200">
+                        {JSON.stringify(selectedLogDetail.details, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLogDetail(null)}
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white dark:bg-white dark:text-slate-950"
+                  >
+                    {isAr ? 'إغلاق' : 'Close'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
