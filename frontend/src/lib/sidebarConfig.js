@@ -104,7 +104,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
   return [
     {
       title: language === 'ar' ? 'البقالة' : 'Bakala',
-      businessTypes: ['bakala'],
+      grantBusinessTypes: ['bakala'],
+      requireAnyApp: ['bakala_supermarket', 'bakala_pos'],
       items: [
         { path: '/app/dashboard/bakala/pos', icon: ShoppingCart, label: language === 'ar' ? 'نقطة البيع' : 'POS Checkout' },
         { path: '/app/dashboard/bakala/products', icon: Package, label: language === 'ar' ? 'المنتجات' : 'Products' },
@@ -126,7 +127,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'الصيدلية' : 'Pharmacy',
-      businessTypes: ['pharmacy'],
+      grantBusinessTypes: ['pharmacy'],
+      requireAnyApp: ['pharmacy_management', 'pharmacy'],
       items: [
         { path: '/app/dashboard/pharmacy/pos', icon: ShoppingCart, label: language === 'ar' ? 'نقطة البيع' : 'POS Checkout' },
         { path: '/app/dashboard/pharmacy/products', icon: Package, label: language === 'ar' ? 'الأدوية' : 'Medicines' },
@@ -143,7 +145,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'المكتبة' : 'Bookstore',
-      businessTypes: ['bookstore'],
+      grantBusinessTypes: ['bookstore'],
+      requireAnyApp: ['bookstore_stationery', 'bookstore'],
       items: [
         { path: '/app/dashboard/bookstore/pos', icon: ShoppingCart, label: language === 'ar' ? 'نقطة البيع' : 'POS Checkout' },
         { path: '/app/dashboard/bookstore/products', icon: Package, label: language === 'ar' ? 'المنتجات' : 'Products' },
@@ -161,7 +164,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'المتجر الإلكتروني' : 'E-Commerce',
-      businessTypes: ['ecommerce'],
+      grantBusinessTypes: ['ecommerce'],
+      requireAnyApp: ['ecommerce_store', 'ecommerce'],
       items: [
         { path: '/app/dashboard/ecommerce', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Insights', end: true },
         { path: '/app/dashboard/ecommerce/orders', icon: ListOrdered, label: language === 'ar' ? 'الطلبات' : 'Orders' },
@@ -189,7 +193,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'المطعم' : 'Restaurant',
-      businessTypes: ['restaurant'],
+      grantBusinessTypes: ['restaurant'],
+      requireAnyApp: ['restaurant_cafe', 'restaurant_pos', 'restaurant_mess'],
       items: [
         { path: '/app/dashboard/restaurant/pos', icon: ShoppingBag, label: language === 'ar' ? 'نقطة البيع' : 'POS', perm: { module: 'restaurant', action: 'create' } },
         { path: '/app/dashboard/restaurant/menu-items', icon: UtensilsCrossed, label: language === 'ar' ? 'قائمة الطعام' : 'Menu Items', perm: { module: 'restaurant', action: 'read' } },
@@ -210,7 +215,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'بوتيك وإيجار فساتين' : 'Boutique & Rentals',
-      businessTypes: ['boutique'],
+      grantBusinessTypes: ['boutique'],
+      requireAnyApp: ['boutique_rental', 'boutique'],
       items: [
         { path: '/app/dashboard/boutique/pos', icon: Sparkles, label: language === 'ar' ? 'نقطة البيع' : 'POS', perm: { module: 'boutique', action: 'create' } },
         { path: '/app/dashboard/boutique/dresses', icon: Shirt, label: language === 'ar' ? 'الفساتين' : 'Dresses', perm: { module: 'boutique', action: 'read' } },
@@ -220,7 +226,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'معرض الأثاث' : 'Furniture Shop',
-      businessTypes: ['furniture_shop'],
+      grantBusinessTypes: ['furniture_shop'],
+      requireAnyApp: ['furniture_shop'],
       items: [
         { path: '/app/dashboard/furniture/pos', icon: Sparkles, label: language === 'ar' ? 'نقطة البيع' : 'POS', perm: { module: 'boutique', action: 'create' } },
         { path: '/app/dashboard/furniture/products', icon: Package, label: language === 'ar' ? 'المنتجات' : 'Products', perm: { module: 'boutique', action: 'read' } },
@@ -228,7 +235,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'الصالة الرياضية' : 'Gym & Fitness',
-      businessTypes: ['gym'],
+      grantBusinessTypes: ['gym'],
+      requireAnyApp: ['gym_fitness_club', 'gym'],
       items: [
         { path: '/app/dashboard/gym/dashboard', icon: Dumbbell, label: language === 'ar' ? 'لوحة تحكم النادي' : 'Gym Dashboard', perm: { module: 'gym', action: 'read' } },
         { path: '/app/dashboard/gym/members', icon: Users, label: language === 'ar' ? 'الأعضاء' : 'Members Directory', perm: { module: 'gym', action: 'read' } },
@@ -245,8 +253,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'إدارة القاعات والمناسبات' : 'Marquee Management',
-      businessTypes: ['marquee'],
-      requireAnyApp: ['marquee_management'],
+      grantBusinessTypes: ['marquee'],
+      requireAnyApp: ['marquee_management', 'marquee'],
       items: [
         { path: '/app/dashboard/marquee/packages', icon: Boxes, label: language === 'ar' ? 'باقات المناسبات والوجبات' : 'Event Packages', perm: { module: 'invoicing', action: 'read' } },
         { path: '/app/dashboard/marquee/appointments', icon: CalendarDays, label: language === 'ar' ? 'حجوزات القاعات والمواعيد' : 'Bookings & Calendar', perm: { module: 'invoicing', action: 'read' } },
@@ -292,7 +300,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'الخياطة' : 'Tailoring',
-      businessTypes: ['khayyat'],
+      grantBusinessTypes: ['khayyat'],
+      requireAnyApp: ['tailor_khayyat', 'khayyat'],
       items: [
         { path: '/app/dashboard/khayyat/analytics', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard' },
         { path: '/app/dashboard/khayyat', icon: ShoppingCart, label: language === 'ar' ? 'نقطة البيع (الخياط)' : 'Tailor POS', end: true },
@@ -309,7 +318,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'صالون / حلاقة' : 'Saloon & POS',
-      businessTypes: ['saloon'],
+      grantBusinessTypes: ['saloon'],
+      requireAnyApp: ['saloon_barber', 'saloon'],
       items: [
         { path: '/app/saloon/dashboard', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', perm: { module: 'saloon', action: 'read' } },
         { path: '/app/saloon/pos', icon: ShoppingCart, label: language === 'ar' ? 'نقطة البيع (صالون)' : 'Saloon POS', perm: { module: 'saloon', action: 'create' } },
@@ -322,7 +332,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'سلسلة التوريد' : 'Supply Chain',
-      businessTypes: ['trading', 'bakala', 'pharmacy', 'furniture_shop'],
+      grantBusinessTypes: ['trading', 'bakala', 'pharmacy', 'furniture_shop'],
+      requireAnyApp: ['purchases', 'shipments', 'supply_chain'],
       items: [
         { 
           path: '/app/dashboard/shipments', 
@@ -335,7 +346,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'نقطة البيع (مغسلة)' : 'Point of sale',
-      businessTypes: ['laundry'],
+      grantBusinessTypes: ['laundry'],
+      requireAnyApp: ['laundry_cleaning', 'laundry_suite', 'laundry'],
       items: [
         { path: '/app/laundry/pos', icon: ShoppingCart, label: language === 'ar' ? 'طلب جديد (نقطة البيع)' : 'New Order (POS)', perm: { module: 'laundry', action: 'create' } },
         { path: '/app/laundry/orders', icon: ListOrdered, label: language === 'ar' ? 'الطلبات النشطة' : 'Active Orders', perm: { module: 'laundry', action: 'read' } },
@@ -347,7 +359,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'تأجير السيارات' : 'Car Rental',
-      businessTypes: ['car_rental'],
+      grantBusinessTypes: ['car_rental'],
+      requireAnyApp: ['car_rental'],
       items: [
         { path: '/app/rental/checkout', icon: PlusCircle, label: language === 'ar' ? 'تأجير جديد' : 'New Rental', perm: { module: 'car_rental', action: 'create' } },
         { path: '/app/rental/active', icon: Car, label: language === 'ar' ? 'تأجيرات نشطة' : 'Active Rentals', perm: { module: 'car_rental', action: 'read' } },
@@ -359,7 +372,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'مركز الصيانة' : 'Car Workshop',
-      businessTypes: ['car_workshop'],
+      grantBusinessTypes: ['car_workshop'],
+      requireAnyApp: ['car_workshop'],
       items: [
         { path: '/app/workshop', icon: Wrench, label: language === 'ar' ? 'ورشة العمل' : 'Workshop', perm: { module: 'workshop', action: 'read' } },
         { path: '/app/workshop/job-cards', icon: ClipboardList, label: language === 'ar' ? 'بطاقات الإصلاح' : 'Job Cards', perm: { module: 'workshop', action: 'read' } },
@@ -407,7 +421,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'الموارد البشرية والعمالة' : 'Manpower & Labor Supply',
-      businessTypes: ['manpower'],
+      grantBusinessTypes: ['manpower'],
+      requireAnyApp: ['manpower_outsourcing', 'manpower'],
       items: [
         { path: '/app/dashboard/manpower/workers', icon: Users, label: language === 'ar' ? 'العمالة' : 'Workers' },
         { path: '/app/dashboard/manpower/assignments', icon: Briefcase, label: language === 'ar' ? 'تعيينات العمالة' : 'Assignments' },
@@ -418,7 +433,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     },
     {
       title: language === 'ar' ? 'السفر' : 'Travel',
-      businessTypes: ['travel_agency'],
+      grantBusinessTypes: ['travel_agency'],
+      requireAnyApp: ['travel_agency'],
       items: [
         { path: '/app/dashboard/travel-bookings', icon: Plane, label: language === 'ar' ? 'الحجوزات' : 'Bookings', perm: { module: 'travel', action: 'read' } },
       ]

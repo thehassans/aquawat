@@ -30,13 +30,14 @@ export function resolveTaxInvoiceQr({
         vatTotal: tax,
       })
     }
-    if (cur === 'PKR' && tenant?.fbr?.autoGenerateQr !== false) {
+    const isPk = cur === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK' || (tenant?.business?.address?.country || '').toUpperCase() === 'PAKISTAN'
+    if (isPk && tenant?.fbr?.autoGenerateQr !== false) {
       return invoice?.fbr?.qrCode || generateFbrQrValue({
         sellerName: name,
-        ntn: tenant?.fbr?.ntn || vat,
-        strn: tenant?.fbr?.strn || '',
+        ntn: tenant?.fbr?.ntn || tenant?.business?.ntn || vat,
+        strn: tenant?.fbr?.strn || tenant?.business?.strn || '',
         invoiceNumber: invoice?.invoiceNumber,
-        fbrInvoiceNo: invoice?.fbr?.fbrInvoiceNo,
+        fbrInvoiceNo: invoice?.fbr?.fbrInvoiceNo || invoice?.fbrReference || '',
         timestamp,
         totalWithTax: total,
         salesTax: tax,

@@ -773,6 +773,18 @@ const getPartyDetailLines = (party = {}, language = 'en', role = 'party') => {
     lines.push({ label: vatLabel, value: party.vatNumber })
   }
 
+  if (party?.ntn) {
+    lines.push({ label: 'NTN', value: party.ntn })
+  }
+
+  if (party?.strn) {
+    lines.push({ label: 'STRN', value: party.strn })
+  }
+
+  if (party?.cnic) {
+    lines.push({ label: 'CNIC', value: party.cnic })
+  }
+
   if (role !== 'seller' && party?.crNumber) {
     lines.push({ label: language === 'ar' ? 'السجل التجاري' : 'CR', value: party.crNumber })
   }
@@ -1260,15 +1272,24 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     }
 
     const qrCenterX = qrX + qrW / 2
+    const ntnValue = tenant?.fbr?.ntn || tenant?.business?.ntn || seller?.ntn
+    const strnValue = tenant?.fbr?.strn || tenant?.business?.strn || seller?.strn
     const vatValue = seller.vatNumber || invoiceBranding.vatNumber
     const crValue = seller.crNumber || invoiceBranding.crNumber
     doc.setTextColor(theme.headerTitleRgb.r, theme.headerTitleRgb.g, theme.headerTitleRgb.b)
     setBodyFont(8, isQuotationPdf ? 'bold' : 'normal')
-    if (vatValue) {
-      doc.text(shape(`${isRtl ? 'الرقم الضريبي' : 'VAT'}: ${vatValue}`), qrCenterX, y + 76, { align: 'center', maxWidth: rightPanelW })
-    }
-    if (crValue) {
-      doc.text(shape(`${isRtl ? 'السجل التجاري' : 'CR'}: ${crValue}`), qrCenterX, y + 87, { align: 'center', maxWidth: rightPanelW })
+    if (String(currency || '').toUpperCase() === 'PKR' && ntnValue) {
+      doc.text(shape(`NTN: ${ntnValue}`), qrCenterX, y + 76, { align: 'center', maxWidth: rightPanelW })
+      if (strnValue) {
+        doc.text(shape(`STRN: ${strnValue}`), qrCenterX, y + 87, { align: 'center', maxWidth: rightPanelW })
+      }
+    } else {
+      if (vatValue) {
+        doc.text(shape(`${isRtl ? 'الرقم الضريبي' : 'VAT'}: ${vatValue}`), qrCenterX, y + 76, { align: 'center', maxWidth: rightPanelW })
+      }
+      if (crValue) {
+        doc.text(shape(`${isRtl ? 'السجل التجاري' : 'CR'}: ${crValue}`), qrCenterX, y + 87, { align: 'center', maxWidth: rightPanelW })
+      }
     }
 
     const dividerY = y + 100

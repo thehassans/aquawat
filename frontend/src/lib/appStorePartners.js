@@ -42,15 +42,19 @@ export function tenantHasDeliveryAccess(tenant) {
 
 export function isAppGateOpen(tenant, { requireApp, requireAnyApp } = {}) {
   const apps = tenant?.settings?.installedApps || {}
-  const isOn = (id) => Boolean(apps[id]?.isInstalled && apps[id]?.isEnabled !== false)
+  const isOn = (id) => isAppAccessValid(apps[id])
   if (Array.isArray(requireAnyApp) && requireAnyApp.length) return requireAnyApp.some(isOn)
   if (requireApp) return isOn(requireApp)
   return true
 }
 
-/** Sidebar/launcher unlock: construction (or other) grant, or an installed App Store app. */
+/** Sidebar/launcher unlock: vertical business type grant, or an installed App Store app. */
 export function isNavItemAppVisible(tenant, businessTypes = [], item = {}) {
-  const grantTypes = Array.isArray(item.grantBusinessTypes) ? item.grantBusinessTypes : []
+  const grantTypes = Array.isArray(item.grantBusinessTypes)
+    ? item.grantBusinessTypes
+    : Array.isArray(item.businessTypes)
+    ? item.businessTypes
+    : []
   const hasAppReq = Boolean(item.requireApp) || (Array.isArray(item.requireAnyApp) && item.requireAnyApp.length > 0)
   if (!grantTypes.length && !hasAppReq) return true
   if (grantTypes.some((type) => businessTypes.includes(type))) return true

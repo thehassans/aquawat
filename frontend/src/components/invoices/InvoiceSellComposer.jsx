@@ -30,19 +30,23 @@ import RichTextNoteField from './RichTextNoteField'
 import MarqueeEventFields from '../marquee/MarqueeEventFields'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
 
-const getEmptyLine = (tenant) => ({
-  productId: '',
-  productName: '',
-  productNameAr: '',
-  productType: 'goods',
-  unitCode: getDefaultUom(tenant) || '',
-  quantity: 1,
-  unitPrice: '',
-  customerPrice: '',
-  taxRate: 15,
-  agencyPrice: '',
-  isTravelMargin: false,
-})
+const getEmptyLine = (tenant) => {
+  const isPk = String(tenant?.settings?.currency || '').toUpperCase() === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
+  const defaultRate = isPk ? Number(tenant?.fbr?.defaultSalesTaxRate || 18) : Number(tenant?.settings?.taxRate ?? 15)
+  return {
+    productId: '',
+    productName: '',
+    productNameAr: '',
+    productType: 'goods',
+    unitCode: getDefaultUom(tenant) || '',
+    quantity: 1,
+    unitPrice: '',
+    customerPrice: '',
+    taxRate: defaultRate,
+    agencyPrice: '',
+    isTravelMargin: false,
+  }
+}
 
 const idOf = (value) => {
   if (!value) return ''
@@ -57,6 +61,8 @@ const emptyBuyerAddress = {
 
 const mapSellLineItems = (invoice, tenant) => {
   const empty = getEmptyLine(tenant)
+  const isPk = String(tenant?.settings?.currency || '').toUpperCase() === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
+  const defaultRate = isPk ? Number(tenant?.fbr?.defaultSalesTaxRate || 18) : Number(tenant?.settings?.taxRate ?? 15)
   const source = invoice?.lineItems || invoice?.items || invoice?.lines || []
   const raw = Array.isArray(source) ? source : []
   const mapped = raw.map((line) => {
@@ -73,7 +79,7 @@ const mapSellLineItems = (invoice, tenant) => {
       quantity: Math.max(0.0001, toNumber(plain?.quantity, 1)),
       unitPrice: Math.max(0, toNumber(plain?.unitPrice ?? plain?.price, 0)),
       customerPrice: Math.max(0, toNumber(plain?.customerPrice, 0)),
-      taxRate: Math.max(0, toNumber(plain?.taxRate, 15)),
+      taxRate: Math.max(0, toNumber(plain?.taxRate, defaultRate)),
       agencyPrice: Math.max(0, toNumber(plain?.agencyPrice, 0)),
       isTravelMargin: Boolean(plain?.isTravelMargin),
       productType: normalizeProductType(plain?.productType),
@@ -1564,7 +1570,27 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     ) : (
                       <div className="lg:col-span-1">
                         <label className={fieldLabelClass}>{t('tax')} %</label>
-                        <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={`mt-1.5 ${fieldControlClass}`}><option value={15}>15%</option><option value={0}>0%</option></select>
+                        {(() => {
+                          const isPk = String(tenant?.settings?.currency || '').toUpperCase() === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
+                          const pkRate = Number(tenant?.fbr?.defaultSalesTaxRate || 18)
+                          return (
+                            <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={`mt-1.5 ${fieldControlClass}`}>
+                              {isPk ? (
+                                <>
+                                  <option value={pkRate}>{pkRate}%</option>
+                                  {pkRate !== 16 && <option value={16}>16%</option>}
+                                  {pkRate !== 15 && <option value={15}>15%</option>}
+                                  <option value={0}>0%</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value={15}>15%</option>
+                                  <option value={0}>0%</option>
+                                </>
+                              )}
+                            </select>
+                          )
+                        })()}
                       </div>
                     )}
                     <div className="lg:col-span-2 flex items-center gap-2">

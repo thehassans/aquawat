@@ -75,10 +75,6 @@ export default function Sidebar() {
 
   const visibleNavSections = navSections
     .map((section) => {
-      if (Array.isArray(section.businessTypes) && !section.businessTypes.some((type) => businessTypes.includes(type))) {
-        return { ...section, items: [] }
-      }
-
       if (Array.isArray(section.excludeBusinessTypes) && section.excludeBusinessTypes.some((type) => businessTypes.includes(type))) {
         return { ...section, items: [] }
       }
@@ -93,12 +89,10 @@ export default function Sidebar() {
           const validChildren = item.children.filter((child) => {
             if (child.path && hiddenMenuSet.has(child.path)) return false
             if (child.perm && !hasAccess(child.perm.module, child.perm.action)) return false
-            if (Array.isArray(child.businessTypes) && !child.businessTypes.some((type) => businessTypes.includes(type))) {
-              return false
-            }
             if (Array.isArray(child.excludeBusinessTypes) && child.excludeBusinessTypes.some((type) => businessTypes.includes(type))) {
               return false
             }
+            if (!isNavItemAppVisible(tenant, businessTypes, child)) return false
             return true
           })
           return { ...item, children: validChildren }
@@ -108,9 +102,6 @@ export default function Sidebar() {
           if (Array.isArray(item.children) && item.children.length === 0 && !item.path) return false
           const childPath = item.children?.[0]?.path
           if (childPath && hiddenMenuSet.has(childPath) && !item.path) return false
-          if (Array.isArray(item?.businessTypes) && !item.businessTypes.some((type) => businessTypes.includes(type))) {
-            return false
-          }
           if (Array.isArray(item?.excludeBusinessTypes) && item.excludeBusinessTypes.some((type) => businessTypes.includes(type))) {
             return false
           }

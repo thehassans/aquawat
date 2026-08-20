@@ -34,6 +34,134 @@ export function App3DIcon({
   if (brandIcon) return brandIcon
 
   // ═══════════════════════════════════════════════════════════════════════════════
+  // ─── 0. MARQUEE & EVENT HALL MANAGEMENT 3D GLOWING ICONS ──────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  // 1. Marquee Event Packages (3D Royal Gold Banquet / Cloche Platter with Sparkles)
+  if (
+    (last === 'packages' && second === 'marquee') ||
+    cleanLabel.includes('event packages') ||
+    cleanLabel.includes('باقات المناسبات') ||
+    cleanAppId === 'marquee_management' ||
+    cleanLabel === 'marquee'
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`marq_pkg_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#F59E0B" />
+            <stop offset="50%" stopColor="#D97706" />
+            <stop offset="100%" stopColor="#78350F" />
+          </linearGradient>
+          <linearGradient id={`marq_pkg_gold_${uid}`} x1="14" y1="14" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FEF08A" />
+            <stop offset="50%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#B45309" />
+          </linearGradient>
+          <filter id={`marq_pkg_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#D97706" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#marq_pkg_bg_${uid})`} filter={`url(#marq_pkg_flt_${uid})`} stroke="#FDE68A" strokeWidth="1.2" strokeOpacity="0.6" />
+        
+        {/* Glow */}
+        <circle cx="32" cy="30" r="14" fill="#FDE047" fillOpacity="0.3" />
+
+        {/* 3D Cloche Dome / Banquet Cover */}
+        <path d="M18 36 C18 24, 46 24, 46 36 Z" fill={`url(#marq_pkg_gold_${uid})`} stroke="#FFFFFF" strokeWidth="1" />
+        {/* Handle */}
+        <circle cx="32" cy="22" r="3" fill="#FFFBEB" stroke="#B45309" strokeWidth="1" />
+        {/* Platter Base */}
+        <rect x="14" y="36" width="36" height="5" rx="2.5" fill="#FFFBEB" stroke="#D97706" strokeWidth="0.8" />
+        
+        {/* Sparkles */}
+        <circle cx="22" cy="18" r="1.5" fill="#FFFFFF" />
+        <circle cx="44" cy="18" r="1.5" fill="#FFFFFF" />
+        <circle cx="48" cy="28" r="1.2" fill="#FDE68A" />
+      </svg>
+    )
+  }
+
+  // 2. Marquee Bookings & Calendar / Appointments (3D Rose Gold Calendar with Diamond)
+  if (
+    (last === 'appointments' && second === 'marquee') ||
+    cleanLabel.includes('bookings & calendar') ||
+    cleanLabel.includes('حجوزات القاعات') ||
+    cleanLabel.includes('marquee appointments')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`marq_apt_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#EC4899" />
+            <stop offset="50%" stopColor="#DB2777" />
+            <stop offset="100%" stopColor="#831843" />
+          </linearGradient>
+          <linearGradient id={`marq_apt_card_${uid}`} x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="100%" stopColor="#FCE7F3" />
+          </linearGradient>
+          <filter id={`marq_apt_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#DB2777" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#marq_apt_bg_${uid})`} filter={`url(#marq_apt_flt_${uid})`} stroke="#FBCFE8" strokeWidth="1.2" strokeOpacity="0.6" />
+        
+        {/* Calendar Card */}
+        <rect x="15" y="17" width="34" height="34" rx="7" fill={`url(#marq_apt_card_${uid})`} stroke="#F472B6" strokeWidth="0.8" />
+        {/* Header Ribbon */}
+        <path d="M15 24 C15 20.13, 18.13 17, 22 17 L42 17 C45.87 17, 49 20.13, 49 24 L15 24 Z" fill="#BE185D" />
+        {/* Rings */}
+        <circle cx="23" cy="16" r="2" fill="#FFFFFF" />
+        <circle cx="41" cy="16" r="2" fill="#FFFFFF" />
+
+        {/* Sparkling Diamond in Center */}
+        <path d="M32 29 L38 35 L32 43 L26 35 Z" fill="#EC4899" stroke="#9D174D" strokeWidth="0.8" />
+        <circle cx="32" cy="35" r="2.5" fill="#FFFFFF" />
+      </svg>
+    )
+  }
+
+  // 3. Marquee Table QR Menu (3D Emerald Glowing QR Plate)
+  if (
+    (last === 'qr-menu' && second === 'marquee') ||
+    cleanLabel.includes('table qr menu') ||
+    cleanLabel.includes('قائمة الطاولات')
+  ) {
+    return (
+      <svg className={className} viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id={`marq_qr_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#10B981" />
+            <stop offset="50%" stopColor="#059669" />
+            <stop offset="100%" stopColor="#064E3B" />
+          </linearGradient>
+          <filter id={`marq_qr_flt_${uid}`} x="-25%" y="-25%" width="150%" height="150%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#059669" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={`url(#marq_qr_bg_${uid})`} filter={`url(#marq_qr_flt_${uid})`} stroke="#6EE7B7" strokeWidth="1.2" strokeOpacity="0.6" />
+        
+        {/* White QR Card */}
+        <rect x="16" y="16" width="32" height="32" rx="8" fill="#FFFFFF" stroke="#A7F3D0" strokeWidth="1" />
+        
+        {/* QR Pattern */}
+        <rect x="20" y="20" width="8" height="8" rx="2" fill="#047857" />
+        <rect x="22" y="22" width="4" height="4" fill="#FFFFFF" />
+        <rect x="36" y="20" width="8" height="8" rx="2" fill="#047857" />
+        <rect x="38" y="22" width="4" height="4" fill="#FFFFFF" />
+        <rect x="20" y="36" width="8" height="8" rx="2" fill="#047857" />
+        <rect x="22" y="38" width="4" height="4" fill="#FFFFFF" />
+        <rect x="34" y="34" width="4" height="4" rx="1" fill="#047857" />
+        <rect x="40" y="40" width="4" height="4" rx="1" fill="#047857" />
+      </svg>
+    )
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
   // ─── 0. GYM & FITNESS CLUB ULTRA-PREMIUM 3D GLOWING ICONS ─────────────────────
   // ═══════════════════════════════════════════════════════════════════════════════
 

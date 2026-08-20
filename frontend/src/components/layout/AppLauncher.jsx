@@ -106,6 +106,12 @@ const APP_STYLE_MAP = {
   '/app/dashboard/gym/lockers': { gradient: 'from-[#059669] to-[#10B981]' },
   '/app/dashboard/gym/analytics': { gradient: 'from-[#059669] to-[#10B981]' },
 
+  // Marquee & Wedding Hall Management (Gold / Amber / Rose)
+  '/app/dashboard/marquee': { gradient: 'from-[#F59E0B] to-[#D97706]' },
+  '/app/dashboard/marquee/packages': { gradient: 'from-[#F59E0B] to-[#B45309]' },
+  '/app/dashboard/marquee/appointments': { gradient: 'from-[#EC4899] to-[#BE185D]' },
+  '/app/dashboard/marquee/qr-menu': { gradient: 'from-[#10B981] to-[#047857]' },
+
   // Dashboard (Cyan / Bright Blue)
   '/app/dashboard': { gradient: 'from-[#4facfe] to-[#00f2fe]' },
 }
@@ -287,9 +293,6 @@ export default function AppLauncher() {
     const apps = []
 
     navSections.forEach((section) => {
-      if (Array.isArray(section.businessTypes) && !section.businessTypes.some((type) => businessTypes.includes(type))) {
-        return
-      }
       if (Array.isArray(section.excludeBusinessTypes) && section.excludeBusinessTypes.some((type) => businessTypes.includes(type))) {
         return
       }
@@ -302,9 +305,6 @@ export default function AppLauncher() {
         if (item.path && hiddenMenuSet.has(item.path)) return false
         const childPath = item.children?.[0]?.path
         if (childPath && hiddenMenuSet.has(childPath)) return false
-        if (Array.isArray(item?.businessTypes) && !item.businessTypes.some((type) => businessTypes.includes(type))) {
-          return false
-        }
         if (Array.isArray(item?.excludeBusinessTypes) && item.excludeBusinessTypes.some((type) => businessTypes.includes(type))) {
           return false
         }
