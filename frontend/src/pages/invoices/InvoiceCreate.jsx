@@ -24,7 +24,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from '../../lib/translations'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
-import { isSarCurrency } from '../../lib/currency'
+import { isSaudiTenant } from '../../lib/saudiTenant'
 
 export default function InvoiceCreate() {
   const navigate = useNavigate()
@@ -41,7 +41,7 @@ export default function InvoiceCreate() {
     ['trading', 'construction', 'manpower', 'travel_agency', 'real_estate'].includes(type)
   )
   const hasTravel = businessTypes.includes('travel_agency')
-  const isSaudi = (tenant?.currency || 'SAR') === 'SAR'
+  const isSaudi = isSaudiTenant(tenant)
 
   const [activeFilter, setActiveFilter] = useState('all')
 
@@ -64,24 +64,26 @@ export default function InvoiceCreate() {
       category: 'sales',
       titleEn: 'Sales & Tax Invoice',
       titleAr: 'فاتورة مبيعات ضريبية',
-      taglineEn: 'Standard B2B & Simplified B2C tax invoice with live QR code and ZATCA compliance.',
+      taglineEn: isSaudi
+        ? 'Standard B2B & Simplified B2C tax invoice with live QR code and ZATCA compliance.'
+        : 'Standard B2B & Simplified B2C tax invoice with live QR code and tax compliance.',
       taglineAr: 'فاتورة ضريبية قياسية (B2B) أو مبسطة (B2C) مع رمز QR التفاعلي والتوقيع الرقمي.',
       icon: ShoppingCart,
       gradient: 'from-emerald-500 via-teal-500 to-emerald-600',
       glowColor: 'rgba(16, 185, 129, 0.18)',
-      badgeEn: 'ZATCA Phase 2 Ready',
-      badgeAr: 'معتمد للمرحلة الثانية',
+      badgeEn: isSaudi ? 'ZATCA Phase 2 Ready' : 'Tax Compliant',
+      badgeAr: isSaudi ? 'معتمد للمرحلة الثانية' : 'معتمد للضريبة',
       badgeColor: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20',
       keyShortcut: '1',
       route: '/app/dashboard/invoices/new/sell',
       highlightsEn: [
-        'Automatic 15% VAT calculation with bilingual titles',
+        isSaudi ? 'Automatic 15% VAT calculation with bilingual titles' : 'Automatic tax calculation with itemized breakdown',
         'Cryptographic QR code generation for thermal & A4',
         'Real-time inventory deduction & cost of goods ledger',
         'Direct PDF, WhatsApp & thermal receipt sharing'
       ],
       highlightsAr: [
-        'حساب تلقائي لضريبة 15% مع عناوين ثنائية اللغة',
+        isSaudi ? 'حساب تلقائي لضريبة 15% مع عناوين ثنائية اللغة' : 'حساب تلقائي للضريبة مع تفصيل البنود',
         'توليد رمز QR المعتمد لإيصالات الكاشير وA4',
         'خصم فوري من المخزون وقيد تكلفة المبيعات',
         'مشاركة عبر واتساب والبريد وطباعة فورية'
@@ -138,7 +140,7 @@ export default function InvoiceCreate() {
         'Zero tax commitment until formal sales execution',
         'Does not hold or reduce warehouse stock balances',
         'Professional commercial quotation & payment terms',
-        'Instant conversion to final ZATCA tax invoice'
+        'Instant conversion to final tax invoice'
       ],
       highlightsAr: [
         'بدون أي التزام ضريبي حتى اعتماد البيع الفعلي',
@@ -146,7 +148,7 @@ export default function InvoiceCreate() {
         'عرض تجاري احترافي مع بيانات الحساب البنكي',
         'تحويل فوري إلى فاتورة ضريبية معتمدة'
       ],
-      tags: ['Commercial Draft', 'Advance Payment', '1-Click Convert', 'Non-ZATCA'],
+      tags: ['Commercial Draft', 'Advance Payment', '1-Click Convert', isSaudi ? 'Non-ZATCA' : 'Draft Mode'],
     },
     {
       id: 'quotation',
@@ -204,7 +206,7 @@ export default function InvoiceCreate() {
               </span>
               <span className="text-xs text-slate-400 dark:text-slate-500">•</span>
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                {isSaudi ? 'ZATCA Phase 2 E-Invoicing' : 'Enterprise ERP'}
+                {isSaudi ? 'ZATCA Phase 2 E-Invoicing' : (isAr ? 'الفوترة الإلكترونية المتوافقة' : 'E-Invoicing Compliant')}
               </span>
             </div>
             <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">
