@@ -527,20 +527,21 @@ export default function MarketingHome() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 24, scale: 0.97 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-              className="relative flex w-full max-w-[980px] overflow-hidden rounded-[2rem] border border-white/20 bg-white shadow-[0_50px_140px_-24px_rgba(0,0,0,0.65)]"
+              className="relative flex w-full max-w-[980px] overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white shadow-[0_32px_96px_-24px_rgba(15,23,42,0.24)]"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="relative hidden w-[38%] shrink-0 flex-col justify-between overflow-hidden bg-[#0b1f16] px-8 py-10 text-white lg:flex">
-                <div aria-hidden className="pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-emerald-500/30 blur-[90px]" />
-                <div aria-hidden className="pointer-events-none absolute bottom-0 right-0 h-48 w-48 rounded-full bg-teal-400/20 blur-[80px]" />
+              <div className="relative hidden w-[38%] shrink-0 flex-col justify-between overflow-hidden border-r border-slate-100 bg-[#f8faf9] px-8 py-10 text-slate-900 lg:flex rtl:border-r-0 rtl:border-l">
+                <div aria-hidden className="pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-emerald-500/10 blur-[80px]" />
+                <div aria-hidden className="pointer-events-none absolute bottom-0 right-0 h-48 w-48 rounded-full bg-teal-400/10 blur-[80px]" />
                 <div className="relative">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-300">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.22em] text-emerald-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     {isArabic ? 'تجربة مجانية' : 'Free trial'}
-                  </p>
-                  <h3 className="mt-5 font-display text-[1.85rem] font-bold leading-[1.15] tracking-[-0.03em]">
+                  </span>
+                  <h3 className="mt-5 font-display text-[1.85rem] font-bold leading-[1.18] tracking-[-0.03em] text-slate-950">
                     {isArabic ? 'مساحتك جاهزة في أقل من دقيقة' : 'Your workspace in under a minute'}
                   </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-white/55">
+                  <p className="mt-3 text-sm leading-relaxed text-slate-500">
                     {isArabic
                       ? 'اختر الدولة والشركة والعملة — ثم ادخل لوحة التحكم مباشرة.'
                       : 'Pick country, company, and currency — then land in a live dashboard.'}
@@ -552,20 +553,20 @@ export default function MarketingHome() {
                     isArabic ? 'بلا بطاقة ائتمان' : 'No credit card required',
                     isArabic ? 'فواتير وعملاء وتقارير من أول دخول' : 'Invoices, customers, and reports from first login',
                   ].map((line) => (
-                    <li key={line} className="flex items-start gap-3 text-white/80">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/20 text-emerald-300">
+                    <li key={line} className="flex items-start gap-3 text-slate-700">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200/70">
                         <Check className="h-3 w-3" strokeWidth={3} />
                       </span>
-                      {line}
+                      <span className="font-medium leading-relaxed">{line}</span>
                     </li>
                   ))}
                 </ul>
-                <p className="relative mt-10 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/30">
+                <p className="relative mt-10 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                   Maqder · Live ERP
                 </p>
               </div>
 
-              <div className="relative min-w-0 flex-1 bg-gradient-to-b from-[#f7faf8] to-white">
+              <div className="relative min-w-0 flex-1 bg-white">
                 <button
                   type="button"
                   onClick={() => setTrialOpen(false)}
@@ -575,10 +576,11 @@ export default function MarketingHome() {
                   <X className="h-5 w-5" />
                 </button>
                 <div className="border-b border-slate-100 px-6 pb-4 pt-7 lg:hidden">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-600">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.22em] text-emerald-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     {isArabic ? 'تجربة مجانية' : 'Free trial'}
-                  </p>
-                  <h3 className="mt-1 font-display text-xl font-bold tracking-tight text-slate-950">
+                  </span>
+                  <h3 className="mt-2 font-display text-xl font-bold tracking-tight text-slate-950">
                     {isArabic ? 'مساحتك جاهزة في أقل من دقيقة' : 'Your workspace in under a minute'}
                   </h3>
                 </div>
