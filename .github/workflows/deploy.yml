@@ -112,8 +112,8 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o ConnectTimeout=15 \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=20 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=60 \
             -p "${SSH_PORT}" \
             "${SSH_USER}@${SSH_HOST}" \
             "cd /var/www/vhosts/maqder.com/httpdocs && git fetch origin main && git reset --hard origin/main && chmod +x deploy.sh && ./deploy.sh"
