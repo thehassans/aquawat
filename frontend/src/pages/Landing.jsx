@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Header } from '../components/ui/header-3'
 import { HeroSection } from '../components/ui/hero-3'
+import { HighlightText } from '../components/ui/highlight-text'
 import { motion } from 'framer-motion'
 import { usePublicWebsiteSettings } from '../lib/website'
 import { getBusinessTypeOptions } from '../lib/businessTypes'
@@ -406,6 +407,41 @@ export default function Landing() {
       <Header isArabic={isArabic} setIsArabic={setIsArabic} />
       <main className="grow">
         <HeroSection isArabic={isArabic} />
+
+        {/* Highlight Text Feature Banner */}
+        <section className="py-14 bg-white border-b border-gray-100 dark:border-dark-750">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="rounded-3xl bg-slate-50 dark:bg-dark-800/60 border border-slate-200/80 dark:border-dark-700 p-8 sm:p-12 shadow-sm"
+            >
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-extrabold leading-relaxed sm:leading-loose text-gray-900 dark:text-white tracking-tight">
+                {isArabic ? (
+                  <>
+                    صمم واجهات تبدو{' '}
+                    <HighlightText variant="lime" className="text-slate-900">سلسة</HighlightText>{' '}
+                    وتبقى{' '}
+                    <HighlightText variant="yellow" className="text-slate-900">رائعة</HighlightText>{' '}
+                    لكل{' '}
+                    <HighlightText variant="pink" className="text-slate-900">مستخدم</HighlightText>.
+                  </>
+                ) : (
+                  <>
+                    Build interfaces that feel{' '}
+                    <HighlightText variant="lime" className="text-slate-900">effortless</HighlightText>{' '}
+                    and stay{' '}
+                    <HighlightText variant="yellow" className="text-slate-900">delightful</HighlightText>{' '}
+                    for every{' '}
+                    <HighlightText variant="pink" className="text-slate-900">user</HighlightText>.
+                  </>
+                )}
+              </p>
+            </motion.div>
+          </div>
+        </section>
       </main>
       {/* Stats Section */}
       <section className="py-16 bg-gradient-to-r from-primary-600 to-primary-700">

@@ -72,6 +72,7 @@ export default {
         border: 'var(--border)',
         input: 'var(--input)',
         ring: 'var(--ring)',
+        'accent-green': 'var(--accent-green, #c5f83a)',
       },
       fontFamily: {
         sans: ['"Plus Jakarta Sans"', 'Inter', 'Tajawal', 'sans-serif'],
