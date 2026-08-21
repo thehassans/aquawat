@@ -135,6 +135,7 @@ export default function Invoices() {
   const [waMessage, setWaMessage] = useState('')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const hasTravel = tenantBusinessTypes.includes('travel_agency')
+  const isSarTenant = isSaudiTenant(tenant) || String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   const posTenants = ['bakala', 'super market', 'khayyat', 'saloon', 'laundry', 'boutique']
   const showNewInvoiceBtn = true
   const isPosInvoice = (inv) => isThermalInvoice(inv)
