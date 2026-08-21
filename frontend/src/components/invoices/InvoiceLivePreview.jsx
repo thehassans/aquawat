@@ -409,6 +409,9 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const logoSrc = invoiceBranding.logoSrc
   const vatNumber = companyVat || tenant?.business?.vatNumber
   const cur = String(currency || 'SAR').toUpperCase()
+  const isZatcaApplicable = cur === 'SAR'
+  const isFbrApplicable = cur === 'PKR'
+  const isNbrApplicable = cur === 'BDT'
   const qrValue = (() => {
     try {
       if (cur === 'SAR') {

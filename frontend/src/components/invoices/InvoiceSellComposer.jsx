@@ -2061,13 +2061,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         subtotal: previewInvoice.subtotal,
                         paymentMethod: previewInvoice.paymentMethod || 'cash',
                         createdAt: previewInvoice.issueDate,
-                        zatcaQrCode: previewInvoice.zatca?.qrCodeData || generateZatcaQrValue({
+                        zatcaQrCode: previewInvoice.zatca?.qrCodeData || (String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR' ? generateZatcaQrValue({
                           sellerName: tenant?.business?.legalNameEn || tenant?.name,
                           vatNumber: tenant?.business?.vatNumber,
                           timestamp: previewInvoice.issueDate,
                           totalWithVat: previewInvoice.grandTotal,
                           vatTotal: previewInvoice.totalTax,
-                        }),
+                        }) : null),
                         items: (previewInvoice.lineItems || []).map((item) => ({
                           nameEn: item.productName || item.name,
                           nameAr: item.productNameAr || item.nameAr,
