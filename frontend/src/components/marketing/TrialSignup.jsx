@@ -382,27 +382,6 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
                       </button>
                     )}
                   </div>
-                  <div>
-                    <label className={labelCls}>{isArabic ? 'العملة' : 'Currency'}</label>
-                    <div className="relative">
-                      <Wallet className={`pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 ${isDark ? 'text-white/30' : 'text-slate-400'}`} />
-                      <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={`${inputCls} pl-11`}>
-                        <option value="">{isArabic ? 'اختر العملة' : 'Select currency'}</option>
-                        {currencyOptions.map((c) => (
-                          <option key={c.code} value={c.code} className="text-slate-900">
-                            {c.code} — {isArabic ? (c.nameAr || c.nameEn) : c.nameEn}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {selectedCountry && (
-                      <p className={`mt-2 text-xs ${isDark ? 'text-white/35' : 'text-slate-400'}`}>
-                        {isArabic
-                          ? `افتراضي ${selectedCountry.nameAr}: ${selectedCountry.currency}`
-                          : `Default for ${selectedCountry.nameEn}: ${selectedCountry.currency}`}
-                      </p>
-                    )}
-                  </div>
                 </>
               )}
 
