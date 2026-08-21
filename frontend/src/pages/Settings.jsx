@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Building2, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid, ChevronDown, Info, UploadCloud, Trash2 } from 'lucide-react'
+import { Building2, Globe, Palette, Bell, Save, Key, CheckCircle, Image, Database, Download, FileText, CreditCard, Terminal, Car, UtensilsCrossed, Clock, Printer, MapPin, Briefcase, Receipt, MessageCircle, BookOpen, PanelLeft, Eye, EyeOff, Menu, Monitor, Smartphone, Maximize, LayoutGrid, ChevronDown, Info, UploadCloud, Trash2, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
@@ -233,6 +233,9 @@ export default function Settings() {
   const [invoiceSequencePattern, setInvoiceSequencePattern] = useState('RCPT-{N}')
   const [khayyatWhatsappLanguage, setKhayyatWhatsappLanguage] = useState('both')
   const [invoiceCurrencyDisplay, setInvoiceCurrencyDisplay] = useState('text')
+  const [showPurgeRestaurantModal, setShowPurgeRestaurantModal] = useState(false)
+  const [purgeConfirmText, setPurgeConfirmText] = useState('')
+  const [isPurgingRestaurant, setIsPurgingRestaurant] = useState(false)
   const [invoiceCurrencyPosition, setInvoiceCurrencyPosition] = useState('after')
   const [defaultCurrency, setDefaultCurrency] = useState(CURRENCY_CODE)
   const [invoiceLanguage, setInvoiceLanguage] = useState('auto')
@@ -528,6 +531,46 @@ export default function Settings() {
     ...(hasBookstore ? [{ id: 'bookstore', label: language === 'ar' ? 'إعدادات المكتبة' : 'Bookstore', icon: BookOpen }] : []),
     { id: 'backup', label: language === 'ar' ? 'النسخ الاحتياطي' : 'Backup', icon: Database },
   ]
+
+  const { data: restaurantPurgeSummary, refetch: refetchPurgeSummary } = useQuery({
+    queryKey: ['restaurantPurgeSummary'],
+    queryFn: async () => {
+      const res = await api.get('/restaurant/orders/purge-summary')
+      return res.data
+    },
+    enabled: hasRestaurant,
+  })
+
+  const handlePurgeRestaurantData = async () => {
+    if (purgeConfirmText.trim().toUpperCase() !== 'DELETE' && purgeConfirmText.trim() !== 'حذف') {
+      return toast.error(language === 'ar' ? 'يرجى كتابة DELETE أو حذف لتأكيد العملية' : 'Please type DELETE to confirm')
+    }
+
+    try {
+      setIsPurgingRestaurant(true)
+      const res = await api.delete('/restaurant/orders/purge-all')
+      toast.success(
+        language === 'ar'
+          ? `تم مسح ${res.data.deletedInvoices || 0} فاتورة و ${res.data.deletedOrders || 0} طلب بنجاح`
+          : `Successfully deleted ${res.data.deletedInvoices || 0} invoices and ${res.data.deletedOrders || 0} orders!`
+      )
+      setShowPurgeRestaurantModal(false)
+      setPurgeConfirmText('')
+      
+      // Invalidate all related queries
+      queryClient.invalidateQueries({ queryKey: ['restaurantPurgeSummary'] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] })
+      queryClient.invalidateQueries({ queryKey: ['restaurantOrders'] })
+      queryClient.invalidateQueries({ queryKey: ['restaurantStats'] })
+      refetchPurgeSummary()
+    } catch (err) {
+      toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل مسح البيانات' : 'Failed to purge restaurant data'))
+    } finally {
+      setIsPurgingRestaurant(false)
+    }
+  }
 
   const downloadBackup = async () => {
     try {
@@ -1196,6 +1239,53 @@ export default function Settings() {
                   {updateMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Save className="w-4 h-4" /> {t('save')}</>}
                 </button>
               </div>
+
+              {/* Danger Zone: Purge All Restaurant Invoices & Orders */}
+              <div className="border border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20 rounded-2xl p-5 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/40 text-red-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Trash2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-base font-bold text-red-900 dark:text-red-300">
+                        {language === 'ar' ? 'مسح جميع فواتير وسجلات المطعم' : 'Remove All Restaurant Invoices & Orders'}
+                      </h4>
+                      <p className="text-xs text-red-700 dark:text-red-400 mt-1 leading-relaxed">
+                        {language === 'ar'
+                          ? 'يقوم هذا الإجراء بحذف جميع فواتير المطعم الصادرة، وطلبات المطعم، وسجلات التوصيل، مما يعيد تصفير كافة تقارير المبيعات، والإيرادات، وإقرارات الضريبة الخاصة بالمطعم بشكل كامل ونظيف.'
+                          : 'Permanently deletes all restaurant invoices, orders, delivery tickets, and resets all sales reports, revenue graphs, and VAT calculations relating to restaurant operations.'}
+                      </p>
+                      
+                      {restaurantPurgeSummary && (
+                        <div className="flex flex-wrap items-center gap-3 mt-3">
+                          <div className="px-3 py-1.5 rounded-lg bg-white dark:bg-dark-800 border border-red-200 dark:border-red-900/60 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                            {language === 'ar' ? 'فواتير المطعم:' : 'Invoices:'} <span className="font-bold text-red-600">{restaurantPurgeSummary.invoicesCount || 0}</span>
+                          </div>
+                          <div className="px-3 py-1.5 rounded-lg bg-white dark:bg-dark-800 border border-red-200 dark:border-red-900/60 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                            {language === 'ar' ? 'طلبات المطعم:' : 'Orders:'} <span className="font-bold text-red-600">{restaurantPurgeSummary.ordersCount || 0}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPurgeConfirmText('')
+                      setShowPurgeRestaurantModal(true)
+                      refetchPurgeSummary()
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-sm shadow-red-600/20"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {language === 'ar' ? 'مسح كافة فواتير وبيانات المطعم' : 'Purge All Restaurant Invoices'}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           )}
 
@@ -1378,6 +1468,94 @@ export default function Settings() {
           )}
         </div>
       </div>
+
+      {/* Purge Restaurant Invoices Modal */}
+      {showPurgeRestaurantModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-red-200 dark:border-red-900/50"
+          >
+            <div className="p-6 border-b border-red-100 dark:border-red-900/30 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/40 text-red-600 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white text-base">
+                  {language === 'ar' ? 'تأكيد مسح فواتير المطعم' : 'Confirm Restaurant Data Purge'}
+                </h3>
+                <p className="text-xs text-red-600 dark:text-red-400 font-medium">
+                  {language === 'ar' ? 'إجراء نهائي لا يمكن التراجع عنه' : 'Permanent action cannot be undone'}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4 text-sm text-gray-600 dark:text-gray-300">
+              <p className="text-xs leading-relaxed">
+                {language === 'ar'
+                  ? 'سيتم حذف جميع فواتير المطعم وطلباته وسجلاته نهائياً من قاعدة البيانات. ستتم تصفية كافة تقارير المبيعات والإحصائيات والإقرارات الضريبية فوراً.'
+                  : 'All restaurant invoices, orders, deliveries, and associated sales records will be permanently deleted. Sales reports, dashboard analytics, and VAT totals will reset immediately.'}
+              </p>
+
+              {restaurantPurgeSummary && (
+                <div className="bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40 rounded-xl p-3 space-y-1.5 text-xs text-red-900 dark:text-red-200 font-medium">
+                  <div className="flex justify-between">
+                    <span>{language === 'ar' ? 'عدد فواتير المطعم:' : 'Restaurant Invoices:'}</span>
+                    <span className="font-bold">{restaurantPurgeSummary.invoicesCount || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{language === 'ar' ? 'عدد طلبات المطعم:' : 'Restaurant Orders:'}</span>
+                    <span className="font-bold">{restaurantPurgeSummary.ordersCount || 0}</span>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  {language === 'ar' ? 'اكتب "DELETE" أو "حذف" للتأكيد:' : 'Type "DELETE" to confirm:'}
+                </label>
+                <input
+                  type="text"
+                  value={purgeConfirmText}
+                  onChange={(e) => setPurgeConfirmText(e.target.value)}
+                  placeholder="DELETE"
+                  className="w-full bg-gray-50 dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-xl py-2 px-3 text-sm font-bold focus:ring-2 focus:ring-red-500 outline-none text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 dark:bg-dark-900/50 border-t border-gray-100 dark:border-dark-700 flex gap-2">
+              <button
+                type="button"
+                disabled={isPurgingRestaurant}
+                onClick={() => setShowPurgeRestaurantModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-dark-700 font-bold hover:bg-gray-50 text-gray-700 dark:text-gray-300 text-xs transition-colors"
+              >
+                {language === 'ar' ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={
+                  isPurgingRestaurant ||
+                  (purgeConfirmText.trim().toUpperCase() !== 'DELETE' && purgeConfirmText.trim() !== 'حذف')
+                }
+                onClick={handlePurgeRestaurantData}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-sm disabled:opacity-40 flex items-center justify-center gap-1.5"
+              >
+                {isPurgingRestaurant ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    {language === 'ar' ? 'تأكيد المسح النهائي' : 'Purge All Data'}
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

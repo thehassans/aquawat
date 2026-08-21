@@ -1,6 +1,10 @@
 import express from 'express';
 import RestaurantOrder from '../models/RestaurantOrder.js';
 import RestaurantMenuItem from '../models/RestaurantMenuItem.js';
+import RestaurantDelivery from '../models/RestaurantDelivery.js';
+import PosPayment from '../models/PosPayment.js';
+import ZatcaLog from '../models/ZatcaLog.js';
+import ZatcaQueue from '../models/ZatcaQueue.js';
 import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
 import Branch from '../models/Branch.js';
@@ -332,6 +336,130 @@ router.post('/:id/create-invoice', checkPermission('restaurant', 'update'), chec
     );
 
     res.status(201).json({ invoice, order: updatedOrder });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/restaurant/orders/purge-summary
+// @desc    Get counts and revenue totals for restaurant invoices and orders before purging
+router.get('/purge-summary', checkPermission('restaurant', 'read'), async (req, res) => {
+  try {
+    const [ordersCount, orderRevenueAgg, invoicesCount, invoiceRevenueAgg] = await Promise.all([
+      RestaurantOrder.countDocuments({ ...req.tenantFilter }),
+      RestaurantOrder.aggregate([
+        { $match: { ...req.tenantFilter } },
+        { $group: { _id: null, total: { $sum: '$grandTotal' } } },
+      ]),
+      Invoice.countDocuments({
+        ...req.tenantFilter,
+        $or: [
+          { businessContext: 'restaurant' },
+          { restaurantOrderId: { $ne: null } },
+        ],
+      }),
+      Invoice.aggregate([
+        {
+          $match: {
+            ...req.tenantFilter,
+            $or: [
+              { businessContext: 'restaurant' },
+              { restaurantOrderId: { $ne: null } },
+            ],
+          },
+        },
+        { $group: { _id: null, total: { $sum: '$grandTotal' } } },
+      ]),
+    ]);
+
+    res.json({
+      ordersCount,
+      ordersRevenue: orderRevenueAgg?.[0]?.total || 0,
+      invoicesCount,
+      invoicesRevenue: invoiceRevenueAgg?.[0]?.total || 0,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   DELETE /api/restaurant/orders/purge-all
+// @desc    Purge every restaurant invoice, order, delivery, and related reports data for the tenant
+router.delete('/purge-all', checkPermission('restaurant', 'delete'), async (req, res) => {
+  try {
+    // 1. Find all restaurant orders for this tenant
+    const orders = await RestaurantOrder.find({ ...req.tenantFilter }).select('_id invoiceId').lean();
+    const orderIds = orders.map((o) => o._id);
+    const invoiceIdsFromOrders = orders.map((o) => o.invoiceId).filter(Boolean);
+
+    // 2. Find all restaurant invoices for this tenant
+    const restaurantInvoices = await Invoice.find({
+      ...req.tenantFilter,
+      $or: [
+        { businessContext: 'restaurant' },
+        { restaurantOrderId: { $ne: null } },
+        { _id: { $in: invoiceIdsFromOrders } },
+      ],
+    }).select('_id').lean();
+    const allInvoiceIds = restaurantInvoices.map((i) => i._id);
+
+    // 3. Purge Invoices
+    const invoiceResult = await Invoice.deleteMany({
+      ...req.tenantFilter,
+      _id: { $in: allInvoiceIds },
+    });
+
+    // 4. Purge Restaurant Orders
+    const orderResult = await RestaurantOrder.deleteMany({
+      ...req.tenantFilter,
+    });
+
+    // 5. Purge Deliveries
+    const deliveryResult = await RestaurantDelivery.deleteMany({
+      ...req.tenantFilter,
+    });
+
+    // 6. Purge POS Payments linked to restaurant
+    await PosPayment.deleteMany({
+      ...req.tenantFilter,
+      $or: [
+        { source: 'restaurant' },
+        { orderType: 'restaurant' },
+        { orderId: { $in: orderIds } },
+      ],
+    });
+
+    // 7. Purge ZATCA logs and queue items for deleted invoices
+    if (allInvoiceIds.length > 0) {
+      await Promise.all([
+        ZatcaLog.deleteMany({ tenantId: req.user.tenantId, invoiceId: { $in: allInvoiceIds } }),
+        ZatcaQueue.deleteMany({ tenantId: req.user.tenantId, invoiceId: { $in: allInvoiceIds } }),
+      ]);
+    }
+
+    // 8. If all tenant invoices are gone, reset zatca invoice counter
+    const remainingInvoices = await Invoice.countDocuments({ ...req.tenantFilter });
+    if (remainingInvoices === 0) {
+      await Tenant.updateOne(
+        { _id: req.user.tenantId },
+        { $set: { 'zatca.invoiceCounter': 0, 'zatca.lastInvoiceHash': '' } }
+      );
+    }
+
+    // 9. Emit live event to tenant clients
+    emitToTenant(req.user.tenantId, 'restaurant_data_purged', {
+      deletedInvoices: invoiceResult.deletedCount || 0,
+      deletedOrders: orderResult.deletedCount || 0,
+      deletedDeliveries: deliveryResult.deletedCount || 0,
+    });
+
+    res.json({
+      success: true,
+      message: 'All restaurant invoices, orders, and sales records have been completely deleted',
+      deletedInvoices: invoiceResult.deletedCount || 0,
+      deletedOrders: orderResult.deletedCount || 0,
+      deletedDeliveries: deliveryResult.deletedCount || 0,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
