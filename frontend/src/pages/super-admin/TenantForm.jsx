@@ -11,6 +11,7 @@ import { useTranslation } from '../../lib/translations'
 import SarIcon from '../../components/ui/SarIcon'
 import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes, normalizeBusinessTypes } from '../../lib/businessTypes'
 import { CURRENCIES, CURRENCY_CODE } from '../../lib/currency'
+import { COUNTRY_OPTIONS, currencyForCountry, timezoneForCountry } from '../../lib/countryCurrency'
 import TenantAppStorePanel from '../../components/super-admin/TenantAppStorePanel'
 
 export default function TenantForm() {
@@ -463,7 +464,25 @@ export default function TenantForm() {
                 </div>
                 <div>
                   <label className="label">{language === 'ar' ? 'الدولة' : 'Country'}</label>
-                  <input {...register('business.address.country')} className="input" placeholder="SA" />
+                  <select
+                    {...register('business.address.country', {
+                      onChange: (e) => {
+                        const code = e.target.value;
+                        if (code) {
+                          setValue('settings.currency', currencyForCountry(code));
+                          setValue('settings.timezone', timezoneForCountry(code));
+                        }
+                      },
+                    })}
+                    className="select"
+                  >
+                    <option value="">{language === 'ar' ? 'اختر الدولة' : 'Select Country'}</option>
+                    {COUNTRY_OPTIONS.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {language === 'ar' ? c.nameAr : c.nameEn} ({c.code}) — {c.currency}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="label">{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>

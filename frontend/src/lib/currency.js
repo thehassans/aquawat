@@ -4,16 +4,16 @@ export const DEFAULT_CURRENCY = CURRENCY_CODE
 
 export const isSarCurrency = (currency = CURRENCY_CODE) => String(currency || CURRENCY_CODE).trim().toUpperCase() === CURRENCY_CODE
 
-// Comprehensive ISO 4217 currency list for tenant Settings and Super Admin.
-// GCC currencies are listed first for regional convenience; defaults follow
-// the country chosen at demo signup / tenant settings.
+// Comprehensive ISO 4217 currency list for tenant Settings, Onboarding, and Super Admin.
 export const CURRENCIES = [
   { code: 'SAR', nameEn: 'Saudi Riyal', nameAr: 'ريال سعودي', symbol: '﷼' },
   { code: 'AED', nameEn: 'UAE Dirham', nameAr: 'درهم إماراتي', symbol: 'د.إ' },
+  { code: 'OMR', nameEn: 'Omani Rial', nameAr: 'ريال عماني', symbol: 'ر.ع.' },
+  { code: 'BHD', nameEn: 'Bahraini Dinar', nameAr: 'دينار بحريني', symbol: '.د.ب' },
   { code: 'KWD', nameEn: 'Kuwaiti Dinar', nameAr: 'دينار كويتي', symbol: 'د.ك' },
   { code: 'QAR', nameEn: 'Qatari Riyal', nameAr: 'ريال قطري', symbol: 'ر.ق' },
-  { code: 'BHD', nameEn: 'Bahraini Dinar', nameAr: 'دينار بحريني', symbol: '.د.ب' },
-  { code: 'OMR', nameEn: 'Omani Rial', nameAr: 'ريال عماني', symbol: 'ر.ع.' },
+  { code: 'BDT', nameEn: 'Bangladeshi Taka', nameAr: 'تاكا بنغلاديشي', symbol: '৳' },
+  { code: 'PKR', nameEn: 'Pakistani Rupee', nameAr: 'روبية باكستانية', symbol: '₨' },
   { code: 'EGP', nameEn: 'Egyptian Pound', nameAr: 'جنيه مصري', symbol: 'ج.م' },
   { code: 'JOD', nameEn: 'Jordanian Dinar', nameAr: 'دينار أردني', symbol: 'د.ا' },
   { code: 'LBP', nameEn: 'Lebanese Pound', nameAr: 'ليرة لبنانية', symbol: 'ل.ل' },
@@ -35,9 +35,7 @@ export const CURRENCIES = [
   { code: 'DKK', nameEn: 'Danish Krone', nameAr: 'كرونة دنماركية', symbol: 'kr' },
   { code: 'PLN', nameEn: 'Polish Zloty', nameAr: 'زلوتي بولندي', symbol: 'zł' },
   { code: 'RUB', nameEn: 'Russian Ruble', nameAr: 'روبل روسي', symbol: '₽' },
-  { code: 'PKR', nameEn: 'Pakistani Rupee', nameAr: 'روبية باكستانية', symbol: '₨' },
   { code: 'INR', nameEn: 'Indian Rupee', nameAr: 'روبية هندية', symbol: '₹' },
-  { code: 'BDT', nameEn: 'Bangladeshi Taka', nameAr: 'تاكا بنغلاديشي', symbol: '৳' },
   { code: 'AFN', nameEn: 'Afghan Afghani', nameAr: 'أفغاني أفغانستاني', symbol: '؋' },
   { code: 'IRR', nameEn: 'Iranian Rial', nameAr: 'ريال إيراني', symbol: '﷼' },
   { code: 'PHP', nameEn: 'Philippine Peso', nameAr: 'بيزو فلبيني', symbol: '₱' },
@@ -76,31 +74,6 @@ export const getCurrencyLabel = (currency = CURRENCY_CODE, language = 'en') => {
   return language === 'ar' ? `${meta.nameAr} (${meta.code})` : `${meta.nameEn} (${meta.code})`
 }
 
-const getFormatter = ({
-  language = 'en',
-  currency = CURRENCY_CODE,
-  currencyDisplay = 'code',
-  minimumFractionDigits,
-  maximumFractionDigits,
-}) => {
-  const locale = language === 'ar' ? 'ar-SA' : 'en-SA'
-  const options = {
-    style: 'currency',
-    currency,
-    currencyDisplay,
-  }
-
-  if (typeof minimumFractionDigits === 'number') {
-    options.minimumFractionDigits = minimumFractionDigits
-  }
-
-  if (typeof maximumFractionDigits === 'number') {
-    options.maximumFractionDigits = maximumFractionDigits
-  }
-
-  return new Intl.NumberFormat(locale, options)
-}
-
 const getSafeValue = (value) => {
   const numericValue = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(numericValue) ? numericValue : 0
@@ -109,30 +82,17 @@ const getSafeValue = (value) => {
 export const formatCurrencyAmount = (
   value,
   {
-    language = 'en',
-    currency = CURRENCY_CODE,
-    currencyDisplay = 'code',
-    minimumFractionDigits,
-    maximumFractionDigits,
+    minimumFractionDigits = 2,
+    maximumFractionDigits = 2,
   } = {}
 ) => {
   const safeValue = getSafeValue(value)
-  const formatter = getFormatter({
-    language,
-    currency,
-    currencyDisplay,
-    minimumFractionDigits,
-    maximumFractionDigits,
+  const minDigits = typeof minimumFractionDigits === 'number' ? minimumFractionDigits : 2
+  const maxDigits = typeof maximumFractionDigits === 'number' ? maximumFractionDigits : 2
+  return safeValue.toLocaleString('en-US', {
+    minimumFractionDigits: minDigits,
+    maximumFractionDigits: maxDigits,
   })
-
-  return formatter
-    .formatToParts(safeValue)
-    .filter((part) => part.type !== 'currency')
-    .map((part) => part.value)
-    .join('')
-    .replace(/[\u200e\u200f\u061c]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 export const formatCurrency = (
@@ -140,29 +100,20 @@ export const formatCurrency = (
   {
     language = 'en',
     currency = CURRENCY_CODE,
-    currencyDisplay = 'code',
     minimumFractionDigits,
     maximumFractionDigits,
   } = {}
 ) => {
   const safeValue = getSafeValue(value)
-  const formatter = getFormatter({
-    language,
-    currency,
-    currencyDisplay,
+  const code = String(currency || CURRENCY_CODE).trim().toUpperCase()
+  const numStr = formatCurrencyAmount(safeValue, {
     minimumFractionDigits,
     maximumFractionDigits,
   })
 
-  if (currencyDisplay === 'code' && isSarCurrency(currency)) {
-    return `${SAR_SYMBOL} ${formatCurrencyAmount(safeValue, {
-      language,
-      currency,
-      currencyDisplay,
-      minimumFractionDigits,
-      maximumFractionDigits,
-    })}`.trim()
+  if (isSarCurrency(code)) {
+    return `${SAR_SYMBOL} ${numStr}`
   }
 
-  return formatter.format(safeValue)
+  return `${code} ${numStr}`
 }

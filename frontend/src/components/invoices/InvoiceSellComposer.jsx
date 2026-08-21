@@ -32,8 +32,20 @@ import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { isPakistanTenant, getTaxLabel, getTaxIdLabel } from '../../lib/saudiTenant'
 
 const getEmptyLine = (tenant) => {
-  const isPk = isPakistanTenant(tenant)
-  const defaultRate = isPk ? Number(tenant?.fbr?.defaultSalesTaxRate || 18) : Number(tenant?.settings?.taxRate ?? 15)
+  const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
+  let defaultRate = tenant?.settings?.taxRate !== undefined && tenant?.settings?.taxRate !== null
+    ? Number(tenant.settings.taxRate)
+    : NaN
+
+  if (isNaN(defaultRate)) {
+    if (currency === 'AED' || currency === 'OMR') defaultRate = 5
+    else if (currency === 'BHD') defaultRate = 10
+    else if (currency === 'KWD' || currency === 'QAR') defaultRate = 0
+    else if (currency === 'PKR' || isPakistanTenant(tenant)) defaultRate = Number(tenant?.fbr?.defaultSalesTaxRate || 18)
+    else if (currency === 'BDT') defaultRate = Number(tenant?.nbr?.defaultVatRate || 15)
+    else defaultRate = 15
+  }
+
   return {
     productId: '',
     productName: '',

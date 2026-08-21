@@ -24,20 +24,36 @@ import RichTextNoteField from '../invoices/RichTextNoteField'
 import MarqueeEventFields from '../marquee/MarqueeEventFields'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
 
-const getEmptyLine = (tenant) => ({
-  productId: '',
-  productName: '',
-  productNameAr: '',
-  productType: 'goods',
-  description: '',
-  descriptionAr: '',
-  unitCode: getDefaultUom(tenant) || '',
-  quantity: 1,
-  unitPrice: '',
-  taxRate: 15,
-  discount: 0,
-  discountType: 'fixed',
-})
+const getEmptyLine = (tenant) => {
+  const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
+  let defaultRate = tenant?.settings?.taxRate !== undefined && tenant?.settings?.taxRate !== null
+    ? Number(tenant.settings.taxRate)
+    : NaN
+
+  if (isNaN(defaultRate)) {
+    if (currency === 'AED' || currency === 'OMR') defaultRate = 5
+    else if (currency === 'BHD') defaultRate = 10
+    else if (currency === 'KWD' || currency === 'QAR') defaultRate = 0
+    else if (currency === 'PKR') defaultRate = Number(tenant?.fbr?.defaultSalesTaxRate || 18)
+    else if (currency === 'BDT') defaultRate = Number(tenant?.nbr?.defaultVatRate || 15)
+    else defaultRate = 15
+  }
+
+  return {
+    productId: '',
+    productName: '',
+    productNameAr: '',
+    productType: 'goods',
+    description: '',
+    descriptionAr: '',
+    unitCode: getDefaultUom(tenant) || '',
+    quantity: 1,
+    unitPrice: '',
+    taxRate: defaultRate,
+    discount: 0,
+    discountType: 'fixed',
+  }
+}
 
 const selectableContexts = ['trading', 'marquee', 'construction', 'travel_agency', 'restaurant']
 

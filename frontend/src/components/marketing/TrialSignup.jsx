@@ -259,6 +259,56 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
                       </select>
                     </div>
                   </div>
+
+                  {selectedCountry && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`rounded-2xl border p-3.5 ${
+                        isDark ? 'border-emerald-500/20 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50/80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{flagEmoji(selectedCountry.code)}</span>
+                          <span className={`text-xs font-bold ${isDark ? 'text-emerald-200' : 'text-emerald-950'}`}>
+                            {isArabic ? 'العملة التلقائية المكتشفة:' : 'Auto-detected Currency:'} {selectedCountry.currency} ({selectedCountry.symbol})
+                          </span>
+                        </div>
+                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                          {selectedCountry.authority} Ready
+                        </span>
+                      </div>
+                      <div className={`mt-1 text-[11px] ${isDark ? 'text-emerald-300/70' : 'text-emerald-800/80'}`}>
+                        {isArabic
+                          ? `المنطقة الزمنية: ${selectedCountry.timezone} · الضريبة: ${selectedCountry.taxLabelAr}`
+                          : `Timezone: ${selectedCountry.timezone} · Tax: ${selectedCountry.taxLabelEn}`}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className={labelCls}>{isArabic ? 'عملة الحساب والفواتير' : 'Account & Invoice Currency'}</label>
+                      {selectedCountry && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                          {isArabic ? 'مكتشفة تلقائياً' : 'Auto-detected'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Wallet className={`pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 ${isDark ? 'text-white/30' : 'text-slate-400'}`} />
+                      <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={`${inputCls} pl-11`}>
+                        <option value="">{isArabic ? 'اختر العملة' : 'Select currency'}</option>
+                        {currencyOptions.map((cur) => (
+                          <option key={cur.code} value={cur.code} className="text-slate-900">
+                            {cur.code} — {isArabic ? cur.nameAr : cur.nameEn} ({cur.symbol})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <div>
                     <label className={labelCls}>{isArabic ? 'اسم الشركة' : 'Company name'}</label>
                     <div className="relative">

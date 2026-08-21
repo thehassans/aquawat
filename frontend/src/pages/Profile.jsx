@@ -64,6 +64,8 @@ import api from '../lib/api'
 import { updateTenant, updateUser } from '../store/slices/authSlice'
 import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes, normalizeBusinessTypes } from '../lib/businessTypes'
 import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../lib/uomOptions'
+import { COUNTRY_OPTIONS, currencyForCountry, timezoneForCountry } from '../lib/countryCurrency'
+import { CURRENCIES } from '../lib/currency'
 import {
   formatPlanLimit,
   formatSubscriptionDate,
@@ -219,6 +221,8 @@ export default function Profile() {
         logo: branding.logo || '',
       },
       settings: {
+        currency: tenant?.settings?.currency || 'SAR',
+        timezone: tenant?.settings?.timezone || 'Asia/Riyadh',
         defaultUom: defUom,
         termsAndConditions: tenant?.settings?.termsAndConditions || currentInvoiceBranding.termsAndConditions || '',
         notes: tenant?.settings?.notes || currentInvoiceBranding.defaultNotes || '',
@@ -2030,6 +2034,38 @@ export default function Profile() {
                     <div>
                       <label className="label">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
                       <input {...register('business.address.postalCode')} className="input font-mono" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الدولة' : 'Country'}</label>
+                      <select
+                        {...register('business.address.country', {
+                          onChange: (e) => {
+                            const code = e.target.value;
+                            if (code) {
+                              setValue('settings.currency', currencyForCountry(code));
+                              setValue('settings.timezone', timezoneForCountry(code));
+                            }
+                          },
+                        })}
+                        className="select"
+                      >
+                        <option value="">{language === 'ar' ? 'اختر الدولة' : 'Select Country'}</option>
+                        {COUNTRY_OPTIONS.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {language === 'ar' ? c.nameAr : c.nameEn} ({c.code}) — {c.currency}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'عملة الحساب والفواتير الافتراضية' : 'Default Currency'}</label>
+                      <select {...register('settings.currency')} className="select">
+                        {CURRENCIES.map((cur) => (
+                          <option key={cur.code} value={cur.code}>
+                            {language === 'ar' ? `${cur.nameAr} (${cur.code})` : `${cur.nameEn} (${cur.code})`}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>

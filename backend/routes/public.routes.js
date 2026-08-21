@@ -383,14 +383,31 @@ router.post('/demo-signup', async (req, res) => {
     }
     const primaryBusinessType = normalizedBusinessTypes[0]
 
-    const COUNTRY_CURRENCY = {
-      SA: 'SAR', AE: 'AED', QA: 'QAR', KW: 'KWD', BH: 'BHD', OM: 'OMR',
-      BD: 'BDT', PK: 'PKR', IN: 'INR', EG: 'EGP', JO: 'JOD',
-      US: 'USD', GB: 'GBP', TR: 'TRY', MY: 'MYR', SG: 'SGD', OTHER: 'USD',
+    const COUNTRY_META = {
+      SA: { currency: 'SAR', timezone: 'Asia/Riyadh', taxRate: 15 },
+      AE: { currency: 'AED', timezone: 'Asia/Dubai', taxRate: 5 },
+      QA: { currency: 'QAR', timezone: 'Asia/Qatar', taxRate: 0 },
+      KW: { currency: 'KWD', timezone: 'Asia/Kuwait', taxRate: 0 },
+      BH: { currency: 'BHD', timezone: 'Asia/Bahrain', taxRate: 10 },
+      OM: { currency: 'OMR', timezone: 'Asia/Muscat', taxRate: 5 },
+      BD: { currency: 'BDT', timezone: 'Asia/Dhaka', taxRate: 15 },
+      PK: { currency: 'PKR', timezone: 'Asia/Karachi', taxRate: 18 },
+      IN: { currency: 'INR', timezone: 'Asia/Kolkata', taxRate: 18 },
+      EG: { currency: 'EGP', timezone: 'Africa/Cairo', taxRate: 14 },
+      JO: { currency: 'JOD', timezone: 'Asia/Amman', taxRate: 16 },
+      US: { currency: 'USD', timezone: 'America/New_York', taxRate: 0 },
+      GB: { currency: 'GBP', timezone: 'Europe/London', taxRate: 20 },
+      TR: { currency: 'TRY', timezone: 'Europe/Istanbul', taxRate: 20 },
+      MY: { currency: 'MYR', timezone: 'Asia/Kuala_Lumpur', taxRate: 6 },
+      SG: { currency: 'SGD', timezone: 'Asia/Singapore', taxRate: 9 },
+      OTHER: { currency: 'USD', timezone: 'UTC', taxRate: 0 },
     }
     const GCC = new Set(['SA', 'AE', 'QA', 'KW', 'BH', 'OM'])
     const countryCode = String(country || 'OTHER').trim().toUpperCase()
-    const resolvedCurrency = String(currency || COUNTRY_CURRENCY[countryCode] || 'USD').trim().toUpperCase()
+    const meta = COUNTRY_META[countryCode] || COUNTRY_META.OTHER
+    const resolvedCurrency = String(currency || meta.currency || 'USD').trim().toUpperCase()
+    const resolvedTimezone = meta.timezone || 'Asia/Riyadh'
+    const resolvedTaxRate = typeof meta.taxRate === 'number' ? meta.taxRate : 15
     const company = String(companyName || '').trim() || `Demo - ${normalizedEmail}`
     const isGcc = GCC.has(countryCode) || ['SAR', 'AED', 'QAR', 'KWD', 'BHD', 'OMR'].includes(resolvedCurrency)
 
@@ -434,10 +451,35 @@ router.post('/demo-signup', async (req, res) => {
       },
       settings: {
         currency: resolvedCurrency,
+        timezone: resolvedTimezone,
+        taxRate: resolvedTaxRate,
         invoiceLanguage: 'auto',
         invoiceBranding: {
           showVision2030: resolvedCurrency === 'SAR',
         },
+      },
+      fta: {
+        isEnabled: countryCode === 'AE' || resolvedCurrency === 'AED',
+        trn: countryCode === 'AE' || resolvedCurrency === 'AED' ? `100${Date.now()}` : '',
+        standardVatRate: 5,
+      },
+      ota: {
+        isEnabled: countryCode === 'OM' || resolvedCurrency === 'OMR',
+        tin: countryCode === 'OM' || resolvedCurrency === 'OMR' ? `OM1${Date.now()}` : '',
+        standardVatRate: 5,
+      },
+      bahrainNbr: {
+        isEnabled: countryCode === 'BH' || resolvedCurrency === 'BHD',
+        vatAccountNumber: countryCode === 'BH' || resolvedCurrency === 'BHD' ? `200${Date.now()}` : '',
+        standardVatRate: 10,
+      },
+      mofKuwait: {
+        isEnabled: countryCode === 'KW' || resolvedCurrency === 'KWD',
+        civilId: countryCode === 'KW' || resolvedCurrency === 'KWD' ? `KW${Date.now()}` : '',
+      },
+      gtaQatar: {
+        isEnabled: countryCode === 'QA' || resolvedCurrency === 'QAR',
+        tin: countryCode === 'QA' || resolvedCurrency === 'QAR' ? `QA${Date.now()}` : '',
       },
       subscription: {
         plan: 'trial',

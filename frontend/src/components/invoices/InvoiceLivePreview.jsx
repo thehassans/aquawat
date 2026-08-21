@@ -2,6 +2,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { generateFbrQrValue } from '../../lib/fbrQr'
 import { generateNbrQrValue } from '../../lib/nbrQr'
+import { generateGccQrValue } from '../../lib/gccQr'
 import { calculateInvoiceSummary, normalizeTravelDetails, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding, getInvoiceCssFontFamily, getInvoiceCurrencyDisplay, splitBrandingText } from '../../lib/invoiceBranding'
 import { getZatcaStatusMeta } from '../../lib/zatcaStatus'
@@ -407,13 +408,10 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
       : (language === 'ar' ? 'العميل' : 'Customer'))
   const logoSrc = invoiceBranding.logoSrc
   const vatNumber = companyVat || tenant?.business?.vatNumber
-  // ZATCA is a Saudi-only requirement tied to SAR-denominated invoices.
-  const isZatcaApplicable = String(currency || 'SAR').toUpperCase() === 'SAR'
-  const isFbrApplicable = String(currency || 'SAR').toUpperCase() === 'PKR'
-  const isNbrApplicable = String(currency || 'SAR').toUpperCase() === 'BDT'
+  const cur = String(currency || 'SAR').toUpperCase()
   const qrValue = (() => {
     try {
-      if (isZatcaApplicable) {
+      if (cur === 'SAR') {
         return invoice?.zatca?.qrCodeData || generateZatcaQrValue({
           sellerName: companyNameEn || companyNameAr,
           vatNumber,
@@ -422,7 +420,72 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
           vatTotal: toNumber(invoice?.totalTax),
         })
       }
-      if (isFbrApplicable && tenant?.fbr?.autoGenerateQr !== false) {
+      if (cur === 'AED') {
+        return invoice?.countryCompliance?.qrCode || generateGccQrValue({
+          authority: 'FTA',
+          countryCode: 'AE',
+          sellerName: companyNameEn || companyNameAr,
+          taxId: tenant?.fta?.trn || vatNumber,
+          invoiceNumber: invoice?.invoiceNumber,
+          timestamp: invoice?.issueDate || new Date().toISOString(),
+          grandTotal: toNumber(invoice?.grandTotal),
+          totalTax: toNumber(invoice?.totalTax),
+          currency: 'AED',
+        })
+      }
+      if (cur === 'OMR') {
+        return invoice?.countryCompliance?.qrCode || generateGccQrValue({
+          authority: 'OTA',
+          countryCode: 'OM',
+          sellerName: companyNameEn || companyNameAr,
+          taxId: tenant?.ota?.tin || vatNumber,
+          invoiceNumber: invoice?.invoiceNumber,
+          timestamp: invoice?.issueDate || new Date().toISOString(),
+          grandTotal: toNumber(invoice?.grandTotal),
+          totalTax: toNumber(invoice?.totalTax),
+          currency: 'OMR',
+        })
+      }
+      if (cur === 'BHD') {
+        return invoice?.countryCompliance?.qrCode || generateGccQrValue({
+          authority: 'NBR',
+          countryCode: 'BH',
+          sellerName: companyNameEn || companyNameAr,
+          taxId: tenant?.bahrainNbr?.vatAccountNumber || vatNumber,
+          invoiceNumber: invoice?.invoiceNumber,
+          timestamp: invoice?.issueDate || new Date().toISOString(),
+          grandTotal: toNumber(invoice?.grandTotal),
+          totalTax: toNumber(invoice?.totalTax),
+          currency: 'BHD',
+        })
+      }
+      if (cur === 'KWD') {
+        return invoice?.countryCompliance?.qrCode || generateGccQrValue({
+          authority: 'MOF',
+          countryCode: 'KW',
+          sellerName: companyNameEn || companyNameAr,
+          taxId: tenant?.mofKuwait?.civilId || tenant?.mofKuwait?.taxCardNumber || vatNumber,
+          invoiceNumber: invoice?.invoiceNumber,
+          timestamp: invoice?.issueDate || new Date().toISOString(),
+          grandTotal: toNumber(invoice?.grandTotal),
+          totalTax: toNumber(invoice?.totalTax),
+          currency: 'KWD',
+        })
+      }
+      if (cur === 'QAR') {
+        return invoice?.countryCompliance?.qrCode || generateGccQrValue({
+          authority: 'GTA',
+          countryCode: 'QA',
+          sellerName: companyNameEn || companyNameAr,
+          taxId: tenant?.gtaQatar?.tin || vatNumber,
+          invoiceNumber: invoice?.invoiceNumber,
+          timestamp: invoice?.issueDate || new Date().toISOString(),
+          grandTotal: toNumber(invoice?.grandTotal),
+          totalTax: toNumber(invoice?.totalTax),
+          currency: 'QAR',
+        })
+      }
+      if (cur === 'PKR' && tenant?.fbr?.autoGenerateQr !== false) {
         return invoice?.fbr?.qrCode || generateFbrQrValue({
           sellerName: companyNameEn || companyNameAr,
           ntn: tenant?.fbr?.ntn || vatNumber,
@@ -434,7 +497,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
           salesTax: toNumber(invoice?.totalTax),
         })
       }
-      if (isNbrApplicable && tenant?.nbr?.autoGenerateQr !== false) {
+      if (cur === 'BDT' && tenant?.nbr?.autoGenerateQr !== false) {
         return generateNbrQrValue({
           sellerName: companyNameEn || companyNameAr,
           binNumber: tenant?.nbr?.binNumber || vatNumber,

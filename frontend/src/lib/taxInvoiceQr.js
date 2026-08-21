@@ -1,10 +1,19 @@
 import { generateZatcaQrValue } from './zatcaQr'
 import { generateFbrQrValue } from './fbrQr'
 import { generateNbrQrValue } from './nbrQr'
+import { generateGccQrValue } from './gccQr'
 import { toNumber } from './invoiceDocument'
 
 /**
- * Regional tax QR for printed invoices: ZATCA (SAR), FBR (PKR), NBR (BDT).
+ * Regional tax QR for printed invoices:
+ * - Saudi Arabia: ZATCA TLV QR (SAR)
+ * - UAE: FTA Verification QR (AED)
+ * - Oman: OTA Verification QR (OMR)
+ * - Bahrain: NBR Verification QR (BHD)
+ * - Kuwait: MOF Verification QR (KWD)
+ * - Qatar: GTA Dhareeba QR (QAR)
+ * - Pakistan: FBR Digital Tax QR (PKR)
+ * - Bangladesh: NBR Mushak 6.3 QR (BDT)
  */
 export function resolveTaxInvoiceQr({
   invoice,
@@ -19,6 +28,7 @@ export function resolveTaxInvoiceQr({
   const timestamp = invoice?.issueDate || new Date().toISOString()
   const total = toNumber(invoice?.grandTotal)
   const tax = toNumber(invoice?.totalTax)
+  const invoiceNumber = invoice?.invoiceNumber || ''
 
   try {
     if (cur === 'SAR') {
@@ -30,6 +40,77 @@ export function resolveTaxInvoiceQr({
         vatTotal: tax,
       })
     }
+
+    if (cur === 'AED') {
+      return invoice?.countryCompliance?.qrCode || generateGccQrValue({
+        authority: 'FTA',
+        countryCode: 'AE',
+        sellerName: name,
+        taxId: tenant?.fta?.trn || vat,
+        invoiceNumber,
+        timestamp,
+        grandTotal: total,
+        totalTax: tax,
+        currency: 'AED',
+      })
+    }
+
+    if (cur === 'OMR') {
+      return invoice?.countryCompliance?.qrCode || generateGccQrValue({
+        authority: 'OTA',
+        countryCode: 'OM',
+        sellerName: name,
+        taxId: tenant?.ota?.tin || vat,
+        invoiceNumber,
+        timestamp,
+        grandTotal: total,
+        totalTax: tax,
+        currency: 'OMR',
+      })
+    }
+
+    if (cur === 'BHD') {
+      return invoice?.countryCompliance?.qrCode || generateGccQrValue({
+        authority: 'NBR',
+        countryCode: 'BH',
+        sellerName: name,
+        taxId: tenant?.bahrainNbr?.vatAccountNumber || vat,
+        invoiceNumber,
+        timestamp,
+        grandTotal: total,
+        totalTax: tax,
+        currency: 'BHD',
+      })
+    }
+
+    if (cur === 'KWD') {
+      return invoice?.countryCompliance?.qrCode || generateGccQrValue({
+        authority: 'MOF',
+        countryCode: 'KW',
+        sellerName: name,
+        taxId: tenant?.mofKuwait?.civilId || tenant?.mofKuwait?.taxCardNumber || vat,
+        invoiceNumber,
+        timestamp,
+        grandTotal: total,
+        totalTax: tax,
+        currency: 'KWD',
+      })
+    }
+
+    if (cur === 'QAR') {
+      return invoice?.countryCompliance?.qrCode || generateGccQrValue({
+        authority: 'GTA',
+        countryCode: 'QA',
+        sellerName: name,
+        taxId: tenant?.gtaQatar?.tin || vat,
+        invoiceNumber,
+        timestamp,
+        grandTotal: total,
+        totalTax: tax,
+        currency: 'QAR',
+      })
+    }
+
     const isPk = cur === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK' || (tenant?.business?.address?.country || '').toUpperCase() === 'PAKISTAN'
     if (isPk && tenant?.fbr?.autoGenerateQr !== false) {
       return invoice?.fbr?.qrCode || generateFbrQrValue({
@@ -43,6 +124,7 @@ export function resolveTaxInvoiceQr({
         salesTax: tax,
       })
     }
+
     if (cur === 'BDT' && tenant?.nbr?.autoGenerateQr !== false) {
       return generateNbrQrValue({
         sellerName: name,
