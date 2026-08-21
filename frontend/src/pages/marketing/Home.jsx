@@ -171,8 +171,8 @@ export default function MarketingHome() {
               </>
             ) : (
               <>
-                The ERP that <HighlightText variant="lime">grows with you</HighlightText>{' '}
-                <span className="inline-block">— <HighlightText variant="yellow">not against you</HighlightText></span>
+                The ERP that <HighlightText variant="lime">Grows with you</HighlightText>{' '}
+                <span className="inline-block">— <HighlightText variant="yellow">not Against you</HighlightText></span>
               </>
             )}
           </motion.h1>
