@@ -165,9 +165,9 @@ export default function MarketingHome() {
             className="mx-auto max-w-5xl text-center font-display text-[2.75rem] font-bold leading-[1.1] tracking-[-0.02em] text-slate-950 sm:text-6xl lg:text-[4.5rem]"
           >
             {isArabic ? (
-              <>{'كل أعمالك على '}<span className="text-emerald-600">منصة واحدة</span></>
+              <>{'كل أعمالك على '}<HighlightText variant="lime">منصة واحدة</HighlightText> — <HighlightText variant="yellow">تنمو معك</HighlightText>.</>
             ) : (
-              <>The ERP that <span className="text-emerald-600">grows with you</span> — not against you.</>
+              <>The ERP that <HighlightText variant="lime">grows with you</HighlightText> — <HighlightText variant="yellow">not against you</HighlightText>.</>
             )}
           </motion.h1>
 
