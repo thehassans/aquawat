@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSelector } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Search, Coffee, Truck, UtensilsCrossed, Gift, Receipt, Sparkles, Printer, X, Check, Users, Phone, User, MapPin, Grid, ChevronRight } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Search, Coffee, Truck, UtensilsCrossed, Gift, Receipt, Sparkles, Printer, X, Check, Users, Phone, User, MapPin, Grid, ChevronRight, Percent, Tag } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import api, { getImageUrl } from '../../lib/api'
 import { toast } from 'react-hot-toast'
@@ -46,6 +46,12 @@ export default function RestaurantPOS() {
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [applyVat, setApplyVat] = useState(false)
   
+  // Discount states
+  const [discountType, setDiscountType] = useState('percentage') // 'percentage' | 'fixed'
+  const [discountValue, setDiscountValue] = useState(0)
+  const [discountReason, setDiscountReason] = useState('')
+  const [showDiscountModal, setShowDiscountModal] = useState(false)
+
   // Checkout states
   const [isProcessing, setIsProcessing] = useState(false)
   const [completedOrder, setCompletedOrder] = useState(null)
@@ -105,6 +111,11 @@ export default function RestaurantPOS() {
             if (order.tableId) setSelectedTable(order.tableId)
             if (order.paymentMethod) setPaymentMethod(order.paymentMethod)
             
+            if (order.discountValue !== undefined) setDiscountValue(order.discountValue)
+            else if (order.discount) setDiscountValue(order.discount)
+            if (order.discountType) setDiscountType(order.discountType)
+            if (order.discountReason) setDiscountReason(order.discountReason)
+
             // Reconstruct cart
             const reconstructedCart = (order.lineItems || []).map(li => {
               const mItem = loadedMenuItems.find(m => String(m._id) === String(li.menuItemId)) || { _id: li.menuItemId }
@@ -231,11 +242,25 @@ export default function RestaurantPOS() {
     setCustomerPhone('')
     setDeliveryAddress('')
     setSelectedTable('')
+    setDiscountValue(0)
+    setDiscountReason('')
+    setDiscountType('percentage')
   }
 
   const cartSubtotal = cart.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)
-  const cartTax = applyVat ? cart.reduce((sum, item) => sum + (item.quantity * item.unitPrice * (item.taxRate / 100)), 0) : 0
-  const cartTotal = cartSubtotal + cartTax
+  const discountNum = Math.max(0, Number(discountValue) || 0)
+  const appliedDiscount = discountType === 'percentage'
+    ? Math.round((cartSubtotal * Math.min(100, discountNum) / 100) * 100) / 100
+    : Math.min(cartSubtotal, discountNum)
+  const discountedSubtotal = Math.max(0, cartSubtotal - appliedDiscount)
+  const cartTax = applyVat 
+    ? cart.reduce((sum, item) => {
+        const itemSub = item.quantity * item.unitPrice
+        const ratio = cartSubtotal > 0 ? discountedSubtotal / cartSubtotal : 1
+        return sum + (itemSub * ratio * (item.taxRate / 100))
+      }, 0)
+    : 0
+  const cartTotal = Math.round((discountedSubtotal + cartTax) * 100) / 100
 
   const handleCheckout = async () => {
     if (cart.length === 0) return toast.error('Cart is empty')
@@ -260,6 +285,10 @@ export default function RestaurantPOS() {
         deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
         paymentMethod: targetStatus === 'paid' ? paymentMethod : undefined,
         currency,
+        discount: appliedDiscount,
+        discountType,
+        discountValue: discountNum,
+        discountReason: discountReason.trim(),
         lineItems: cart.map(item => ({
           menuItemId: item.menuItem._id,
           name: item.nameEn,
@@ -328,6 +357,10 @@ export default function RestaurantPOS() {
         customerPhone: customerPhone.trim(),
         deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
         currency,
+        discount: appliedDiscount,
+        discountType,
+        discountValue: discountNum,
+        discountReason: discountReason.trim(),
         lineItems: cart.map(item => ({
           menuItemId: item.menuItem._id,
           name: item.nameEn,
@@ -391,6 +424,10 @@ export default function RestaurantPOS() {
         deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
         paymentMethod: 'card',
         currency,
+        discount: appliedDiscount,
+        discountType,
+        discountValue: discountNum,
+        discountReason: discountReason.trim(),
         lineItems: cart.map(item => ({
           menuItemId: item.menuItem._id,
           name: item.nameEn,
@@ -791,6 +828,37 @@ export default function RestaurantPOS() {
               <span>{isRtl ? 'المجموع الفرعي' : 'Subtotal'}</span>
               <Money value={cartSubtotal} />
             </div>
+
+            {/* Discount Row */}
+            <div className="flex justify-between items-center text-xs font-medium">
+              <div className="flex items-center gap-1.5">
+                <span className={appliedDiscount > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-gray-500'}>
+                  {isRtl ? 'الخصم' : 'Discount'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowDiscountModal(true)}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors ${
+                    appliedDiscount > 0
+                      ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 hover:bg-amber-200'
+                      : 'bg-gray-100 dark:bg-dark-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+                  }`}
+                >
+                  <Percent className="w-3 h-3" />
+                  {appliedDiscount > 0 
+                    ? (discountType === 'percentage' ? `${discountNum}%` : <Money value={discountNum} />) 
+                    : (isRtl ? 'إضافة' : '+ Add')}
+                </button>
+              </div>
+              {appliedDiscount > 0 ? (
+                <span className="font-bold text-amber-600 dark:text-amber-400">
+                  - <Money value={appliedDiscount} />
+                </span>
+              ) : (
+                <span className="text-gray-400 text-xs">-</span>
+              )}
+            </div>
+
             <div className="flex justify-between text-xs font-medium text-gray-500">
               <div className="flex items-center gap-1.5">
                 <span>{isRtl ? 'الضريبة' : (currency === 'SAR' ? 'VAT' : 'Tax')}</span>
@@ -1131,6 +1199,177 @@ export default function RestaurantPOS() {
                   className="btn btn-secondary text-xs px-4 py-2 rounded-xl font-bold"
                 >
                   {isRtl ? 'إغلاق' : 'Close'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Discount Modal */}
+      <AnimatePresence>
+        {showDiscountModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white dark:bg-dark-800 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-100 dark:border-dark-700"
+            >
+              <div className="p-5 pb-4 border-b border-gray-100 dark:border-dark-700 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center">
+                    <Percent className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 dark:text-white text-base">
+                      {isRtl ? 'إضافة خصم للطلب' : 'Order Discount'}
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium">
+                      {isRtl ? 'اختر النسبة أو أدخل قيمة ثابتة' : 'Choose percentage or fixed amount'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDiscountModal(false)}
+                  className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {/* Discount Type Selector */}
+                <div className="flex rounded-xl bg-gray-100 dark:bg-dark-900 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType('percentage')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      discountType === 'percentage'
+                        ? 'bg-white dark:bg-dark-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    <Percent className="w-3.5 h-3.5" />
+                    {isRtl ? 'نسبة مئوية (%)' : 'Percentage (%)'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType('fixed')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      discountType === 'fixed'
+                        ? 'bg-white dark:bg-dark-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    {isRtl ? `قيمة ثابتة (${currency})` : `Fixed (${currency})`}
+                  </button>
+                </div>
+
+                {/* Quick Percentage Presets */}
+                {discountType === 'percentage' && (
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {[5, 10, 15, 20, 50].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setDiscountValue(pct)}
+                        className={`py-2 rounded-xl text-xs font-bold transition-all ${
+                          Number(discountValue) === pct
+                            ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                            : 'bg-gray-50 dark:bg-dark-900 hover:bg-gray-100 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Discount Value Input */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    {discountType === 'percentage' 
+                      ? (isRtl ? 'نسبة الخصم (%)' : 'Discount Percentage (%)')
+                      : (isRtl ? `مبلغ الخصم (${currency})` : `Discount Amount (${currency})`)}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max={discountType === 'percentage' ? 100 : cartSubtotal}
+                      step={discountType === 'percentage' ? '1' : '0.5'}
+                      value={discountValue || ''}
+                      onChange={(e) => setDiscountValue(Math.max(0, Number(e.target.value) || 0))}
+                      placeholder="0"
+                      className="w-full bg-gray-50 dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-xl py-2.5 px-3 text-lg font-black focus:ring-2 focus:ring-amber-500 outline-none text-gray-900 dark:text-white"
+                    />
+                    <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
+                      {discountType === 'percentage' ? '%' : currency}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Discount Reason / Note */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    {isRtl ? 'سبب الخصم (اختياري)' : 'Reason / Note (Optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={discountReason}
+                    onChange={(e) => setDiscountReason(e.target.value)}
+                    placeholder={isRtl ? 'مثال: موظف، عميل مميز، عرض ترويجي' : 'e.g. VIP, Staff, Promo, Special deal'}
+                    className="w-full bg-gray-50 dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-xl py-2 px-3 text-xs font-medium focus:ring-2 focus:ring-amber-500 outline-none text-gray-900 dark:text-white"
+                  />
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {['Staff', 'VIP', 'Promo', 'Manager'].map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setDiscountReason(r)}
+                        className="text-[10px] px-2 py-0.5 rounded-md bg-gray-100 dark:bg-dark-900 text-gray-600 dark:text-gray-400 hover:bg-amber-50 hover:text-amber-700"
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Discount Preview */}
+                {appliedDiscount > 0 && (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200/60 dark:border-amber-800/40 rounded-xl p-3 text-xs flex justify-between items-center text-amber-900 dark:text-amber-200">
+                    <span className="font-semibold">{isRtl ? 'قيمة الخصم الفعلي:' : 'Applied Discount:'}</span>
+                    <span className="font-black text-sm text-amber-700 dark:text-amber-400">
+                      - <Money value={appliedDiscount} />
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="p-4 bg-gray-50 dark:bg-dark-900/50 border-t border-gray-100 dark:border-dark-700 flex gap-2">
+                {discountValue > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDiscountValue(0)
+                      setDiscountReason('')
+                      setShowDiscountModal(false)
+                    }}
+                    className="py-2.5 px-3 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                  >
+                    {isRtl ? 'إزالة' : 'Remove'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowDiscountModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-bold hover:bg-gray-800 transition-colors shadow-sm"
+                >
+                  {isRtl ? 'تطبيق الخصم' : 'Apply Discount'}
                 </button>
               </div>
             </motion.div>

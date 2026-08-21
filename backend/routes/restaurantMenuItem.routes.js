@@ -181,15 +181,14 @@ router.put('/:id', checkPermission('restaurant', 'update'), async (req, res) => 
 
 router.delete('/:id', checkPermission('restaurant', 'delete'), async (req, res) => {
   try {
-    const item = await RestaurantMenuItem.findOneAndUpdate(
-      { _id: req.params.id, ...req.tenantFilter },
-      { isActive: false },
-      { new: true }
-    );
+    const item = await RestaurantMenuItem.findOneAndDelete({
+      _id: req.params.id,
+      ...req.tenantFilter,
+    });
 
     if (!item) return res.status(404).json({ error: 'Menu item not found' });
 
-    res.json({ message: 'Menu item deactivated', item });
+    res.json({ message: 'Menu item deleted successfully', item });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

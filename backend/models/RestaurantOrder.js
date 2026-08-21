@@ -44,6 +44,10 @@ const restaurantOrderSchema = new mongoose.Schema({
   currency: { type: String, default: 'SAR' },
   lineItems: [orderLineSchema],
   subtotal: { type: Number, default: 0 },
+  discount: { type: Number, default: 0 },
+  discountType: { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
+  discountValue: { type: Number, default: 0 },
+  discountReason: { type: String, default: '' },
   totalTax: { type: Number, default: 0 },
   grandTotal: { type: Number, default: 0 },
 

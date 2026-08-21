@@ -25,9 +25,14 @@ export default function RestaurantOrders() {
   const [historyOrder, setHistoryOrder] = useState(null)
   const receiptRef = useRef(null)
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (receiptRef.current) {
       printThermalElement(receiptRef.current, thermalSettings)
+      if (receiptType === 'kitchen' && printOrder?._id) {
+        try {
+          await api.post(`/restaurant/orders/${printOrder._id}/kitchen-ticket/printed`)
+        } catch {}
+      }
     }
   }
 
@@ -262,35 +267,71 @@ export default function RestaurantOrders() {
       )}
 
       {printOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 print:bg-white print:static print:inset-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[400px] mx-4 max-h-[90vh] overflow-y-auto print:shadow-none print:p-0 print:w-auto print:max-h-none print:overflow-visible">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 print:bg-white print:static print:inset-auto p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[440px] mx-auto max-h-[90vh] overflow-y-auto print:shadow-none print:p-0 print:w-auto print:max-h-none print:overflow-visible">
             <div className="flex justify-between items-center mb-4 print:hidden">
-              <h3 className="text-lg font-bold">
+              <h3 className="text-lg font-bold text-gray-900">
                 {receiptType === 'kitchen' 
-                  ? (language === 'ar' ? 'إيصال المطبخ' : 'Kitchen Receipt')
-                  : (language === 'ar' ? 'إيصال الطلب' : 'Order Receipt')}
+                  ? (language === 'ar' ? 'إيصال تذكرة المطبخ' : 'Kitchen Ticket (KOT)')
+                  : (language === 'ar' ? 'إيصال فاتورة الطلب' : 'Customer Order Receipt')}
               </h3>
-              <button onClick={() => setPrintOrder(null)} className="text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center">
-                ×
+              <button onClick={() => setPrintOrder(null)} className="text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center font-bold">
+                ✕
+              </button>
+            </div>
+
+            {/* Toggle between Customer Receipt and Kitchen Ticket */}
+            <div className="flex bg-gray-100 p-1 rounded-xl mb-4 print:hidden">
+              <button
+                type="button"
+                onClick={() => setReceiptType('customer')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${receiptType === 'customer' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+              >
+                {language === 'ar' ? 'فاتورة العميل' : 'Customer Receipt'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setReceiptType('kitchen')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${receiptType === 'kitchen' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+              >
+                {language === 'ar' ? 'تذكرة المطبخ (KOT)' : 'Kitchen Ticket (KOT)'}
               </button>
             </div>
              
             {receiptType === 'kitchen' && (
-              <div className="mb-4 print:hidden">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {language === 'ar' ? 'ملاحظة مخصصة للمطبخ' : 'Custom Kitchen Note'}
+              <div className="mb-4 print:hidden space-y-2">
+                <label className="block text-xs font-bold text-gray-700">
+                  {language === 'ar' ? 'ملاحظة خاصة للمطبخ' : 'Special Kitchen Instructions'}
                 </label>
                 <input 
                   type="text" 
                   value={kitchenNote}
                   onChange={e => setKitchenNote(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                  placeholder={language === 'ar' ? 'مثال: بدون بصل' : 'e.g. No onions'}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                  placeholder={language === 'ar' ? 'مثال: عاجل، بدون بصل، فلفل قليل...' : 'e.g. Rush, No onions, Less spicy...'}
                 />
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { en: 'Rush Order', ar: 'عاجل' },
+                    { en: 'No Onions', ar: 'بدون بصل' },
+                    { en: 'Extra Spicy', ar: 'حار زيادة' },
+                    { en: 'Less Spicy', ar: 'بدون فلفل' },
+                    { en: 'Takeaway Pack', ar: 'تغليف سفري' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.en}
+                      type="button"
+                      onClick={() => setKitchenNote(prev => prev ? `${prev}, ${language === 'ar' ? preset.ar : preset.en}` : (language === 'ar' ? preset.ar : preset.en))}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-gray-100 hover:bg-amber-100 hover:text-amber-800 text-gray-700 transition-colors"
+                    >
+                      + {language === 'ar' ? preset.ar : preset.en}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             
-            <div className="border border-gray-200 rounded-lg p-2 print:border-none print:p-0 flex justify-center">
+            <div className="border border-gray-200 rounded-xl p-3 print:border-none print:p-0 flex justify-center bg-gray-50/50">
               <ThermalReceipt
                 ref={receiptRef}
                 order={receiptType === 'kitchen' && kitchenNote ? { ...printOrder, kitchenNote } : printOrder}
@@ -301,11 +342,14 @@ export default function RestaurantOrders() {
             </div>
 
             <div className="mt-6 flex gap-3 print:hidden">
-              <button onClick={() => setPrintOrder(null)} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold hover:bg-gray-50 text-gray-700">
+              <button onClick={() => setPrintOrder(null)} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold hover:bg-gray-50 text-gray-700 transition-colors">
                 {language === 'ar' ? 'إغلاق' : 'Close'}
               </button>
-              <button onClick={handlePrint} className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700">
-                {language === 'ar' ? 'طباعة' : 'Print'}
+              <button onClick={handlePrint} className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20">
+                <Printer className="w-4 h-4" />
+                {receiptType === 'kitchen' 
+                  ? (language === 'ar' ? 'طباعة للمطبخ' : 'Print Kitchen KOT') 
+                  : (language === 'ar' ? 'طباعة الفاتورة' : 'Print Receipt')}
               </button>
             </div>
           </div>

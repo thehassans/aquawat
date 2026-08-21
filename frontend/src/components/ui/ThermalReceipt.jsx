@@ -290,19 +290,28 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
           </div>
         </div>
       ) : (
-        <div className="text-center mb-4 flex flex-col items-center">
-          <h2 className="font-extrabold text-xl text-gray-900 leading-snug">
-            KITCHEN TICKET{isUpdated ? ' (UPDATED)' : ''}
-          </h2>
-          {bilingualAr && (
-            <h2 className="font-extrabold text-xl text-gray-900 leading-snug mt-1">
-              طلب مطبخ{isUpdated ? ' (محدث)' : ''}
-            </h2>
+        <div className="text-center mb-3 flex flex-col items-center">
+          <div className="text-[11px] font-black uppercase tracking-widest text-black bg-gray-200 py-1.5 px-3 rounded-md w-full mb-1">
+            {bilingualAr ? 'KITCHEN ORDER TICKET (KOT) | طلب مطبخ' : 'KITCHEN ORDER TICKET (KOT)'}
+            {isUpdated ? ' — UPDATED' : ''}
+          </div>
+          {order.orderNumber && (
+            <div className="mt-2 w-full flex items-center justify-between border-2 border-black p-2 rounded-lg bg-white">
+              <div className="text-left">
+                <div className="text-[9px] font-bold text-gray-500 uppercase">{lbl('Order #', 'رقم الطلب')}</div>
+                <div className="text-base font-black tracking-wide text-black">{order.orderNumber}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[9px] font-bold text-gray-500 uppercase">{lbl('Type / Table', 'النوع / الطاولة')}</div>
+                <div className="text-sm font-black text-black">
+                  {order.tableNumber ? `${isRtl ? 'طاولة' : 'TABLE'} ${order.tableNumber}` : orderTypeLabel}
+                </div>
+              </div>
+            </div>
           )}
-          <div className="border-t border-solid border-gray-900 border-[2px] w-full my-2"></div>
           {order.kitchenNote && (
-            <div className="border border-black p-2 my-2 w-full text-center font-bold text-lg border-dashed">
-              {order.kitchenNote}
+            <div className="mt-2 border-2 border-dashed border-black bg-yellow-50 p-2 w-full text-center font-black text-sm text-black rounded-lg">
+              ⚠️ {order.kitchenNote}
             </div>
           )}
         </div>
@@ -310,12 +319,12 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
 
       <div className="border-t border-b border-dashed border-black py-2 mb-3 text-[10px] space-y-1">
         <div className="flex justify-between">
-          <span className="text-black font-bold">{lbl('Invoice No', 'رقم الفاتورة')}:</span>
+          <span className="text-black font-bold">{lbl('Order / Invoice', 'رقم الطلب')}:</span>
           <span className="font-bold">{orderNumber}</span>
         </div>
 
         <div className="flex justify-between">
-          <span className="text-black font-bold">{lbl('Date', 'التاريخ')}:</span>
+          <span className="text-black font-bold">{lbl('Date & Time', 'التاريخ والوقت')}:</span>
           <span>{dateStr}</span>
         </div>
         <div className="flex justify-between">
@@ -350,7 +359,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
             <span className="font-bold">{order.tableNumber}</span>
           </div>
         )}
-        {order.paymentMethod && (
+        {order.paymentMethod && !isKitchen && (
           <div className="flex justify-between">
             <span className="text-black font-bold">{lbl('Payment', 'طريقة الدفع')}:</span>
             <span className="font-semibold">
@@ -391,8 +400,8 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
       <table className="w-full text-[10px] mb-3 border-collapse">
         <thead>
           <tr className="border-b border-dashed border-black text-black font-bold">
-            <th className={`text-left py-1 ${isKitchen ? 'w-[80%]' : 'w-[55%]'}`}>{lbl('Item', 'الصنف')}</th>
-            <th className={`text-center py-1 ${isKitchen ? 'w-[20%]' : 'w-[15%]'}`}>{lbl('Qty', 'الكمية')}</th>
+            <th className={`text-left py-1 ${isKitchen ? 'w-[75%]' : 'w-[55%]'}`}>{lbl('Item', 'الصنف')}</th>
+            <th className={`text-center py-1 ${isKitchen ? 'w-[25%]' : 'w-[15%]'}`}>{lbl('Qty', 'الكمية')}</th>
             {!isKitchen && <th className="text-right py-1 w-[30%]">{lbl('Total', 'المجموع')}</th>}
           </tr>
         </thead>
@@ -430,7 +439,15 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
                   </div>
                 )}
               </td>
-              <td className={`text-center py-2 align-top font-bold text-gray-900 ${isKitchen ? 'text-lg' : ''}`}>{item.quantity}</td>
+              <td className={`text-center py-2 align-top font-bold text-gray-900 ${isKitchen ? 'text-lg' : ''}`}>
+                {isKitchen ? (
+                  <span className="inline-block border-2 border-black font-black text-sm px-2 py-0.5 rounded-md bg-black text-white">
+                    {item.quantity}x
+                  </span>
+                ) : (
+                  item.quantity
+                )}
+              </td>
               {!isKitchen && (
                 <td className="text-right py-2 align-top font-bold text-gray-900">
                   {money(item.total || item.lineTotal || (item.unitPrice * item.quantity))}
@@ -441,6 +458,12 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
         </tbody>
       </table>
 
+      {isKitchen && (
+        <div className="border-t-2 border-dashed border-black pt-2 pb-1 text-center text-[9px] font-bold text-gray-600">
+          Printed: {new Date().toLocaleTimeString()} — Kitchen Ticket
+        </div>
+      )}
+
       {!isKitchen && (
         <>
           <div className="border-t border-dashed border-black pt-2 text-[10px] space-y-1">
@@ -448,6 +471,16 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
               <span className="text-black font-bold">{lbl('Subtotal', 'المجموع الفرعي')}:</span>
               <span>{money(order.subtotal || order.price || 0)}</span>
             </div>
+            {Number(order.discount || 0) > 0 && (
+              <div className="flex justify-between font-bold text-black">
+                <span>
+                  {lbl('Discount', 'الخصم')}
+                  {order.discountType === 'percentage' && order.discountValue ? ` (${order.discountValue}%)` : ''}
+                  {order.discountReason ? ` - ${order.discountReason}` : ''}:
+                </span>
+                <span>- {money(order.discount)}</span>
+              </div>
+            )}
             {order.isUrgent && (
               <div className="flex justify-between font-bold text-black">
                 <span>{lbl('Urgent Fee', 'رسوم العاجل')}:</span>

@@ -57,7 +57,7 @@ async function generateOrderNumber(tenantFilterValue) {
   return `${prefix}-${String(seq).padStart(3, '0')}`;
 }
 
-function computeTotals(lineItems = []) {
+function computeTotals(lineItems = [], discountValue = 0, discountType = 'percentage') {
   const normalized = (Array.isArray(lineItems) ? lineItems : []).map((li) => {
     const quantity = toNumber(li.quantity, 0);
     const unitPrice = toNumber(li.unitPrice, 0);
@@ -81,10 +81,30 @@ function computeTotals(lineItems = []) {
   });
 
   const subtotal = normalized.reduce((sum, li) => sum + (li.lineSubtotal || 0), 0);
-  const totalTax = normalized.reduce((sum, li) => sum + (li.lineTax || 0), 0);
-  const grandTotal = subtotal + totalTax;
+  
+  const rawDiscountVal = Math.max(0, toNumber(discountValue, 0));
+  let discount = 0;
+  if (discountType === 'percentage') {
+    discount = (subtotal * Math.min(100, rawDiscountVal)) / 100;
+  } else {
+    discount = Math.min(subtotal, rawDiscountVal);
+  }
+  discount = Math.round(discount * 100) / 100;
 
-  return { normalized, subtotal, totalTax, grandTotal };
+  const discountedSubtotal = Math.max(0, subtotal - discount);
+  const taxRatio = subtotal > 0 ? discountedSubtotal / subtotal : 1;
+  const totalTax = Math.round(normalized.reduce((sum, li) => sum + ((li.lineTax || 0) * taxRatio), 0) * 100) / 100;
+  const grandTotal = Math.round((discountedSubtotal + totalTax) * 100) / 100;
+
+  return {
+    normalized,
+    subtotal: Math.round(subtotal * 100) / 100,
+    discount,
+    discountType: discountType === 'fixed' ? 'fixed' : 'percentage',
+    discountValue: rawDiscountVal,
+    totalTax,
+    grandTotal,
+  };
 }
 
 async function enrichLineItemsWithMenuItems(lineItems, tenantFilterValue) {
@@ -284,6 +304,8 @@ router.post('/:id/create-invoice', checkPermission('restaurant', 'update'), chec
       issueDate: new Date(),
       currency: order.currency || 'SAR',
       paymentMethod,
+      discount: order.discount || 0,
+      discountType: order.discountType || 'fixed',
       contractNumber: order.orderNumber,
       restaurantOrderId: order._id,
       seller: {
@@ -468,7 +490,9 @@ router.post('/', checkTrialLimits('restaurantOrders'), checkPermission('restaura
 
     const orderNumber = req.body.orderNumber || (await generateOrderNumber(req.tenantFilter));
     const enriched = await enrichLineItemsWithMenuItems(req.body.lineItems, req.tenantFilter);
-    const { normalized, subtotal, totalTax, grandTotal } = computeTotals(enriched);
+    const discountVal = req.body.discountValue !== undefined ? req.body.discountValue : req.body.discount;
+    const discountType = req.body.discountType || 'percentage';
+    const { normalized, subtotal, discount, totalTax, grandTotal } = computeTotals(enriched, discountVal, discountType);
 
     const tenantCurrencyDoc = await Tenant.findById(req.user.tenantId).select('settings.currency').lean();
     const tenantCurrency = String(tenantCurrencyDoc?.settings?.currency || req.tenant?.settings?.currency || 'SAR').trim().toUpperCase() || 'SAR';
@@ -479,6 +503,10 @@ router.post('/', checkTrialLimits('restaurantOrders'), checkPermission('restaura
       currency: req.body.currency || tenantCurrency,
       lineItems: normalized,
       subtotal,
+      discount,
+      discountType,
+      discountValue: toNumber(discountVal, 0),
+      discountReason: req.body.discountReason || '',
       totalTax,
       grandTotal,
       tenantId: req.user.tenantId,
@@ -525,9 +553,21 @@ router.put('/:id', checkPermission('restaurant', 'update'), async (req, res) => 
     if (!existing) return res.status(404).json({ error: 'Order not found' });
 
     const enriched = await enrichLineItemsWithMenuItems(req.body.lineItems, req.tenantFilter);
-    const { normalized, subtotal, totalTax, grandTotal } = computeTotals(enriched);
+    const discountVal = req.body.discountValue !== undefined ? req.body.discountValue : (req.body.discount !== undefined ? req.body.discount : existing.discountValue);
+    const discountType = req.body.discountType || existing.discountType || 'percentage';
+    const { normalized, subtotal, discount, totalTax, grandTotal } = computeTotals(enriched, discountVal, discountType);
 
-    const patch = { ...req.body, lineItems: normalized, subtotal, totalTax, grandTotal };
+    const patch = {
+      ...req.body,
+      lineItems: normalized,
+      subtotal,
+      discount,
+      discountType,
+      discountValue: toNumber(discountVal, 0),
+      discountReason: req.body.discountReason !== undefined ? req.body.discountReason : (existing.discountReason || ''),
+      totalTax,
+      grandTotal,
+    };
     if (patch.status === 'cancelled' && !patch.kitchenStatus) {
       patch.kitchenStatus = 'cancelled';
       patch.kitchenStatusUpdatedAt = new Date();
