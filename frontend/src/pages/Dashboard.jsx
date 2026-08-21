@@ -67,9 +67,10 @@ export default function Dashboard() {
   const { t } = useTranslation(language)
   const navigate = useNavigate()
   const isAr = language === 'ar'
-  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
-  const isPkrCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'PKR'
-  const isBdtCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'BDT'
+  const tenantCurrency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
+  const isSarCurrencyTenant = tenantCurrency === 'SAR'
+  const isPkrCurrencyTenant = tenantCurrency === 'PKR'
+  const isBdtCurrencyTenant = tenantCurrency === 'BDT'
 
   const businessTypes = getTenantBusinessTypes(tenant)
   const isTrading = businessTypes.includes('trading')
