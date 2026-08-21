@@ -21,16 +21,18 @@ export function HighlightText({
   variant = "lime",
 }: HighlightTextProps) {
   return (
-    <span className="relative inline-block">
+    <span className="relative inline-block align-baseline whitespace-nowrap mx-1.5">
       <span
         className={cn(
-          "absolute inset-0 scale-x-110 scale-y-90 -skew-y-1 rounded-sm",
+          "absolute inset-0 scale-x-105 scale-y-95 -skew-y-1 rounded-sm shadow-sm",
           highlightVariants[variant],
           className
         )}
         aria-hidden="true"
       />
-      <span className="relative">{children}</span>
+      <span className="relative z-10 font-satisfy font-normal px-2 py-0.5 text-[1.08em] tracking-normal leading-none inline-block text-slate-950">
+        {children}
+      </span>
     </span>
   );
 }

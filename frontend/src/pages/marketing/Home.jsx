@@ -162,12 +162,18 @@ export default function MarketingHome() {
 
           <motion.h1
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.08 }}
-            className="mx-auto max-w-5xl text-center font-display text-[2.75rem] font-bold leading-[1.1] tracking-[-0.02em] text-slate-950 sm:text-6xl lg:text-[4.5rem]"
+            className="mx-auto max-w-5xl text-center font-display text-[2.75rem] font-bold leading-[1.18] tracking-[-0.02em] text-slate-950 sm:text-6xl lg:text-[4.5rem]"
           >
             {isArabic ? (
-              <>{'كل أعمالك على '}<HighlightText variant="lime">منصة واحدة</HighlightText> — <HighlightText variant="yellow">تنمو معك</HighlightText>.</>
+              <>
+                كل أعمالك على <HighlightText variant="lime">منصة واحدة</HighlightText>{' '}
+                <span className="inline-block">— <HighlightText variant="yellow">تنمو معك</HighlightText></span>
+              </>
             ) : (
-              <>The ERP that <HighlightText variant="lime">grows with you</HighlightText> — <HighlightText variant="yellow">not against you</HighlightText>.</>
+              <>
+                The ERP that <HighlightText variant="lime">grows with you</HighlightText>{' '}
+                <span className="inline-block">— <HighlightText variant="yellow">not against you</HighlightText></span>
+              </>
             )}
           </motion.h1>
 
@@ -245,11 +251,13 @@ export default function MarketingHome() {
             <h2 className="font-display text-4xl font-bold tracking-[-0.02em] text-slate-950 sm:text-5xl lg:text-[3.25rem]">
               {isArabic ? (
                 <>
-                  أرباحك، <HighlightText variant="lime">تكاليفك</HighlightText>، ونموك — <HighlightText variant="yellow">بوضوح</HighlightText>.
+                  أرباحك، <HighlightText variant="lime">تكاليفك</HighlightText>، ونموك{' '}
+                  <span className="inline-block">— <HighlightText variant="yellow">بوضوح</HighlightText></span>
                 </>
               ) : (
                 <>
-                  Revenue, <HighlightText variant="lime">costs</HighlightText>, and growth — <HighlightText variant="yellow">crystal clear</HighlightText>.
+                  Revenue, <HighlightText variant="lime">costs</HighlightText>, and growth{' '}
+                  <span className="inline-block">— <HighlightText variant="yellow">crystal clear</HighlightText></span>
                 </>
               )}
             </h2>

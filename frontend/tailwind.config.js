@@ -80,6 +80,7 @@ export default {
         body: ['"DM Sans"', 'Inter', 'Tajawal', 'sans-serif'],
         arabic: ['Tajawal', 'sans-serif'],
         urdu: ['"Noto Nastaliq Urdu"', 'Tajawal', 'sans-serif'],
+        satisfy: ['"Satisfy"', 'cursive', 'Tajawal', 'sans-serif'],
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-in-out',
