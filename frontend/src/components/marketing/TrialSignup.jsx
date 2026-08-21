@@ -37,14 +37,97 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
   const [localError, setLocalError] = useState('')
   const [logoHover, setLogoHover] = useState(false)
 
+  const [countrySearch, setCountrySearch] = useState('')
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false)
+  const [countryHighlightedIndex, setCountryHighlightedIndex] = useState(0)
+  const countryContainerRef = useRef(null)
+
+  const [currencySearch, setCurrencySearch] = useState('')
+  const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false)
+  const [currencyHighlightedIndex, setCurrencyHighlightedIndex] = useState(0)
+  const currencyContainerRef = useRef(null)
+
   const businessOptions = getBusinessTypeOptions(language)
   const currencyOptions = useMemo(() => CURRENCIES || [], [])
   const selectedCountry = COUNTRY_OPTIONS.find((c) => c.code === country)
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (countryContainerRef.current && !countryContainerRef.current.contains(e.target)) {
+        setCountryDropdownOpen(false)
+        if (country) {
+          const found = COUNTRY_OPTIONS.find((c) => c.code === country)
+          if (found) setCountrySearch(`${flagEmoji(found.code)}  ${isArabic ? found.nameAr : found.nameEn}`)
+        } else {
+          setCountrySearch('')
+        }
+      }
+      if (currencyContainerRef.current && !currencyContainerRef.current.contains(e.target)) {
+        setCurrencyDropdownOpen(false)
+        if (currency) {
+          const cur = currencyOptions.find((c) => c.code === currency)
+          if (cur) setCurrencySearch(`${cur.code} — ${isArabic ? cur.nameAr : cur.nameEn}`)
+        } else {
+          setCurrencySearch('')
+        }
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [country, currency, isArabic, currencyOptions])
+
   const onCountryChange = (code) => {
+    const found = COUNTRY_OPTIONS.find((c) => c.code === code)
     setCountry(code)
-    setCurrency(currencyForCountry(code))
+    if (found) {
+      setCountrySearch(`${flagEmoji(found.code)}  ${isArabic ? found.nameAr : found.nameEn}`)
+      const autoCur = currencyForCountry(code)
+      setCurrency(autoCur)
+      const curObj = currencyOptions.find((c) => c.code === autoCur)
+      if (curObj) {
+        setCurrencySearch(`${curObj.code} — ${isArabic ? curObj.nameAr : curObj.nameEn}`)
+      }
+    } else {
+      setCountrySearch('')
+    }
+    setCountryDropdownOpen(false)
+    setLocalError('')
   }
+
+  const onCurrencyChange = (code) => {
+    setCurrency(code)
+    const curObj = currencyOptions.find((c) => c.code === code)
+    if (curObj) {
+      setCurrencySearch(`${curObj.code} — ${isArabic ? curObj.nameAr : curObj.nameEn}`)
+    } else {
+      setCurrencySearch('')
+    }
+    setCurrencyDropdownOpen(false)
+    setLocalError('')
+  }
+
+  const filteredCountries = useMemo(() => {
+    const q = String(countrySearch || '').trim().toLowerCase()
+    if (!q) return COUNTRY_OPTIONS
+    return COUNTRY_OPTIONS.filter((c) => {
+      const en = (c.nameEn || '').toLowerCase()
+      const ar = (c.nameAr || '').toLowerCase()
+      const code = (c.code || '').toLowerCase()
+      const cur = (c.currency || '').toLowerCase()
+      return en.includes(q) || ar.includes(q) || code.includes(q) || cur.includes(q)
+    })
+  }, [countrySearch])
+
+  const filteredCurrencies = useMemo(() => {
+    const q = String(currencySearch || '').trim().toLowerCase()
+    if (!q) return currencyOptions
+    return currencyOptions.filter((c) => {
+      const en = (c.nameEn || '').toLowerCase()
+      const ar = (c.nameAr || '').toLowerCase()
+      const code = (c.code || '').toLowerCase()
+      return en.includes(q) || ar.includes(q) || code.includes(q)
+    })
+  }, [currencySearch, currencyOptions])
 
   const applyLogoFile = (file) => {
     if (!file) return
@@ -245,19 +328,111 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
             >
               {step === 1 && (
                 <>
-                  <div>
+                  <div ref={countryContainerRef} className="relative">
                     <label className={labelCls}>{isArabic ? 'الدولة' : 'Country'}</label>
                     <div className="relative">
                       <Globe2 className={`pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 ${isDark ? 'text-white/30' : 'text-slate-400'}`} />
-                      <select value={country} onChange={(e) => onCountryChange(e.target.value)} className={`${inputCls} pl-11`}>
-                        <option value="">{isArabic ? 'اختر الدولة' : 'Select country'}</option>
-                        {COUNTRY_OPTIONS.map((c) => (
-                          <option key={c.code} value={c.code} className="text-slate-900">
-                            {flagEmoji(c.code)} {isArabic ? c.nameAr : c.nameEn}
-                          </option>
-                        ))}
-                      </select>
+                      <input
+                        type="text"
+                        value={countrySearch}
+                        onChange={(e) => {
+                          setCountrySearch(e.target.value)
+                          setCountry('')
+                          setCountryDropdownOpen(true)
+                          setCountryHighlightedIndex(0)
+                        }}
+                        onFocus={() => {
+                          setCountryDropdownOpen(true)
+                        }}
+                        onKeyDown={(e) => {
+                          if (!countryDropdownOpen) {
+                            if (e.key === 'ArrowDown' || e.key === 'Enter') {
+                              setCountryDropdownOpen(true)
+                              e.preventDefault()
+                            }
+                            return
+                          }
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            setCountryHighlightedIndex((prev) => (prev + 1) % Math.max(1, filteredCountries.length))
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault()
+                            setCountryHighlightedIndex((prev) => (prev - 1 + filteredCountries.length) % Math.max(1, filteredCountries.length))
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault()
+                            if (filteredCountries[countryHighlightedIndex]) {
+                              onCountryChange(filteredCountries[countryHighlightedIndex].code)
+                            }
+                          } else if (e.key === 'Escape') {
+                            setCountryDropdownOpen(false)
+                          }
+                        }}
+                        placeholder={isArabic ? 'ابحث أو اكتب اسم الدولة (مثال: باكستان، السعودية، الإمارات...)' : 'Search or type country (e.g. Pakistan, Saudi, UAE...)'}
+                        className={`${inputCls} pl-11 pr-10`}
+                        autoComplete="off"
+                      />
+                      {country && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCountry('')
+                            setCountrySearch('')
+                            setCountryDropdownOpen(true)
+                          }}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          title={isArabic ? 'مسح' : 'Clear'}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
+
+                    {countryDropdownOpen && (
+                      <div className={`absolute left-0 right-0 z-30 mt-1.5 max-h-60 overflow-y-auto rounded-2xl border p-1.5 shadow-2xl backdrop-blur-xl ${
+                        isDark ? 'border-white/15 bg-slate-900/95 text-white' : 'border-slate-200/90 bg-white text-slate-900 shadow-[0_20px_50px_-15px_rgba(15,23,42,0.25)]'
+                      }`}>
+                        {filteredCountries.length === 0 ? (
+                          <div className="p-3.5 text-center text-xs text-slate-400">
+                            {isArabic ? 'لم يتم العثور على دولة مطابقة' : 'No matching country found'}
+                          </div>
+                        ) : (
+                          filteredCountries.map((c, idx) => {
+                            const isSelected = c.code === country
+                            const isHighlighted = idx === countryHighlightedIndex
+                            return (
+                              <button
+                                key={c.code}
+                                type="button"
+                                onClick={() => onCountryChange(c.code)}
+                                onMouseEnter={() => setCountryHighlightedIndex(idx)}
+                                className={`flex w-full items-center justify-between gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-sm transition-colors ${
+                                  isSelected || isHighlighted
+                                    ? isDark
+                                      ? 'bg-emerald-500/20 text-emerald-200 font-semibold'
+                                      : 'bg-emerald-50 text-emerald-950 font-semibold'
+                                    : isDark
+                                    ? 'hover:bg-white/5 text-white/80'
+                                    : 'hover:bg-slate-50 text-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className="text-lg leading-none">{flagEmoji(c.code)}</span>
+                                  <span className="truncate">{isArabic ? c.nameAr : c.nameEn}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="rounded-md border border-slate-200/80 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-white/60">
+                                    {c.code}
+                                  </span>
+                                  <span className="rounded-md bg-emerald-100/80 px-1.5 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300">
+                                    {c.currency}
+                                  </span>
+                                </div>
+                              </button>
+                            )
+                          })
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {selectedCountry && (
@@ -287,7 +462,7 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
                     </motion.div>
                   )}
 
-                  <div>
+                  <div ref={currencyContainerRef} className="relative">
                     <div className="flex items-center justify-between mb-2">
                       <label className={labelCls}>{isArabic ? 'عملة الحساب والفواتير' : 'Account & Invoice Currency'}</label>
                       {selectedCountry && (
@@ -298,15 +473,104 @@ export default function TrialSignup({ variant = 'light', embedded = false }) {
                     </div>
                     <div className="relative">
                       <Wallet className={`pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 ${isDark ? 'text-white/30' : 'text-slate-400'}`} />
-                      <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={`${inputCls} pl-11`}>
-                        <option value="">{isArabic ? 'اختر العملة' : 'Select currency'}</option>
-                        {currencyOptions.map((cur) => (
-                          <option key={cur.code} value={cur.code} className="text-slate-900">
-                            {cur.code} — {isArabic ? cur.nameAr : cur.nameEn} ({cur.symbol})
-                          </option>
-                        ))}
-                      </select>
+                      <input
+                        type="text"
+                        value={currencySearch}
+                        onChange={(e) => {
+                          setCurrencySearch(e.target.value)
+                          setCurrency('')
+                          setCurrencyDropdownOpen(true)
+                          setCurrencyHighlightedIndex(0)
+                        }}
+                        onFocus={() => {
+                          setCurrencyDropdownOpen(true)
+                        }}
+                        onKeyDown={(e) => {
+                          if (!currencyDropdownOpen) {
+                            if (e.key === 'ArrowDown' || e.key === 'Enter') {
+                              setCurrencyDropdownOpen(true)
+                              e.preventDefault()
+                            }
+                            return
+                          }
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            setCurrencyHighlightedIndex((prev) => (prev + 1) % Math.max(1, filteredCurrencies.length))
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault()
+                            setCurrencyHighlightedIndex((prev) => (prev - 1 + filteredCurrencies.length) % Math.max(1, filteredCurrencies.length))
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault()
+                            if (filteredCurrencies[currencyHighlightedIndex]) {
+                              onCurrencyChange(filteredCurrencies[currencyHighlightedIndex].code)
+                            }
+                          } else if (e.key === 'Escape') {
+                            setCurrencyDropdownOpen(false)
+                          }
+                        }}
+                        placeholder={isArabic ? 'اختر أو اكتب العملة (SAR, AED, PKR...)' : 'Search or type currency (SAR, AED, PKR...)'}
+                        className={`${inputCls} pl-11 pr-10`}
+                        autoComplete="off"
+                      />
+                      {currency && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCurrency('')
+                            setCurrencySearch('')
+                            setCurrencyDropdownOpen(true)
+                          }}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          title={isArabic ? 'مسح' : 'Clear'}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
+
+                    {currencyDropdownOpen && (
+                      <div className={`absolute left-0 right-0 z-30 mt-1.5 max-h-60 overflow-y-auto rounded-2xl border p-1.5 shadow-2xl backdrop-blur-xl ${
+                        isDark ? 'border-white/15 bg-slate-900/95 text-white' : 'border-slate-200/90 bg-white text-slate-900 shadow-[0_20px_50px_-15px_rgba(15,23,42,0.25)]'
+                      }`}>
+                        {filteredCurrencies.length === 0 ? (
+                          <div className="p-3.5 text-center text-xs text-slate-400">
+                            {isArabic ? 'لم يتم العثور على عملة مطابقة' : 'No matching currency found'}
+                          </div>
+                        ) : (
+                          filteredCurrencies.map((cur, idx) => {
+                            const isSelected = cur.code === currency
+                            const isHighlighted = idx === currencyHighlightedIndex
+                            return (
+                              <button
+                                key={cur.code}
+                                type="button"
+                                onClick={() => onCurrencyChange(cur.code)}
+                                onMouseEnter={() => setCurrencyHighlightedIndex(idx)}
+                                className={`flex w-full items-center justify-between gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-sm transition-colors ${
+                                  isSelected || isHighlighted
+                                    ? isDark
+                                      ? 'bg-emerald-500/20 text-emerald-200 font-semibold'
+                                      : 'bg-emerald-50 text-emerald-950 font-semibold'
+                                    : isDark
+                                    ? 'hover:bg-white/5 text-white/80'
+                                    : 'hover:bg-slate-50 text-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className="font-bold">{cur.code}</span>
+                                  <span className="truncate text-slate-500 dark:text-white/60">
+                                    {isArabic ? cur.nameAr : cur.nameEn}
+                                  </span>
+                                </div>
+                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-white/80">
+                                  {cur.symbol}
+                                </span>
+                              </button>
+                            )
+                          })
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>
