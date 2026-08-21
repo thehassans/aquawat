@@ -776,7 +776,7 @@ export default function HardwareSettings({ tenant, language, onSave, isSaving })
         <div className="mt-6 space-y-3">
           <Toggle name="autoPrint" label={language === 'ar' ? 'طباعة تلقائية بعد الدفع' : 'Auto-print after checkout'} desc={language === 'ar' ? 'فتح نافذة الطباعة تلقائياً' : 'Open print dialog automatically'} />
           <Toggle name="showLogo" label={language === 'ar' ? 'إظهار الشعار' : 'Show Logo'} desc={language === 'ar' ? 'طباعة شعار الشركة على الإيصال' : 'Print company logo on receipt'} />
-          <Toggle name="showQrCode" label={language === 'ar' ? 'إظهار رمز QR' : 'Show QR Code'} desc={language === 'ar' ? 'طباعة رمز ZATCA QR' : 'Print ZATCA QR code'} />
+          <Toggle name="showQrCode" label={language === 'ar' ? 'إظهار رمز QR' : 'Show QR Code'} desc={language === 'ar' ? 'طباعة رمز الاستجابة السريعة QR للتحقق الضريبي' : 'Print tax verification QR code'} />
           <Toggle name="showFooter" label={language === 'ar' ? 'إظهار التذييل' : 'Show Footer'} desc={language === 'ar' ? 'رسالة شكر في أسفل الإيصال' : 'Thank you message at bottom'} />
           <Toggle name="cutAtEnd" label={language === 'ar' ? 'قص الورق في النهاية' : 'Paper Cut at End'} desc={language === 'ar' ? 'إرسال أمر قص الورق (ESC/POS)' : 'Send paper cut command (ESC/POS)'} />
           <Toggle name="beepOnComplete" label={language === 'ar' ? 'صوت تنبيه بعد الطباعة' : 'Beep after print'} desc={language === 'ar' ? 'إرسال صوت تنبيه (ESC/POS)' : 'Send beep command (ESC/POS)'} />

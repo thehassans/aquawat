@@ -139,3 +139,87 @@ export function getTaxRegion(tenant) {
   if (currency === 'PKR' || isPakistanTenant(tenant)) return 'pakistan'
   return null
 }
+
+export function getGovSectionTitle(tenant, language = 'en') {
+  const isAr = language === 'ar'
+  const cur = getTenantCurrency(tenant)
+  if (cur === 'SAR' || isSaudiTenant(tenant)) return isAr ? 'الربط الحكومي زاتكا' : 'Saudi Government & ZATCA'
+  if (cur === 'AED' || isUaeTenant(tenant)) return isAr ? 'الامتثال الضريبي FTA' : 'UAE FTA Compliance'
+  if (cur === 'OMR' || isOmanTenant(tenant)) return isAr ? 'الامتثال الضريبي OTA' : 'Oman OTA Compliance'
+  if (cur === 'BHD' || isBahrainTenant(tenant)) return isAr ? 'الامتثال الضريبي NBR' : 'Bahrain NBR Compliance'
+  if (cur === 'KWD' || isKuwaitTenant(tenant)) return isAr ? 'الامتثال الضريبي MOF' : 'Kuwait MOF Compliance'
+  if (cur === 'QAR' || isQatarTenant(tenant)) return isAr ? 'الامتثال الضريبي (ضريبة)' : 'Qatar GTA Dhareeba'
+  if (cur === 'PKR' || isPakistanTenant(tenant)) return isAr ? 'الضرائب والفوترة FBR' : 'FBR Digital Invoicing'
+  if (cur === 'BDT' || isBangladeshTenant(tenant)) return isAr ? 'الضرائب NBR / Mushak' : 'NBR / Mushak Portal'
+  return isAr ? 'الامتثال الضريبي والفوترة' : 'Government & Compliance'
+}
+
+export function getGovChildren(tenant, language = 'en') {
+  const isAr = language === 'ar'
+  const cur = getTenantCurrency(tenant)
+  const installedApps = tenant?.settings?.installedApps || {}
+  const si = tenant?.settings?.saudiIntegrations || {}
+  const business = tenant?.business || {}
+  const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1
+  const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country)
+  const isAppValid = (appId) => Boolean(installedApps[appId]?.isInstalled && installedApps[appId]?.isEnabled !== false)
+
+  const hasZatca = (cur === 'SAR' || isSaudiTenant(tenant)) && (si.zatcaConnectionStatus === 'connected' || tenant?.zatca?.isOnboarded || isZatcaPhase1Ready || isAppValid('zatca_phase2_pro'))
+  const hasElm = (cur === 'SAR' || isSaudiTenant(tenant)) && (si.elmConnectionStatus === 'connected' || isAppValid('elm_identity_pro'))
+  const hasQiwa = (cur === 'SAR' || isSaudiTenant(tenant)) && (si.qiwaConnectionStatus === 'connected' || isAppValid('qiwa_hr_integration'))
+  const hasGosi = (cur === 'SAR' || isSaudiTenant(tenant)) && (si.gosiConnectionStatus === 'connected' || isAppValid('gosi_mudad_compliance'))
+
+  const govChildren = []
+
+  if (cur === 'SAR' || isSaudiTenant(tenant)) {
+    if (hasZatca) {
+      govChildren.push({
+        path: '/app/dashboard/tenant-settings/government-integrations/zatca',
+        label: isAr ? `بوابة زاتكا ${isZatcaPhase1 ? '(المرحلة 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal`,
+      })
+    }
+    if (hasElm) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/elm', label: isAr ? 'بوابة علم / يقين' : 'Elm Portal' })
+    if (hasQiwa) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/qiwa', label: isAr ? 'بوابة قوى' : 'Qiwa Portal' })
+    if (hasGosi) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/gosi', label: isAr ? 'بوابة التأمينات / مدد' : 'GOSI/Mudad Portal' })
+    if (isAppValid('balady_municipal')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/balady', label: isAr ? 'بوابة بلدي' : 'Balady Portal' })
+    if (isAppValid('saber_conformity')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/saber', label: isAr ? 'بوابة سابر (SASO)' : 'Saber Portal (SASO)' })
+    if (isAppValid('etimad_procurement')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/etimad', label: isAr ? 'بوابة اعتماد' : 'Etimad Portal' })
+  } else if (cur === 'AED' || isUaeTenant(tenant) || isAppValid('uae_fta_compliance')) {
+    govChildren.push({
+      path: '/app/dashboard/tenant-settings/government-integrations',
+      label: isAr ? 'بوابة الضرائب (FTA الإمارات)' : 'UAE FTA & EmaraTax',
+    })
+  } else if (cur === 'OMR' || isOmanTenant(tenant) || isAppValid('oman_ota_compliance')) {
+    govChildren.push({
+      path: '/app/dashboard/tenant-settings/government-integrations',
+      label: isAr ? 'بوابة الضرائب (OTA عمان)' : 'Oman OTA Tax Portal',
+    })
+  } else if (cur === 'BHD' || isBahrainTenant(tenant) || isAppValid('bahrain_nbr_compliance')) {
+    govChildren.push({
+      path: '/app/dashboard/tenant-settings/government-integrations',
+      label: isAr ? 'بوابة الضرائب (NBR البحرين)' : 'Bahrain NBR Tax Portal',
+    })
+  } else if (cur === 'KWD' || isKuwaitTenant(tenant) || isAppValid('kuwait_mof_compliance')) {
+    govChildren.push({
+      path: '/app/dashboard/tenant-settings/government-integrations',
+      label: isAr ? 'بوابة الضرائب (MOF الكويت)' : 'Kuwait MOF Tax Portal',
+    })
+  } else if (cur === 'QAR' || isQatarTenant(tenant) || isAppValid('qatar_dhareeba_compliance')) {
+    govChildren.push({
+      path: '/app/dashboard/tenant-settings/government-integrations',
+      label: isAr ? 'بوابة ضريبة (GTA قطر)' : 'Qatar GTA Dhareeba',
+    })
+  } else if (cur === 'PKR' || isPakistanTenant(tenant) || isAppValid('pakistan_fbr_einvoicing')) {
+    govChildren.push({
+      path: '/app/dashboard/tenant-settings/fbr-dashboard',
+      label: isAr ? 'بوابة الفوترة الرقمية FBR' : 'FBR Digital Invoicing',
+    })
+  } else if (cur === 'BDT' || isBangladeshTenant(tenant) || isAppValid('bangladesh_nbr_einvoicing')) {
+    govChildren.push({
+      path: '/app/dashboard/tenant-settings/nbr-dashboard',
+      label: isAr ? 'بوابة NBR / Mushak' : 'NBR / Mushak Portal',
+    })
+  }
+
+  return govChildren
+}

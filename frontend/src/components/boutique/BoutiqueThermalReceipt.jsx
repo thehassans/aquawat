@@ -1,5 +1,6 @@
 import { forwardRef } from 'react';
 import { getThermalPrinterSettings, getReceiptStyle, getPrintCss, getPageCss } from '../../lib/thermalPrinter';
+import { getTaxQrLabel } from '../../lib/saudiTenant';
 
 /**
  * BoutiqueThermalReceipt
@@ -242,27 +243,27 @@ const BoutiqueThermalReceipt = forwardRef(({ rental, tenant, invoice, qrDataUrl 
       {/* Divider */}
       <div style={{ borderTop: '1px dashed #999', margin: '6px 0' }} />
 
-      {/* ZATCA QR */}
+      {/* Tax QR */}
       {qrImageSrc ? (
         <div style={{ textAlign: 'center', marginTop: '8px' }}>
           <img
             src={qrImageSrc}
-            alt="ZATCA QR"
+            alt="Tax QR"
             style={{ width: '45mm', height: '45mm', imageRendering: 'pixelated', display: 'block', margin: '0 auto' }}
           />
           <div style={{ fontSize: '7px', color: '#666', marginTop: '4px' }}>
-            ZATCA Phase 2 Compliant QR Code
+            {getTaxQrLabel(tenant, tenant?.settings?.currency)}
           </div>
         </div>
       ) : qrRawData ? (
         <div style={{ textAlign: 'center', marginTop: '8px' }}>
           <img
             src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrRawData)}`}
-            alt="ZATCA QR"
+            alt="Tax QR"
             style={{ width: '45mm', height: '45mm', imageRendering: 'pixelated', display: 'block', margin: '0 auto' }}
           />
           <div style={{ fontSize: '7px', color: '#666', marginTop: '4px' }}>
-            ZATCA Phase 2 Compliant QR Code
+            {getTaxQrLabel(tenant, tenant?.settings?.currency)}
           </div>
         </div>
       ) : null}

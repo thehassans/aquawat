@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -19,7 +19,7 @@ import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { tenantHasEmailAddon } from '../../lib/emailAddon'
 import { tenantHasSmsAddon } from '../../lib/smsAddon'
 import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
-import { getTaxQrLabel } from '../../lib/saudiTenant'
+import { getTaxQrLabel, isSaudiTenant } from '../../lib/saudiTenant'
 
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -74,9 +74,36 @@ export default function InvoiceView() {
     queryFn: () => api.get(`/invoices/${id}`).then(res => res.data)
   })
 
+  const isSarTenant = isSaudiTenant(tenant) || String(invoice?.currency || tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   const templateId = getInvoiceTemplateId(tenant, invoice?.businessContext, invoice?.pdfTemplateId)
   const invoiceTypeLabel = invoice?.transactionType === 'B2B' ? t('b2bInvoice') : t('b2cInvoice')
   const zatcaStatusMeta = getZatcaStatusMeta(invoice, language, tenant?.zatca?.phase || 2)
+  const standardStatusMeta = useMemo(() => {
+    const invStatus = String(invoice?.status || 'draft').toLowerCase()
+    const labels = {
+      draft: language === 'ar' ? 'مسودة' : 'Draft',
+      issued: language === 'ar' ? 'صادرة' : 'Issued',
+      paid: language === 'ar' ? 'مدفوعة' : 'Paid',
+      partially_paid: language === 'ar' ? 'مدفوعة جزئياً' : 'Partially Paid',
+      approved: language === 'ar' ? 'معتمدة' : 'Approved',
+      cancelled: language === 'ar' ? 'ملغاة' : 'Cancelled',
+      overdue: language === 'ar' ? 'متأخرة' : 'Overdue',
+    }
+    const toneMap = {
+      paid: 'badge-success',
+      issued: 'badge-info',
+      approved: 'badge-info',
+      partially_paid: 'badge-warning',
+      cancelled: 'badge-neutral',
+      draft: 'badge-neutral',
+      overdue: 'badge-danger',
+    }
+    return {
+      label: labels[invStatus] || (language === 'ar' ? 'صادرة' : 'Issued'),
+      badgeClass: toneMap[invStatus] || 'badge-neutral',
+      isSuccess: invStatus === 'paid'
+    }
+  }, [invoice?.status, language])
   const travelInvoiceLabelMeta = isTravelAgencyInvoice(invoice) ? getTravelInvoiceLabelMeta(invoice, language) : null
   const isBilingualInvoiceContext = invoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
   const isBilingualInvoice = resolveInvoiceBilingual(tenant, isBilingualInvoiceContext)
@@ -530,6 +557,12 @@ export default function InvoiceView() {
               {invoice?.invoiceSubtype === 'proforma' ? (
                 <span className="badge badge-info text-sm">
                   {language === 'ar' ? 'فاتورة مبدئية (Proforma)' : 'Proforma Invoice'}
+                </span>
+              ) : !isSarTenant ? (
+                <span className={`badge ${standardStatusMeta.badgeClass}`}>
+                  {standardStatusMeta.isSuccess && <CheckCircle className="w-3 h-3 me-1" />}
+                  {!standardStatusMeta.isSuccess && <Clock className="w-3 h-3 me-1" />}
+                  {standardStatusMeta.label}
                 </span>
               ) : (
                 <span className={`badge ${

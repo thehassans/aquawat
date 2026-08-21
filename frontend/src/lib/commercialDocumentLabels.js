@@ -79,17 +79,35 @@ export const resolveInvoiceParties = ({ invoice, tenant, invoiceBranding = {}, l
     ? (tenant?.business?.contactEmail || tenant?.email || '')
     : (invoice?.seller?.contactEmail || tenant?.business?.contactEmail || tenant?.email || '')
 
-  const isDummyVat = (val) => !val || /^DEMO-\d+/i.test(String(val).trim())
-  const isDummyCr = (val) => !val || /^CR-\d+/i.test(String(val).trim())
+  const cur = String(invoice?.currency || tenant?.settings?.currency || '').toUpperCase()
+
+  const isDummyVat = (val) => !val || /^DEMO-\d+/i.test(String(val).trim()) || /^(0{10,15}|X{5,})$/i.test(String(val).trim())
+  const isDummyCr = (val) => !val || /^CR-\d+/i.test(String(val).trim()) || /^(0{7,12}|X{5,}|1010X+)$/i.test(String(val).trim())
+
+  const countryTaxId = isPurchaseFlow ? '' : (
+    cur === 'AED' ? (tenant?.fta?.trn || tenant?.business?.trn || '') :
+    cur === 'OMR' ? (tenant?.ota?.tin || tenant?.business?.tin || '') :
+    cur === 'BHD' ? (tenant?.bahrainNbr?.vatAccountNo || '') :
+    cur === 'KWD' ? (tenant?.mofKuwait?.civilId || tenant?.mofKuwait?.taxCardNumber || '') :
+    cur === 'QAR' ? (tenant?.gtaQatar?.tin || '') :
+    cur === 'BDT' ? (tenant?.nbr?.binNumber || '') :
+    cur === 'PKR' ? (tenant?.fbr?.ntn || '') : ''
+  )
+
+  const countryCrNumber = isPurchaseFlow ? '' : (
+    cur === 'OMR' ? (tenant?.ota?.commercialRegistrationNumber || '') :
+    cur === 'BHD' ? (tenant?.bahrainNbr?.crNumber || '') :
+    cur === 'QAR' ? (tenant?.gtaQatar?.crNumber || '') : ''
+  )
 
   const rawCompanyVat = isPurchaseFlow
     ? (tenant?.business?.vatNumber || '')
-    : (invoice?.seller?.vatNumber || tenant?.business?.vatNumber || '')
+    : (invoice?.seller?.vatNumber || countryTaxId || tenant?.business?.vatNumber || '')
   const companyVat = isDummyVat(rawCompanyVat) ? '' : String(rawCompanyVat).trim()
 
   const rawCompanyCr = isPurchaseFlow
     ? (tenant?.business?.crNumber || '')
-    : (invoice?.seller?.crNumber || tenant?.business?.crNumber || '')
+    : (invoice?.seller?.crNumber || countryCrNumber || tenant?.business?.crNumber || '')
   const companyCr = isDummyCr(rawCompanyCr) ? '' : String(rawCompanyCr).trim()
 
   const headerCompanyName = bilingual
@@ -114,7 +132,6 @@ export const resolveInvoiceParties = ({ invoice, tenant, invoiceBranding = {}, l
   const companyNtn = tenant?.fbr?.ntn || tenant?.business?.ntn || invoice?.seller?.ntn || ''
   const companyStrn = tenant?.fbr?.strn || tenant?.business?.strn || invoice?.seller?.strn || ''
 
-  const cur = String(invoice?.currency || tenant?.settings?.currency || '').toUpperCase()
   const isPk = cur === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
   const taxLabel = isPk ? 'GST' : 'VAT'
   const taxIdLabel = getTaxIdLabel(tenant, cur, false)

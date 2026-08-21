@@ -124,6 +124,97 @@ async function syncWhatsAppFromApp(tenant, appId, config = {}, enabled = true) {
   return true;
 }
 
+function syncComplianceFromApp(tenant, appId, config = {}, enabled = true) {
+  if (!tenant.business) tenant.business = {};
+  if (appId === 'uae_fta_compliance') {
+    tenant.fta = { ...(tenant.fta || {}), ...(config || {}), enabled };
+    if (config.trn) {
+      tenant.business.trn = config.trn;
+      tenant.business.vatNumber = config.trn;
+    }
+    if (config.corporateTaxTrn) tenant.fta.corporateTaxTrn = config.corporateTaxTrn;
+    tenant.markModified('fta');
+    tenant.markModified('business');
+    return true;
+  }
+  if (appId === 'oman_ota_compliance') {
+    tenant.ota = { ...(tenant.ota || {}), ...(config || {}), enabled };
+    if (config.tin) {
+      tenant.business.tin = config.tin;
+      tenant.business.vatNumber = config.tin;
+    }
+    if (config.commercialRegistrationNumber) {
+      tenant.business.crNumber = config.commercialRegistrationNumber;
+    }
+    tenant.markModified('ota');
+    tenant.markModified('business');
+    return true;
+  }
+  if (appId === 'bahrain_nbr_compliance') {
+    tenant.bahrainNbr = { ...(tenant.bahrainNbr || {}), ...(config || {}), enabled };
+    if (config.vatAccountNo) {
+      tenant.business.vatNumber = config.vatAccountNo;
+    }
+    if (config.crNumber) {
+      tenant.business.crNumber = config.crNumber;
+    }
+    tenant.markModified('bahrainNbr');
+    tenant.markModified('business');
+    return true;
+  }
+  if (appId === 'kuwait_mof_compliance') {
+    tenant.mofKuwait = { ...(tenant.mofKuwait || {}), ...(config || {}), enabled };
+    if (config.civilId) {
+      tenant.business.vatNumber = config.civilId;
+    }
+    tenant.markModified('mofKuwait');
+    tenant.markModified('business');
+    return true;
+  }
+  if (appId === 'qatar_dhareeba_compliance') {
+    tenant.gtaQatar = { ...(tenant.gtaQatar || {}), ...(config || {}), enabled };
+    if (config.tin) {
+      tenant.business.tin = config.tin;
+      tenant.business.vatNumber = config.tin;
+    }
+    if (config.crNumber) {
+      tenant.business.crNumber = config.crNumber;
+    }
+    tenant.markModified('gtaQatar');
+    tenant.markModified('business');
+    return true;
+  }
+  if (appId === 'pakistan_fbr_einvoicing') {
+    tenant.fbr = { ...(tenant.fbr || {}), ...(config || {}), enabled };
+    if (config.ntn) {
+      tenant.business.ntn = config.ntn;
+      tenant.business.vatNumber = config.ntn;
+    }
+    if (config.strn) {
+      tenant.business.strn = config.strn;
+    }
+    tenant.markModified('fbr');
+    tenant.markModified('business');
+    return true;
+  }
+  if (appId === 'bangladesh_nbr_einvoicing') {
+    tenant.nbr = { ...(tenant.nbr || {}), ...(config || {}), enabled };
+    if (config.binNumber) {
+      tenant.business.binNumber = config.binNumber;
+      tenant.business.vatNumber = config.binNumber;
+    }
+    tenant.markModified('nbr');
+    tenant.markModified('business');
+    return true;
+  }
+  if (appId === 'zatca_phase2_pro') {
+    tenant.zatca = { ...(tenant.zatca || {}), ...(config || {}), enabled };
+    tenant.markModified('zatca');
+    return true;
+  }
+  return false;
+}
+
 /** Yearly bills 10 months (2 months complimentary) when yearlyPrice is unset. */
 const YEARLY_BILLED_MONTHS = 10;
 
@@ -318,6 +409,7 @@ export const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}
 
   syncCourierFromApp(tenant, appId, appConfig.config || {}, true);
   syncBnplFromApp(tenant, appId, appConfig.config || {}, true);
+  syncComplianceFromApp(tenant, appId, appConfig.config || {}, true);
   await syncWhatsAppFromApp(tenant, appId, appConfig.config || {}, true);
 
   let currentTypes = normalizeBusinessTypes(tenant.businessTypes || [tenant.businessType || 'trading']);
@@ -3181,6 +3273,7 @@ router.post('/apps/:appId/toggle', protect, async (req, res) => {
       applyAppEntitlements(tenant, appId);
       syncCourierFromApp(tenant, appId, installedApps[appId].config || {}, true);
       syncBnplFromApp(tenant, appId, installedApps[appId].config || {}, true);
+      syncComplianceFromApp(tenant, appId, installedApps[appId].config || {}, true);
       await syncWhatsAppFromApp(tenant, appId, installedApps[appId].config || {}, true);
     } else if (isDeliveryPartnerApp(appId)) {
       const remaining = ALL_DELIVERY_APP_IDS.some((id) =>
@@ -3191,6 +3284,7 @@ router.post('/apps/:appId/toggle', protect, async (req, res) => {
       revokeAppEntitlements(tenant, appId);
       syncCourierFromApp(tenant, appId, installedApps[appId].config || {}, false);
       syncBnplFromApp(tenant, appId, installedApps[appId].config || {}, false);
+      syncComplianceFromApp(tenant, appId, installedApps[appId].config || {}, false);
       await syncWhatsAppFromApp(tenant, appId, installedApps[appId].config || {}, false);
     }
 
@@ -3228,6 +3322,7 @@ router.put('/apps/:appId/settings', protect, async (req, res) => {
     tenant.markModified('settings.installedApps');
     syncCourierFromApp(tenant, appId, installedApps[appId].config || {}, installedApps[appId].isEnabled !== false);
     syncBnplFromApp(tenant, appId, installedApps[appId].config || {}, installedApps[appId].isEnabled !== false);
+    syncComplianceFromApp(tenant, appId, installedApps[appId].config || {}, installedApps[appId].isEnabled !== false);
     await syncWhatsAppFromApp(tenant, appId, installedApps[appId].config || {}, installedApps[appId].isEnabled !== false);
     await tenant.save();
 

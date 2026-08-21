@@ -82,6 +82,7 @@ import {
   KeyRound,
   Lock
 } from 'lucide-react'
+import { getGovSectionTitle } from './saudiTenant'
 
 /**
  * Build the full sidebar navigation sections for the current tenant context.
@@ -499,11 +500,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     ...(govChildrenResolved.length > 0
       ? [
           {
-            title: isPkrCurrencyTenant
-              ? (language === 'ar' ? 'الضرائب والفوترة FBR' : 'FBR Digital Invoicing')
-              : isBdtCurrencyTenant
-              ? (language === 'ar' ? 'الضرائب NBR / Mushak' : 'NBR Digital Invoicing')
-              : (language === 'ar' ? 'الربط الحكومي والفوترة' : 'Government & Compliance'),
+            title: getGovSectionTitle(tenant, language),
             items: govChildrenResolved.map((child) => ({
               path: child.path,
               icon: ShieldCheck,

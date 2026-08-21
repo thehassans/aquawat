@@ -17,6 +17,7 @@ import App3DIcon from '../ui/App3DIcon'
 import useMaqderWebAppInstall from '../../lib/useMaqderWebAppInstall'
 import { tenantHasEmailAddon } from '../../lib/emailAddon'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
+import { getGovChildren } from '../../lib/saudiTenant'
 
 // Pre-defined mapping for standard paths to specific gradients and icons to match Odoo-style uniqueness
 const APP_STYLE_MAP = {
@@ -249,36 +250,7 @@ export default function AppLauncher() {
   const businessTypes = getTenantBusinessTypes(tenant)
   const hiddenMenuSet = new Set((hiddenMenuItems || []).filter((p) => !['/app/dashboard/settings', '/app/dashboard/hidden-navbars'].includes(p)))
 
-  const si = tenant?.settings?.saudiIntegrations || {};
-  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR';
-  const isBdtCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'BDT';
-  const isPkrCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'PKR';
-  const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1;
-  const business = tenant?.business || {};
-  const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country);
-  const hasZatca = isSarCurrencyTenant && (si.zatcaConnectionStatus === 'connected' || tenant?.zatca?.isOnboarded || isZatcaPhase1Ready);
-  const hasElm = isSarCurrencyTenant && si.elmConnectionStatus === 'connected';
-  const hasQiwa = isSarCurrencyTenant && si.qiwaConnectionStatus === 'connected';
-  const hasGosi = isSarCurrencyTenant && si.gosiConnectionStatus === 'connected';
-
-  const installedApps = tenant?.settings?.installedApps || {}
-  const isAppActive = (appId) => isSarCurrencyTenant && isAppAccessValid(installedApps[appId])
-  const isBdAppActive = (appId) => isBdtCurrencyTenant && isAppAccessValid(installedApps[appId])
-
-  const govChildren = [];
-  if (hasZatca) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/zatca', label: language === 'ar' ? `بوابة زاتكا ${isZatcaPhase1 ? '(المرحلة 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal` });
-  if (hasElm || isAppActive('elm_identity_pro')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/elm', label: language === 'ar' ? 'بوابة علم / يقين' : 'Elm Portal' });
-  if (hasQiwa || isAppActive('qiwa_hr_integration')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/qiwa', label: language === 'ar' ? 'بوابة قوى' : 'Qiwa Portal' });
-  if (hasGosi || isAppActive('gosi_mudad_compliance')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/gosi', label: language === 'ar' ? 'بوابة التأمينات / مدد' : 'GOSI/Mudad Portal' });
-  if (isAppActive('balady_municipal')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/balady', label: language === 'ar' ? 'بوابة بلدي' : 'Balady Portal' });
-  if (isAppActive('saber_conformity')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/saber', label: language === 'ar' ? 'بوابة سابر (SASO)' : 'Saber Portal (SASO)' });
-  if (isAppActive('etimad_procurement')) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/etimad', label: language === 'ar' ? 'بوابة اعتماد' : 'Etimad Portal' });
-  if (isBdAppActive('bangladesh_nbr_einvoicing') || (isBdtCurrencyTenant && (tenant?.nbr?.isOnboarded || tenant?.nbr?.binNumber))) {
-    govChildren.push({ path: '/app/dashboard/tenant-settings/nbr-dashboard', label: language === 'ar' ? 'بوابة NBR / Mushak' : 'NBR / Mushak Portal' });
-  }
-  if (isPkrCurrencyTenant) {
-    govChildren.push({ path: '/app/dashboard/tenant-settings/fbr-dashboard', label: language === 'ar' ? 'بوابة FBR' : 'FBR Portal' });
-  }
+  const govChildren = getGovChildren(tenant, language)
   const hasAccess = (module, action) => {
     if (!user) return false
     if (user.role === 'super_admin' || user.role === 'admin') return true

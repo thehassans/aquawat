@@ -37,6 +37,7 @@ import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
 import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
+import { isSaudiTenant } from '../../lib/saudiTenant'
 
 const trimPartyName = (value) => String(value || '').trim()
 
@@ -272,6 +273,31 @@ export default function Invoices() {
   })
 
   const getStatusBadge = useCallback((invoice) => {
+    if (!isSarTenant) {
+      const invStatus = String(invoice?.status || 'draft').toLowerCase()
+      const labels = {
+        draft: language === 'ar' ? 'مسودة' : 'Draft',
+        issued: language === 'ar' ? 'صادرة' : 'Issued',
+        paid: language === 'ar' ? 'مدفوعة' : 'Paid',
+        partially_paid: language === 'ar' ? 'مدفوعة جزئياً' : 'Partially Paid',
+        approved: language === 'ar' ? 'معتمدة' : 'Approved',
+        cancelled: language === 'ar' ? 'ملغاة' : 'Cancelled',
+        overdue: language === 'ar' ? 'متأخرة' : 'Overdue',
+      }
+      const toneMap = {
+        paid: 'badge-success',
+        issued: 'badge-info',
+        approved: 'badge-info',
+        partially_paid: 'badge-warning',
+        cancelled: 'badge-neutral',
+        draft: 'badge-neutral',
+        overdue: 'badge-danger',
+      }
+      const label = labels[invStatus] || (language === 'ar' ? 'صادرة' : 'Issued')
+      const badgeClass = toneMap[invStatus] || 'badge-neutral'
+      return <span className={`badge ${badgeClass}`}>{label}</span>
+    }
+
     const phase = tenant?.zatca?.phase || 1
     const meta = getZatcaStatusMeta(invoice, language, phase)
     const badgeClass = meta.tone === 'success'
@@ -293,7 +319,7 @@ export default function Invoices() {
           : <Clock className="w-3 h-3 me-1" />
 
     return <span className={`badge ${badgeClass}`}>{icon}{meta.label}</span>
-  }, [tenant?.zatca?.phase, language])
+  }, [tenant?.zatca?.phase, language, isSarTenant])
 
   const getPaymentBadge = useCallback((invoice) => {
     const status = String(invoice?.paymentStatus || 'pending')
@@ -351,10 +377,10 @@ export default function Invoices() {
     },
     {
       key: 'zatcaStatus',
-      label: tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'حالة التجهيز' : 'Status') : t('zatcaStatus'),
-      value: (r) => getZatcaStatusMeta(r, language, tenant?.zatca?.phase || 1).label
+      label: !isSarTenant ? (language === 'ar' ? 'الحالة' : 'Status') : (tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'حالة التجهيز' : 'Status') : t('zatcaStatus')),
+      value: (r) => (!isSarTenant ? (language === 'ar' ? (r?.status === 'paid' ? 'مدفوعة' : 'صادرة') : (r?.status || 'Issued')) : getZatcaStatusMeta(r, language, tenant?.zatca?.phase || 1).label)
     },
-  ], [t, language, hasTravel, tenant?.zatca?.phase])
+  ], [t, language, hasTravel, tenant?.zatca?.phase, isSarTenant])
 
   const getExportRows = useCallback(async () => {
     const limit = 200
@@ -699,7 +725,7 @@ export default function Invoices() {
           </select>
         </div>
         {/* ZATCA status quick-filter chips */}
-        {tenant?.zatca?.phase !== 1 && (
+        {isSarTenant && tenant?.zatca?.phase !== 1 && (
         <div className="flex flex-wrap gap-2">
           {zatcaFilterOptions.map((opt) => (
             <button
@@ -784,7 +810,7 @@ export default function Invoices() {
                     {hasTravel && <th>{language === 'ar' ? 'سعر العميل' : 'Customer Price'}</th>}
                     <th>{t('total')}</th>
                     <th>{language === 'ar' ? 'ضريبة القيمة المضافة' : 'VAT'}</th>
-                    <th>{tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'الحالة' : 'Status') : t('zatcaStatus')}</th>
+                    <th>{!isSarTenant ? (language === 'ar' ? 'الحالة' : 'Status') : (tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'الحالة' : 'Status') : t('zatcaStatus'))}</th>
                     <th>{t('actions')}</th>
                   </tr>
                 </thead>

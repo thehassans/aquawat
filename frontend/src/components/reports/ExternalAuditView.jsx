@@ -18,11 +18,14 @@ import {
   BadgeCheck,
   Activity,
 } from 'lucide-react'
+import { isSaudiTenant, getTaxAuthorityName } from '../../lib/saudiTenant'
 
 export default function ExternalAuditView({ data, language, t, tenant }) {
   const [activeTab, setActiveTab] = useState('vat_summary')
   const [searchQuery, setSearchQuery] = useState('')
   const isAr = language === 'ar'
+  const isSar = isSaudiTenant(tenant) || String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
+  const authorityName = getTaxAuthorityName(tenant)
 
   if (!data) {
     return (
@@ -72,7 +75,7 @@ export default function ExternalAuditView({ data, language, t, tenant }) {
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
               <BadgeCheck className="w-4 h-4 text-emerald-400" />
-              {isAr ? 'شهادة الفحص المحاسبي والامتثال الضريبي والنظامي' : 'Statutory Audit & ZATCA Compliance Review'}
+              {isAr ? 'شهادة الفحص المحاسبي والامتثال الضريبي والنظامي' : `Statutory Audit & ${isSar ? 'ZATCA' : authorityName} Compliance Review`}
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
               {isAr ? data.auditOpinionAr : data.auditOpinion}
@@ -203,7 +206,7 @@ export default function ExternalAuditView({ data, language, t, tenant }) {
               },
               {
                 id: 'zatca_chain',
-                label: isAr ? 'سلسلة تشفير زاتكا' : 'ZATCA Phase 2 Audit',
+                label: isAr ? (isSar ? 'سلسلة تشفير زاتكا' : 'سلسلة التشفير الرقمي') : (isSar ? 'ZATCA Phase 2 Audit' : 'E-Invoice Cryptographic Audit'),
                 icon: Lock,
               },
               {
@@ -220,7 +223,7 @@ export default function ExternalAuditView({ data, language, t, tenant }) {
               },
               {
                 id: 'zatca_logs',
-                label: isAr ? 'سجل أحداث زاتكا' : 'ZATCA Audit Logs',
+                label: isAr ? (isSar ? 'سجل أحداث زاتكا' : 'سجل الأحداث والامتثال') : (isSar ? 'ZATCA Audit Logs' : `${authorityName} Audit Logs`),
                 count: zatcaLogs.length,
                 icon: Activity,
               },
@@ -376,12 +379,16 @@ export default function ExternalAuditView({ data, language, t, tenant }) {
             <div className="rounded-xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 p-5 text-xs text-indigo-900 dark:text-indigo-200 leading-relaxed">
               <h4 className="font-bold mb-1 flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                {isAr ? 'إقرار المطابقة الفنية لمنظومة زاتكا' : 'ZATCA Technical Compliance Declaration'}
+                {isAr ? (isSar ? 'إقرار المطابقة الفنية لمنظومة زاتكا' : 'إقرار المطابقة الفنية والامتثال الضريبي') : (isSar ? 'ZATCA Technical Compliance Declaration' : `${authorityName} Technical Compliance Declaration`)}
               </h4>
               <p>
                 {isAr
-                  ? 'تم التحقق من ربط الفواتير بالرقم التسلسلي المشفر (Cryptographic Stamp ID) ووجود تسلسل الهاش المتصل (Previous Invoice Hash) دون أي فجوات رقمية في تسلسل الفواتير، مما يفي بمتطلبات المادة (53) من اللائحة التنفيذية.'
-                  : 'All generated e-invoices adhere to ZATCA Phase 2 cryptographic stamping, continuous SHA-256 previous invoice hashing, and zero-gap sequential counter requirements under Article 53 of the VAT regulation.'}
+                  ? (isSar
+                    ? 'تم التحقق من ربط الفواتير بالرقم التسلسلي المشفر (Cryptographic Stamp ID) ووجود تسلسل الهاش المتصل (Previous Invoice Hash) دون أي فجوات رقمية في تسلسل الفواتير، مما يفي بمتطلبات المادة (53) من اللائحة التنفيذية.'
+                    : 'تم التحقق من سلامة الفواتير الإلكترونية والتسلسل الرقمي غير القابل للتعديل ورموز التحقق الضريبية المعتمدة وفقاً للأنظمة واللوائح السارية.')
+                  : (isSar
+                    ? 'All generated e-invoices adhere to ZATCA Phase 2 cryptographic stamping, continuous SHA-256 previous invoice hashing, and zero-gap sequential counter requirements under Article 53 of the VAT regulation.'
+                    : `All generated e-invoices adhere to ${authorityName} statutory compliance standards, continuous invoice sequence verification, and tamper-evident audit integrity.`)}
               </p>
             </div>
           </div>
@@ -498,7 +505,7 @@ export default function ExternalAuditView({ data, language, t, tenant }) {
                     <th className="px-6 py-3">{isAr ? 'العميل' : 'Customer'}</th>
                     <th className="px-6 py-3">{isAr ? 'المبلغ' : 'Amount'}</th>
                     <th className="px-6 py-3">{isAr ? 'الضريبة' : 'VAT'}</th>
-                    <th className="px-6 py-3">{isAr ? 'حالة زاتكا' : 'ZATCA Status'}</th>
+                    <th className="px-6 py-3">{isAr ? (isSar ? 'حالة زاتكا' : 'حالة الفاتورة') : (isSar ? 'ZATCA Status' : 'Invoice Status')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-dark-700">
@@ -517,7 +524,7 @@ export default function ExternalAuditView({ data, language, t, tenant }) {
                       </td>
                       <td className="px-6 py-3.5">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30">
-                          {inv.zatcaStatus}
+                          {isSar ? inv.zatcaStatus : (inv.status || 'Issued')}
                         </span>
                       </td>
                     </tr>
@@ -534,8 +541,12 @@ export default function ExternalAuditView({ data, language, t, tenant }) {
             <div className="px-6 py-3 bg-gray-50/50 dark:bg-dark-700/20 border-b border-gray-100 dark:border-dark-700">
               <span className="text-xs text-gray-500">
                 {isAr
-                  ? 'سجل العمليات والتحذيرات التلقائية لمنظومة الربط والتكامل مع هيئة الزكاة والضريبة والجمارك.'
-                  : 'Automated operational log of ZATCA cryptographic renewals, sync events, and security verifications.'}
+                  ? (isSar
+                    ? 'سجل العمليات والتحذيرات التلقائية لمنظومة الربط والتكامل مع هيئة الزكاة والضريبة والجمارك.'
+                    : 'سجل العمليات والتحقق الضريبي والأمني للنظام المحاسبي.')
+                  : (isSar
+                    ? 'Automated operational log of ZATCA cryptographic renewals, sync events, and security verifications.'
+                    : `Automated operational log of ${authorityName} statutory compliance, sync events, and security verifications.`)}
               </span>
             </div>
             <div className="overflow-x-auto">

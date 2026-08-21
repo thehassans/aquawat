@@ -16,7 +16,7 @@ import { CURRENCIES, CURRENCY_CODE } from '../lib/currency'
 import LetterheadChrome from '../components/invoices/LetterheadChrome'
 import { INVOICE_LANGUAGE_OPTIONS, isGccArabicMarket } from '../lib/invoiceLanguage'
 import { getTenantAliasUrl } from '../lib/tenantHost'
-import { showArabicFields, isBangladeshTenant, isSaudiTenant, showArabicUi } from '../lib/saudiTenant'
+import { showArabicFields, isBangladeshTenant, isSaudiTenant, showArabicUi, getGovChildren } from '../lib/saudiTenant'
 import { COUNTRY_OPTIONS } from '../lib/countryCurrency'
 import { getNavSections } from '../lib/sidebarConfig'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
@@ -82,27 +82,7 @@ function MenuVisibilitySettings() {
 
   if (!tenant) return null
 
-  const si = tenant?.settings?.saudiIntegrations || {}
-  const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
-  const isBdtCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'BDT'
-  const isPkrCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'PKR'
-  const isZatcaPhase1 = (tenant?.zatca?.phase || 1) === 1
-  const business = tenant?.business || {}
-  const isZatcaPhase1Ready = isZatcaPhase1 && !!business.vatNumber && !!(business.legalNameEn || business.legalNameAr) && !!(business.address?.city && business.address?.country)
-  const hasZatca = isSarCurrencyTenant && (si.zatcaConnectionStatus === 'connected' || tenant?.zatca?.isOnboarded || isZatcaPhase1Ready)
-  const hasElm = isSarCurrencyTenant && si.elmConnectionStatus === 'connected'
-  const hasQiwa = isSarCurrencyTenant && si.qiwaConnectionStatus === 'connected'
-  const hasGosi = isSarCurrencyTenant && si.gosiConnectionStatus === 'connected'
-  const hasNbr = isBdtCurrencyTenant && (tenant?.nbr?.isOnboarded || tenant?.nbr?.connectionStatus === 'connected' || !!tenant?.nbr?.binNumber || !!business.binNumber)
-  const hasFbr = isPkrCurrencyTenant
-
-  const govChildren = []
-  if (hasZatca) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/zatca', label: language === 'ar' ? `بوابة زاتكا ${isZatcaPhase1 ? '(المرحلة 1)' : ''}` : `ZATCA${isZatcaPhase1 ? ' Phase 1' : ''} Portal` })
-  if (hasElm) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/elm', label: language === 'ar' ? 'بوابة علم / يقين' : 'Elm Portal' })
-  if (hasQiwa) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/qiwa', label: language === 'ar' ? 'بوابة قوى' : 'Qiwa Portal' })
-  if (hasGosi) govChildren.push({ path: '/app/dashboard/tenant-settings/government-integrations/gosi', label: language === 'ar' ? 'بوابة التأمينات / مدد' : 'GOSI/Mudad Portal' })
-  if (hasNbr) govChildren.push({ path: '/app/dashboard/tenant-settings/nbr-dashboard', label: language === 'ar' ? 'بوابة NBR / Mushak' : 'NBR / Mushak Portal' })
-  if (hasFbr) govChildren.push({ path: '/app/dashboard/tenant-settings/fbr-dashboard', label: language === 'ar' ? 'بوابة FBR' : 'FBR Portal' })
+  const govChildren = getGovChildren(tenant, language)
 
   const businessTypes = getTenantBusinessTypes(tenant)
   const navSections = getNavSections({ language, t, tenant, businessTypes, govChildren })

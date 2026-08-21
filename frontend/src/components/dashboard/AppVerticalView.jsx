@@ -467,7 +467,7 @@ export function AppVerticalView({
         { label: isAr ? 'حجوزات طيران وفنادق مفتوحة' : 'Open Bookings', value: data.totals?.[0]?.open || 0, icon: Plane },
         { label: isAr ? 'تذاكر تم إصدارها' : 'Ticketed Bookings', value: data.totals?.[0]?.ticketed || 0, icon: CheckCircle },
         { label: isAr ? 'إجمالي مبيعات التذاكر' : 'Travel Booking Volume', value: data.totals?.[0]?.revenue || 0, isCurrency: true, icon: TrendingUp },
-        { label: isAr ? 'تطبيق هامش ضريبة هيئة الزكاة' : 'ZATCA Margin Tax Rule', value: isAr ? 'مطبّق بنجاح' : 'Rule Active', icon: ShieldCheck, success: true },
+        { label: isAr ? 'تطبيق هامش ضريبة القيمة المضافة' : 'Margin Tax Rule', value: isAr ? 'مطبّق بنجاح' : 'Rule Active', icon: ShieldCheck, success: true },
       ],
       quickActions: [
         { label: isAr ? 'حجز سفر جديد' : 'New Travel Booking', route: '/app/dashboard/travel/bookings/new', icon: PlusCircle, primary: true },

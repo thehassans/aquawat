@@ -474,7 +474,7 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
           </div>
 
           <div className="my-5 flex flex-row items-center justify-center gap-4">
-            {thermalSettings.showQrCode && zatcaQrPayload && (
+            {thermalSettings.showQrCode && isZatcaApplicable && zatcaQrPayload && (
               <div className="flex flex-col items-center justify-center text-center">
                 <div className="text-[8px] text-black mb-1 font-extrabold whitespace-nowrap">
                   ZATCA | هيئة الزكاة

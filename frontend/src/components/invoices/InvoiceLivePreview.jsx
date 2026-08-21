@@ -318,6 +318,21 @@ const getDocumentStatusMeta = (invoice, language = 'en', documentType = 'invoice
     return { label: labels[status] || (language === 'ar' ? 'مسودة' : 'Draft') }
   }
 
+  const cur = String(invoice?.currency || '').toUpperCase()
+  if (cur && cur !== 'SAR') {
+    const status = String(invoice?.status || 'draft').trim().toLowerCase()
+    const labels = {
+      draft: language === 'ar' ? 'مسودة' : 'Draft',
+      issued: language === 'ar' ? 'صادرة' : 'Issued',
+      paid: language === 'ar' ? 'مدفوعة' : 'Paid',
+      partially_paid: language === 'ar' ? 'مدفوعة جزئياً' : 'Partially Paid',
+      approved: language === 'ar' ? 'معتمدة' : 'Approved',
+      overdue: language === 'ar' ? 'متأخرة' : 'Overdue',
+      cancelled: language === 'ar' ? 'ملغاة' : 'Cancelled',
+    }
+    return { label: labels[status] || (language === 'ar' ? 'مسودة' : 'Draft') }
+  }
+
   return getZatcaStatusMeta(invoice, language)
 }
 
