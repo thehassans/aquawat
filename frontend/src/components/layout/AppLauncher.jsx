@@ -18,6 +18,7 @@ import useMaqderWebAppInstall from '../../lib/useMaqderWebAppInstall'
 import { tenantHasEmailAddon } from '../../lib/emailAddon'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { getGovChildren } from '../../lib/saudiTenant'
+import { HighlightText } from '../ui/highlight-text'
 
 // Pre-defined mapping for standard paths to specific gradients and icons to match Odoo-style uniqueness
 const APP_STYLE_MAP = {
@@ -722,13 +723,20 @@ export default function AppLauncher() {
           {/* Apps Grid */}
           <div className="relative z-0 isolate flex-1 overflow-y-auto px-4 pb-14 pt-8 sm:px-10 lg:px-12">
             <div className="mx-auto mb-8 max-w-7xl">
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-600/80 dark:text-emerald-400/80">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.2em] text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 {language === 'ar' ? 'مساحة العمل' : 'Workspace'}
-              </p>
-              <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-                {language === 'ar' ? 'تطبيقاتك' : 'Your apps'}
+              </span>
+              <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-3xl lg:text-4xl">
+                {language === 'ar' ? (
+                  <HighlightText variant="lime">تطبيقاتك</HighlightText>
+                ) : (
+                  <>
+                    Your <HighlightText variant="lime">Apps</HighlightText>
+                  </>
+                )}
               </h2>
-              <p className="mt-1.5 max-w-xl text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500 dark:text-slate-400">
                 {language === 'ar'
                   ? 'اختر تطبيقاً للبدء — كل شيء في مكان واحد.'
                   : 'Pick an app to get started — everything in one place.'}
