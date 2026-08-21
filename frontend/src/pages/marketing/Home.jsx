@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useInView } from 'framer-motion'
 import { useRef } from 'react'
 import TrialSignup from '../../components/marketing/TrialSignup'
 import PremiumAppIcon, { PREMIUM_APP_CATALOG } from '../../components/marketing/PremiumAppIcon'
+import { HighlightText } from '../../components/ui/highlight-text'
 import { ArrowRight, Star, TrendingUp, X, Wallet, FileText, ShieldCheck, Building2, Store, Users, Utensils, Truck, Briefcase, Check } from 'lucide-react'
 
 const TENANT_STORY_ICONS = [Building2, Store, Users, Utensils, Truck, Briefcase]
@@ -237,12 +238,20 @@ export default function MarketingHome() {
       <section className="relative overflow-hidden bg-gradient-to-b from-[#f7faf8] via-white to-[#f3f7f5] py-28">
         <div className="pointer-events-none absolute inset-0 opacity-[0.4]" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #05966918 0%, transparent 42%), radial-gradient(circle at 85% 10%, #14b8a618 0%, transparent 40%)' }} />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-14 text-center">
+          <div className="mb-10 text-center">
             <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.32em] text-emerald-600">
               {isArabic ? 'تقارير حية' : 'Live reporting'}
             </p>
             <h2 className="font-display text-4xl font-bold tracking-[-0.02em] text-slate-950 sm:text-5xl lg:text-[3.25rem]">
-              {isArabic ? 'أرباحك، تكاليفك، ونموك — بوضوح.' : 'Revenue, costs, and growth — crystal clear.'}
+              {isArabic ? (
+                <>
+                  أرباحك، <HighlightText variant="lime">تكاليفك</HighlightText>، ونموك — <HighlightText variant="yellow">بوضوح</HighlightText>.
+                </>
+              ) : (
+                <>
+                  Revenue, <HighlightText variant="lime">costs</HighlightText>, and growth — <HighlightText variant="yellow">crystal clear</HighlightText>.
+                </>
+              )}
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-slate-500">
               {isArabic
@@ -250,6 +259,32 @@ export default function MarketingHome() {
                 : 'Real finance views: revenue vs expenses, margin, and cash flow — updating as your business moves.'}
             </p>
           </div>
+
+          {/* Highlight Text Feature Banner inside Live Reporting */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mb-12 flex w-full items-center justify-center rounded-2xl border border-slate-200/80 bg-white/80 backdrop-blur-sm px-6 py-8 shadow-sm"
+          >
+            <p className="max-w-2xl text-center text-xl font-semibold leading-relaxed text-slate-900 sm:text-2xl">
+              {isArabic ? (
+                <>
+                  صمم واجهات تبدو{' '}
+                  <HighlightText variant="lime">سلسة</HighlightText> وتبقى{' '}
+                  <HighlightText variant="yellow">رائعة</HighlightText> لكل{' '}
+                  <HighlightText variant="pink">مستخدم</HighlightText>.
+                </>
+              ) : (
+                <>
+                  Build interfaces that feel{' '}
+                  <HighlightText variant="lime">effortless</HighlightText> and stay{' '}
+                  <HighlightText variant="yellow">delightful</HighlightText> for every{' '}
+                  <HighlightText variant="pink">user</HighlightText>.
+                </>
+              )}
+            </p>
+          </motion.div>
 
           <div className="grid gap-5 lg:grid-cols-12">
             <motion.div
@@ -268,8 +303,8 @@ export default function MarketingHome() {
               </div>
               <div className="flex h-48 items-end gap-2 sm:gap-3">
                 {REVENUE_BARS.map((h, i) => (
-                  <div key={i} className="flex flex-1 flex-col items-center justify-end gap-1">
-                    <div className="flex w-full items-end gap-0.5" style={{ height: '100%' }}>
+                  <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
+                    <div className="flex h-40 w-full items-end gap-0.5">
                       <div className="flex-1 rounded-t-md bg-gradient-to-t from-emerald-600 to-emerald-400" style={{ height: `${h}%` }} />
                       <div className="flex-1 rounded-t-md bg-gradient-to-t from-teal-500 to-teal-300 opacity-90" style={{ height: `${EXPENSE_BARS[i]}%` }} />
                     </div>
