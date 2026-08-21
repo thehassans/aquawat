@@ -245,22 +245,59 @@ function PremiumErrorScreen({ recovering = false, error = null }) {
           </div>
         )}
 
-        {process.env.NODE_ENV === 'development' && error && (
-          <pre
+        {error && (
+          <details
             style={{
-              marginTop: 20,
+              marginTop: 18,
               textAlign: 'left',
-              fontSize: 11,
-              color: '#BE123C',
-              background: '#FFF1F2',
-              padding: 12,
+              fontSize: 12,
+              color: '#64748b',
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
               borderRadius: 12,
-              maxWidth: '100%',
-              overflow: 'auto',
+              padding: '10px 14px',
             }}
           >
-            {error.toString()}
-          </pre>
+            <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#334155', userSelect: 'none' }}>
+              {ar ? 'تفاصيل الخطأ الفني (Debug Details)' : 'Technical Error Details'}
+            </summary>
+            <pre
+              style={{
+                marginTop: 8,
+                fontSize: 11,
+                color: '#b91c1c',
+                background: '#fef2f2',
+                padding: 10,
+                borderRadius: 8,
+                maxHeight: 180,
+                overflow: 'auto',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {error?.stack || error?.message || String(error)}
+            </pre>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(error?.stack || error?.message || String(error))
+                alert('Error copied to clipboard!')
+              }}
+              style={{
+                marginTop: 8,
+                padding: '4px 10px',
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#0f766e',
+                background: '#f0fdfa',
+                border: '1px solid #ccfbf1',
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              {ar ? 'نسخ تفاصيل الخطأ' : 'Copy error'}
+            </button>
+          </details>
         )}
       </div>
     </div>

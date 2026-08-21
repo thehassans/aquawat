@@ -89,7 +89,8 @@ import { getGovSectionTitle } from './saudiTenant'
  * This is shared between Sidebar.jsx and Settings.jsx so menu visibility
  * settings can list exactly the same items that appear in the sidebar.
  */
-export function getNavSections({ language, t, tenant, businessTypes, govChildren }) {
+export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, businessTypes = [], govChildren = [] } = {}) {
+  const safeT = typeof t === 'function' ? t : (k) => k;
   const si = tenant?.settings?.saudiIntegrations || {};
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR';
   const isPkrCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'PKR';
@@ -269,7 +270,7 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       excludeBusinessTypes: ['khayyat', 'gym'],
       items: [
         { path: '/app/dashboard', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', end: true, excludeBusinessTypes: ['khayyat', 'gym'] },
-        { path: '/app/dashboard/invoices', icon: FileText, label: t('invoices'), perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['khayyat'] },
+        { path: '/app/dashboard/invoices', icon: FileText, label: safeT('invoices'), perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['khayyat'] },
         { path: '/app/dashboard/quotations', icon: FileSignature, label: language === 'ar' ? 'عروض الأسعار' : 'Quotations', perm: { module: 'sales', action: 'read' }, excludeBusinessTypes: ['bakala'] },
         { path: '/app/dashboard/letterhead', icon: FileText, label: language === 'ar' ? 'منشئ الخطابات' : 'Letterhead', perm: { module: 'invoicing', action: 'read' } },
         {
@@ -308,8 +309,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       items: [
         { path: '/app/dashboard/khayyat/analytics', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard' },
         { path: '/app/dashboard/khayyat', icon: ShoppingCart, label: language === 'ar' ? 'نقطة البيع (الخياط)' : 'Tailor POS', end: true },
-        { path: '/app/dashboard/khayyat/stitchings', icon: FileSignature, label: t('orders') },
-        { path: '/app/dashboard/khayyat/workers', icon: Users, label: t('workers') },
+        { path: '/app/dashboard/khayyat/stitchings', icon: FileSignature, label: safeT('orders') },
+        { path: '/app/dashboard/khayyat/workers', icon: Users, label: safeT('workers') },
         { path: '/app/dashboard/khayyat/worker-amounts', icon: Wallet, label: language === 'ar' ? 'أرباح العمال' : 'Worker Amounts' },
         { path: '/app/dashboard/khayyat/customizations', icon: Package, label: language === 'ar' ? 'تخصيص الخيارات' : 'Customizations' },
         { path: '/app/dashboard/khayyat/embroidery-designs', icon: Package, label: language === 'ar' ? 'التطريز' : 'Embroidery Designs' },
@@ -446,13 +447,13 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
       title: language === 'ar' ? 'الموارد البشرية' : 'Human Resources',
       requireApp: 'hr_payroll_pro',
       items: [
-        { path: '/app/dashboard/employees', icon: Users, label: t('employees'), perm: { module: 'hr', action: 'read' } },
+        { path: '/app/dashboard/employees', icon: Users, label: safeT('employees'), perm: { module: 'hr', action: 'read' } },
         { path: '/app/dashboard/hr/attendance', icon: Fingerprint, label: language === 'ar' ? 'الحضور والبيومتري' : 'Attendance & Biometrics', perm: { module: 'hr', action: 'read' } },
         ...(isSarCurrencyTenant ? [{ path: '/app/dashboard/hr/compliance', icon: ShieldCheck, label: language === 'ar' ? 'الامتثال (بلدي وإقامة)' : 'Compliance (Balady/Iqama)', perm: { module: 'hr', action: 'read' }, excludeBusinessTypes: ['bakala'] }] : []),
         { path: '/app/dashboard/hr/hiring', icon: Briefcase, label: language === 'ar' ? 'التوظيف' : 'Hiring', perm: { module: 'hr', action: 'read' } },
         { path: '/app/dashboard/hr/leaves', icon: CalendarDays, label: language === 'ar' ? 'الإجازات' : 'Leaves', perm: { module: 'hr', action: 'read' } },
         { path: '/app/dashboard/hr/performance', icon: Target, label: language === 'ar' ? 'الأداء' : 'Performance', perm: { module: 'hr', action: 'read' } },
-        { path: '/app/dashboard/payroll', icon: Wallet, label: t('payroll'), perm: { module: 'payroll', action: 'read' }, excludeBusinessTypes: ['bakala'] },
+        { path: '/app/dashboard/payroll', icon: Wallet, label: safeT('payroll'), perm: { module: 'payroll', action: 'read' }, excludeBusinessTypes: ['bakala'] },
         ...(isSarCurrencyTenant ? [{ path: '/app/dashboard/payroll/calculators', icon: Calculator, label: 'GOSI/EOSB', perm: { module: 'payroll', action: 'read' }, excludeBusinessTypes: ['bakala'] }] : []),
         { path: '/app/dashboard/hr/reports', icon: BarChart3, label: language === 'ar' ? 'تقارير الموارد البشرية' : 'HR Reports', perm: { module: 'hr', action: 'read' } },
         { path: '/app/dashboard/hr/expense-claims', icon: Wallet, label: language === 'ar' ? 'مطالبات المصروفات' : 'Expense Claims', perm: { module: 'hr', action: 'read' } },
@@ -519,8 +520,8 @@ export function getNavSections({ language, t, tenant, businessTypes, govChildren
     {
       title: language === 'ar' ? 'الإعدادات' : 'Settings',
       items: [
-        { path: '/app/dashboard/users', icon: Users, label: t('users'), perm: { module: 'settings', action: 'read' } },
-        { path: '/app/dashboard/settings', icon: Settings, label: t('settings'), perm: { module: 'settings', action: 'read' } },
+        { path: '/app/dashboard/users', icon: Users, label: safeT('users'), perm: { module: 'settings', action: 'read' } },
+        { path: '/app/dashboard/settings', icon: Settings, label: safeT('settings'), perm: { module: 'settings', action: 'read' } },
       ]
     },
     {

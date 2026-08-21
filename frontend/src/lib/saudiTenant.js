@@ -2,54 +2,54 @@
 
 import { isGccArabicMarket } from './invoiceLanguage'
 
-export function getTenantCurrency(tenant) {
+export function getTenantCurrency(tenant = {}) {
   return String(tenant?.settings?.currency || tenant?.currency || 'SAR').trim().toUpperCase()
 }
 
-export function getTenantCountryCode(tenant) {
+export function getTenantCountryCode(tenant = {}) {
   return String(tenant?.business?.address?.country || tenant?.country || '').trim().toUpperCase()
 }
 
-export function isSaudiTenant(tenant) {
+export function isSaudiTenant(tenant = {}) {
   return getTenantCurrency(tenant) === 'SAR' || getTenantCountryCode(tenant) === 'SA'
 }
 
-export function isUaeTenant(tenant) {
+export function isUaeTenant(tenant = {}) {
   const cur = getTenantCurrency(tenant)
   const cc = getTenantCountryCode(tenant)
   return cur === 'AED' || cc === 'AE' || cc === 'ARE' || cc === 'UAE'
 }
 
-export function isOmanTenant(tenant) {
+export function isOmanTenant(tenant = {}) {
   const cur = getTenantCurrency(tenant)
   const cc = getTenantCountryCode(tenant)
   return cur === 'OMR' || cc === 'OM' || cc === 'OMN' || cc === 'OMAN'
 }
 
-export function isBahrainTenant(tenant) {
+export function isBahrainTenant(tenant = {}) {
   const cur = getTenantCurrency(tenant)
   const cc = getTenantCountryCode(tenant)
   return cur === 'BHD' || cc === 'BH' || cc === 'BHR' || cc === 'BAHRAIN'
 }
 
-export function isKuwaitTenant(tenant) {
+export function isKuwaitTenant(tenant = {}) {
   const cur = getTenantCurrency(tenant)
   const cc = getTenantCountryCode(tenant)
   return cur === 'KWD' || cc === 'KW' || cc === 'KWT' || cc === 'KUWAIT'
 }
 
-export function isQatarTenant(tenant) {
+export function isQatarTenant(tenant = {}) {
   const cur = getTenantCurrency(tenant)
   const cc = getTenantCountryCode(tenant)
   return cur === 'QAR' || cc === 'QA' || cc === 'QAT' || cc === 'QATAR'
 }
 
-export function isGccTenant(tenant) {
+export function isGccTenant(tenant = {}) {
   return isSaudiTenant(tenant) || isUaeTenant(tenant) || isOmanTenant(tenant) || isBahrainTenant(tenant) || isKuwaitTenant(tenant) || isQatarTenant(tenant)
 }
 
 /** Arabic bilingual form fields — GCC markets only (SAR/AED/QAR/KWD/BHD/OMR). */
-export function showArabicFields(tenant) {
+export function showArabicFields(tenant = {}) {
   return isGccArabicMarket(tenant) || isGccTenant(tenant)
 }
 
@@ -57,23 +57,23 @@ export function showArabicFields(tenant) {
  * Arabic UI language switcher (header / settings / login).
  * Same GCC Middle East set as invoice Arabic — Pakistan, Bangladesh, etc. stay English-only.
  */
-export function showArabicUi(tenant) {
+export function showArabicUi(tenant = {}) {
   return isGccArabicMarket(tenant) || isGccTenant(tenant)
 }
 
-export function isBangladeshTenant(tenant) {
+export function isBangladeshTenant(tenant = {}) {
   const cur = getTenantCurrency(tenant)
   const cc = getTenantCountryCode(tenant)
   return cur === 'BDT' || cc === 'BD' || cc === 'BGD'
 }
 
-export function isPakistanTenant(tenant) {
+export function isPakistanTenant(tenant = {}) {
   const curr = getTenantCurrency(tenant)
   const country = getTenantCountryCode(tenant)
   return curr === 'PKR' || country === 'PK' || country === 'PAK' || country === 'PAKISTAN'
 }
 
-export function getTaxLabel(tenant, currency) {
+export function getTaxLabel(tenant = {}, currency) {
   const cur = String(currency || getTenantCurrency(tenant)).toUpperCase()
   if (cur === 'PKR' || isPakistanTenant(tenant)) return 'GST (Sales Tax)'
   if (cur === 'BDT' || isBangladeshTenant(tenant)) return 'Mushak (VAT)'
@@ -85,7 +85,7 @@ export function getTaxLabel(tenant, currency) {
   return 'VAT (15%)'
 }
 
-export function getTaxIdLabel(tenant, currency, isAr = false) {
+export function getTaxIdLabel(tenant = {}, currency, isAr = false) {
   const cur = String(currency || getTenantCurrency(tenant)).toUpperCase()
   if (cur === 'PKR' || isPakistanTenant(tenant)) return 'NTN / STRN'
   if (cur === 'BDT' || isBangladeshTenant(tenant)) return 'BIN (Mushak)'
@@ -97,7 +97,7 @@ export function getTaxIdLabel(tenant, currency, isAr = false) {
   return isAr ? 'الرقم الضريبي' : 'VAT Number'
 }
 
-export function getTaxAuthorityName(tenant) {
+export function getTaxAuthorityName(tenant = {}) {
   const cur = getTenantCurrency(tenant)
   if (cur === 'SAR' || isSaudiTenant(tenant)) return 'ZATCA'
   if (cur === 'AED' || isUaeTenant(tenant)) return 'FTA'
@@ -110,7 +110,7 @@ export function getTaxAuthorityName(tenant) {
   return 'Tax Authority'
 }
 
-export function getTaxQrLabel(tenant, currency, isAr = false) {
+export function getTaxQrLabel(tenant = {}, currency, isAr = false) {
   const cur = String(currency || getTenantCurrency(tenant)).toUpperCase()
   if (cur === 'SAR' || isSaudiTenant(tenant)) return isAr ? 'رمز QR معتمد من زاتكا' : 'ZATCA Compliant QR'
   if (cur === 'AED' || isUaeTenant(tenant)) return isAr ? 'رمز الفوترة الإلكترونية FTA' : 'FTA E-Invoicing QR'
@@ -127,7 +127,7 @@ export function getTaxQrLabel(tenant, currency, isAr = false) {
  * Which government tax suite applies for this tenant:
  *   'saudi' | 'uae' | 'oman' | 'bahrain' | 'kuwait' | 'qatar' | 'bangladesh' | 'pakistan' | null
  */
-export function getTaxRegion(tenant) {
+export function getTaxRegion(tenant = {}) {
   const currency = getTenantCurrency(tenant)
   if (currency === 'SAR' || isSaudiTenant(tenant)) return 'saudi'
   if (currency === 'AED' || isUaeTenant(tenant)) return 'uae'
@@ -140,7 +140,7 @@ export function getTaxRegion(tenant) {
   return null
 }
 
-export function getGovSectionTitle(tenant, language = 'en') {
+export function getGovSectionTitle(tenant = {}, language = 'en') {
   const isAr = language === 'ar'
   const cur = getTenantCurrency(tenant)
   if (cur === 'SAR' || isSaudiTenant(tenant)) return isAr ? 'الربط الحكومي زاتكا' : 'Saudi Government & ZATCA'
@@ -154,7 +154,7 @@ export function getGovSectionTitle(tenant, language = 'en') {
   return isAr ? 'الامتثال الضريبي والفوترة' : 'Government & Compliance'
 }
 
-export function getGovChildren(tenant, language = 'en') {
+export function getGovChildren(tenant = {}, language = 'en') {
   const isAr = language === 'ar'
   const cur = getTenantCurrency(tenant)
   const installedApps = tenant?.settings?.installedApps || {}
