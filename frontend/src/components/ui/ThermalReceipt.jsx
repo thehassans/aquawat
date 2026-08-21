@@ -5,8 +5,19 @@ import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { generateNbrQrValue } from '../../lib/nbrQr'
 import { getThermalPrinterSettings, getReceiptStyle, getPrintCss, getPageCss } from '../../lib/thermalPrinter'
 import { CURRENCY_CODE } from '../../lib/currency'
-import { isSaudiTenant, isBangladeshTenant, isPakistanTenant } from '../../lib/saudiTenant'
+import {
+  isSaudiTenant,
+  isUaeTenant,
+  isOmanTenant,
+  isBahrainTenant,
+  isKuwaitTenant,
+  isQatarTenant,
+  isBangladeshTenant,
+  isPakistanTenant,
+  showArabicFields,
+} from '../../lib/saudiTenant'
 import { generateFbrQrValue } from '../../lib/fbrQr'
+import { generateGccQrValue } from '../../lib/gccQr'
 
 const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false, isUpdated = false }, ref) => {
   const { tenant } = useSelector(state => state.auth)
@@ -14,15 +25,27 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
   const isRtl = language === 'ar'
   const thermalSettings = getThermalPrinterSettings(tenant)
   const currency = String(tenant?.settings?.currency || order?.currency || CURRENCY_CODE).trim().toUpperCase()
-  const bilingualAr = isSaudiTenant(tenant)
-  const isZatcaApplicable = bilingualAr
+  const bilingualAr = showArabicFields(tenant)
+  const isZatcaApplicable = isSaudiTenant(tenant) || currency === 'SAR'
+  const isUae = isUaeTenant(tenant) || currency === 'AED'
+  const isOman = isOmanTenant(tenant) || currency === 'OMR'
+  const isBahrain = isBahrainTenant(tenant) || currency === 'BHD'
+  const isKuwait = isKuwaitTenant(tenant) || currency === 'KWD'
+  const isQatar = isQatarTenant(tenant) || currency === 'QAR'
   const isBangladesh = isBangladeshTenant(tenant) || currency === 'BDT'
   const isPakistan = isPakistanTenant(tenant) || currency === 'PKR'
+
   const vatRate = isBangladesh
     ? (Number(tenant?.nbr?.defaultVatRate) || 15)
     : isPakistan
       ? (Number(tenant?.fbr?.defaultSalesTaxRate) || 18)
-      : (bilingualAr ? 15 : null)
+      : isUae || isOman
+        ? 5
+        : isBahrain
+          ? 10
+          : isKuwait || isQatar
+            ? 0
+            : (isZatcaApplicable ? 15 : null)
 
   const lbl = (en, ar) => (bilingualAr ? `${en} / ${ar}` : en)
   const money = (value) => `${currency} ${(Number(value) || 0).toFixed(2)}`
@@ -138,6 +161,38 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
       })
     } catch (err) {
       console.error('Failed to generate FBR QR code value:', err)
+    }
+  }
+
+  let gccQrPayload = null
+  const isGccRegional = isUae || isOman || isBahrain || isKuwait || isQatar
+  if (isGccRegional) {
+    try {
+      const authority = isUae ? 'FTA' : isOman ? 'OTA' : isBahrain ? 'NBR' : isKuwait ? 'MOF' : 'GTA'
+      const countryCode = isUae ? 'AE' : isOman ? 'OM' : isBahrain ? 'BH' : isKuwait ? 'KW' : 'QA'
+      const taxId = isUae
+        ? (tenant?.fta?.trn || tenant?.business?.trn || vatNumber)
+        : isOman
+          ? (tenant?.ota?.tin || vatNumber)
+          : isBahrain
+            ? (tenant?.bahrainNbr?.vatAccountNo || vatNumber)
+            : isKuwait
+              ? (tenant?.mofKuwait?.civilId || tenant?.mofKuwait?.taxCardNumber || '')
+              : (tenant?.gtaQatar?.tin || '')
+
+      gccQrPayload = generateGccQrValue({
+        authority,
+        countryCode,
+        sellerName: isRtl ? businessNameAr : businessNameEn,
+        taxId,
+        invoiceNumber: orderNumber,
+        timestamp: new Date(order.createdAt || Date.now()).toISOString(),
+        grandTotal: order.grandTotal || order.total || 0,
+        totalTax: order.totalVat || order.totalTax || 0,
+        currency,
+      })
+    } catch (err) {
+      console.error('Failed to generate GCC QR code value:', err)
     }
   }
 
@@ -459,6 +514,22 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
                 <div className="bg-white p-1 border border-gray-200 rounded-lg">
                   <QRCodeSVG
                     value={fbrQrPayload}
+                    size={80}
+                    level="M"
+                    includeMargin={false}
+                  />
+                </div>
+              </div>
+            )}
+
+            {thermalSettings.showQrCode && gccQrPayload && (
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="text-[8px] text-black mb-1 font-extrabold whitespace-nowrap">
+                  {isUae ? 'UAE FTA | TAX INVOICE' : isOman ? 'OMAN OTA | TAX INVOICE' : isBahrain ? 'BAHRAIN NBR | TAX INVOICE' : isKuwait ? 'KUWAIT MOF | INVOICE' : 'QATAR GTA | INVOICE'}
+                </div>
+                <div className="bg-white p-1 border border-gray-200 rounded-lg">
+                  <QRCodeSVG
+                    value={gccQrPayload}
                     size={80}
                     level="M"
                     includeMargin={false}

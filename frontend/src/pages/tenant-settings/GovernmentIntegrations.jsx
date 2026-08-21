@@ -15,6 +15,7 @@ import {
   Building, Sliders, Play, Check, X, FileText, WifiOff, HelpCircle, Eye, ShoppingBag
 } from 'lucide-react'
 import ZatcaHealthPanel from '../../components/zatca/ZatcaHealthPanel'
+import GccCompliancePanel from '../../components/compliance/GccCompliancePanel'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
 
 // ── ZOD VALIDATION SCHEMA (Saudi Structural Rules) ───────────────────────────
@@ -438,8 +439,15 @@ export default function GovernmentIntegrations() {
 
   const isSarCurrencyTenant = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   if (!isSarCurrencyTenant) {
-    const isBdt = String(tenant?.settings?.currency || '').toUpperCase() === 'BDT'
-    const isPkr = String(tenant?.settings?.currency || '').toUpperCase() === 'PKR'
+    const currency = String(tenant?.settings?.currency || '').toUpperCase()
+    const isBdt = currency === 'BDT'
+    const isPkr = currency === 'PKR'
+
+    if (['AED', 'OMR', 'BHD', 'KWD', 'QAR'].includes(currency)) {
+      const countryCodeMap = { AED: 'AE', OMR: 'OM', BHD: 'BH', KWD: 'KW', QAR: 'QA' }
+      return <GccCompliancePanel countryCode={countryCodeMap[currency]} />
+    }
+
     if (isPkr) {
       return (
         <div className="max-w-3xl mx-auto space-y-6 py-8 px-4">
@@ -522,8 +530,8 @@ export default function GovernmentIntegrations() {
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
           {t(
-            'ZATCA, Elm, Qiwa and GOSI are Saudi Arabian government integrations that only apply to SAR-denominated businesses. Set your default currency to SAR in Settings to enable this section. Bangladesh tenants (BDT) should use the NBR / Mushak suite. Pakistan tenants (PKR) should use FBR Digital Invoicing.',
-            'زاتكا وعلم وقوى والتأمينات الاجتماعية تكاملات حكومية سعودية تنطبق فقط على المنشآت التي تتعامل بالريال السعودي. غيّر العملة الافتراضية إلى الريال السعودي من الإعدادات لتفعيل هذا القسم.'
+            'ZATCA, Elm, Qiwa and GOSI are Saudi Arabian government integrations that only apply to SAR-denominated businesses. Set your default currency to SAR in Settings to enable this section. GCC tenants (AED, OMR, BHD, KWD, QAR) use the GCC Compliance suite. Bangladesh tenants (BDT) should use NBR / Mushak. Pakistan tenants (PKR) should use FBR Digital Invoicing.',
+            'تكاملات زاتكا وعلم وقوى تنطبق على العملات المحددة. للمنشآت في دول الخليج (الإمارات، عمان، البحرين، الكويت، قطر) تتاح منظومة الامتثال الخليجي، ولبنغلاديش وباكستان المنظومات الخاصة بهما.'
           )}
         </p>
       </div>

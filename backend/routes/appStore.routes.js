@@ -250,6 +250,66 @@ export const applyAppInstall = async ({ tenant, appDef, appId, customConfig = {}
     tenant.markModified('fbr');
   }
 
+  if (appId === 'uae_fta_compliance') {
+    if (!tenant.fta) tenant.fta = {};
+    tenant.fta.isEnabled = true;
+    if (appConfig.config?.trn) tenant.fta.trn = appConfig.config.trn;
+    if (appConfig.config?.environment) tenant.fta.environment = appConfig.config.environment;
+    if (appConfig.config?.autoGenerateQr !== undefined) tenant.fta.autoGenerateQr = !!appConfig.config.autoGenerateQr;
+    if (!tenant.fta.connectionStatus || tenant.fta.connectionStatus === 'disconnected') {
+      tenant.fta.connectionStatus = 'action_required';
+    }
+    tenant.markModified('fta');
+  }
+
+  if (appId === 'oman_ota_compliance') {
+    if (!tenant.ota) tenant.ota = {};
+    tenant.ota.isEnabled = true;
+    if (appConfig.config?.tin) tenant.ota.tin = appConfig.config.tin;
+    if (appConfig.config?.environment) tenant.ota.environment = appConfig.config.environment;
+    if (appConfig.config?.autoGenerateQr !== undefined) tenant.ota.autoGenerateQr = !!appConfig.config.autoGenerateQr;
+    if (!tenant.ota.connectionStatus || tenant.ota.connectionStatus === 'disconnected') {
+      tenant.ota.connectionStatus = 'action_required';
+    }
+    tenant.markModified('ota');
+  }
+
+  if (appId === 'bahrain_nbr_compliance') {
+    if (!tenant.bahrainNbr) tenant.bahrainNbr = {};
+    tenant.bahrainNbr.isEnabled = true;
+    if (appConfig.config?.vatAccountNo) tenant.bahrainNbr.vatAccountNo = appConfig.config.vatAccountNo;
+    if (appConfig.config?.environment) tenant.bahrainNbr.environment = appConfig.config.environment;
+    if (appConfig.config?.autoGenerateQr !== undefined) tenant.bahrainNbr.autoGenerateQr = !!appConfig.config.autoGenerateQr;
+    if (!tenant.bahrainNbr.connectionStatus || tenant.bahrainNbr.connectionStatus === 'disconnected') {
+      tenant.bahrainNbr.connectionStatus = 'action_required';
+    }
+    tenant.markModified('bahrainNbr');
+  }
+
+  if (appId === 'kuwait_mof_compliance') {
+    if (!tenant.mofKuwait) tenant.mofKuwait = {};
+    tenant.mofKuwait.isEnabled = true;
+    if (appConfig.config?.civilId) tenant.mofKuwait.civilId = appConfig.config.civilId;
+    if (appConfig.config?.environment) tenant.mofKuwait.environment = appConfig.config.environment;
+    if (appConfig.config?.autoGenerateQr !== undefined) tenant.mofKuwait.autoGenerateQr = !!appConfig.config.autoGenerateQr;
+    if (!tenant.mofKuwait.connectionStatus || tenant.mofKuwait.connectionStatus === 'disconnected') {
+      tenant.mofKuwait.connectionStatus = 'action_required';
+    }
+    tenant.markModified('mofKuwait');
+  }
+
+  if (appId === 'qatar_dhareeba_compliance') {
+    if (!tenant.gtaQatar) tenant.gtaQatar = {};
+    tenant.gtaQatar.isEnabled = true;
+    if (appConfig.config?.tin) tenant.gtaQatar.tin = appConfig.config.tin;
+    if (appConfig.config?.environment) tenant.gtaQatar.environment = appConfig.config.environment;
+    if (appConfig.config?.autoGenerateQr !== undefined) tenant.gtaQatar.autoGenerateQr = !!appConfig.config.autoGenerateQr;
+    if (!tenant.gtaQatar.connectionStatus || tenant.gtaQatar.connectionStatus === 'disconnected') {
+      tenant.gtaQatar.connectionStatus = 'action_required';
+    }
+    tenant.markModified('gtaQatar');
+  }
+
   if (isDeliveryPartnerApp(appId)) {
     if (!tenant.subscription) tenant.subscription = {};
     tenant.subscription.hasDeliveryAddon = true;
@@ -2357,6 +2417,203 @@ export const DEFAULT_APP_CATALOG = [
       { key: 'environment', labelEn: 'FBR Environment', labelAr: 'بيئة FBR', type: 'select', defaultValue: 'sandbox', options: [{ value: 'sandbox', labelEn: 'Sandbox (Testing)', labelAr: 'بيئة التجربة' }, { value: 'production', labelEn: 'Live Production', labelAr: 'البيئة الإنتاجية' }] },
       { key: 'autoGenerateQr', labelEn: 'Auto-generate FBR QR on receipts', labelAr: 'توليد رمز QR تلقائياً على الإيصالات', type: 'boolean', defaultValue: true },
       { key: 'autoSubmit', labelEn: 'Auto-post invoices to FBR', labelAr: 'إرسال الفواتير تلقائياً إلى FBR', type: 'boolean', defaultValue: true },
+    ]
+  },
+  // ── UAE FTA & EMARATAX COMPLIANCE ──
+  {
+    appId: 'uae_fta_compliance',
+    nameEn: 'UAE FTA & EmaraTax E-Invoicing Suite',
+    nameAr: 'نظام الامتثال الضريبي والفوترة الإلكترونية (الإمارات FTA)',
+    taglineEn: '15-digit TRN, 5% UAE VAT, Corporate Tax ID, and FTA-compliant QR codes.',
+    taglineAr: 'رقم TRN الضريبي المكون من 15 خانة، ضريبة 5%، ورقم ضريبة الشركات، ورموز QR معتمدة من الهيئة الاتحادية للضرائب.',
+    descriptionEn: 'Official UAE Federal Tax Authority (FTA) compliance suite for AED businesses: TRN management, 5% VAT invoice formats, Corporate Tax ID tracking, Peppol/DCTCE e-invoicing endpoints, and dynamic verification QR codes on all invoices & POS receipts.',
+    descriptionAr: 'حزمة امتثال الهيئة الاتحادية للضرائب (FTA) ومنصة إمارات تاكس للمنشآت في الإمارات: إدارة الرقم الضريبي TRN، ضريبة القيمة المضافة 5%، وضريبة الشركات، ورموز QR متوافقة مع الفوترة الإلكترونية.',
+    category: 'gcc_compliance',
+    appType: 'gcc_compliance',
+    requiredCurrency: 'AED',
+    icon: 'shield',
+    version: '2.0.0',
+    downloadSize: '5.2 MB',
+    author: 'Maqder UAE Gov Suite',
+    rating: 4.96,
+    reviewsCount: 64,
+    pricingTier: 'free',
+    badge: 'FTA Approved',
+    defaultRoute: '/app/dashboard/tenant-settings/government-integrations',
+    featuresEn: [
+      '15-digit Tax Registration Number (TRN) verification',
+      'Standard 5% UAE VAT calculation & reporting',
+      'UAE E-Invoicing (Peppol DCTCE) ready formatting',
+      'Corporate Tax (CT-TRN) tracking on accounts',
+      'FTA compliant QR code generation on all receipts'
+    ],
+    featuresAr: [
+      'التحقق من الرقم الضريبي الموحد (15 خانة)',
+      'حساب وتقارير ضريبة القيمة المضافة 5% في الإمارات',
+      'جاهزية الفوترة الإلكترونية ومعايير Peppol',
+      'تتبع الرقم الضريبي لضريبة الشركات (CT-TRN)',
+      'توليد رمز QR متوافق مع متطلبات الهيئة الاتحادية للضرائب'
+    ],
+    configSchema: [
+      { key: 'trn', labelEn: 'Tax Registration Number (15 Digits)', labelAr: 'الرقم الضريبي TRN (15 رقماً)', type: 'string', defaultValue: '' },
+      { key: 'environment', labelEn: 'Environment', labelAr: 'البيئة', type: 'select', defaultValue: 'production', options: [{ value: 'sandbox', labelEn: 'Sandbox', labelAr: 'بيئة التجربة' }, { value: 'production', labelEn: 'Live Production', labelAr: 'الإنتاجية' }] },
+      { key: 'autoGenerateQr', labelEn: 'Auto-generate FTA QR on receipts', labelAr: 'توليد رمز QR تلقائياً على الإيصالات', type: 'boolean', defaultValue: true },
+    ]
+  },
+  // ── OMAN OTA COMPLIANCE ──
+  {
+    appId: 'oman_ota_compliance',
+    nameEn: 'Oman OTA E-Invoicing & Tax Suite',
+    nameAr: 'نظام الامتثال الضريبي والفوترة الإلكترونية (عمان OTA)',
+    taglineEn: 'Oman Tax Authority TIN, 5% VAT, and automated tax invoicing in OMR.',
+    taglineAr: 'رقم التعريف الضريبي TIN لجهاز الضرائب العماني، ضريبة 5%، والفوترة الإلكترونية بالريال العماني.',
+    descriptionEn: 'Complete Sultanate of Oman Tax Authority (OTA) compliance pack: TIN / VAT Registration Number management, 5% standard VAT calculation, CR validation, and OTA-compliant QR codes on all sales invoices.',
+    descriptionAr: 'حزمة امتثال جهاز الضرائب في سلطنة عمان للمنشآت بالريال العماني: إدارة رقم التعريف الضريبي، ضريبة 5%، والسجل التجاري، ورموز QR المعتمدة.',
+    category: 'gcc_compliance',
+    appType: 'gcc_compliance',
+    requiredCurrency: 'OMR',
+    icon: 'shield',
+    version: '1.2.0',
+    downloadSize: '4.9 MB',
+    author: 'Maqder Oman Gov Suite',
+    rating: 4.93,
+    reviewsCount: 36,
+    pricingTier: 'free',
+    badge: 'OTA Ready',
+    defaultRoute: '/app/dashboard/tenant-settings/government-integrations',
+    featuresEn: [
+      'Oman Tax Authority TIN registration & validation',
+      'Standard 5% Oman VAT rates & item exemptions',
+      'Commercial Registration (CR) linkage on invoices',
+      'OTA verification QR codes on POS & thermal receipts'
+    ],
+    featuresAr: [
+      'تسجيل والتحقق من رقم التعريف الضريبي TIN',
+      'تطبيق ضريبة القيمة المضافة 5% والإعفاءات الرسمية',
+      'ربط رقم السجل التجاري في سلطنة عمان بالفواتير',
+      'رموز QR للتحقق المعتمد على الإيصالات والفواتير'
+    ],
+    configSchema: [
+      { key: 'tin', labelEn: 'Tax Identification Number (TIN)', labelAr: 'الرقم الضريبي (TIN)', type: 'string', defaultValue: '' },
+      { key: 'environment', labelEn: 'Environment', labelAr: 'البيئة', type: 'select', defaultValue: 'production', options: [{ value: 'sandbox', labelEn: 'Sandbox', labelAr: 'بيئة التجربة' }, { value: 'production', labelEn: 'Live Production', labelAr: 'الإنتاجية' }] },
+      { key: 'autoGenerateQr', labelEn: 'Auto-generate OTA QR on receipts', labelAr: 'توليد رمز QR تلقائياً', type: 'boolean', defaultValue: true },
+    ]
+  },
+  // ── BAHRAIN NBR COMPLIANCE ──
+  {
+    appId: 'bahrain_nbr_compliance',
+    nameEn: 'Bahrain NBR 10% VAT & Compliance Suite',
+    nameAr: 'نظام ضريبة القيمة المضافة 10% (البحرين NBR)',
+    taglineEn: 'National Bureau for Revenue 15-digit VAT Account, 10% standard rate, and NBR verification in BHD.',
+    taglineAr: 'حساب ضريبة القيمة المضافة 15 خانة لدى الجهاز الوطني للإيرادات، نسبة 10%، والتحقق المعتمد بالدينار البحريني.',
+    descriptionEn: 'Full Bahrain National Bureau for Revenue (NBR) compliance module: 15-digit VAT account number validation, 10% VAT rate engine, zero-rated exports support, CR registration, and audit-ready QR codes.',
+    descriptionAr: 'منظومة الامتثال لدى الجهاز الوطني للإيرادات (NBR) في مملكة البحرين: التحقق من رقم الحساب الضريبي، تطبيق نسبة 10%، ودعم الإعفاءات، ورموز QR للتدقيق.',
+    category: 'gcc_compliance',
+    appType: 'gcc_compliance',
+    requiredCurrency: 'BHD',
+    icon: 'shield',
+    version: '1.4.0',
+    downloadSize: '5.0 MB',
+    author: 'Maqder Bahrain Gov Suite',
+    rating: 4.95,
+    reviewsCount: 41,
+    pricingTier: 'free',
+    badge: 'NBR Ready',
+    defaultRoute: '/app/dashboard/tenant-settings/government-integrations',
+    featuresEn: [
+      '15-digit NBR VAT Account Number verification',
+      'Standard 10% Bahrain VAT computation & reporting',
+      'Zero-rated & exempt supply classification',
+      'NBR compliant QR codes on POS & PDF invoices'
+    ],
+    featuresAr: [
+      'التحقق من رقم الحساب الضريبي NBR (15 خانة)',
+      'احتساب ضريبة القيمة المضافة 10% المعتمدة في البحرين',
+      'تصنيف السلع الخاضعة للنسبة الصفرية والمعفاة',
+      'رموز QR متوافقة مع متطلبات الجهاز الوطني للإيرادات'
+    ],
+    configSchema: [
+      { key: 'vatAccountNo', labelEn: 'VAT Account Number (15 Digits)', labelAr: 'رقم الحساب الضريبي (15 رقماً)', type: 'string', defaultValue: '' },
+      { key: 'environment', labelEn: 'Environment', labelAr: 'البيئة', type: 'select', defaultValue: 'production', options: [{ value: 'sandbox', labelEn: 'Sandbox', labelAr: 'بيئة التجربة' }, { value: 'production', labelEn: 'Live Production', labelAr: 'الإنتاجية' }] },
+      { key: 'autoGenerateQr', labelEn: 'Auto-generate NBR QR on receipts', labelAr: 'توليد رمز QR تلقائياً', type: 'boolean', defaultValue: true },
+    ]
+  },
+  // ── KUWAIT MOF COMPLIANCE ──
+  {
+    appId: 'kuwait_mof_compliance',
+    nameEn: 'Kuwait MOF & Commercial Compliance Suite',
+    nameAr: 'نظام الامتثال المالي والتجاري (الكويت MOF / KDIT)',
+    taglineEn: 'Kuwait Ministry of Finance, Civil ID, Tax Card, and B2B billing in KWD.',
+    taglineAr: 'وزارة المالية الكويتية وإدارة الضريبة، الرقم المدني، البطاقة الضريبية، والفوترة المعتمدة بالدينار الكويتي.',
+    descriptionEn: 'Complete Kuwait business & tax compliance integration: Civil ID / Unified Commercial ID management, Ministry of Finance (MOF) Tax Card tracking, retention tax helpers, and commercial QR codes.',
+    descriptionAr: 'حزمة الامتثال لوزارة المالية الكويتية وإدارة الضريبة (KDIT): إدارة الرقم المدني والتجاري الموحد، رقم البطاقة الضريبية، ورموز QR للتحقق.',
+    category: 'gcc_compliance',
+    appType: 'gcc_compliance',
+    requiredCurrency: 'KWD',
+    icon: 'shield',
+    version: '1.1.0',
+    downloadSize: '4.7 MB',
+    author: 'Maqder Kuwait Gov Suite',
+    rating: 4.91,
+    reviewsCount: 29,
+    pricingTier: 'free',
+    badge: 'MOF Ready',
+    defaultRoute: '/app/dashboard/tenant-settings/government-integrations',
+    featuresEn: [
+      'Civil ID / Unified Commercial Number management',
+      'Kuwait MOF Tax Card Number tracking',
+      'Corporate Tax & Retention Tax support',
+      'Commercial verification QR codes on all sales documents'
+    ],
+    featuresAr: [
+      'إدارة الرقم المدني والرقم التجاري الموحد',
+      'تتبع رقم البطاقة الضريبية لوزارة المالية الكويتية',
+      'دعم متطلبات ضريبة الشركات وحجز الضريبة',
+      'رموز QR للتحقق التجاري على جميع مستندات البيع'
+    ],
+    configSchema: [
+      { key: 'civilId', labelEn: 'Civil ID / Unified Commercial ID', labelAr: 'الرقم المدني / التجاري الموحد', type: 'string', defaultValue: '' },
+      { key: 'environment', labelEn: 'Environment', labelAr: 'البيئة', type: 'select', defaultValue: 'production', options: [{ value: 'sandbox', labelEn: 'Sandbox', labelAr: 'بيئة التجربة' }, { value: 'production', labelEn: 'Live Production', labelAr: 'الإنتاجية' }] },
+      { key: 'autoGenerateQr', labelEn: 'Auto-generate QR on receipts', labelAr: 'توليد رمز QR تلقائياً', type: 'boolean', defaultValue: true },
+    ]
+  },
+  // ── QATAR GTA DHAREEBA COMPLIANCE ──
+  {
+    appId: 'qatar_dhareeba_compliance',
+    nameEn: 'Qatar GTA Dhareeba Tax Integration',
+    nameAr: 'نظام ضريبة وهيئة الضرائب العامة (قطر GTA Dhareeba)',
+    taglineEn: 'General Tax Authority TIN, Dhareeba portal linkage, and QAR tax invoicing.',
+    taglineAr: 'الرقم الضريبي TIN للهيئة العامة للضرائب، والربط مع بوابة ضريبة، والفوترة بالريال القطري.',
+    descriptionEn: 'General Tax Authority (GTA) Qatar compliance solution: Dhareeba Tax Identification Number (TIN) validation, Commercial Registration (CR), corporate & excise tax accounting, and Dhareeba-compliant QR code verification.',
+    descriptionAr: 'حلول الامتثال للهيئة العامة للضرائب في دولة قطر ونظام ضريبة: التحقق من الرقم التعريفي الضريبي TIN، السجل التجاري، والفوترة الإلكترونية بالريال القطري.',
+    category: 'gcc_compliance',
+    appType: 'gcc_compliance',
+    requiredCurrency: 'QAR',
+    icon: 'shield',
+    version: '1.3.0',
+    downloadSize: '4.8 MB',
+    author: 'Maqder Qatar Gov Suite',
+    rating: 4.94,
+    reviewsCount: 33,
+    pricingTier: 'free',
+    badge: 'GTA Ready',
+    defaultRoute: '/app/dashboard/tenant-settings/government-integrations',
+    featuresEn: [
+      'Qatar GTA Dhareeba TIN management & validation',
+      'Commercial Registration (CR) linkage on invoices',
+      'Excise & Corporate tax accounting compliance',
+      'Dhareeba verification QR codes on POS & A4 invoices'
+    ],
+    featuresAr: [
+      'إدارة والتحقق من الرقم الضريبي TIN لدى هيئة الضرائب',
+      'ربط رقم السجل التجاري القطري بالفواتير',
+      'الامتثال لضريبة الشركات والضريبة الانتقائية',
+      'رموز QR للتحقق على فواتير نقاط البيع والـ PDF'
+    ],
+    configSchema: [
+      { key: 'tin', labelEn: 'Tax Identification Number (TIN)', labelAr: 'رقم التعريف الضريبي (TIN)', type: 'string', defaultValue: '' },
+      { key: 'environment', labelEn: 'Environment', labelAr: 'البيئة', type: 'select', defaultValue: 'production', options: [{ value: 'sandbox', labelEn: 'Sandbox', labelAr: 'بيئة التجربة' }, { value: 'production', labelEn: 'Live Production', labelAr: 'الإنتاجية' }] },
+      { key: 'autoGenerateQr', labelEn: 'Auto-generate Dhareeba QR on receipts', labelAr: 'توليد رمز QR تلقائياً', type: 'boolean', defaultValue: true },
     ]
   },
   // ══════════════════════════════════════════════════════════════════════════════

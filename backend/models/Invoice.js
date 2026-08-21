@@ -167,6 +167,22 @@ const fbrInvoiceSchema = new mongoose.Schema({
   response: { type: mongoose.Schema.Types.Mixed },
 }, { _id: false });
 
+const countryComplianceSchema = new mongoose.Schema({
+  countryCode: { type: String, default: '' },
+  authority: { type: String, default: '' },
+  taxRegistrationNumber: { type: String, default: '' },
+  qrCode: { type: String, default: '' },
+  submissionStatus: {
+    type: String,
+    enum: ['pending', 'submitted', 'accepted', 'cleared', 'reported', 'rejected', 'sandbox', 'compliant'],
+    default: 'compliant',
+  },
+  complianceRefNo: { type: String, default: '' },
+  submittedAt: { type: Date },
+  lastError: { type: String, default: '' },
+  metadata: { type: mongoose.Schema.Types.Mixed },
+}, { _id: false });
+
 const inventorySchema = new mongoose.Schema({
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', set: cleanObjectId },
   postedAt: { type: Date },
@@ -254,6 +270,8 @@ const invoiceSchema = new mongoose.Schema({
   zatca: zatcaSchema,
   // Pakistan FBR Digital Invoicing
   fbr: fbrInvoiceSchema,
+  // GCC & Regional Country Compliance (UAE FTA, Oman OTA, Bahrain NBR, Kuwait MOF, Qatar GTA, BD NBR)
+  countryCompliance: countryComplianceSchema,
 
   inventory: inventorySchema,
   

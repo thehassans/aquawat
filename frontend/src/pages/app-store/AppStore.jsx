@@ -103,6 +103,7 @@ const CATEGORIES = [
   { id: 'all', en: 'All', ar: 'الكل' },
   { id: 'industry_verticals', en: 'Verticals', ar: 'القطاعات' },
   { id: 'saudi_compliance', en: 'Saudi Tax', ar: 'ضريبة السعودية', currencies: ['SAR'] },
+  { id: 'gcc_compliance', en: 'GCC Tax & Compliance', ar: 'ضرائب وامتثال الخليج', currencies: ['AED', 'OMR', 'BHD', 'KWD', 'QAR'] },
   { id: 'bangladesh_compliance', en: 'BD Apps & Tax', ar: 'تطبيقات وضرائب BD', currencies: ['BDT'] },
   { id: 'pakistan_compliance', en: 'Pakistan Tax', ar: 'ضريبة باكستان', currencies: ['PKR'] },
   { id: 'manufacturing', en: 'Manufacturing', ar: 'التصنيع' },
@@ -162,6 +163,18 @@ function appMatchesCategory(app, categoryId) {
       app.appId.includes('saber') ||
       app.appId.includes('etimad') ||
       app.appId.includes('tamm')
+    );
+  }
+  if (categoryId === 'gcc_compliance') {
+    return (
+      app.category === 'gcc_compliance' ||
+      app.appType === 'gcc_compliance' ||
+      app.appId.includes('fta') ||
+      app.appId.includes('ota') ||
+      app.appId.includes('bahrain') ||
+      app.appId.includes('kuwait') ||
+      app.appId.includes('qatar') ||
+      app.appId.includes('dhareeba')
     );
   }
   if (categoryId === 'bangladesh_compliance') {

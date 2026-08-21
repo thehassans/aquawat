@@ -32,6 +32,7 @@ import { clampTemplateId } from '../utils/premiumTemplates.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 import { isFbrCurrency } from '../utils/fbrCurrency.js';
 import { applyFbrToInvoice } from '../utils/fbr/FbrService.js';
+import { applyCountryComplianceToInvoice } from '../utils/compliance/CountryComplianceService.js';
 import { ensureInvoiceDueDate } from '../utils/invoicePaymentTerms.js';
 import { cacheAside } from '../lib/redis.js';
 import { applyInvoiceListSearch } from '../utils/invoiceSearch.js';
@@ -434,8 +435,12 @@ async function attachDraftQr(invoice, seller, tenant) {
   if (isFbrCurrency(tenant)) {
     await applyFbrToInvoice(invoice, tenant, seller);
     await invoice.save();
+    return invoice;
   }
 
+  // Regional GCC and South Asia country compliance (UAE FTA, Oman OTA, Bahrain NBR, Kuwait MOF, Qatar GTA, BD NBR)
+  await applyCountryComplianceToInvoice(invoice, tenant, seller);
+  await invoice.save();
   return invoice;
 }
 

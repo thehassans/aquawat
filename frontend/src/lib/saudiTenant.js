@@ -3,16 +3,54 @@
 import { isGccArabicMarket } from './invoiceLanguage'
 
 export function getTenantCurrency(tenant) {
-  return String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
+  return String(tenant?.settings?.currency || tenant?.currency || 'SAR').trim().toUpperCase()
+}
+
+export function getTenantCountryCode(tenant) {
+  return String(tenant?.business?.address?.country || tenant?.country || '').trim().toUpperCase()
 }
 
 export function isSaudiTenant(tenant) {
-  return getTenantCurrency(tenant) === 'SAR'
+  return getTenantCurrency(tenant) === 'SAR' || getTenantCountryCode(tenant) === 'SA'
+}
+
+export function isUaeTenant(tenant) {
+  const cur = getTenantCurrency(tenant)
+  const cc = getTenantCountryCode(tenant)
+  return cur === 'AED' || cc === 'AE' || cc === 'ARE' || cc === 'UAE'
+}
+
+export function isOmanTenant(tenant) {
+  const cur = getTenantCurrency(tenant)
+  const cc = getTenantCountryCode(tenant)
+  return cur === 'OMR' || cc === 'OM' || cc === 'OMN' || cc === 'OMAN'
+}
+
+export function isBahrainTenant(tenant) {
+  const cur = getTenantCurrency(tenant)
+  const cc = getTenantCountryCode(tenant)
+  return cur === 'BHD' || cc === 'BH' || cc === 'BHR' || cc === 'BAHRAIN'
+}
+
+export function isKuwaitTenant(tenant) {
+  const cur = getTenantCurrency(tenant)
+  const cc = getTenantCountryCode(tenant)
+  return cur === 'KWD' || cc === 'KW' || cc === 'KWT' || cc === 'KUWAIT'
+}
+
+export function isQatarTenant(tenant) {
+  const cur = getTenantCurrency(tenant)
+  const cc = getTenantCountryCode(tenant)
+  return cur === 'QAR' || cc === 'QA' || cc === 'QAT' || cc === 'QATAR'
+}
+
+export function isGccTenant(tenant) {
+  return isSaudiTenant(tenant) || isUaeTenant(tenant) || isOmanTenant(tenant) || isBahrainTenant(tenant) || isKuwaitTenant(tenant) || isQatarTenant(tenant)
 }
 
 /** Arabic bilingual form fields — GCC markets only (SAR/AED/QAR/KWD/BHD/OMR). */
 export function showArabicFields(tenant) {
-  return isGccArabicMarket(tenant)
+  return isGccArabicMarket(tenant) || isGccTenant(tenant)
 }
 
 /**
@@ -20,41 +58,71 @@ export function showArabicFields(tenant) {
  * Same GCC Middle East set as invoice Arabic — Pakistan, Bangladesh, etc. stay English-only.
  */
 export function showArabicUi(tenant) {
-  return isGccArabicMarket(tenant)
+  return isGccArabicMarket(tenant) || isGccTenant(tenant)
 }
 
 export function isBangladeshTenant(tenant) {
-  return getTenantCurrency(tenant) === 'BDT'
+  const cur = getTenantCurrency(tenant)
+  const cc = getTenantCountryCode(tenant)
+  return cur === 'BDT' || cc === 'BD' || cc === 'BGD'
 }
 
 export function isPakistanTenant(tenant) {
   const curr = getTenantCurrency(tenant)
-  const country = String(tenant?.business?.address?.country || tenant?.country || '').trim().toUpperCase()
-  return curr === 'PKR' || country === 'PK' || country === 'PAKISTAN'
+  const country = getTenantCountryCode(tenant)
+  return curr === 'PKR' || country === 'PK' || country === 'PAK' || country === 'PAKISTAN'
 }
 
 export function getTaxLabel(tenant, currency) {
   const cur = String(currency || getTenantCurrency(tenant)).toUpperCase()
-  if (cur === 'PKR' || isPakistanTenant(tenant)) return 'GST'
+  if (cur === 'PKR' || isPakistanTenant(tenant)) return 'GST (Sales Tax)'
   if (cur === 'BDT' || isBangladeshTenant(tenant)) return 'Mushak (VAT)'
-  return 'VAT'
+  if (cur === 'AED' || isUaeTenant(tenant)) return 'VAT (5%)'
+  if (cur === 'OMR' || isOmanTenant(tenant)) return 'VAT (5%)'
+  if (cur === 'BHD' || isBahrainTenant(tenant)) return 'VAT (10%)'
+  if (cur === 'KWD' || isKuwaitTenant(tenant)) return 'Tax / Retention'
+  if (cur === 'QAR' || isQatarTenant(tenant)) return 'Tax'
+  return 'VAT (15%)'
 }
 
-export function getTaxIdLabel(tenant, currency) {
+export function getTaxIdLabel(tenant, currency, isAr = false) {
   const cur = String(currency || getTenantCurrency(tenant)).toUpperCase()
-  if (cur === 'PKR' || isPakistanTenant(tenant)) return 'STRN / NTN'
-  if (cur === 'BDT' || isBangladeshTenant(tenant)) return 'BIN'
-  return 'VAT Number'
+  if (cur === 'PKR' || isPakistanTenant(tenant)) return 'NTN / STRN'
+  if (cur === 'BDT' || isBangladeshTenant(tenant)) return 'BIN (Mushak)'
+  if (cur === 'AED' || isUaeTenant(tenant)) return isAr ? 'الرقم الضريبي (TRN)' : 'TRN (Tax Reg No)'
+  if (cur === 'OMR' || isOmanTenant(tenant)) return isAr ? 'رقم التعريف الضريبي (TIN)' : 'TIN (Tax ID)'
+  if (cur === 'BHD' || isBahrainTenant(tenant)) return isAr ? 'رقم الحساب الضريبي' : 'VAT Account No'
+  if (cur === 'KWD' || isKuwaitTenant(tenant)) return isAr ? 'الرقم المدني / البطاقة الضريبية' : 'Civil ID / Tax Card'
+  if (cur === 'QAR' || isQatarTenant(tenant)) return isAr ? 'رقم التعريف الضريبي (TIN)' : 'TIN (Tax ID)'
+  return isAr ? 'الرقم الضريبي' : 'VAT Number'
+}
+
+export function getTaxAuthorityName(tenant) {
+  const cur = getTenantCurrency(tenant)
+  if (cur === 'SAR' || isSaudiTenant(tenant)) return 'ZATCA'
+  if (cur === 'AED' || isUaeTenant(tenant)) return 'FTA'
+  if (cur === 'OMR' || isOmanTenant(tenant)) return 'OTA'
+  if (cur === 'BHD' || isBahrainTenant(tenant)) return 'NBR'
+  if (cur === 'KWD' || isKuwaitTenant(tenant)) return 'MOF'
+  if (cur === 'QAR' || isQatarTenant(tenant)) return 'GTA'
+  if (cur === 'BDT' || isBangladeshTenant(tenant)) return 'NBR'
+  if (cur === 'PKR' || isPakistanTenant(tenant)) return 'FBR'
+  return 'Tax Authority'
 }
 
 /**
  * Which government tax suite applies for this tenant:
- *   'saudi' | 'bangladesh' | 'pakistan' | null
+ *   'saudi' | 'uae' | 'oman' | 'bahrain' | 'kuwait' | 'qatar' | 'bangladesh' | 'pakistan' | null
  */
 export function getTaxRegion(tenant) {
   const currency = getTenantCurrency(tenant)
-  if (currency === 'SAR') return 'saudi'
-  if (currency === 'BDT') return 'bangladesh'
+  if (currency === 'SAR' || isSaudiTenant(tenant)) return 'saudi'
+  if (currency === 'AED' || isUaeTenant(tenant)) return 'uae'
+  if (currency === 'OMR' || isOmanTenant(tenant)) return 'oman'
+  if (currency === 'BHD' || isBahrainTenant(tenant)) return 'bahrain'
+  if (currency === 'KWD' || isKuwaitTenant(tenant)) return 'kuwait'
+  if (currency === 'QAR' || isQatarTenant(tenant)) return 'qatar'
+  if (currency === 'BDT' || isBangladeshTenant(tenant)) return 'bangladesh'
   if (currency === 'PKR' || isPakistanTenant(tenant)) return 'pakistan'
   return null
 }

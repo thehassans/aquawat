@@ -173,6 +173,119 @@ const fbrConfigSchema = new mongoose.Schema({
   invoiceCounter: { type: Number, default: 0 },
 });
 
+/** UAE Federal Tax Authority (FTA / EmaraTax & E-Invoicing) config */
+const ftaConfigSchema = new mongoose.Schema({
+  isEnabled: { type: Boolean, default: false },
+  isOnboarded: { type: Boolean, default: false },
+  trn: { type: String, default: '' }, // 15-digit Tax Registration Number
+  corporateTaxTrn: { type: String, default: '' }, // 16-digit Corporate Tax Number
+  customsCode: { type: String, default: '' },
+  defaultVatRate: { type: Number, default: 5 },
+  peppolEndpointId: { type: String, default: '' },
+  autoGenerateQr: { type: Boolean, default: true },
+  environment: { type: String, enum: ['sandbox', 'production'], default: 'sandbox' },
+  apiBaseUrl: { type: String, default: '' },
+  apiKey: { type: String, default: '' },
+  apiSecret: { type: String, default: '' },
+  connectionStatus: {
+    type: String,
+    enum: ['disconnected', 'action_required', 'connected'],
+    default: 'disconnected',
+  },
+  lastSyncAt: { type: Date },
+  onboardedAt: { type: Date },
+  invoiceCounter: { type: Number, default: 0 },
+});
+
+/** Oman Tax Authority (OTA / E-Invoicing & VAT) config */
+const otaConfigSchema = new mongoose.Schema({
+  isEnabled: { type: Boolean, default: false },
+  isOnboarded: { type: Boolean, default: false },
+  tin: { type: String, default: '' }, // Tax Identification / VAT Number
+  commercialRegistrationNumber: { type: String, default: '' },
+  defaultVatRate: { type: Number, default: 5 },
+  autoGenerateQr: { type: Boolean, default: true },
+  environment: { type: String, enum: ['sandbox', 'production'], default: 'sandbox' },
+  apiBaseUrl: { type: String, default: '' },
+  apiKey: { type: String, default: '' },
+  apiSecret: { type: String, default: '' },
+  connectionStatus: {
+    type: String,
+    enum: ['disconnected', 'action_required', 'connected'],
+    default: 'disconnected',
+  },
+  lastSyncAt: { type: Date },
+  onboardedAt: { type: Date },
+  invoiceCounter: { type: Number, default: 0 },
+});
+
+/** Bahrain National Bureau for Revenue (NBR / 10% VAT) config */
+const bahrainNbrConfigSchema = new mongoose.Schema({
+  isEnabled: { type: Boolean, default: false },
+  isOnboarded: { type: Boolean, default: false },
+  vatAccountNo: { type: String, default: '' }, // 15-digit VAT Account Number
+  crNumber: { type: String, default: '' },
+  defaultVatRate: { type: Number, default: 10 },
+  autoGenerateQr: { type: Boolean, default: true },
+  environment: { type: String, enum: ['sandbox', 'production'], default: 'sandbox' },
+  apiBaseUrl: { type: String, default: '' },
+  apiKey: { type: String, default: '' },
+  apiSecret: { type: String, default: '' },
+  connectionStatus: {
+    type: String,
+    enum: ['disconnected', 'action_required', 'connected'],
+    default: 'disconnected',
+  },
+  lastSyncAt: { type: Date },
+  onboardedAt: { type: Date },
+  invoiceCounter: { type: Number, default: 0 },
+});
+
+/** Kuwait Ministry of Finance (MOF / KDIT Corporate & Tax) config */
+const mofKuwaitConfigSchema = new mongoose.Schema({
+  isEnabled: { type: Boolean, default: false },
+  isOnboarded: { type: Boolean, default: false },
+  taxCardNumber: { type: String, default: '' },
+  civilId: { type: String, default: '' },
+  crNumber: { type: String, default: '' },
+  defaultVatRate: { type: Number, default: 0 },
+  autoGenerateQr: { type: Boolean, default: true },
+  environment: { type: String, enum: ['sandbox', 'production'], default: 'sandbox' },
+  apiBaseUrl: { type: String, default: '' },
+  apiKey: { type: String, default: '' },
+  apiSecret: { type: String, default: '' },
+  connectionStatus: {
+    type: String,
+    enum: ['disconnected', 'action_required', 'connected'],
+    default: 'disconnected',
+  },
+  lastSyncAt: { type: Date },
+  onboardedAt: { type: Date },
+  invoiceCounter: { type: Number, default: 0 },
+});
+
+/** Qatar General Tax Authority (GTA / Dhareeba) config */
+const gtaQatarConfigSchema = new mongoose.Schema({
+  isEnabled: { type: Boolean, default: false },
+  isOnboarded: { type: Boolean, default: false },
+  tin: { type: String, default: '' }, // Tax Identification Number (TIN)
+  crNumber: { type: String, default: '' },
+  defaultVatRate: { type: Number, default: 0 },
+  autoGenerateQr: { type: Boolean, default: true },
+  environment: { type: String, enum: ['sandbox', 'production'], default: 'sandbox' },
+  apiBaseUrl: { type: String, default: '' },
+  apiKey: { type: String, default: '' },
+  apiSecret: { type: String, default: '' },
+  connectionStatus: {
+    type: String,
+    enum: ['disconnected', 'action_required', 'connected'],
+    default: 'disconnected',
+  },
+  lastSyncAt: { type: Date },
+  onboardedAt: { type: Date },
+  invoiceCounter: { type: Number, default: 0 },
+});
+
 const invoiceBrandingProfileSchema = new mongoose.Schema({
   templateId: { type: Number, min: 1, max: 9 },
   logo: { type: String },
@@ -386,6 +499,11 @@ const tenantSchema = new mongoose.Schema({
   zatca: zatcaConfigSchema,
   nbr: nbrConfigSchema,
   fbr: fbrConfigSchema,
+  fta: ftaConfigSchema,
+  ota: otaConfigSchema,
+  bahrainNbr: bahrainNbrConfigSchema,
+  mofKuwait: mofKuwaitConfigSchema,
+  gtaQatar: gtaQatarConfigSchema,
   ecommerce: { type: ecommerceSchema, default: () => ({}) },
   settings: {
     installedApps: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },

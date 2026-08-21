@@ -367,13 +367,25 @@ export default function MarketingHome() {
             >
               <p className="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-emerald-700">
                 <ShieldCheck className="h-4 w-4" />
-                {isArabic ? 'جاهزية الامتثال' : 'Compliance readiness'}
+                {isArabic ? 'جاهزية الامتثال الإقليمي والخليجي' : 'Regional & GCC Compliance Readiness'}
               </p>
-              <div className="space-y-3">
-                {['ZATCA Phase 2', 'NBR Bangladesh', 'VAT / Tax rules', 'WPS payroll files'].map((t) => (
-                  <div key={t} className="flex items-center justify-between rounded-2xl border border-white/80 bg-white/80 px-4 py-3 shadow-sm">
-                    <span className="text-sm font-semibold text-slate-700">{t}</span>
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">Live</span>
+              <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
+                {[
+                  { en: 'ZATCA Phase 2 (Saudi Arabia)', ar: 'هيئة الزكاة والضريبة ZATCA (السعودية)', flag: '🇸🇦' },
+                  { en: 'UAE FTA & EmaraTax (United Arab Emirates)', ar: 'الهيئة الاتحادية للضرائب FTA (الإمارات)', flag: '🇦🇪' },
+                  { en: 'Oman OTA E-Invoicing (Oman)', ar: 'جهاز الضرائب العماني OTA (عمان)', flag: '🇴🇲' },
+                  { en: 'Bahrain NBR 10% VAT (Bahrain)', ar: 'الجهاز الوطني للإيرادات NBR (البحرين)', flag: '🇧🇭' },
+                  { en: 'Kuwait MOF & Commercial (Kuwait)', ar: 'وزارة المالية وإدارة الضريبة (الكويت)', flag: '🇰🇼' },
+                  { en: 'Qatar GTA Dhareeba (Qatar)', ar: 'الهيئة العامة للضرائب ونظام ضريبة (قطر)', flag: '🇶🇦' },
+                  { en: 'NBR Mushak 6.3 (Bangladesh)', ar: 'هيئة الإيرادات الوطنية NBR (بنغلاديش)', flag: '🇧🇩' },
+                  { en: 'FBR Digital Invoicing (Pakistan)', ar: 'هيئة الإيرادات الفيدرالية FBR (باكستان)', flag: '🇵🇰' },
+                ].map((item) => (
+                  <div key={item.en} className="flex items-center justify-between rounded-2xl border border-white/80 bg-white/80 px-3.5 py-2 shadow-sm transition hover:bg-white hover:shadow-md">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">{item.flag}</span>
+                      <span className="text-xs sm:text-sm font-bold text-slate-800">{isArabic ? item.ar : item.en}</span>
+                    </div>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800">Live</span>
                   </div>
                 ))}
               </div>

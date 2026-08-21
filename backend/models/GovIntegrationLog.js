@@ -9,7 +9,7 @@ const govIntegrationLogSchema = new mongoose.Schema({
   },
   service: {
     type: String,
-    enum: ['zatca', 'elm', 'qiwa', 'gosi', 'mudad', 'balady', 'saber', 'etimad', 'nbr', 'fbr'],
+    enum: ['zatca', 'elm', 'qiwa', 'gosi', 'mudad', 'balady', 'saber', 'etimad', 'nbr', 'fbr', 'fta', 'ota', 'bahrain_nbr', 'mof_kuwait', 'gta_qatar'],
     required: true,
     index: true,
   },
