@@ -538,8 +538,18 @@ export default function MarketingHome() {
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     {isArabic ? 'تجربة مجانية' : 'Free trial'}
                   </span>
-                  <h3 className="mt-5 font-display text-[1.85rem] font-bold leading-[1.18] tracking-[-0.03em] text-slate-950">
-                    {isArabic ? 'مساحتك جاهزة في أقل من دقيقة' : 'Your workspace in under a minute'}
+                  <h3 className="mt-5 font-display text-[1.85rem] font-bold leading-[1.2] tracking-[-0.03em] text-slate-950">
+                    {isArabic ? (
+                      <>
+                        <HighlightText variant="lime">مساحتك</HighlightText> جاهزة في{' '}
+                        <span className="inline-block"><HighlightText variant="yellow">أقل من دقيقة</HighlightText></span>
+                      </>
+                    ) : (
+                      <>
+                        Your <HighlightText variant="lime">Workspace</HighlightText> in{' '}
+                        <span className="inline-block"><HighlightText variant="yellow">under a minute</HighlightText></span>
+                      </>
+                    )}
                   </h3>
                   <p className="mt-3 text-sm leading-relaxed text-slate-500">
                     {isArabic
@@ -581,7 +591,17 @@ export default function MarketingHome() {
                     {isArabic ? 'تجربة مجانية' : 'Free trial'}
                   </span>
                   <h3 className="mt-2 font-display text-xl font-bold tracking-tight text-slate-950">
-                    {isArabic ? 'مساحتك جاهزة في أقل من دقيقة' : 'Your workspace in under a minute'}
+                    {isArabic ? (
+                      <>
+                        <HighlightText variant="lime">مساحتك</HighlightText> جاهزة في{' '}
+                        <HighlightText variant="yellow">أقل من دقيقة</HighlightText>
+                      </>
+                    ) : (
+                      <>
+                        Your <HighlightText variant="lime">Workspace</HighlightText> in{' '}
+                        <HighlightText variant="yellow">under a minute</HighlightText>
+                      </>
+                    )}
                   </h3>
                 </div>
                 <div className="max-h-[min(78vh,720px)] overflow-y-auto px-6 py-6 sm:px-8">
