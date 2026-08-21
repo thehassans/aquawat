@@ -8,7 +8,6 @@ import api, { getImageUrl } from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import toast from 'react-hot-toast'
-import SarIcon from '../../components/ui/SarIcon'
 import RestaurantMenuOCRModal from './RestaurantMenuOCRModal'
 import RestaurantMenuBulkImagesModal from './RestaurantMenuBulkImagesModal'
 

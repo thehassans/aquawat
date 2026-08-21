@@ -11,7 +11,7 @@ import { useTranslation } from '../../lib/translations'
 import SarIcon from '../../components/ui/SarIcon'
 import Money from '../../components/ui/Money'
 import { useLiveTranslation } from '../../lib/liveTranslation'
-import { showArabicFields } from '../../lib/saudiTenant'
+import { showArabicFields, getDefaultTaxRate, getTaxRateOptions } from '../../lib/saudiTenant'
 import { CURRENCY_CODE } from '../../lib/currency'
 
 export default function RestaurantMenuItemForm() {
@@ -26,6 +26,7 @@ export default function RestaurantMenuItemForm() {
   const isRtl = language === 'ar'
   const bilingualAr = showArabicFields(tenant)
   const currencyCode = String(tenant?.settings?.currency || CURRENCY_CODE).toUpperCase()
+  const taxRateOptions = getTaxRateOptions(tenant, language)
 
   const [imageUrl, setImageUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -34,7 +35,7 @@ export default function RestaurantMenuItemForm() {
   const { register, handleSubmit, reset, setValue, watch, control } = useForm({
     defaultValues: {
       sellingPrice: 0,
-      taxRate: 15,
+      taxRate: getDefaultTaxRate(tenant),
       isActive: true,
       hasHalfPlate: false,
       halfPlatePrice: 0,
@@ -202,8 +203,10 @@ export default function RestaurantMenuItemForm() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{isRtl ? 'الاسم (EN) *' : 'Name (EN) *'}</label>
+            <div className={bilingualAr ? '' : 'md:col-span-2'}>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                {isRtl ? 'الاسم (EN) *' : (bilingualAr ? 'Name (EN) *' : 'Name *')}
+              </label>
               <input {...register('nameEn', { required: true })} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl" placeholder="e.g. Hummus" />
             </div>
 
@@ -214,8 +217,10 @@ export default function RestaurantMenuItemForm() {
               </div>
             )}
 
-            <div className={bilingualAr ? 'md:col-span-2' : 'md:col-span-2'}>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">{isRtl ? 'الوصف (EN)' : 'Description (EN)'}</label>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                {isRtl ? 'الوصف (EN)' : (bilingualAr ? 'Description (EN)' : 'Description')}
+              </label>
               <textarea {...register('descriptionEn')} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl min-h-[80px]" placeholder="Describe the dish..."></textarea>
             </div>
 
@@ -280,8 +285,11 @@ export default function RestaurantMenuItemForm() {
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-1 block">{isRtl ? 'الضريبة %' : 'Tax %'}</label>
                   <select {...register('taxRate', { valueAsNumber: true })} className="w-full input border-gray-200 focus:border-amber-500 rounded-xl">
-                    <option value={15}>15%</option>
-                    <option value={0}>0%</option>
+                    {taxRateOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

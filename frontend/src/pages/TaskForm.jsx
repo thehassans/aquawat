@@ -7,6 +7,7 @@ import { ArrowLeft, Save, ClipboardList, FolderKanban, Calendar, User, Tag } fro
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
+import { showArabicFields as isArabicTenantMarket } from '../lib/saudiTenant'
 
 export default function TaskForm() {
   const { id } = useParams()
@@ -16,7 +17,9 @@ export default function TaskForm() {
   const queryClient = useQueryClient()
 
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const showArabicFields = isArabicTenantMarket(tenant)
 
   const formatDateForInput = (value) => {
     if (!value) return ''
@@ -209,16 +212,20 @@ export default function TaskForm() {
               </select>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="label">{language === 'ar' ? 'العنوان (EN)' : 'Title (EN)'} *</label>
+            <div className={showArabicFields ? 'md:col-span-2' : 'md:col-span-3'}>
+              <label className="label">{showArabicFields ? (language === 'ar' ? 'العنوان (EN)' : 'Title (EN)') : (language === 'ar' ? 'العنوان' : 'Title')} *</label>
               <input {...register('titleEn', { required: true })} className="input" />
               {errors.titleEn && <p className="text-xs text-red-600 mt-1">{language === 'ar' ? 'العنوان مطلوب' : 'Title is required'}</p>}
             </div>
 
-            <div>
-              <label className="label">{language === 'ar' ? 'العنوان (AR)' : 'Title (AR)'}</label>
-              <input {...register('titleAr')} className="input" dir="rtl" />
-            </div>
+            {showArabicFields ? (
+              <div>
+                <label className="label">{language === 'ar' ? 'العنوان (AR)' : 'Title (AR)'}</label>
+                <input {...register('titleAr')} className="input" dir="rtl" />
+              </div>
+            ) : (
+              <input type="hidden" {...register('titleAr')} />
+            )}
 
             <div>
               <label className="label">{language === 'ar' ? 'المكلّف' : 'Assignee'}</label>

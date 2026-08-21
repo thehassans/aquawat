@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useInView } from 'framer-motion'
-import { useRef } from 'react'
 import TrialSignup from '../../components/marketing/TrialSignup'
 import PremiumAppIcon, { PREMIUM_APP_CATALOG } from '../../components/marketing/PremiumAppIcon'
 import { HighlightText } from '../../components/ui/highlight-text'

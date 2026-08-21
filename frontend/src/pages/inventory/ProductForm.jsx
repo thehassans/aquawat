@@ -8,7 +8,8 @@ import { ArrowLeft, Save, Package, DollarSign, Warehouse, Factory, Plus, Trash2 
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
-import SarIcon from '../../components/ui/SarIcon'
+import CurrencySymbol from '../../components/ui/CurrencySymbol'
+import { showArabicFields as isArabicTenantMarket, getDefaultTaxRate, getTaxRateOptions, getTenantCurrency } from '../../lib/saudiTenant'
 import { useLiveTranslation } from '../../lib/liveTranslation'
 import Select from 'react-select'
 import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
@@ -23,11 +24,16 @@ export default function ProductForm() {
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const isEdit = Boolean(id)
+  const showArabicFields = isArabicTenantMarket(tenant)
+  const defaultTaxRate = getDefaultTaxRate(tenant)
+  const taxRateOptions = getTaxRateOptions(tenant, language)
+  const currency = getTenantCurrency(tenant)
 
   const { register, handleSubmit, reset, setValue, watch, control } = useForm({
     defaultValues: {
       productType: 'goods',
       unitOfMeasure: getDefaultUom(tenant),
+      taxRate: defaultTaxRate,
     },
   })
   const [product, setProduct] = useState(null)
@@ -93,7 +99,8 @@ export default function ProductForm() {
     sourceField: 'nameEn',
     targetField: 'nameAr',
     sourceLang: 'en',
-    targetLang: 'ar'
+    targetLang: 'ar',
+    enabled: showArabicFields,
   })
 
   useLiveTranslation({
@@ -103,7 +110,8 @@ export default function ProductForm() {
     sourceField: 'nameAr',
     targetField: 'nameEn',
     sourceLang: 'ar',
-    targetLang: 'en'
+    targetLang: 'en',
+    enabled: showArabicFields,
   })
 
   const { data: rawProductData, isLoading, error: productError } = useQuery({
@@ -257,9 +265,11 @@ export default function ProductForm() {
             <h3 className="text-lg font-semibold">{language === 'ar' ? 'معلومات المنتج' : 'Product Information'}</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="md:col-span-1 lg:col-span-1">
+            <div className={showArabicFields ? "md:col-span-1 lg:col-span-1" : "md:col-span-2 lg:col-span-3"}>
               <div className="mb-1.5 flex items-center gap-2" dir="ltr">
-                <label className="label !mb-0 min-w-0 flex-1">{t('productName')} (EN) *</label>
+                <label className="label !mb-0 min-w-0 flex-1">
+                  {showArabicFields ? `${t('productName')} (EN) *` : `${t('productName')} *`}
+                </label>
                 <ProductTypeToggle
                   value={selectedProductType}
                   onChange={(next) => setValue('productType', next, { shouldDirty: true, shouldTouch: true })}
@@ -274,10 +284,14 @@ export default function ProductForm() {
                 </p>
               ) : null}
             </div>
-            <div className="md:col-span-1 lg:col-span-2">
-              <label className="label">{t('productName')} (AR)</label>
-              <input {...register('nameAr')} className="input" dir="rtl" />
-            </div>
+            {showArabicFields ? (
+              <div className="md:col-span-1 lg:col-span-2">
+                <label className="label">{t('productName')} (AR)</label>
+                <input {...register('nameAr')} className="input" dir="rtl" />
+              </div>
+            ) : (
+              <input type="hidden" {...register('nameAr')} />
+            )}
             <div>
               <label className="label">{t('sku')} *</label>
               <input {...register('sku', { required: true })} className="input" placeholder="SKU-001" />
@@ -307,18 +321,18 @@ export default function ProductForm() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {t('costPrice')}
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol currency={currency} />
                 </span>
               </label>
               <input type="number" step="0.01" {...register('costPrice', { valueAsNumber: true })} className="input" />
             </div>
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {t('sellingPrice')} *
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol currency={currency} />
                 </span>
               </label>
               <input type="number" step="0.01" {...register('sellingPrice', { valueAsNumber: true, required: true })} className="input" />
@@ -326,8 +340,11 @@ export default function ProductForm() {
             <div>
               <label className="label">{language === 'ar' ? 'نسبة الضريبة' : 'Tax Rate'} %</label>
               <select {...register('taxRate', { valueAsNumber: true })} className="select">
-                <option value={15}>15% (Standard)</option>
-                <option value={0}>0% (Exempt)</option>
+                {taxRateOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

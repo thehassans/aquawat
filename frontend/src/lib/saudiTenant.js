@@ -247,3 +247,77 @@ export function getGovChildren(tenant = {}, language = 'en') {
 
   return govChildren
 }
+
+export function getDefaultTaxRate(tenant = {}) {
+  if (tenant?.settings?.taxRate !== undefined && tenant?.settings?.taxRate !== null && !isNaN(Number(tenant.settings.taxRate))) {
+    return Number(tenant.settings.taxRate)
+  }
+  const cur = getTenantCurrency(tenant)
+  if (cur === 'PKR' || isPakistanTenant(tenant)) return Number(tenant?.fbr?.defaultSalesTaxRate || 18)
+  if (cur === 'BDT' || isBangladeshTenant(tenant)) return Number(tenant?.nbr?.defaultVatRate || 15)
+  if (cur === 'AED' || isUaeTenant(tenant)) return 5
+  if (cur === 'OMR' || isOmanTenant(tenant)) return 5
+  if (cur === 'BHD' || isBahrainTenant(tenant)) return 10
+  if (cur === 'KWD' || isKuwaitTenant(tenant)) return 0
+  if (cur === 'QAR' || isQatarTenant(tenant)) return 0
+  return 15
+}
+
+export function getTaxRateOptions(tenant = {}, language = 'en') {
+  const isAr = language === 'ar'
+  const isPk = isPakistanTenant(tenant)
+  const isBd = isBangladeshTenant(tenant)
+  const isUae = isUaeTenant(tenant) || isOmanTenant(tenant)
+  const isBh = isBahrainTenant(tenant)
+  const isZeroGcc = isKuwaitTenant(tenant) || isQatarTenant(tenant)
+
+  if (isPk) {
+    return [
+      { value: 18, label: isAr ? '18% (المعياري GST)' : '18% (Standard GST)' },
+      { value: 17, label: isAr ? '17% (سابق GST)' : '17% (Previous GST)' },
+      { value: 15, label: isAr ? '15% (خدمات إقليمية)' : '15% (Provincial Services)' },
+      { value: 5, label: isAr ? '5% (مخفض)' : '5% (Reduced GST)' },
+      { value: 1, label: isAr ? '1% (خاص)' : '1% (Special)' },
+      { value: 0, label: isAr ? '0% (معفى / بدون ضريبة)' : '0% (Exempt / Zero-Rated)' },
+    ]
+  }
+
+  if (isBd) {
+    return [
+      { value: 15, label: isAr ? '15% (المعياري Mushak)' : '15% (Standard VAT)' },
+      { value: 10, label: isAr ? '10% (مخفض)' : '10% (Reduced VAT)' },
+      { value: 7.5, label: isAr ? '7.5% (تجاري)' : '7.5% (Commercial)' },
+      { value: 5, label: isAr ? '5% (مخفض)' : '5% (Reduced VAT)' },
+      { value: 0, label: isAr ? '0% (معفى)' : '0% (Exempt / Zero-Rated)' },
+    ]
+  }
+
+  if (isUae) {
+    return [
+      { value: 5, label: isAr ? '5% (المعياري)' : '5% (Standard 5%)' },
+      { value: 0, label: isAr ? '0% (معفى)' : '0% (Exempt / Zero-Rated)' },
+    ]
+  }
+
+  if (isBh) {
+    return [
+      { value: 10, label: isAr ? '10% (المعياري)' : '10% (Standard 10%)' },
+      { value: 5, label: isAr ? '5% (سابق)' : '5% (Previous 5%)' },
+      { value: 0, label: isAr ? '0% (معفى)' : '0% (Exempt / Zero-Rated)' },
+    ]
+  }
+
+  if (isZeroGcc) {
+    return [
+      { value: 0, label: isAr ? '0% (بدون ضريبة ق.م)' : '0% (No VAT)' },
+      { value: 5, label: isAr ? '5% (استقطاع / خاص)' : '5% (Special)' },
+    ]
+  }
+
+  return [
+    { value: 15, label: isAr ? '15% (المعياري)' : '15% (Standard)' },
+    { value: 5, label: isAr ? '5% (مخفض)' : '5% (Reduced 5%)' },
+    { value: 0, label: isAr ? '0% (معفى)' : '0% (Exempt / Zero-Rated)' },
+  ]
+}
+

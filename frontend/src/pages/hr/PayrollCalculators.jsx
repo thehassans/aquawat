@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
-import SarIcon from '../../components/ui/SarIcon'
+import CurrencySymbol from '../../components/ui/CurrencySymbol'
 
 export default function PayrollCalculators() {
   const navigate = useNavigate()
@@ -67,9 +67,9 @@ export default function PayrollCalculators() {
             </p>
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {t('basicSalary')}
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol />
                 </span>
               </label>
               <input

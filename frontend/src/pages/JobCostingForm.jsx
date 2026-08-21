@@ -23,6 +23,7 @@ import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { useLiveTranslation } from '../lib/liveTranslation'
+import { showArabicFields as isArabicTenantMarket } from '../lib/saudiTenant'
 
 export default function JobCostingForm() {
   const { id } = useParams()
@@ -34,6 +35,7 @@ export default function JobCostingForm() {
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const showArabicFields = isArabicTenantMarket(tenant)
 
   const [costsPage, setCostsPage] = useState(1)
   const [costsType, setCostsType] = useState('')
@@ -97,7 +99,8 @@ export default function JobCostingForm() {
     sourceField: 'nameEn',
     targetField: 'nameAr',
     sourceLang: 'en',
-    targetLang: 'ar'
+    targetLang: 'ar',
+    enabled: showArabicFields,
   })
 
   useLiveTranslation({
@@ -107,7 +110,8 @@ export default function JobCostingForm() {
     sourceField: 'nameAr',
     targetField: 'nameEn',
     sourceLang: 'ar',
-    targetLang: 'en'
+    targetLang: 'en',
+    enabled: showArabicFields,
   })
 
   const {
@@ -537,16 +541,20 @@ export default function JobCostingForm() {
               </select>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
+            <div className={showArabicFields ? 'md:col-span-2' : 'md:col-span-2 lg:col-span-3'}>
+              <label className="label">{showArabicFields ? (language === 'ar' ? 'الاسم (EN)' : 'Name (EN)') : (language === 'ar' ? 'الاسم' : 'Name')} *</label>
               <input {...register('nameEn', { required: true })} className="input" />
               {errors.nameEn && <p className="text-xs text-red-600 mt-1">{language === 'ar' ? 'الاسم مطلوب' : 'Name is required'}</p>}
             </div>
 
-            <div>
-              <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
-              <input {...register('nameAr')} className="input" dir="rtl" />
-            </div>
+            {showArabicFields ? (
+              <div>
+                <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
+                <input {...register('nameAr')} className="input" dir="rtl" />
+              </div>
+            ) : (
+              <input type="hidden" {...register('nameAr')} />
+            )}
 
             <div className="md:col-span-2 lg:col-span-3">
               <label className="label">{language === 'ar' ? 'الوصف' : 'Description'}</label>

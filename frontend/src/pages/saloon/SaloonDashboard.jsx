@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { useTranslation } from '../../lib/translations';
 import { Scissors, Users, Banknote, TrendingUp, Sparkles, Clock, CalendarDays } from 'lucide-react';
 import api from '../../lib/api';
-import SarIcon from '../../components/ui/SarIcon';
+import CurrencySymbol from '../../components/ui/CurrencySymbol';
 
 export default function SaloonDashboard() {
   const { language } = useSelector((state) => state.ui);
@@ -66,7 +66,7 @@ export default function SaloonDashboard() {
       <div>
         <h3 className="text-4xl font-light text-gray-900 dark:text-white mb-2 tracking-tight flex items-baseline gap-2">
           {value}
-          {isCurrency && <SarIcon className="w-5 h-5 text-gray-400" />}
+          {isCurrency && <CurrencySymbol currency={tenant?.settings?.currency} className="w-5 h-5 text-gray-400" />}
         </h3>
         <p className="text-sm font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">{title}</p>
         <p className="text-xs text-gray-400 mt-2">{subtitle}</p>
@@ -165,7 +165,7 @@ export default function SaloonDashboard() {
                   <div className="text-right">
                     <p className="text-xl font-light text-gray-900 dark:text-white flex items-center gap-1.5 justify-end">
                       {order.grandTotal?.toFixed(2)}
-                      <SarIcon className="w-4 h-4 text-gray-400" />
+                      <CurrencySymbol currency={tenant?.settings?.currency} className="w-4 h-4 text-gray-400" />
                     </p>
                   </div>
                 </div>

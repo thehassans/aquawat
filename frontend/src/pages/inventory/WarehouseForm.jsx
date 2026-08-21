@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import { useLiveTranslation } from '../../lib/liveTranslation'
+import { showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
 
 export default function WarehouseForm() {
   const { id } = useParams()
@@ -16,9 +17,11 @@ export default function WarehouseForm() {
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const isEdit = Boolean(id)
   const returnTo = searchParams.get('returnTo')
+  const showArabicFields = isArabicTenantMarket(tenant)
 
   const { register, handleSubmit, reset, setValue, watch, control } = useForm({
     defaultValues: {
@@ -36,7 +39,8 @@ export default function WarehouseForm() {
     sourceField: 'nameEn',
     targetField: 'nameAr',
     sourceLang: 'en',
-    targetLang: 'ar'
+    targetLang: 'ar',
+    enabled: showArabicFields,
   })
 
   useLiveTranslation({
@@ -46,7 +50,8 @@ export default function WarehouseForm() {
     sourceField: 'nameAr',
     targetField: 'nameEn',
     sourceLang: 'ar',
-    targetLang: 'en'
+    targetLang: 'en',
+    enabled: showArabicFields,
   })
 
   const { data: warehouseData, isLoading } = useQuery({
@@ -136,15 +141,25 @@ export default function WarehouseForm() {
               </select>
             </div>
 
-            <div>
-              <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
-              <input {...register('nameEn', { required: true })} className="input" />
-            </div>
+            {showArabicFields ? (
+              <>
+                <div>
+                  <label className="label">{language === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} *</label>
+                  <input {...register('nameEn', { required: true })} className="input" />
+                </div>
 
-            <div>
-              <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
-              <input {...register('nameAr')} className="input" dir="rtl" />
-            </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'الاسم (AR)' : 'Name (AR)'}</label>
+                  <input {...register('nameAr')} className="input" dir="rtl" />
+                </div>
+              </>
+            ) : (
+              <div className="md:col-span-2">
+                <label className="label">{language === 'ar' ? 'الاسم' : 'Name'} *</label>
+                <input {...register('nameEn', { required: true })} className="input" />
+                <input type="hidden" {...register('nameAr')} />
+              </div>
+            )}
 
             <div className="md:col-span-2">
               <div className="flex items-center gap-3">

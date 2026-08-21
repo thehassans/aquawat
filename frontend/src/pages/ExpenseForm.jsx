@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -11,6 +11,7 @@ import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
+import { showArabicFields as isArabicTenantMarket } from '../lib/saudiTenant'
 
 const shell =
   'overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_40px_-32px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#0c111a]'
@@ -64,6 +65,7 @@ export default function ExpenseForm() {
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const showProjects = getTenantBusinessTypes(tenant).includes('construction')
+  const showArabicFields = isArabicTenantMarket(tenant)
 
   const {
     register,
@@ -106,6 +108,7 @@ export default function ExpenseForm() {
     targetField: 'descriptionAr',
     sourceLang: 'en',
     targetLang: 'ar',
+    enabled: showArabicFields,
   })
 
   useLiveTranslation({
@@ -116,6 +119,7 @@ export default function ExpenseForm() {
     targetField: 'description',
     sourceLang: 'ar',
     targetLang: 'en',
+    enabled: showArabicFields,
   })
 
   const payeeType = watch('payeeType')
@@ -445,31 +449,39 @@ export default function ExpenseForm() {
                 </select>
               </div>
             )}
-            <div>
-              <label className="label">{language === 'ar' ? 'Ø§Ù„ÙØ¦Ø©' : 'Category'}</label>
+            <div className={showArabicFields ? '' : 'md:col-span-2'}>
+              <label className="label">{language === 'ar' ? 'الفئة' : 'Category'}</label>
               <select {...register('category')} className={`select ${fieldControlClass}`} disabled={isLocked}>
                 {categories.map((c) => (
                   <option key={c.value} value={c.value}>{language === 'ar' ? c.ar : c.en}</option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className="label">{language === 'ar' ? 'Ø§Ù„ÙØ¦Ø© (Ø¹Ø±Ø¨ÙŠ)' : 'Category (AR)'}</label>
-              <input {...register('categoryAr')} className={fieldControlClass} dir="rtl" disabled={isLocked} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="label">{language === 'ar' ? 'Ø§Ù„ÙˆØµÙ' : 'Description'}</label>
+            {showArabicFields ? (
+              <div>
+                <label className="label">{language === 'ar' ? 'الفئة (عربي)' : 'Category (AR)'}</label>
+                <input {...register('categoryAr')} className={fieldControlClass} dir="rtl" disabled={isLocked} />
+              </div>
+            ) : (
+              <input type="hidden" {...register('categoryAr')} />
+            )}
+            <div className={showArabicFields ? 'md:col-span-2' : 'md:col-span-3'}>
+              <label className="label">{language === 'ar' ? 'الوصف' : 'Description'}</label>
               <input {...register('description')} className={fieldControlClass} disabled={isLocked} />
             </div>
-            <div>
-              <label className="label">{language === 'ar' ? 'Ø§Ù„ÙˆØµÙ (Ø¹Ø±Ø¨ÙŠ)' : 'Description (AR)'}</label>
-              <input {...register('descriptionAr')} className={fieldControlClass} dir="rtl" disabled={isLocked} />
-            </div>
+            {showArabicFields ? (
+              <div>
+                <label className="label">{language === 'ar' ? 'الوصف (عربي)' : 'Description (AR)'}</label>
+                <input {...register('descriptionAr')} className={fieldControlClass} dir="rtl" disabled={isLocked} />
+              </div>
+            ) : (
+              <input type="hidden" {...register('descriptionAr')} />
+            )}
           </div>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`${shell} p-5 sm:p-6`}>
-          {sectionHead(language === 'ar' ? 'Ø§Ù„Ø¬Ù‡Ø©' : 'Payee', language === 'ar' ? 'Ø§Ù„Ù…ÙˆØ±Ø¯ Ø£Ùˆ Ø§Ù„Ù…ÙˆØ¸Ù Ø£Ùˆ Ø§Ù„Ø¹Ù…ÙŠÙ„' : 'Supplier, employee, or customer')}
+          {sectionHead(language === 'ar' ? 'Ø§Ù„Ø¬Ù‡Ø©' : 'Payee', language === 'ar' ? 'Ø§Ù„Ù…ÙˆØ±Ø¯ Ø£Ùˆ Ø§Ù„Ù…ÙˆØ¸Ù  Ø£Ùˆ Ø§Ù„Ø¹Ù…ÙŠÙ„' : 'Supplier, employee, or customer')}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className="label">{language === 'ar' ? 'Ù†ÙˆØ¹ Ø§Ù„Ø¬Ù‡Ø©' : 'Payee type'}</label>

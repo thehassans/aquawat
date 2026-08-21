@@ -18,14 +18,20 @@ import {
 } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
+import { getTenantCountryCode, isPakistanTenant, getTaxIdLabel, showArabicFields as isArabicTenantMarket, getTenantCurrency } from '../../lib/saudiTenant'
 
 export default function CustomerForm() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const isEditing = Boolean(id)
+  const showArabicFields = isArabicTenantMarket(tenant)
+  const isPk = isPakistanTenant(tenant)
+  const taxIdLabel = getTaxIdLabel(tenant)
+  const tenantCountry = getTenantCountryCode(tenant)
 
   const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
@@ -43,7 +49,7 @@ export default function CustomerForm() {
         city: '',
         district: '',
         postalCode: '',
-        country: 'SA',
+        country: tenantCountry,
         buildingNumber: '',
         additionalNumber: ''
       },
@@ -227,35 +233,37 @@ export default function CustomerForm() {
                 placeholder="1001"
               />
             </div>
-            <div className="hidden md:block" />
-
-            <div>
+            <div className={showArabicFields ? '' : 'md:col-span-2'}>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-baseline justify-between gap-2" dir="ltr">
-                <span>Name (EN) *</span>
-                <span dir="rtl" className="font-medium text-gray-500">الاسم بالإنجليزية</span>
+                <span>{showArabicFields ? 'Name (EN) *' : 'Name *'}</span>
+                {showArabicFields ? <span dir="rtl" className="font-medium text-gray-500">الاسم بالإنجليزية</span> : null}
               </label>
               <input
                 type="text"
                 {...register('name', { required: 'Name is required' })}
                 className={`input ${errors.name ? 'border-red-500' : ''}`}
-                placeholder={language === 'ar' ? 'اسم العميل بالإنجليزية' : 'Customer name in English'}
+                placeholder={language === 'ar' ? 'اسم العميل' : 'Customer name'}
               />
               {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name.message}</p>}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-baseline justify-between gap-2" dir="ltr">
-                <span>Name (AR)</span>
-                <span dir="rtl" className="font-medium text-gray-500">الاسم بالعربية</span>
-              </label>
-              <input
-                type="text"
-                {...register('nameAr')}
-                className="input"
-                placeholder={language === 'ar' ? 'اسم العميل بالعربية' : 'Customer name in Arabic'}
-                dir="rtl"
-              />
-            </div>
+            {showArabicFields ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-baseline justify-between gap-2" dir="ltr">
+                  <span>Name (AR)</span>
+                  <span dir="rtl" className="font-medium text-gray-500">الاسم بالعربية</span>
+                </label>
+                <input
+                  type="text"
+                  {...register('nameAr')}
+                  className="input"
+                  placeholder={language === 'ar' ? 'اسم العميل بالعربية' : 'Customer name in Arabic'}
+                  dir="rtl"
+                />
+              </div>
+            ) : (
+              <input type="hidden" {...register('nameAr')} />
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -289,7 +297,7 @@ export default function CustomerForm() {
                 type="tel"
                 {...register('phone')}
                 className="input"
-                placeholder="+966 5x xxx xxxx"
+                placeholder={isPk ? "03xx xxxxxxx" : "+966 5x xxx xxxx"}
               />
             </div>
 
@@ -301,7 +309,7 @@ export default function CustomerForm() {
                 type="tel"
                 {...register('mobile')}
                 className="input"
-                placeholder="+966 5x xxx xxxx"
+                placeholder={isPk ? "03xx xxxxxxx" : "+966 5x xxx xxxx"}
               />
             </div>
           </div>
@@ -327,22 +335,24 @@ export default function CustomerForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}
+                  {language === 'ar' ? 'الرقم الضريبي' : taxIdLabel}
                 </label>
                 <input
                   type="text"
                   {...register('vatNumber')}
                   className="input"
-                  placeholder="3xxxxxxxxxxxxxxx"
+                  placeholder={isPk ? "e.g. 1234567-8" : "3xxxxxxxxxxxxxxx"}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  {language === 'ar' ? '15 رقم تبدأ بـ 3' : '15 digits starting with 3'}
+                  {isPk
+                    ? (language === 'ar' ? 'رقم NTN أو STRN للعميل' : 'Customer NTN or STRN')
+                    : (language === 'ar' ? '15 رقم تبدأ بـ 3' : '15 digits starting with 3')}
                 </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {language === 'ar' ? 'رقم السجل التجاري' : 'CR Number'}
+                  {language === 'ar' ? 'رقم السجل التجاري' : (isPk ? 'Business Registration / NTN' : 'CR Number')}
                 </label>
                 <input
                   type="text"

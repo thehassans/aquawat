@@ -8,7 +8,7 @@ import { ArrowLeft, Save, Building2, CreditCard, User, Shield, MapPin, Briefcase
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
-import SarIcon from '../../components/ui/SarIcon'
+import CurrencySymbol from '../../components/ui/CurrencySymbol'
 import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes, normalizeBusinessTypes } from '../../lib/businessTypes'
 import { CURRENCIES, CURRENCY_CODE } from '../../lib/currency'
 import { COUNTRY_OPTIONS, currencyForCountry, timezoneForCountry } from '../../lib/countryCurrency'
@@ -720,9 +720,9 @@ export default function TenantForm() {
                 </div>
                 <div>
                   <label className="label">
-                    <span className="inline-flex items-center gap-1">
+                    <span className="inline-flex items-center gap-1.5">
                       {language === 'ar' ? 'السعر' : 'Price'}
-                      <SarIcon className="w-[1em] h-[1em]" />
+                      <CurrencySymbol currency={watch('settings.currency')} className="w-[1em] h-[1em]" />
                     </span>
                   </label>
                   <input type="number" {...register('subscription.price', { valueAsNumber: true })} className="input" />

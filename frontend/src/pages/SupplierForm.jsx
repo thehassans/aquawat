@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import { useLiveTranslation } from '../lib/liveTranslation'
+import { getTenantCountryCode, getTaxIdLabel, showArabicFields as isArabicTenantMarket } from '../lib/saudiTenant'
 
 export default function SupplierForm() {
   const { id } = useParams()
@@ -19,13 +20,17 @@ export default function SupplierForm() {
   const returnTo = searchParams.get('returnTo')
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const showArabicFields = isArabicTenantMarket(tenant)
+  const taxIdLabel = getTaxIdLabel(tenant)
+  const tenantCountry = getTenantCountryCode(tenant)
 
   const { register, handleSubmit, reset, setValue, watch, control } = useForm({
     defaultValues: {
       type: 'company',
       paymentTerms: { term: 'net_30' },
-      address: { country: 'SA' },
+      address: { country: tenantCountry },
     },
   })
 
@@ -36,7 +41,8 @@ export default function SupplierForm() {
     sourceField: 'nameEn',
     targetField: 'nameAr',
     sourceLang: 'en',
-    targetLang: 'ar'
+    targetLang: 'ar',
+    enabled: showArabicFields,
   })
 
   useLiveTranslation({
@@ -46,7 +52,8 @@ export default function SupplierForm() {
     sourceField: 'nameAr',
     targetField: 'nameEn',
     sourceLang: 'ar',
-    targetLang: 'en'
+    targetLang: 'en',
+    enabled: showArabicFields,
   })
 
   const { data: supplierData, isLoading } = useQuery({
@@ -130,26 +137,38 @@ export default function SupplierForm() {
             </div>
 
             <div>
-              <label className="label">{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</label>
+              <label className="label">{language === 'ar' ? 'الرقم الضريبي' : taxIdLabel}</label>
               <input {...register('vatNumber')} className="input" placeholder="300000000000003" />
             </div>
 
-            <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4" dir="ltr">
-              <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Name (EN) *</span>
-                  <span dir="rtl" className="font-medium text-gray-500">الاسم بالإنجليزية</span>
-                </label>
-                <input {...register('nameEn', { required: true })} className="input" />
+            {showArabicFields ? (
+              <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4" dir="ltr">
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Name (EN) *</span>
+                    <span dir="rtl" className="font-medium text-gray-500">الاسم بالإنجليزية</span>
+                  </label>
+                  <input {...register('nameEn', { required: true })} className="input" />
+                </div>
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Name (AR)</span>
+                    <span dir="rtl" className="font-medium text-gray-500">الاسم بالعربية</span>
+                  </label>
+                  <input {...register('nameAr')} className="input" dir="rtl" />
+                </div>
               </div>
-              <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Name (AR)</span>
-                  <span dir="rtl" className="font-medium text-gray-500">الاسم بالعربية</span>
-                </label>
-                <input {...register('nameAr')} className="input" dir="rtl" />
+            ) : (
+              <div className="md:col-span-2 lg:col-span-3" dir="ltr">
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Name *</span>
+                  </label>
+                  <input {...register('nameEn', { required: true })} className="input" />
+                  <input type="hidden" {...register('nameAr')} />
+                </div>
               </div>
-            </div>
+            )}
 
             <div>
               <label className="label">{language === 'ar' ? 'الشخص المسؤول' : 'Contact Person'}</label>

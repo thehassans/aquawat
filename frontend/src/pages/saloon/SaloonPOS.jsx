@@ -5,15 +5,17 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Plus, Minus, Trash2, CreditCard, Banknote, Scissors, CheckCircle, Package, Printer } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
-import SarIcon from '../../components/ui/SarIcon'
+import CurrencySymbol from '../../components/ui/CurrencySymbol'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import CardPaymentModal from '../../components/pos/CardPaymentModal'
 import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
+import { getDefaultTaxRate } from '../../lib/saudiTenant'
 
 export default function SaloonPOS() {
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
   const isRtl = language === 'ar'
+  const defaultTaxRate = getDefaultTaxRate(tenant)
   const cardTerminalEnabled = Boolean(tenant?.settings?.posTerminal?.enabled)
   const terminalLabel = tenant?.settings?.posTerminal?.terminalLabel || ''
   const [showCardModal, setShowCardModal] = useState(false)
@@ -197,7 +199,7 @@ export default function SaloonPOS() {
                   </h3>
                   <div className="flex justify-between items-center mt-2">
                     <p className="font-bold text-amber-600 dark:text-amber-500 text-sm flex items-center gap-1">
-                      {service.price} <SarIcon className="w-3 h-3" />
+                      {service.price} <CurrencySymbol currency={tenant?.settings?.currency} className="w-3 h-3" />
                     </p>
                     <span className="text-[10px] text-gray-400">{service.durationMinutes}m</span>
                   </div>
@@ -263,7 +265,7 @@ export default function SaloonPOS() {
                     <div className="flex-1 pr-2">
                       <h4 className="font-medium text-sm">{isRtl ? item.nameAr : item.nameEn}</h4>
                       <p className="text-amber-600 text-sm font-bold flex items-center gap-1">
-                        {item.unitPrice} <SarIcon className="w-3 h-3" />
+                        {item.unitPrice} <CurrencySymbol currency={tenant?.settings?.currency} className="w-3 h-3" />
                       </p>
                     </div>
                     <button 
@@ -306,7 +308,7 @@ export default function SaloonPOS() {
           <div className="space-y-2 mb-4 text-sm">
             <div className="flex justify-between text-gray-500">
               <span>{isRtl ? 'المجموع الفرعي' : 'Subtotal'}</span>
-              <span className="flex items-center gap-1">{subtotal.toFixed(2)} <SarIcon className="w-3 h-3" /></span>
+              <span className="flex items-center gap-1">{subtotal.toFixed(2)} <CurrencySymbol currency={tenant?.settings?.currency} className="w-3 h-3" /></span>
             </div>
             <div className="flex justify-between items-center text-gray-500">
               <div className="flex items-center gap-2">
@@ -315,15 +317,15 @@ export default function SaloonPOS() {
                   onClick={() => setApplyVat(!applyVat)}
                   className={`text-xs px-2 py-0.5 rounded border ${applyVat ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/20 dark:border-amber-500/30' : 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-dark-700'}`}
                 >
-                  {applyVat ? '15%' : '0%'}
+                  {applyVat ? `${defaultTaxRate}%` : '0%'}
                 </button>
               </div>
-              <span className="flex items-center gap-1">{totalTax.toFixed(2)} <SarIcon className="w-3 h-3" /></span>
+              <span className="flex items-center gap-1">{totalTax.toFixed(2)} <CurrencySymbol currency={tenant?.settings?.currency} className="w-3 h-3" /></span>
             </div>
             <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-100 dark:border-dark-700">
               <span>{isRtl ? 'الإجمالي' : 'Total'}</span>
               <span className="text-amber-600 flex items-center gap-1">
-                {grandTotal.toFixed(2)} <SarIcon className="w-4 h-4" />
+                {grandTotal.toFixed(2)} <CurrencySymbol currency={tenant?.settings?.currency} className="w-4 h-4" />
               </span>
             </div>
           </div>

@@ -5,10 +5,11 @@ import { motion } from 'framer-motion'
 import { Plus, Edit, Trash2, Search, Wand2, Package } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
-import SarIcon from '../../components/ui/SarIcon'
+import CurrencySymbol from '../../components/ui/CurrencySymbol'
 
 export default function SaloonServices() {
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const isRtl = language === 'ar'
   const queryClient = useQueryClient()
   
@@ -86,7 +87,7 @@ export default function SaloonServices() {
           </div>
           <div className="text-right">
             <p className="font-bold text-primary-600 flex items-center justify-end gap-1">
-              {service.price} <SarIcon className="w-4 h-4" />
+              {service.price} <CurrencySymbol currency={tenant?.settings?.currency} className="w-4 h-4" />
             </p>
             <p className="text-xs text-gray-400">{service.durationMinutes} min</p>
           </div>

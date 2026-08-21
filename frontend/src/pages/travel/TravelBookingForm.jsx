@@ -5,10 +5,10 @@ import { useSelector } from 'react-redux'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Save, Plane, FileText, Plus, Trash2 } from 'lucide-react'
-import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
-import SarIcon from '../../components/ui/SarIcon'
+import CurrencySymbol from '../../components/ui/CurrencySymbol'
+import { getTenantCurrency } from '../../lib/saudiTenant'
 
 export default function TravelBookingForm() {
   const { id } = useParams()
@@ -17,13 +17,15 @@ export default function TravelBookingForm() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const tenantCurrency = getTenantCurrency(tenant)
 
   const { register, control, handleSubmit, reset, watch, setValue } = useForm({
     defaultValues: {
       status: 'confirmed',
       serviceType: 'flight',
-      currency: 'SAR',
+      currency: tenantCurrency,
       subtotal: 0,
       totalTax: 0,
       grandTotal: 0,
@@ -246,9 +248,9 @@ export default function TravelBookingForm() {
 
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {language === 'ar' ? 'المجموع' : 'Subtotal'}
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol currency={tenantCurrency} />
                 </span>
               </label>
               <input type="number" step="0.01" {...register('subtotal', { valueAsNumber: true })} className="input" />
@@ -256,9 +258,9 @@ export default function TravelBookingForm() {
 
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {language === 'ar' ? 'الضريبة' : 'Tax'}
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol currency={tenantCurrency} />
                 </span>
               </label>
               <input type="number" step="0.01" {...register('totalTax', { valueAsNumber: true })} className="input" />
@@ -266,9 +268,9 @@ export default function TravelBookingForm() {
 
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {language === 'ar' ? 'الإجمالي' : 'Total'}
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol currency={tenantCurrency} />
                 </span>
               </label>
               <input type="number" step="0.01" {...register('grandTotal', { valueAsNumber: true })} className="input" readOnly />

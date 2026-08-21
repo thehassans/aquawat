@@ -7,9 +7,10 @@ import { ArrowLeft, Save, User, FileText, CreditCard, Briefcase, Shield, Heart, 
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
-import SarIcon from '../../components/ui/SarIcon'
+import CurrencySymbol from '../../components/ui/CurrencySymbol'
 import { useLiveTranslation } from '../../lib/liveTranslation'
 import { describeSaudiId, normalizeSaudiId } from '../../lib/saudiId'
+import { showArabicFields as isArabicTenantMarket, getTenantCurrency, isPakistanTenant } from '../../lib/saudiTenant'
 import { useEffect, useState } from 'react'
 
 export default function EmployeeForm() {
@@ -17,9 +18,13 @@ export default function EmployeeForm() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
+  const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const isEdit = Boolean(id)
   const [lookupMeta, setLookupMeta] = useState(null)
+  const showArabicFields = isArabicTenantMarket(tenant)
+  const currency = getTenantCurrency(tenant)
+  const isPk = isPakistanTenant(tenant)
 
   const { register, handleSubmit, reset, setValue, watch, control, formState: { errors } } = useForm()
 
@@ -30,7 +35,8 @@ export default function EmployeeForm() {
     sourceField: 'firstNameEn',
     targetField: 'firstNameAr',
     sourceLang: 'en',
-    targetLang: 'ar'
+    targetLang: 'ar',
+    enabled: showArabicFields,
   })
 
   useLiveTranslation({
@@ -40,7 +46,8 @@ export default function EmployeeForm() {
     sourceField: 'firstNameAr',
     targetField: 'firstNameEn',
     sourceLang: 'ar',
-    targetLang: 'en'
+    targetLang: 'en',
+    enabled: showArabicFields,
   })
 
   useLiveTranslation({
@@ -377,32 +384,41 @@ export default function EmployeeForm() {
               <input {...register('employeeId', { required: true })} className="input" placeholder="EMP-001" />
             </div>
             <div>
-              <label className="label">{t('firstName')} (EN) *</label>
+              <label className="label">{showArabicFields ? `${t('firstName')} (EN) *` : `${t('firstName')} *`}</label>
               <input {...register('firstNameEn', { required: true })} className="input" />
             </div>
             <div>
-              <label className="label">{t('lastName')} (EN) *</label>
+              <label className="label">{showArabicFields ? `${t('lastName')} (EN) *` : `${t('lastName')} *`}</label>
               <input {...register('lastNameEn', { required: true })} className="input" />
             </div>
-            <div>
-              <label className="label">{t('firstName')} (AR)</label>
-              <input {...register('firstNameAr')} className="input" dir="rtl" />
-            </div>
-            <div>
-              <label className="label">{t('lastName')} (AR)</label>
-              <input {...register('lastNameAr')} className="input" dir="rtl" />
-            </div>
+            {showArabicFields ? (
+              <>
+                <div>
+                  <label className="label">{t('firstName')} (AR)</label>
+                  <input {...register('firstNameAr')} className="input" dir="rtl" />
+                </div>
+                <div>
+                  <label className="label">{t('lastName')} (AR)</label>
+                  <input {...register('lastNameAr')} className="input" dir="rtl" />
+                </div>
+              </>
+            ) : (
+              <>
+                <input type="hidden" {...register('firstNameAr')} />
+                <input type="hidden" {...register('lastNameAr')} />
+              </>
+            )}
             <div>
               <label className="label">{t('email')}</label>
               <input type="email" {...register('email')} className="input" />
             </div>
             <div>
               <label className="label">{language === 'ar' ? 'الهاتف' : 'Phone'}</label>
-              <input {...register('phone')} className="input" placeholder="+966" />
+              <input {...register('phone')} className="input" placeholder={isPk ? "03xx xxxxxxx" : "+966 5x xxx xxxx"} />
             </div>
             <div>
               <label className="label">{language === 'ar' ? 'رقم بديل' : 'Alternate Contact Number'}</label>
-              <input {...register('alternatePhone')} className="input" placeholder="+966" />
+              <input {...register('alternatePhone')} className="input" placeholder={isPk ? "03xx xxxxxxx" : "+966 5x xxx xxxx"} />
             </div>
             <div>
               <label className="label">{language === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</label>
@@ -795,13 +811,17 @@ export default function EmployeeForm() {
               <input {...register('department')} className="input" />
             </div>
             <div>
-              <label className="label">{t('position')} (EN)</label>
+              <label className="label">{showArabicFields ? `${t('position')} (EN)` : t('position')}</label>
               <input {...register('position')} className="input" />
             </div>
-            <div>
-              <label className="label">{t('position')} (AR)</label>
-              <input {...register('positionAr')} className="input" dir="rtl" />
-            </div>
+            {showArabicFields ? (
+              <div>
+                <label className="label">{t('position')} (AR)</label>
+                <input {...register('positionAr')} className="input" dir="rtl" />
+              </div>
+            ) : (
+              <input type="hidden" {...register('positionAr')} />
+            )}
             <div>
               <label className="label">{t('joinDate')} *</label>
               <input type="date" {...register('joinDate', { required: true })} className="input" />
@@ -828,45 +848,45 @@ export default function EmployeeForm() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {t('basicSalary')}
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol currency={currency} />
                 </span>
               </label>
               <input type="number" {...register('currentSalary.basicSalary', { valueAsNumber: true })} className="input" />
             </div>
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {t('housingAllowance')}
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol currency={currency} />
                 </span>
               </label>
               <input type="number" {...register('currentSalary.housingAllowance', { valueAsNumber: true })} className="input" />
             </div>
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {t('transportAllowance')}
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol currency={currency} />
                 </span>
               </label>
               <input type="number" {...register('currentSalary.transportAllowance', { valueAsNumber: true })} className="input" />
             </div>
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {language === 'ar' ? 'بدل الطعام' : 'Food Allowance'}
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol currency={currency} />
                 </span>
               </label>
               <input type="number" {...register('currentSalary.foodAllowance', { valueAsNumber: true })} className="input" />
             </div>
             <div>
               <label className="label">
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   {language === 'ar' ? 'بدلات أخرى' : 'Other Allowances'}
-                  <SarIcon className="w-[1em] h-[1em]" />
+                  <CurrencySymbol currency={currency} />
                 </span>
               </label>
               <input type="number" {...register('currentSalary.otherAllowances', { valueAsNumber: true })} className="input" />

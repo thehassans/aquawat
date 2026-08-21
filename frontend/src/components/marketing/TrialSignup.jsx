@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDispatch, useSelector } from 'react-redux'
 import { Mail, CheckCircle2, AlertCircle, ArrowRight, ImagePlus, X, Building2, Globe2, Wallet } from 'lucide-react'

@@ -10,6 +10,7 @@ import api from "../lib/api"
 import { useTranslation } from "../lib/translations"
 import { useLiveTranslation } from "../lib/liveTranslation"
 import { downloadProjectProgressPdf } from "../lib/projectProgressPdf"
+import { showArabicFields as isArabicTenantMarket } from "../lib/saudiTenant"
 
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Input } from "../components/ui/input"
@@ -80,6 +81,7 @@ export default function ProjectForm() {
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const showArabicFields = isArabicTenantMarket(tenant)
 
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const isEdit = Boolean(id)
@@ -87,11 +89,6 @@ export default function ProjectForm() {
   const { data: usersData } = useQuery({
     queryKey: ["users-list"],
     queryFn: () => api.get("/users", { params: { limit: 200 } }).then((res) => res.data.users || []),
-  })
-
-  const { data: employeesData } = useQuery({
-    queryKey: ["employees-list"],
-    queryFn: () => api.get("/employees", { params: { limit: 200 } }).then((res) => res.data.employees || []),
   })
 
   const formatDateForInput = (value) => {
@@ -134,6 +131,7 @@ export default function ProjectForm() {
     targetField: "nameAr",
     sourceLang: "en",
     targetLang: "ar",
+    enabled: showArabicFields,
   })
 
   useLiveTranslation({
@@ -144,6 +142,7 @@ export default function ProjectForm() {
     targetField: "nameEn",
     sourceLang: "ar",
     targetLang: "en",
+    enabled: showArabicFields,
   })
 
   const progress = watch("progress")
@@ -406,18 +405,22 @@ export default function ProjectForm() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={showArabicFields ? "grid grid-cols-1 md:grid-cols-2 gap-4" : ""}>
                 <div className="space-y-2">
-                  <Label htmlFor="nameEn">{language === "ar" ? "الاسم (EN)" : "Name (EN)"} *</Label>
+                  <Label htmlFor="nameEn">{showArabicFields ? (language === "ar" ? "الاسم (EN)" : "Name (EN)") : (language === "ar" ? "الاسم" : "Name")} *</Label>
                   <Input id="nameEn" {...register("nameEn", { required: true })} />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="nameAr" className="text-right block">
-                    {language === "ar" ? "الاسم (AR)" : "Name (AR)"}
-                  </Label>
-                  <Input id="nameAr" {...register("nameAr")} dir="rtl" className="text-right" />
-                </div>
+                {showArabicFields ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="nameAr" className="text-right block">
+                      {language === "ar" ? "الاسم (AR)" : "Name (AR)"}
+                    </Label>
+                    <Input id="nameAr" {...register("nameAr")} dir="rtl" className="text-right" />
+                  </div>
+                ) : (
+                  <input type="hidden" {...register("nameAr")} />
+                )}
               </div>
 
               <div className="space-y-2">

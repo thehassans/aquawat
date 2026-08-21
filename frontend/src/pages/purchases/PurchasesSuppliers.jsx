@@ -39,6 +39,7 @@ import Money from '../../components/ui/Money'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../../lib/invoicePdf'
 import RecordPoPaymentModal from '../../components/purchases/RecordPoPaymentModal'
 import ReceiptLightboxModal from '../../components/purchases/ReceiptLightboxModal'
+import { showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
 
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
@@ -732,11 +733,11 @@ export default function PurchasesSuppliers() {
               </div>
 
               <div className="space-y-4 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className={showArabicFields ? "grid grid-cols-1 sm:grid-cols-2 gap-3" : ""}>
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
-                      <span>{language === 'ar' ? 'اسم المورد (EN)' : 'Supplier Name (EN)'} *</span>
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-mono font-bold text-slate-500 dark:bg-white/10 dark:text-slate-400">EN</span>
+                      <span>{showArabicFields ? (language === 'ar' ? 'اسم المورد (EN)' : 'Supplier Name (EN)') : (language === 'ar' ? 'اسم المورد' : 'Supplier Name')} *</span>
+                      {showArabicFields ? <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-mono font-bold text-slate-500 dark:bg-white/10 dark:text-slate-400">EN</span> : null}
                     </label>
                     <input
                       type="text"
@@ -747,20 +748,22 @@ export default function PurchasesSuppliers() {
                       autoFocus
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
-                      <span>{language === 'ar' ? 'اسم المورد (AR)' : 'Supplier Name (AR)'}</span>
-                      <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[9px] font-mono font-bold text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">AR</span>
-                    </label>
-                    <input
-                      type="text"
-                      dir="rtl"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
-                      placeholder="مثال: شركة المراعي"
-                      value={supplierForm.nameAr}
-                      onChange={(e) => setSupplierForm((p) => ({ ...p, nameAr: e.target.value }))}
-                    />
-                  </div>
+                  {showArabicFields ? (
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                        <span>{language === 'ar' ? 'اسم المورد (AR)' : 'Supplier Name (AR)'}</span>
+                        <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[9px] font-mono font-bold text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">AR</span>
+                      </label>
+                      <input
+                        type="text"
+                        dir="rtl"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-white/10 dark:bg-[#0c111a] dark:text-white"
+                        placeholder="مثال: شركة المراعي"
+                        value={supplierForm.nameAr}
+                        onChange={(e) => setSupplierForm((p) => ({ ...p, nameAr: e.target.value }))}
+                      />
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
