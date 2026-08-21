@@ -24,6 +24,7 @@ import {
   resolveCommercialDocumentNumber,
   resolveInvoiceParties,
 } from '../../lib/commercialDocumentLabels'
+import { getTaxIdLabel, isGccTenant } from '../../lib/saudiTenant'
 
 const joinClasses = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -782,7 +783,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
               </div>
             </div>
             <div className="flex min-w-[148px] flex-col items-center gap-3 self-start text-center">
-              {!isTravelInvoice && !isQuotation && !isPurchaseOrder && (isZatcaApplicable || isFbrApplicable || isNbrApplicable) && (
+              {!isTravelInvoice && !isQuotation && !isPurchaseOrder && (isZatcaApplicable || isFbrApplicable || isNbrApplicable || isGccTenant(tenant)) && (
                 <div className="rounded-[1.5rem] border border-slate-200 bg-white p-2 shadow-sm">
                   {qrValue ? (
                     <QRCodeSVG value={qrValue} size={88} bgColor="transparent" fgColor="#0F172A" />
@@ -814,12 +815,12 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
                   </>
                 ) : (
                   <>
-                    {(invoice?.seller?.vatNumber || invoiceBranding.vatNumber) && (
-                      <p><span className="font-medium text-slate-900">{language === 'ar' ? 'الرقم الضريبي' : 'VAT'}:</span> {invoice?.seller?.vatNumber || invoiceBranding.vatNumber}</p>
-                    )}
-                    {(invoice?.seller?.crNumber || invoiceBranding.crNumber) && (
-                      <p><span className="font-medium text-slate-900">{language === 'ar' ? 'السجل التجاري' : 'CR'}:</span> {invoice?.seller?.crNumber || invoiceBranding.crNumber}</p>
-                    )}
+                    {companyVat ? (
+                      <p><span className="font-medium text-slate-900">{getTaxIdLabel(tenant, cur, language === 'ar')}:</span> {companyVat}</p>
+                    ) : null}
+                    {companyCr ? (
+                      <p><span className="font-medium text-slate-900">{language === 'ar' ? 'السجل التجاري' : 'CR'}:</span> {companyCr}</p>
+                    ) : null}
                   </>
                 )}
               </div>

@@ -110,6 +110,19 @@ export function getTaxAuthorityName(tenant) {
   return 'Tax Authority'
 }
 
+export function getTaxQrLabel(tenant, currency, isAr = false) {
+  const cur = String(currency || getTenantCurrency(tenant)).toUpperCase()
+  if (cur === 'SAR' || isSaudiTenant(tenant)) return isAr ? 'رمز QR معتمد من زاتكا' : 'ZATCA Compliant QR'
+  if (cur === 'AED' || isUaeTenant(tenant)) return isAr ? 'رمز الفوترة الإلكترونية FTA' : 'FTA E-Invoicing QR'
+  if (cur === 'OMR' || isOmanTenant(tenant)) return isAr ? 'رمز الفوترة الإلكترونية OTA' : 'OTA E-Invoicing QR'
+  if (cur === 'BHD' || isBahrainTenant(tenant)) return isAr ? 'رمز الفاتورة الضريبية NBR' : 'NBR Tax Invoice QR'
+  if (cur === 'KWD' || isKuwaitTenant(tenant)) return isAr ? 'رمز التحقق الضريبي MOF' : 'MOF Tax Verification QR'
+  if (cur === 'QAR' || isQatarTenant(tenant)) return isAr ? 'رمز ضريبة قطر (ضريبة)' : 'GTA Dhareeba QR'
+  if (cur === 'BDT' || isBangladeshTenant(tenant)) return isAr ? 'رمز موشاك الضريبي NBR' : 'NBR Mushak 6.3 QR'
+  if (cur === 'PKR' || isPakistanTenant(tenant)) return isAr ? 'رمز الفاتورة الرقمية FBR' : 'FBR Digital Invoice QR'
+  return isAr ? 'رمز التحقق الضريبي' : 'Tax Verification QR'
+}
+
 /**
  * Which government tax suite applies for this tenant:
  *   'saudi' | 'uae' | 'oman' | 'bahrain' | 'kuwait' | 'qatar' | 'bangladesh' | 'pakistan' | null

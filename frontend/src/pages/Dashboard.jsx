@@ -494,6 +494,24 @@ export default function Dashboard() {
     )
 
     addIf(
+      ['AED', 'OMR', 'BHD', 'KWD', 'QAR'].includes(tenantCurrency) ||
+      isAppAccessValid(apps.uae_fta_compliance) ||
+      isAppAccessValid(apps.oman_ota_compliance) ||
+      isAppAccessValid(apps.bahrain_nbr_compliance) ||
+      isAppAccessValid(apps.kuwait_mof_compliance) ||
+      isAppAccessValid(apps.qatar_dhareeba_compliance),
+      {
+        id: 'gcc_tax_compliance',
+        nameEn: tenantCurrency === 'AED' ? 'UAE FTA Compliance' : (tenantCurrency === 'OMR' ? 'Oman OTA Compliance' : (tenantCurrency === 'BHD' ? 'Bahrain NBR Compliance' : (tenantCurrency === 'KWD' ? 'Kuwait MOF Compliance' : (tenantCurrency === 'QAR' ? 'Qatar GTA Dhareeba' : 'GCC Compliance')))),
+        nameAr: tenantCurrency === 'AED' ? 'الامتثال الضريبي الإماراتي (FTA)' : (tenantCurrency === 'OMR' ? 'الامتثال الضريبي العماني (OTA)' : (tenantCurrency === 'BHD' ? 'الامتثال الضريبي البحريني (NBR)' : (tenantCurrency === 'KWD' ? 'الامتثال الضريبي الكويتي (MOF)' : (tenantCurrency === 'QAR' ? 'الامتثال الضريبي القطري (ضريبة)' : 'الامتثال الضريبي الخليجي')))),
+        descEn: `${tenantCurrency || 'GCC'} Tax & E-Invoicing`,
+        descAr: 'الفوترة والامتثال الضريبي',
+        route: '/app/dashboard/tenant-settings/government-integrations',
+        icon: ShieldCheck,
+      }
+    )
+
+    addIf(
       businessTypes.includes('gym') || isAppAccessValid(apps.gym_fitness_club),
       {
         id: 'gym_fitness_club',

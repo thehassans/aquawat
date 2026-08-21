@@ -290,8 +290,8 @@ router.post('/demo-login', async (req, res) => {
         business: {
           legalNameAr: 'مقدّر - عرض تجريبي',
           legalNameEn: 'Maqder Demo',
-          vatNumber: `DEMO-${now}`,
-          crNumber: `CR-${now}`
+          vatNumber: '',
+          crNumber: ''
         },
         subscription: {
           plan: 'trial',
@@ -437,8 +437,8 @@ router.post('/demo-signup', async (req, res) => {
       business: {
         legalNameEn: company,
         ...(isGcc ? { legalNameAr: company } : {}),
-        vatNumber: `DEMO-${Date.now()}`,
-        crNumber: `CR-${Date.now()}`,
+        vatNumber: '',
+        crNumber: '',
         contactEmail: normalizedEmail,
         address: {
           country: countryCode === 'OTHER' ? '' : countryCode,

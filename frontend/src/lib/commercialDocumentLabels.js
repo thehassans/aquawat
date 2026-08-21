@@ -1,3 +1,5 @@
+import { getTaxIdLabel } from './saudiTenant.js'
+
 export const isPurchaseOrderDocument = (documentType) => documentType === 'purchase_order'
 export const isQuotationDocument = (documentType) => documentType === 'quotation'
 export const isPurchaseInvoiceDocument = (documentType, invoice) =>
@@ -77,13 +79,18 @@ export const resolveInvoiceParties = ({ invoice, tenant, invoiceBranding = {}, l
     ? (tenant?.business?.contactEmail || tenant?.email || '')
     : (invoice?.seller?.contactEmail || tenant?.business?.contactEmail || tenant?.email || '')
 
-  const companyVat = isPurchaseFlow
+  const isDummyVat = (val) => !val || /^DEMO-\d+/i.test(String(val).trim())
+  const isDummyCr = (val) => !val || /^CR-\d+/i.test(String(val).trim())
+
+  const rawCompanyVat = isPurchaseFlow
     ? (tenant?.business?.vatNumber || '')
     : (invoice?.seller?.vatNumber || tenant?.business?.vatNumber || '')
+  const companyVat = isDummyVat(rawCompanyVat) ? '' : String(rawCompanyVat).trim()
 
-  const companyCr = isPurchaseFlow
+  const rawCompanyCr = isPurchaseFlow
     ? (tenant?.business?.crNumber || '')
     : (invoice?.seller?.crNumber || tenant?.business?.crNumber || '')
+  const companyCr = isDummyCr(rawCompanyCr) ? '' : String(rawCompanyCr).trim()
 
   const headerCompanyName = bilingual
     ? companyNameEn
@@ -99,18 +106,19 @@ export const resolveInvoiceParties = ({ invoice, tenant, invoiceBranding = {}, l
   const counterpartyAddress = counterpartyData?.address
   const counterpartyPhone = counterpartyData?.contactPhone || counterpartyData?.phone
   const counterpartyEmail = counterpartyData?.contactEmail || counterpartyData?.email
-  const counterpartyVat = counterpartyData?.vatNumber
-  const counterpartyCr = counterpartyData?.crNumber
+  const counterpartyVat = isDummyVat(counterpartyData?.vatNumber) ? '' : String(counterpartyData?.vatNumber).trim()
+  const counterpartyCr = isDummyCr(counterpartyData?.crNumber) ? '' : String(counterpartyData?.crNumber).trim()
   const counterpartyNtn = counterpartyData?.ntn || counterpartyData?.taxId
   const counterpartyStrn = counterpartyData?.strn
 
   const companyNtn = tenant?.fbr?.ntn || tenant?.business?.ntn || invoice?.seller?.ntn || ''
   const companyStrn = tenant?.fbr?.strn || tenant?.business?.strn || invoice?.seller?.strn || ''
 
-  const isPk = String(invoice?.currency || tenant?.settings?.currency || '').toUpperCase() === 'PKR' ||
-    (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
+  const cur = String(invoice?.currency || tenant?.settings?.currency || '').toUpperCase()
+  const isPk = cur === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
   const taxLabel = isPk ? 'GST' : 'VAT'
-  const taxIdLabel = isPk ? 'NTN / STRN' : 'VAT'
+  const taxIdLabel = getTaxIdLabel(tenant, cur, false)
+  const taxIdLabelAr = getTaxIdLabel(tenant, cur, true)
 
   const counterpartyLabelEn = getCommercialCounterpartyLabel(documentType, 'en', invoice?.flow)
   const counterpartyLabelAr = getCommercialCounterpartyLabel(documentType, 'ar', invoice?.flow)
@@ -127,6 +135,8 @@ export const resolveInvoiceParties = ({ invoice, tenant, invoiceBranding = {}, l
     companyCr,
     companyNtn,
     companyStrn,
+    taxIdLabel,
+    taxIdLabelAr,
     counterpartyData,
     counterpartyNameEn,
     counterpartyNameAr,

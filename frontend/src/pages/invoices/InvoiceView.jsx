@@ -19,6 +19,7 @@ import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { tenantHasEmailAddon } from '../../lib/emailAddon'
 import { tenantHasSmsAddon } from '../../lib/smsAddon'
 import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
+import { getTaxQrLabel } from '../../lib/saudiTenant'
 
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -643,12 +644,10 @@ export default function InvoiceView() {
                 {t('viewQr')}
               </h3>
               <div className="flex justify-center p-4 bg-white rounded-xl">
-                <QRCodeSVG value={invoice.zatca?.qrCodeData || invoice.fbr?.qrCode} size={180} />
+                <QRCodeSVG value={invoice.zatca?.qrCodeData || invoice.countryCompliance?.qrCode || invoice.fbr?.qrCode} size={180} />
               </div>
               <p className="text-xs text-gray-500 text-center mt-3">
-                {invoice.fbr?.qrCode && !invoice.zatca?.qrCodeData
-                  ? (language === 'ar' ? 'رمز QR للفاتورة الرقمية FBR' : 'FBR Digital Invoice QR')
-                  : (language === 'ar' ? 'رمز QR للفاتورة الإلكترونية' : 'E-Invoice QR Code')}
+                {getTaxQrLabel(tenant, invoice?.currency || tenant?.settings?.currency, language === 'ar')}
               </p>
             </motion.div>
           )}

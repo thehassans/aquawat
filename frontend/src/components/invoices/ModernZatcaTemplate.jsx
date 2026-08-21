@@ -9,6 +9,7 @@ import { formatCurrencyAmount } from '../../lib/currency'
 import { Building2, Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info } from 'lucide-react'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { bilingualLabel, localizeSecondaryText, setActiveInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
+import { getTaxIdLabel, getTaxQrLabel } from '../../lib/saudiTenant'
 import {
   getCommercialCounterpartyLabel,
   getCounterpartyFallbackName,
@@ -19,6 +20,8 @@ import ProductTypeMark from './ProductTypeMark'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 const toEasternArabicNumerals = (str) => String(str || '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d])
+const isDummyVat = (val) => !val || /^DEMO-\d+/i.test(String(val).trim())
+const isDummyCr = (val) => !val || /^CR-\d+/i.test(String(val).trim())
 
 export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', bilingual = false, secondaryLanguage, documentType = 'invoice' }) {
   const resolvedSecondary = ['ur', 'bn', 'ar'].includes(secondaryLanguage) ? secondaryLanguage : null
@@ -43,7 +46,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   
   const companyNameAr = isPurchaseFlow
     ? (tenant?.business?.legalNameAr || invoiceBranding?.legalNameAr || '')
-    : (invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || '')
+    : (invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || invoiceBranding?.legalNameAr || '')
 
   const companyAddress = isPurchaseFlow
     ? (tenant?.business?.address || null)
@@ -57,13 +60,15 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
     ? (tenant?.business?.contactEmail || tenant?.email || '')
     : (invoice?.seller?.contactEmail || tenant?.business?.contactEmail || tenant?.email || '')
 
-  const companyVat = isPurchaseFlow
+  const rawCompanyVat = isPurchaseFlow
     ? (tenant?.business?.vatNumber || '')
     : (invoice?.seller?.vatNumber || tenant?.business?.vatNumber || '')
+  const companyVat = isDummyVat(rawCompanyVat) ? '' : String(rawCompanyVat).trim()
 
-  const companyCr = isPurchaseFlow
+  const rawCompanyCr = isPurchaseFlow
     ? (tenant?.business?.crNumber || '')
     : (invoice?.seller?.crNumber || tenant?.business?.crNumber || '')
+  const companyCr = isDummyCr(rawCompanyCr) ? '' : String(rawCompanyCr).trim()
 
   const headerCompanyName = bilingual ? companyNameEn : (language === 'ar' ? (companyNameAr || companyNameEn) : (companyNameEn || companyNameAr))
 
@@ -74,11 +79,13 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const counterpartyName = bilingual ? counterpartyNameEn : (language === 'ar' ? (counterpartyNameAr || counterpartyNameEn) : (counterpartyNameEn || counterpartyNameAr))
   const counterpartyAddress = counterpartyData?.address
   const counterpartyPhone = counterpartyData?.contactPhone || counterpartyData?.phone
-  const counterpartyVat = counterpartyData?.vatNumber
-  const counterpartyCr = counterpartyData?.crNumber
+  const counterpartyVat = isDummyVat(counterpartyData?.vatNumber) ? '' : String(counterpartyData?.vatNumber).trim()
+  const counterpartyCr = isDummyCr(counterpartyData?.crNumber) ? '' : String(counterpartyData?.crNumber).trim()
 
   const logoSrc = invoiceBranding.logoSrc
   
+  const taxIdLabel = getTaxIdLabel(tenant, currency, false)
+  const taxIdLabelAr = getTaxIdLabel(tenant, currency, true)
   const isZatcaApplicable = String(currency || 'SAR').toUpperCase() === 'SAR'
   const qrValue = resolveTaxInvoiceQr({
     invoice,
@@ -243,12 +250,12 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               {companyVat && (
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center justify-end gap-2">
-                    <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{isQuotation ? 'VAT #' : 'VAT No'}:</span>
+                    <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{isQuotation ? `${taxIdLabel} #` : taxIdLabel}:</span>
                     <span className={`font-mono ${isQuotation ? 'font-bold' : ''}`}>{companyVat}</span>
                   </div>
-                  {bilingual && S('الرقم الضريبي') && (
+                  {bilingual && taxIdLabelAr && (
                     <div className="flex items-center justify-end gap-2" dir={secondaryDir}>
-                      <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{S('الرقم الضريبي')}:</span>
+                      <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{taxIdLabelAr}:</span>
                       <span className={`font-sans ${isQuotation ? 'font-bold' : ''}`}>{isArabicSecondary ? toEasternArabicNumerals(companyVat) : companyVat}</span>
                     </div>
                   )}
@@ -629,7 +636,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
           {showZatcaQr && qrValue && (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50/50 p-3 w-full md:w-56">
               <QRCodeSVG value={qrValue} size={100} bgColor="transparent" fgColor="#111827" />
-              <p className="mt-2 text-xs text-center text-gray-500">{isZatcaApplicable ? 'ZATCA Compliant QR' : 'FBR Digital Invoice QR'}</p>
+              <p className="mt-2 text-xs text-center text-gray-500">{getTaxQrLabel(tenant, currency, language === 'ar')}</p>
             </div>
           )}
         </div>
