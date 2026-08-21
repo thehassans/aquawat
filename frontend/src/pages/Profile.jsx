@@ -75,6 +75,7 @@ import {
   humanizeAppId,
 } from '../lib/subscriptionState'
 import RichTextNoteField from '../components/invoices/RichTextNoteField'
+import { getTenantCountryCode } from '../lib/saudiTenant'
 
 const BUSINESS_TYPE_ICONS = {
   trading: Store,
@@ -178,7 +179,7 @@ export default function Profile() {
           buildingNumber: business.address?.buildingNumber || '',
           additionalNumber: business.address?.additionalNumber || '',
           postalCode: business.address?.postalCode || '',
-          country: business.address?.country || 'SA',
+          country: business.address?.country || getTenantCountryCode(tenant),
         },
         nationalAddress: {
           proofNumber: nationalAddress.proofNumber || '',

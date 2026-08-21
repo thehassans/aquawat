@@ -7,7 +7,31 @@ export function getTenantCurrency(tenant = {}) {
 }
 
 export function getTenantCountryCode(tenant = {}) {
-  return String(tenant?.business?.address?.country || tenant?.country || '').trim().toUpperCase()
+  const direct = String(
+    tenant?.business?.address?.country ||
+    tenant?.country ||
+    tenant?.business?.country ||
+    ''
+  ).trim().toUpperCase()
+  if (direct) return direct
+
+  const cur = String(tenant?.settings?.currency || tenant?.currency || '').trim().toUpperCase()
+  if (cur === 'PKR') return 'PK'
+  if (cur === 'AED') return 'AE'
+  if (cur === 'OMR') return 'OM'
+  if (cur === 'BHD') return 'BH'
+  if (cur === 'KWD') return 'KW'
+  if (cur === 'QAR') return 'QA'
+  if (cur === 'BDT') return 'BD'
+  if (cur === 'EGP') return 'EG'
+  if (cur === 'JOD') return 'JO'
+  if (cur === 'INR') return 'IN'
+  if (cur === 'USD') return 'US'
+  if (cur === 'GBP') return 'GB'
+  if (cur === 'TRY') return 'TR'
+  if (cur === 'MYR') return 'MY'
+  if (cur === 'SGD') return 'SG'
+  return 'SA'
 }
 
 export function isSaudiTenant(tenant = {}) {

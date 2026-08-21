@@ -12,6 +12,7 @@ import Money from '../ui/Money'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { isGccArabicMarket } from '../../lib/invoiceLanguage'
+import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
 import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from './InvoiceLivePreview'
@@ -41,11 +42,11 @@ const getEmptyLine = (tenant) => ({
 
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
 
-function BilingualLabel({ en, ar }) {
+function BilingualLabel({ en, ar, showArabic = true }) {
   return (
     <label className="label flex items-baseline justify-between gap-2" dir="ltr">
       <span>{en}</span>
-      <span dir="rtl" className="font-medium text-gray-500">{ar}</span>
+      {showArabic && ar ? <span dir="rtl" className="font-medium text-gray-500">{ar}</span> : null}
     </label>
   )
 }
@@ -256,9 +257,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const invoiceSubtype = values.invoiceSubtype || 'standard'
   const selectedTemplateId = Number(values.pdfTemplateId || getInvoiceTemplateId(tenant, businessContext))
   const selectedWarehouseId = values.warehouseId || ''
-  const isTradingContext = businessContext === 'trading'
-  const isTravelContext = businessContext === 'travel_agency'
-  const showArabicFields = isGccArabicMarket(tenant)
+  const showArabicFields = isArabicTenantMarket(tenant)
+  const isPk = isPakistanTenant(tenant)
+  const taxLabel = getTaxLabel(tenant)
+  const taxIdLabel = getTaxIdLabel(tenant)
+  const FieldLabel = (props) => <BilingualLabel {...props} showArabic={showArabicFields} />
   const skipBusinessContextResetRef = useRef(false)
 
   useLiveTranslation({
@@ -448,7 +451,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue('seller.address.street', supplier.address?.street || '')
     setValue('seller.address.streetAr', supplier.address?.streetAr || '')
     setValue('seller.address.postalCode', supplier.address?.postalCode || '')
-    setValue('seller.address.country', supplier.address?.country || 'SA')
+    setValue('seller.address.country', supplier.address?.country || getTenantCountryCode(tenant))
     setValue('seller.address.buildingNumber', supplier.address?.buildingNumber || '')
     setValue('seller.address.additionalNumber', supplier.address?.additionalNumber || '')
   }
@@ -825,125 +828,77 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             ) : (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>Name / Company</span>
-                    <span dir="rtl" className="font-medium text-gray-500">الاسم / الشركة ({language === 'ar' ? 'اختياري' : 'Optional'})</span>
-                  </label>
+                  <FieldLabel en="Name / Company" ar="الاسم / الشركة" />
                   <input {...register('seller.name')} className="input" placeholder={language === 'ar' ? 'اسم المورد أو الشركة' : 'Supplier or vendor name'} />
                 </div>
                 {showArabicFields ? (
                   <div>
-                    <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                      <span>Name (Arabic)</span>
-                      <span dir="rtl" className="font-medium text-gray-500">الاسم بالعربية</span>
-                    </label>
+                    <FieldLabel en="Name (Arabic)" ar="الاسم بالعربية" />
                     <input {...register('seller.nameAr')} className="input" dir="rtl" />
                   </div>
                 ) : (
                   <input type="hidden" {...register('seller.nameAr')} />
                 )}
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>VAT Number</span>
-                    <span dir="rtl" className="font-medium text-gray-500">الرقم الضريبي</span>
-                  </label>
+                  <FieldLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" />
                   <input {...register('seller.vatNumber')} className="input" />
                 </div>
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>CR Number</span>
-                    <span dir="rtl" className="font-medium text-gray-500">السجل التجاري</span>
-                  </label>
+                  <FieldLabel en="CR Number" ar="السجل التجاري" />
                   <input {...register('seller.crNumber')} className="input" />
                 </div>
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>Phone Number</span>
-                    <span dir="rtl" className="font-medium text-gray-500">رقم الهاتف</span>
-                  </label>
+                  <FieldLabel en="Phone Number" ar="رقم الهاتف" />
                   <input {...register('seller.contactPhone')} className="input" />
                 </div>
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>Email</span>
-                    <span dir="rtl" className="font-medium text-gray-500">البريد الإلكتروني</span>
-                  </label>
+                  <FieldLabel en="Email" ar="البريد الإلكتروني" />
                   <input type="email" {...register('seller.contactEmail')} className="input" />
                 </div>
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>City</span>
-                    <span dir="rtl" className="font-medium text-gray-500">المدينة</span>
-                  </label>
+                  <FieldLabel en="City" ar="المدينة" />
                   <input {...register('seller.address.city')} className="input" />
                 </div>
                 {showArabicFields ? (
                   <div>
-                    <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                      <span>City (Arabic)</span>
-                      <span dir="rtl" className="font-medium text-gray-500">المدينة بالعربية</span>
-                    </label>
+                    <FieldLabel en="City (Arabic)" ar="المدينة بالعربية" />
                     <input {...register('seller.address.cityAr')} className="input" dir="rtl" />
                   </div>
                 ) : null}
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>District</span>
-                    <span dir="rtl" className="font-medium text-gray-500">الحي</span>
-                  </label>
+                  <FieldLabel en="District" ar="الحي" />
                   <input {...register('seller.address.district')} className="input" />
                 </div>
                 {showArabicFields ? (
                   <div>
-                    <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                      <span>District (Arabic)</span>
-                      <span dir="rtl" className="font-medium text-gray-500">الحي بالعربية</span>
-                    </label>
+                    <FieldLabel en="District (Arabic)" ar="الحي بالعربية" />
                     <input {...register('seller.address.districtAr')} className="input" dir="rtl" />
                   </div>
                 ) : null}
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>Street</span>
-                    <span dir="rtl" className="font-medium text-gray-500">الشارع</span>
-                  </label>
+                  <FieldLabel en="Street" ar="الشارع" />
                   <input {...register('seller.address.street')} className="input" />
                 </div>
                 {showArabicFields ? (
                   <div>
-                    <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                      <span>Street (Arabic)</span>
-                      <span dir="rtl" className="font-medium text-gray-500">الشارع بالعربية</span>
-                    </label>
+                    <FieldLabel en="Street (Arabic)" ar="الشارع بالعربية" />
                     <input {...register('seller.address.streetAr')} className="input" dir="rtl" />
                   </div>
                 ) : null}
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>Postal Code</span>
-                    <span dir="rtl" className="font-medium text-gray-500">الرمز البريدي</span>
-                  </label>
+                  <FieldLabel en="Postal Code" ar="الرمز البريدي" />
                   <input {...register('seller.address.postalCode')} className="input" />
                 </div>
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>Country</span>
-                    <span dir="rtl" className="font-medium text-gray-500">الدولة</span>
-                  </label>
-                  <input {...register('seller.address.country')} className="input" placeholder="SA" />
+                  <FieldLabel en="Country" ar="الدولة" />
+                  <input {...register('seller.address.country')} className="input" placeholder={getTenantCountryCode(tenant)} />
                 </div>
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>Building Number</span>
-                    <span dir="rtl" className="font-medium text-gray-500">رقم المبنى</span>
-                  </label>
+                  <FieldLabel en="Building Number" ar="رقم المبنى" />
                   <input {...register('seller.address.buildingNumber')} className="input" />
                 </div>
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>Additional Number</span>
-                    <span dir="rtl" className="font-medium text-gray-500">الرقم الإضافي</span>
-                  </label>
+                  <FieldLabel en="Additional Number" ar="الرقم الإضافي" />
                   <input {...register('seller.address.additionalNumber')} className="input" />
                 </div>
               </div>
@@ -1285,20 +1240,20 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   </p>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
                     <div>
-                      <BilingualLabel en="Bank Name" ar="اسم البنك" />
-                      <input {...register('bankDetails.bankName')} className="input mt-1.5" placeholder="Al Rajhi Bank / SNB" />
+                      <FieldLabel en="Bank Name" ar="اسم البنك" />
+                      <input {...register('bankDetails.bankName')} className="input mt-1.5" placeholder={showArabicFields ? "Al Rajhi Bank / SNB" : "Habib Bank / Standard Chartered"} />
                     </div>
                     <div>
-                      <BilingualLabel en="Account Name" ar="اسم الحساب" />
+                      <FieldLabel en="Account Name" ar="اسم الحساب" />
                       <input {...register('bankDetails.accountName')} className="input mt-1.5" />
                     </div>
                     <div>
-                      <BilingualLabel en="Account Number" ar="رقم الحساب" />
+                      <FieldLabel en="Account Number" ar="رقم الحساب" />
                       <input {...register('bankDetails.accountNumber')} className="input mt-1.5 font-mono" />
                     </div>
                     <div>
-                      <BilingualLabel en="IBAN" ar="الآيبان" />
-                      <input {...register('bankDetails.iban')} className="input mt-1.5 font-mono" placeholder="SA0000000000000000000000" />
+                      <FieldLabel en={showArabicFields ? "IBAN" : "IBAN / Swift"} ar="الآيبان" />
+                      <input {...register('bankDetails.iban')} className="input mt-1.5 font-mono" placeholder={showArabicFields ? "SA0000000000000000000000" : "PK00XXXX0000000000000000"} />
                     </div>
                   </div>
                   <input type="hidden" {...register('includeBankDetails')} />

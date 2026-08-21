@@ -11,6 +11,7 @@ import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/busine
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { LETTERHEAD_TEMPLATE_ID, QUOTATION_TEMPLATE_IDS, resolveQuotationTemplateId } from '../../lib/invoiceTemplates'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
+import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
 import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
@@ -65,6 +66,16 @@ const CONTEXT_META = {
   restaurant: { Icon: UtensilsCrossed, descEn: 'F&B and catering quotes', descAr: 'عروض المطاعم والضيافة', accent: 'from-rose-500 to-red-600' },
 }
 
+function FieldLabel({ en, ar, showArabic = true, as = 'p' }) {
+  const Tag = as
+  return (
+    <Tag className="label flex items-baseline justify-between gap-2" dir="ltr">
+      <span>{en}</span>
+      {showArabic && ar ? <span dir="rtl" className="font-medium text-slate-500">{ar}</span> : null}
+    </Tag>
+  )
+}
+
 const formatDateForInput = (value) => {
   if (!value) return ''
   const date = value instanceof Date ? value : new Date(value)
@@ -93,7 +104,12 @@ const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext })
       iban: quotation?.bankDetails?.iban || '',
     },
     invoiceDiscount: Math.max(0, toNumber(quotation?.invoiceDiscount, 0)),
-    buyer: quotation?.buyer || {},
+    buyer: {
+      address: {
+        country: getTenantCountryCode(tenant),
+      },
+      ...(quotation?.buyer || {}),
+    },
     authorizedPersonName: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonName || '') : '',
     authorizedPersonNameAr: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonNameAr || '') : '',
     authorizedPersonDesignation: (quotation?.authorizedPersonName || quotation?.authorizedPersonNameAr || quotation?.authorizedPersonDesignation || quotation?.authorizedPersonSignature || quotation?.stampImage) ? (quotation?.authorizedPersonDesignation || '') : '',
@@ -147,7 +163,11 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     initialQuotation?.bankDetails?.iban ||
     initialQuotation?.bankDetails?.accountNumber
   ))
-  const showArabicFields = isGccArabicMarket(tenant)
+  const showArabicFields = isArabicTenantMarket(tenant)
+  const isPk = isPakistanTenant(tenant)
+  const taxLabel = getTaxLabel(tenant)
+  const taxIdLabel = getTaxIdLabel(tenant)
+  const FormLabel = (props) => <FieldLabel {...props} showArabic={showArabicFields} />
 
   const handleToggleAuthorizedPerson = (enable) => {
     setShowAuthorizedPerson(enable)
@@ -423,7 +443,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     setValue('buyer.address.district', customer.address?.district || '')
     setValue('buyer.address.street', customer.address?.street || '')
     setValue('buyer.address.postalCode', customer.address?.postalCode || '')
-    setValue('buyer.address.country', customer.address?.country || 'SA')
+    setValue('buyer.address.country', customer.address?.country || getTenantCountryCode(tenant))
     setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '')
     setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '')
   }
@@ -604,10 +624,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" dir="ltr">
               <div className={showArabicFields ? 'sm:col-span-2' : ''}>
-                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Legal name</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الاسم القانوني</span>
-                </p>
+                <FormLabel en="Legal name" ar="الاسم القانوني" />
                 <div className={`mt-1 grid gap-3 ${showArabicFields ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">
                     {tenant?.business?.legalNameEn || tenant?.name || '—'}
@@ -620,45 +637,30 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 </div>
               </div>
               <div>
-                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>VAT Number</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الرقم الضريبي</span>
-                </p>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.vatNumber || '—'}</p>
+                <FormLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" />
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.fbr?.ntn || tenant?.business?.ntn || tenant?.business?.vatNumber || '—'}</p>
               </div>
               <div>
-                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>CR Number</span>
-                  <span dir="rtl" className="font-medium text-slate-500">السجل التجاري</span>
-                </p>
+                <FormLabel en="CR Number" ar="السجل التجاري" />
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.crNumber || '—'}</p>
               </div>
               <div>
-                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Phone</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الهاتف</span>
-                </p>
+                <FormLabel en="Phone" ar="الهاتف" />
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactPhone || '—'}</p>
               </div>
               <div>
-                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Email</span>
-                  <span dir="rtl" className="font-medium text-slate-500">البريد</span>
-                </p>
+                <FormLabel en="Email" ar="البريد" />
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactEmail || '—'}</p>
               </div>
               <div className={showArabicFields ? 'sm:col-span-2' : ''}>
-                <p className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Address</span>
-                  <span dir="rtl" className="font-medium text-slate-500">العنوان</span>
-                </p>
+                <FormLabel en="Address" ar="العنوان" />
                 <div className={`mt-1 grid gap-3 ${showArabicFields ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">
                     {[
                       tenant?.business?.address?.street,
                       tenant?.business?.address?.district,
                       tenant?.business?.address?.city,
-                      tenant?.business?.address?.country || 'SA',
+                      tenant?.business?.address?.country || getTenantCountryCode(tenant),
                     ].filter(Boolean).join(', ') || '—'}
                   </p>
                   {showArabicFields ? (
@@ -667,7 +669,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                         tenant?.business?.address?.streetAr,
                         tenant?.business?.address?.districtAr,
                         tenant?.business?.address?.cityAr,
-                        tenant?.business?.address?.country || 'SA',
+                        tenant?.business?.address?.country || getTenantCountryCode(tenant),
                       ].filter(Boolean).join('، ') || '—'}
                     </p>
                   ) : null}
@@ -829,108 +831,68 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             <input type="hidden" {...register('customerId')} />
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
               <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Name / Company</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الاسم / الشركة</span>
-                </label>
+                <FormLabel en="Name / Company" ar="الاسم / الشركة" as="label" />
                 <input {...register('buyer.name', { required: values?.transactionType === 'B2B' })} className="input" />
               </div>
+              {showArabicFields ? (
+                <div>
+                  <FormLabel en="Name (Arabic)" ar="الاسم بالعربية" as="label" />
+                  <input {...register('buyer.nameAr')} className="input" dir="rtl" />
+                </div>
+              ) : null}
               <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Name (Arabic)</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الاسم بالعربية</span>
-                </label>
-                <input {...register('buyer.nameAr')} className="input" dir="rtl" />
-              </div>
-              <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>VAT Number</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الرقم الضريبي</span>
-                </label>
+                <FormLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" as="label" />
                 <input {...register('buyer.vatNumber')} className="input" />
               </div>
               <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>CR Number</span>
-                  <span dir="rtl" className="font-medium text-slate-500">السجل التجاري</span>
-                </label>
+                <FormLabel en="CR Number" ar="السجل التجاري" as="label" />
                 <input {...register('buyer.crNumber')} className="input" />
               </div>
               <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Phone</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الهاتف</span>
-                </label>
+                <FormLabel en="Phone" ar="الهاتف" as="label" />
                 <input {...register('buyer.contactPhone')} className="input" />
               </div>
               <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Email</span>
-                  <span dir="rtl" className="font-medium text-slate-500">البريد الإلكتروني</span>
-                </label>
+                <FormLabel en="Email" ar="البريد الإلكتروني" as="label" />
                 <input type="email" {...register('buyer.contactEmail')} className="input" />
               </div>
               <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>City</span>
-                  <span dir="rtl" className="font-medium text-slate-500">المدينة</span>
-                </label>
+                <FormLabel en="City" ar="المدينة" as="label" />
                 <input {...register('buyer.address.city')} className="input" />
               </div>
               {showArabicFields ? (
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>City (Arabic)</span>
-                    <span dir="rtl" className="font-medium text-slate-500">المدينة بالعربية</span>
-                  </label>
+                  <FormLabel en="City (Arabic)" ar="المدينة بالعربية" as="label" />
                   <input {...register('buyer.address.cityAr')} className="input" dir="rtl" />
                 </div>
               ) : null}
               <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>District</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الحي</span>
-                </label>
+                <FormLabel en="District" ar="الحي" as="label" />
                 <input {...register('buyer.address.district')} className="input" />
               </div>
               {showArabicFields ? (
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>District (Arabic)</span>
-                    <span dir="rtl" className="font-medium text-slate-500">الحي بالعربية</span>
-                  </label>
+                  <FormLabel en="District (Arabic)" ar="الحي بالعربية" as="label" />
                   <input {...register('buyer.address.districtAr')} className="input" dir="rtl" />
                 </div>
               ) : null}
               <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Street</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الشارع</span>
-                </label>
+                <FormLabel en="Street" ar="الشارع" as="label" />
                 <input {...register('buyer.address.street')} className="input" />
               </div>
               {showArabicFields ? (
                 <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>Street (Arabic)</span>
-                    <span dir="rtl" className="font-medium text-slate-500">الشارع بالعربية</span>
-                  </label>
+                  <FormLabel en="Street (Arabic)" ar="الشارع بالعربية" as="label" />
                   <input {...register('buyer.address.streetAr')} className="input" dir="rtl" />
                 </div>
               ) : null}
               <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Postal Code</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الرمز البريدي</span>
-                </label>
+                <FormLabel en="Postal Code" ar="الرمز البريدي" as="label" />
                 <input {...register('buyer.address.postalCode')} className="input" />
               </div>
               <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Country</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الدولة</span>
-                </label>
-                <input {...register('buyer.address.country')} className="input" placeholder="SA" />
+                <FormLabel en="Country" ar="الدولة" as="label" />
+                <input {...register('buyer.address.country')} className="input" placeholder={getTenantCountryCode(tenant)} />
               </div>
             </div>
           </div>
