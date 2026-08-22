@@ -390,17 +390,17 @@ export default function MarketingSolutions() {
               : '20+ integrated modules designed to feel effortless for every team across finance, HR, inventory, and operations.'}
           </motion.p>
 
-          {/* Highlight Text Feature */}
+          {/* Highlight Feature Banner */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            className="mt-6 mx-auto max-w-3xl text-center"
+            className="mt-8 mx-auto max-w-3xl flex items-center justify-center rounded-2xl border border-slate-200/90 bg-white/90 backdrop-blur-md px-6 py-4 shadow-sm"
           >
-            <p className="text-center text-base sm:text-lg font-semibold text-slate-700">
-              Explore modules built to <HighlightText variant="lime">AUTOMATE</HighlightText>,{' '}
-              <HighlightText variant="yellow">STREAMLINE</HighlightText>, and{' '}
-              <HighlightText variant="pink">GROW</HighlightText> your operations.
+            <p className="text-center text-sm sm:text-base font-semibold text-slate-800">
+              Explore modules built to <HighlightText variant="lime">automate</HighlightText>,{' '}
+              <HighlightText variant="yellow">streamline</HighlightText>, and{' '}
+              <HighlightText variant="pink">grow</HighlightText> your operations.
             </p>
           </motion.div>
 
@@ -588,47 +588,84 @@ export default function MarketingSolutions() {
         </div>
       </section>
 
-      {/* ── CTA SECTION (OPEN, COLOURFUL & NOT IN BLOCK) ── */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-white via-emerald-50/20 to-slate-50 py-24 border-t border-slate-100">
-        <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-emerald-500/10 blur-[130px]" />
-        <div aria-hidden className="pointer-events-none absolute bottom-0 right-1/4 h-[350px] w-[350px] rounded-full bg-teal-400/10 blur-[100px]" />
+      {/* ── UNBOXED COLORFUL CTA SECTION (NO BLOCK / RADIANT MESH GRADIENTS) ── */}
+      <section className="relative overflow-hidden bg-white py-24 sm:py-32 border-t border-slate-100">
+        {/* Ambient Glowing Orbs */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.035]"
+          style={{
+            backgroundImage:
+              'linear-gradient(#000 1px,transparent 1px),linear-gradient(90deg,#000 1px,transparent 1px)',
+            backgroundSize: '48px 48px',
+          }}
+        />
+        <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-[550px] w-[950px] rounded-full bg-gradient-to-r from-emerald-400/15 via-teal-300/15 to-yellow-300/15 blur-[130px]" />
+        <div className="pointer-events-none absolute -bottom-20 right-10 h-[350px] w-[350px] rounded-full bg-pink-400/10 blur-[110px]" />
+        <div className="pointer-events-none absolute -bottom-20 left-10 h-[350px] w-[350px] rounded-full bg-emerald-400/10 blur-[110px]" />
 
         <div className="relative mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-emerald-700 shadow-sm">
-            <Sparkles className="h-3.5 w-3.5" />
-            {isArabic ? 'ابدأ اليوم مجاناً' : 'Start Today Free'}
-          </span>
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/90 bg-emerald-50/90 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-800 shadow-sm backdrop-blur-sm">
+            <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+            <span>7-Day Free Trial · All 20+ Modules Unlocked</span>
+          </div>
 
-          <h2 className="mt-6 font-display text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl text-balance">
-            Start your <HighlightText variant="lime">7-DAY FREE TRIAL</HighlightText> today
+          <h2 className="mt-6 font-display text-4xl font-bold tracking-tight text-slate-950 sm:text-6xl lg:text-7xl leading-[1.12] text-balance max-w-4xl mx-auto">
+            Ready to explore the <HighlightText variant="lime">Complete Suite</HighlightText> built to{' '}
+            <span className="inline-block"><HighlightText variant="yellow">grow with you</HighlightText></span>?
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-600 leading-relaxed">
-            No credit card required. Pick your country and currency — your workspace is live in{' '}
-            <HighlightText variant="pink">UNDER A MINUTE</HighlightText>.
+          <p className="mx-auto mt-6 max-w-2xl text-lg sm:text-xl text-slate-600 leading-relaxed">
+            No credit card required. Pick your country, currency, and modules — your complete live workspace is ready in under a minute.
           </p>
 
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
+          {/* Action Buttons */}
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <button
               type="button"
               onClick={openTrialModal}
-              className="inline-flex items-center gap-2.5 rounded-full bg-emerald-600 px-9 py-4 text-sm sm:text-base font-black text-white shadow-xl shadow-emerald-600/30 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-emerald-600/40"
+              className="inline-flex items-center gap-3 rounded-full bg-emerald-600 px-9 py-4 text-base font-black text-white shadow-[0_12px_32px_-8px_rgba(5,150,105,0.5)] transition-all duration-300 hover:-translate-y-1 hover:bg-emerald-700 hover:shadow-[0_16px_40px_-6px_rgba(5,150,105,0.6)]"
             >
-              <span>{isArabic ? 'ابدأ مجاناً' : 'Start Free Trial'}</span>
+              <span>Start 7-Day Free Trial</span>
               <ArrowRight className="h-5 w-5" />
             </button>
+
+            <a
+              href="https://wa.me/966593914916"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2.5 rounded-full border border-emerald-200/90 bg-emerald-50/80 px-7 py-4 text-base font-bold text-emerald-800 shadow-sm transition-all hover:bg-emerald-100 hover:border-emerald-300 hover:-translate-y-0.5"
+            >
+              <MessageCircle className="h-5 w-5 text-[#25D366]" />
+              <span>WhatsApp: +966 59 391 4916</span>
+            </a>
+
             <Link
               to="/pricing"
-              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-8 py-4 text-sm font-bold text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-400 hover:text-emerald-700"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-4 text-base font-bold text-slate-700 shadow-sm transition-all hover:border-emerald-300 hover:bg-slate-50 hover:text-slate-950 hover:-translate-y-0.5"
             >
-              <span>{isArabic ? 'الأسعار' : 'View Pricing'}</span>
+              <span>View Pricing</span>
             </Link>
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-xs sm:text-sm font-semibold text-slate-500">
-            <span>✓ All 20+ Modules Unlocked</span>
-            <span>✓ Instant Setup in 60s</span>
-            <span>✓ Zero Locked-In Contracts</span>
+          {/* Trust points */}
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-y-3 gap-x-8 text-xs sm:text-sm font-semibold text-slate-500">
+            <span className="inline-flex items-center gap-2">
+              <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
+              No credit card required
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
+              Instant workspace setup in 60s
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
+              ZATCA Phase 2 tax compliant
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
+              Zero locked-in contracts
+            </span>
           </div>
         </div>
       </section>

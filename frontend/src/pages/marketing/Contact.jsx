@@ -39,7 +39,7 @@ export default function MarketingContact() {
 
   const [sent, setSent] = useState(false)
 
-  const phone = data?.contactPhone || '+966596775485'
+  const phone = data?.contactPhone || '+966593914916'
   const email = data?.contactEmail || 'info@maqder.com'
   const address = isArabic
     ? data?.contactAddressAr || 'الدمام، حي مدينة العمال 18، المملكة العربية السعودية'
@@ -143,17 +143,17 @@ export default function MarketingContact() {
               : 'Our team is ready to help you get started, explore enterprise customization, or schedule a personalized live demo.'}
           </motion.p>
 
-          {/* Highlight Text Feature */}
+          {/* Highlight Feature Banner */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            className="mt-6 mx-auto max-w-3xl text-center"
+            className="mt-8 mx-auto max-w-3xl flex items-center justify-center rounded-2xl border border-slate-200/90 bg-white/90 backdrop-blur-md px-6 py-4 shadow-sm"
           >
-            <p className="text-center text-base sm:text-lg font-semibold text-slate-700">
-              Direct channels for <HighlightText variant="lime">INSTANT HELP</HighlightText>,{' '}
-              <HighlightText variant="yellow">LIVE DEMOS</HighlightText>, and{' '}
-              <HighlightText variant="pink">CUSTOM SOLUTIONS</HighlightText>.
+            <p className="text-center text-sm sm:text-base font-semibold text-slate-800">
+              Direct channels for <HighlightText variant="lime">instant help</HighlightText>,{' '}
+              <HighlightText variant="yellow">live demos</HighlightText>, and{' '}
+              <HighlightText variant="pink">custom solutions</HighlightText>.
             </p>
           </motion.div>
         </div>

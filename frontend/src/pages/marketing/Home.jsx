@@ -749,51 +749,6 @@ export default function MarketingHome() {
         </Marquee>
       </section>
 
-      {/* ── CTA SECTION (OPEN, COLOURFUL & NOT IN BLOCK) ── */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-slate-50 via-emerald-50/20 to-white py-24 border-t border-slate-100">
-        <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-emerald-500/10 blur-[130px]" />
-        <div aria-hidden className="pointer-events-none absolute bottom-0 right-1/4 h-[350px] w-[350px] rounded-full bg-teal-400/10 blur-[100px]" />
-
-        <div className="relative mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-emerald-700 shadow-sm">
-            <Sparkles className="h-3.5 w-3.5" />
-            {isArabic ? 'ابدأ اليوم مجاناً' : 'Start Today Free'}
-          </span>
-
-          <h2 className="mt-6 font-display text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl text-balance">
-            Start your <HighlightText variant="lime">7-DAY FREE TRIAL</HighlightText> today
-          </h2>
-
-          <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-600 leading-relaxed">
-            No credit card required. Pick your country and currency — your workspace is live in{' '}
-            <HighlightText variant="pink">UNDER A MINUTE</HighlightText>.
-          </p>
-
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
-            <button
-              type="button"
-              onClick={openTrial}
-              className="inline-flex items-center gap-2.5 rounded-full bg-emerald-600 px-9 py-4 text-sm sm:text-base font-black text-white shadow-xl shadow-emerald-600/30 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-emerald-600/40"
-            >
-              <span>{isArabic ? 'ابدأ مجاناً' : 'Start Free Trial'}</span>
-              <ArrowRight className="h-5 w-5" />
-            </button>
-            <Link
-              to="/contact"
-              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-8 py-4 text-sm font-bold text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-400 hover:text-emerald-700"
-            >
-              <span>{isArabic ? 'تواصل معنا' : 'Contact Sales'}</span>
-            </Link>
-          </div>
-
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-xs sm:text-sm font-semibold text-slate-500">
-            <span>✓ All 20+ Modules Unlocked</span>
-            <span>✓ Instant Setup in 60s</span>
-            <span>✓ Zero Locked-In Contracts</span>
-          </div>
-        </div>
-      </section>
-
       {/* ── TRIAL POPOUT ── */}
       <AnimatePresence>
         {trialOpen && (
