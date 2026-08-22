@@ -18,6 +18,7 @@ export const APP_ENTITLEMENTS = {
   qr_menu_ordering: { flags: { hasQrOrderingAddon: true } },
   restaurant_kds: { flags: { hasKdsAddon: true } },
   restaurant_reservations: { flags: { hasReservationsAddon: true } },
+  restaurant_cashier: { flags: { hasCashierAddon: true } },
 };
 
 export const ENTITLEMENT_APP_IDS = Object.keys(APP_ENTITLEMENTS);

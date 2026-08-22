@@ -938,6 +938,7 @@ export function App3DIcon({
   // ═══════════════════════════════════════════════════════════════════════════════
   if (
     last === 'cashier' ||
+    cleanAppId === 'restaurant_cashier' ||
     cleanLabel.includes('cashier') ||
     cleanLabel.includes('كاشير')
   ) {
