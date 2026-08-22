@@ -101,6 +101,7 @@ function BillingCycleToggle({ value, onChange, isAr, size = 'md' }) {
 
 const CATEGORIES = [
   { id: 'all', en: 'All', ar: 'الكل' },
+  { id: 'restaurant', en: 'Restaurant', ar: 'المطاعم' },
   { id: 'industry_verticals', en: 'Verticals', ar: 'القطاعات' },
   { id: 'saudi_compliance', en: 'Saudi Tax', ar: 'ضريبة السعودية', currencies: ['SAR'] },
   { id: 'gcc_compliance', en: 'GCC Tax & Compliance', ar: 'ضرائب وامتثال الخليج', currencies: ['AED', 'OMR', 'BHD', 'KWD', 'QAR'] },
@@ -119,6 +120,19 @@ const CATEGORIES = [
 
 function appMatchesCategory(app, categoryId) {
   if (categoryId === 'all') return true;
+  if (categoryId === 'restaurant') {
+    return (
+      app.category === 'restaurant' ||
+      app.category === 'delivery_platforms' ||
+      app.appId.startsWith('restaurant_') ||
+      app.appId === 'delivery_platforms' ||
+      app.appId === 'qr_menu_ordering' ||
+      app.appId === 'multi_branch' ||
+      app.appId.includes('kds') ||
+      app.appId.includes('reservations') ||
+      app.appId.includes('mess')
+    );
+  }
   if (categoryId === 'industry_verticals') {
     return (
       app.category === 'industry_verticals' ||

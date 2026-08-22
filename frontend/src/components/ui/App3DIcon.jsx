@@ -1031,6 +1031,7 @@ export function App3DIcon({
   // ═══════════════════════════════════════════════════════════════════════════════
   if (
     last === 'kds' ||
+    cleanAppId === 'restaurant_kds' ||
     cleanLabel.includes('kds') ||
     cleanLabel.includes('شاشة المطبخ')
   ) {
@@ -1082,6 +1083,8 @@ export function App3DIcon({
   // ═══════════════════════════════════════════════════════════════════════════════
   if (
     last === 'branches' ||
+    cleanAppId === 'restaurant_branches' ||
+    cleanAppId === 'multi_branch' ||
     cleanLabel.includes('branches') ||
     cleanLabel.includes('الفروع')
   ) {
@@ -1171,6 +1174,7 @@ export function App3DIcon({
     last === 'reservations' ||
     last === 'appointments' ||
     last === 'rental-calendar' ||
+    cleanAppId === 'restaurant_reservations' ||
     cleanLabel.includes('reservations') ||
     cleanLabel.includes('appointments') ||
     cleanLabel.includes('الحجوزات') ||
@@ -1307,6 +1311,7 @@ export function App3DIcon({
   // ═══════════════════════════════════════════════════════════════════════════════
   if (
     last === 'mess' ||
+    cleanAppId === 'restaurant_mess' ||
     cleanLabel.includes('mess') ||
     cleanLabel.includes('cafeteria') ||
     cleanLabel.includes('مطعم جماعي')

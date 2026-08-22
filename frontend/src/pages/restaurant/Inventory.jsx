@@ -113,10 +113,10 @@ export default function RestaurantInventory() {
         <div>
           <h1 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-3">
             <PackageOpen className="w-8 h-8 text-amber-600" />
-            {isRtl ? 'إدارة المخزون' : 'Inventory Management'}
+            {isRtl ? 'مخزون المطبخ والمكونات' : 'Kitchen Stock & Ingredients'}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {isRtl ? 'إدارة المواد الخام وتتبع الكميات' : 'Manage raw materials and track quantities'}
+            {isRtl ? 'إدارة المواد الخام وتتبع كميات المكونات ومستلزمات المطبخ' : 'Manage raw materials, ingredients, and kitchen stock quantities'}
           </p>
         </div>
         <button

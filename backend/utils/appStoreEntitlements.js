@@ -11,10 +11,13 @@ export const APP_ENTITLEMENTS = {
   iot_devices: { flags: { hasIotAddon: true } },
   weight_scale_driver: { flags: { hasWeightScaleAddon: true } },
   multi_branch: { flags: { hasBranchAddon: true } },
+  restaurant_branches: { flags: { hasBranchAddon: true } },
   delivery_platforms: { flags: { hasDeliveryAddon: true } },
   restaurant_mess: { flags: { hasMessAddon: true } },
   restaurant_combos: { flags: { hasCombosAddon: true } },
   qr_menu_ordering: { flags: { hasQrOrderingAddon: true } },
+  restaurant_kds: { flags: { hasKdsAddon: true } },
+  restaurant_reservations: { flags: { hasReservationsAddon: true } },
 };
 
 export const ENTITLEMENT_APP_IDS = Object.keys(APP_ENTITLEMENTS);

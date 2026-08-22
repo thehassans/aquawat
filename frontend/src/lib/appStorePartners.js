@@ -56,8 +56,15 @@ export function isNavItemAppVisible(tenant, businessTypes = [], item = {}) {
     ? item.businessTypes
     : []
   const hasAppReq = Boolean(item.requireApp) || (Array.isArray(item.requireAnyApp) && item.requireAnyApp.length > 0)
-  if (!grantTypes.length && !hasAppReq) return true
-  if (grantTypes.some((type) => businessTypes.includes(type))) return true
-  if (hasAppReq) return isAppGateOpen(tenant, item)
-  return false
+  
+  // If the navigation item specifically requires an installed app, gate strictly on app installation
+  if (hasAppReq) {
+    return isAppGateOpen(tenant, item)
+  }
+
+  if (grantTypes.length > 0) {
+    return grantTypes.some((type) => businessTypes.includes(type))
+  }
+
+  return true
 }
