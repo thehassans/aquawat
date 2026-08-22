@@ -1,7 +1,7 @@
 import express from 'express';
 import RestaurantOrder from '../models/RestaurantOrder.js';
 import RestaurantMenuItem from '../models/RestaurantMenuItem.js';
-import RestaurantDelivery from '../models/RestaurantDelivery.js';
+import { DeliveryOrder } from '../models/RestaurantDelivery.js';
 import PosPayment from '../models/PosPayment.js';
 import ZatcaLog from '../models/ZatcaLog.js';
 import ZatcaQueue from '../models/ZatcaQueue.js';
@@ -415,7 +415,7 @@ router.delete('/purge-all', checkPermission('restaurant', 'delete'), async (req,
     });
 
     // 5. Purge Deliveries
-    const deliveryResult = await RestaurantDelivery.deleteMany({
+    const deliveryResult = await DeliveryOrder.deleteMany({
       ...req.tenantFilter,
     });
 
