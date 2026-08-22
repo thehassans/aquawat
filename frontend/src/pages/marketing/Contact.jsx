@@ -13,34 +13,37 @@ import {
   Send,
   Sparkles,
   Zap,
+  Check,
 } from 'lucide-react'
 import { usePublicWebsiteSettings } from '../../lib/website'
+import { HighlightText } from '../../components/ui/highlight-text'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
   show: (i = 0) => ({
-    opacity: 1, y: 0,
+    opacity: 1,
+    y: 0,
     transition: { duration: 0.5, delay: i * 0.08, ease: [0.25, 0.46, 0.45, 0.94] },
   }),
 }
 
 const inputCls =
-  'w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 transition-all focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10'
+  'w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 transition-all focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/15'
 const labelCls = 'mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500'
 
 export default function MarketingContact() {
   const { language } = useSelector((s) => s.ui)
   const { data } = usePublicWebsiteSettings()
   const isArabic = false
-  const dir = isArabic ? 'rtl' : 'ltr'
+  const dir = 'ltr'
 
   const [sent, setSent] = useState(false)
 
-  const phone   = data?.contactPhone   || '+966596775485'
-  const email   = data?.contactEmail   || 'info@maqder.com'
+  const phone = data?.contactPhone || '+966596775485'
+  const email = data?.contactEmail || 'info@maqder.com'
   const address = isArabic
-    ? (data?.contactAddressAr || 'الدمام، حي مدينة العمال 18، المملكة العربية السعودية')
-    : (data?.contactAddressEn || 'Dammam, Madinat Al Ummal Dist. 18, Saudi Arabia')
+    ? data?.contactAddressAr || 'الدمام، حي مدينة العمال 18، المملكة العربية السعودية'
+    : data?.contactAddressEn || 'Dammam, Madinat Al Ummal Dist. 18, Saudi Arabia'
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -51,86 +54,115 @@ export default function MarketingContact() {
   const CHANNELS = [
     {
       icon: Phone,
-      color: '#059669', bgColor: '#05966918',
-      labelEn: 'Phone', labelAr: 'الهاتف',
+      color: '#059669',
+      bgColor: '#05966918',
+      labelEn: 'Direct Phone',
+      labelAr: 'الهاتف المباشر',
       value: phone,
       href: `tel:${phone.replace(/\s+/g, '')}`,
-      actionEn: 'Call now', actionAr: 'اتصل الآن',
+      actionEn: 'Call now',
+      actionAr: 'اتصل الآن',
     },
     {
       icon: MessageCircle,
-      color: '#25d366', bgColor: '#25d36618',
-      labelEn: 'WhatsApp', labelAr: 'واتساب',
+      color: '#25d366',
+      bgColor: '#25d36618',
+      labelEn: 'WhatsApp Support',
+      labelAr: 'واتساب الدعم',
       value: phone,
       href: `https://wa.me/${phone.replace(/[^0-9]/g, '')}`,
-      actionEn: 'Chat now', actionAr: 'ابدأ محادثة',
+      actionEn: 'Chat on WhatsApp',
+      actionAr: 'ابدأ محادثة',
       external: true,
     },
     {
       icon: Mail,
-      color: '#2563eb', bgColor: '#2563eb18',
-      labelEn: 'Email', labelAr: 'البريد',
+      color: '#2563eb',
+      bgColor: '#2563eb18',
+      labelEn: 'Email Inquiries',
+      labelAr: 'البريد الإلكتروني',
       value: email,
       href: `mailto:${email}`,
-      actionEn: 'Send email', actionAr: 'أرسل بريداً',
+      actionEn: 'Send email',
+      actionAr: 'أرسل بريداً',
     },
   ]
 
   const WHY = [
-    { en: 'Fast onboarding within 24 hours',     ar: 'إعداد سريع خلال 24 ساعة' },
-    { en: 'Free team training included',         ar: 'تدريب مجاني للفريق مشمول' },
-    { en: 'Country-aware tax compliance',        ar: 'امتثال ضريبي حسب الدولة' },
-    { en: 'Arabic & English bilingual support',  ar: 'دعم بالعربية والإنجليزية' },
+    { en: 'Instant workspace activation in 60s', ar: 'تفعيل فوري لمساحة العمل خلال 60 ثانية' },
+    { en: 'Dedicated account onboarding manager', ar: 'مدير تهيئة وتدريب مخصص لحسابك' },
+    { en: 'Country-aware tax & ZATCA Phase 2 readiness', ar: 'امتثال ضريبي وجاهزية تامة لـ ZATCA' },
+    { en: 'Arabic & English 24/7 bilingual support', ar: 'دعم فني بالعربية والإنجليزية على مدار الساعة' },
   ]
 
   return (
-    <main dir={dir} className="bg-white text-slate-900 antialiased overflow-x-hidden">
-
-      {/* ── HERO ── */}
-      <section className="relative overflow-hidden bg-slate-950 pb-0 pt-24 text-white">
-        <div className="pointer-events-none absolute inset-0 opacity-20"
-          style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #05966922 0%, transparent 60%), radial-gradient(circle at 75% 20%, #05966920 0%, transparent 50%)' }}
-        />
+    <main dir={dir} className="bg-white text-slate-900 antialiased overflow-x-hidden font-body">
+      {/* ── HERO WITH COLORFUL HIGHLIGHT TEXT ── */}
+      <section className="relative overflow-hidden bg-white pt-24 pb-14">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.04]"
-          style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.5) 1px,transparent 1px)', backgroundSize: '64px 64px' }}
+          className="pointer-events-none absolute inset-0 opacity-[0.035]"
+          style={{
+            backgroundImage:
+              'linear-gradient(#000 1px,transparent 1px),linear-gradient(90deg,#000 1px,transparent 1px)',
+            backgroundSize: '48px 48px',
+          }}
         />
-        <div className="relative mx-auto max-w-4xl px-4 pb-16 text-center sm:px-6 lg:px-8">
+        <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[600px] w-[900px] rounded-full bg-emerald-500/10 blur-[140px]" />
+        <div className="pointer-events-none absolute top-60 -right-20 h-[400px] w-[400px] rounded-full bg-teal-400/10 blur-[100px]" />
+
+        <div className="relative mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-300">
-              <Sparkles className="h-3.5 w-3.5" />
-              {isArabic ? 'نحن هنا لمساعدتك' : "We're here to help"}
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700 shadow-sm">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+              {isArabic ? 'نحن هنا لمساعدتك' : "We're here to help you grow"}
             </span>
           </motion.div>
 
           <motion.h1
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.65 }}
-            className="mt-5 font-display text-5xl font-bold tracking-[-0.02em] sm:text-6xl lg:text-[4.5rem]"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.65 }}
+            className="mt-6 font-display text-4xl font-bold tracking-tight text-slate-950 sm:text-6xl lg:text-7xl leading-[1.12] text-balance max-w-4xl mx-auto"
           >
             {isArabic ? (
-              <><span className="text-emerald-400">تواصل</span>{' معنا'}</>
+              <>تواصل مع فريق <HighlightText variant="lime">Maqder</HighlightText></>
             ) : (
-              <>Let's <span className="text-emerald-400">talk</span></>
+              <>Let's build something <HighlightText variant="lime">Extraordinary</HighlightText></>
             )}
           </motion.h1>
 
           <motion.p
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2, duration: 0.5 }}
-            className="mx-auto mt-5 max-w-xl text-lg text-white/55"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+            className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-500 sm:text-xl"
           >
             {isArabic
-              ? 'فريقنا جاهز لمساعدتك في البدء مع Maqder أو الحصول على عرض أسعار أو جدولة عرض مباشر.'
-              : 'Our team is ready to help you get started, get a quote, or schedule a live demo tailored to your business.'}
+              ? 'فريقنا جاهز لمساعدتك في البدء مع Maqder، وتقديم العروض المخصصة، والإجابة عن أي استفسار.'
+              : 'Our team is ready to help you get started, explore enterprise customization, or schedule a personalized live demo.'}
           </motion.p>
+
+          {/* Highlight Feature Banner */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="mt-8 mx-auto max-w-3xl flex items-center justify-center rounded-2xl border border-slate-200/90 bg-white/90 backdrop-blur-md px-6 py-4 shadow-sm"
+          >
+            <p className="text-center text-sm sm:text-base font-semibold text-slate-800">
+              Direct channels for <HighlightText variant="lime">instant help</HighlightText>,{' '}
+              <HighlightText variant="yellow">live demos</HighlightText>, and{' '}
+              <HighlightText variant="pink">custom solutions</HighlightText>.
+            </p>
+          </motion.div>
         </div>
-        <div className="pointer-events-none h-16 bg-gradient-to-b from-slate-950 to-white" />
       </section>
 
       {/* ── CHANNEL CARDS ── */}
-      <section className="bg-white pt-8 pb-16">
+      <section className="bg-slate-50/70 pt-8 pb-16 border-y border-slate-100">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-6 sm:grid-cols-3">
             {CHANNELS.map((ch, idx) => (
               <motion.a
                 key={idx}
@@ -141,23 +173,30 @@ export default function MarketingContact() {
                 variants={fadeUp}
                 initial="hidden"
                 animate="show"
-                className="group relative flex flex-col gap-4 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-emerald-300/60 hover:shadow-xl hover:shadow-emerald-100/60"
+                className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-emerald-400/60 hover:shadow-xl hover:shadow-emerald-100/70"
               >
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                <div
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl transition-transform duration-300 group-hover:scale-110"
-                  style={{ background: ch.bgColor }}
-                >
-                  <ch.icon className="h-5 w-5" style={{ color: ch.color }} />
-                </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{isArabic ? ch.labelAr : ch.labelEn}</p>
-                  <p className="mt-1 font-bold text-slate-900" dir="ltr">{ch.value}</p>
+                  <div
+                    className="flex h-13 w-13 items-center justify-center rounded-2xl transition-transform duration-300 group-hover:scale-110 shadow-sm"
+                    style={{ background: ch.bgColor }}
+                  >
+                    <ch.icon className="h-6 w-6" style={{ color: ch.color }} />
+                  </div>
+                  <div className="mt-5">
+                    <p className="text-xs font-black uppercase tracking-wider text-slate-400">
+                      {isArabic ? ch.labelAr : ch.labelEn}
+                    </p>
+                    <p className="mt-1 font-bold text-base text-slate-900" dir="ltr">
+                      {ch.value}
+                    </p>
+                  </div>
                 </div>
-                <div className={`flex items-center gap-1.5 text-sm font-bold transition-all ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}
-                  style={{ color: ch.color }}>
-                  {isArabic ? ch.actionAr : ch.actionEn}
-                  <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />
+                <div
+                  className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-1.5 text-xs font-bold transition-all"
+                  style={{ color: ch.color }}
+                >
+                  <span>{isArabic ? ch.actionAr : ch.actionEn}</span>
+                  <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" />
                 </div>
               </motion.a>
             ))}
@@ -166,28 +205,31 @@ export default function MarketingContact() {
       </section>
 
       {/* ── FORM + SIDEBAR ── */}
-      <section className="bg-slate-50/60 py-20">
+      <section className="bg-white py-24">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-5">
-
+          <div className="grid gap-10 lg:grid-cols-5 items-start">
             {/* Form — 3 cols */}
             <motion.div
-              custom={0} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}
+              custom={0}
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true }}
               className="lg:col-span-3"
             >
-              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_48px_-12px_rgba(0,0,0,0.10)]">
+              <div className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-200/60">
                 {/* Header bar */}
-                <div className="border-b border-slate-100 px-8 py-6">
+                <div className="border-b border-slate-100 px-8 py-6 bg-slate-50/50">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
-                      <Send className="h-4 w-4 text-emerald-600" />
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 shadow-sm">
+                      <Send className="h-5 w-5" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-slate-950">
+                      <h2 className="text-lg font-black text-slate-950">
                         {isArabic ? 'أرسل لنا رسالة' : 'Send us a message'}
                       </h2>
-                      <p className="text-xs text-slate-400">
-                        {isArabic ? 'سنرد خلال 24 ساعة' : "We'll reply within 24 hours"}
+                      <p className="text-xs text-slate-400 font-medium">
+                        {isArabic ? 'سنرد عليك في أقرب وقت' : "We'll get back to you within 24 hours"}
                       </p>
                     </div>
                   </div>
@@ -196,151 +238,123 @@ export default function MarketingContact() {
                 <form onSubmit={handleSubmit} className="space-y-5 p-8">
                   <div className="grid gap-5 sm:grid-cols-2">
                     <div>
-                      <label className={labelCls}>{isArabic ? 'الاسم' : 'Name'}</label>
-                      <input type="text" required className={inputCls} placeholder={isArabic ? 'أدخل اسمك' : 'Your full name'} />
+                      <label className={labelCls}>{isArabic ? 'الاسم بالكامل' : 'Full Name *'}</label>
+                      <input
+                        type="text"
+                        required
+                        className={inputCls}
+                        placeholder={isArabic ? 'أدخل اسمك' : 'e.g. John Doe'}
+                      />
                     </div>
                     <div>
-                      <label className={labelCls}>{isArabic ? 'البريد الإلكتروني' : 'Email'}</label>
-                      <input type="email" required className={inputCls} placeholder={isArabic ? 'بريدك الإلكتروني' : 'you@company.com'} />
+                      <label className={labelCls}>{isArabic ? 'البريد الإلكتروني' : 'Work Email *'}</label>
+                      <input
+                        type="email"
+                        required
+                        className={inputCls}
+                        placeholder={isArabic ? 'بريدك الإلكتروني' : 'you@company.com'}
+                      />
                     </div>
                   </div>
+
                   <div className="grid gap-5 sm:grid-cols-2">
                     <div>
-                      <label className={labelCls}>{isArabic ? 'الشركة' : 'Company'}</label>
-                      <input type="text" className={inputCls} placeholder={isArabic ? 'اسم الشركة' : 'Company name'} />
+                      <label className={labelCls}>{isArabic ? 'اسم الشركة' : 'Company Name'}</label>
+                      <input
+                        type="text"
+                        className={inputCls}
+                        placeholder={isArabic ? 'اسم الشركة' : 'Company or brand name'}
+                      />
                     </div>
                     <div>
-                      <label className={labelCls}>{isArabic ? 'رقم الجوال' : 'Phone'}</label>
-                      <input type="tel" className={inputCls} placeholder="05XXXXXXXX" dir="ltr" />
+                      <label className={labelCls}>{isArabic ? 'رقم الهاتف' : 'Phone / Mobile'}</label>
+                      <input
+                        type="tel"
+                        className={inputCls}
+                        placeholder="+966 5X XXX XXXX"
+                        dir="ltr"
+                      />
                     </div>
                   </div>
+
                   <div>
-                    <label className={labelCls}>{isArabic ? 'الرسالة' : 'Message'}</label>
+                    <label className={labelCls}>{isArabic ? 'كيف يمكننا مساعدتك؟' : 'Message or Request *'}</label>
                     <textarea
                       rows={5}
                       required
-                      className={`${inputCls} resize-none`}
-                      placeholder={isArabic ? 'اكتب رسالتك هنا...' : 'Tell us what you need...'}
+                      className={inputCls}
+                      placeholder={
+                        isArabic
+                          ? 'أخبرنا عن عملك وما الذي تبحث عنه...'
+                          : 'Tell us about your team size, modules needed, or question...'
+                      }
                     />
                   </div>
 
-                  <button
-                    type="submit"
-                    className={`w-full rounded-2xl py-4 text-sm font-bold transition-all duration-300 hover:-translate-y-0.5 ${
-                      sent
-                        ? 'bg-emerald-600 text-white shadow-[0_4px_16px_-4px_rgba(5,150,105,0.5)]'
-                        : 'bg-emerald-600 text-white shadow-[0_4px_16px_-4px_rgba(5,150,105,0.5)] hover:bg-emerald-700 hover:shadow-[0_6px_24px_-4px_rgba(5,150,105,0.55)]'
-                    } flex items-center justify-center gap-2.5`}
-                  >
-                    {sent ? (
-                      <>
-                        <CheckCircle2 className="h-5 w-5" />
-                        {isArabic ? 'تم الإرسال بنجاح!' : 'Message sent!'}
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4" />
-                        {isArabic ? 'إرسال الرسالة' : 'Send message'}
-                      </>
-                    )}
-                  </button>
+                  {sent ? (
+                    <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                      <span>
+                        {isArabic
+                          ? 'شكراً لك! تم استلام رسالتك وسنتواصل معك قريباً.'
+                          : 'Thank you! Your message has been received. Our team will contact you shortly.'}
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-4 text-sm font-black text-white shadow-lg shadow-emerald-600/30 transition-all hover:-translate-y-0.5 hover:bg-emerald-700"
+                    >
+                      <Send className="h-4 w-4" />
+                      <span>{isArabic ? 'إرسال الرسالة' : 'Send Message'}</span>
+                    </button>
+                  )}
                 </form>
               </div>
             </motion.div>
 
             {/* Sidebar — 2 cols */}
             <motion.div
-              custom={1} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}
-              className="lg:col-span-2 flex flex-col gap-5"
+              custom={1}
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true }}
+              className="space-y-6 lg:col-span-2"
             >
-              {/* Address */}
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50">
-                  <MapPin className="h-5 w-5 text-amber-600" />
+              {/* Address card */}
+              <div className="rounded-3xl border border-slate-200/90 bg-white p-7 shadow-sm">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-sm">
+                  <MapPin className="h-6 w-6 text-emerald-600" />
                 </div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{isArabic ? 'العنوان' : 'Address'}</p>
-                <p className="mt-2 text-base font-semibold leading-relaxed text-slate-900">{address}</p>
+                <h3 className="text-base font-black text-slate-950">{isArabic ? 'مقرنا' : 'Headquarters'}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{address}</p>
+                <div className="mt-4 flex items-center gap-2 text-xs font-bold text-slate-400">
+                  <Clock className="h-4 w-4 text-emerald-600" />
+                  <span>Sunday – Thursday: 9:00 AM – 6:00 PM</span>
+                </div>
               </div>
 
-              {/* Hours */}
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50">
-                  <Clock className="h-5 w-5 text-emerald-600" />
-                </div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{isArabic ? 'ساعات العمل' : 'Business hours'}</p>
-                <div className="mt-3 space-y-2.5">
-                  {[
-                    { dayEn: 'Sunday – Thursday', dayAr: 'الأحد – الخميس', time: '9:00 – 18:00' },
-                    { dayEn: 'Friday', dayAr: 'الجمعة', time: '14:00 – 18:00' },
-                    { dayEn: 'Saturday', dayAr: 'السبت', timeEn: 'Closed', timeAr: 'مغلق' },
-                  ].map((row, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm">
-                      <span className="text-slate-500">{isArabic ? row.dayAr : row.dayEn}</span>
-                      <span className="font-bold text-slate-900">{row.timeEn && isArabic ? row.timeAr : row.timeAr && !isArabic ? (row.timeEn || row.time) : row.time}</span>
-                    </div>
+              {/* Why choose card */}
+              <div className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50/90 to-teal-50/50 p-7 shadow-sm">
+                <h3 className="text-base font-black text-emerald-950">
+                  {isArabic ? 'لماذا تختار Maqder؟' : 'Why Growing Businesses Choose Maqder'}
+                </h3>
+                <ul className="mt-5 space-y-3.5">
+                  {WHY.map((item, idx) => (
+                    <li key={idx} className="flex items-start gap-3 text-xs sm:text-sm text-slate-700 font-medium">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm">
+                        <Check className="h-3 w-3 stroke-[3]" />
+                      </span>
+                      <span>{isArabic ? item.ar : item.en}</span>
+                    </li>
                   ))}
-                </div>
-              </div>
-
-              {/* Why Maqder dark card */}
-              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 to-emerald-900 p-6 text-white shadow-lg">
-                <div className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-                <div className="relative">
-                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
-                    <Zap className="h-5 w-5 text-white" />
-                  </div>
-                  <p className="text-sm font-bold uppercase tracking-wider text-white/70">{isArabic ? 'لماذا Maqder' : 'Why Maqder?'}</p>
-                  <ul className="mt-4 space-y-3">
-                    {WHY.map((item, i) => (
-                      <li key={i} className="flex items-center gap-2.5 text-sm text-white/80">
-                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
-                        {isArabic ? item.ar : item.en}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                </ul>
               </div>
             </motion.div>
           </div>
         </div>
       </section>
-
-      {/* ── BOTTOM CTA ── */}
-      <section className="bg-white py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 p-10 text-white shadow-[0_40px_100px_-30px_rgba(5,150,105,0.4)] lg:p-16">
-            <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
-            <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-xl">
-                <h2 className="text-3xl font-bold lg:text-4xl">
-                  {isArabic ? 'جاهز للبدء؟' : 'Ready to get started?'}
-                </h2>
-                <p className="mt-3 text-lg text-white/65">
-                  {isArabic ? 'جرّب Maqder مجاناً — النظام جاهز في أقل من دقيقة.' : 'Try Maqder free — your workspace is live in under a minute.'}
-                </p>
-              </div>
-              <div className="flex shrink-0 gap-3">
-                <a
-                  href="/#trial"
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-bold text-emerald-700 shadow-lg transition-all hover:-translate-y-0.5"
-                >
-                  {isArabic ? 'ابدأ مجاناً' : 'Start for free'}
-                  <ArrowRight className={`h-4 w-4 ${isArabic ? 'rotate-180' : ''}`} />
-                </a>
-                <a
-                  href="https://wa.me/966596775485"
-                  target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-8 py-4 text-sm font-bold text-white transition-all hover:bg-white/20"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  WhatsApp
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
     </main>
   )
 }

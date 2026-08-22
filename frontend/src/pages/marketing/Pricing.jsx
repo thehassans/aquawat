@@ -262,18 +262,12 @@ export default function MarketingPricing() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.6 }}
-            className="mt-6 font-display text-4xl font-black tracking-[-0.02em] text-slate-950 sm:text-6xl lg:text-[4rem] leading-[1.15]"
+            className="mt-6 font-display text-4xl font-bold tracking-tight text-slate-950 sm:text-6xl lg:text-7xl leading-[1.12] text-balance max-w-4xl mx-auto"
           >
             {isArabic ? (
-              <>
-                الأسعار التي <HighlightText variant="lime">تنمو معك</HighlightText>{' '}
-                <span className="inline-block">— <HighlightText variant="yellow">ولا تعيقك</HighlightText></span>
-              </>
+              <>خطط تنمو <HighlightText variant="lime">معك</HighlightText></>
             ) : (
-              <>
-                The Pricing that <HighlightText variant="lime">Grows with you</HighlightText>{' '}
-                <span className="inline-block">— <HighlightText variant="yellow">not Against you</HighlightText></span>
-              </>
+              <>Plans that <HighlightText variant="lime">Grow with you</HighlightText></>
             )}
           </motion.h1>
 

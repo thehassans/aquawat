@@ -1,223 +1,411 @@
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { BarChart3, Building2, CheckCircle2, Globe, ShieldCheck, Sparkles, Users } from 'lucide-react'
+import {
+  BarChart3,
+  Building2,
+  CheckCircle2,
+  Globe,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  Check,
+  ArrowRight,
+  X,
+  Layers,
+} from 'lucide-react'
+import { HighlightText } from '../../components/ui/highlight-text'
+import TrialSignup from '../../components/marketing/TrialSignup'
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  show: (i = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, delay: i * 0.08, ease: [0.25, 0.46, 0.45, 0.94] },
+  }),
+}
 
 export default function MarketingAbout() {
   const { language } = useSelector((state) => state.ui)
   const isArabic = false
+  const dir = 'ltr'
+  const [trialOpen, setTrialOpen] = useState(false)
+
+  useEffect(() => {
+    if (!trialOpen) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setTrialOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [trialOpen])
+
+  const openTrialModal = (e) => {
+    e?.preventDefault?.()
+    setTrialOpen(true)
+  }
 
   const platformPillars = [
     {
       icon: ShieldCheck,
-      title: isArabic ? 'امتثال حسب الدولة' : 'Country-aware compliance',
+      color: '#059669',
+      bgColor: '#05966918',
+      title: isArabic ? 'امتثال حسب الدولة' : 'Country-Aware Compliance',
       description: isArabic
         ? 'تم تصميم المنصة لتخدم الأعمال من اليوم الأول مع جاهزية الفوترة الإلكترونية، الامتثال الضريبي حسب الدولة، والتشغيل ثنائي اللغة.'
-        : 'The platform is built for multi-country operations from day one, including e-invoicing workflows, regional tax readiness, and bilingual execution.',
+        : 'Built for multi-country operations from day one — including ZATCA Phase 2 e-invoicing, regional tax rules, and native bilingual execution.',
     },
     {
       icon: Sparkles,
-      title: isArabic ? 'تجربة راقية وواضحة' : 'Premium and clear experience',
+      color: '#d97706',
+      bgColor: '#d9770618',
+      title: isArabic ? 'تجربة راقية وواضحة' : 'Premium & Modern Experience',
       description: isArabic
         ? 'نقلل الضوضاء في الواجهة ونركز على السرعة والوضوح حتى تتحرك الفرق بسرعة وتفهم ما يحدث فوراً.'
-        : 'We reduce interface noise and emphasize speed and clarity so teams move faster and understand what matters instantly.',
+        : 'We eliminate ERP interface clutter and emphasize lightning speed so your staff moves faster with zero training friction.',
     },
     {
       icon: BarChart3,
-      title: isArabic ? 'قرار أسرع' : 'Faster decision-making',
+      color: '#2563eb',
+      bgColor: '#2563eb18',
+      title: isArabic ? 'قرار أسرع' : 'Real-Time Financial Clarity',
       description: isArabic
         ? 'لوحات معلومات حية وتقارير مترابطة تمنح الإدارة صورة أوضح عن الإيرادات والمخزون والرواتب والمصروفات.'
-        : 'Live dashboards and connected reporting give leadership a clearer view of revenue, inventory, payroll, and expenses.',
+        : 'Live dashboards and connected ledgers give founders and CFOs an instantaneous pulse on margin, revenue, payroll, and stock.',
     },
   ]
 
   const capabilities = [
-    isArabic ? 'الفوترة الإلكترونية مع XML و QR وتتبع الحالة' : 'Electronic invoicing with XML, QR, and status tracking',
-    isArabic ? 'الموارد البشرية والرواتب وملفات WPS ونهاية الخدمة' : 'HR, payroll, WPS files, and EOSB support',
-    isArabic ? 'المخزون والمستودعات والمشتريات والاستلام والشحن' : 'Inventory, warehouses, purchasing, receiving, and shipments',
-    isArabic ? 'المشاريع والمهام والمصروفات والتقارير ولوحات التحكم' : 'Projects, tasks, expenses, reports, and dashboards',
-    isArabic ? 'تشغيل عربي / إنجليزي مع دعم RTL كامل' : 'Arabic / English operation with full RTL support',
-    isArabic ? 'بنية قابلة للتوسع من شركة ناشئة إلى مؤسسة' : 'Architecture that scales from startup to enterprise',
+    'ZATCA Phase 2 E-Invoicing with XML cryptographic signing & QR codes',
+    'HR, Payroll, GOSI contributions, and bank-ready WPS files',
+    'Multi-warehouse inventory, SKU barcodes, and supplier landed costs',
+    'Double-entry general ledger, expense claims, and P&L statements',
+    'Bilingual English & Arabic with native right-to-left UI support',
+    'Modular architecture that scales from single branch to enterprise',
   ]
 
   const outcomes = [
     {
-      value: isArabic ? 'تشغيل موحّد' : 'Unified operations',
-      label: isArabic ? 'من أول فاتورة إلى آخر تقرير' : 'From first invoice to final report',
+      value: 'Unified Operations',
+      label: 'From first invoice to final financial close',
     },
     {
-      value: isArabic ? 'وضوح إداري' : 'Executive clarity',
-      label: isArabic ? 'صورة فورية عن الأداء والالتزام' : 'Instant visibility into performance and compliance',
+      value: 'Executive Clarity',
+      label: 'Instant visibility into real performance & compliance',
     },
     {
-      value: isArabic ? 'فرق أسرع' : 'Faster teams',
-      label: isArabic ? 'عمليات أقل تعقيداً وأكثر انسيابية' : 'Less operational friction and smoother workflows',
+      value: 'Calmer Teams',
+      label: 'Frictionless day-to-day data entry and workflows',
     },
     {
-      value: isArabic ? 'منصة جاهزة للنمو' : 'Built for growth',
-      label: isArabic ? 'مرونة للتوسع حسب نوع النشاط وحجم الشركة' : 'Flexibility across business types and company size',
+      value: 'Built for Growth',
+      label: 'Modular architecture tuned to your business vertical',
     },
   ]
 
   return (
-    <main className="bg-[linear-gradient(180deg,#f8faf7_0%,#f4f8f4_42%,#ffffff_100%)] py-14 text-slate-900 sm:py-18">
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute -top-24 left-0 h-80 w-80 rounded-full bg-emerald-200/40 blur-3xl" />
-          <div className="absolute right-0 top-24 h-72 w-72 rounded-full bg-lime-100/60 blur-3xl" />
+    <main dir={dir} className="bg-white text-slate-900 antialiased overflow-x-hidden font-body">
+      {/* ── HERO WITH COLORFUL HIGHLIGHT TEXT ── */}
+      <section className="relative overflow-hidden bg-white pt-24 pb-16">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.035]"
+          style={{
+            backgroundImage:
+              'linear-gradient(#000 1px,transparent 1px),linear-gradient(90deg,#000 1px,transparent 1px)',
+            backgroundSize: '48px 48px',
+          }}
+        />
+        <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[600px] w-[900px] rounded-full bg-emerald-500/10 blur-[140px]" />
+        <div className="pointer-events-none absolute top-60 -right-20 h-[400px] w-[400px] rounded-full bg-teal-400/10 blur-[100px]" />
+
+        <div className="relative mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700 shadow-sm">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+              {isArabic ? 'رؤيتنا ورسالتنا' : 'Our Story & Philosophy'}
+            </span>
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.65 }}
+            className="mt-6 font-display text-4xl font-bold tracking-tight text-slate-950 sm:text-6xl lg:text-7xl leading-[1.12] text-balance max-w-4xl mx-auto"
+          >
+            {isArabic ? (
+              <>المنصة التي تجمع <HighlightText variant="lime">الأناقة</HighlightText> و<HighlightText variant="yellow">الوضوح</HighlightText></>
+            ) : (
+              <>Operating with <HighlightText variant="lime">Elegance</HighlightText>, <HighlightText variant="yellow">Clarity</HighlightText>, and <HighlightText variant="pink">Compliance</HighlightText></>
+            )}
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+            className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-500 sm:text-xl"
+          >
+            {isArabic
+              ? 'صممنا Maqder ERP لتقليل الفجوة بين التعقيد اليومي وبين حاجة الإدارة للسرعة والوضوح.'
+              : 'Maqder is a complete business operating layer engineered for growing enterprises — unifying e-invoicing, HR, inventory, purchasing, and reporting in one refined workspace.'}
+          </motion.p>
+
+          {/* Highlight Feature Banner */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="mt-8 mx-auto max-w-3xl flex items-center justify-center rounded-2xl border border-slate-200/90 bg-white/90 backdrop-blur-md px-6 py-4 shadow-sm"
+          >
+            <p className="text-center text-sm sm:text-base font-semibold text-slate-800">
+              A modern cloud ERP built to feel <HighlightText variant="lime">effortless</HighlightText> and stay{' '}
+              <HighlightText variant="yellow">delightful</HighlightText> for every{' '}
+              <HighlightText variant="pink">team</HighlightText>.
+            </p>
+          </motion.div>
         </div>
+      </section>
 
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+      {/* ── VISION & OUTCOMES ── */}
+      <section className="bg-slate-50/70 py-24 border-y border-slate-100">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-800 shadow-sm shadow-emerald-100/80">
-                <Sparkles className="h-4 w-4" />
-                {isArabic ? 'منصة ERP عالمية بطابع راقٍ' : 'A premium modern ERP experience'}
-              </div>
-
-              <h1 className="mt-6 max-w-4xl font-display text-4xl font-bold leading-[1.1] tracking-[-0.02em] text-slate-950 sm:text-5xl lg:text-6xl">
-                {isArabic ? 'نصنع منصة تشغيل أعمال تجمع الأناقة والوضوح والامتثال.' : 'We build a business operating platform that blends elegance, clarity, and compliance.'}
-              </h1>
-
-              <p className="mt-6 max-w-3xl text-lg leading-relaxed text-slate-600">
-                {isArabic
-                  ? 'Maqder ERP ليست مجرد مجموعة شاشات ERP تقليدية. إنها طبقة تشغيل متكاملة صُممت للشركات النامية لتوحيد الفوترة الإلكترونية، الموارد البشرية، الرواتب، المخزون، المشتريات، المشاريع، والتقارير داخل تجربة استخدام راقية وسريعة.'
-                  : 'Maqder ERP is not just another collection of traditional ERP screens. It is a complete operating layer built for growing businesses to unify e-invoicing, HR, payroll, inventory, purchasing, projects, and reporting inside a refined and fast user experience.'}
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700 shadow-sm">
+                <Building2 className="h-3.5 w-3.5" />
+                Why We Built Maqder
+              </span>
+              <h2 className="mt-5 font-display text-3xl font-black text-slate-950 sm:text-4xl lg:text-5xl leading-tight">
+                Because modern businesses need an ERP that feels <HighlightText variant="lime">weightless</HighlightText> and{' '}
+                <HighlightText variant="yellow">intelligent</HighlightText>.
+              </h2>
+              <p className="mt-6 text-base text-slate-600 leading-relaxed">
+                In legacy ERP systems, operations are scattered across dozens of disjointed screens, data is constantly out of sync, and teams waste countless hours on repetitive manual entry.
+              </p>
+              <p className="mt-4 text-base text-slate-600 leading-relaxed">
+                We designed Maqder as a single, harmonious operating system: e-invoicing talks to inventory, payroll connects directly to attendance, and sales flow seamlessly into financial statements.
               </p>
 
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 {capabilities.map((item, idx) => (
-                  <div key={idx} className="flex items-start gap-3 rounded-2xl border border-white bg-white/90 px-4 py-4 shadow-sm shadow-slate-100/80">
-                    <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-700" />
-                    <span className="text-sm leading-6 text-slate-700">{item}</span>
+                  <div
+                    key={idx}
+                    className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm"
+                  >
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <span className="text-xs sm:text-sm font-medium text-slate-700 leading-snug">{item}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-white bg-white/90 p-6 shadow-[0_30px_80px_-30px_rgba(15,23,42,0.16)] backdrop-blur sm:p-8">
-              <div className="rounded-[1.75rem] border border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f7fbf8_100%)] p-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700">
-                      {isArabic ? 'رؤية المنصة' : 'Platform vision'}
-                    </p>
-                    <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                      {isArabic ? 'كل فريق. كل عملية. كل قرار.' : 'Every team. Every workflow. Every decision.'}
-                    </h2>
-                  </div>
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
-                    {isArabic ? 'جاهز للنمو' : 'Growth-ready'}
-                  </div>
-                </div>
+            {/* Outcomes Card */}
+            <div className="rounded-[2.5rem] border border-slate-200/90 bg-white p-8 sm:p-10 shadow-xl shadow-slate-200/60">
+              <div className="border-b border-slate-100 pb-6 mb-6">
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-emerald-600">
+                  Platform Vision
+                </p>
+                <h3 className="text-2xl font-black text-slate-950 mt-1">
+                  Every team. Every process. Total clarity.
+                </h3>
+              </div>
 
-                <div className="mt-6 space-y-4">
-                  {outcomes.map((item, idx) => (
-                    <div key={idx} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-                      <div className="text-lg font-bold text-slate-950">{item.value}</div>
-                      <div className="mt-1 text-sm text-slate-500">{item.label}</div>
-                    </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {outcomes.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 transition hover:bg-emerald-50/30 hover:border-emerald-200"
+                  >
+                    <div className="text-base font-black text-slate-950">{item.value}</div>
+                    <div className="mt-1 text-xs text-slate-500 font-medium leading-relaxed">{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 3 CORE PILLARS ── */}
+      <section className="bg-white py-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700 shadow-sm">
+              <Layers className="h-3.5 w-3.5" />
+              Core Architecture
+            </span>
+            <h2 className="mt-3 font-display text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+              Engineered for <HighlightText variant="lime">Velocity</HighlightText> &{' '}
+              <HighlightText variant="yellow">Precision</HighlightText>
+            </h2>
+          </div>
+
+          <div className="grid gap-8 lg:grid-cols-3 items-stretch">
+            {platformPillars.map((pillar, idx) => (
+              <motion.div
+                key={idx}
+                custom={idx}
+                variants={fadeUp}
+                initial="hidden"
+                whileInView="show"
+                viewport={{ once: true }}
+                className="group relative flex flex-col justify-between rounded-3xl border border-slate-200/90 bg-white p-8 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-slate-200/80 hover:border-emerald-300"
+              >
+                <div>
+                  <div
+                    className="flex h-14 w-14 items-center justify-center rounded-2xl shadow-sm transition-transform duration-300 group-hover:scale-110"
+                    style={{ background: pillar.bgColor }}
+                  >
+                    <pillar.icon className="h-7 w-7" style={{ color: pillar.color }} />
+                  </div>
+                  <h4 className="mt-6 text-xl font-black text-slate-950 group-hover:text-emerald-700 transition">
+                    {pillar.title}
+                  </h4>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-500">{pillar.description}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA BANNER WITH COLORFUL HIGHLIGHT TEXT ── */}
+      <section className="bg-white pb-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-950 p-10 text-white shadow-[0_40px_100px_-30px_rgba(5,150,105,0.4)] lg:p-16">
+            <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
+            <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-xl">
+                <h2 className="text-3xl font-black lg:text-4xl">
+                  {isArabic ? 'ابدأ تجربتك المجانية اليوم' : 'Experience the modern ERP difference'}
+                </h2>
+                <p className="mt-3 text-lg text-white/75 leading-relaxed">
+                  Start your 7-day free trial. Your workspace is active in under a minute with all applications unlocked.
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-3">
+                <button
+                  type="button"
+                  onClick={openTrialModal}
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-black text-emerald-800 shadow-xl transition-all hover:-translate-y-0.5 hover:bg-emerald-50"
+                >
+                  <span>{isArabic ? 'ابدأ مجاناً' : 'Start Free Trial'}</span>
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <Link
+                  to="/contact"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-8 py-4 text-sm font-bold text-white transition-all hover:bg-white/20"
+                >
+                  {isArabic ? 'تواصل معنا' : 'Contact Us'}
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TRIAL SIGNUP MODAL ── */}
+      <AnimatePresence>
+        {trialOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-end justify-center bg-[#06140f]/70 p-3 backdrop-blur-xl sm:items-center sm:p-6"
+            onClick={() => setTrialOpen(false)}
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-[0.06]"
+              style={{
+                backgroundImage:
+                  'linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)',
+                backgroundSize: '48px 48px',
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              className="relative flex w-full max-w-[980px] overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white shadow-[0_32px_96px_-24px_rgba(15,23,42,0.24)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="relative hidden w-[38%] shrink-0 flex-col justify-between overflow-hidden border-r border-slate-100 bg-[#f8faf9] px-8 py-10 text-slate-900 lg:flex">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-emerald-500/10 blur-[80px]"
+                />
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute bottom-0 right-0 h-48 w-48 rounded-full bg-teal-400/10 blur-[80px]"
+                />
+                <div className="relative">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.22em] text-emerald-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Free trial
+                  </span>
+                  <h3 className="mt-5 font-display text-[1.85rem] font-bold leading-[1.2] tracking-[-0.03em] text-slate-950">
+                    Your <HighlightText variant="lime">Workspace</HighlightText> in{' '}
+                    <span className="inline-block"><HighlightText variant="yellow">under a minute</HighlightText></span>
+                  </h3>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                    Pick country, company, and currency — then land in a live dashboard.
+                  </p>
+                </div>
+                <ul className="relative mt-10 space-y-4 text-sm">
+                  {[
+                    '7 full days — every app included',
+                    'No credit card required',
+                    'Invoices, customers, and reports from first login',
+                  ].map((line) => (
+                    <li key={line} className="flex items-start gap-3 text-slate-700">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200/70">
+                        <Check className="h-3 w-3" strokeWidth={3} />
+                      </span>
+                      <span className="font-medium leading-relaxed">{line}</span>
+                    </li>
                   ))}
+                </ul>
+                <p className="relative mt-10 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Maqder · Live ERP
+                </p>
+              </div>
+
+              <div className="relative min-w-0 flex-1 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setTrialOpen(false)}
+                  className="absolute right-4 top-4 z-10 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                <div className="border-b border-slate-100 px-6 pb-4 pt-7 lg:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.22em] text-emerald-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Free trial
+                  </span>
+                  <h3 className="mt-2 font-display text-xl font-bold tracking-tight text-slate-950">
+                    Your <HighlightText variant="lime">Workspace</HighlightText> in{' '}
+                    <HighlightText variant="yellow">under a minute</HighlightText>
+                  </h3>
+                </div>
+                <div className="max-h-[min(78vh,720px)] overflow-y-auto px-6 py-6 sm:px-8">
+                  <TrialSignup variant="light" embedded />
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto mt-16 max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.28)] sm:p-10">
-          <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800">
-                <Building2 className="h-4 w-4" />
-                {isArabic ? 'قصتنا ولماذا نبني Maqder' : 'Our story and why Maqder exists'}
-              </div>
-
-              <h3 className="mt-5 text-3xl font-bold leading-tight text-slate-950 sm:text-4xl">
-                {isArabic ? 'لأن الأعمال الحديثة تحتاج إلى ERP أقل تعقيداً وأكثر ذكاءً.' : 'Because modern businesses need an ERP that feels less heavy and more intelligent.'}
-              </h3>
-            </div>
-
-            <div className="space-y-5 text-base leading-relaxed text-slate-600">
-              <p>
-                {isArabic
-                  ? 'أنشأنا Maqder ERP لتقليل الفجوة بين التعقيد التشغيلي اليومي وبين حاجة الإدارة إلى السرعة والوضوح. في كثير من الأنظمة التقليدية، تتوزع العمليات عبر شاشات كثيرة، وتصبح البيانات متفرقة، ويضيع الوقت بين الإدخال والمتابعة والتحليل.'
-                  : 'We created Maqder ERP to reduce the gap between daily operational complexity and leadership’s need for speed and clarity. In many traditional systems, workflows are spread across too many screens, data becomes fragmented, and time is lost between entry, follow-up, and analysis.'}
-              </p>
-              <p>
-                {isArabic
-                  ? 'لهذا صممنا المنصة لتكون طبقة تشغيل موحدة: الفوترة الإلكترونية تتصل بالمخزون، والرواتب تتكامل مع الموارد البشرية، والمشتريات ترتبط بالتقارير، وكل ذلك ضمن تجربة ثنائية اللغة مصقولة وواضحة.'
-                  : 'That is why we designed the platform as one operating layer: e-invoicing connects to inventory, payroll integrates with HR, purchasing flows into reporting, and all of it lives inside a polished, bilingual experience designed for modern teams.'}
-              </p>
-              <p>
-                {isArabic
-                  ? 'هدفنا ليس فقط رقمنة الإجراءات، بل رفع جودة التشغيل بالكامل: فرق أكثر هدوءاً، قرارات أسرع، وصورة إدارية أوضح يمكن الوثوق بها يومياً.'
-                  : 'Our goal is not only to digitize procedures, but to elevate operational quality itself: calmer teams, faster decisions, and a clearer management picture that can be trusted every day.'}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto mt-16 max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-5 lg:grid-cols-3">
-          {platformPillars.map((pillar, idx) => (
-            <div key={idx} className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdfb_100%)] p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-100/70">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-                <pillar.icon className="h-5 w-5" />
-              </div>
-              <h4 className="mt-5 text-xl font-bold text-slate-950">{pillar.title}</h4>
-              <p className="mt-3 text-sm leading-7 text-slate-600">{pillar.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto mt-16 max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-        <div className="rounded-[2rem] border border-slate-200 bg-slate-950 px-8 py-10 text-white shadow-[0_35px_90px_-45px_rgba(15,23,42,0.95)] sm:px-10">
-          <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-emerald-300">
-                <Globe className="h-4 w-4" />
-                {isArabic ? 'مبني لفرق طموحة حول العالم' : 'Built for ambitious growing teams'}
-              </div>
-              <h5 className="mt-5 text-3xl font-bold leading-tight sm:text-4xl">
-                {isArabic ? 'منصة واحدة تمنحك أناقة التجربة وقوة التشغيل معاً.' : 'One platform delivering premium experience and operational power together.'}
-              </h5>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              {[
-                {
-                  icon: Users,
-                  title: isArabic ? 'للإدارة التنفيذية' : 'For leadership',
-                  text: isArabic ? 'رؤية لحظية وواضحة للأداء والالتزام.' : 'A clear, real-time view of performance and compliance.',
-                },
-                {
-                  icon: Building2,
-                  title: isArabic ? 'للفرق التشغيلية' : 'For operations teams',
-                  text: isArabic ? 'تدفقات أقل ازدحاماً وأكثر سرعة.' : 'Less cluttered and faster day-to-day workflows.',
-                },
-                {
-                  icon: ShieldCheck,
-                  title: isArabic ? 'للامتثال' : 'For compliance',
-                  text: isArabic ? 'إعدادات وتجهيزات مناسبة لمتطلبات كل سوق.' : 'Workflows aligned with regional regulatory expectations.',
-                },
-                {
-                  icon: Sparkles,
-                  title: isArabic ? 'للنمو' : 'For growth',
-                  text: isArabic ? 'قاعدة قابلة للتوسع حسب النشاط والحجم.' : 'A foundation that scales with business type and size.',
-                },
-              ].map((item, idx) => (
-                <div key={idx} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                  <item.icon className="h-5 w-5 text-emerald-300" />
-                  <div className="mt-4 text-lg font-bold">{item.title}</div>
-                  <div className="mt-2 text-sm leading-7 text-white/70">{item.text}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   )
 }

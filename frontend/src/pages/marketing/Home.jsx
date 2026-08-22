@@ -530,9 +530,8 @@ export default function MarketingHome() {
             <p className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-emerald-600">
               Transparent Pricing
             </p>
-            <h2 className="font-display text-4xl font-black tracking-[-0.02em] text-slate-950 sm:text-5xl lg:text-6xl">
-              Simple, <HighlightText variant="lime">Transparent Pricing</HighlightText> that{' '}
-              <span className="inline-block"><HighlightText variant="yellow">Scales with You</HighlightText></span>
+            <h2 className="font-display text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl lg:text-6xl text-balance max-w-4xl mx-auto">
+              Plans that <HighlightText variant="lime">Grow with you</HighlightText>
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-500">
               Start with a 7-day all-inclusive free trial. Upgrade or cancel anytime with zero lock-in contracts.
