@@ -4,7 +4,73 @@ import { AnimatePresence, motion, useInView } from 'framer-motion'
 import TrialSignup from '../../components/marketing/TrialSignup'
 import PremiumAppIcon, { PREMIUM_APP_CATALOG } from '../../components/marketing/PremiumAppIcon'
 import { HighlightText } from '../../components/ui/highlight-text'
-import { ArrowRight, Star, TrendingUp, X, Wallet, FileText, ShieldCheck, Building2, Store, Users, Utensils, Truck, Briefcase, Check } from 'lucide-react'
+import { ArrowRight, Star, TrendingUp, X, Wallet, FileText, ShieldCheck, Building2, Store, Users, Utensils, Truck, Briefcase, Check, Sparkles, Layers, Zap } from 'lucide-react'
+
+const HOME_PLANS = [
+  {
+    id: 'starter',
+    name: 'Starter',
+    tagline: 'Perfect for small businesses getting started',
+    priceMonthlyUsd: 29.99,
+    priceYearlyUsd: 299,
+    priceMonthlySar: 49.99,
+    priceYearlySar: 499,
+    popular: false,
+    icon: Layers,
+    users: 'Up to 3 users',
+    features: [
+      '3 users included',
+      '50 invoices & quotations / month',
+      'Inventory & Warehouses',
+      'Purchase Orders & Suppliers',
+      'Basic Financial Reports',
+      'Email & Community Support',
+    ],
+  },
+  {
+    id: 'professional',
+    name: 'Professional',
+    tagline: 'For growing teams that need full operational power',
+    priceMonthlyUsd: 59.99,
+    priceYearlyUsd: 599,
+    priceMonthlySar: 99.99,
+    priceYearlySar: 999,
+    popular: true,
+    icon: Sparkles,
+    users: 'Up to 15 users',
+    features: [
+      'Up to 15 users',
+      'Unlimited invoices & POS transactions',
+      'ZATCA Phase 2 E-Invoicing',
+      'HR, Payroll, WPS & GOSI',
+      'Expenses, Assets & Double-entry Accounting',
+      'WhatsApp & Email Automation',
+      'Advanced Multi-branch & Analytics',
+      'Priority 24/7 Support',
+    ],
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    tagline: 'Custom architecture & SLAs for large organizations',
+    priceMonthlyUsd: 199.99,
+    priceYearlyUsd: 1990,
+    priceMonthlySar: 199.99,
+    priceYearlySar: 1990,
+    popular: false,
+    icon: Building2,
+    users: 'Unlimited users',
+    features: [
+      'Unlimited users & branches',
+      'Dedicated Account Success Manager',
+      'Custom ERP & API Integrations',
+      'On-premise or Private Cloud Hosting',
+      '24/7 Dedicated Phone & Slack Support',
+      '99.99% SLA Uptime Guarantee',
+      'Custom Onboarding & Migration',
+    ],
+  },
+]
 
 const TENANT_STORY_ICONS = [Building2, Store, Users, Utensils, Truck, Briefcase]
 
@@ -107,6 +173,8 @@ export default function MarketingHome() {
   const isArabic = false
   const dir = 'ltr'
   const [trialOpen, setTrialOpen] = useState(false)
+  const [pricingYearly, setPricingYearly] = useState(false)
+  const [pricingCurrency, setPricingCurrency] = useState('SAR')
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -451,6 +519,183 @@ export default function MarketingHome() {
             </div>
           ))}
         </Marquee>
+      </section>
+
+      {/* ── PRICING SECTION (MATCHING PRICING PAGE & COLORFUL HIGHLIGHTS) ── */}
+      <section id="pricing" className="relative overflow-hidden bg-white py-28 border-t border-slate-100">
+        <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-emerald-500/8 blur-[130px]" />
+
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-14 text-center">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-emerald-600">
+              Transparent Pricing
+            </p>
+            <h2 className="font-display text-4xl font-black tracking-[-0.02em] text-slate-950 sm:text-5xl lg:text-6xl">
+              Simple, <HighlightText variant="lime">Transparent Pricing</HighlightText> that{' '}
+              <span className="inline-block"><HighlightText variant="yellow">Scales with You</HighlightText></span>
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-500">
+              Start with a 7-day all-inclusive free trial. Upgrade or cancel anytime with zero lock-in contracts.
+            </p>
+
+            {/* Billing & Currency Controls */}
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/80 p-1.5 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setPricingYearly(false)}
+                  className={`rounded-full px-5 py-2 text-sm font-bold transition-all ${
+                    !pricingYearly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPricingYearly(true)}
+                  className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold transition-all ${
+                    pricingYearly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Yearly
+                  <span className="rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[11px] font-black shadow-sm">
+                    Save 17%
+                  </span>
+                </button>
+              </div>
+
+              <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100/80 p-1 text-xs font-bold text-slate-600 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setPricingCurrency('SAR')}
+                  className={`px-3 py-1.5 rounded-full transition ${
+                    pricingCurrency === 'SAR' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  🇸🇦 SAR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPricingCurrency('USD')}
+                  className={`px-3 py-1.5 rounded-full transition ${
+                    pricingCurrency === 'USD' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  🇺🇸 USD
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Cards Grid */}
+          <div className="grid gap-8 lg:grid-cols-3 items-stretch">
+            {HOME_PLANS.map((plan, idx) => {
+              const isUsd = pricingCurrency === 'USD'
+              const priceM = isUsd ? plan.priceMonthlyUsd : plan.priceMonthlySar
+              const priceY = isUsd ? plan.priceYearlyUsd : plan.priceYearlySar
+              const displayPrice = pricingYearly ? priceY / 12 : priceM
+              const currSymbol = isUsd ? '$' : 'SAR '
+              const Icon = plan.icon
+
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative flex flex-col justify-between rounded-3xl border p-8 transition-all duration-300 hover:-translate-y-1.5 ${
+                    plan.popular
+                      ? 'border-emerald-500 bg-gradient-to-b from-emerald-50/90 via-white to-white shadow-[0_16px_48px_-12px_rgba(5,150,105,0.25)] ring-2 ring-emerald-500/40'
+                      : 'border-slate-200 bg-white shadow-sm hover:shadow-2xl hover:shadow-slate-200/70 hover:border-emerald-300'
+                  }`}
+                >
+                  {plan.popular && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-emerald-600/30">
+                        <Star className="h-3.5 w-3.5 fill-white" />
+                        Most Popular
+                      </span>
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="mb-6 flex items-center gap-3.5">
+                      <div
+                        className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                          plan.popular ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-emerald-600'
+                        }`}
+                      >
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-slate-950">{plan.name}</h3>
+                        <p className="text-xs text-slate-500 leading-tight mt-0.5">{plan.tagline}</p>
+                      </div>
+                    </div>
+
+                    <div className="mb-6 border-b border-slate-100 pb-6">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-4xl font-black tracking-tight text-slate-950">
+                          {currSymbol}
+                          {displayPrice.toFixed(2)}
+                        </span>
+                        <span className="text-sm font-semibold text-slate-500">/ month</span>
+                      </div>
+                      {pricingYearly && (
+                        <p className="mt-1.5 text-xs text-emerald-600 font-bold">
+                          Billed {currSymbol}{priceY} / year (Save 17%)
+                        </p>
+                      )}
+                      <p className="mt-2 text-xs font-semibold text-slate-400">
+                        ✓ {plan.users}
+                      </p>
+                    </div>
+
+                    <div className="mb-8">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">
+                        Included Features
+                      </h4>
+                      <ul className="space-y-3">
+                        {plan.features.map((f, i) => (
+                          <li key={i} className="flex items-start gap-3 text-sm text-slate-700">
+                            <div
+                              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                                plan.popular ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              <Check className="h-3 w-3 stroke-[3]" />
+                            </div>
+                            <span className="font-medium leading-relaxed">{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={openTrial}
+                    className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-black transition-all hover:-translate-y-0.5 shadow-sm ${
+                      plan.popular
+                        ? 'bg-emerald-600 text-white shadow-emerald-600/30 hover:bg-emerald-700 hover:shadow-emerald-600/40'
+                        : 'border border-slate-200 bg-white text-slate-900 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700'
+                    }`}
+                  >
+                    <span>Start Free Trial</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="mt-12 flex justify-center">
+            <Link
+              to="/pricing"
+              className="inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700 hover:underline"
+            >
+              <span>View full feature matrix & FAQ</span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
       </section>
 
       {/* ── TESTIMONIALS MARQUEE ── */}
