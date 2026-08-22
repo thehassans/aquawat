@@ -257,6 +257,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const invoiceSubtype = values.invoiceSubtype || 'standard'
   const selectedTemplateId = Number(values.pdfTemplateId || getInvoiceTemplateId(tenant, businessContext))
   const selectedWarehouseId = values.warehouseId || ''
+  const isTradingContext = businessContext === 'trading'
+  const isTravelContext = businessContext === 'travel_agency'
+  const isRestaurantContext = businessContext === 'restaurant'
+  const isManpowerContext = businessContext === 'manpower'
   const showArabicFields = isArabicTenantMarket(tenant)
   const isPk = isPakistanTenant(tenant)
   const taxLabel = getTaxLabel(tenant)

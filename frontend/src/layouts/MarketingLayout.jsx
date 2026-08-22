@@ -8,15 +8,7 @@ import {
   X,
   Mail,
   MapPin,
-  MessageCircle,
-  ShieldCheck,
-  Sparkles,
   ArrowRight,
-  CheckCircle2,
-  Clock,
-  Lock,
-  Building2,
-  Check,
 } from 'lucide-react'
 import { setLanguage } from '../store/slices/uiSlice'
 import { usePublicWebsiteSettings } from '../lib/website'
@@ -118,7 +110,7 @@ export default function MarketingLayout() {
               rel="noreferrer"
               aria-label="WhatsApp"
               className="hidden h-10 w-10 items-center justify-center rounded-full bg-[#25D366]/10 text-[#1da851] ring-1 ring-[#25D366]/25 transition-all hover:bg-[#25D366] hover:text-white sm:inline-flex shadow-sm"
-              title="Chat on WhatsApp (+966593914916)"
+              title="Chat on WhatsApp (+966 59 391 4916)"
             >
               <WAIcon className="h-5 w-5" />
             </a>
@@ -127,7 +119,7 @@ export default function MarketingLayout() {
               href={`tel:${phone}`}
               aria-label="Call Direct"
               className="hidden h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 ring-1 ring-slate-200 transition-all hover:bg-slate-200 sm:inline-flex shadow-sm"
-              title="Call +966593914916"
+              title="Call +966 59 391 4916"
             >
               <Phone className="h-4 w-4" />
             </a>
@@ -227,222 +219,125 @@ export default function MarketingLayout() {
         </Suspense>
       </div>
 
-      {/* ── ULTRA PREMIUM FOOTER ── */}
-      <footer className="relative overflow-hidden bg-slate-950 text-slate-300 border-t border-slate-800/80">
-        {/* Ambient Gradient Glows */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage:
-              'linear-gradient(rgba(255,255,255,0.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.5) 1px,transparent 1px)',
-            backgroundSize: '48px 48px',
-          }}
-        />
-        <div className="pointer-events-none absolute -top-40 left-1/4 h-80 w-80 rounded-full bg-emerald-500/10 blur-[120px]" />
-        <div className="pointer-events-none absolute bottom-0 right-10 h-72 w-72 rounded-full bg-teal-500/10 blur-[100px]" />
-
-        {/* Top Live Status & Direct Contact Ribbon */}
-        <div className="relative border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/60 px-3.5 py-1 text-xs font-bold text-emerald-400 shadow-sm">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                All Systems Live · 99.99% Uptime SLA
-              </span>
-              <span className="hidden text-xs text-slate-400 sm:inline-block">
-                ZATCA Phase 2 E-Invoicing Certified
-              </span>
-            </div>
-
-            <div className="flex items-center gap-4 text-xs font-bold">
-              <a
-                href={`tel:${phone}`}
-                className="flex items-center gap-1.5 text-slate-300 hover:text-emerald-400 transition"
-              >
-                <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                <span dir="ltr">+966 59 391 4916</span>
-              </a>
-              <span className="text-slate-700">|</span>
-              <a
-                href={`https://wa.me/${waNumber}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 text-slate-300 hover:text-[#25D366] transition"
-              >
-                <WAIcon className="h-3.5 w-3.5 text-[#25D366]" />
-                <span>WhatsApp Live Chat</span>
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Footer Multi-Column Grid */}
-        <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="grid gap-12 lg:grid-cols-12">
-            {/* Column 1: Brand & Bio (4 cols) */}
-            <div className="lg:col-span-4 space-y-6">
-              <Link to="/" className="inline-block bg-white/95 p-2.5 rounded-2xl shadow-md">
-                <img src="/maqderlogolandingpage.webp" alt="Maqder" className="h-14 w-auto object-contain" />
+      {/* ── ULTRA MINIMALISTIC LIGHT THEMED PREMIUM FOOTER ── */}
+      <footer className="border-t border-slate-200/80 bg-white text-slate-600 antialiased">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-12">
+            {/* Brand & Bio (4 cols) */}
+            <div className="lg:col-span-4 space-y-5">
+              <Link to="/" className="inline-block">
+                <img src="/maqderlogolandingpage.webp" alt="Maqder" className="h-16 w-auto object-contain" />
               </Link>
-              <p className="text-sm leading-relaxed text-slate-400 max-w-sm">
-                The next-generation unified cloud ERP for growing enterprises across Saudi Arabia & the GCC. Combining beauty, lightning velocity, and strict ZATCA compliance.
+              <p className="text-sm leading-relaxed text-slate-500 max-w-sm">
+                Unified modern cloud ERP built for high-growth businesses. Connecting e-invoicing, HR, payroll, inventory, and point of sale into one seamless experience.
               </p>
-
-              {/* Compliance & Trust Badges */}
-              <div className="space-y-2.5 pt-2">
-                <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                  <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <span>ZATCA Phase 2 Cryptographic XML & QR Compliant</span>
-                </div>
-                <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                  <Lock className="h-4 w-4 text-teal-400 shrink-0" />
-                  <span>256-Bit Bank-Grade Cloud Encryption</span>
-                </div>
-                <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                  <Building2 className="h-4 w-4 text-yellow-400 shrink-0" />
-                  <span>Saudi Vision 2030 Business Ready</span>
-                </div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span>All systems operational · 99.99% uptime</span>
               </div>
             </div>
 
-            {/* Column 2: Solutions (2 cols) */}
-            <div className="lg:col-span-2">
-              <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
-                Solutions
+            {/* Product & Solutions (3 cols) */}
+            <div className="lg:col-span-3">
+              <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                Product & Solutions
               </p>
-              <ul className="space-y-3 text-sm font-medium">
+              <ul className="space-y-2.5 text-sm">
                 <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    E-Invoicing & ZATCA
+                  <Link to="/solutions" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    ZATCA Phase 2 E-Invoicing
                   </Link>
                 </li>
                 <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    Accounting & Ledger
+                  <Link to="/solutions" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    HR, Payroll & WPS GOSI
                   </Link>
                 </li>
                 <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    HR, Payroll & WPS
+                  <Link to="/solutions" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    Inventory & Multi-Warehouse
                   </Link>
                 </li>
                 <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    Inventory & Stock
+                  <Link to="/solutions" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    Cloud POS & Kitchen KDS
                   </Link>
                 </li>
                 <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    POS & Kitchen (KDS)
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    Ecommerce Storefront
+                  <Link to="/solutions" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    Accounting & General Ledger
                   </Link>
                 </li>
               </ul>
             </div>
 
-            {/* Column 3: Industries (2 cols) */}
+            {/* Company & Legal (2 cols) */}
             <div className="lg:col-span-2">
-              <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
-                Industries
-              </p>
-              <ul className="space-y-3 text-sm font-medium">
-                <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    Wholesale & Supply
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    Restaurants & Cafes
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    Retail Supermarkets
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    Salons & Spas
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    Contracting & Labor
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/solutions" className="text-slate-400 hover:text-white transition">
-                    Fashion Boutiques
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Column 4: Company & Trust (2 cols) */}
-            <div className="lg:col-span-2">
-              <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
+              <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
                 Company
               </p>
-              <ul className="space-y-3 text-sm font-medium">
+              <ul className="space-y-2.5 text-sm">
                 <li>
-                  <Link to="/about" className="text-slate-400 hover:text-white transition">
-                    About Maqder
+                  <Link to="/about" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    About Us
                   </Link>
                 </li>
                 <li>
-                  <Link to="/pricing" className="text-slate-400 hover:text-white transition">
+                  <Link to="/pricing" className="text-slate-600 hover:text-emerald-700 transition font-medium">
                     Pricing & Plans
                   </Link>
                 </li>
                 <li>
-                  <Link to="/contact" className="text-slate-400 hover:text-white transition">
-                    Contact & Demos
+                  <Link to="/contact" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    Contact & Support
                   </Link>
                 </li>
                 <li>
-                  <Link to="/privacy" className="text-slate-400 hover:text-white transition">
+                  <Link to="/privacy" className="text-slate-600 hover:text-emerald-700 transition font-medium">
                     Privacy Policy
                   </Link>
                 </li>
                 <li>
-                  <Link to="/terms" className="text-slate-400 hover:text-white transition">
+                  <Link to="/terms" className="text-slate-600 hover:text-emerald-700 transition font-medium">
                     Terms of Service
                   </Link>
                 </li>
               </ul>
             </div>
 
-            {/* Column 5: Direct Contact Card (2 cols) */}
-            <div className="lg:col-span-2 space-y-4">
-              <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
-                Headquarters
+            {/* Direct Contact (3 cols) */}
+            <div className="lg:col-span-3 space-y-3">
+              <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                Contact & Support
               </p>
-              <div className="space-y-3 text-xs text-slate-400">
-                <div className="flex items-start gap-2">
-                  <MapPin className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="space-y-2.5 text-sm text-slate-600">
+                <a
+                  href={`tel:${phone}`}
+                  className="flex items-center gap-2.5 font-bold text-slate-900 hover:text-emerald-700 transition"
+                  dir="ltr"
+                >
+                  <Phone className="h-4 w-4 text-emerald-600" />
+                  <span>+966 59 391 4916</span>
+                </a>
+                <a
+                  href={`https://wa.me/${waNumber}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2.5 font-bold text-slate-900 hover:text-[#25D366] transition"
+                >
+                  <WAIcon className="h-4 w-4 text-[#25D366]" />
+                  <span>WhatsApp: +966 59 391 4916</span>
+                </a>
+                <a
+                  href={`mailto:${email}`}
+                  className="flex items-center gap-2.5 text-slate-500 hover:text-slate-900 transition"
+                >
+                  <Mail className="h-4 w-4 text-slate-400" />
+                  <span>{email}</span>
+                </a>
+                <div className="flex items-start gap-2.5 text-xs text-slate-500 pt-1">
+                  <MapPin className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
                   <span>{address}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <a href={`tel:${phone}`} className="hover:text-white font-bold" dir="ltr">
-                    +966 59 391 4916
-                  </a>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <a href={`mailto:${email}`} className="hover:text-white">
-                    {email}
-                  </a>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <span>Sun–Thu: 9AM – 6PM</span>
                 </div>
               </div>
 
@@ -450,23 +345,23 @@ export default function MarketingLayout() {
                 <button
                   type="button"
                   onClick={openTrial}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-500 transition-all hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 hover:border-emerald-300"
                 >
-                  <span>Start Free Trial</span>
+                  <span>Start 7-Day Free Trial</span>
                   <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Bottom Bar with Copyright and Accepted Payments */}
-          <div className="mt-16 border-t border-slate-800/80 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          {/* Minimalist Bottom Bar */}
+          <div className="mt-14 border-t border-slate-100 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400 font-medium">
             <div>
-              © {new Date().getFullYear()} Maqder ERP. All rights reserved. Built with precision for growing businesses.
+              © {new Date().getFullYear()} Maqder ERP. All rights reserved.
             </div>
 
-            <div className="flex items-center gap-3 text-slate-400 font-bold">
-              <span>🇸🇦 KSA</span>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500">
+              <span className="font-semibold text-emerald-800">🇸🇦 ZATCA Phase 2 Certified</span>
               <span>•</span>
               <span>Mada</span>
               <span>•</span>
