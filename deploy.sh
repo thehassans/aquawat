@@ -7,6 +7,7 @@ cd "$DEPLOY_PATH"
 echo "Pulling latest code..."
 git fetch origin main
 git reset --hard origin/main
+git clean -fd
 
 # Detect docker compose command
 COMPOSE=""
@@ -29,7 +30,8 @@ if [ -n "$COMPOSE" ]; then
   # Keep the current frontend up until the new image builds. Taking it down
   # first leaves visitors on the holding page if npm run build fails.
   $COMPOSE up -d edge || true
-  $COMPOSE up -d --build --remove-orphans
+  $COMPOSE build
+  $COMPOSE up -d --remove-orphans
   echo "Running containers:"
   $COMPOSE ps
 fi
