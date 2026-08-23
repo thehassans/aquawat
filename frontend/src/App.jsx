@@ -42,6 +42,8 @@ const StorefrontShell = lazy(() => import('./components/storefront/StorefrontShe
 const MarketingHome = lazy(() => import('./pages/marketing/Home'))
 const MarketingSolutions = lazy(() => import('./pages/marketing/Solutions'))
 const SolutionDetail = lazy(() => import('./pages/marketing/SolutionDetail'))
+const MarketingIndustries = lazy(() => import('./pages/marketing/Industries'))
+const IndustryDetail = lazy(() => import('./pages/marketing/IndustryDetail'))
 const MarketingPricing = lazy(() => import('./pages/marketing/Pricing'))
 const MarketingAbout = lazy(() => import('./pages/marketing/About'))
 const MarketingContact = lazy(() => import('./pages/marketing/Contact'))
@@ -543,7 +545,9 @@ function App() {
       <Route path="/" element={<Suspense fallback={<LoadingScreen />}><MarketingLayout /></Suspense>}>
         <Route index element={<MarketingHome />} />
         <Route path="solutions" element={<MarketingSolutions />} />
-        <Route path="solutions/:slug" element={<SolutionDetail />} />
+        <Route path="solutions/:slug" element={<IndustryDetail />} />
+        <Route path="industries" element={<MarketingIndustries />} />
+        <Route path="industries/:slug" element={<IndustryDetail />} />
         <Route path="pricing" element={<MarketingPricing />} />
         <Route path="about" element={<MarketingAbout />} />
         <Route path="contact" element={<MarketingContact />} />

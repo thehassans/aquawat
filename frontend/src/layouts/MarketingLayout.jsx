@@ -63,6 +63,7 @@ export default function MarketingLayout() {
 
   const navLinks = [
     { to: '/', labelEn: 'Home', labelAr: 'الرئيسية' },
+    { to: '/industries', labelEn: 'Industries', labelAr: 'القطاعات' },
     { to: '/solutions', labelEn: 'Solutions', labelAr: 'الحلول' },
     { to: '/pricing', labelEn: 'Pricing', labelAr: 'الأسعار' },
     { to: '/about', labelEn: 'About', labelAr: 'من نحن' },
@@ -222,14 +223,14 @@ export default function MarketingLayout() {
       {/* ── ULTRA MINIMALISTIC LIGHT THEMED PREMIUM FOOTER ── */}
       <footer className="border-t border-slate-200/80 bg-white text-slate-600 antialiased">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="grid gap-10 lg:grid-cols-12">
-            {/* Brand & Bio (4 cols) */}
-            <div className="lg:col-span-4 space-y-5">
+          <div className="grid gap-8 lg:grid-cols-12">
+            {/* Brand & Bio (3 cols) */}
+            <div className="lg:col-span-3 space-y-5">
               <Link to="/" className="inline-block">
                 <img src="/maqderlogolandingpage.webp" alt="Maqder" className="h-16 w-auto object-contain" />
               </Link>
-              <p className="text-sm leading-relaxed text-slate-500 max-w-sm">
-                Unified modern cloud ERP built for high-growth businesses. Connecting e-invoicing, HR, payroll, inventory, and point of sale into one seamless experience.
+              <p className="text-sm leading-relaxed text-slate-500 max-w-xs">
+                Unified modern cloud ERP built for high-growth businesses across Saudi Arabia & the GCC. Connecting e-invoicing, HR, payroll, inventory, and POS.
               </p>
               <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
@@ -237,35 +238,74 @@ export default function MarketingLayout() {
               </div>
             </div>
 
-            {/* Product & Solutions (3 cols) */}
+            {/* Industries (3 cols) */}
             <div className="lg:col-span-3">
               <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-                Product & Solutions
+                Industries & Sectors
               </p>
-              <ul className="space-y-2.5 text-sm">
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <Link to="/industries/hospitality-resorts" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    Hotels & Resorts (PMS)
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/industries/wholesale-distribution" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    Wholesale & Supply Chain
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/industries/restaurants-cafes" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    Restaurants & Cloud Kitchens
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/industries/retail-supermarkets" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    Retail & Supermarkets
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/industries/salons-spas" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    Salons, Spas & Wellness
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/industries/construction-contracting" className="text-slate-600 hover:text-emerald-700 transition font-medium">
+                    Contracting & Engineering
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Product & Solutions (2 cols) */}
+            <div className="lg:col-span-2">
+              <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                Solutions
+              </p>
+              <ul className="space-y-2 text-sm">
                 <li>
                   <Link to="/solutions" className="text-slate-600 hover:text-emerald-700 transition font-medium">
-                    ZATCA Phase 2 E-Invoicing
+                    ZATCA Phase 2
                   </Link>
                 </li>
                 <li>
                   <Link to="/solutions" className="text-slate-600 hover:text-emerald-700 transition font-medium">
-                    HR, Payroll & WPS GOSI
+                    HR & Payroll WPS
                   </Link>
                 </li>
                 <li>
                   <Link to="/solutions" className="text-slate-600 hover:text-emerald-700 transition font-medium">
-                    Inventory & Multi-Warehouse
+                    Multi-Warehouse
                   </Link>
                 </li>
                 <li>
                   <Link to="/solutions" className="text-slate-600 hover:text-emerald-700 transition font-medium">
-                    Cloud POS & Kitchen KDS
+                    Cloud POS & KDS
                   </Link>
                 </li>
                 <li>
                   <Link to="/solutions" className="text-slate-600 hover:text-emerald-700 transition font-medium">
-                    Accounting & General Ledger
+                    General Ledger
                   </Link>
                 </li>
               </ul>
@@ -276,7 +316,7 @@ export default function MarketingLayout() {
               <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
                 Company
               </p>
-              <ul className="space-y-2.5 text-sm">
+              <ul className="space-y-2 text-sm">
                 <li>
                   <Link to="/about" className="text-slate-600 hover:text-emerald-700 transition font-medium">
                     About Us
@@ -305,38 +345,38 @@ export default function MarketingLayout() {
               </ul>
             </div>
 
-            {/* Direct Contact (3 cols) */}
-            <div className="lg:col-span-3 space-y-3">
+            {/* Direct Contact (2 cols) */}
+            <div className="lg:col-span-2 space-y-3">
               <p className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-                Contact & Support
+                Contact
               </p>
-              <div className="space-y-2.5 text-sm text-slate-600">
+              <div className="space-y-2 text-xs text-slate-600">
                 <a
                   href={`tel:${phone}`}
-                  className="flex items-center gap-2.5 font-bold text-slate-900 hover:text-emerald-700 transition"
+                  className="flex items-center gap-2 font-bold text-slate-900 hover:text-emerald-700 transition"
                   dir="ltr"
                 >
-                  <Phone className="h-4 w-4 text-emerald-600" />
+                  <Phone className="h-3.5 w-3.5 text-emerald-600" />
                   <span>+966 59 391 4916</span>
                 </a>
                 <a
                   href={`https://wa.me/${waNumber}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-2.5 font-bold text-slate-900 hover:text-[#25D366] transition"
+                  className="flex items-center gap-2 font-bold text-slate-900 hover:text-[#25D366] transition"
                 >
-                  <WAIcon className="h-4 w-4 text-[#25D366]" />
-                  <span>WhatsApp: +966 59 391 4916</span>
+                  <WAIcon className="h-3.5 w-3.5 text-[#25D366]" />
+                  <span>WhatsApp Chat</span>
                 </a>
                 <a
                   href={`mailto:${email}`}
-                  className="flex items-center gap-2.5 text-slate-500 hover:text-slate-900 transition"
+                  className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition"
                 >
-                  <Mail className="h-4 w-4 text-slate-400" />
+                  <Mail className="h-3.5 w-3.5 text-slate-400" />
                   <span>{email}</span>
                 </a>
-                <div className="flex items-start gap-2.5 text-xs text-slate-500 pt-1">
-                  <MapPin className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2 text-[11px] text-slate-500 pt-1">
+                  <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
                   <span>{address}</span>
                 </div>
               </div>
@@ -345,10 +385,10 @@ export default function MarketingLayout() {
                 <button
                   type="button"
                   onClick={openTrial}
-                  className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 hover:border-emerald-300"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
                 >
-                  <span>Start 7-Day Free Trial</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
+                  <span>Free Trial</span>
+                  <ArrowRight className="h-3 w-3" />
                 </button>
               </div>
             </div>
