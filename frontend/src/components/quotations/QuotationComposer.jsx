@@ -792,21 +792,23 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 {language === 'ar' ? 'موضوع عرض السعر' : 'Quotation Subject'}
               </h3>
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
+            <div className={showArabicFields ? "grid grid-cols-1 gap-4 md:grid-cols-2" : "grid grid-cols-1 gap-4"} dir="ltr">
               <div>
                 <label className="label flex items-baseline justify-between gap-2" dir="ltr">
                   <span>Subject</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الموضوع</span>
+                  {showArabicFields && <span dir="rtl" className="font-medium text-slate-500">الموضوع</span>}
                 </label>
                 <input {...register('subject')} className="input" placeholder={language === 'ar' ? 'مثال: أعمال استبدال ملفات الغاز...' : 'e.g. Coil replacement job in Ghazlan Power Plant'} />
               </div>
-              <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Subject (Arabic)</span>
-                  <span dir="rtl" className="font-medium text-slate-500">الموضوع بالعربية</span>
-                </label>
-                <input {...register('subjectAr')} className="input" dir="rtl" />
-              </div>
+              {showArabicFields && (
+                <div>
+                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                    <span>Subject (Arabic)</span>
+                    <span dir="rtl" className="font-medium text-slate-500">الموضوع بالعربية</span>
+                  </label>
+                  <input {...register('subjectAr')} className="input" dir="rtl" />
+                </div>
+              )}
             </div>
           </div>
 

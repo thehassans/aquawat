@@ -1,6 +1,7 @@
 import { Building2, Mail, Phone, MapPin } from 'lucide-react'
 import { getLetterheadContact, splitCompanyNameLines } from '../../lib/invoiceBranding'
-import { toEasternArabicNumerals } from '../../lib/invoiceLanguage'
+import { toEasternArabicNumerals, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
+import { isPakistanTenant, isBangladeshTenant } from '../../lib/saudiTenant'
 
 /**
  * Official company letterhead chrome (header + footer).
@@ -10,19 +11,40 @@ import { toEasternArabicNumerals } from '../../lib/invoiceLanguage'
 export default function LetterheadChrome({ tenant, invoice, bilingual = true, outputLang, children, className = '' }) {
   const contact = getLetterheadContact(tenant, invoice)
   const logoSrc = String(tenant?.branding?.logo || '').trim() || null
+
+  const secondaryCode = getInvoiceSecondaryLanguage(tenant) || (isPakistanTenant(tenant) ? 'ur' : isBangladeshTenant(tenant) ? 'bn' : 'ar')
+  const isUrdu = secondaryCode === 'ur'
+  const isBangla = secondaryCode === 'bn'
+  const isArabic = secondaryCode === 'ar'
+
   const lang = outputLang || (bilingual ? 'both' : 'en')
-  const showEn = lang !== 'ar'
-  const showAr = lang !== 'en' && Boolean(contact.companyAr)
+  const showEn = lang !== 'secondary' && lang !== 'ar' && lang !== 'ur' && lang !== 'bn'
+  const showSec = lang !== 'en' && Boolean(contact.companyAr || contact.companyEn)
+
   const nameEnLines = splitCompanyNameLines(contact.companyEn || '—')
-  const nameArLines = splitCompanyNameLines(contact.companyAr)
-  const crAr = toEasternArabicNumerals(contact.crNumber)
-  const vatAr = toEasternArabicNumerals(contact.vatNumber)
-  const addressAr = toEasternArabicNumerals(contact.addressAr)
+  const nameSecLines = splitCompanyNameLines(contact.companyAr || contact.companyEn || '')
+
+  const crFormatted = isArabic ? toEasternArabicNumerals(contact.crNumber) : contact.crNumber
+  const vatFormatted = isArabic ? toEasternArabicNumerals(contact.vatNumber) : contact.vatNumber
+  const addressSec = isArabic ? toEasternArabicNumerals(contact.addressAr) : (contact.addressAr || '')
+
   const invoiceBranding = tenant?.settings?.invoiceBranding || {}
   const logoHeight = invoiceBranding.logoSize || 112 // 112px default
   const headingFontSize = invoiceBranding.headingSize || 24 // 24px default
   const crVatFontSize = invoiceBranding.crVatSize || 14 // 14px default
   const isSingleLine = invoiceBranding.singleLineHeading || false
+
+  const getSecCrLabel = () => {
+    if (isUrdu) return 'رجسٹریشن / CR #'
+    if (isBangla) return 'ট্রেড লাইসেন্স নং'
+    return 'س.ت'
+  }
+
+  const getSecVatLabel = () => {
+    if (isUrdu) return 'سیلز ٹیکس / NTN #'
+    if (isBangla) return 'বিন / মূসক নং'
+    return 'الرقم الضريبي'
+  }
 
   return (
     <div data-letterhead-root className={`relative mx-auto flex min-h-[297mm] w-full max-w-4xl flex-col overflow-hidden bg-white text-gray-900 ${className}`}>
@@ -47,8 +69,8 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
                   )}
                 </h1>
                 <div className="mt-2 space-y-1 font-bold leading-snug" style={{ fontSize: `${crVatFontSize}px` }}>
-                  {contact.crNumber ? <p>C.R # : {contact.crNumber}</p> : null}
-                  {contact.vatNumber ? <p>VAT # : {contact.vatNumber}</p> : null}
+                  {contact.crNumber ? <p>{isPakistanTenant(tenant) ? 'Reg #' : 'C.R #'} : {contact.crNumber}</p> : null}
+                  {contact.vatNumber ? <p>{isPakistanTenant(tenant) ? 'NTN / STRN #' : isBangladeshTenant(tenant) ? 'BIN #' : 'VAT #'} : {contact.vatNumber}</p> : null}
                 </div>
               </>
             ) : null}
@@ -64,21 +86,21 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
             )}
           </div>
 
-          <div className="min-w-0 w-full text-right font-['Almarai']" dir="rtl">
-            {showAr ? (
+          <div className={`min-w-0 w-full ${isBangla ? 'text-right' : 'text-right font-[\'Almarai\']'}`} dir={isBangla ? 'ltr' : 'rtl'}>
+            {showSec ? (
               <>
-                <h1 className="min-h-16 w-full font-bold leading-tight print:text-black font-['Almarai']" style={{ fontSize: `${headingFontSize}px` }}>
+                <h1 className={`min-h-16 w-full font-bold leading-tight print:text-black ${!isBangla ? "font-['Almarai']" : ''}`} style={{ fontSize: `${headingFontSize}px` }}>
                   {isSingleLine ? (
-                    <span className="block whitespace-nowrap">{contact.companyAr}</span>
+                    <span className="block whitespace-nowrap">{contact.companyAr || contact.companyEn}</span>
                   ) : (
-                    nameArLines.map((line) => (
+                    nameSecLines.map((line) => (
                       <span key={line} className="block">{line}</span>
                     ))
                   )}
                 </h1>
-                <div className="mt-2 w-full space-y-1 font-bold leading-snug font-['Almarai']" style={{ fontSize: `${crVatFontSize}px` }}>
-                  {contact.crNumber ? <p>س.ت : {crAr}</p> : null}
-                  {contact.vatNumber ? <p>الرقم الضريبي : {vatAr}</p> : null}
+                <div className={`mt-2 w-full space-y-1 font-bold leading-snug ${!isBangla ? "font-['Almarai']" : ''}`} style={{ fontSize: `${crVatFontSize}px` }}>
+                  {contact.crNumber ? <p>{getSecCrLabel()} : {crFormatted}</p> : null}
+                  {contact.vatNumber ? <p>{getSecVatLabel()} : {vatFormatted}</p> : null}
                 </div>
               </>
             ) : null}
@@ -96,10 +118,10 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
               <span>{contact.addressLine}</span>
             </p>
           ) : null}
-          {addressAr ? (
-            <p className="flex items-start justify-center gap-1.5 font-['Almarai']" dir="rtl">
+          {showSec && addressSec ? (
+            <p className={`flex items-start justify-center gap-1.5 ${!isBangla ? "font-['Almarai']" : ''}`} dir={isBangla ? 'ltr' : 'rtl'}>
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>{addressAr}</span>
+              <span>{addressSec}</span>
             </p>
           ) : null}
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-1">
