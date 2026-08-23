@@ -267,6 +267,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   const businessContext = values?.businessContext || defaultBusinessContext
   const selectedTemplateId = resolveQuotationTemplateId(values?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID)
   const isTradingContext = businessContext === 'trading'
+  const emptyLine = useMemo(() => getEmptyLine(tenant), [tenant])
   const isMarqueeContext =
     businessContext === 'marquee' ||
     tenantBusinessTypes.includes('marquee') ||

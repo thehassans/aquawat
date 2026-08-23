@@ -261,6 +261,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const isTravelContext = businessContext === 'travel_agency'
   const isRestaurantContext = businessContext === 'restaurant'
   const isManpowerContext = businessContext === 'manpower'
+  const emptyLine = useMemo(() => getEmptyLine(tenant), [tenant])
   const showArabicFields = isArabicTenantMarket(tenant)
   const isPk = isPakistanTenant(tenant)
   const taxLabel = getTaxLabel(tenant)
