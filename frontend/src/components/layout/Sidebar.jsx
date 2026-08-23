@@ -102,11 +102,11 @@ export default function Sidebar() {
     <>
       {/* Logo */}
       <div className="relative flex h-16 items-center justify-center border-b border-slate-200/80 bg-white px-4 dark:border-dark-700 dark:bg-dark-800">
-        <div className="flex h-10 w-full items-center justify-center">
+        <div className="flex h-11 w-full items-center justify-center">
           <img
-            src={`${import.meta.env.BASE_URL}maqderlogolandingpage.webp`}
+            src={`${import.meta.env.BASE_URL}maqdermainloo.png`}
             alt="Maqder"
-            className="h-full w-auto max-h-10 object-contain dark:brightness-0 dark:invert"
+            className="h-full w-auto max-h-11 object-contain dark:brightness-0 dark:invert"
           />
         </div>
         
