@@ -1,0 +1,116 @@
+# Inventory Module — Decision Log
+
+## Approved stack mapping (2026-08-25)
+
+| Spec term | Implementation |
+|-----------|----------------|
+| `companyId` | `tenantId` (existing multi-tenant key) |
+| `createdById` | `createdBy` (ObjectId ref User) |
+| Prisma | **Mongoose** (existing ODM) |
+| Decimal | **decimal.js** + string storage in MongoDB |
+| Next.js / server actions | **Express routes** + React Query on SPA |
+| Direct stock writes | **Blocked** on legacy `/api/products/:id/stock*` once stock engine is active for tenant |
+
+## Migration strategy
+
+- **Parallel engine**: new `stock/*` models and services alongside legacy `Product.stocks[]`.
+- Legacy GRN / stock-transfer / adjustment flows will get **adapter layers** (Phase 1+: receipts via Picking engine).
+- Vertical catalogs (Bakala, Restaurant, Ecommerce, etc.) remain **out of scope** for all phases.
+
+## Product catalog
+
+- New **`ProductTemplate` + `ProductVariant`** models under `backend/models/stock/`.
+- Legacy **`Product`** model unchanged — used by invoices, POS, purchases until explicit linking is built.
+- Variants can optionally store `legacyProductId` for future bridge.
+
+## Warehouse naming
+
+- Legacy flat warehouse: `backend/models/Warehouse.js` (unchanged).
+- Odoo-style warehouse: `StockWarehouse` model (`backend/models/stock/StockWarehouse.js`).
+- Location tree: `StockLocation` model.
+
+## Phase 1 scope delivered
+
+- Location tree + 1-step warehouse bootstrap per tenant
+- UoM category + reference UoM seed
+- ProductTemplate / ProductVariant (no attribute engine yet)
+- Quant ledger, StockMove, StockMoveLine, Picking
+- Sequence table with transactional increment
+- reserve / unreserve / confirm / validate / backorder
+- Forecast + on-hand computation
+- API under `/api/stock/*`
+- UI: InventoryLayout (5 tabs), Overview, Receipts/Deliveries/Internal lists + forms, Stock report
+- Unit tests for core invariants
+
+## Phase 2 scope delivered
+
+- **Lots / serials** (`StockLot`) with expiration/removal/use/alert dates
+- Product template tracking (`none` | `lot` | `serial`) + expiration config
+- FEFO removal strategy uses `lot.removalDate` (fallback expiration)
+- Serial: reserve creates 1-unit lines; validate blocks duplicate incoming serials; quant qty ≤ 1
+- **Packages** + package types + product packagings
+- **Physical inventory** — set counted qty (persists), apply via moves to Inventory adjustment location
+- **Scrap** — draft → validate creates scrapped move to scrap location
+- **Traceability** — upstream/downstream tree per lot
+- **Moves History** report
+- Settings toggles for lots, packages, expiry
+- Receipt op types default `useCreateLots`; lot name editable on move lines before validate
+
+## Phase 3 scope delivered
+
+- **Routes** + **Rules** (pull/push/pull_push/buy/manufacture stubs)
+- **runProcurement** with location-chain rule lookup, MTO chaining (`moveOrigIds`/`moveDestIds`), group propagation
+- **Warehouse step reconfiguration** (`recomputeWarehouseRoutes`) — 1/2/3-step reception, ship/pick_ship/pick_pack_ship; in-flight pickings untouched
+- **Orderpoints** + Replenishment view (permanent + virtual negative-forecast rows)
+- Snooze (1d/1w/1m), Order Once, Save as permanent rule
+- **Scheduler** (manual + cron via `STOCK_SCHEDULER_CRON=1`) with run log table
+- **Putaway rules** + storage categories; applied on validate
+- UI: Replenishment, Procurement Groups, Routes, Rules, Putaway, warehouse Steps editor
+- `onBuyProcurement` / `onManufactureProcurement` stubs for Purchase / Manufacturing seams
+
+## Phase 4 scope delivered
+
+- **Valuation layers** (`StockValuationLayer`) — standard / AVCO / FIFO on validate when crossing internal boundary
+- **Landed costs** (`StockLandedCost`) — compute split (qty/weight/volume/cost/equal) + validate posts adjustment layers; blocked for non–real-time FIFO/AVCO
+- **Returns wizard** — swap src/dest from done pickings; UI on picking form
+- **Barcode nomenclature** — rules + parse API + config UI
+- **Reports** — Moves Analysis (pivot), Performance KPIs; Reporting hub subnav
+- **Print stub** — `GET /pickings/:id/print` returns JSON layout payload
+- Settings: `useLandedCosts`, sign/reception/email flags
+- Unit tests: FIFO remainingValue invariant, landed-cost split, barcode match, return location swap
+
+## Deferred / polish
+
+- True multi-DB concurrent reservation integration test (simulator covers invariant)
+- Optional: clear Stock Interim (1310) against AP on vendor bill reconciliation
+
+## Phase 5 scope delivered (adapters + print)
+
+- **GRN → Picking adapter** — when `engineEnabled`, receive/cancel posts via stock pickings; auto-bridges legacy `Product` → `StockProductVariant` (`legacyProductId`); Bakala lines still use legacy adjust
+- **Purchase return** — same adapter path (outgoing / reverse)
+- **Stock transfer → internal picking** — engine path validates internal move on ship and marks Completed; links `stockPickingId`
+- **Warehouse bridge** — `StockWarehouse.legacyWarehouseId` + create-by-code when missing
+- **Print HTML** — `GET /stock/pickings/:id/print?format=html` + UI opens printable slip
+- **Concurrent reserve simulator** — 20×1 vs 10 units invariant in unit tests
+
+## Phase 6 scope delivered (stock accounting)
+
+- **Real-time journals** on valuation layers after picking validate (outside stock txn)
+  - Receipt: Dr Inventory (1300) / Cr Stock Interim Received (1310)
+  - Delivery: Dr Stock Interim Delivered (1320) / Cr Inventory (1300)
+- **Landed cost journals** on validate: Dr Inventory / Cr Accrued Expenses (2200)
+- Ensures COA codes 1310/1320; `JournalEntry.type = 'stock'`
+- Settings: `stockAccountingEnabled` + optional account overrides
+- Idempotent via `journalEntryId` + sourceModel/sourceId
+- Unit tests for balanced line builders
+
+## Concurrency
+
+- MongoDB multi-document transactions for all stock mutations.
+- Quant documents use optimistic `version` field; retry once on write conflict / deadlock.
+
+## UI primitives built for inventory
+
+- `InventoryLayout.jsx` — 5-tab module nav (PurchasesLayout pattern)
+- `inventoryUi.js` — shared tokens (fieldControlClass, STATUS_PILL, paths)
+- Status pills map picking states to existing badge tokens

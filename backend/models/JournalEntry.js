@@ -16,7 +16,7 @@ const journalEntrySchema = new mongoose.Schema({
   postingDate: { type: Date },
   type: {
     type: String,
-    enum: ['manual', 'invoice', 'payment', 'expense', 'voucher', 'adjustment', 'opening', 'closing'],
+    enum: ['manual', 'invoice', 'payment', 'expense', 'voucher', 'adjustment', 'opening', 'closing', 'stock'],
     default: 'manual',
     index: true,
   },

@@ -34,6 +34,7 @@ const purchaseReturnSchema = new mongoose.Schema({
   reason: { type: String },
   returnAmount: { type: Number, default: 0 },
   stockPostedAt: { type: Date },
+  stockPickingId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockPicking' },
   cancelledAt: { type: Date },
   lines: { type: [purchaseReturnLineSchema], default: [] }
 }, { timestamps: true });

@@ -33,6 +33,9 @@ function handlePurchasesError(res, error) {
   if (error instanceof PurchasesValidationError) {
     return res.status(400).json({ error: error.message, code: error.code });
   }
+  if (error?.name === 'StockValidationError' || error?.name === 'StockError') {
+    return res.status(error.status || 400).json({ error: error.message, code: error.code });
+  }
   if (error?.message?.includes('Only PDF')) {
     return res.status(400).json({ error: error.message });
   }

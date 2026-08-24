@@ -205,12 +205,26 @@ export async function postGrnStock({ tenantId, warehouseId, lines, direction = '
 export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }) {
   if (grn.stockPostedAt) return grn;
   const whId = warehouseId || grn.warehouseId;
-  await postGrnStock({
-    tenantId: user.tenantId,
-    warehouseId: whId,
-    lines: grn.lines,
-    direction: 'in',
-  });
+
+  const { isStockEngineEnabled, postGrnViaStockEngine } = await import('./stock/legacyAdapter.js');
+  if (await isStockEngineEnabled(user.tenantId)) {
+    const { picking } = await postGrnViaStockEngine({
+      tenantId: user.tenantId,
+      userId: user._id,
+      grn,
+      warehouseId: whId,
+      direction: 'in',
+    });
+    if (picking) grn.stockPickingId = picking._id;
+  } else {
+    await postGrnStock({
+      tenantId: user.tenantId,
+      warehouseId: whId,
+      lines: grn.lines,
+      direction: 'in',
+    });
+  }
+
   if (grn.purchaseOrderId) {
     await syncPurchaseOrderFromGrn({
       tenantFilter,
@@ -235,12 +249,36 @@ export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }
 export async function cancelGrn({ tenantFilter, user, grn }) {
   if (grn.status === 'cancelled') return grn;
   if (grn.stockPostedAt) {
-    await postGrnStock({
-      tenantId: user.tenantId,
-      warehouseId: grn.warehouseId,
-      lines: grn.lines,
-      direction: 'out',
-    });
+    const { isStockEngineEnabled, reverseGrnViaStockEngine } = await import('./stock/legacyAdapter.js');
+    if (await isStockEngineEnabled(user.tenantId) && (grn.stockPickingId || grn.grnNumber)) {
+      await reverseGrnViaStockEngine({
+        tenantId: user.tenantId,
+        userId: user._id,
+        grn,
+      });
+      // Also reverse any bakala lines via legacy adjust
+      const bakalaLines = [];
+      for (const line of grn.lines || []) {
+        if (!line.productId || line.isDelayed) continue;
+        const bakala = await BakalaProduct.findOne({ _id: line.productId, tenantId: user.tenantId }).select('_id').lean();
+        if (bakala) bakalaLines.push(line);
+      }
+      if (bakalaLines.length) {
+        await postGrnStock({
+          tenantId: user.tenantId,
+          warehouseId: grn.warehouseId,
+          lines: bakalaLines,
+          direction: 'out',
+        });
+      }
+    } else {
+      await postGrnStock({
+        tenantId: user.tenantId,
+        warehouseId: grn.warehouseId,
+        lines: grn.lines,
+        direction: 'out',
+      });
+    }
     await reversePurchaseOrderReceive({
       tenantFilter,
       purchaseOrderId: grn.purchaseOrderId,
@@ -292,15 +330,35 @@ export async function confirmPurchaseReturn({ tenantFilter, user, purchaseReturn
     }
   }
 
-  await postGrnStock({
-    tenantId: user.tenantId,
-    warehouseId: purchaseReturn.warehouseId,
-    lines: (purchaseReturn.lines || []).map((line) => ({
-      ...line.toObject?.() || line,
-      quantityReceived: line.quantityReturned,
-    })),
-    direction: 'out',
-  });
+  const returnLines = (purchaseReturn.lines || []).map((line) => ({
+    ...(line.toObject?.() || line),
+    quantityReceived: line.quantityReturned,
+  }));
+
+  const { isStockEngineEnabled, postGrnViaStockEngine } = await import('./stock/legacyAdapter.js');
+  if (await isStockEngineEnabled(user.tenantId)) {
+    const { picking } = await postGrnViaStockEngine({
+      tenantId: user.tenantId,
+      userId: user._id,
+      grn: {
+        _id: purchaseReturn._id,
+        grnNumber: purchaseReturn.returnNumber || `PR-${purchaseReturn._id}`,
+        supplierId: purchaseReturn.supplierId,
+        dateReceived: purchaseReturn.dateReturned || new Date(),
+        lines: returnLines,
+      },
+      warehouseId: purchaseReturn.warehouseId,
+      direction: 'out',
+    });
+    if (picking) purchaseReturn.stockPickingId = picking._id;
+  } else {
+    await postGrnStock({
+      tenantId: user.tenantId,
+      warehouseId: purchaseReturn.warehouseId,
+      lines: returnLines,
+      direction: 'out',
+    });
+  }
 
   purchaseReturn.status = 'completed';
   purchaseReturn.stockPostedAt = new Date();
@@ -313,16 +371,41 @@ export async function confirmPurchaseReturn({ tenantFilter, user, purchaseReturn
 export async function cancelPurchaseReturn({ tenantFilter, user, purchaseReturn }) {
   if (purchaseReturn.status === 'cancelled') return purchaseReturn;
   if (purchaseReturn.stockPostedAt) {
-    await postGrnStock({
-      tenantId: user.tenantId,
-      warehouseId: purchaseReturn.warehouseId,
-      lines: (purchaseReturn.lines || []).map((line) => ({
-        ...line.toObject?.() || line,
-        quantityReceived: line.quantityReturned,
-      })),
-      direction: 'in',
-    });
-    if (purchaseReturn.grnId) {
+    const returnLines = (purchaseReturn.lines || []).map((line) => ({
+      ...(line.toObject?.() || line),
+      quantityReceived: line.quantityReturned,
+    }));
+    const { isStockEngineEnabled, reverseGrnViaStockEngine, postGrnViaStockEngine } = await import('./stock/legacyAdapter.js');
+    if (await isStockEngineEnabled(user.tenantId) && purchaseReturn.stockPickingId) {
+      await reverseGrnViaStockEngine({
+        tenantId: user.tenantId,
+        userId: user._id,
+        grn: {
+          stockPickingId: purchaseReturn.stockPickingId,
+          grnNumber: purchaseReturn.returnNumber,
+          lines: returnLines,
+        },
+      });
+    } else if (await isStockEngineEnabled(user.tenantId)) {
+      await postGrnViaStockEngine({
+        tenantId: user.tenantId,
+        userId: user._id,
+        grn: {
+          _id: purchaseReturn._id,
+          grnNumber: `REV-${purchaseReturn.returnNumber || purchaseReturn._id}`,
+          lines: returnLines,
+        },
+        warehouseId: purchaseReturn.warehouseId,
+        direction: 'in',
+      });
+    } else {
+      await postGrnStock({
+        tenantId: user.tenantId,
+        warehouseId: purchaseReturn.warehouseId,
+        lines: returnLines,
+        direction: 'in',
+      });
+    }    if (purchaseReturn.grnId) {
       const grn = await GRN.findOne({ _id: purchaseReturn.grnId, ...tenantFilter });
       if (grn) {
         for (const line of purchaseReturn.lines || []) {

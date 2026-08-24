@@ -15,6 +15,8 @@ export const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '1100', name: 'Bank Accounts', nameAr: 'الحسابات البنكية', type: 'asset', subtype: 'bank' },
   { code: '1200', name: 'Accounts Receivable', nameAr: 'الذمم المدينة', type: 'asset', subtype: 'receivable' },
   { code: '1300', name: 'Inventory', nameAr: 'المخزون', type: 'asset', subtype: 'inventory' },
+  { code: '1310', name: 'Stock Interim (Received)', nameAr: 'مخزون وسيط — استلام', type: 'liability', subtype: 'other_liability' },
+  { code: '1320', name: 'Stock Interim (Delivered)', nameAr: 'مخزون وسيط — تسليم', type: 'expense', subtype: 'cogs' },
   { code: '1400', name: 'VAT Input (Recoverable)', nameAr: 'ضريبة المدخلات', type: 'asset', subtype: 'other_asset' },
   { code: '1500', name: 'Prepaid Expenses', nameAr: 'مصروفات مدفوعة مقدماً', type: 'asset', subtype: 'other_asset' },
   { code: '1600', name: 'Fixed Assets', nameAr: 'الأصول الثابتة', type: 'asset', subtype: 'fixed_asset' },
