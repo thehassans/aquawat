@@ -1005,6 +1005,31 @@ export default function PurchaseOrderForm() {
 
   const supplierFin = supplierFinancials?.find(f => f._id === (order?.supplierId?._id || order?.supplierId))
 
+  // Financial amounts for Received, Refunded, and Backorder
+  const receivedAmount = orderLineItems.reduce((sum, li) => {
+    const qty = Number(li.quantityReceived || 0)
+    const unit = Number(li.unitCost || 0)
+    const taxRate = Number(li.taxRate ?? 15)
+    return sum + (qty * unit * (1 + taxRate / 100))
+  }, 0)
+
+  const refundedAmount = orderLineItems.reduce((sum, li) => {
+    const qty = Number(li.quantityReturned || 0)
+    const unit = Number(li.unitCost || 0)
+    const taxRate = Number(li.taxRate ?? 15)
+    return sum + (qty * unit * (1 + taxRate / 100))
+  }, 0)
+
+  const backorderAmount = orderLineItems.reduce((sum, li) => {
+    const ordered = Number(li.quantityOrdered || 0)
+    const rec = Number(li.quantityReceived || 0)
+    const ret = Number(li.quantityReturned || 0)
+    const bo = Math.max(0, ordered - rec - ret)
+    const unit = Number(li.unitCost || 0)
+    const taxRate = Number(li.taxRate ?? 15)
+    return sum + (bo * unit * (1 + taxRate / 100))
+  }, 0)
+
   if (isEdit && isLoading) {
     return (
       <div className="flex justify-center p-12">
@@ -1232,9 +1257,17 @@ export default function PurchaseOrderForm() {
                 <span className="text-[11px] font-semibold text-slate-500">{order.currency || 'SAR'}</span>
               </div>
               <div className="mt-2.5">
-                <div className="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
-                  <Money value={order.grandTotal} />
+                <div className="flex items-baseline justify-between">
+                  <div className="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
+                    <Money value={order.grandTotal} />
+                  </div>
+                  {refundedAmount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300">
+                      {language === 'ar' ? 'مسترد:' : 'Refunded:'} <Money value={refundedAmount} />
+                    </span>
+                  )}
                 </div>
+
                 <div className="mt-2 grid grid-cols-3 gap-1 rounded-xl bg-slate-50 p-2 text-center text-[11px] dark:bg-white/[0.03]">
                   <div>
                     <span className="block text-[9px] text-slate-400 uppercase">{language === 'ar' ? 'الأساسي' : 'Subtotal'}</span>
@@ -1249,6 +1282,40 @@ export default function PurchaseOrderForm() {
                     <span className="font-bold text-rose-600 dark:text-rose-400"><Money value={order.balanceDue ?? order.grandTotal} /></span>
                   </div>
                 </div>
+
+                {/* Received, Refunded & Backorder Financial Strip */}
+                {(receivedAmount > 0 || refundedAmount > 0) && (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-slate-100 bg-slate-50/70 p-2 text-[11px] dark:border-white/[0.05] dark:bg-white/[0.02]">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-medium text-teal-700 dark:text-teal-300">
+                        {language === 'ar' ? 'المستلم:' : 'Received:'}
+                      </span>
+                      <span className="font-bold text-teal-800 dark:text-teal-200 tabular-nums">
+                        <Money value={receivedAmount} />
+                      </span>
+                    </div>
+                    {refundedAmount > 0 && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-medium text-rose-600 dark:text-rose-400">
+                          {language === 'ar' ? 'المسترد:' : 'Refunded:'}
+                        </span>
+                        <span className="font-bold text-rose-700 dark:text-rose-300 tabular-nums">
+                          <Money value={refundedAmount} />
+                        </span>
+                      </div>
+                    )}
+                    {backorderAmount > 0 && receivedAmount > 0 && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                          {language === 'ar' ? 'المؤجل:' : 'Backorder:'}
+                        </span>
+                        <span className="font-bold text-amber-800 dark:text-amber-200 tabular-nums">
+                          <Money value={backorderAmount} />
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
