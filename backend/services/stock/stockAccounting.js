@@ -162,6 +162,59 @@ export function buildLandedCostJournalLines({
   ];
 }
 
+/**
+ * Vendor bill clearing: Dr Stock Interim (goods) + Dr VAT Input (tax) / Cr AP (gross).
+ * When stock accounting is off, goods debit hits Inventory instead of interim.
+ */
+export function buildPurchaseBillClearingLines({
+  netAmount,
+  taxAmount = 0,
+  stockInput,
+  inventory,
+  ap,
+  vatInput,
+  useInterim = true,
+  description = '',
+}) {
+  const net = round2(Math.abs(Number(netAmount) || 0));
+  const tax = round2(Math.max(0, Number(taxAmount) || 0));
+  const gross = round2(net + tax);
+  if (gross <= 0 || !ap) return [];
+
+  const goodsAcct = useInterim && stockInput ? stockInput : inventory;
+  if (!goodsAcct) return [];
+
+  const lines = [
+    {
+      accountId: goodsAcct._id,
+      accountCode: goodsAcct.code,
+      debit: net,
+      credit: 0,
+      description: description || 'Clear stock interim / inventory',
+    },
+  ];
+  if (tax > 0 && vatInput) {
+    lines.push({
+      accountId: vatInput._id,
+      accountCode: vatInput.code,
+      debit: tax,
+      credit: 0,
+      description: description || 'VAT input',
+    });
+  } else if (tax > 0) {
+    // No VAT account — fold tax into goods debit and still credit full gross to AP
+    lines[0].debit = gross;
+  }
+  lines.push({
+    accountId: ap._id,
+    accountCode: ap.code,
+    debit: 0,
+    credit: gross,
+    description: description || 'Accounts payable',
+  });
+  return lines;
+}
+
 async function findExistingSourceEntry(tenantId, sourceModel, sourceId) {
   if (!sourceId) return null;
   return JournalEntry.findOne({
@@ -282,4 +335,64 @@ export async function postLandedCostJournal({ tenantId, userId, landedCostId }) 
   lc.journalEntryId = entry._id;
   await lc.save();
   return entry;
+}
+
+/**
+ * Post vendor bill journal: clear Stock Interim Received into Accounts Payable.
+ * Idempotent on Invoice sourceId.
+ */
+export async function postPurchaseInvoiceJournal({
+  tenantId,
+  userId,
+  invoice,
+  currency = 'SAR',
+}) {
+  if (!invoice?._id || invoice.flow !== 'purchase') return null;
+
+  const existing = await findExistingSourceEntry(tenantId, 'PurchaseInvoice', invoice._id);
+  if (existing) return existing;
+  // Also accept legacy sourceModel if any
+  const existingInv = await findExistingSourceEntry(tenantId, 'Invoice', invoice._id);
+  if (existingInv && existingInv.type === 'stock') return existingInv;
+
+  const tax = round2(Number(invoice.totalTax ?? invoice.taxAmount ?? 0));
+  const gross = round2(Number(invoice.grandTotal || 0));
+  let net = round2(Number(invoice.taxableAmount ?? (gross - tax)));
+  if (round2(net + tax) !== gross) {
+    net = round2(gross - tax);
+  }
+  if (gross <= 0) return null;
+
+  const accounts = await resolveStockAccounts(tenantId);
+  const accountingOn = await isStockAccountingEnabled(tenantId);
+  const vatInput = await getAccountByCode(tenantId, '1400');
+  const ap = await getAccountByCode(tenantId, '2000');
+
+  const lines = buildPurchaseBillClearingLines({
+    netAmount: net,
+    taxAmount: tax,
+    stockInput: accounts.stockInput,
+    inventory: accounts.inventory,
+    ap,
+    vatInput,
+    useInterim: accountingOn && Boolean(invoice.sourcePurchaseOrderId || invoice.sourceGrnId),
+    description: `Vendor bill ${invoice.invoiceNumber || ''}`,
+  });
+  if (lines.length < 2) return null;
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: invoice.issueDate || new Date(),
+    type: 'stock',
+    memo: `Vendor bill ${invoice.invoiceNumber || ''} — clear stock interim`,
+    memoAr: `فاتورة مورد ${invoice.invoiceNumber || ''} — إقفال وسيط المخزون`,
+    reference: invoice.invoiceNumber || '',
+    currency,
+    lines,
+    sourceModel: 'PurchaseInvoice',
+    sourceId: invoice._id,
+    sourceNumber: invoice.invoiceNumber || '',
+    status: 'posted',
+  });
 }

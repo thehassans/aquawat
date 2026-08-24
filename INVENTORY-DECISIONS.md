@@ -82,7 +82,6 @@
 ## Deferred / polish
 
 - True multi-DB concurrent reservation integration test (simulator covers invariant)
-- Optional: clear Stock Interim (1310) against AP on vendor bill reconciliation
 
 ## Phase 5 scope delivered (adapters + print)
 
@@ -103,6 +102,7 @@
 - Settings: `stockAccountingEnabled` + optional account overrides
 - Idempotent via `journalEntryId` + sourceModel/sourceId
 - Unit tests for balanced line builders
+- **Vendor bill clearing** — purchase invoices post Dr Stock Interim (1310) + VAT Input / Cr AP (2000) when linked to PO/GRN and stock accounting is on
 
 ## Concurrency
 

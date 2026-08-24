@@ -21,6 +21,7 @@ import { buildPickingPrintHtml } from '../services/stock/printLayout.js';
 import {
   buildValuationJournalLines,
   buildLandedCostJournalLines,
+  buildPurchaseBillClearingLines,
 } from '../services/stock/stockAccounting.js';
 
 test('decimal add/sub preserves precision', () => {
@@ -251,4 +252,36 @@ test('landed cost journal: Dr Inventory Cr Accrued', () => {
   assert.equal(lines[0].debit, 40);
   assert.equal(lines[1].credit, 40);
   assert.equal(lines[1].accountCode, '2200');
+});
+
+test('vendor bill clearing: Dr Interim + VAT / Cr AP', () => {
+  const lines = buildPurchaseBillClearingLines({
+    netAmount: 100,
+    taxAmount: 15,
+    stockInput: { _id: 'in', code: '1310' },
+    inventory: { _id: 'inv', code: '1300' },
+    ap: { _id: 'ap', code: '2000' },
+    vatInput: { _id: 'vat', code: '1400' },
+    useInterim: true,
+  });
+  assert.equal(lines.length, 3);
+  assert.equal(lines[0].accountCode, '1310');
+  assert.equal(lines[0].debit, 100);
+  assert.equal(lines[1].accountCode, '1400');
+  assert.equal(lines[1].debit, 15);
+  assert.equal(lines[2].accountCode, '2000');
+  assert.equal(lines[2].credit, 115);
+});
+
+test('vendor bill without interim uses Inventory debit', () => {
+  const lines = buildPurchaseBillClearingLines({
+    netAmount: 50,
+    taxAmount: 0,
+    stockInput: { _id: 'in', code: '1310' },
+    inventory: { _id: 'inv', code: '1300' },
+    ap: { _id: 'ap', code: '2000' },
+    useInterim: false,
+  });
+  assert.equal(lines[0].accountCode, '1300');
+  assert.equal(lines[1].credit, 50);
 });
