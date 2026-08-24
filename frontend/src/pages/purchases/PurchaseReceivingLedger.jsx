@@ -1,4 +1,4 @@
-import { Clock3, PackageCheck, Warehouse as WarehouseIcon, RotateCcw } from 'lucide-react'
+import { Clock3, PackageCheck, Warehouse as WarehouseIcon, RotateCcw, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 import { shell, STATUS_PILL, formatDay, warehouseName } from './purchasesUi'
 import { autoTranslateText } from '../../lib/builtInTranslator'
 
@@ -29,53 +29,41 @@ function EventCard({ event, language, delayed }) {
           : 'border-slate-200/80 bg-white dark:border-white/10 dark:bg-white/[0.03]'
       }`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span
-          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ring-1 ring-inset ${
-            delayed ? STATUS_PILL.delayed : STATUS_PILL.received
-          }`}
-        >
-          {delayed
-            ? (language === 'ar' ? 'متأخر' : 'Delayed')
-            : (language === 'ar' ? 'مستلم' : 'Received')}
+      <div className="flex items-center justify-between text-[11px] text-slate-500">
+        <span className="font-medium text-slate-700 dark:text-slate-200">
+          {event.grnNumber || (language === 'ar' ? 'استلام' : 'Receive')}
         </span>
-        <p className="text-[12px] tabular-nums text-slate-500">
-          {delayed
-            ? `${language === 'ar' ? 'حتى' : 'Until'} ${formatDay(event.delayedUntil, language)}`
-            : formatDay(event.date, language)}
-        </p>
+        <span>{formatDay(event.dateReceived || event.createdAt, language)}</span>
       </div>
-      <p className="mt-2 text-[13px] font-medium text-slate-900 dark:text-white">
-        {language === 'ar' ? 'الكمية' : 'Qty'} {event.quantity}
-        {event.productName ? ` · ${event.productName}` : ''}
-      </p>
-      {delayed && event.delayReason ? (
-        <p className="mt-1.5 text-[13px] text-slate-700 dark:text-slate-200">
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-            {language === 'ar' ? 'السبب' : 'Reason'}
-          </span>
-          <span className="ms-2">{event.delayReason}</span>
-        </p>
+      <div className="mt-1 flex items-baseline justify-between">
+        <span className="text-[14px] font-semibold tabular-nums text-slate-950 dark:text-white">
+          +{event.quantity} {event.uom || ''}
+        </span>
+        <span className="text-[11px] text-slate-400">
+          {warehouseName(event.warehouseId, language)}
+        </span>
+      </div>
+      {delayed ? (
+        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-100/60 px-2.5 py-1.5 text-[11px] text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <div className="flex items-center gap-1.5 font-medium">
+            <Clock3 className="h-3 w-3" />
+            <span>{event.delayReason || (language === 'ar' ? 'تأخير مورد' : 'Supplier delay')}</span>
+          </div>
+          {event.delayNote ? <p className="mt-0.5 opacity-90">{event.delayNote}</p> : null}
+        </div>
       ) : null}
       {event.notes ? (
-        <p className="mt-1 text-[13px] leading-6 text-slate-600 dark:text-slate-300">{event.notes}</p>
+        <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">{event.notes}</p>
       ) : null}
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
-        {event.grnNumber || event.grnId ? (
-          <span className="font-mono font-bold text-teal-700 dark:text-teal-300">
-            {event.grnNumber || 'GRN'}
-          </span>
-        ) : null}
-        {event.warehouse ? <span>{warehouseName(event.warehouse, language)}</span> : null}
-      </div>
     </div>
   )
 }
 
-export default function PurchaseReceivingLedger({ order, language, onOpenReceive }) {
+export default function PurchaseReceivingLedger({ order, language, onOpenReceive, onApprove, isApproving }) {
   const ledger = order?.receivingLedger
-  const lines = Array.isArray(ledger?.lines) ? ledger.lines : []
-  const unmatched = Array.isArray(ledger?.unmatched) ? ledger.unmatched : []
+  const lines = ledger?.lines || []
+  const unmatched = ledger?.unmatchedEvents || []
+
   const ordered = lines.reduce((sum, row) => sum + Number(row.quantityOrdered || 0), 0)
   const received = lines.reduce((sum, row) => sum + Number(row.quantityReceived || 0), 0)
   const returned = lines.reduce((sum, row) => sum + Number(row.quantityReturned || 0), 0)
@@ -116,7 +104,25 @@ export default function PurchaseReceivingLedger({ order, language, onOpenReceive
                 ? 'عند استلام البنود أو تأخيرها ستظهر التواريخ والأسباب هنا.'
                 : 'Received quantities and delay reasons will appear here.'}
             </p>
-            {onOpenReceive && ['approved', 'partially_received', 'sent', 'draft'].includes(order?.status) ? (
+            {['draft', 'sent'].includes(order?.status) ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200/80 bg-amber-50/90 px-3 py-1.5 text-xs font-medium text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                  {language === 'ar' ? 'يجب اعتماد طلب الشراء أولاً لتتمكن من استلام البضاعة (GRN)' : 'Approve purchase order first to receive goods (GRN)'}
+                </span>
+                {onApprove && (
+                  <button
+                    type="button"
+                    onClick={onApprove}
+                    disabled={isApproving}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    {language === 'ar' ? 'اعتماد الطلب الآن' : 'Approve PO now'}
+                  </button>
+                )}
+              </div>
+            ) : onOpenReceive && ['approved', 'partially_received'].includes(order?.status) ? (
               <button
                 type="button"
                 onClick={onOpenReceive}

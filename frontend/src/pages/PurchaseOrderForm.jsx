@@ -1539,6 +1539,8 @@ export default function PurchaseOrderForm() {
                 order={order}
                 language={language}
                 onOpenReceive={() => setShowQuickReceiveModal(true)}
+                onApprove={() => approveMutation.mutate(id)}
+                isApproving={approveMutation.isPending}
               />
             </div>
 
