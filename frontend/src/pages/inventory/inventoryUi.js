@@ -71,6 +71,18 @@ export function pickingStatusLabel(state, language) {
   return (language === 'ar' ? ar : en)[state] || state
 }
 
+/** Label for a stock move / variant (template name preferred). */
+export function stockProductLabel(productOrMove) {
+  const p = productOrMove?.productId || productOrMove
+  if (!p) return '—'
+  if (typeof p === 'string') return p
+  const template = p.templateId
+  if (template && typeof template === 'object') {
+    return template.name || template.defaultCode || p.defaultCode || String(p._id)
+  }
+  return p.defaultCode || p.name || String(p._id)
+}
+
 export function opTypeLabel(code, language) {
   const ar = { incoming: 'استلام', outgoing: 'تسليم', internal: 'تحويل داخلي' }
   const en = { incoming: 'Receipts', outgoing: 'Deliveries', internal: 'Internal' }

@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 /** Shared tenant-scoped fields for stock engine models */
 export const tenantFields = {
-  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 };
 

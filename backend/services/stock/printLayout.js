@@ -4,7 +4,8 @@
 export function buildPickingPrintHtml({ picking, moves, moveLines, printedAt }) {
   const opName = picking.operationTypeId?.name || picking.operationTypeId?.code || '';
   const rows = (moves || []).map((m) => {
-    const productLabel = m.productId?.defaultCode
+    const productLabel = m.productId?.templateId?.name
+      || m.productId?.defaultCode
       || m.productId?.name
       || String(m.productId?._id || m.productId || '');
     const lots = (moveLines || [])

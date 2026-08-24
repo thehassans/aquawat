@@ -61,6 +61,11 @@ import { productInventoryValue } from '../services/stock/valuation.js';
 import { StockValidationError } from '../services/stock/errors.js';
 import { D, decStr } from '../utils/decimal.js';
 
+const VARIANT_POPULATE = {
+  path: 'productId',
+  populate: { path: 'templateId', select: 'name defaultCode barcode uomId standardPrice' },
+};
+
 const router = express.Router();
 
 router.use(protect);
@@ -408,7 +413,7 @@ router.get('/quants', checkPermission('inventory', 'read'), async (req, res) => 
     if (productId) filter.productId = productId;
     if (locationId) filter.locationId = locationId;
     const quants = await StockQuant.find(filter)
-      .populate('productId')
+      .populate(VARIANT_POPULATE)
       .populate('locationId', 'completeName usage')
       .lean();
     res.json(quants);
@@ -454,7 +459,7 @@ router.get('/pickings/:id', checkPermission('inventory', 'read'), async (req, re
     if (!picking) return res.status(404).json({ error: 'Not found' });
 
     const moves = await StockMove.find({ pickingId: picking._id, ...req.tenantFilter })
-      .populate('productId')
+      .populate(VARIANT_POPULATE)
       .lean();
     const moveLines = await StockMoveLine.find({ pickingId: picking._id, ...req.tenantFilter }).lean();
 
@@ -591,7 +596,7 @@ router.get('/lots', checkPermission('inventory', 'read'), async (req, res) => {
     if (productId) filter.productId = productId;
     if (search) filter.name = new RegExp(search, 'i');
     const items = await StockLot.find(filter)
-      .populate('productId')
+      .populate(VARIANT_POPULATE)
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
@@ -628,7 +633,7 @@ router.post('/lots', checkPermission('inventory', 'create'), async (req, res) =>
 
 router.get('/lots/:id', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const lot = await StockLot.findOne({ _id: req.params.id, ...req.tenantFilter }).populate('productId').lean();
+    const lot = await StockLot.findOne({ _id: req.params.id, ...req.tenantFilter }).populate(VARIANT_POPULATE).lean();
     if (!lot) return res.status(404).json({ error: 'Not found' });
     const trace = await lotTraceability(req.user.tenantId, lot._id);
     res.json({ lot, trace });
@@ -768,7 +773,7 @@ router.post('/quants/apply-count', checkPermission('inventory', 'update'), async
 router.get('/scraps', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const items = await StockScrap.find({ ...req.tenantFilter })
-      .populate('productId')
+      .populate(VARIANT_POPULATE)
       .populate('locationId', 'completeName')
       .sort({ createdAt: -1 })
       .lean();
@@ -998,7 +1003,7 @@ router.post('/storage-categories', checkPermission('inventory', 'create'), async
 router.get('/putaway-rules', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const rules = await StockPutawayRule.find({ ...req.tenantFilter })
-      .populate('productId')
+      .populate(VARIANT_POPULATE)
       .populate('locationInId', 'completeName')
       .populate('locationOutId', 'completeName')
       .sort({ sequence: -1 })
@@ -1260,7 +1265,7 @@ router.get('/pickings/:id/print', checkPermission('inventory', 'read'), async (r
       .lean();
     if (!picking) return res.status(404).json({ error: 'Not found' });
     const moves = await StockMove.find({ pickingId: picking._id, ...req.tenantFilter })
-      .populate('productId')
+      .populate(VARIANT_POPULATE)
       .lean();
     const moveLines = await StockMoveLine.find({ pickingId: picking._id, ...req.tenantFilter }).lean();
     await StockPicking.updateOne({ _id: picking._id }, { $set: { printed: true } });

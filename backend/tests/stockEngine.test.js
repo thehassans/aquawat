@@ -202,12 +202,18 @@ test('concurrent reserves: 20 workers × 1 from 10 → 10 success', () => {
 test('print HTML includes picking name and rows', () => {
   const html = buildPickingPrintHtml({
     picking: { name: 'WH/IN/00001', state: 'done', operationTypeId: { name: 'Receipts' }, origin: 'GRN-1' },
-    moves: [{ _id: 'm1', productId: { defaultCode: 'SKU1' }, productUomQty: '5', quantity: '5', state: 'done' }],
+    moves: [{
+      _id: 'm1',
+      productId: { defaultCode: 'SKU1', templateId: { name: 'Widget' } },
+      productUomQty: '5',
+      quantity: '5',
+      state: 'done',
+    }],
     moveLines: [{ moveId: 'm1', lotName: 'LOT-A' }],
     printedAt: '2026-08-25T00:00:00.000Z',
   });
   assert.match(html, /WH\/IN\/00001/);
-  assert.match(html, /SKU1/);
+  assert.match(html, /Widget/);
   assert.match(html, /LOT-A/);
   assert.match(html, /<!DOCTYPE html>/);
 });

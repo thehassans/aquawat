@@ -25,7 +25,10 @@ export async function getReturnWizard(tenantId, pickingId) {
     tenantId: tid,
     pickingId,
     state: 'done',
-  }).populate('productId').lean();
+  }).populate({
+    path: 'productId',
+    populate: { path: 'templateId', select: 'name defaultCode' },
+  }).lean();
 
   return {
     picking,

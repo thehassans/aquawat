@@ -82,6 +82,13 @@
 ## Deferred / polish
 
 - True multi-DB concurrent reservation integration test (simulator covers invariant)
+- Manufacture procurement still stubbed (MRP module seam)
+
+## Phase 7 polish
+
+- Product names on pickings (nested template populate) + print HTML
+- `onBuyProcurement` creates draft Purchase Order (links legacy product when bridged)
+- Removed duplicate `tenantId` field-level indexes from stock `common.js`
 
 ## Phase 5 scope delivered (adapters + print)
 

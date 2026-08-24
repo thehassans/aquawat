@@ -5,7 +5,7 @@ import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Check, X, RefreshCw, Printer, RotateCcw } from 'lucide-react'
 import api from '../../lib/api'
-import { ghostBtn, primaryBtn, fieldControlClass, PICKING_STATUS_PILL, pickingStatusLabel, INVENTORY_PATH } from './inventoryUi'
+import { ghostBtn, primaryBtn, fieldControlClass, PICKING_STATUS_PILL, pickingStatusLabel, stockProductLabel, INVENTORY_PATH } from './inventoryUi'
 
 export default function PickingForm() {
   const { id } = useParams()
@@ -91,7 +91,9 @@ export default function PickingForm() {
         moveId: l.moveId,
         quantity: String(l.quantity || l.quantityDone || 0),
         max: String(l.quantityDone || 0),
-        productLabel: l.productId?.name || String(l.productId?._id || l.productId),
+        productLabel: stockProductLabel(l.productId) !== '—'
+          ? stockProductLabel(l.productId)
+          : (l.productId?.name || String(l.productId?._id || l.productId)),
       })))
       setReturnOpen(true)
     } catch (err) {
@@ -347,7 +349,7 @@ export default function PickingForm() {
                 <tbody>
                   {moves.map((m) => (
                     <tr key={m._id}>
-                      <td>{String(m.productId?._id || m.productId)}</td>
+                      <td>{stockProductLabel(m)}</td>
                       <td>{m.productUomQty}</td>
                       <td>{m.quantity}</td>
                       <td><span className={`badge ${PICKING_STATUS_PILL[m.state]}`}>{pickingStatusLabel(m.state, language)}</span></td>

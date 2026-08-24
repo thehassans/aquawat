@@ -19,10 +19,97 @@ import { computeForecast } from './forecast.js';
 import { StockValidationError } from './errors.js';
 
 /**
- * Integration stubs — Purchase / Manufacturing modules wire these later.
+ * Create a draft Purchase Order for buy-rule procurement.
  */
 export async function onBuyProcurement(ctx) {
-  return { stub: true, action: 'buy', ...ctx };
+  const PurchaseOrder = (await import('../../models/PurchaseOrder.js')).default;
+  const Supplier = (await import('../../models/Supplier.js')).default;
+  const Warehouse = (await import('../../models/Warehouse.js')).default;
+
+  const tid = ctx.tenantId;
+  const variant = await StockProductVariant.findById(ctx.productId).lean();
+  const template = variant
+    ? await StockProductTemplate.findById(variant.templateId).lean()
+    : null;
+
+  const qty = Math.max(0, Number(ctx.qty || ctx.productQty || 0));
+  const unitCost = Number(template?.standardPrice || 0);
+  const lineSubtotal = Math.round(qty * unitCost * 100) / 100;
+  const taxRate = 15;
+  const lineTax = Math.round(lineSubtotal * (taxRate / 100) * 100) / 100;
+  const lineTotal = Math.round((lineSubtotal + lineTax) * 100) / 100;
+
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  const prefix = `PO-${y}${m}${d}`;
+  const last = await PurchaseOrder.findOne({
+    tenantId: tid,
+    poNumber: { $regex: `^${prefix}-` },
+  }).sort({ createdAt: -1 }).select('poNumber');
+  let seq = 1;
+  if (last?.poNumber) {
+    const lastSeq = Number(String(last.poNumber).split('-').pop());
+    if (Number.isFinite(lastSeq)) seq = lastSeq + 1;
+  }
+  const poNumber = `${prefix}-${String(seq).padStart(3, '0')}`;
+
+  const supplier = await Supplier.findOne({ tenantId: tid, isActive: { $ne: false } })
+    .sort({ createdAt: 1 })
+    .select('_id')
+    .lean();
+
+  let warehouseId = null;
+  const stockWh = await mongoose.model('StockWarehouse').findOne({
+    tenantId: tid,
+    active: true,
+  }).lean();
+  if (stockWh?.legacyWarehouseId) {
+    warehouseId = stockWh.legacyWarehouseId;
+  } else {
+    const legacyWh = await Warehouse.findOne({ tenantId: tid, isActive: true }).sort({ isPrimary: -1 }).select('_id').lean();
+    warehouseId = legacyWh?._id || null;
+  }
+
+  const [po] = await PurchaseOrder.create([{
+    tenantId: tid,
+    poNumber,
+    flow: 'purchase',
+    supplierId: supplier?._id || undefined,
+    warehouseId: warehouseId || undefined,
+    status: 'draft',
+    orderDate: new Date(),
+    expectedDate: ctx.dateDeadline || undefined,
+    currency: 'SAR',
+    lineItems: [{
+      productId: variant?.legacyProductId || undefined,
+      manualName: template?.name || variant?.defaultCode || String(ctx.productId),
+      description: `Stock replenishment (${ctx.ruleId || 'buy'})`,
+      productType: 'goods',
+      quantityOrdered: qty,
+      unitCost,
+      taxRate,
+      lineSubtotal,
+      lineTax,
+      lineTotal,
+    }],
+    subtotal: lineSubtotal,
+    totalTax: lineTax,
+    grandTotal: lineTotal,
+    balanceDue: lineTotal,
+    notes: `Auto-created from stock buy rule. Origin product ${template?.name || ctx.productId}`,
+    createdBy: ctx.userId || undefined,
+  }]);
+
+  return {
+    stub: false,
+    action: 'buy',
+    purchaseOrderId: po._id,
+    poNumber: po.poNumber,
+    productId: ctx.productId,
+    qty,
+  };
 }
 
 export async function onManufactureProcurement(ctx) {
@@ -127,6 +214,7 @@ export async function runProcurement({
       dateDeadline,
       ruleId: rule._id,
       routeId: route._id,
+      userId,
     });
   }
   if (rule.action === 'manufacture') {
@@ -137,6 +225,7 @@ export async function runProcurement({
       locationId,
       dateDeadline,
       ruleId: rule._id,
+      userId,
     });
   }
 
