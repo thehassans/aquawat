@@ -76,9 +76,10 @@ const PAYMENT_STATUS_PILL = {
 
 export function formatLineItemName(li, language = 'en', productsList = []) {
   if (!li) return '—'
+  const list = Array.isArray(productsList) ? productsList : []
   const product = (li.productId && typeof li.productId === 'object')
     ? li.productId
-    : (productsList.find((p) => String(p._id) === String(li.productId)) || null)
+    : (list.find((p) => String(p?._id) === String(li.productId)) || null)
 
   if (language === 'ar') {
     if (product?.nameAr) return product.nameAr
@@ -305,15 +306,35 @@ export default function PurchaseOrderForm() {
   const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' })
   const lineItems = useWatch({ control, name: 'lineItems' })
 
-  const { data: suppliers } = useQuery({
+  const { data: suppliersData } = useQuery({
     queryKey: ['suppliers-lookup'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers),
+    queryFn: async () => {
+      try {
+        const res = await api.get('/suppliers', { params: { limit: 200 } })
+        return Array.isArray(res.data?.suppliers)
+          ? res.data.suppliers
+          : Array.isArray(res.data)
+            ? res.data
+            : []
+      } catch {
+        return []
+      }
+    },
   })
+  const suppliers = Array.isArray(suppliersData) ? suppliersData : []
 
-  const { data: supplierFinancials } = useQuery({
+  const { data: supplierFinancialsData } = useQuery({
     queryKey: ['suppliers-financials'],
-    queryFn: () => api.get('/suppliers/financials').then(res => res.data),
+    queryFn: async () => {
+      try {
+        const res = await api.get('/suppliers/financials')
+        return Array.isArray(res.data) ? res.data : []
+      } catch {
+        return []
+      }
+    },
   })
+  const supplierFinancials = Array.isArray(supplierFinancialsData) ? supplierFinancialsData : []
 
   useEffect(() => {
     if (!isEdit && searchParams.get('supplierId')) {
@@ -321,22 +342,35 @@ export default function PurchaseOrderForm() {
     }
   }, [isEdit, searchParams, setValue, suppliers])
 
-  const { data: products } = useQuery({
+  const { data: productsData } = useQuery({
     queryKey: ['products-list'],
-    queryFn: () => api.get('/products', { params: { limit: 200 } }).then((res) => res.data.products),
-  })
-
-  const { data: warehouses } = useQuery({
-    queryKey: ['warehouses'],
     queryFn: async () => {
       try {
-        const res = await api.get('/warehouses')
-        return Array.isArray(res.data) ? res.data : res.data?.warehouses || []
+        const res = await api.get('/products', { params: { limit: 200 } })
+        return Array.isArray(res.data?.products)
+          ? res.data.products
+          : Array.isArray(res.data)
+            ? res.data
+            : []
       } catch {
         return []
       }
     },
   })
+  const products = Array.isArray(productsData) ? productsData : []
+
+  const { data: warehousesData } = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/warehouses')
+        return Array.isArray(res.data) ? res.data : Array.isArray(res.data?.warehouses) ? res.data.warehouses : []
+      } catch {
+        return []
+      }
+    },
+  })
+  const warehouses = Array.isArray(warehousesData) ? warehousesData : []
 
   const addSupplierMutation = useMutation({
     mutationFn: (data) => api.post('/suppliers', data),
@@ -1038,7 +1072,9 @@ export default function PurchaseOrderForm() {
   const isFullySettledOrReceived = (totalReceivedQty + totalReturnedQty) >= totalOrderedQty && totalOrderedQty > 0
   const fulfillmentPercent = totalOrderedQty > 0 ? Math.min(100, Math.round(((totalReceivedQty + totalReturnedQty) / totalOrderedQty) * 100)) : 0
 
-  const supplierFin = supplierFinancials?.find(f => f._id === (order?.supplierId?._id || order?.supplierId))
+  const supplierFin = Array.isArray(supplierFinancials)
+    ? supplierFinancials.find(f => String(f?._id) === String(order?.supplierId?._id || order?.supplierId))
+    : null
 
   // Financial amounts for Received, Refunded, and Backorder
   const receivedAmount = orderLineItems.reduce((sum, li) => {
@@ -2254,7 +2290,7 @@ export default function PurchaseOrderForm() {
                     </span>
                     {(() => {
                       const suppId = watch('supplierId') || order?.supplierId?._id || order?.supplierId
-                      const supp = suppliers?.find(s => s._id === suppId) || order?.supplierId
+                      const supp = (Array.isArray(suppliers) ? suppliers : []).find(s => String(s?._id) === String(suppId)) || (typeof order?.supplierId === 'object' ? order.supplierId : null)
                       return (
                         <div className="space-y-0.5">
                           <p className="font-bold text-sm text-slate-900 dark:text-white">
@@ -2276,7 +2312,7 @@ export default function PurchaseOrderForm() {
                     </span>
                     {(() => {
                       const whId = watch('warehouseId') || order?.warehouseId?._id || order?.warehouseId
-                      const wh = warehouses?.find(w => w._id === whId) || order?.warehouseId
+                      const wh = (Array.isArray(warehouses) ? warehouses : []).find(w => String(w?._id) === String(whId)) || (typeof order?.warehouseId === 'object' ? order.warehouseId : null)
                       return (
                         <div className="space-y-0.5">
                           <p className="font-bold text-slate-900 dark:text-white">
