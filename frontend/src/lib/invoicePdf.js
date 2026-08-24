@@ -24,7 +24,7 @@ const sanitizeFileName = (value) => {
 
 const resolveDocumentPdfTemplateId = (tenant, invoice, documentType = 'invoice') => {
   const id = getInvoiceTemplateId(tenant, invoice?.businessContext, invoice?.pdfTemplateId)
-  if (documentType === 'quotation' || invoice?.quotationNumber || documentType === 'purchase_order') {
+  if (documentType === 'quotation' || invoice?.quotationNumber || documentType === 'purchase_order' || documentType === 'vendor_bill') {
     return resolveQuotationTemplateId(id)
   }
   return Number(id)
@@ -36,6 +36,9 @@ const resolveDocumentNumber = (invoice, documentType = 'invoice') => {
   }
   if (documentType === 'purchase_order') {
     return invoice?.poNumber || 'purchase_order'
+  }
+  if (documentType === 'vendor_bill') {
+    return invoice?.billNumber || (invoice?.poNumber ? `BILL-${invoice.poNumber}` : 'vendor_bill')
   }
   return invoice?.invoiceNumber || invoice?.quotationNumber || 'invoice'
 }
@@ -264,6 +267,7 @@ const renderQrToDataUrl = async (value, size = 112) => {
 const shouldRenderBilingualInvoice = (invoice, documentType = 'invoice', tenant = null) => {
   const contextBilingual = documentType === 'quotation'
     || documentType === 'purchase_order'
+    || documentType === 'vendor_bill'
     || invoice?.invoiceSubtype === 'travel_ticket'
     || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
   return resolveInvoiceBilingual(tenant, contextBilingual)
@@ -809,6 +813,9 @@ const getInvoiceEyebrow = (invoice, language = 'en', documentType = 'invoice') =
   if (documentType === 'purchase_order') {
     return language === 'ar' ? 'طلب شراء' : 'Purchase Order'
   }
+  if (documentType === 'vendor_bill') {
+    return language === 'ar' ? 'فاتورة المورد' : 'Vendor Bill'
+  }
   if (invoice?.quotationNumber) {
     if (invoice?.businessContext === 'construction') {
       return language === 'ar' ? 'عرض سعر للمقاولات' : 'Construction Quotation'
@@ -847,6 +854,9 @@ const getInvoiceEyebrow = (invoice, language = 'en', documentType = 'invoice') =
 const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => {
   if (documentType === 'purchase_order') {
     return language === 'ar' ? 'طلب شراء' : 'Purchase Order'
+  }
+  if (documentType === 'vendor_bill') {
+    return language === 'ar' ? 'فاتورة المورد' : 'Vendor Bill'
   }
   if (invoice?.quotationNumber) {
     if (invoice?.businessContext === 'construction') {
@@ -2002,6 +2012,119 @@ export const printPurchaseOrderPdf = async ({ purchaseOrder, language = 'en', te
   const blob = await generateInvoicePdf({ invoice: mapped, language, tenant, output: 'blob', documentType: 'purchase_order' })
   if (!blob) throw new Error('Failed to generate purchase order PDF')
   const title = resolveDocumentNumber(mapped, 'purchase_order')
+  const printed = await printPdfBlob(blob, title)
+  if (!printed) throw new Error('Failed to open print dialog')
+  return true
+}
+
+export function mapVendorBillForPdf(purchaseOrder = {}, tenant = null) {
+  const business = tenant?.business || {}
+  const supplier = purchaseOrder.supplierId && typeof purchaseOrder.supplierId === 'object'
+    ? purchaseOrder.supplierId
+    : {}
+
+  const rawLines = Array.isArray(purchaseOrder.lineItems) ? purchaseOrder.lineItems : []
+  const hasReceived = rawLines.some(li => Number(li?.quantityReceived || 0) > 0)
+  
+  let subtotal = 0
+  let totalTax = 0
+
+  const lineItems = rawLines
+    .map((li) => {
+      const product = li?.productId && typeof li.productId === 'object' ? li.productId : null
+      const productName = li?.manualName || product?.nameEn || product?.name || li?.description || 'Item'
+      const productNameAr = li?.manualNameAr || product?.nameAr || ''
+      const qty = hasReceived ? Number(li?.quantityReceived ?? 0) : Number(li?.quantityOrdered ?? li?.quantity ?? 0)
+      if (hasReceived && qty <= 0) return null
+      const unitPrice = Number(li?.unitCost ?? li?.unitPrice ?? 0)
+      const taxRate = Number(li?.taxRate ?? 15)
+      const lineSub = qty * unitPrice
+      const lineTax = lineSub * (taxRate / 100)
+      subtotal += lineSub
+      totalTax += lineTax
+
+      return {
+        productId: product?._id || (typeof li?.productId === 'string' ? li.productId : '') || '',
+        productName,
+        productNameAr,
+        description: li?.description || '',
+        unitCode: li?.uom || li?.unitCode || product?.unitOfMeasure || 'PCE',
+        quantity: qty,
+        unitPrice,
+        taxRate,
+        lineSubtotal: lineSub,
+        lineTax,
+        lineTotal: lineSub + lineTax,
+        productType: li?.productType || product?.productType || 'goods',
+      }
+    })
+    .filter(Boolean)
+
+  const grandTotal = subtotal + totalTax
+  const billNum = `BILL-${purchaseOrder.poNumber || 'PO'}`
+
+  return {
+    ...purchaseOrder,
+    billNumber: billNum,
+    poNumber: purchaseOrder.poNumber,
+    invoiceNumber: billNum,
+    issueDate: purchaseOrder.orderDate || purchaseOrder.createdAt || new Date(),
+    dueDate: purchaseOrder.expectedDate || null,
+    currency: purchaseOrder.currency || tenant?.settings?.currency || 'SAR',
+    transactionType: 'Vendor Bill',
+    flow: 'purchase',
+    lineItems,
+    seller: {
+      name: supplier.nameEn || supplier.name || supplier.nameAr || 'Supplier',
+      nameEn: supplier.nameEn || supplier.name || '',
+      nameAr: supplier.nameAr || '',
+      vatNumber: supplier.vatNumber || '',
+      crNumber: supplier.crNumber || '',
+      contactPhone: supplier.phone || supplier.contactPhone || '',
+      contactEmail: supplier.email || supplier.contactEmail || '',
+      address: supplier.address || {},
+    },
+    buyer: {
+      name: business.legalNameEn || business.legalNameAr || tenant?.name || '',
+      nameEn: business.legalNameEn || tenant?.name || '',
+      nameAr: business.legalNameAr || '',
+      vatNumber: business.vatNumber || '',
+      crNumber: business.crNumber || business.commercialRegistration?.crNumber || '',
+      contactPhone: business.contactPhone || '',
+      contactEmail: business.contactEmail || '',
+      address: business.address || {},
+    },
+    subtotal,
+    totalTax,
+    grandTotal,
+  }
+}
+
+export const downloadVendorBillPdf = async ({ purchaseOrder, language = 'en', tenant }) => {
+  const mapped = mapVendorBillForPdf(purchaseOrder, tenant)
+  const result = await generateInvoicePdf({ invoice: mapped, language, tenant, output: 'save', documentType: 'vendor_bill' })
+  if (!result) throw new Error('Failed to generate vendor bill PDF')
+  return result
+}
+
+export const printVendorBillPdf = async ({ purchaseOrder, language = 'en', tenant, sourceElement = null }) => {
+  const mapped = mapVendorBillForPdf(purchaseOrder, tenant)
+  try {
+    const snapshotOk = await printInvoiceSnapshot({
+      invoice: mapped,
+      language,
+      tenant,
+      sourceElement,
+      documentType: 'vendor_bill',
+    })
+    if (snapshotOk) return true
+  } catch (error) {
+    console.warn('[printVendorBillPdf] snapshot print failed, using PDF blob', error)
+  }
+
+  const blob = await generateInvoicePdf({ invoice: mapped, language, tenant, output: 'blob', documentType: 'vendor_bill' })
+  if (!blob) throw new Error('Failed to generate vendor bill PDF')
+  const title = resolveDocumentNumber(mapped, 'vendor_bill')
   const printed = await printPdfBlob(blob, title)
   if (!printed) throw new Error('Failed to open print dialog')
   return true

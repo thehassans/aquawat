@@ -44,7 +44,7 @@ import api from '../lib/api'
 import { autoTranslateText } from '../lib/builtInTranslator'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
-import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
+import { downloadPurchaseOrderPdf, printPurchaseOrderPdf, downloadVendorBillPdf, printVendorBillPdf } from '../lib/invoicePdf'
 import { getAvailableUomOptions, getUomLabel } from '../lib/uomOptions'
 import ProductTypeToggle from '../components/ui/ProductTypeToggle'
 import PremiumFileDrop from '../components/ui/PremiumFileDrop'
@@ -141,6 +141,7 @@ export default function PurchaseOrderForm() {
 
   const [isViewMode, setIsViewMode] = useState(isEdit)
   const [showLivePreviewModal, setShowLivePreviewModal] = useState(false)
+  const [showVendorBillModal, setShowVendorBillModal] = useState(false)
   const [createdOrderForPreview, setCreatedOrderForPreview] = useState(null)
   const [showQuickReceiveModal, setShowQuickReceiveModal] = useState(false)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
@@ -827,6 +828,40 @@ export default function PurchaseOrderForm() {
     }
   }
 
+  const handlePrintVendorBill = async (targetOrder) => {
+    const orderToUse = targetOrder || order
+    if (!orderToUse) return
+    const toastId = toast.loading(language === 'ar' ? 'جاري تجهيز فاتورة المورد للطباعة...' : 'Preparing vendor bill print...')
+    setPdfBusy('print_bill')
+    try {
+      const full = await resolveOrderForPdf(orderToUse)
+      await printVendorBillPdf({ purchaseOrder: full, language, tenant })
+      toast.dismiss(toastId)
+    } catch (e) {
+      console.error('[PurchaseOrderForm] Vendor bill print failed', e)
+      toast.error(language === 'ar' ? 'فشل فتح الطباعة' : 'Print failed', { id: toastId })
+    } finally {
+      setPdfBusy(null)
+    }
+  }
+
+  const handleDownloadVendorBill = async (targetOrder) => {
+    const orderToUse = targetOrder || order
+    if (!orderToUse) return
+    const toastId = toast.loading(language === 'ar' ? 'جاري إنشاء فاتورة المورد PDF...' : 'Generating vendor bill PDF...')
+    setPdfBusy('download_bill')
+    try {
+      const full = await resolveOrderForPdf(orderToUse)
+      await downloadVendorBillPdf({ purchaseOrder: full, language, tenant })
+      toast.success(language === 'ar' ? 'تم تنزيل فاتورة المورد' : 'Vendor bill downloaded', { id: toastId })
+    } catch (e) {
+      console.error('[PurchaseOrderForm] Vendor bill PDF download failed', e)
+      toast.error(language === 'ar' ? 'فشل التنزيل' : 'Download failed', { id: toastId })
+    } finally {
+      setPdfBusy(null)
+    }
+  }
+
   const generatePoShareText = (targetOrder) => {
     const o = targetOrder || order
     if (!o) return ''
@@ -1143,16 +1178,16 @@ export default function PurchaseOrderForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(`/app/dashboard/invoices/new/purchase?poId=${id}`)}
+              onClick={() => setShowVendorBillModal(true)}
               disabled={order?.status === 'cancelled' || !['partially_received', 'received', 'billed'].includes(order?.status) || !(order?.lineItems || []).some(li => Number(li.quantityReceived || 0) > 0)}
-              className={ghostBtn}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-1.5 text-[12px] font-semibold text-violet-800 transition hover:bg-violet-100 disabled:opacity-40 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300"
               title={
                 !['partially_received', 'received', 'billed'].includes(order?.status) || !(order?.lineItems || []).some(li => Number(li.quantityReceived || 0) > 0)
-                  ? (language === 'ar' ? 'يجب استلام البضاعة أولاً (GRN) لإنشاء فاتورة المورد' : 'Receive goods via GRN first to create vendor bill')
+                  ? (language === 'ar' ? 'يجب استلام البضاعة أولاً (GRN) لعرض وطباعة فاتورة المورد' : 'Receive goods via GRN first to preview and print vendor bill')
                   : ''
               }
             >
-              <FileText className="h-3.5 w-3.5 opacity-70" />
+              <FileText className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
               {language === 'ar' ? 'فاتورة المورد' : 'Vendor bill'}
             </button>
             <button
@@ -2446,6 +2481,305 @@ export default function PurchaseOrderForm() {
                       </div>
                     )
                   })()}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* VENDOR BILL LIVE PREVIEW MODAL */}
+      <AnimatePresence>
+        {showVendorBillModal && order && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-[#0c111a] border border-slate-200 dark:border-white/10 flex flex-col"
+            >
+              {/* Modal Top Bar */}
+              <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-100 bg-white/90 px-6 py-3.5 backdrop-blur-md dark:border-white/[0.08] dark:bg-[#0c111a]/90">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">
+                    <FileText className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white">
+                      {language === 'ar' ? 'معاينة فاتورة المورد (Live Preview)' : 'Vendor Bill Live Preview'}
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      {language === 'ar' ? 'فاتورة البضائع المستلمة والمطابقة لأمر الشراء' : 'Billed goods received against purchase order'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handlePrintVendorBill(order)}
+                    disabled={Boolean(pdfBusy)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
+                  >
+                    {pdfBusy === 'print_bill' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5 opacity-70" />}
+                    {language === 'ar' ? 'طباعة الفاتورة' : 'Print Bill'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadVendorBill(order)}
+                    disabled={Boolean(pdfBusy)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-violet-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-800 disabled:opacity-50"
+                  >
+                    {pdfBusy === 'download_bill' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    {language === 'ar' ? 'تنزيل PDF' : 'Download PDF'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowVendorBillModal(false)}
+                    className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Vendor Bill Paper Preview */}
+              <div className="p-6 sm:p-8 space-y-6">
+                {/* Paper Header */}
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-slate-200 pb-5 dark:border-white/10">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                      {order.supplierId?.nameAr || order.supplierId?.nameEn || order.supplierId?.name || 'Supplier'}
+                    </h2>
+                    {order.supplierId?.nameEn && order.supplierId?.nameAr && order.supplierId?.nameEn !== order.supplierId?.nameAr && (
+                      <p className="text-xs text-slate-500">{order.supplierId?.nameEn}</p>
+                    )}
+                    <div className="mt-1.5 space-y-0.5 text-xs text-slate-500">
+                      {order.supplierId?.vatNumber && <p className="font-mono">VAT: {order.supplierId.vatNumber}</p>}
+                      {order.supplierId?.crNumber && <p className="font-mono">CR: {order.supplierId.crNumber}</p>}
+                      {order.supplierId?.phone && <p>Tel: {order.supplierId.phone}</p>}
+                      {order.supplierId?.email && <p>Email: {order.supplierId.email}</p>}
+                    </div>
+                  </div>
+
+                  <div className="text-start sm:text-end space-y-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-800 ring-1 ring-inset ring-violet-200 dark:bg-violet-500/10 dark:text-violet-300">
+                      <FileText className="h-3.5 w-3.5" />
+                      {language === 'ar' ? 'فاتورة المورد' : 'VENDOR BILL'}
+                    </span>
+                    <p className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200 pt-1">
+                      {`BILL-${order.poNumber || 'PO'}`}
+                    </p>
+                    <p className="text-xs text-slate-500 font-mono">
+                      PO: {order.poNumber}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {language === 'ar' ? 'التاريخ:' : 'Date:'} {formatDateForInput(order.orderDate) || new Date().toISOString().slice(0, 10)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Billed To / Buyer Info */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs rounded-2xl bg-slate-50/70 p-4 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5">
+                  <div>
+                    <span className="font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                      {language === 'ar' ? 'فاتورة إلى (المشتري):' : 'Billed To (Buyer):'}
+                    </span>
+                    <p className="font-bold text-sm text-slate-900 dark:text-white">
+                      {tenant?.business?.legalNameAr || tenant?.business?.legalNameEn || tenant?.name || 'Company'}
+                    </p>
+                    {tenant?.business?.legalNameEn && tenant?.business?.legalNameAr && (
+                      <p className="text-slate-500">{tenant.business.legalNameEn}</p>
+                    )}
+                    {tenant?.business?.vatNumber && <p className="font-mono text-slate-500">VAT: {tenant.business.vatNumber}</p>}
+                    {tenant?.business?.crNumber && <p className="font-mono text-slate-500">CR: {tenant.business.crNumber}</p>}
+                  </div>
+
+                  <div>
+                    <span className="font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                      {language === 'ar' ? 'تفاصيل الاستلام والعملة:' : 'Receiving & Currency:'}
+                    </span>
+                    <p className="text-slate-700 dark:text-slate-300">
+                      <span className="text-slate-400">{language === 'ar' ? 'المستودع:' : 'Warehouse:'} </span>
+                      {order.warehouseId?.nameEn || order.warehouseId?.nameAr || '—'}
+                    </p>
+                    <p className="text-slate-700 dark:text-slate-300">
+                      <span className="text-slate-400">{language === 'ar' ? 'العملة:' : 'Currency:'} </span>
+                      {order.currency || 'SAR'}
+                    </p>
+                    <p className="text-slate-700 dark:text-slate-300">
+                      <span className="text-slate-400">{language === 'ar' ? 'حالة الدفع:' : 'Payment:'} </span>
+                      <span className="font-semibold">{paymentStatusLabel(order.paymentStatus || 'pending')}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Billed Items Table (Only Received Items if GRN happened, or ordered) */}
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">
+                  <table className="w-full text-start text-xs">
+                    <thead className="bg-slate-100/70 font-bold uppercase tracking-wider text-slate-600 dark:bg-white/[0.05] dark:text-slate-300">
+                      <tr>
+                        <th className="p-3 text-start">#</th>
+                        <th className="p-3 text-start">{language === 'ar' ? 'المنتج / الوصف' : 'Product / Description'}</th>
+                        <th className="p-3 text-center">{language === 'ar' ? 'الوحدة' : 'UOM'}</th>
+                        <th className="p-3 text-center">{language === 'ar' ? 'الكمية المفوترة / المستلمة' : 'Billed / Rec Qty'}</th>
+                        <th className="p-3 text-end">{language === 'ar' ? 'سعر الوحدة' : 'Unit Cost'}</th>
+                        <th className="p-3 text-center">{language === 'ar' ? 'الضريبة' : 'Tax'}</th>
+                        <th className="p-3 text-end">{language === 'ar' ? 'المجموع' : 'Total'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+                      {(() => {
+                        const rawLines = Array.isArray(order.lineItems) ? order.lineItems : []
+                        const hasReceived = rawLines.some(li => Number(li?.quantityReceived || 0) > 0)
+                        const linesToRender = hasReceived ? rawLines.filter(li => Number(li?.quantityReceived || 0) > 0) : rawLines
+
+                        return linesToRender.map((li, idx) => {
+                          const name = formatLineItemName(li, language, products)
+                          const qty = hasReceived ? Number(li.quantityReceived || 0) : Number(li.quantityOrdered || 0)
+                          const unit = Number(li.unitCost || 0)
+                          const tax = Number(li.taxRate ?? 15)
+                          const sub = qty * unit
+                          const tot = sub + (sub * tax / 100)
+
+                          return (
+                            <tr key={idx}>
+                              <td className="p-3 font-mono text-slate-400">{idx + 1}</td>
+                              <td className="p-3">
+                                <p className="font-semibold text-slate-900 dark:text-white">{name}</p>
+                                {li.productId?.sku && <span className="font-mono text-[10px] text-slate-400">SKU: {li.productId.sku}</span>}
+                              </td>
+                              <td className="p-3 text-center text-slate-500">{li.uom || 'PCE'}</td>
+                              <td className="p-3 text-center font-bold tabular-nums text-teal-700 dark:text-teal-300">{qty}</td>
+                              <td className="p-3 text-end tabular-nums"><Money value={unit} /></td>
+                              <td className="p-3 text-center text-slate-500">{tax}%</td>
+                              <td className="p-3 text-end font-bold tabular-nums"><Money value={tot} /></td>
+                            </tr>
+                          )
+                        })
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Financial Totals */}
+                <div className="flex justify-end">
+                  <div className="w-72 space-y-2 text-xs rounded-2xl bg-slate-50 p-4 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5">
+                    {(() => {
+                      const rawLines = Array.isArray(order.lineItems) ? order.lineItems : []
+                      const hasReceived = rawLines.some(li => Number(li?.quantityReceived || 0) > 0)
+                      const linesToSum = hasReceived ? rawLines.filter(li => Number(li?.quantityReceived || 0) > 0) : rawLines
+                      const sub = linesToSum.reduce((s, li) => {
+                        const q = hasReceived ? Number(li.quantityReceived || 0) : Number(li.quantityOrdered || 0)
+                        return s + (q * Number(li.unitCost || 0))
+                      }, 0)
+                      const tax = linesToSum.reduce((s, li) => {
+                        const q = hasReceived ? Number(li.quantityReceived || 0) : Number(li.quantityOrdered || 0)
+                        const rate = Number(li.taxRate ?? 15)
+                        return s + (q * Number(li.unitCost || 0) * rate / 100)
+                      }, 0)
+                      const grand = sub + tax
+
+                      return (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">{language === 'ar' ? 'المجموع الفرعي' : 'Subtotal'}</span>
+                            <span className="font-semibold tabular-nums"><Money value={sub} /></span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">{language === 'ar' ? 'ضريبة القيمة المضافة (15%)' : 'VAT (15%)'}</span>
+                            <span className="font-semibold tabular-nums"><Money value={tax} /></span>
+                          </div>
+                          <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-bold text-slate-900 dark:text-white dark:border-white/10">
+                            <span>{language === 'ar' ? 'إجمالي الفاتورة' : 'Bill Total'}</span>
+                            <span className="tabular-nums text-violet-700 dark:text-violet-300"><Money value={grand} /></span>
+                          </div>
+                        </>
+                      )
+                    })()}
+                  </div>
+                </div>
+
+                {/* Scanned Vendor Bill Attachment Section */}
+                <div className="border-t border-slate-100 pt-4 dark:border-white/[0.08]">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    {language === 'ar' ? 'مرفق فاتورة المورد الأصلية / Scanned Vendor Bill' : 'Original Vendor Bill Attachment'}
+                  </h4>
+                  {order.attachments && order.attachments.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {order.attachments.map((att, i) => (
+                        <a
+                          key={i}
+                          href={att.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 text-slate-400" />
+                          <span className="max-w-[200px] truncate">{att.name || `Attachment ${i + 1}`}</span>
+                          <ExternalLink className="h-3 w-3 opacity-60" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">
+                      {language === 'ar' ? 'لا يوجد ملف مرفق لفاتورة المورد.' : 'No scanned bill document attached yet.'}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white/95 px-6 py-3.5 backdrop-blur-md dark:border-white/[0.08] dark:bg-[#0c111a]/95">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openWhatsAppModal(order)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    {language === 'ar' ? 'واتساب' : 'WhatsApp'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openEmailModal(order)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    {language === 'ar' ? 'بريد' : 'Email'}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowVendorBillModal(false)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
+                  >
+                    {language === 'ar' ? 'إغلاق' : 'Close'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handlePrintVendorBill(order)}
+                    disabled={Boolean(pdfBusy)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-100"
+                  >
+                    {pdfBusy === 'print_bill' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                    {language === 'ar' ? 'طباعة' : 'Print'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadVendorBill(order)}
+                    disabled={Boolean(pdfBusy)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-violet-700 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-violet-700/20 hover:bg-violet-800 disabled:opacity-50"
+                  >
+                    {pdfBusy === 'download_bill' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    {language === 'ar' ? 'تنزيل PDF' : 'Download PDF'}
+                  </button>
                 </div>
               </div>
             </motion.div>
