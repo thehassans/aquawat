@@ -27,6 +27,21 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/**
+ * Cast req.tenantFilter for use inside raw MongoDB aggregation pipelines.
+ * Mongoose .find() auto-casts string tenantId → ObjectId, but $match in
+ * aggregate() does NOT, so we must cast explicitly.
+ */
+function castTenantFilter(filter) {
+  if (!filter || !filter.tenantId) return filter || {};
+  return {
+    ...filter,
+    tenantId: typeof filter.tenantId === 'string'
+      ? new mongoose.Types.ObjectId(filter.tenantId)
+      : filter.tenantId,
+  };
+}
+
 function safeRound2(value) {
   return typeof round2 === 'function' ? round2(value) : Math.round((toNumber(value) + Number.EPSILON) * 100) / 100;
 }
@@ -161,7 +176,7 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
 router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
     const stats = await PurchaseOrder.aggregate([
-      { $match: req.tenantFilter },
+      { $match: castTenantFilter(req.tenantFilter) },
       {
         $facet: {
           totals: [
@@ -201,7 +216,7 @@ router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) =
 router.get('/reports', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
     const { startDate, endDate, supplierId, warehouseId } = req.query;
-    const matchQuery = { ...req.tenantFilter };
+    const matchQuery = { ...castTenantFilter(req.tenantFilter) };
 
     if (supplierId) matchQuery.supplierId = new mongoose.Types.ObjectId(supplierId);
     if (warehouseId) matchQuery.warehouseId = new mongoose.Types.ObjectId(warehouseId);
