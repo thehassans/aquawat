@@ -5,9 +5,13 @@ import { INVENTORY_PATH } from './inventoryUi'
 const SUB = [
   { to: INVENTORY_PATH.config, en: 'Settings', ar: 'الإعدادات', exact: true },
   { to: INVENTORY_PATH.warehouses, en: 'Warehouses', ar: 'المستودعات' },
+  { to: INVENTORY_PATH.productCategories, en: 'Product Categories', ar: 'فئات المنتجات' },
   { to: INVENTORY_PATH.routes, en: 'Routes', ar: 'المسارات' },
   { to: INVENTORY_PATH.rules, en: 'Rules', ar: 'القواعد' },
   { to: INVENTORY_PATH.putaway, en: 'Putaway Rules', ar: 'قواعد التخزين' },
+  { to: INVENTORY_PATH.storageCategories, en: 'Storage Categories', ar: 'فئات التخزين' },
+  { to: INVENTORY_PATH.packageTypes, en: 'Package Types', ar: 'أنواع الطرود' },
+  { to: INVENTORY_PATH.uom, en: 'Units of Measure', ar: 'وحدات القياس' },
   { to: INVENTORY_PATH.barcodes, en: 'Barcodes', ar: 'الباركود' },
 ]
 

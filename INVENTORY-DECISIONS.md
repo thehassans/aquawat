@@ -21,7 +21,7 @@
 
 - New **`ProductTemplate` + `ProductVariant`** models under `backend/models/stock/`.
 - Legacy **`Product`** model unchanged — used by invoices, POS, purchases until explicit linking is built.
-- Variants can optionally store `legacyProductId` for future bridge.
+- Variants store optional `legacyProductId`; stock product form can link/unlink a legacy catalog product.
 
 ## Warehouse naming
 
@@ -58,7 +58,7 @@
 
 ## Phase 3 scope delivered
 
-- **Routes** + **Rules** (pull/push/pull_push/buy/manufacture stubs)
+- **Routes** + **Rules** (pull / push / pull_push / buy / manufacture)
 - **runProcurement** with location-chain rule lookup, MTO chaining (`moveOrigIds`/`moveDestIds`), group propagation
 - **Warehouse step reconfiguration** (`recomputeWarehouseRoutes`) — 1/2/3-step reception, ship/pick_ship/pick_pack_ship; in-flight pickings untouched
 - **Orderpoints** + Replenishment view (permanent + virtual negative-forecast rows)
@@ -66,7 +66,7 @@
 - **Scheduler** (manual + cron via `STOCK_SCHEDULER_CRON=1`) with run log table
 - **Putaway rules** + storage categories; applied on validate
 - UI: Replenishment, Procurement Groups, Routes, Rules, Putaway, warehouse Steps editor
-- `onBuyProcurement` / `onManufactureProcurement` stubs for Purchase / Manufacturing seams
+- `onBuyProcurement` / `onManufactureProcurement` create draft PO / Work Order when catalog bridges exist
 
 ## Phase 4 scope delivered
 
@@ -75,30 +75,9 @@
 - **Returns wizard** — swap src/dest from done pickings; UI on picking form
 - **Barcode nomenclature** — rules + parse API + config UI
 - **Reports** — Moves Analysis (pivot), Performance KPIs; Reporting hub subnav
-- **Print stub** — `GET /pickings/:id/print` returns JSON layout payload
+- **Print** — `GET /pickings/:id/print` JSON + `?format=html` printable slip
 - Settings: `useLandedCosts`, sign/reception/email flags
 - Unit tests: FIFO remainingValue invariant, landed-cost split, barcode match, return location swap
-
-## Deferred / polish
-
-_(none — concurrent reserve covered by optimistic versioning + optional Mongo integration test)_
-
-## Phase 7 polish
-
-- Product names on pickings (nested template populate) + print HTML
-- `onBuyProcurement` creates draft Purchase Order (links legacy product when bridged)
-- Removed duplicate `tenantId` field-level indexes from stock `common.js`
-
-## Phase 8 polish
-
-- `onManufactureProcurement` creates draft Manufacturing Work Order when BOM + legacy product exist
-- Location complete names on picking detailed operations
-- Optimistic version-conflict reserve simulator (20×1 vs 10)
-
-## Phase 9 polish
-
-- Quant updates use optimistic `version` check (`StockConflictError` + retry)
-- Optional Mongo integration: `STOCK_TEST_MONGODB_URI=... npm run test:stock:integration` (20 workers × 1 from 10)
 
 ## Phase 5 scope delivered (adapters + print)
 
@@ -120,6 +99,28 @@ _(none — concurrent reserve covered by optimistic versioning + optional Mongo 
 - Idempotent via `journalEntryId` + sourceModel/sourceId
 - Unit tests for balanced line builders
 - **Vendor bill clearing** — purchase invoices post Dr Stock Interim (1310) + VAT Input / Cr AP (2000) when linked to PO/GRN and stock accounting is on
+
+## Phase 7–9 polish
+
+- Product / location names on pickings + print HTML
+- `onBuyProcurement` → draft Purchase Order (links legacy product when bridged)
+- `onManufactureProcurement` → draft Manufacturing Work Order when BOM + legacy product exist
+- Removed duplicate `tenantId` field-level indexes from stock `common.js`
+- Quant updates use optimistic `version` check (`StockConflictError` + retry)
+- Optional Mongo integration: `STOCK_TEST_MONGODB_URI=... npm run test:stock:integration`
+
+## Phase 10–13 polish
+
+- Legacy product link on stock product form (`legacyProductId`)
+- Valuation layers panel on product form
+- Storage Categories / Package Types / UoM / Product Categories configuration UI
+- Product form: barcode, category, expiry use/alert times, picking description, UoM on create
+- Settings: `engineEnabled` toggle (bootstraps on enable), lead times, annual inventory day, COA account overrides
+- Barcode nomenclature “use as default” → `barcodeNomenclatureId`
+
+## Deferred / polish
+
+_(none — concurrent reserve covered by optimistic versioning + optional Mongo integration test)_
 
 ## Concurrency
 

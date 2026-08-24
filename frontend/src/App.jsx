@@ -105,6 +105,10 @@ const PerformanceReport = lazy(() => import('./pages/inventory/PerformanceReport
 const LandedCostsList = lazy(() => import('./pages/inventory/LandedCostsList'))
 const StockLandedCostForm = lazy(() => import('./pages/inventory/LandedCostForm'))
 const BarcodeNomenclatures = lazy(() => import('./pages/inventory/BarcodeNomenclatures'))
+const StorageCategoriesList = lazy(() => import('./pages/inventory/StorageCategoriesList'))
+const PackageTypesList = lazy(() => import('./pages/inventory/PackageTypesList'))
+const UomList = lazy(() => import('./pages/inventory/UomList'))
+const ProductCategoriesList = lazy(() => import('./pages/inventory/ProductCategoriesList'))
 const Products = lazy(() => import('./pages/inventory/Products'))
 const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
@@ -843,9 +847,13 @@ function App() {
           <Route path="configuration" element={<InventoryConfig />}>
             <Route index element={<StockSettingsPage />} />
             <Route path="warehouses" element={<StockWarehousesList />} />
+            <Route path="product-categories" element={<ProductCategoriesList />} />
             <Route path="routes" element={<RoutesList />} />
             <Route path="rules" element={<RulesList />} />
             <Route path="putaway" element={<PutawayRulesList />} />
+            <Route path="storage-categories" element={<StorageCategoriesList />} />
+            <Route path="package-types" element={<PackageTypesList />} />
+            <Route path="uom" element={<UomList />} />
             <Route path="barcodes" element={<BarcodeNomenclatures />} />
           </Route>
         </Route>

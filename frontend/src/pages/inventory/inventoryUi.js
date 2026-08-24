@@ -31,6 +31,10 @@ export const INVENTORY_PATH = {
   rules: '/app/dashboard/inventory/configuration/rules',
   putaway: '/app/dashboard/inventory/configuration/putaway',
   barcodes: '/app/dashboard/inventory/configuration/barcodes',
+  storageCategories: '/app/dashboard/inventory/configuration/storage-categories',
+  packageTypes: '/app/dashboard/inventory/configuration/package-types',
+  uom: '/app/dashboard/inventory/configuration/uom',
+  productCategories: '/app/dashboard/inventory/configuration/product-categories',
 }
 
 export const fieldControlClass =

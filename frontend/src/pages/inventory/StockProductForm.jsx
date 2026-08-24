@@ -20,13 +20,20 @@ export default function StockProductForm() {
     defaultValues: {
       name: '',
       defaultCode: '',
+      barcode: '',
       listPrice: '0',
       standardPrice: '0',
       isStorable: true,
       tracking: 'none',
       useExpirationDate: false,
       expirationTime: 0,
+      useTime: 0,
       removalTime: 0,
+      alertTime: 0,
+      descriptionPicking: '',
+      uomId: '',
+      categoryId: '',
+      legacyProductId: '',
     },
   })
 
@@ -36,18 +43,53 @@ export default function StockProductForm() {
     enabled: isEdit,
   })
 
+  const variantId = data?.variants?.[0]?._id
+
+  const { data: legacyProducts } = useQuery({
+    queryKey: ['legacy-products-pick'],
+    queryFn: () => api.get('/products', { params: { limit: 200 } }).then((r) => r.data?.products || r.data || []),
+  })
+
+  const { data: uoms = [] } = useQuery({
+    queryKey: ['stock-uom'],
+    queryFn: () => api.get('/stock/uom').then((r) => r.data),
+    enabled: !isEdit,
+  })
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['stock-product-categories'],
+    queryFn: () => api.get('/stock/product-categories').then((r) => r.data),
+  })
+
+  const { data: valuation } = useQuery({
+    queryKey: ['stock-valuation', variantId],
+    queryFn: () => api.get(`/stock/valuation/${variantId}`).then((r) => r.data),
+    enabled: Boolean(variantId),
+  })
+
   useEffect(() => {
     if (data?.template) {
       reset({
         name: data.template.name,
         defaultCode: data.template.defaultCode || '',
+        barcode: data.template.barcode || '',
         listPrice: data.template.listPrice,
         standardPrice: data.template.standardPrice,
         isStorable: data.template.isStorable,
         tracking: data.template.tracking || 'none',
         useExpirationDate: Boolean(data.template.useExpirationDate),
         expirationTime: data.template.expirationTime || 0,
+        useTime: data.template.useTime || 0,
         removalTime: data.template.removalTime || 0,
+        alertTime: data.template.alertTime || 0,
+        descriptionPicking: data.template.descriptionPicking || '',
+        uomId: data.template.uomId?._id || data.template.uomId || '',
+        categoryId: data.template.categoryId?._id || data.template.categoryId
+          ? String(data.template.categoryId._id || data.template.categoryId)
+          : '',
+        legacyProductId: data.variants?.[0]?.legacyProductId
+          ? String(data.variants[0].legacyProductId)
+          : '',
       })
     }
   }, [data, reset])
@@ -58,9 +100,10 @@ export default function StockProductForm() {
     onSuccess: (res) => {
       toast.success(isAr ? 'تم الحفظ' : 'Saved')
       queryClient.invalidateQueries(['stock-product-templates'])
-      if (!isEdit && res.data?.template?._id) {
-        navigate(INVENTORY_PATH.product(res.data.template._id))
-      }
+      queryClient.invalidateQueries(['stock-product-template', id])
+      queryClient.invalidateQueries(['stock-valuation'])
+      const nextId = res.data?.template?._id || id
+      if (!isEdit && nextId) navigate(INVENTORY_PATH.product(nextId))
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -83,11 +126,21 @@ export default function StockProductForm() {
           {data.forecast && (
             <span className="btn btn-ghost text-sm">{isAr ? 'متوقع' : 'Forecast'}: {data.forecast.forecasted}</span>
           )}
+          {valuation && (
+            <span className="btn btn-ghost text-sm">
+              {isAr ? 'القيمة' : 'Value'}: {valuation.value} ({valuation.costMethod})
+            </span>
+          )}
         </div>
       )}
 
       <form
-        onSubmit={handleSubmit((form) => saveMutation.mutate(form))}
+        onSubmit={handleSubmit((form) => saveMutation.mutate({
+          ...form,
+          uomId: form.uomId || undefined,
+          categoryId: form.categoryId || undefined,
+          legacyProductId: form.legacyProductId || null,
+        }))}
         className="card p-6 grid gap-4 md:grid-cols-2 max-w-3xl"
       >
         <div className="md:col-span-2">
@@ -97,6 +150,41 @@ export default function StockProductForm() {
         <div>
           <label className="label">{isAr ? 'الرمز' : 'Internal reference'}</label>
           <input className={fieldControlClass} {...register('defaultCode')} />
+        </div>
+        <div>
+          <label className="label">{isAr ? 'الباركود' : 'Barcode'}</label>
+          <input className={fieldControlClass} {...register('barcode')} />
+        </div>
+        {!isEdit && (
+          <div>
+            <label className="label">{isAr ? 'وحدة القياس' : 'Unit of measure'}</label>
+            <select className={fieldControlClass} {...register('uomId')}>
+              <option value="">{isAr ? 'افتراضي' : 'Default'}</option>
+              {uoms.map((u) => (
+                <option key={u._id} value={u._id}>{u.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div>
+          <label className="label">{isAr ? 'الفئة' : 'Category'}</label>
+          <select className={fieldControlClass} {...register('categoryId')}>
+            <option value="">{isAr ? 'افتراضي (All)' : 'Default (All)'}</option>
+            {categories.map((c) => (
+              <option key={c._id} value={c._id}>{c.completeName}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">{isAr ? 'ربط منتج قديم' : 'Link legacy product'}</label>
+          <select className={fieldControlClass} {...register('legacyProductId')}>
+            <option value="">—</option>
+            {(Array.isArray(legacyProducts) ? legacyProducts : []).map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.nameEn || p.sku} {p.sku ? `(${p.sku})` : ''}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="label">{isAr ? 'سعر البيع' : 'List price'}</label>
@@ -127,12 +215,24 @@ export default function StockProductForm() {
           <input type="number" className={fieldControlClass} {...register('expirationTime')} />
         </div>
         <div>
+          <label className="label">{isAr ? 'أيام الاستخدام' : 'Best before (days)'}</label>
+          <input type="number" className={fieldControlClass} {...register('useTime')} />
+        </div>
+        <div>
           <label className="label">{isAr ? 'أيام الإزالة (FEFO)' : 'Removal (days, FEFO)'}</label>
           <input type="number" className={fieldControlClass} {...register('removalTime')} />
         </div>
-        {isEdit && data?.variants?.[0] && (
+        <div>
+          <label className="label">{isAr ? 'أيام التنبيه' : 'Alert (days)'}</label>
+          <input type="number" className={fieldControlClass} {...register('alertTime')} />
+        </div>
+        <div className="md:col-span-2">
+          <label className="label">{isAr ? 'وصف للالتقاط' : 'Picking description'}</label>
+          <textarea className={fieldControlClass} rows={2} {...register('descriptionPicking')} />
+        </div>
+        {isEdit && variantId && (
           <div className="md:col-span-2 text-xs text-slate-500">
-            {isAr ? 'معرف المتغير' : 'Variant ID'}: <code>{data.variants[0]._id}</code>
+            {isAr ? 'معرف المتغير' : 'Variant ID'}: <code>{variantId}</code>
           </div>
         )}
         <div className="md:col-span-2">
@@ -142,6 +242,36 @@ export default function StockProductForm() {
           </button>
         </div>
       </form>
+
+      {isEdit && valuation?.layers?.length > 0 && (
+        <div className="card overflow-hidden max-w-3xl">
+          <div className="px-4 py-3 border-b font-medium">{isAr ? 'طبقات التقييم' : 'Valuation layers'}</div>
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>{isAr ? 'الوصف' : 'Description'}</th>
+                  <th>{isAr ? 'الكمية' : 'Qty'}</th>
+                  <th>{isAr ? 'التكلفة' : 'Unit'}</th>
+                  <th>{isAr ? 'القيمة' : 'Value'}</th>
+                  <th>{isAr ? 'متبقي' : 'Remaining'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {valuation.layers.slice(0, 20).map((layer) => (
+                  <tr key={layer._id}>
+                    <td className="text-sm">{layer.description || '—'}</td>
+                    <td>{layer.quantity}</td>
+                    <td>{layer.unitCost}</td>
+                    <td>{layer.value}</td>
+                    <td>{layer.remainingQty} / {layer.remainingValue}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

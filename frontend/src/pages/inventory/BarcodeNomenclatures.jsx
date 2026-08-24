@@ -17,6 +17,11 @@ export default function BarcodeNomenclatures() {
     queryFn: () => api.get('/stock/barcode-nomenclatures').then((r) => r.data),
   })
 
+  const { data: settings } = useQuery({
+    queryKey: ['stock-settings'],
+    queryFn: () => api.get('/stock/settings').then((r) => r.data),
+  })
+
   const create = useMutation({
     mutationFn: () => api.post('/stock/barcode-nomenclatures', { name: 'Default Nomenclature' }),
     onSuccess: () => {
@@ -26,11 +31,24 @@ export default function BarcodeNomenclatures() {
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
 
+  const setDefault = useMutation({
+    mutationFn: (id) => api.patch('/stock/settings', { barcodeNomenclatureId: id }),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم التعيين كافتراضي' : 'Set as default')
+      queryClient.invalidateQueries(['stock-settings'])
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+  })
+
   const parse = useMutation({
     mutationFn: (barcode) => api.post('/stock/barcode/parse', { barcode }),
     onSuccess: (res) => setParseResult(res.data),
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
+
+  const defaultId = settings?.barcodeNomenclatureId
+    ? String(settings.barcodeNomenclatureId)
+    : null
 
   return (
     <div className="space-y-6">
@@ -43,18 +61,40 @@ export default function BarcodeNomenclatures() {
         </button>
       </div>
 
-      <div className="card p-4 space-y-2">
+      <div className="card p-4 space-y-4">
         {isLoading && <p>…</p>}
-        {items.map((n) => (
-          <div key={n._id}>
-            <h3 className="font-semibold">{n.name}</h3>
-            <ul className="text-sm text-slate-600 mt-2 space-y-1">
-              {(n.rules || []).map((r) => (
-                <li key={r._id || r.name}>{r.sequence}. {r.name} — {r.type} / <code>{r.pattern}</code></li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        {items.map((n) => {
+          const isDefault = defaultId === String(n._id)
+          return (
+            <div key={n._id} className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold">
+                  {n.name}
+                  {isDefault && (
+                    <span className="ms-2 text-xs font-normal text-teal-700 dark:text-teal-400">
+                      ({isAr ? 'افتراضي' : 'default'})
+                    </span>
+                  )}
+                </h3>
+                <ul className="text-sm text-slate-600 mt-2 space-y-1">
+                  {(n.rules || []).map((r) => (
+                    <li key={r._id || r.name}>{r.sequence}. {r.name} — {r.type} / <code>{r.pattern}</code></li>
+                  ))}
+                </ul>
+              </div>
+              {!isDefault && (
+                <button
+                  type="button"
+                  className={ghostBtn}
+                  onClick={() => setDefault.mutate(n._id)}
+                  disabled={setDefault.isPending}
+                >
+                  {isAr ? 'تعيين كافتراضي' : 'Use as default'}
+                </button>
+              )}
+            </div>
+          )
+        })}
         {!items.length && !isLoading && <p className="text-slate-500">{isAr ? 'لا توجد تسميات' : 'No nomenclatures'}</p>}
       </div>
 

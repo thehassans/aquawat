@@ -123,6 +123,10 @@ router.patch('/settings', checkPermission('inventory', 'update'), async (req, re
     for (const k of allowed) {
       if (req.body[k] !== undefined) updates[k] = req.body[k];
     }
+    if (updates.engineEnabled === true) {
+      await ensureStockBootstrap(req.user.tenantId, req.user._id);
+    }
+
     const settings = await StockSettings.findOneAndUpdate(
       { tenantId: req.user.tenantId },
       { $set: updates },
@@ -263,6 +267,65 @@ router.get('/uom-categories', checkPermission('inventory', 'read'), async (req, 
   }
 });
 
+// ─── Product categories ─────────────────────────────────────────────────────
+
+router.get('/product-categories', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await StockProductCategory.find({ ...req.tenantFilter, active: true })
+      .sort({ completeName: 1 })
+      .lean());
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/product-categories', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'name required' });
+
+    let parent = null;
+    if (req.body.parentId) {
+      parent = await StockProductCategory.findOne({ _id: req.body.parentId, ...req.tenantFilter });
+      if (!parent) return res.status(400).json({ error: 'parent not found' });
+    }
+
+    const completeName = parent ? `${parent.completeName} / ${name}` : name;
+    const [row] = await StockProductCategory.create([{
+      tenantId: req.user.tenantId,
+      name,
+      parentId: parent?._id || null,
+      completeName,
+      removalStrategy: req.body.removalStrategy || null,
+      costMethod: req.body.costMethod || 'average',
+      valuation: req.body.valuation || 'real_time',
+      createdBy: req.user._id,
+    }]);
+    res.status(201).json(row);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.patch('/product-categories/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const allowed = ['removalStrategy', 'costMethod', 'valuation', 'active'];
+    const updates = {};
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) updates[k] = req.body[k];
+    }
+    const row = await StockProductCategory.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
+      { $set: updates },
+      { new: true },
+    );
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(row);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 // ─── Product templates & variants ───────────────────────────────────────────
 
 router.get('/products/variants', checkPermission('inventory', 'read'), async (req, res) => {
@@ -376,6 +439,7 @@ router.post('/products/templates', checkPermission('inventory', 'create'), async
       templateId: template._id,
       defaultCode: body.defaultCode,
       barcode: body.barcode,
+      legacyProductId: body.legacyProductId || null,
       createdBy: req.user._id,
     }]);
 
@@ -387,7 +451,7 @@ router.post('/products/templates', checkPermission('inventory', 'create'), async
 
 router.patch('/products/templates/:id', checkPermission('inventory', 'update'), async (req, res) => {
   try {
-    const allowed = ['name', 'defaultCode', 'barcode', 'listPrice', 'standardPrice', 'isStorable', 'tracking', 'useExpirationDate', 'expirationTime', 'useTime', 'removalTime', 'alertTime', 'descriptionPicking', 'active'];
+    const allowed = ['name', 'defaultCode', 'barcode', 'listPrice', 'standardPrice', 'isStorable', 'tracking', 'useExpirationDate', 'expirationTime', 'useTime', 'removalTime', 'alertTime', 'descriptionPicking', 'active', 'categoryId'];
     const updates = {};
     for (const k of allowed) {
       if (req.body[k] !== undefined) updates[k] = req.body[k];
@@ -398,7 +462,17 @@ router.patch('/products/templates/:id', checkPermission('inventory', 'update'), 
       { new: true },
     );
     if (!template) return res.status(404).json({ error: 'Not found' });
-    res.json(template);
+
+    if (req.body.legacyProductId !== undefined) {
+      await StockProductVariant.findOneAndUpdate(
+        { templateId: template._id, ...req.tenantFilter },
+        { $set: { legacyProductId: req.body.legacyProductId || null } },
+        { sort: { createdAt: 1 } },
+      );
+    }
+
+    const variants = await StockProductVariant.find({ templateId: template._id, ...req.tenantFilter }).lean();
+    res.json({ template, variants });
   } catch (err) {
     handleError(res, err);
   }
