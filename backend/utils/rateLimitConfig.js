@@ -1,11 +1,11 @@
 import SystemSettings from '../models/SystemSettings.js';
 
-const envAuthMax = Number(process.env.AUTH_RATE_LIMIT_MAX || 40);
-const envApiMax = Number(process.env.API_RATE_LIMIT_MAX || 2000);
+const envAuthMax = Number(process.env.AUTH_RATE_LIMIT_MAX || 300);
+const envApiMax = Number(process.env.API_RATE_LIMIT_MAX || 15000);
 
 let cached = {
-  authMaxRequests: Number.isFinite(envAuthMax) && envAuthMax > 0 ? envAuthMax : 40,
-  apiMaxRequests: Number.isFinite(envApiMax) && envApiMax > 0 ? envApiMax : 2000,
+  authMaxRequests: Number.isFinite(envAuthMax) && envAuthMax > 0 ? envAuthMax : 300,
+  apiMaxRequests: Number.isFinite(envApiMax) && envApiMax > 0 ? envApiMax : 15000,
 };
 
 export function getRateLimitConfig() {

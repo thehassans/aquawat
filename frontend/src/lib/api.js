@@ -30,6 +30,10 @@ const getApiErrorMessage = (error) => {
     return responseMessage
   }
 
+  if (error.response?.status === 429) {
+    return 'The server is temporarily busy. Automatically retrying in a moment...'
+  }
+
   if (error.response?.status === 502 || error.response?.status === 503 || error.response?.status === 504) {
     return 'The service is temporarily unavailable. Please try again in a moment.'
   }
@@ -39,7 +43,7 @@ const getApiErrorMessage = (error) => {
   }
 
   if (!error.response) {
-    return 'Unable to reach the server. Please check the deployment or proxy configuration.'
+    return 'Unable to reach the server. Please check your internet connection or server status.'
   }
 
   return error.message || 'Request failed'
@@ -47,7 +51,7 @@ const getApiErrorMessage = (error) => {
 
 const api = axios.create({
   baseURL: apiBaseUrl,
-  timeout: 15000,
+  timeout: 45000,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -251,20 +255,43 @@ api.interceptors.response.use(
 
     error.userMessage = getApiErrorMessage(error)
 
-    // ── 429 Rate-limit: exponential backoff retry with randomized jitter (up to 4 attempts) ──
+    // ── 429 Rate-limit: exponential backoff retry with randomized jitter (up to 5 attempts) ──
     if (error.response?.status === 429 && config) {
       config._429RetryCount = (config._429RetryCount || 0) + 1
-      if (config._429RetryCount <= 4) {
+      if (config._429RetryCount <= 5) {
         const retryAfterHeader = parseInt(error.response.headers?.['retry-after'] || '0', 10)
-        // Add random jitter (100-600ms) to desynchronize simultaneous clients
-        const jitter = Math.floor(Math.random() * 500) + 100
+        const jitter = Math.floor(Math.random() * 400) + 100
         const backoffMs = retryAfterHeader > 0
           ? (retryAfterHeader * 1000) + jitter
-          : Math.min(800 * Math.pow(2, config._429RetryCount) + jitter, 10000)
-        console.warn(`[API] 429 Rate Limit encountered – retrying in ${backoffMs}ms with jitter (attempt ${config._429RetryCount}/4) for ${config.url}`)
+          : Math.min(400 * Math.pow(1.8, config._429RetryCount) + jitter, 12000)
+        console.warn(`[API] 429 Rate Limit encountered – retrying in ${backoffMs}ms with jitter (attempt ${config._429RetryCount}/5) for ${config.url}`)
         await new Promise(resolve => setTimeout(resolve, backoffMs))
         config._skipDedup = true
+        config.timeout = Math.max(config.timeout || 45000, 30000)
         return api(config)
+      }
+
+      // If a GET request exhausted 429 retries, gracefully fallback to cached response if available
+      if (config.method === 'get') {
+        try {
+          const db = await initDb()
+          if (db) {
+            const cacheKey = config.url + (config.params ? JSON.stringify(config.params) : '')
+            const cached = await db.get('api_cache', cacheKey)
+            if (cached?.data) {
+              console.warn(`[API] Serving cached fallback after 429 for ${config.url}`)
+              return Promise.resolve({
+                data: cached.data,
+                status: 200,
+                statusText: 'OK (Cached Fallback)',
+                headers: {},
+                config,
+              })
+            }
+          }
+        } catch {
+          // ignore cache read error
+        }
       }
     }
 

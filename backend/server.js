@@ -617,10 +617,10 @@ const authLimiter = rateLimit({
   message: { error: 'Too many auth requests. Please wait and try again.' },
 });
 
-// 2. Public storefront endpoints — lenient (5 000 req / 15 min)
+// 2. Public storefront endpoints — lenient (10 000 req / 15 min)
 const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 1200),
+  max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 10000),
   standardHeaders: true,
   legacyHeaders: false,
   store: makeRateLimitStore('public'),
@@ -637,7 +637,7 @@ const getTenantOrIpKey = (req) => {
   return getClientIp(req);
 };
 
-// 3. General API — configurable (default 10 000 req / 15 min)
+// 3. General API — configurable (default 15 000 req / 15 min)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: () => getRateLimitConfig().apiMaxRequests,
@@ -650,6 +650,8 @@ const limiter = rateLimit({
     return p.startsWith('/health') ||
       p.startsWith('/desktop-sync/ping') ||
       p.startsWith('/sync/status') ||
+      p.startsWith('/notifications') ||
+      p.startsWith('/auth/me') ||
       p.startsWith('/zatca-compliance/health');
   },
   message: { error: 'Too many requests, please try again later.' },
@@ -660,7 +662,7 @@ const limiter = rateLimit({
 //    exhaust paid AI quota or hog CPU on document parsing/OCR.
 const aiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.AI_RATE_LIMIT_MAX || 60),
+  max: Number(process.env.AI_RATE_LIMIT_MAX || 180),
   standardHeaders: true,
   legacyHeaders: false,
   store: makeRateLimitStore('ai'),
@@ -674,9 +676,9 @@ app.use('/api/ai/', aiLimiter);
 app.use('/api/', limiter);
 app.use('/api/', etag());
 
-// ─── Request timeout (30 s hard cap on all API routes) ────────────────────────
-const apiTimeoutMs = Number(process.env.API_REQUEST_TIMEOUT_MS || 30_000);
-app.use('/api/', requestTimeout(Number.isFinite(apiTimeoutMs) && apiTimeoutMs > 0 ? apiTimeoutMs : 30_000));
+// ─── Request timeout (60 s hard cap on all API routes) ────────────────────────
+const apiTimeoutMs = Number(process.env.API_REQUEST_TIMEOUT_MS || 60_000);
+app.use('/api/', requestTimeout(Number.isFinite(apiTimeoutMs) && apiTimeoutMs > 0 ? apiTimeoutMs : 60_000));
 
 // Body parsing — Stripe webhook needs the raw body for signature verification
 app.post('/api/payments/stripe-webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);

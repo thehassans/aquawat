@@ -82,21 +82,25 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      // 5 min stale time — data is considered fresh for 5 min after fetch.
-      // Prevents redundant refetches on every component mount.
       staleTime: 5 * 60 * 1000,
-      // Keep unused data in cache for 10 min before garbage collecting.
-      // Means navigating back to a page uses cached data instantly.
       gcTime: 10 * 60 * 1000,
       retry: (failureCount, error) => {
-        // Never retry on rate limit, auth, or not-found errors
         const status = error?.response?.status
-        if (status === 429 || status === 401 || status === 403 || status === 404) return false
+        if (status === 401 || status === 403 || status === 404) return false
+        // For rate-limit (429), gateway/server errors (502, 503, 504), or timeout (ECONNABORTED), retry up to 3 times
+        if (status === 429 || status === 502 || status === 503 || status === 504 || error?.code === 'ECONNABORTED') {
+          return failureCount < 3
+        }
         return failureCount < 1
+      },
+      retryDelay: (attemptIndex, error) => {
+        const retryAfter = parseInt(error?.response?.headers?.['retry-after'] || '0', 10)
+        if (retryAfter > 0) return (retryAfter * 1000) + Math.random() * 500
+        return Math.min(1000 * 2 ** attemptIndex + Math.random() * 500, 15000)
       },
     },
     mutations: {
-      retry: 0, // Never auto-retry mutations (POST/PUT/DELETE)
+      retry: 0,
     },
   },
 })
