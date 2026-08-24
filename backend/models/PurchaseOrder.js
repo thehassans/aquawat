@@ -44,7 +44,7 @@ const purchaseOrderSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['draft', 'sent', 'approved', 'partially_received', 'received', 'billed', 'partially_delivered', 'delivered', 'closed', 'cancelled'],
+    enum: ['draft', 'sent', 'approved', 'partially_received', 'received', 'refunded', 'billed', 'partially_delivered', 'delivered', 'closed', 'cancelled'],
     default: 'draft'
   },
 

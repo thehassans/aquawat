@@ -25,6 +25,7 @@ export const dangerBtn =
 
 export const STATUS_PILL = {
   received: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
+  refunded: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
   completed: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
   posted: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
@@ -44,6 +45,7 @@ export function statusLabel(status, language) {
     approved: 'معتمد',
     partially_received: 'مستلم جزئياً',
     received: 'مستلم',
+    refunded: 'مسترد',
     billed: 'مفوتر',
     completed: 'مكتمل',
     calculated: 'محسوب',
@@ -54,6 +56,7 @@ export function statusLabel(status, language) {
   }
   if (language === 'ar') return ar[status] || status
   if (status === 'partially_received') return 'Partially received'
+  if (status === 'refunded') return 'Refunded'
   return status ? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ') : status
 }
 

@@ -168,12 +168,14 @@ export function poReceiveStatus(lines = []) {
   if (!relevant.length) return 'approved';
   const totalOrdered = relevant.reduce((sum, line) => sum + toNumber(line.quantityOrdered ?? line.quantity, 0), 0);
   const totalReceived = relevant.reduce((sum, line) => sum + toNumber(line.quantityReceived, 0), 0);
+  const totalReturned = relevant.reduce((sum, line) => sum + toNumber(line.quantityReturned, 0), 0);
   
+  if (totalReceived <= 0 && totalReturned >= totalOrdered && totalOrdered > 0) return 'refunded';
   if (totalReceived <= 0) return 'approved';
   const allLinesFulfilled = relevant.every(
-    (line) => toNumber(line.quantityReceived) >= toNumber(line.quantityOrdered ?? line.quantity) && toNumber(line.quantityOrdered ?? line.quantity) > 0
+    (line) => (toNumber(line.quantityReceived) + toNumber(line.quantityReturned)) >= toNumber(line.quantityOrdered ?? line.quantity) && toNumber(line.quantityOrdered ?? line.quantity) > 0
   );
-  if (allLinesFulfilled && totalReceived >= totalOrdered) return 'received';
+  if (allLinesFulfilled && (totalReceived + totalReturned) >= totalOrdered) return 'received';
   return 'partially_received';
 }
 

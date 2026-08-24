@@ -58,6 +58,7 @@ import { showArabicFields as isArabicTenantMarket } from '../lib/saudiTenant'
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
   received: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
+  refunded: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
   partially_received: 'bg-amber-50 text-amber-700 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
   delayed: 'bg-amber-50 text-amber-800 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
   cancelled: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
@@ -959,11 +960,13 @@ export default function PurchaseOrderForm() {
       if (status === 'approved') return 'معتمد'
       if (status === 'partially_received') return 'مستلم جزئياً'
       if (status === 'received') return 'مستلم بالكامل'
+      if (status === 'refunded') return 'مسترد'
       if (status === 'billed') return 'مفوتر'
       if (status === 'cancelled') return 'ملغي'
       return status
     }
     if (status === 'partially_received') return 'Partially received'
+    if (status === 'refunded') return 'Refunded'
     return status ? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ') : status
   }
 

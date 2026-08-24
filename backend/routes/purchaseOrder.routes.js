@@ -129,10 +129,23 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 
+    const normalizedOrders = purchaseOrders.map((doc) => {
+      const po = doc.toObject();
+      if (po.notes && po.notes.includes('[Refund:')) {
+        const totalRec = (po.lineItems || []).reduce((s, li) => s + toNumber(li.quantityReceived, 0), 0);
+        const totalRet = (po.lineItems || []).reduce((s, li) => s + toNumber(li.quantityReturned, 0), 0);
+        const totalOrd = (po.lineItems || []).reduce((s, li) => s + toNumber(li.quantityOrdered, 0), 0);
+        if (totalRec === 0 && (totalRet >= totalOrd || po.status === 'received') && totalOrd > 0) {
+          po.status = 'refunded';
+        }
+      }
+      return po;
+    });
+
     const total = await PurchaseOrder.countDocuments(query);
 
     res.json({
-      purchaseOrders,
+      purchaseOrders: normalizedOrders,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -369,14 +382,24 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
 
     const payload = order.toObject({ depopulate: false, virtuals: false });
     if (order.notes && order.notes.includes('[Refund:')) {
+      let totalRec = 0;
+      let totalRet = 0;
+      let totalOrd = 0;
       (payload.lineItems || []).forEach((li) => {
         const ord = toNumber(li.quantityOrdered, 0);
         const rec = toNumber(li.quantityReceived, 0);
-        const ret = toNumber(li.quantityReturned, 0);
-        if (ord > (rec + ret) && (order.status === 'received' || order.notes.includes('refunded/cancelled'))) {
-          li.quantityReturned = round2(ord - rec);
+        let ret = toNumber(li.quantityReturned, 0);
+        if (ord > (rec + ret) && (order.status === 'received' || order.status === 'refunded' || order.notes.includes('refunded/cancelled'))) {
+          ret = safeRound2(ord - rec);
+          li.quantityReturned = ret;
         }
+        totalRec += rec;
+        totalRet += ret;
+        totalOrd += ord;
       });
+      if (totalRec === 0 && (totalRet >= totalOrd || order.status === 'received') && totalOrd > 0) {
+        payload.status = 'refunded';
+      }
     }
     payload.related = { grns, returns, landedCosts, invoices };
     payload.receivingLedger = buildPoReceivingLedger({ lineItems: payload.lineItems, grns });
@@ -720,8 +743,18 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
         refreshed.notes = (refreshed.notes ? `${refreshed.notes} | ` : '') + `[Refund: ${refundNotes.join(', ')}]`;
       }
 
+      const totalRec = (refreshed.lineItems || []).reduce((s, li) => s + toNumber(li.quantityReceived, 0), 0);
+      const totalRet = (refreshed.lineItems || []).reduce((s, li) => s + toNumber(li.quantityReturned, 0), 0);
+      const totalOrd = (refreshed.lineItems || []).reduce((s, li) => s + toNumber(li.quantityOrdered, 0), 0);
+
       if (!hasAnyPendingBackorder) {
-        refreshed.status = 'received';
+        if (totalRec === 0 && (totalRet >= totalOrd || refundNotes.length > 0)) {
+          refreshed.status = 'refunded';
+        } else if (totalRec > 0) {
+          refreshed.status = 'received';
+        } else {
+          refreshed.status = 'refunded';
+        }
       }
 
       if (req.body.settlementReason) {

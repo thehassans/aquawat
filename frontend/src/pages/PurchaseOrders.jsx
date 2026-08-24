@@ -32,6 +32,7 @@ import toast from 'react-hot-toast'
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
   received: 'bg-emerald-50 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
+  refunded: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
   partially_received: 'bg-amber-50 text-amber-800 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
   cancelled: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
   approved: 'bg-teal-50 text-teal-800 ring-teal-200/80 dark:bg-teal-500/10 dark:text-teal-300 dark:ring-teal-500/20',
@@ -46,7 +47,7 @@ const PAYMENT_STATUS_PILL = {
   overdue: 'bg-rose-50 text-rose-700 ring-rose-200/70 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
 }
 
-const STATUS_KEYS = ['draft', 'sent', 'approved', 'partially_received', 'received', 'billed', 'cancelled']
+const STATUS_KEYS = ['draft', 'sent', 'approved', 'partially_received', 'received', 'refunded', 'billed', 'cancelled']
 
 export default function PurchaseOrders() {
   const { language } = useSelector((state) => state.ui)
@@ -156,11 +157,13 @@ export default function PurchaseOrders() {
       approved: 'معتمد',
       partially_received: 'مستلم جزئياً',
       received: 'مستلم',
+      refunded: 'مسترد',
       billed: 'مفوتر',
       cancelled: 'ملغي',
     }
     if (language === 'ar') return ar[status] || status
     if (status === 'partially_received') return 'Partially received'
+    if (status === 'refunded') return 'Refunded'
     return status ? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ') : status
   }
 
