@@ -381,25 +381,11 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
     ]);
 
     const payload = order.toObject({ depopulate: false, virtuals: false });
-    if (order.notes && order.notes.includes('[Refund:')) {
-      let totalRec = 0;
-      let totalRet = 0;
-      let totalOrd = 0;
-      (payload.lineItems || []).forEach((li) => {
-        const ord = toNumber(li.quantityOrdered, 0);
-        const rec = toNumber(li.quantityReceived, 0);
-        let ret = toNumber(li.quantityReturned, 0);
-        if (ord > (rec + ret) && (order.status === 'received' || order.status === 'refunded' || order.notes.includes('refunded/cancelled'))) {
-          ret = safeRound2(ord - rec);
-          li.quantityReturned = ret;
-        }
-        totalRec += rec;
-        totalRet += ret;
-        totalOrd += ord;
-      });
-      if (totalRec === 0 && (totalRet >= totalOrd || order.status === 'received') && totalOrd > 0) {
-        payload.status = 'refunded';
-      }
+    const totalRec = (payload.lineItems || []).reduce((s, li) => s + toNumber(li.quantityReceived, 0), 0);
+    const totalRet = (payload.lineItems || []).reduce((s, li) => s + toNumber(li.quantityReturned, 0), 0);
+    const totalOrd = (payload.lineItems || []).reduce((s, li) => s + toNumber(li.quantityOrdered, 0), 0);
+    if (totalRec === 0 && totalRet >= totalOrd && totalOrd > 0) {
+      payload.status = 'refunded';
     }
     payload.related = { grns, returns, landedCosts, invoices };
     payload.receivingLedger = buildPoReceivingLedger({ lineItems: payload.lineItems, grns });
@@ -726,12 +712,12 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
       let hasAnyPendingBackorder = false;
 
       (refreshed.lineItems || []).forEach((li, idx) => {
-        const itemReq = items.find((it) => (it.productId && String(it.productId) === String(li.productId)) || it.lineIndex === idx);
-        const rem = Math.max(0, toNumber(li.quantityOrdered, 0) - toNumber(li.quantityReceived, 0));
+        const itemReq = items.find((it) => (it.productId && String(it.productId) === String(li.productId?._id || li.productId)) || it.lineIndex === idx);
+        const rem = Math.max(0, toNumber(li.quantityOrdered, 0) - toNumber(li.quantityReceived, 0) - toNumber(li.quantityReturned, 0));
         if (rem > 0) {
           if (itemReq?.remainingAction === 'refund') {
             const pName = li.manualName || (li.productId?.nameEn || li.productId?.nameAr) || 'Item';
-            li.quantityReturned = round2(toNumber(li.quantityReturned, 0) + rem);
+            li.quantityReturned = safeRound2(toNumber(li.quantityReturned, 0) + rem);
             refundNotes.push(`${pName}: ${rem} ${li.uom || 'units'} refunded/cancelled`);
           } else {
             hasAnyPendingBackorder = true;

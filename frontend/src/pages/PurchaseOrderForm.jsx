@@ -729,9 +729,9 @@ export default function PurchaseOrderForm() {
   const submitReceive = () => {
     const items = (orderLineItems || []).map((li, idx) => {
       const productId = li?.productId?._id || li?.productId
-      const key = productId || `line_${idx}`
-      const qty = Number(receiveQty?.[key] ?? receiveQty?.[productId] ?? 0)
-      const action = lineRemainingActions[key] || 'backorder'
+      const key = productId ? String(productId) : `line_${idx}`
+      const qty = Number(receiveQty?.[key] ?? (productId ? receiveQty?.[productId] : 0) ?? 0)
+      const action = lineRemainingActions[key] || (productId ? lineRemainingActions[String(productId)] : undefined) || 'backorder'
       return {
         productId: productId || undefined,
         lineIndex: idx,
@@ -2601,15 +2601,15 @@ export default function PurchaseOrderForm() {
                 <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06]">
                   {orderLineItems.map((li, idx) => {
                     const productId = li?.productId?._id || li?.productId
-                    const key = productId || `line_${idx}`
+                    const key = productId ? String(productId) : `line_${idx}`
                     const name = formatLineItemName(li, language, products)
                     const ordered = Number(li.quantityOrdered || 0)
                     const alreadyRec = Number(li.quantityReceived || 0)
                     const remaining = Math.max(0, ordered - alreadyRec)
-                    const currVal = receiveQty[key] ?? ''
+                    const currVal = receiveQty[key] ?? (productId ? receiveQty[productId] : '') ?? ''
                     const numVal = currVal === '' ? 0 : Number(currVal)
                     const lineBackorder = Math.max(0, remaining - numVal)
-                    const currentLineAction = lineRemainingActions[key] || 'backorder'
+                    const currentLineAction = lineRemainingActions[key] || (productId ? lineRemainingActions[String(productId)] : undefined) || 'backorder'
 
                     return (
                       <tr key={key} className="hover:bg-slate-50/40 dark:hover:bg-white/[0.02]">
