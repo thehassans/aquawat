@@ -454,3 +454,55 @@ export function simulateConcurrentReserves(availableQty, workerCount, eachQty = 
     results,
   };
 }
+
+/**
+ * Simulate optimistic version conflicts: all workers read the same version,
+ * but only the first write per version wins; losers retry with fresh version.
+ * Guarantees free never goes negative and successes ≤ floor(available/eachQty).
+ */
+export function simulateOptimisticVersionReserves(availableQty, workerCount, eachQty = 1) {
+  let free = Number(availableQty);
+  let version = 0;
+  const maxSuccess = Math.floor(free / Number(eachQty));
+  let successes = 0;
+  let retries = 0;
+  const results = [];
+
+  for (let i = 0; i < workerCount; i++) {
+    let attempts = 0;
+    let done = false;
+    while (!done && attempts < 5) {
+      attempts += 1;
+      const readVersion = version;
+      const readFree = free;
+      const want = Number(eachQty);
+      if (want > readFree) {
+        results.push({ ok: false, reserved: 0, reason: 'INSUFFICIENT', attempts });
+        done = true;
+        break;
+      }
+      // First writer with this version wins
+      if (readVersion === version) {
+        free -= want;
+        version += 1;
+        successes += 1;
+        results.push({ ok: true, reserved: want, freeAfter: free, attempts });
+        done = true;
+      } else {
+        retries += 1;
+      }
+    }
+    if (!done) {
+      results.push({ ok: false, reserved: 0, reason: 'VERSION_EXHAUSTED', attempts });
+    }
+  }
+
+  return {
+    successes,
+    failures: results.filter((r) => !r.ok).length,
+    retries,
+    freeRemaining: free,
+    maxSuccess,
+    results,
+  };
+}

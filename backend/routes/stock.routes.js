@@ -461,7 +461,10 @@ router.get('/pickings/:id', checkPermission('inventory', 'read'), async (req, re
     const moves = await StockMove.find({ pickingId: picking._id, ...req.tenantFilter })
       .populate(VARIANT_POPULATE)
       .lean();
-    const moveLines = await StockMoveLine.find({ pickingId: picking._id, ...req.tenantFilter }).lean();
+    const moveLines = await StockMoveLine.find({ pickingId: picking._id, ...req.tenantFilter })
+      .populate('locationId', 'completeName usage')
+      .populate('locationDestId', 'completeName usage')
+      .lean();
 
     res.json({ picking, moves, moveLines });
   } catch (err) {

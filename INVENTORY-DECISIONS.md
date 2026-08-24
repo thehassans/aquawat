@@ -81,14 +81,19 @@
 
 ## Deferred / polish
 
-- True multi-DB concurrent reservation integration test (simulator covers invariant)
-- Manufacture procurement still stubbed (MRP module seam)
+- True multi-DB concurrent reservation integration test (optimistic version simulator covers invariant)
 
 ## Phase 7 polish
 
 - Product names on pickings (nested template populate) + print HTML
 - `onBuyProcurement` creates draft Purchase Order (links legacy product when bridged)
 - Removed duplicate `tenantId` field-level indexes from stock `common.js`
+
+## Phase 8 polish
+
+- `onManufactureProcurement` creates draft Manufacturing Work Order when BOM + legacy product exist
+- Location complete names on picking detailed operations
+- Optimistic version-conflict reserve simulator (20×1 vs 10)
 
 ## Phase 5 scope delivered (adapters + print)
 

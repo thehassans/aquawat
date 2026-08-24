@@ -5,7 +5,7 @@ import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Check, X, RefreshCw, Printer, RotateCcw } from 'lucide-react'
 import api from '../../lib/api'
-import { ghostBtn, primaryBtn, fieldControlClass, PICKING_STATUS_PILL, pickingStatusLabel, stockProductLabel, INVENTORY_PATH } from './inventoryUi'
+import { ghostBtn, primaryBtn, fieldControlClass, PICKING_STATUS_PILL, pickingStatusLabel, stockProductLabel, stockLocationLabel, INVENTORY_PATH } from './inventoryUi'
 
 export default function PickingForm() {
   const { id } = useParams()
@@ -376,8 +376,8 @@ export default function PickingForm() {
                   <tbody>
                     {moveLines.map((l) => (
                       <tr key={l._id}>
-                        <td className="text-xs">{String(l.locationId)}</td>
-                        <td className="text-xs">{String(l.locationDestId)}</td>
+                        <td className="text-xs">{stockLocationLabel(l.locationId)}</td>
+                        <td className="text-xs">{stockLocationLabel(l.locationDestId)}</td>
                         <td>
                           {picking?.state !== 'done' && picking?.state !== 'cancel' ? (
                             <input

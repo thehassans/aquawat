@@ -83,6 +83,12 @@ export function stockProductLabel(productOrMove) {
   return p.defaultCode || p.name || String(p._id)
 }
 
+export function stockLocationLabel(location) {
+  if (!location) return '—'
+  if (typeof location === 'string') return location
+  return location.completeName || location.name || String(location._id)
+}
+
 export function opTypeLabel(code, language) {
   const ar = { incoming: 'استلام', outgoing: 'تسليم', internal: 'تحويل داخلي' }
   const en = { incoming: 'Receipts', outgoing: 'Deliveries', internal: 'Internal' }

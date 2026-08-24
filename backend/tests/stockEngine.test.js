@@ -16,7 +16,7 @@ import { roundToMultiple } from '../services/stock/procurement.js';
 import { consumeFifoLayers } from '../services/stock/valuation.js';
 import { splitLandedCostAmounts } from '../services/stock/landedCost.js';
 import { matchBarcode, defaultBarcodeRules } from '../services/stock/barcode.js';
-import { simulateConcurrentReserves } from '../services/stock/legacyAdapter.js';
+import { simulateConcurrentReserves, simulateOptimisticVersionReserves } from '../services/stock/legacyAdapter.js';
 import { buildPickingPrintHtml } from '../services/stock/printLayout.js';
 import {
   buildValuationJournalLines,
@@ -197,6 +197,14 @@ test('concurrent reserves: 20 workers × 1 from 10 → 10 success', () => {
   assert.equal(sim.successes, 10);
   assert.equal(sim.failures, 10);
   assert.equal(sim.freeRemaining, 0);
+});
+
+test('optimistic version reserves never oversell', () => {
+  const sim = simulateOptimisticVersionReserves(10, 20, 1);
+  assert.equal(sim.successes, 10);
+  assert.equal(sim.maxSuccess, 10);
+  assert.equal(sim.freeRemaining, 0);
+  assert.ok(sim.successes + sim.failures === 20);
 });
 
 test('print HTML includes picking name and rows', () => {

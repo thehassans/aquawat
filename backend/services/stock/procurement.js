@@ -113,7 +113,97 @@ export async function onBuyProcurement(ctx) {
 }
 
 export async function onManufactureProcurement(ctx) {
-  return { stub: true, action: 'manufacture', ...ctx };
+  const { ManufacturingBOM, ManufacturingWorkOrder } = await import('../../models/Manufacturing.js');
+  const Warehouse = (await import('../../models/Warehouse.js')).default;
+
+  const tid = ctx.tenantId;
+  const variant = await StockProductVariant.findById(ctx.productId).lean();
+  if (!variant?.legacyProductId) {
+    return {
+      stub: true,
+      action: 'manufacture',
+      reason: 'NO_LEGACY_PRODUCT',
+      productId: ctx.productId,
+      qty: ctx.qty,
+    };
+  }
+
+  const bom = await ManufacturingBOM.findOne({
+    tenantId: tid,
+    finishedProductId: variant.legacyProductId,
+    isActive: { $ne: false },
+    status: { $in: ['active', 'draft'] },
+  }).sort({ status: 1, updatedAt: -1 });
+
+  if (!bom) {
+    return {
+      stub: true,
+      action: 'manufacture',
+      reason: 'NO_BOM',
+      productId: ctx.productId,
+      legacyProductId: variant.legacyProductId,
+      qty: ctx.qty,
+    };
+  }
+
+  const qty = Math.max(1, Math.ceil(Number(ctx.qty || 1)));
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  const prefix = `WO-${y}${m}${d}`;
+  const last = await ManufacturingWorkOrder.findOne({
+    tenantId: tid,
+    orderNumber: { $regex: `^${prefix}-` },
+  }).sort({ createdAt: -1 }).select('orderNumber');
+  let seq = 1;
+  if (last?.orderNumber) {
+    const lastSeq = Number(String(last.orderNumber).split('-').pop());
+    if (Number.isFinite(lastSeq)) seq = lastSeq + 1;
+  }
+  const orderNumber = `${prefix}-${String(seq).padStart(3, '0')}`;
+
+  let warehouseId = null;
+  const stockWh = await mongoose.model('StockWarehouse').findOne({ tenantId: tid, active: true }).lean();
+  if (stockWh?.legacyWarehouseId) warehouseId = stockWh.legacyWarehouseId;
+  else {
+    const legacyWh = await Warehouse.findOne({ tenantId: tid, isActive: true }).sort({ isPrimary: -1 }).select('_id').lean();
+    warehouseId = legacyWh?._id || null;
+  }
+
+  const start = ctx.dateDeadline ? new Date(ctx.dateDeadline) : new Date();
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+
+  const materialCost = Number(bom.estimatedMaterialCost || bom.totalStandardCost || 0) * qty;
+
+  const [wo] = await ManufacturingWorkOrder.create([{
+    tenantId: tid,
+    orderNumber,
+    productId: variant.legacyProductId,
+    bomId: bom._id,
+    bomVersion: bom.version || '1.0',
+    routingId: bom.routingId || undefined,
+    quantityPlanned: qty,
+    status: 'draft',
+    priority: 'medium',
+    warehouseId: warehouseId || undefined,
+    scheduledStartDate: start,
+    scheduledEndDate: end,
+    standardCostEstimated: materialCost,
+    notes: `Auto-created from stock manufacture rule (${ctx.ruleId || 'manufacture'})`,
+    createdBy: ctx.userId || undefined,
+  }]);
+
+  return {
+    stub: false,
+    action: 'manufacture',
+    workOrderId: wo._id,
+    orderNumber: wo.orderNumber,
+    bomId: bom._id,
+    productId: ctx.productId,
+    qty,
+  };
 }
 
 /**
