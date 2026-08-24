@@ -1,12 +1,13 @@
 import { getTaxIdLabel } from './saudiTenant.js'
 
 export const isPurchaseOrderDocument = (documentType) => documentType === 'purchase_order'
+export const isVendorBillDocument = (documentType) => documentType === 'vendor_bill'
 export const isQuotationDocument = (documentType) => documentType === 'quotation'
 export const isPurchaseInvoiceDocument = (documentType, invoice) =>
-  documentType === 'purchase_invoice' || invoice?.flow === 'purchase'
+  documentType === 'purchase_invoice' || (invoice?.flow === 'purchase' && documentType !== 'vendor_bill' && documentType !== 'purchase_order')
 
 export const shouldShowZatcaQr = (documentType) =>
-  documentType !== 'quotation' && documentType !== 'purchase_order'
+  documentType !== 'quotation' && documentType !== 'purchase_order' && documentType !== 'vendor_bill'
 
 export const getCommercialDocumentTitle = (documentType, language = 'en', { uppercase = false, flow = 'sell' } = {}) => {
   let en = 'Tax Invoice'
@@ -14,6 +15,9 @@ export const getCommercialDocumentTitle = (documentType, language = 'en', { uppe
   if (documentType === 'purchase_order') {
     en = 'Purchase Order'
     ar = 'طلب شراء'
+  } else if (documentType === 'vendor_bill') {
+    en = 'Purchase Order Bill'
+    ar = 'فاتورة أمر الشراء'
   } else if (documentType === 'quotation') {
     en = 'Quotation'
     ar = 'عرض سعر'
@@ -27,20 +31,21 @@ export const getCommercialDocumentTitle = (documentType, language = 'en', { uppe
 
 export const getCommercialDocumentNumberLabel = (documentType, language = 'en', flow = 'sell') => {
   if (documentType === 'purchase_order') return language === 'ar' ? 'رقم طلب الشراء' : 'PO No.'
+  if (documentType === 'vendor_bill') return language === 'ar' ? 'رقم فاتورة أمر الشراء' : 'Bill No.'
   if (documentType === 'quotation') return language === 'ar' ? 'رقم عرض السعر' : 'Quotation No.'
   if (documentType === 'purchase_invoice' || flow === 'purchase') return language === 'ar' ? 'رقم فاتورة الشراء' : 'Purchase Inv No.'
   return language === 'ar' ? 'رقم الفاتورة' : 'Invoice No.'
 }
 
 export const getCommercialCounterpartyLabel = (documentType, language = 'en', flow = 'sell') => {
-  if (documentType === 'purchase_order' || documentType === 'purchase_invoice' || flow === 'purchase') {
+  if (documentType === 'purchase_order' || documentType === 'vendor_bill' || documentType === 'purchase_invoice' || flow === 'purchase') {
     return language === 'ar' ? 'المورد' : 'Supplier'
   }
   return language === 'ar' ? 'الفاتورة إلى' : 'Bill To'
 }
 
 export const getCounterpartyFallbackName = (documentType, language = 'en', flow = 'sell') => {
-  if (documentType === 'purchase_order' || documentType === 'purchase_invoice' || flow === 'purchase') {
+  if (documentType === 'purchase_order' || documentType === 'vendor_bill' || documentType === 'purchase_invoice' || flow === 'purchase') {
     return language === 'ar' ? 'مورد نقدي' : 'Cash Supplier'
   }
   return language === 'ar' ? 'عميل نقدي' : 'Cash Customer'
@@ -50,13 +55,16 @@ export const resolveCommercialDocumentNumber = (invoice, documentType) => {
   if (documentType === 'purchase_order') {
     return invoice?.poNumber || invoice?.invoiceNumber || 'PO-DRAFT'
   }
+  if (documentType === 'vendor_bill') {
+    return invoice?.billNumber || (invoice?.poNumber ? `BILL-${invoice.poNumber}` : invoice?.invoiceNumber || 'BILL-DRAFT')
+  }
   return invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
 }
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 
 export const resolveInvoiceParties = ({ invoice, tenant, invoiceBranding = {}, language = 'en', bilingual = false, documentType = 'invoice' }) => {
-  const isPurchaseFlow = invoice?.flow === 'purchase' || documentType === 'purchase_invoice' || documentType === 'purchase_order'
+  const isPurchaseFlow = invoice?.flow === 'purchase' || documentType === 'purchase_invoice' || documentType === 'purchase_order' || documentType === 'vendor_bill'
 
   // Company / Header Info (The tenant / business owner issuing or recording the document):
   const companyNameEn = isPurchaseFlow

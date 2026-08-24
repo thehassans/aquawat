@@ -814,7 +814,7 @@ const getInvoiceEyebrow = (invoice, language = 'en', documentType = 'invoice') =
     return language === 'ar' ? 'طلب شراء' : 'Purchase Order'
   }
   if (documentType === 'vendor_bill') {
-    return language === 'ar' ? 'فاتورة المورد' : 'Vendor Bill'
+    return language === 'ar' ? 'فاتورة أمر الشراء' : 'Purchase Order Bill'
   }
   if (invoice?.quotationNumber) {
     if (invoice?.businessContext === 'construction') {
@@ -856,7 +856,7 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
     return language === 'ar' ? 'طلب شراء' : 'Purchase Order'
   }
   if (documentType === 'vendor_bill') {
-    return language === 'ar' ? 'فاتورة المورد' : 'Vendor Bill'
+    return language === 'ar' ? 'فاتورة أمر الشراء' : 'Purchase Order Bill'
   }
   if (invoice?.quotationNumber) {
     if (invoice?.businessContext === 'construction') {
@@ -1099,7 +1099,8 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     return shapedLines.join('\n')
   }
 
-  const isPurchaseFlowPdf = invoice?.flow === 'purchase' || documentType === 'purchase_invoice' || documentType === 'purchase_order'
+  const isVendorBillPdf = documentType === 'vendor_bill'
+  const isPurchaseFlowPdf = invoice?.flow === 'purchase' || documentType === 'purchase_invoice' || documentType === 'purchase_order' || isVendorBillPdf
 
   const sellerNameEn = isPurchaseFlowPdf
     ? (tenant?.business?.legalNameEn || tenant?.name || invoiceBranding?.legalNameEn || '')
@@ -1152,6 +1153,8 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const title = isQuotationPdf
     ? getInvoiceTitle(invoice, language, documentType)
     : isPurchaseOrderPdf
+    ? getInvoiceTitle(invoice, language, documentType)
+    : isVendorBillPdf
     ? getInvoiceTitle(invoice, language, documentType)
     : isPurchaseFlowPdf
     ? (language === 'ar' ? 'فاتورة شراء' : 'Purchase Invoice')

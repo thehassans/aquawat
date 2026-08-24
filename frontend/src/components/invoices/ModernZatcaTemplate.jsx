@@ -35,7 +35,8 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   const letterheadContact = getLetterheadContact(tenant, invoice)
   
-  const isPurchaseFlow = invoice?.flow === 'purchase' || documentType === 'purchase_invoice' || documentType === 'purchase_order'
+  const isVendorBill = documentType === 'vendor_bill'
+  const isPurchaseFlow = invoice?.flow === 'purchase' || documentType === 'purchase_invoice' || documentType === 'purchase_order' || isVendorBill
 
   // Header Company Info:
   // For sales/quotations, seller is the tenant/business.
@@ -226,6 +227,8 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               <span className="inline-flex items-center gap-1.5 leading-none">
                 {isPurchaseOrder
                   ? L('Purchase Order', 'طلب شراء')
+                  : isVendorBill
+                  ? L('Purchase Order Bill', 'فاتورة أمر الشراء')
                   : isPurchaseFlow
                   ? L('Purchase Invoice', 'فاتورة شراء')
                   : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')

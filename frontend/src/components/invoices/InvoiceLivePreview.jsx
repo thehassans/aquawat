@@ -340,6 +340,9 @@ const getInvoiceEyebrow = (invoice, language = 'en', documentType = 'invoice') =
   if (documentType === 'purchase_order') {
     return language === 'ar' ? 'طلب شراء' : 'Purchase Order'
   }
+  if (documentType === 'vendor_bill') {
+    return language === 'ar' ? 'فاتورة أمر الشراء' : 'Purchase Order Bill'
+  }
   if (documentType === 'quotation') {
     if (invoice?.businessContext === 'construction') {
       return language === 'ar' ? 'عرض سعر للمقاولات' : 'Construction Quotation'
@@ -371,6 +374,9 @@ const getInvoiceEyebrow = (invoice, language = 'en', documentType = 'invoice') =
 const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => {
   if (documentType === 'purchase_order') {
     return language === 'ar' ? 'طلب شراء' : 'Purchase Order'
+  }
+  if (documentType === 'vendor_bill') {
+    return language === 'ar' ? 'فاتورة أمر الشراء' : 'Purchase Order Bill'
   }
   if (documentType === 'quotation') {
     if (invoice?.businessContext === 'construction') {
