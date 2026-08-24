@@ -994,8 +994,10 @@ export default function PurchaseOrderForm() {
   const orderLineItems = order?.lineItems || []
   const totalOrderedQty = orderLineItems.reduce((sum, li) => sum + Number(li.quantityOrdered || 0), 0)
   const totalReceivedQty = orderLineItems.reduce((sum, li) => sum + Number(li.quantityReceived || 0), 0)
-  const totalBackorderQty = Math.max(0, totalOrderedQty - totalReceivedQty)
-  const fulfillmentPercent = totalOrderedQty > 0 ? Math.min(100, Math.round((totalReceivedQty / totalOrderedQty) * 100)) : 0
+  const totalReturnedQty = orderLineItems.reduce((sum, li) => sum + Number(li.quantityReturned || 0), 0)
+  const totalBackorderQty = Math.max(0, totalOrderedQty - totalReceivedQty - totalReturnedQty)
+  const isFullySettledOrReceived = (totalReceivedQty + totalReturnedQty) >= totalOrderedQty && totalOrderedQty > 0
+  const fulfillmentPercent = totalOrderedQty > 0 ? Math.min(100, Math.round(((totalReceivedQty + totalReturnedQty) / totalOrderedQty) * 100)) : 0
 
   const supplierFin = supplierFinancials?.find(f => f._id === (order?.supplierId?._id || order?.supplierId))
 
@@ -1040,9 +1042,21 @@ export default function PurchaseOrderForm() {
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${PAYMENT_STATUS_PILL[order.paymentStatus || 'pending']}`}>
                   {paymentStatusLabel(order.paymentStatus || 'pending')}
                 </span>
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                  {language === 'ar' ? `استلام: ${totalReceivedQty}/${totalOrderedQty}` : `Received: ${totalReceivedQty}/${totalOrderedQty}`}
-                </span>
+                {totalReceivedQty > 0 && (
+                  <span className="inline-flex items-center rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-700 ring-1 ring-inset ring-teal-200 dark:bg-teal-500/10 dark:text-teal-300">
+                    {language === 'ar' ? `استلام: ${totalReceivedQty}/${totalOrderedQty}` : `Received: ${totalReceivedQty}/${totalOrderedQty}`}
+                  </span>
+                )}
+                {totalReturnedQty > 0 && (
+                  <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300">
+                    {language === 'ar' ? `مسترد: ${totalReturnedQty}` : `Refunded: ${totalReturnedQty}`}
+                  </span>
+                )}
+                {totalReceivedQty === 0 && totalReturnedQty === 0 && (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+                    {language === 'ar' ? `استلام: 0/${totalOrderedQty}` : `Received: 0/${totalOrderedQty}`}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -1274,11 +1288,21 @@ export default function PurchaseOrderForm() {
               <div className="mt-2.5">
                 <div className="flex items-center justify-between text-[12px]">
                   <span className="font-semibold text-slate-900 dark:text-white">
-                    {totalReceivedQty} / {totalOrderedQty} {language === 'ar' ? 'مستلم' : 'Received'}
+                    {totalReceivedQty > 0 ? (
+                      `${totalReceivedQty} / ${totalOrderedQty} ${language === 'ar' ? 'مستلم' : 'Received'}`
+                    ) : totalReturnedQty > 0 ? (
+                      `${totalReturnedQty} ${language === 'ar' ? 'مسترد / تسوية' : 'Refunded / Settled'}`
+                    ) : (
+                      `0 / ${totalOrderedQty} ${language === 'ar' ? 'مستلم' : 'Received'}`
+                    )}
                   </span>
                   {totalBackorderQty > 0 ? (
                     <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300">
-                      {language === 'ar' ? `متبقي (Backorder): ${totalBackorderQty}` : `Backorder: ${totalBackorderQty}`}
+                      {language === 'ar' ? `متبقي: ${totalBackorderQty}` : `Backorder: ${totalBackorderQty}`}
+                    </span>
+                  ) : totalReturnedQty > 0 ? (
+                    <span className="inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300">
+                      {language === 'ar' ? `تسوية واسترداد (${totalReturnedQty})` : `Settled / Refunded (${totalReturnedQty})`}
                     </span>
                   ) : (
                     <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -1289,12 +1313,14 @@ export default function PurchaseOrderForm() {
                 {/* Progress bar */}
                 <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
                   <div
-                    className={`h-full transition-all duration-500 ${totalReceivedQty >= totalOrderedQty ? 'bg-emerald-500' : 'bg-teal-600'}`}
+                    className={`h-full transition-all duration-500 ${isFullySettledOrReceived ? 'bg-emerald-500' : 'bg-teal-600'}`}
                     style={{ width: `${fulfillmentPercent}%` }}
                   />
                 </div>
                 <div className="mt-2.5 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">{fulfillmentPercent}% {language === 'ar' ? 'منجز' : 'Fulfilled'}</span>
+                  <span className="text-[11px] text-slate-400">
+                    {fulfillmentPercent}% {isFullySettledOrReceived && totalReturnedQty > 0 ? (language === 'ar' ? 'تمت التسوية والإغلاق' : 'Settled & Closed') : (language === 'ar' ? 'منجز' : 'Fulfilled')}
+                  </span>
                   {totalBackorderQty > 0 && ['approved', 'sent', 'partially_received'].includes(order.status) && (
                     <button
                       type="button"
@@ -1335,7 +1361,8 @@ export default function PurchaseOrderForm() {
                     <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'الوحدة' : 'UOM'}</th>
                     <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'المطلوب' : 'Ordered'}</th>
                     <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'المستلم' : 'Received'}</th>
-                    <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'المتبقي (Backorder)' : 'Backorder'}</th>
+                    <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'المسترد' : 'Refunded'}</th>
+                    <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'المتبقي' : 'Backorder'}</th>
                     <th className="px-3.5 py-2.5 text-end">{language === 'ar' ? 'سعر الوحدة' : 'Unit Cost'}</th>
                     <th className="px-3.5 py-2.5 text-center">{language === 'ar' ? 'الضريبة' : 'Tax'}</th>
                     <th className="px-3.5 py-2.5 text-end">{language === 'ar' ? 'الإجمالي' : 'Total'}</th>
@@ -1345,7 +1372,8 @@ export default function PurchaseOrderForm() {
                   {orderLineItems.map((li, idx) => {
                     const ordered = Number(li.quantityOrdered || 0)
                     const rec = Number(li.quantityReceived || 0)
-                    const backorder = Math.max(0, ordered - rec)
+                    const ret = Number(li.quantityReturned || 0)
+                    const backorder = Math.max(0, ordered - rec - ret)
                     const unit = Number(li.unitCost || 0)
                     const taxRate = Number(li.taxRate ?? 15)
                     const lineSub = ordered * unit
@@ -1370,6 +1398,15 @@ export default function PurchaseOrderForm() {
                         <td className="px-3.5 py-2 text-center font-semibold text-slate-900 dark:text-white tabular-nums">{ordered}</td>
                         <td className="px-3.5 py-2 text-center font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{rec}</td>
                         <td className="px-3.5 py-2 text-center tabular-nums">
+                          {ret > 0 ? (
+                            <span className="inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300">
+                              {ret}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 dark:text-slate-600 font-mono">0</span>
+                          )}
+                        </td>
+                        <td className="px-3.5 py-2 text-center tabular-nums">
                           {backorder > 0 ? (
                             <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300">
                               {backorder}
@@ -1392,11 +1429,31 @@ export default function PurchaseOrderForm() {
             <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-3 border-t border-slate-100 pt-3 dark:border-white/[0.08] text-[12px]">
               <div>
                 <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  {language === 'ar' ? 'ملاحظات الطلب' : 'Notes'}
+                  {language === 'ar' ? 'ملاحظات وتفاصيل الاسترداد' : 'Notes & Refund Settlement'}
                 </span>
-                <p className="text-slate-600 dark:text-slate-300 text-[11px] italic">
-                  {order.notes || (language === 'ar' ? 'لا توجد ملاحظات' : 'No notes')}
-                </p>
+                {order.notes ? (
+                  <div className="space-y-1">
+                    {order.notes.split('|').map((chunk, cIdx) => {
+                      const trimmed = chunk.trim()
+                      if (trimmed.startsWith('[Refund:')) {
+                        const cleanText = trimmed.replace(/^\[Refund:\s*/, '').replace(/\]$/, '')
+                        return (
+                          <div key={cIdx} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20">
+                            <RotateCcw className="h-3 w-3 text-rose-500" />
+                            <span>{language === 'ar' ? `استرداد/تسوية: ${cleanText}` : `Refund/Settlement: ${cleanText}`}</span>
+                          </div>
+                        )
+                      }
+                      return (
+                        <p key={cIdx} className="text-slate-600 dark:text-slate-300 text-[11px] italic">
+                          {trimmed}
+                        </p>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-[11px] italic">{language === 'ar' ? 'لا توجد ملاحظات' : 'No notes'}</p>
+                )}
               </div>
 
               <div>

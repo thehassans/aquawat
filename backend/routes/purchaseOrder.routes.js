@@ -364,6 +364,16 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
     ]);
 
     const payload = order.toObject({ depopulate: false, virtuals: false });
+    if (order.notes && order.notes.includes('[Refund:')) {
+      (payload.lineItems || []).forEach((li) => {
+        const ord = toNumber(li.quantityOrdered, 0);
+        const rec = toNumber(li.quantityReceived, 0);
+        const ret = toNumber(li.quantityReturned, 0);
+        if (ord > (rec + ret) && (order.status === 'received' || order.notes.includes('refunded/cancelled'))) {
+          li.quantityReturned = round2(ord - rec);
+        }
+      });
+    }
     payload.related = { grns, returns, landedCosts, invoices };
     payload.receivingLedger = buildPoReceivingLedger({ lineItems: payload.lineItems, grns });
     res.json(payload);
@@ -694,6 +704,7 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
         if (rem > 0) {
           if (itemReq?.remainingAction === 'refund') {
             const pName = li.manualName || (li.productId?.nameEn || li.productId?.nameAr) || 'Item';
+            li.quantityReturned = round2(toNumber(li.quantityReturned, 0) + rem);
             refundNotes.push(`${pName}: ${rem} ${li.uom || 'units'} refunded/cancelled`);
           } else {
             hasAnyPendingBackorder = true;

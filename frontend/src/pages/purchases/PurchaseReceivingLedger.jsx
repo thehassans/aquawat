@@ -97,12 +97,12 @@ export default function PurchaseReceivingLedger({ order, language, onOpenReceive
         <div className="grid grid-cols-4 gap-6">
           <Stat label={language === 'ar' ? 'مطلوب' : 'Ordered'} value={ordered} />
           <Stat label={language === 'ar' ? 'مستلم' : 'Received'} value={received} tone="text-teal-800 dark:text-teal-300" />
-          <Stat label={language === 'ar' ? 'مرتجع' : 'Returned'} value={returned} tone={returned > 0 ? "text-rose-800 dark:text-rose-300" : undefined} />
+          <Stat label={language === 'ar' ? 'مسترد / مرتجع' : 'Refunded'} value={returned} tone={returned > 0 ? "text-rose-800 dark:text-rose-300" : undefined} />
           <Stat label={language === 'ar' ? 'متأخر' : 'Delayed'} value={delayed} tone={delayed ? 'text-amber-800 dark:text-amber-300' : undefined} />
         </div>
       </div>
 
-      {!ledger?.hasActivity ? (
+      {!ledger?.hasActivity && returned === 0 ? (
         <div className="flex items-start gap-3 pt-5">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-400 dark:bg-white/[0.04]">
             <PackageCheck className="h-5 w-5" />
@@ -148,8 +148,8 @@ export default function PurchaseReceivingLedger({ order, language, onOpenReceive
                   {row.quantityReturned > 0 && (
                     <>
                       <span className="mx-2 text-slate-300">·</span>
-                      <span className="text-rose-600 dark:text-rose-400">
-                        {language === 'ar' ? 'مرتجع' : 'Returned'} {row.quantityReturned}
+                      <span className="text-rose-600 dark:text-rose-400 font-bold">
+                        {language === 'ar' ? 'مسترد' : 'Refunded'} {row.quantityReturned}
                       </span>
                     </>
                   )}
@@ -157,6 +157,12 @@ export default function PurchaseReceivingLedger({ order, language, onOpenReceive
                   {language === 'ar' ? 'متبقي' : 'Remaining'} {row.remaining}
                 </p>
               </div>
+              {row.quantityReturned > 0 && (
+                <div className="mt-2.5 rounded-xl border border-rose-100 bg-rose-50/60 p-2.5 dark:border-rose-500/20 dark:bg-rose-500/[0.05] text-[11px] text-rose-800 dark:text-rose-300 flex items-center gap-2">
+                  <RotateCcw className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                  <span>{language === 'ar' ? `تمت تسوية واسترداد ${row.quantityReturned} ${row.uom || 'وحدة'} وإلغاء المتبقي من الطلب.` : `${row.quantityReturned} ${row.uom || 'units'} refunded & settled.`}</span>
+                </div>
+              )}
               {(row.receivedEvents.length || row.delayedEvents.length) ? (
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {row.receivedEvents.map((event, i) => (
@@ -166,11 +172,7 @@ export default function PurchaseReceivingLedger({ order, language, onOpenReceive
                     <EventCard key={`d-${event.grnId}-${i}`} event={event} language={language} delayed />
                   ))}
                 </div>
-              ) : (
-                <p className="mt-3 text-[12px] text-slate-400">
-                  {language === 'ar' ? 'لم يُستلم هذا البند بعد.' : 'This line has not been received yet.'}
-                </p>
-              )}
+              ) : null}
             </div>
           ))}
           {unmatched.length > 0 && (
