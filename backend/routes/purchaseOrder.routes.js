@@ -448,7 +448,7 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
       balanceDue,
       paymentStatus,
       payments,
-      status: body.status && body.status !== 'draft' ? body.status : 'approved',
+      status: body.status || 'draft',
     };
 
     const order = await PurchaseOrder.create(data);
@@ -477,8 +477,8 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
       return res.status(404).json({ error: 'Purchase order not found' });
     }
 
-    if (['received', 'cancelled', 'partially_received'].includes(existing.status)) {
-      return res.status(400).json({ error: 'Cannot update this purchase order' });
+    if (['approved', 'received', 'cancelled', 'partially_received', 'billed'].includes(existing.status)) {
+      return res.status(400).json({ error: 'Cannot update an approved, processed, or cancelled purchase order' });
     }
 
     if (req.body.supplierId) {
@@ -547,6 +547,10 @@ router.post('/:id/approve', checkPermission('supply_chain', 'approve'), async (r
       return res.status(400).json({ error: 'Cannot approve a cancelled order' });
     }
 
+    if (order.status === 'approved') {
+      return res.status(400).json({ error: 'Order is already approved' });
+    }
+
     order.status = 'approved';
     order.approvedBy = req.user._id;
     order.approvedAt = new Date();
@@ -582,8 +586,12 @@ router.post('/:id/cancel', checkPermission('supply_chain', 'update'), async (req
       return res.status(404).json({ error: 'Purchase order not found' });
     }
 
-    if (order.status === 'received') {
-      return res.status(400).json({ error: 'Cannot cancel a received order' });
+    if (order.status === 'cancelled') {
+      return res.status(400).json({ error: 'Order is already cancelled' });
+    }
+
+    if (['approved', 'partially_received', 'received', 'billed'].includes(order.status)) {
+      return res.status(400).json({ error: 'Cannot cancel an approved or processed order' });
     }
 
     order.status = 'cancelled';

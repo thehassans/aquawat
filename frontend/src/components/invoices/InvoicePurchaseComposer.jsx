@@ -687,8 +687,20 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       <div className="flex items-center gap-4">
         <button onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="btn btn-ghost btn-icon"><ArrowLeft className="w-5 h-5" /></button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isEdit ? (language === 'ar' ? 'تعديل فاتورة الشراء' : 'Edit Purchase Invoice') : (language === 'ar' ? 'فاتورة شراء جديدة' : 'New Purchase Invoice')}</h1>
-          <p className="mt-1 text-gray-500 dark:text-gray-400">{isEdit ? (language === 'ar' ? 'حدّث بيانات الفاتورة قبل حفظ التعديلات' : 'Update the invoice details before saving your changes') : (language === 'ar' ? 'تدعم الشراء التجاري والخدمي وفواتير السفر' : 'Supports trading, service, and travel purchase invoices')}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {isEdit
+              ? (language === 'ar' ? 'تعديل فاتورة الشراء' : 'Edit Purchase Invoice')
+              : (selectedPoId || poIdParam)
+                ? (language === 'ar' ? 'فاتورة أمر الشراء (PO Bill)' : 'New PO Bill')
+                : (language === 'ar' ? 'فاتورة شراء جديدة' : 'New Purchase Invoice')}
+          </h1>
+          <p className="mt-1 text-gray-500 dark:text-gray-400">
+            {isEdit
+              ? (language === 'ar' ? 'حدّث بيانات الفاتورة قبل حفظ التعديلات' : 'Update the invoice details before saving your changes')
+              : (selectedPoId || poIdParam)
+                ? (language === 'ar' ? 'إصدار فاتورة مورد لطلب الشراء المحدد' : 'Billing vendor invoice for selected purchase order')
+                : (language === 'ar' ? 'تدعم الشراء التجاري والخدمي وفواتير السفر' : 'Supports trading, service, and travel purchase invoices')}
+          </p>
         </div>
       </div>
 

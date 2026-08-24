@@ -152,10 +152,14 @@ export default function InvoiceCreatePurchase() {
         </button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {language === 'ar' ? 'فاتورة شراء جديدة' : 'New Purchase Invoice'}
+            {poId
+              ? (language === 'ar' ? 'فاتورة أمر الشراء (PO Bill)' : 'New PO Bill')
+              : (language === 'ar' ? 'فاتورة شراء جديدة' : 'New Purchase Invoice')}
           </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            {language === 'ar' ? 'إنشاء فاتورة مشتريات وتحديث المخزون' : 'Create a purchase invoice and update inventory'}
+            {poId
+              ? (language === 'ar' ? 'إصدار فاتورة لأمر الشراء وتحديث الحسابات' : 'Billing purchase order and updating payables')
+              : (language === 'ar' ? 'إنشاء فاتورة مشتريات وتحديث المخزون' : 'Create a purchase invoice and update inventory')}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">

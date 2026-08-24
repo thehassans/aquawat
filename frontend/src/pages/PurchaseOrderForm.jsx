@@ -576,7 +576,7 @@ export default function PurchaseOrderForm() {
     }
   }, [order, reset, tenant?.settings?.currency])
 
-  const isLocked = isEdit && ['partially_received', 'received', 'billed', 'cancelled'].includes(order?.status)
+  const isLocked = isEdit && ['approved', 'partially_received', 'received', 'billed', 'cancelled'].includes(order?.status)
 
   const totals = computePurchaseLineTotals(lineItems)
 
@@ -650,12 +650,15 @@ export default function PurchaseOrderForm() {
   })
 
   const cancelMutation = useMutation({
-    mutationFn: () => api.post(`/purchase-orders/${id}/cancel`),
-    onSuccess: () => {
+    mutationFn: (targetId) => api.post(`/purchase-orders/${targetId || id}/cancel`),
+    onSuccess: (res) => {
       toast.success(language === 'ar' ? 'تم إلغاء طلب الشراء' : 'Purchase order cancelled')
       queryClient.invalidateQueries(['purchase-orders'])
       queryClient.invalidateQueries(['purchase-orders-stats'])
-      queryClient.invalidateQueries(['purchase-order', id])
+      queryClient.invalidateQueries(['purchase-order', id || res.data?._id])
+      if (createdOrderForPreview) {
+        setCreatedOrderForPreview((prev) => (prev ? { ...prev, status: 'cancelled' } : null))
+      }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -1036,8 +1039,9 @@ export default function PurchaseOrderForm() {
             <button
               type="button"
               onClick={() => setShowQuickReceiveModal(true)}
-              disabled={!['draft', 'approved', 'sent', 'partially_received'].includes(order?.status)}
+              disabled={!['approved', 'partially_received'].includes(order?.status)}
               className={ghostBtn}
+              title={['draft', 'sent'].includes(order?.status) ? (language === 'ar' ? 'يجب اعتماد الطلب أولاً قبل الاستلام' : 'Approve PO first to receive goods') : ''}
             >
               <WarehouseIcon className="h-3.5 w-3.5 opacity-70" />
               {language === 'ar' ? 'استلام البضاعة (GRN)' : 'Receive Goods (GRN)'}
@@ -1045,10 +1049,12 @@ export default function PurchaseOrderForm() {
             <button
               type="button"
               onClick={() => navigate(`/app/dashboard/invoices/new/purchase?poId=${id}`)}
+              disabled={order?.status === 'cancelled' || !['approved', 'partially_received', 'received', 'billed'].includes(order?.status)}
               className={ghostBtn}
+              title={['draft', 'sent'].includes(order?.status) ? (language === 'ar' ? 'يجب اعتماد الطلب أولاً قبل إصدار الفاتورة' : 'Approve PO first to create bill') : ''}
             >
               <FileText className="h-3.5 w-3.5 opacity-70" />
-              {language === 'ar' ? 'فاتورة شراء' : 'Vendor bill'}
+              {language === 'ar' ? 'فاتورة أمر الشراء' : 'PO bill'}
             </button>
             <button
               type="button"
@@ -1071,22 +1077,23 @@ export default function PurchaseOrderForm() {
             <button
               type="button"
               onClick={() => setShowPaymentModal(true)}
+              disabled={order?.status === 'cancelled'}
               className={inkBtn}
             >
               <CreditCard className="h-3.5 w-3.5 opacity-80" />
               {language === 'ar' ? 'تسجيل دفعة' : 'Record payment'}
             </button>
             {isViewMode ? (
-              <button
-                type="button"
-                onClick={() => setIsViewMode(false)}
-                disabled={isLocked}
-                className={ghostBtn}
-                title={isLocked ? (language === 'ar' ? 'لا يمكن تعديل طلب مستلم أو مفوتر' : 'Cannot edit locked order') : ''}
-              >
-                <Edit3 className="h-3.5 w-3.5 opacity-70" />
-                {language === 'ar' ? 'تعديل الطلب' : 'Edit order'}
-              </button>
+              !isLocked && (
+                <button
+                  type="button"
+                  onClick={() => setIsViewMode(false)}
+                  className={ghostBtn}
+                >
+                  <Edit3 className="h-3.5 w-3.5 opacity-70" />
+                  {language === 'ar' ? 'تعديل الطلب' : 'Edit order'}
+                </button>
+              )
             ) : (
               <button
                 type="button"
@@ -1098,15 +1105,26 @@ export default function PurchaseOrderForm() {
               </button>
             )}
             {['draft', 'sent'].includes(order?.status) && (
-              <button
-                type="button"
-                onClick={() => approveMutation.mutate(order._id)}
-                disabled={approveMutation.isPending}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-40"
-              >
-                {approveMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                {language === 'ar' ? 'اعتماد' : 'Approve'}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => approveMutation.mutate(order._id)}
+                  disabled={approveMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-40"
+                >
+                  {approveMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  {language === 'ar' ? 'اعتماد طلب الشراء' : 'Approve PO'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cancelMutation.mutate(order._id)}
+                  disabled={cancelMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-[12px] font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-40 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-300"
+                >
+                  {cancelMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+                  {language === 'ar' ? 'إلغاء الطلب' : 'Cancel PO'}
+                </button>
+              </>
             )}
           </div>
         )}
@@ -1115,6 +1133,20 @@ export default function PurchaseOrderForm() {
       {/* ULTRA PREMIUM COMPACT EXECUTIVE DASHBOARD (Visible without scrolling down) */}
       {isEdit && order && isViewMode && (
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          {order.status === 'cancelled' && (
+            <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-rose-800 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-300">
+              <XCircle className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
+              <div>
+                <p className="text-sm font-bold">
+                  {language === 'ar' ? 'تم إلغاء طلب الشراء هذا' : 'This Purchase Order is Cancelled'}
+                </p>
+                <p className="text-xs opacity-80">
+                  {language === 'ar' ? 'الطلب في حالة ملغاة ولا يمكن تعديله أو استلام بضائع أو فوترته.' : 'This order has been cancelled and cannot be modified, received, or billed.'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* 4-Card Executive KPI Grid (Fits in 1 Row) */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {/* Card 1: Financial Overview */}
@@ -1370,8 +1402,10 @@ export default function PurchaseOrderForm() {
                       key={inv._id}
                       type="button"
                       onClick={() => navigate(`/app/dashboard/invoices/${inv._id}`)}
-                      className="inline-flex rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300"
+                      className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300"
+                      title={language === 'ar' ? 'فاتورة أمر الشراء' : 'PO Bill'}
                     >
+                      <span className="text-[9px] font-medium text-blue-600 dark:text-blue-400">{language === 'ar' ? 'فاتورة PO:' : 'PO Bill:'}</span>
                       {inv.invoiceNumber}
                     </button>
                   ))}
@@ -1858,8 +1892,8 @@ export default function PurchaseOrderForm() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      <Eye className="h-4 w-4 opacity-90" />
-                      {language === 'ar' ? 'معاينة واعتماد طلب الشراء' : 'Preview & Approve Order'}
+                      <CheckCircle2 className="h-4 w-4 opacity-90" />
+                      {language === 'ar' ? 'تأكيد' : 'Confirm'}
                     </>
                   )}
                 </button>
@@ -1958,7 +1992,15 @@ export default function PurchaseOrderForm() {
                       </span>
                       {(() => {
                         const activePo = createdOrderForPreview || order
-                        const currentStatus = activePo?.status || (isEdit ? 'draft' : 'draft')
+                        const currentStatus = activePo?.status || 'draft'
+                        if (currentStatus === 'cancelled') {
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-rose-800 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300">
+                              <XCircle className="h-3 w-3 text-rose-600 dark:text-rose-400" />
+                              {statusLabel('cancelled')}
+                            </span>
+                          )
+                        }
                         if (['approved', 'received', 'partially_received', 'billed'].includes(currentStatus)) {
                           return (
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -1967,7 +2009,11 @@ export default function PurchaseOrderForm() {
                             </span>
                           )
                         }
-                        return null
+                        return (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-white/10 dark:text-slate-300">
+                            {statusLabel('draft')}
+                          </span>
+                        )
                       })()}
                     </div>
                     <p className="mt-1 font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -2089,12 +2135,22 @@ export default function PurchaseOrderForm() {
               <div className="sticky bottom-0 z-20 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 bg-white/90 px-6 py-4 backdrop-blur-md dark:border-white/[0.08] dark:bg-[#0c111a]/90">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500">
-                    {language === 'ar' ? 'حالة الطلب / الإجراء:' : 'Order Status & Action:'}
+                    {language === 'ar' ? 'حالة الطلب:' : 'Order Status:'}
                   </span>
                   {(() => {
                     const activePo = createdOrderForPreview || order
-                    const currentStatus = activePo?.status || (isEdit ? 'draft' : 'draft')
+                    const currentStatus = activePo?.status || 'draft'
                     const isApprovedState = ['approved', 'received', 'partially_received', 'billed'].includes(currentStatus)
+                    const isCancelledState = currentStatus === 'cancelled'
+
+                    if (isCancelledState) {
+                      return (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-rose-800 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300">
+                          <XCircle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                          {statusLabel('cancelled')}
+                        </span>
+                      )
+                    }
 
                     if (isApprovedState) {
                       return (
@@ -2115,25 +2171,17 @@ export default function PurchaseOrderForm() {
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                   {(() => {
                     const activePo = createdOrderForPreview || order
-                    const currentStatus = activePo?.status || (isEdit ? 'draft' : 'draft')
+                    const currentStatus = activePo?.status || 'draft'
                     const isApprovedState = ['approved', 'received', 'partially_received', 'billed'].includes(currentStatus)
+                    const isCancelledState = currentStatus === 'cancelled'
 
                     if (isApprovedState) {
                       return (
                         <div className="flex items-center gap-2">
-                          {!isLocked && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowLivePreviewModal(false)
-                                setIsViewMode(false)
-                              }}
-                              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
-                            >
-                              <Edit3 className="h-4 w-4" />
-                              {language === 'ar' ? 'تعديل الطلب' : 'Edit Order'}
-                            </button>
-                          )}
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400 me-2">
+                            <CheckCircle2 className="h-4 w-4" />
+                            {language === 'ar' ? 'معتمد وغير قابل للتعديل' : 'Approved (Locked)'}
+                          </span>
                           <button
                             type="button"
                             onClick={() => setShowLivePreviewModal(false)}
@@ -2145,15 +2193,27 @@ export default function PurchaseOrderForm() {
                       )
                     }
 
+                    if (isCancelledState) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setShowLivePreviewModal(false)}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-5 py-2 text-xs font-bold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+                        >
+                          {language === 'ar' ? 'إغلاق' : 'Close'}
+                        </button>
+                      )
+                    }
+
                     return (
-                      <>
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => {
                             setShowLivePreviewModal(false)
                             setIsViewMode(false)
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
                         >
                           <Edit3 className="h-4 w-4" />
                           {language === 'ar' ? 'تعديل الطلب' : 'Edit Order'}
@@ -2164,18 +2224,40 @@ export default function PurchaseOrderForm() {
                           onClick={() => {
                             const targetId = createdOrderForPreview?._id || order?._id || id
                             if (targetId) {
-                              approveMutation.mutate(targetId)
+                              cancelMutation.mutate(targetId)
                               setShowLivePreviewModal(false)
-                              setIsViewMode(true)
+                            }
+                          }}
+                          disabled={cancelMutation.isPending}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-300"
+                        >
+                          {cancelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                          {language === 'ar' ? 'إلغاء الطلب' : 'Cancel PO'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowLivePreviewModal(false)}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200"
+                        >
+                          {language === 'ar' ? 'إغلاق' : 'Close'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const targetId = createdOrderForPreview?._id || order?._id || id
+                            if (targetId) {
+                              approveMutation.mutate(targetId)
                             }
                           }}
                           disabled={approveMutation.isPending}
                           className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-50"
                         >
                           {approveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                          {language === 'ar' ? 'اعتماد طلب الشراء الآن' : 'Approve Purchase Order'}
+                          {language === 'ar' ? 'اعتماد طلب الشراء' : 'Approve PO'}
                         </button>
-                      </>
+                      </div>
                     )
                   })()}
                 </div>
