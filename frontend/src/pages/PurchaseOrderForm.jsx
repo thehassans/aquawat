@@ -1010,6 +1010,27 @@ export default function PurchaseOrderForm() {
     )
   }
 
+  if (isEdit && !order && !isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center">
+        <AlertCircle className="h-10 w-10 text-rose-500 mb-2" />
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+          {language === 'ar' ? 'تعذر تحميل بيانات أمر الشراء' : 'Failed to load purchase order'}
+        </h2>
+        <p className="text-xs text-slate-500 mt-1 mb-4">
+          {language === 'ar' ? 'تأكد من صحة الرابط أو حاول مرة أخرى' : 'Please check the URL or try again.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => queryClient.invalidateQueries(['purchase-order', id])}
+          className="btn btn-secondary text-xs"
+        >
+          {language === 'ar' ? 'إعادة المحاولة' : 'Retry'}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 pb-16">
       {/* Top Header Bar */}

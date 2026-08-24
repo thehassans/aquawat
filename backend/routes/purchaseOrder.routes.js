@@ -14,7 +14,7 @@ import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer, readUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
 import { confirmGrnReceive, generateGrnNumber, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
-import { computePurchaseLineTotals, buildPoReceivingLedger } from '../services/purchasesLogic.js';
+import { computePurchaseLineTotals, buildPoReceivingLedger, round2 } from '../services/purchasesLogic.js';
 
 const router = express.Router();
 
@@ -25,6 +25,10 @@ router.use(requireTenantFilter);
 function toNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function safeRound2(value) {
+  return typeof round2 === 'function' ? round2(value) : Math.round((toNumber(value) + Number.EPSILON) * 100) / 100;
 }
 
 const vendorBillUpload = multer({
