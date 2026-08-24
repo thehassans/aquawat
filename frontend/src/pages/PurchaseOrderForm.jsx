@@ -157,7 +157,7 @@ export default function PurchaseOrderForm() {
   const [receiveWarehouseId, setReceiveWarehouseId] = useState('')
   const [receiveQty, setReceiveQty] = useState({})
   const [receiveNotes, setReceiveNotes] = useState('')
-  const [remainingPolicy, setRemainingPolicy] = useState('backorder')
+  const [lineRemainingActions, setLineRemainingActions] = useState({})
   const [manualModes, setManualModes] = useState([])
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [showWarehouseModal, setShowWarehouseModal] = useState(false)
@@ -730,8 +730,14 @@ export default function PurchaseOrderForm() {
         const productId = li?.productId?._id || li?.productId
         const key = productId || `line_${idx}`
         const qty = Number(receiveQty?.[key] ?? receiveQty?.[productId] ?? 0)
+        const action = lineRemainingActions[key] || 'backorder'
         if (qty <= 0) return null
-        return { productId: productId || undefined, lineIndex: idx, quantity: qty }
+        return {
+          productId: productId || undefined,
+          lineIndex: idx,
+          quantity: qty,
+          remainingAction: action,
+        }
       })
       .filter(Boolean)
 
@@ -749,8 +755,6 @@ export default function PurchaseOrderForm() {
       warehouseId: receiveWarehouseId,
       items,
       notes: receiveNotes,
-      closeRemainingAsSettled: remainingPolicy === 'refund_settle',
-      settlementReason: remainingPolicy === 'refund_settle' ? (language === 'ar' ? 'تم إلغاء واسترداد باقي الكميات غير المستلمة' : 'Remaining unreceived quantities settled/refunded') : undefined,
     })
   }
 
@@ -2507,7 +2511,7 @@ export default function PurchaseOrderForm() {
                     <th className="p-3 text-center">{language === 'ar' ? 'المستلم' : 'Received'}</th>
                     <th className="p-3 text-center">{language === 'ar' ? 'المتبقي' : 'Remaining'}</th>
                     <th className="p-3 text-center">{language === 'ar' ? 'استلام الآن' : 'Receive Now'}</th>
-                    <th className="p-3 text-center">{language === 'ar' ? 'الطلب المؤجل' : 'Backorder'}</th>
+                    <th className="p-3 text-center">{language === 'ar' ? 'المتبقي / الإجراء' : 'Remainder / Action'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06]">
@@ -2521,6 +2525,7 @@ export default function PurchaseOrderForm() {
                     const currVal = receiveQty[key] ?? ''
                     const numVal = currVal === '' ? 0 : Number(currVal)
                     const lineBackorder = Math.max(0, remaining - numVal)
+                    const currentLineAction = lineRemainingActions[key] || 'backorder'
 
                     return (
                       <tr key={key} className="hover:bg-slate-50/40 dark:hover:bg-white/[0.02]">
@@ -2555,9 +2560,37 @@ export default function PurchaseOrderForm() {
                               +{numVal - remaining} {language === 'ar' ? 'هدية' : 'Gift'}
                             </span>
                           ) : lineBackorder > 0 ? (
-                            <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300">
-                              {lineBackorder}
-                            </span>
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <span className="font-bold text-amber-700 dark:text-amber-300 text-xs tabular-nums">
+                                {lineBackorder}
+                              </span>
+                              <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-white/10 text-[10px]">
+                                <button
+                                  type="button"
+                                  onClick={() => setLineRemainingActions((prev) => ({ ...prev, [key]: 'backorder' }))}
+                                  className={`rounded-md px-2 py-0.5 font-semibold transition ${
+                                    currentLineAction === 'backorder'
+                                      ? 'bg-white text-teal-800 shadow-sm dark:bg-dark-800 dark:text-teal-300'
+                                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
+                                  }`}
+                                  title={language === 'ar' ? 'طلب مؤجل - توريد لاحقاً' : 'Keep on Backorder'}
+                                >
+                                  {language === 'ar' ? 'مؤجل' : 'Backorder'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setLineRemainingActions((prev) => ({ ...prev, [key]: 'refund' }))}
+                                  className={`rounded-md px-2 py-0.5 font-semibold transition ${
+                                    currentLineAction === 'refund'
+                                      ? 'bg-rose-500 text-white shadow-sm'
+                                      : 'text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300'
+                                  }`}
+                                  title={language === 'ar' ? 'استرداد / تسوية وإلغاء المتبقي' : 'Refund / Settle'}
+                                >
+                                  {language === 'ar' ? 'استرداد' : 'Refund'}
+                                </button>
+                              </div>
+                            </div>
                           ) : (
                             <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300">
                               0
@@ -2570,67 +2603,6 @@ export default function PurchaseOrderForm() {
                 </tbody>
               </table>
             </div>
-
-            {/* Remaining Policy: Backorder vs Refund Settlement */}
-            {(() => {
-              const totalRemainingInOrder = orderLineItems.reduce((sum, li, idx) => {
-                const productId = li?.productId?._id || li?.productId
-                const key = productId || `line_${idx}`
-                const ordered = Number(li.quantityOrdered || 0)
-                const alreadyRec = Number(li.quantityReceived || 0)
-                const remaining = Math.max(0, ordered - alreadyRec)
-                const currVal = receiveQty[key] ?? ''
-                const numVal = currVal === '' ? 0 : Number(currVal)
-                return sum + Math.max(0, remaining - numVal)
-              }, 0)
-
-              if (totalRemainingInOrder <= 0) return null
-
-              return (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs dark:border-amber-500/20 dark:bg-amber-500/[0.06] space-y-2">
-                  <p className="font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
-                    <Clock className="h-4 w-4 text-amber-600" />
-                    {language === 'ar' ? `هناك كمية متبقية بعد هذا الاستلام (${totalRemainingInOrder} وحدة) - حدد حالة المتبقي:` : `Remaining items after this receiving (${totalRemainingInOrder} units) - Select Action:`}
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                    <label className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition ${remainingPolicy === 'backorder' ? 'border-teal-500 bg-white shadow-sm dark:bg-dark-800' : 'border-amber-200/60 bg-transparent hover:bg-white/40'}`}>
-                      <input
-                        type="radio"
-                        name="remainingPolicy"
-                        checked={remainingPolicy === 'backorder'}
-                        onChange={() => setRemainingPolicy('backorder')}
-                        className="mt-0.5 text-teal-600 focus:ring-teal-500"
-                      />
-                      <div>
-                        <span className="font-bold text-slate-900 dark:text-white block">
-                          {language === 'ar' ? 'طلب مؤجل (Backorder)' : 'Keep on Backorder'}
-                        </span>
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {language === 'ar' ? 'إبقاء المتبقي مفتوحاً لاستلامه لاحقاً بإذن استلام آخر.' : 'Keep order open to receive remaining items in subsequent GRNs.'}
-                        </span>
-                      </div>
-                    </label>
-                    <label className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition ${remainingPolicy === 'refund_settle' ? 'border-rose-500 bg-white shadow-sm dark:bg-dark-800' : 'border-amber-200/60 bg-transparent hover:bg-white/40'}`}>
-                      <input
-                        type="radio"
-                        name="remainingPolicy"
-                        checked={remainingPolicy === 'refund_settle'}
-                        onChange={() => setRemainingPolicy('refund_settle')}
-                        className="mt-0.5 text-rose-600 focus:ring-rose-500"
-                      />
-                      <div>
-                        <span className="font-bold text-slate-900 dark:text-white block">
-                          {language === 'ar' ? 'تسوية واسترداد / إغلاق المتبقي' : 'Settle & Refund Remainder'}
-                        </span>
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {language === 'ar' ? 'إلغاء ما لم يتم استلامه واعتبار الطلب مكتملاً وتسوية المستحقات مع المورد.' : 'Cancel unreceived items and close order with refund/credit note.'}
-                        </span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              )
-            })()}
 
             {/* Notes / Delay reason */}
             <div>

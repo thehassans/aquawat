@@ -680,8 +680,31 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
     });
 
     const refreshed = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter });
-    if (req.body.closeRemainingAsSettled && refreshed) {
-      refreshed.status = 'received';
+    if (refreshed) {
+      const refundNotes = [];
+      let hasAnyPendingBackorder = false;
+
+      (refreshed.lineItems || []).forEach((li, idx) => {
+        const itemReq = items.find((it) => (it.productId && String(it.productId) === String(li.productId)) || it.lineIndex === idx);
+        const rem = Math.max(0, toNumber(li.quantityOrdered, 0) - toNumber(li.quantityReceived, 0));
+        if (rem > 0) {
+          if (itemReq?.remainingAction === 'refund') {
+            const pName = li.manualName || (li.productId?.nameEn || li.productId?.nameAr) || 'Item';
+            refundNotes.push(`${pName}: ${rem} ${li.uom || 'units'} refunded/cancelled`);
+          } else {
+            hasAnyPendingBackorder = true;
+          }
+        }
+      });
+
+      if (refundNotes.length > 0) {
+        refreshed.notes = (refreshed.notes ? `${refreshed.notes} | ` : '') + `[Refund: ${refundNotes.join(', ')}]`;
+      }
+
+      if (!hasAnyPendingBackorder && (refreshed.status === 'partially_received' || req.body.closeRemainingAsSettled)) {
+        refreshed.status = 'received';
+      }
+
       if (req.body.settlementReason) {
         refreshed.notes = (refreshed.notes ? `${refreshed.notes} | ` : '') + req.body.settlementReason;
       }
