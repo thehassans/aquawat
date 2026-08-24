@@ -655,29 +655,33 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
       });
     }
 
-    if (!lines.length) {
-      return res.status(400).json({ error: 'No valid receiving items' });
+    const hasRefund = items.some((it) => it.remainingAction === 'refund');
+    if (!lines.length && !hasRefund) {
+      return res.status(400).json({ error: 'No valid receiving or refund items' });
     }
 
-    const grn = new GRN({
-      tenantId: req.user.tenantId,
-      grnNumber: await generateGrnNumber(req.tenantFilter),
-      supplierId: order.supplierId,
-      purchaseOrderId: order._id,
-      warehouseId: resolvedWarehouseId || undefined,
-      notes,
-      createdBy: req.user._id,
-      receivedBy: req.user._id,
-      status: 'draft',
-      lines,
-    });
-    await grn.save();
-    await confirmGrnReceive({
-      tenantFilter: req.tenantFilter,
-      user: req.user,
-      grn,
-      warehouseId: resolvedWarehouseId,
-    });
+    let grn = null;
+    if (lines.length > 0) {
+      grn = new GRN({
+        tenantId: req.user.tenantId,
+        grnNumber: await generateGrnNumber(req.tenantFilter),
+        supplierId: order.supplierId,
+        purchaseOrderId: order._id,
+        warehouseId: resolvedWarehouseId || undefined,
+        notes,
+        createdBy: req.user._id,
+        receivedBy: req.user._id,
+        status: 'draft',
+        lines,
+      });
+      await grn.save();
+      await confirmGrnReceive({
+        tenantFilter: req.tenantFilter,
+        user: req.user,
+        grn,
+        warehouseId: resolvedWarehouseId,
+      });
+    }
 
     const refreshed = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter });
     if (refreshed) {
@@ -701,7 +705,7 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
         refreshed.notes = (refreshed.notes ? `${refreshed.notes} | ` : '') + `[Refund: ${refundNotes.join(', ')}]`;
       }
 
-      if (!hasAnyPendingBackorder && (refreshed.status === 'partially_received' || req.body.closeRemainingAsSettled)) {
+      if (!hasAnyPendingBackorder) {
         refreshed.status = 'received';
       }
 
@@ -710,7 +714,7 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
       }
       await refreshed.save();
     }
-    res.json({ ...refreshed.toObject(), grnId: grn._id, grnNumber: grn.grnNumber });
+    res.json({ ...refreshed.toObject(), grnId: grn?._id, grnNumber: grn?.grnNumber });
   } catch (error) {
     if (error instanceof PurchasesValidationError) {
       return res.status(400).json({ error: error.message, code: error.code });

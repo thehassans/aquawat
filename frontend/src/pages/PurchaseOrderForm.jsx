@@ -725,34 +725,34 @@ export default function PurchaseOrderForm() {
   }
 
   const submitReceive = () => {
-    const items = (orderLineItems || [])
-      .map((li, idx) => {
-        const productId = li?.productId?._id || li?.productId
-        const key = productId || `line_${idx}`
-        const qty = Number(receiveQty?.[key] ?? receiveQty?.[productId] ?? 0)
-        const action = lineRemainingActions[key] || 'backorder'
-        if (qty <= 0) return null
-        return {
-          productId: productId || undefined,
-          lineIndex: idx,
-          quantity: qty,
-          remainingAction: action,
-        }
-      })
-      .filter(Boolean)
+    const items = (orderLineItems || []).map((li, idx) => {
+      const productId = li?.productId?._id || li?.productId
+      const key = productId || `line_${idx}`
+      const qty = Number(receiveQty?.[key] ?? receiveQty?.[productId] ?? 0)
+      const action = lineRemainingActions[key] || 'backorder'
+      return {
+        productId: productId || undefined,
+        lineIndex: idx,
+        quantity: Math.max(0, qty),
+        remainingAction: action,
+      }
+    })
 
-    if (!receiveWarehouseId) {
+    const hasAnyPositiveReceive = items.some((it) => it.quantity > 0)
+    const hasAnyRefundAction = items.some((it) => it.remainingAction === 'refund')
+
+    if (!hasAnyPositiveReceive && !hasAnyRefundAction) {
+      toast.error(language === 'ar' ? 'حدد كمية مستلمة أو اختر استرداد/تسوية للمتبقي' : 'Enter receiving quantity or select refund/settle for remainder')
+      return
+    }
+
+    if (hasAnyPositiveReceive && !receiveWarehouseId) {
       toast.error(language === 'ar' ? 'اختر مستودع للاستلام' : 'Select a warehouse')
       return
     }
 
-    if (items.length === 0) {
-      toast.error(language === 'ar' ? 'أدخل كميات مستلمة صالحة أكبر من 0' : 'Enter valid receiving quantities greater than 0')
-      return
-    }
-
     receiveMutation.mutate({
-      warehouseId: receiveWarehouseId,
+      warehouseId: receiveWarehouseId || undefined,
       items,
       notes: receiveNotes,
     })
