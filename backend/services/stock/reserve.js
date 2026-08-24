@@ -253,7 +253,15 @@ export async function reserveMoveWithRetry(moveId, tenantId, maxRetries = 2) {
       });
     } catch (err) {
       lastErr = err;
-      if (i < maxRetries && (err.name === 'MongoServerError' || err.code === 'CONFLICT')) continue;
+      if (
+        i < maxRetries
+        && (
+          err.name === 'MongoServerError'
+          || err.name === 'StockConflictError'
+          || err.code === 'CONFLICT'
+          || err?.errorLabels?.includes?.('TransientTransactionError')
+        )
+      ) continue;
       throw err;
     }
   }

@@ -4,7 +4,7 @@
  */
 import { D, decStr, decIsZero } from '../../utils/decimal.js';
 import StockQuant from '../../models/stock/StockQuant.js';
-import { StockValidationError } from './errors.js';
+import { StockValidationError, StockConflictError } from './errors.js';
 
 export async function applyQuantDelta(session, tenantId, productId, locationId, qtyDelta, reservedDelta = '0', inDate = new Date(), dims = {}) {
   const filter = {
@@ -22,14 +22,25 @@ export async function applyQuantDelta(session, tenantId, productId, locationId, 
     if (dims.tracking === 'serial' && D(qtyDelta).gt(1)) {
       throw new StockValidationError('Serial-tracked quant cannot exceed quantity 1', 'SERIAL_QTY_EXCEEDED');
     }
-    [quant] = await StockQuant.create([{
-      ...filter,
-      quantity: decStr(qtyDelta),
-      reservedQuantity: decStr(reservedDelta),
-      inDate,
-      value: '0',
-    }], { session });
-    return quant;
+    try {
+      [quant] = await StockQuant.create([{
+        ...filter,
+        quantity: decStr(qtyDelta),
+        reservedQuantity: decStr(reservedDelta),
+        inDate,
+        value: '0',
+        version: 0,
+      }], { session });
+      return quant;
+    } catch (err) {
+      // Unique index race — reload and continue as update
+      if (err?.code === 11000) {
+        quant = await StockQuant.findOne(filter).session(session);
+        if (!quant) throw err;
+      } else {
+        throw err;
+      }
+    }
   }
 
   if (!quant) {
@@ -56,15 +67,31 @@ export async function applyQuantDelta(session, tenantId, productId, locationId, 
     throw new StockValidationError('Reserved exceeds on-hand', 'OVER_RESERVED');
   }
 
-  quant.quantity = decStr(newQty);
-  quant.reservedQuantity = decStr(newReserved);
-  if (D(qtyDelta).gt(0)) quant.inDate = inDate;
-  quant.version = (quant.version || 0) + 1;
-  await quant.save({ session });
+  const nextVersion = (quant.version || 0) + 1;
+  const versionFilter = quant.version == null
+    ? { $or: [{ version: { $exists: false } }, { version: 0 }] }
+    : { version: quant.version };
 
-  if (decIsZero(quant.quantity) && decIsZero(quant.reservedQuantity) && !quant.inventoryQuantitySet) {
-    await StockQuant.deleteOne({ _id: quant._id }).session(session);
+  const updated = await StockQuant.findOneAndUpdate(
+    { _id: quant._id, ...versionFilter },
+    {
+      $set: {
+        quantity: decStr(newQty),
+        reservedQuantity: decStr(newReserved),
+        version: nextVersion,
+        ...(D(qtyDelta).gt(0) ? { inDate } : {}),
+      },
+    },
+    { session, new: true },
+  );
+
+  if (!updated) {
+    throw new StockConflictError('Quant was modified concurrently', 'CONFLICT');
   }
 
-  return quant;
+  if (decIsZero(updated.quantity) && decIsZero(updated.reservedQuantity) && !updated.inventoryQuantitySet) {
+    await StockQuant.deleteOne({ _id: updated._id }).session(session);
+  }
+
+  return updated;
 }

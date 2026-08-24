@@ -81,7 +81,7 @@
 
 ## Deferred / polish
 
-- True multi-DB concurrent reservation integration test (optimistic version simulator covers invariant)
+_(none — concurrent reserve covered by optimistic versioning + optional Mongo integration test)_
 
 ## Phase 7 polish
 
@@ -94,6 +94,11 @@
 - `onManufactureProcurement` creates draft Manufacturing Work Order when BOM + legacy product exist
 - Location complete names on picking detailed operations
 - Optimistic version-conflict reserve simulator (20×1 vs 10)
+
+## Phase 9 polish
+
+- Quant updates use optimistic `version` check (`StockConflictError` + retry)
+- Optional Mongo integration: `STOCK_TEST_MONGODB_URI=... npm run test:stock:integration` (20 workers × 1 from 10)
 
 ## Phase 5 scope delivered (adapters + print)
 

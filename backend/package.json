@@ -9,6 +9,8 @@
     "start:cluster": "node cluster.js",
     "dev": "nodemon server.js",
     "test": "node --test tests/*.test.js",
+  "test:stock": "node --test tests/stockEngine.test.js",
+  "test:stock:integration": "node --test tests/stockConcurrentReserve.test.js",
     "test:isolation": "node --test tests/idor.tenantIsolation.test.js tests/paymentPollIsolation.test.js tests/tenantFilterCoverage.test.js tests/tenantScope.test.js tests/csrfAndStripeEvents.test.js tests/invoiceMoney.test.js",
     "test:k6:invoices": "k6 run tests/k6/invoiceCreateRateLimit.js",
     "test:k6:auth": "k6 run tests/k6/authRateLimit.js",
