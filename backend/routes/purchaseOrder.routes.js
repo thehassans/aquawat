@@ -680,6 +680,13 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
     });
 
     const refreshed = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter });
+    if (req.body.closeRemainingAsSettled && refreshed) {
+      refreshed.status = 'received';
+      if (req.body.settlementReason) {
+        refreshed.notes = (refreshed.notes ? `${refreshed.notes} | ` : '') + req.body.settlementReason;
+      }
+      await refreshed.save();
+    }
     res.json({ ...refreshed.toObject(), grnId: grn._id, grnNumber: grn.grnNumber });
   } catch (error) {
     if (error instanceof PurchasesValidationError) {

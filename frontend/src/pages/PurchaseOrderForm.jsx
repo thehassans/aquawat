@@ -157,6 +157,7 @@ export default function PurchaseOrderForm() {
   const [receiveWarehouseId, setReceiveWarehouseId] = useState('')
   const [receiveQty, setReceiveQty] = useState({})
   const [receiveNotes, setReceiveNotes] = useState('')
+  const [remainingPolicy, setRemainingPolicy] = useState('backorder')
   const [manualModes, setManualModes] = useState([])
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [showWarehouseModal, setShowWarehouseModal] = useState(false)
@@ -744,7 +745,13 @@ export default function PurchaseOrderForm() {
       return
     }
 
-    receiveMutation.mutate({ warehouseId: receiveWarehouseId, items, notes: receiveNotes })
+    receiveMutation.mutate({
+      warehouseId: receiveWarehouseId,
+      items,
+      notes: receiveNotes,
+      closeRemainingAsSettled: remainingPolicy === 'refund_settle',
+      settlementReason: remainingPolicy === 'refund_settle' ? (language === 'ar' ? 'تم إلغاء واسترداد باقي الكميات غير المستلمة' : 'Remaining unreceived quantities settled/refunded') : undefined,
+    })
   }
 
   const resolveOrderForPdf = async (targetOrder) => {
@@ -1069,12 +1076,16 @@ export default function PurchaseOrderForm() {
             <button
               type="button"
               onClick={() => navigate(`/app/dashboard/invoices/new/purchase?poId=${id}`)}
-              disabled={order?.status === 'cancelled' || !['approved', 'partially_received', 'received', 'billed'].includes(order?.status)}
+              disabled={order?.status === 'cancelled' || !['partially_received', 'received', 'billed'].includes(order?.status) || !(order?.lineItems || []).some(li => Number(li.quantityReceived || 0) > 0)}
               className={ghostBtn}
-              title={['draft', 'sent'].includes(order?.status) ? (language === 'ar' ? 'يجب اعتماد الطلب أولاً قبل إصدار الفاتورة' : 'Approve PO first to create bill') : ''}
+              title={
+                !['partially_received', 'received', 'billed'].includes(order?.status) || !(order?.lineItems || []).some(li => Number(li.quantityReceived || 0) > 0)
+                  ? (language === 'ar' ? 'يجب استلام البضاعة أولاً (GRN) لإنشاء فاتورة المورد' : 'Receive goods via GRN first to create vendor bill')
+                  : ''
+              }
             >
               <FileText className="h-3.5 w-3.5 opacity-70" />
-              {language === 'ar' ? 'فاتورة أمر الشراء' : 'PO bill'}
+              {language === 'ar' ? 'فاتورة المورد' : 'Vendor bill'}
             </button>
             <button
               type="button"
@@ -1423,9 +1434,9 @@ export default function PurchaseOrderForm() {
                       type="button"
                       onClick={() => navigate(`/app/dashboard/invoices/${inv._id}`)}
                       className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300"
-                      title={language === 'ar' ? 'فاتورة أمر الشراء' : 'PO Bill'}
+                      title={language === 'ar' ? 'فاتورة المورد' : 'Vendor Bill'}
                     >
-                      <span className="text-[9px] font-medium text-blue-600 dark:text-blue-400">{language === 'ar' ? 'فاتورة PO:' : 'PO Bill:'}</span>
+                      <span className="text-[9px] font-medium text-blue-600 dark:text-blue-400">{language === 'ar' ? 'فاتورة المورد:' : 'Vendor Bill:'}</span>
                       {inv.invoiceNumber}
                     </button>
                   ))}
@@ -2526,8 +2537,13 @@ export default function PurchaseOrderForm() {
                             min="0"
                             value={currVal}
                             onChange={(e) => {
-                              const val = e.target.value
-                              setReceiveQty((prev) => ({ ...prev, [key]: val }))
+                              const raw = e.target.value
+                              if (raw === '') {
+                                setReceiveQty((prev) => ({ ...prev, [key]: '' }))
+                              } else {
+                                const val = Math.max(0, parseFloat(raw) || 0)
+                                setReceiveQty((prev) => ({ ...prev, [key]: val }))
+                              }
                             }}
                             placeholder="0"
                             className="w-20 rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-center font-bold text-slate-900 shadow-sm focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-white/10 dark:bg-dark-800 dark:text-white mx-auto"
@@ -2554,6 +2570,67 @@ export default function PurchaseOrderForm() {
                 </tbody>
               </table>
             </div>
+
+            {/* Remaining Policy: Backorder vs Refund Settlement */}
+            {(() => {
+              const totalRemainingInOrder = orderLineItems.reduce((sum, li, idx) => {
+                const productId = li?.productId?._id || li?.productId
+                const key = productId || `line_${idx}`
+                const ordered = Number(li.quantityOrdered || 0)
+                const alreadyRec = Number(li.quantityReceived || 0)
+                const remaining = Math.max(0, ordered - alreadyRec)
+                const currVal = receiveQty[key] ?? ''
+                const numVal = currVal === '' ? 0 : Number(currVal)
+                return sum + Math.max(0, remaining - numVal)
+              }, 0)
+
+              if (totalRemainingInOrder <= 0) return null
+
+              return (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs dark:border-amber-500/20 dark:bg-amber-500/[0.06] space-y-2">
+                  <p className="font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                    <Clock className="h-4 w-4 text-amber-600" />
+                    {language === 'ar' ? `هناك كمية متبقية بعد هذا الاستلام (${totalRemainingInOrder} وحدة) - حدد حالة المتبقي:` : `Remaining items after this receiving (${totalRemainingInOrder} units) - Select Action:`}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                    <label className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition ${remainingPolicy === 'backorder' ? 'border-teal-500 bg-white shadow-sm dark:bg-dark-800' : 'border-amber-200/60 bg-transparent hover:bg-white/40'}`}>
+                      <input
+                        type="radio"
+                        name="remainingPolicy"
+                        checked={remainingPolicy === 'backorder'}
+                        onChange={() => setRemainingPolicy('backorder')}
+                        className="mt-0.5 text-teal-600 focus:ring-teal-500"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 dark:text-white block">
+                          {language === 'ar' ? 'طلب مؤجل (Backorder)' : 'Keep on Backorder'}
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {language === 'ar' ? 'إبقاء المتبقي مفتوحاً لاستلامه لاحقاً بإذن استلام آخر.' : 'Keep order open to receive remaining items in subsequent GRNs.'}
+                        </span>
+                      </div>
+                    </label>
+                    <label className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition ${remainingPolicy === 'refund_settle' ? 'border-rose-500 bg-white shadow-sm dark:bg-dark-800' : 'border-amber-200/60 bg-transparent hover:bg-white/40'}`}>
+                      <input
+                        type="radio"
+                        name="remainingPolicy"
+                        checked={remainingPolicy === 'refund_settle'}
+                        onChange={() => setRemainingPolicy('refund_settle')}
+                        className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 dark:text-white block">
+                          {language === 'ar' ? 'تسوية واسترداد / إغلاق المتبقي' : 'Settle & Refund Remainder'}
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {language === 'ar' ? 'إلغاء ما لم يتم استلامه واعتبار الطلب مكتملاً وتسوية المستحقات مع المورد.' : 'Cancel unreceived items and close order with refund/credit note.'}
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Notes / Delay reason */}
             <div>

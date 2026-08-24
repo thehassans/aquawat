@@ -691,15 +691,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             {isEdit
               ? (language === 'ar' ? 'تعديل فاتورة الشراء' : 'Edit Purchase Invoice')
               : (selectedPoId || poIdParam)
-                ? (language === 'ar' ? 'فاتورة أمر الشراء (PO Bill)' : 'New PO Bill')
+                ? (language === 'ar' ? 'فاتورة المورد (Vendor Bill)' : 'Vendor Bill')
                 : (language === 'ar' ? 'فاتورة شراء جديدة' : 'New Purchase Invoice')}
           </h1>
           <p className="mt-1 text-gray-500 dark:text-gray-400">
             {isEdit
               ? (language === 'ar' ? 'حدّث بيانات الفاتورة قبل حفظ التعديلات' : 'Update the invoice details before saving your changes')
               : (selectedPoId || poIdParam)
-                ? (language === 'ar' ? 'إصدار فاتورة مورد لطلب الشراء المحدد' : 'Billing vendor invoice for selected purchase order')
-                : (language === 'ar' ? 'تدعم الشراء التجاري والخدمي وفواتير السفر' : 'Supports trading, service, and travel purchase invoices')}
+                ? (language === 'ar' ? 'إصدار فاتورة مورد لطلب الشراء واستلام البضاعة' : 'Billing vendor invoice for purchase order')
+                : (language === 'ar' ? 'إنشاء فاتورة شراء مباشرة وتحديث المخزون' : 'Direct purchase invoice and inventory entry')}
           </p>
         </div>
       </div>
