@@ -747,13 +747,33 @@ export default function PurchaseOrderForm() {
     receiveMutation.mutate({ warehouseId: receiveWarehouseId, items, notes: receiveNotes })
   }
 
-  const resolveOrderForPdf = async () => {
-    if (order?.lineItems?.length) return order
-    const res = await api.get(`/purchase-orders/${id}`)
-    const data = res?.data
-    const full = data?.purchaseOrder || data?.order || data
-    if (!full?._id && !full?.poNumber) throw new Error('Purchase order not found')
-    return full
+  const resolveOrderForPdf = async (targetOrder) => {
+    const o = targetOrder || order
+    if (o?.supplierId && typeof o.supplierId === 'object' && (o.supplierId?.nameEn || o.supplierId?.nameAr)) {
+      return o
+    }
+    const targetId = o?._id || id
+    if (targetId) {
+      try {
+        const res = await api.get(`/purchase-orders/${targetId}`)
+        const data = res?.data
+        const full = data?.purchaseOrder || data?.order || data
+        if (full?._id) return full
+      } catch (err) {
+        console.warn('[PurchaseOrderForm] fetch order for pdf error', err)
+      }
+    }
+    if (o) {
+      let supp = o.supplierId
+      if (typeof supp === 'string' && Array.isArray(suppliers) && suppliers.length) {
+        supp = suppliers.find((s) => String(s._id) === String(supp)) || supp
+      }
+      return {
+        ...o,
+        supplierId: supp,
+      }
+    }
+    throw new Error('Purchase order not found')
   }
 
   const handlePrintPdf = async (targetOrder) => {
@@ -762,7 +782,7 @@ export default function PurchaseOrderForm() {
     const toastId = toast.loading(language === 'ar' ? 'جاري التحضير للطباعة...' : 'Preparing print...')
     setPdfBusy('print')
     try {
-      const full = targetOrder?._id ? targetOrder : await resolveOrderForPdf()
+      const full = await resolveOrderForPdf(orderToUse)
       await printPurchaseOrderPdf({
         purchaseOrder: full,
         language,
@@ -783,7 +803,7 @@ export default function PurchaseOrderForm() {
     const toastId = toast.loading(language === 'ar' ? 'جاري إنشاء PDF...' : 'Generating PDF...')
     setPdfBusy('download')
     try {
-      const full = targetOrder?._id ? targetOrder : await resolveOrderForPdf()
+      const full = await resolveOrderForPdf(orderToUse)
       await downloadPurchaseOrderPdf({ purchaseOrder: full, language, tenant })
       toast.success(language === 'ar' ? 'تم التنزيل' : 'Downloaded', { id: toastId })
     } catch (e) {

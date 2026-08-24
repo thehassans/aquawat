@@ -1910,6 +1910,7 @@ export const mapPurchaseOrderForPdf = (purchaseOrder, tenant) => {
   const business = tenant?.business || {}
 
   const lineItems = (Array.isArray(purchaseOrder.lineItems) ? purchaseOrder.lineItems : []).map((li) => {
+    const product = (li?.productId && typeof li.productId === 'object') ? li.productId : null
     const rawManual = li?.manualName || li?.description || ''
     const isManualArabic = /[\u0600-\u06FF]/.test(rawManual)
     const productName =
