@@ -400,6 +400,9 @@ async function runSeed(shouldDisconnect = false) {
     if (!name) continue;
 
     const vat = cleanVat(effectiveRow['Vat No'] || mainRow?.['Vat No']);
+    if (!vat || vat.length < 5) {
+      continue; // Exclude suppliers without a valid VAT number
+    }
     const phone = cleanPhone(effectiveRow.Tele || mainRow?.Tele);
     const fax = cleanPhone(effectiveRow.Fax || mainRow?.Fax);
     const attn = cleanString(effectiveRow.Attn || mainRow?.Attn);
@@ -494,7 +497,15 @@ async function runSeed(shouldDisconnect = false) {
       createdBy: adminUser._id
     };
 
-    const existing = await Product.findOne({ tenantId: tenant._id, sku: sku });
+    const cleanSkuPattern = sku.replace(/[-_\s]/g, '');
+    const existing = await Product.findOne({
+      tenantId: tenant._id,
+      $or: [
+        { sku: sku },
+        { sku: new RegExp(`^${cleanSkuPattern}$`, 'i') },
+        { nameEn: itemName }
+      ]
+    });
     if (existing) {
       existing.nameEn = productPayload.nameEn;
       existing.allowNegativeStock = isNegativeAllowed;
