@@ -138,6 +138,12 @@
 - Config Reordering Rules (permanent orderpoints)
 - Warehouse `resupplyWarehouseIds` → pull routes supplier stock → supplied stock
 
+## Phase 17 — Batches, variants list, packagings, print polish
+
+- Transfer batches (`StockPickingBatch`) with confirm/check/validate/cancel bulk actions
+- Product Variants list; packagings panel on product form
+- Print slip: locations, scheduled date, signature lines, optional lots
+
 ## Deferred / polish
 
 _(none — concurrent reserve covered by optimistic versioning + optional Mongo integration test)_

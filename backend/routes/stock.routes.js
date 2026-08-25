@@ -32,6 +32,7 @@ import {
   StockValuationLayer,
   StockLandedCost,
   StockBarcodeNomenclature,
+  StockPickingBatch,
 } from '../models/stock/index.js';
 import { ensureStockBootstrap, getDefaultUom } from '../services/stock/bootstrap.js';
 import {
@@ -68,6 +69,11 @@ import {
   deleteTemplateAttributeLine,
 } from '../services/stock/variantGeneration.js';
 import { bucketScheduledByDay } from '../services/stock/overview.js';
+import {
+  createBatch,
+  setBatchPickings,
+  runBatchAction,
+} from '../services/stock/batchService.js';
 import { StockValidationError } from '../services/stock/errors.js';
 import { D, decStr } from '../utils/decimal.js';
 
@@ -673,7 +679,10 @@ router.get('/pickings', checkPermission('inventory', 'read'), async (req, res) =
     const { code, state, search, page = 1, limit = 80 } = req.query;
     const filter = { ...req.tenantFilter };
 
-    if (state) filter.state = state;
+    if (state) {
+      const states = String(state).split(',').map((s) => s.trim()).filter(Boolean);
+      filter.state = states.length > 1 ? { $in: states } : states[0];
+    }
     if (search) filter.name = new RegExp(search, 'i');
 
     if (code) {
@@ -1520,15 +1529,30 @@ router.get('/pickings/:id/print', checkPermission('inventory', 'read'), async (r
   try {
     const picking = await StockPicking.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('operationTypeId')
+      .populate('locationId', 'completeName name')
+      .populate('locationDestId', 'completeName name')
       .lean();
     if (!picking) return res.status(404).json({ error: 'Not found' });
     const moves = await StockMove.find({ pickingId: picking._id, ...req.tenantFilter })
       .populate(VARIANT_POPULATE)
       .lean();
-    const moveLines = await StockMoveLine.find({ pickingId: picking._id, ...req.tenantFilter }).lean();
+    const moveLines = await StockMoveLine.find({ pickingId: picking._id, ...req.tenantFilter })
+      .populate('lotId', 'name')
+      .lean();
     await StockPicking.updateOne({ _id: picking._id }, { $set: { printed: true } });
     const printedAt = new Date().toISOString();
-    const payload = { title: picking.name, picking, moves, moveLines, printedAt };
+    const settings = await StockSettings.findOne({ tenantId: req.user.tenantId }).lean();
+    const showLots = settings?.groupLotOnDeliverySlip !== false
+      && (settings?.groupStockProductionLot === true || moveLines.some((l) => l.lotName || l.lotId));
+    const payload = {
+      title: picking.name,
+      picking,
+      moves,
+      moveLines,
+      printedAt,
+      showLots,
+      partnerLabel: picking.partnerId ? String(picking.partnerId) : '',
+    };
 
     if (String(req.query.format || '').toLowerCase() === 'html') {
       const { buildPickingPrintHtml } = await import('../services/stock/printLayout.js');
@@ -1536,6 +1560,69 @@ router.get('/pickings/:id/print', checkPermission('inventory', 'read'), async (r
       return;
     }
     res.json(payload);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ─── Picking batches ────────────────────────────────────────────────────────
+
+router.get('/batches', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const filter = { ...req.tenantFilter };
+    if (req.query.state) filter.state = req.query.state;
+    const items = await StockPickingBatch.find(filter)
+      .populate('operationTypeId', 'name code')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+    res.json(items);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.get('/batches/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const batch = await StockPickingBatch.findOne({ _id: req.params.id, ...req.tenantFilter })
+      .populate('operationTypeId', 'name code')
+      .lean();
+    if (!batch) return res.status(404).json({ error: 'Not found' });
+    const pickings = await StockPicking.find({ _id: { $in: batch.pickingIds }, ...req.tenantFilter })
+      .populate('operationTypeId', 'name code')
+      .lean();
+    res.json({ batch, pickings });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/batches', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const batch = await createBatch(req.user.tenantId, req.user._id, req.body);
+    res.status(201).json(batch);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.put('/batches/:id/pickings', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const batch = await setBatchPickings(req.user.tenantId, req.params.id, req.body.pickingIds || []);
+    res.json(batch);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/batches/:id/:action', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const action = req.params.action;
+    if (!['confirm', 'check', 'validate', 'cancel'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action' });
+    }
+    const result = await runBatchAction(req.user.tenantId, req.user._id, req.params.id, action, req.body);
+    res.json(result);
   } catch (err) {
     handleError(res, err);
   }

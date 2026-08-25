@@ -10,6 +10,7 @@ const SUB = [
   { to: INVENTORY_PATH.scrap, en: 'Scrap', ar: 'هالك' },
   { to: INVENTORY_PATH.replenishment, en: 'Replenishment', ar: 'إعادة التوريد' },
   { to: INVENTORY_PATH.procurementGroups, en: 'Procurement Groups', ar: 'مجموعات التوريد' },
+  { to: INVENTORY_PATH.batches, en: 'Batches', ar: 'دفعات التحويل' },
   { to: INVENTORY_PATH.landedCosts, en: 'Landed Costs', ar: 'التكاليف المرسية' },
 ]
 

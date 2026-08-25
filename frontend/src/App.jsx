@@ -115,6 +115,9 @@ const ForecastReport = lazy(() => import('./pages/inventory/ForecastReport'))
 const LocationsConfigList = lazy(() => import('./pages/inventory/LocationsConfigList'))
 const OperationTypesList = lazy(() => import('./pages/inventory/OperationTypesList'))
 const OrderpointsConfigList = lazy(() => import('./pages/inventory/OrderpointsConfigList'))
+const VariantsList = lazy(() => import('./pages/inventory/VariantsList'))
+const BatchesList = lazy(() => import('./pages/inventory/BatchesList'))
+const BatchForm = lazy(() => import('./pages/inventory/BatchesList').then((m) => ({ default: m.BatchForm })))
 const Products = lazy(() => import('./pages/inventory/Products'))
 const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
@@ -830,6 +833,8 @@ function App() {
             <Route path="scrap" element={<ScrapList />} />
             <Route path="replenishment" element={<Replenishment />} />
             <Route path="procurement-groups" element={<ProcurementGroupsList />} />
+            <Route path="batches" element={<BatchesList />} />
+            <Route path="batches/:id" element={<BatchForm />} />
             <Route path="landed-costs" element={<LandedCostsList />} />
             <Route path="landed-costs/:id" element={<StockLandedCostForm />} />
             <Route path="receipts/new" element={<PickingForm />} />
@@ -839,6 +844,7 @@ function App() {
           <Route path="pickings/:id" element={<PickingForm />} />
           <Route path="products" element={<StockProducts />} />
           <Route path="products/new" element={<StockProductForm />} />
+          <Route path="products/variants" element={<VariantsList />} />
           <Route path="products/lots" element={<LotsList />} />
           <Route path="products/lots/:id" element={<LotTraceability />} />
           <Route path="products/packages" element={<PackagesList />} />

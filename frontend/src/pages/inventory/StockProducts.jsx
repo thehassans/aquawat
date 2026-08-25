@@ -51,6 +51,7 @@ export default function StockProducts() {
       </div>
 
       <div className="flex flex-wrap gap-2 text-sm">
+        <Link to={INVENTORY_PATH.variants} className="btn btn-ghost">{isAr ? 'المتغيرات' : 'Variants'}</Link>
         <Link to={INVENTORY_PATH.lots} className="btn btn-ghost">{isAr ? 'الدفعات / التسلسل' : 'Lots / Serials'}</Link>
         <Link to={INVENTORY_PATH.packages} className="btn btn-ghost">{isAr ? 'الطرود' : 'Packages'}</Link>
         <Link to={INVENTORY_PATH.movesHistory} className="btn btn-ghost">{isAr ? 'سجل الحركات' : 'Moves History'}</Link>

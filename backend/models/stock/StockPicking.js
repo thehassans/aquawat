@@ -24,6 +24,7 @@ const pickingSchema = new mongoose.Schema({
   ownerId: { type: mongoose.Schema.Types.ObjectId, default: null },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   printed: { type: Boolean, default: false },
+  batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockPickingBatch', default: null },
   validateLock: { type: String, default: null },
 }, { timestamps: true });
 

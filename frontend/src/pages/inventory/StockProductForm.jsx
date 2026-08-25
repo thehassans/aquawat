@@ -413,6 +413,72 @@ export default function StockProductForm() {
           </div>
         </div>
       )}
+
+      {isEdit && variantId && (
+        <ProductPackagingsPanel variantId={variantId} isAr={isAr} />
+      )}
+    </div>
+  )
+}
+
+function ProductPackagingsPanel({ variantId, isAr }) {
+  const queryClient = useQueryClient()
+  const [name, setName] = useState('')
+  const [qty, setQty] = useState('1')
+  const [barcode, setBarcode] = useState('')
+
+  const { data: items = [] } = useQuery({
+    queryKey: ['stock-product-packagings', variantId],
+    queryFn: () => api.get('/stock/product-packagings', { params: { productId: variantId } }).then((r) => r.data),
+    enabled: Boolean(variantId),
+  })
+
+  const create = useMutation({
+    mutationFn: (payload) => api.post('/stock/product-packagings', payload),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم' : 'Created')
+      setName('')
+      setQty('1')
+      setBarcode('')
+      queryClient.invalidateQueries(['stock-product-packagings', variantId])
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+  })
+
+  return (
+    <div className="card p-6 max-w-3xl space-y-4">
+      <div>
+        <h2 className="font-semibold">{isAr ? 'تعبئة المنتج' : 'Product Packagings'}</h2>
+        <p className="text-xs text-slate-500 mt-1">{isAr ? 'عدد الوحدات في العبوة' : 'Units per packaging'}</p>
+      </div>
+      <form
+        className="grid gap-3 md:grid-cols-4 items-end"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!name.trim()) return
+          create.mutate({ name: name.trim(), qty, barcode: barcode || undefined, productId: variantId })
+        }}
+      >
+        <div>
+          <label className="label">{isAr ? 'الاسم' : 'Name'}</label>
+          <input className={fieldControlClass} value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">{isAr ? 'الكمية' : 'Qty'}</label>
+          <input className={fieldControlClass} value={qty} onChange={(e) => setQty(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">{isAr ? 'باركود' : 'Barcode'}</label>
+          <input className={fieldControlClass} value={barcode} onChange={(e) => setBarcode(e.target.value)} />
+        </div>
+        <button type="submit" className={primaryBtn} disabled={create.isPending}>{isAr ? 'إضافة' : 'Add'}</button>
+      </form>
+      <ul className="text-sm space-y-1">
+        {items.map((p) => (
+          <li key={p._id}>{p.name} — {p.qty} {p.barcode ? `(${p.barcode})` : ''}</li>
+        ))}
+        {!items.length && <li className="text-slate-500">{isAr ? 'لا تعبئة' : 'No packagings'}</li>}
+      </ul>
     </div>
   )
 }

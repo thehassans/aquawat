@@ -209,7 +209,14 @@ test('optimistic version reserves never oversell', () => {
 
 test('print HTML includes picking name and rows', () => {
   const html = buildPickingPrintHtml({
-    picking: { name: 'WH/IN/00001', state: 'done', operationTypeId: { name: 'Receipts' }, origin: 'GRN-1' },
+    picking: {
+      name: 'WH/IN/00001',
+      state: 'done',
+      operationTypeId: { name: 'Receipts' },
+      origin: 'GRN-1',
+      locationId: { completeName: 'Vendors' },
+      locationDestId: { completeName: 'WH/Stock' },
+    },
     moves: [{
       _id: 'm1',
       productId: { defaultCode: 'SKU1', templateId: { name: 'Widget' } },
@@ -219,11 +226,21 @@ test('print HTML includes picking name and rows', () => {
     }],
     moveLines: [{ moveId: 'm1', lotName: 'LOT-A' }],
     printedAt: '2026-08-25T00:00:00.000Z',
+    showLots: true,
   });
   assert.match(html, /WH\/IN\/00001/);
   assert.match(html, /Widget/);
   assert.match(html, /LOT-A/);
+  assert.match(html, /WH\/Stock/);
+  assert.match(html, /Prepared by/);
   assert.match(html, /<!DOCTYPE html>/);
+});
+
+test('batch state: mix done and open → in_progress', async () => {
+  const { computeBatchState } = await import('../services/stock/batchService.js');
+  assert.equal(computeBatchState([{ state: 'done' }, { state: 'assigned' }]), 'in_progress');
+  assert.equal(computeBatchState([{ state: 'done' }, { state: 'cancel' }]), 'done');
+  assert.equal(computeBatchState([{ state: 'draft' }, { state: 'draft' }]), 'draft');
 });
 
 test('valuation journal receipt: Dr Inventory Cr Stock Input', () => {
