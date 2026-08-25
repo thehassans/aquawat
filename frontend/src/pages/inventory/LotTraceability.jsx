@@ -1,8 +1,9 @@
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import api from '../../lib/api'
-import { ghostBtn, INVENTORY_PATH } from './inventoryUi'
+import { INVENTORY_PATH } from './inventoryUi'
+import { InventoryPageHeader } from './InventoryChrome'
 
 export default function LotTraceability() {
   const { id } = useParams()
@@ -38,14 +39,13 @@ export default function LotTraceability() {
   )
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link to={INVENTORY_PATH.lots} className={ghostBtn}>{isAr ? 'رجوع' : 'Back'}</Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{data.lot?.name}</h1>
-          <p className="text-sm text-slate-500">{isAr ? 'تتبع المنشأ والمصير' : 'Upstream & downstream traceability'}</p>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <InventoryPageHeader
+        title={data.lot?.name}
+        subtitle={isAr ? 'تتبع المنشأ والمصير' : 'Upstream & downstream traceability'}
+        backTo={INVENTORY_PATH.lots}
+        backLabel={isAr ? 'الدفعات' : 'Lots'}
+      />
       <div className="grid gap-4 md:grid-cols-2">
         <Tree title={isAr ? 'المنشأ (Upstream)' : 'Upstream'} nodes={data.upstream} />
         <Tree title={isAr ? 'المصير (Downstream)' : 'Downstream'} nodes={data.downstream} />

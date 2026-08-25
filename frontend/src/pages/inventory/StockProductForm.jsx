@@ -4,9 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Save } from 'lucide-react'
+import { Save } from 'lucide-react'
 import api from '../../lib/api'
 import { INVENTORY_PATH, fieldControlClass, ghostBtn, primaryBtn } from './inventoryUi'
+import { InventoryField, InventoryFormShell, InventoryPageHeader } from './InventoryChrome'
 
 export default function StockProductForm() {
   const { id } = useParams()
@@ -56,7 +57,6 @@ export default function StockProductForm() {
   const { data: uoms = [] } = useQuery({
     queryKey: ['stock-uom'],
     queryFn: () => api.get('/stock/uom').then((r) => r.data),
-    enabled: !isEdit,
   })
 
   const { data: categories = [] } = useQuery({
@@ -145,18 +145,27 @@ export default function StockProductForm() {
   )
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={() => navigate(INVENTORY_PATH.products)} className={ghostBtn}>
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {isEdit ? (isAr ? 'تعديل منتج' : 'Edit product') : (isAr ? 'منتج جديد' : 'New product')}
-        </h1>
-      </div>
+    <div className="space-y-8">
+      <InventoryPageHeader
+        title={isEdit ? (isAr ? 'تعديل منتج' : 'Edit product') : (isAr ? 'منتج جديد' : 'New product')}
+        subtitle={isAr ? 'قالب المنتج ووحدة القياس والتتبع' : 'Template, unit of measure, and tracking'}
+        backTo={INVENTORY_PATH.products}
+        backLabel={isAr ? 'المنتجات' : 'Products'}
+        actions={(
+          <button
+            type="submit"
+            form="stock-product-form"
+            className={primaryBtn}
+            disabled={saveMutation.isPending}
+          >
+            <Save className="h-4 w-4" />
+            {isAr ? 'حفظ' : 'Save'}
+          </button>
+        )}
+      />
 
       {isEdit && data?.onHand && (
-        <div className="sticky top-0 z-10 flex flex-wrap gap-2 rounded-xl border border-slate-200/80 bg-white/95 p-2 backdrop-blur dark:border-white/10 dark:bg-[#0c111a]/95">
+        <div className="sticky top-0 z-10 flex flex-wrap gap-2 rounded-2xl border border-slate-200/80 bg-white/95 p-2 backdrop-blur dark:border-white/10 dark:bg-[#0c111a]/95">
           <Link
             to={`${INVENTORY_PATH.stockReport}?search=${encodeURIComponent(data.template?.name || '')}`}
             className="inline-flex items-center rounded-xl border border-slate-200/80 px-3 py-2 text-sm font-medium hover:border-teal-300 hover:bg-teal-50 dark:border-white/10 dark:hover:bg-teal-500/10"
@@ -183,49 +192,44 @@ export default function StockProductForm() {
         </div>
       )}
 
-      <form
+      <InventoryFormShell
+        id="stock-product-form"
         onSubmit={handleSubmit((form) => saveMutation.mutate({
           ...form,
           uomId: form.uomId || undefined,
           categoryId: form.categoryId || undefined,
           legacyProductId: form.legacyProductId || null,
         }))}
-        className="card p-6 grid gap-4 md:grid-cols-2 max-w-3xl"
       >
-        <div className="md:col-span-2">
-          <label className="label">{isAr ? 'الاسم' : 'Name'}</label>
+        <InventoryField label={isAr ? 'الاسم' : 'Name'} className="md:col-span-2">
           <input className={fieldControlClass} {...register('name', { required: true })} />
-        </div>
-        <div>
-          <label className="label">{isAr ? 'الرمز' : 'Internal reference'}</label>
+        </InventoryField>
+        <InventoryField label={isAr ? 'الرمز' : 'Internal reference'}>
           <input className={fieldControlClass} {...register('defaultCode')} />
-        </div>
-        <div>
-          <label className="label">{isAr ? 'الباركود' : 'Barcode'}</label>
+        </InventoryField>
+        <InventoryField label={isAr ? 'الباركود' : 'Barcode'}>
           <input className={fieldControlClass} {...register('barcode')} />
-        </div>
-        {!isEdit && (
-          <div>
-            <label className="label">{isAr ? 'وحدة القياس' : 'Unit of measure'}</label>
-            <select className={fieldControlClass} {...register('uomId')}>
-              <option value="">{isAr ? 'افتراضي' : 'Default'}</option>
-              {uoms.map((u) => (
-                <option key={u._id} value={u._id}>{u.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div>
-          <label className="label">{isAr ? 'الفئة' : 'Category'}</label>
+        </InventoryField>
+        <InventoryField
+          label={isAr ? 'وحدة القياس' : 'Unit of measure'}
+          hint={uoms.length === 0 ? (isAr ? 'أضف وحدات من الإعدادات ← وحدات القياس' : 'Add units under Configuration → Units of Measure') : undefined}
+        >
+          <select className={fieldControlClass} {...register('uomId')} disabled={isEdit && Boolean(data?.template?.uomId)}>
+            <option value="">{isAr ? 'افتراضي' : 'Default'}</option>
+            {uoms.map((u) => (
+              <option key={u._id} value={u._id}>{u.name}{u.categoryId?.name ? ` · ${u.categoryId.name}` : ''}</option>
+            ))}
+          </select>
+        </InventoryField>
+        <InventoryField label={isAr ? 'الفئة' : 'Category'}>
           <select className={fieldControlClass} {...register('categoryId')}>
             <option value="">{isAr ? 'افتراضي (All)' : 'Default (All)'}</option>
             {categories.map((c) => (
               <option key={c._id} value={c._id}>{c.completeName}</option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="label">{isAr ? 'ربط منتج قديم' : 'Link legacy product'}</label>
+        </InventoryField>
+        <InventoryField label={isAr ? 'ربط منتج قديم' : 'Link legacy product'}>
           <select className={fieldControlClass} {...register('legacyProductId')}>
             <option value="">—</option>
             {(Array.isArray(legacyProducts) ? legacyProducts : []).map((p) => (
@@ -234,68 +238,62 @@ export default function StockProductForm() {
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="label">{isAr ? 'سعر البيع' : 'List price'}</label>
+        </InventoryField>
+        <InventoryField label={isAr ? 'سعر البيع' : 'List price'}>
           <input className={fieldControlClass} {...register('listPrice')} />
-        </div>
-        <div>
-          <label className="label">{isAr ? 'التكلفة' : 'Standard cost'}</label>
+        </InventoryField>
+        <InventoryField label={isAr ? 'التكلفة' : 'Standard cost'}>
           <input className={fieldControlClass} {...register('standardPrice')} />
-        </div>
-        <div className="flex items-center gap-2">
-          <input type="checkbox" id="isStorable" {...register('isStorable')} />
-          <label htmlFor="isStorable">{isAr ? 'قابل للتخزين' : 'Storable'}</label>
-        </div>
-        <div>
-          <label className="label">{isAr ? 'التتبع' : 'Tracking'}</label>
+        </InventoryField>
+        <InventoryField label={isAr ? 'التتبع' : 'Tracking'}>
           <select className={fieldControlClass} {...register('tracking')}>
             <option value="none">{isAr ? 'بدون' : 'No tracking'}</option>
             <option value="lot">{isAr ? 'بالدفعة' : 'By Lots'}</option>
             <option value="serial">{isAr ? 'بالتسلسل' : 'By Unique Serial'}</option>
           </select>
+        </InventoryField>
+        <div className="flex flex-col justify-end gap-3 pb-1">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input type="checkbox" id="isStorable" className="rounded border-slate-300" {...register('isStorable')} />
+            {isAr ? 'قابل للتخزين' : 'Storable'}
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input type="checkbox" id="useExpirationDate" className="rounded border-slate-300" {...register('useExpirationDate')} />
+            {isAr ? 'تواريخ الصلاحية' : 'Expiration dates'}
+          </label>
         </div>
-        <div className="flex items-center gap-2">
-          <input type="checkbox" id="useExpirationDate" {...register('useExpirationDate')} />
-          <label htmlFor="useExpirationDate">{isAr ? 'تواريخ الصلاحية' : 'Expiration dates'}</label>
-        </div>
-        <div>
-          <label className="label">{isAr ? 'أيام الصلاحية' : 'Expiration (days)'}</label>
+        <InventoryField label={isAr ? 'أيام الصلاحية' : 'Expiration (days)'}>
           <input type="number" className={fieldControlClass} {...register('expirationTime')} />
-        </div>
-        <div>
-          <label className="label">{isAr ? 'أيام الاستخدام' : 'Best before (days)'}</label>
+        </InventoryField>
+        <InventoryField label={isAr ? 'أيام الاستخدام' : 'Best before (days)'}>
           <input type="number" className={fieldControlClass} {...register('useTime')} />
-        </div>
-        <div>
-          <label className="label">{isAr ? 'أيام الإزالة (FEFO)' : 'Removal (days, FEFO)'}</label>
+        </InventoryField>
+        <InventoryField label={isAr ? 'أيام الإزالة (FEFO)' : 'Removal (days, FEFO)'}>
           <input type="number" className={fieldControlClass} {...register('removalTime')} />
-        </div>
-        <div>
-          <label className="label">{isAr ? 'أيام التنبيه' : 'Alert (days)'}</label>
+        </InventoryField>
+        <InventoryField label={isAr ? 'أيام التنبيه' : 'Alert (days)'}>
           <input type="number" className={fieldControlClass} {...register('alertTime')} />
-        </div>
-        <div className="md:col-span-2">
-          <label className="label">{isAr ? 'وصف للالتقاط' : 'Picking description'}</label>
+        </InventoryField>
+        <InventoryField label={isAr ? 'وصف للالتقاط' : 'Picking description'} className="md:col-span-2">
           <textarea className={fieldControlClass} rows={2} {...register('descriptionPicking')} />
-        </div>
+        </InventoryField>
         {isEdit && variantId && (
-          <div className="md:col-span-2 text-xs text-slate-500">
+          <div className="md:col-span-2 text-xs text-slate-400">
             {isAr ? 'معرف المتغير' : 'Variant ID'}: <code>{variantId}</code>
           </div>
         )}
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 flex justify-end border-t border-slate-100 pt-5 dark:border-white/5">
           <button type="submit" className={primaryBtn} disabled={saveMutation.isPending}>
-            <Save className="w-4 h-4" />
+            <Save className="h-4 w-4" />
             {isAr ? 'حفظ' : 'Save'}
           </button>
         </div>
-      </form>
+      </InventoryFormShell>
 
       {isEdit && (
-        <div className="card p-6 max-w-3xl space-y-4">
+        <div className="card w-full max-w-5xl space-y-4 p-6 sm:p-8">
           <div>
-            <h2 className="font-semibold">{isAr ? 'الخصائص والمتغيرات' : 'Attributes & Variants'}</h2>
+            <h2 className="font-semibold text-slate-900 dark:text-white">{isAr ? 'الخصائص والمتغيرات' : 'Attributes & Variants'}</h2>
             <p className="text-xs text-slate-500 mt-1">
               {isAr
                 ? 'تغيير الخصائص يعيد توليد المتغيرات. المتغيرات ذات الحركات تُؤرشف ولا تُحذف.'

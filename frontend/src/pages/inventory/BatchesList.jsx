@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { fieldControlClass, ghostBtn, primaryBtn, INVENTORY_PATH, PICKING_STATUS_PILL, pickingStatusLabel } from './inventoryUi'
+import { InventoryPageHeader } from './InventoryChrome'
 
 export default function BatchesList() {
   const { language } = useSelector((state) => state.ui)
@@ -117,12 +118,15 @@ export function BatchForm() {
   const pickings = data?.pickings || []
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <Link to={INVENTORY_PATH.batches} className={ghostBtn}>{isAr ? 'رجوع' : 'Back'}</Link>
-        <h1 className="text-2xl font-bold">{batch?.name || '…'}</h1>
-        {batch && <span className={`badge ${PICKING_STATUS_PILL[batch.state] || 'badge-neutral'}`}>{batch.state}</span>}
-      </div>
+    <div className="space-y-8">
+      <InventoryPageHeader
+        title={batch?.name || '…'}
+        backTo={INVENTORY_PATH.batches}
+        backLabel={isAr ? 'الدفعات' : 'Batches'}
+        actions={batch ? (
+          <span className={`badge ${PICKING_STATUS_PILL[batch.state] || 'badge-neutral'}`}>{batch.state}</span>
+        ) : null}
+      />
 
       {isLoading && <p>…</p>}
 

@@ -47,7 +47,16 @@ export const INVENTORY_PATH = {
 }
 
 export const fieldControlClass =
-  'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-dark-500 dark:bg-dark-800 dark:text-white'
+  'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.03)] outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/15 dark:border-white/10 dark:bg-dark-800 dark:text-white'
+
+export const fieldLabelClass =
+  'mb-1.5 block text-[12px] font-medium tracking-wide text-slate-500 dark:text-slate-400'
+
+export const formShellClass =
+  'card w-full max-w-5xl space-y-6 p-6 sm:p-8 md:grid md:grid-cols-2 md:gap-x-6 md:gap-y-5 md:space-y-0'
+
+export const backBtnClass =
+  'inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 text-[13px] font-medium text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/5'
 
 export const primaryBtn =
   'inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-[13px] font-medium text-white shadow-[0_12px_24px_-16px_rgba(15,118,110,0.85)] transition hover:bg-teal-800 disabled:opacity-40 dark:bg-teal-500 dark:text-slate-950'

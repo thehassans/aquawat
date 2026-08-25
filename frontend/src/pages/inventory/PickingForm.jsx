@@ -3,9 +3,10 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Check, X, RefreshCw, Printer, RotateCcw } from 'lucide-react'
+import { Check, X, RefreshCw, Printer, RotateCcw } from 'lucide-react'
 import api from '../../lib/api'
 import { ghostBtn, primaryBtn, fieldControlClass, PICKING_STATUS_PILL, pickingStatusLabel, stockProductLabel, stockLocationLabel, INVENTORY_PATH } from './inventoryUi'
+import { InventoryPageHeader } from './InventoryChrome'
 import PickingChatter from './PickingChatter'
 import InventorySheet from './InventorySheet'
 
@@ -213,22 +214,20 @@ export default function PickingForm() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => navigate(-1)} className={ghostBtn}>
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {isNew ? (isAr ? 'عملية جديدة' : 'New transfer') : picking?.name}
-          </h1>
-          {!isNew && picking && (
-            <span className={`badge mt-1 ${PICKING_STATUS_PILL[displayState] || 'badge-neutral'}`}>
-              {pickingStatusLabel(displayState, language)}
-            </span>
-          )}
-        </div>
-        {!isNew && (
+    <div className="space-y-8">
+      <InventoryPageHeader
+        title={isNew ? (isAr ? 'عملية جديدة' : 'New transfer') : (picking?.name || '…')}
+        backTo={
+          opTypeCode === 'outgoing' ? INVENTORY_PATH.deliveries
+            : opTypeCode === 'internal' ? INVENTORY_PATH.internal
+              : INVENTORY_PATH.receipts
+        }
+        backLabel={
+          opTypeCode === 'outgoing' ? (isAr ? 'التسليمات' : 'Deliveries')
+            : opTypeCode === 'internal' ? (isAr ? 'التحويلات' : 'Internal')
+              : (isAr ? 'الاستلامات' : 'Receipts')
+        }
+        actions={!isNew ? (
           <div className="flex flex-wrap gap-2">
             <button type="button" className={ghostBtn} onClick={printPicking}>
               <Printer className="w-4 h-4" />
@@ -268,8 +267,14 @@ export default function PickingForm() {
               </>
             )}
           </div>
+        ) : null}
+      >
+        {!isNew && picking && (
+          <span className={`badge mt-2 ${PICKING_STATUS_PILL[displayState] || 'badge-neutral'}`}>
+            {pickingStatusLabel(displayState, language)}
+          </span>
         )}
-      </div>
+      </InventoryPageHeader>
 
       {backorderPrompt && (
         <div className="card p-4 border-amber-200 bg-amber-50 dark:bg-amber-500/10">

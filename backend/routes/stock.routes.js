@@ -381,10 +381,75 @@ router.get('/uom', checkPermission('inventory', 'read'), async (req, res) => {
   }
 });
 
+router.post('/uom', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'name required' });
+    let categoryId = req.body.categoryId;
+    if (!categoryId) {
+      let cat = await StockUomCategory.findOne({ ...req.tenantFilter, name: 'Units' });
+      if (!cat) {
+        cat = await StockUomCategory.create({
+          tenantId: req.user.tenantId,
+          name: 'Units',
+          measureType: 'unit',
+        });
+      }
+      categoryId = cat._id;
+    }
+    const doc = await StockUom.create({
+      tenantId: req.user.tenantId,
+      name,
+      categoryId,
+      uomType: req.body.uomType || 'bigger',
+      factor: String(req.body.factor ?? '1'),
+      rounding: String(req.body.rounding ?? '0.01'),
+      active: true,
+    });
+    const populated = await StockUom.findById(doc._id).populate('categoryId', 'name').lean();
+    res.status(201).json(populated);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.patch('/uom/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const uom = await StockUom.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!uom) return res.status(404).json({ error: 'UoM not found' });
+    if (req.body.name !== undefined) uom.name = String(req.body.name).trim();
+    if (req.body.categoryId) uom.categoryId = req.body.categoryId;
+    if (req.body.uomType) uom.uomType = req.body.uomType;
+    if (req.body.factor !== undefined) uom.factor = String(req.body.factor);
+    if (req.body.rounding !== undefined) uom.rounding = String(req.body.rounding);
+    if (req.body.active !== undefined) uom.active = Boolean(req.body.active);
+    await uom.save();
+    const populated = await StockUom.findById(uom._id).populate('categoryId', 'name').lean();
+    res.json(populated);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 router.get('/uom-categories', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const cats = await StockUomCategory.find({ ...req.tenantFilter }).lean();
     res.json(cats);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/uom-categories', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'name required' });
+    const doc = await StockUomCategory.create({
+      tenantId: req.user.tenantId,
+      name,
+      measureType: req.body.measureType || 'unit',
+    });
+    res.status(201).json(doc);
   } catch (err) {
     handleError(res, err);
   }

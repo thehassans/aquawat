@@ -1,13 +1,13 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { ghostBtn, primaryBtn, INVENTORY_PATH } from './inventoryUi'
+import { InventoryPageHeader } from './InventoryChrome'
 
 export default function LandedCostForm() {
   const { id } = useParams()
-  const navigate = useNavigate()
   const { language } = useSelector((state) => state.ui)
   const isAr = language === 'ar'
   const queryClient = useQueryClient()
@@ -39,20 +39,23 @@ export default function LandedCostForm() {
   if (!lc) return <div>{isAr ? 'غير موجود' : 'Not found'}</div>
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" className={ghostBtn} onClick={() => navigate(INVENTORY_PATH.landedCosts)}>
-          {isAr ? 'رجوع' : 'Back'}
-        </button>
-        <h1 className="text-2xl font-bold flex-1">{lc.name}</h1>
-        <span className={`badge ${lc.state === 'done' ? 'badge-success' : 'badge-warning'}`}>{lc.state}</span>
-        {lc.state === 'draft' && (
+    <div className="space-y-8">
+      <InventoryPageHeader
+        title={lc.name}
+        backTo={INVENTORY_PATH.landedCosts}
+        backLabel={isAr ? 'التكاليف المرسية' : 'Landed costs'}
+        actions={(
           <>
-            <button type="button" className={ghostBtn} onClick={() => compute.mutate()}>{isAr ? 'حساب' : 'Compute'}</button>
-            <button type="button" className={primaryBtn} onClick={() => validate.mutate()}>{isAr ? 'اعتماد' : 'Validate'}</button>
+            <span className={`badge ${lc.state === 'done' ? 'badge-success' : 'badge-warning'}`}>{lc.state}</span>
+            {lc.state === 'draft' && (
+              <>
+                <button type="button" className={ghostBtn} onClick={() => compute.mutate()}>{isAr ? 'حساب' : 'Compute'}</button>
+                <button type="button" className={primaryBtn} onClick={() => validate.mutate()}>{isAr ? 'اعتماد' : 'Validate'}</button>
+              </>
+            )}
           </>
         )}
-      </div>
+      />
 
       <div className="card p-4">
         <h3 className="font-medium mb-2">{isAr ? 'بنود التكلفة' : 'Cost lines'}</h3>

@@ -49,7 +49,7 @@ export default function ProductCategoriesList() {
       </div>
 
       <form
-        className="card p-4 grid gap-3 md:grid-cols-5 items-end"
+        className="card w-full max-w-5xl grid gap-4 p-6 sm:p-8 md:grid-cols-5 md:items-end"
         onSubmit={(e) => {
           e.preventDefault()
           if (!name.trim()) return

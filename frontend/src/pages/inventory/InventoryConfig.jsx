@@ -25,22 +25,33 @@ export default function InventoryConfig() {
   const isAr = language === 'ar'
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isAr ? 'الإعدادات' : 'Configuration'}</h1>
-      <div className="flex gap-2 border-b border-slate-200 dark:border-dark-600 pb-2 overflow-x-auto">
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+          {isAr ? 'الإعدادات' : 'Configuration'}
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          {isAr ? 'المستودعات والمسارات ووحدات القياس' : 'Warehouses, routes, and units of measure'}
+        </p>
+      </div>
+      <nav className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 dark:border-white/10 dark:bg-white/[0.03]">
         {SUB.map((tab) => {
           const active = tab.exact ? pathname === tab.to : pathname.startsWith(tab.to)
           return (
             <Link
               key={tab.to}
               to={tab.to}
-              className={`px-4 py-2 text-sm rounded-lg whitespace-nowrap ${active ? 'bg-teal-50 text-teal-800 dark:bg-teal-500/10' : 'text-slate-600'}`}
+              className={`whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-medium transition ${
+                active
+                  ? 'bg-white text-teal-800 shadow-sm dark:bg-teal-500/15 dark:text-teal-200'
+                  : 'text-slate-600 hover:bg-white/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white'
+              }`}
             >
               {isAr ? tab.ar : tab.en}
             </Link>
           )
         })}
-      </div>
+      </nav>
       <Outlet />
     </div>
   )
