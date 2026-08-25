@@ -25,3 +25,7 @@ export { default as InvSchedulerRun } from './InvSchedulerRun.js';
 export { default as InvValuationLayer } from './InvValuationLayer.js';
 export { default as InvLandedCost } from './InvLandedCost.js';
 export { default as InvBarcodeNomenclature } from './InvBarcodeNomenclature.js';
+export { default as InvBatchTransfer } from './InvBatchTransfer.js';
+export { default as InvQualityPoint } from './InvQualityPoint.js';
+export { default as InvQualityCheck } from './InvQualityCheck.js';
+export { default as InvDeliveryCarrier } from './InvDeliveryCarrier.js';

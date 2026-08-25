@@ -260,6 +260,32 @@ export async function runScheduler(tenantId, { trigger = 'manual', userId = null
     run.status = 'done';
     run.endedAt = new Date();
     await run.save();
+
+    // Annual inventory day: stamp nextCountDate on cyclic-frequency-0 internals
+    try {
+      const day = Number(settings?.annualInventoryDay) || 31;
+      const month = Number(settings?.annualInventoryMonth) || 12;
+      const now = new Date();
+      let next = new Date(now.getFullYear(), month - 1, day);
+      if (next <= now) next = new Date(now.getFullYear() + 1, month - 1, day);
+      const { default: InvLocation } = await import('../../models/inventory/InvLocation.js');
+      await InvLocation.updateMany(
+        {
+          tenantId: tid,
+          usage: 'internal',
+          active: true,
+          $or: [
+            { cyclicCountFrequencyDays: 0 },
+            { cyclicCountFrequencyDays: null },
+            { cyclicCountFrequencyDays: { $exists: false } },
+          ],
+        },
+        { $set: { nextCountDate: next } },
+      );
+    } catch (e) {
+      // non-fatal
+    }
+
     return run;
   } catch (err) {
     run.rulesEvaluated = rulesEvaluated;

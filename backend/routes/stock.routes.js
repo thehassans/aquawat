@@ -73,6 +73,11 @@ import {
   createProductCategory,
   updateProductCategory,
 } from '../services/inventory/configMasters.js';
+import {
+  updateInvSettings,
+  getInvSettings,
+  isSmsProviderConfigured,
+} from '../services/inventory/settingsService.js';
 
 const router = express.Router();
 
@@ -118,12 +123,12 @@ router.post('/enable', checkPermission('inventory', 'update'), async (req, res) 
 
 router.get('/settings', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    let settings = await InvSettings.findOne({ ...req.tenantFilter });
-    if (!settings) {
-      await ensureInventoryBootstrap(req.user.tenantId, req.user._id);
-      settings = await InvSettings.findOne({ ...req.tenantFilter });
-    }
-    res.json(settings);
+    const settings = await getInvSettings(req.user.tenantId);
+    const smsProviderConfigured = await isSmsProviderConfigured(req.user.tenantId);
+    res.json({
+      ...(settings.toObject ? settings.toObject() : settings),
+      smsProviderConfigured,
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -146,32 +151,12 @@ router.get('/engine-status', async (req, res) => {
 
 router.patch('/settings', checkPermission('inventory', 'update'), async (req, res) => {
   try {
-    const allowed = [
-      'engineEnabled', 'groupUom', 'groupStockMultiLocations', 'groupStockTrackingLot',
-      'moduleProductExpiry', 'annualInventoryMonth', 'annualInventoryDay',
-      'securityLeadTimeSales', 'securityLeadTimePurchase', 'daysToPurchase',
-      'enforceWarehouseRestriction', 'schedulerEnabled',
-      'stockAccountingEnabled',
-      'propertyStockValuationAccountId', 'propertyStockInputAccountId',
-      'propertyStockOutputAccountId', 'propertyLandedCostAccountId',
-      'showLotsOnDeliverySlips', 'showLotsOnInvoices', 'receptionReportEnabled',
-      'emailConfirmationOnDelivery', 'signatureOnDelivery',
-      'groupAdvLocation', 'groupStockStorageCategories', 'groupPutawayRules',
-      'groupProductVariant', 'groupStockPackaging', 'groupProductionLot',
-      'groupLandedCosts', 'groupDeliveryMethods', 'groupStockBarcode',
-      'menuPos', 'menuManufacturing',
-    ];
-    const $set = {};
-    for (const k of allowed) {
-      if (req.body[k] !== undefined) $set[k] = req.body[k];
-    }
-    $set.updatedBy = req.user._id;
-    const settings = await InvSettings.findOneAndUpdate(
-      { ...req.tenantFilter },
-      { $set },
-      { new: true, upsert: true },
-    );
-    res.json(settings);
+    const settings = await updateInvSettings(req.user.tenantId, req.user._id, req.body);
+    const smsProviderConfigured = await isSmsProviderConfigured(req.user.tenantId);
+    res.json({
+      ...(settings.toObject ? settings.toObject() : settings),
+      smsProviderConfigured,
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }

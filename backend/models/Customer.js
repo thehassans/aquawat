@@ -143,7 +143,10 @@ const customerSchema = new mongoose.Schema({
     type: String,
     default: '',
     trim: true
-  }
+  },
+  /** Inventory partner warning (when InvSettings.groupStockWarning) */
+  stockWarn: { type: String, enum: ['no', 'warning', 'block'], default: 'no' },
+  stockWarnMsg: { type: String, default: '' },
 }, {
   timestamps: true
 });

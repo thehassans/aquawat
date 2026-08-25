@@ -192,3 +192,20 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Write APIs | `POST/PATCH /stock/locations`, `/operation-types`, `/product-categories`, `/uoms`; `PATCH` storage-categories & reorder-rules |
 | UI | `ConfigPages.jsx` replaces Step 2 placeholders; Routes/Rules stay on `AutomationPages` |
 | Ledger | Unchanged — no InvMove / transfer semantics touched |
+
+## v2 IA — Step 3 (Settings → real behaviour)
+
+| Topic | Decision |
+|---|---|
+| Model | Keep **`InvSettings`** (not rename to StockSettings); one row per tenant |
+| Flag aliases | v2 names mirrored onto existing columns (`receptionReportEnabled` ↔ `groupReceptionReport`, etc.) |
+| Multi-locations off | Blocked if stock exists in >1 internal location per warehouse |
+| Multi-step routes on | Force-enables `groupStockMultiLocations` |
+| Picking policy `one` | `checkAvailability` unreserves + `waiting`; validate blocked until all moves `assigned` |
+| Packages / lots off | Move lines with package/lot rejected server-side |
+| Signature | Required on outgoing validate when flag on |
+| SMS confirmation | Cannot enable without tenant SMS provider credentials |
+| Shipping connectors | Flags only + `InvDeliveryCarrier` / `CarrierProvider` stubs — **no live carrier APIs** |
+| Quality / Batch | Minimal `InvQualityPoint`/`InvQualityCheck` / `InvBatchTransfer` models; quality blocks validate while `none` |
+| Partner warnings | `Customer.stockWarn` / `stockWarnMsg`; block on create/confirm when `block` |
+| UI | `InventorySettingsPage.jsx` — sectioned, sticky Save, dirty `beforeunload` |

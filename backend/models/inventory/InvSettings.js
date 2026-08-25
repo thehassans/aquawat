@@ -6,6 +6,7 @@ const schema = new mongoose.Schema({
   engineEnabled: { type: Boolean, default: false },
   groupUom: { type: Boolean, default: true },
   groupStockMultiLocations: { type: Boolean, default: true },
+  /** Packages (put in pack) — Odoo group_stock_tracking_lot */
   groupStockTrackingLot: { type: Boolean, default: false },
   moduleProductExpiry: { type: Boolean, default: false },
   annualInventoryMonth: { type: Number, default: 12 },
@@ -13,23 +14,21 @@ const schema = new mongoose.Schema({
   securityLeadTimeSales: { type: Number, default: 0 },
   securityLeadTimePurchase: { type: Number, default: 0 },
   daysToPurchase: { type: Number, default: 0 },
-  /** When set, stock APIs filter to these warehouses only */
   enforceWarehouseRestriction: { type: Boolean, default: true },
-  /** Opt-in nightly / cron scheduler for reorder + reservation retry */
   schedulerEnabled: { type: Boolean, default: false },
-  /** Real-time stock valuation journals (requires engineEnabled) */
   stockAccountingEnabled: { type: Boolean, default: true },
   propertyStockValuationAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   propertyStockInputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   propertyStockOutputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   propertyLandedCostAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
-  /** UI / document feature flags (v1) */
+  stockJournalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Journal', default: null },
   showLotsOnDeliverySlips: { type: Boolean, default: true },
   showLotsOnInvoices: { type: Boolean, default: false },
   receptionReportEnabled: { type: Boolean, default: false },
+  groupReceptionReport: { type: Boolean, default: false },
   emailConfirmationOnDelivery: { type: Boolean, default: false },
   signatureOnDelivery: { type: Boolean, default: false },
-  /** v2 IA menu / behaviour gates (Step 1: menu only; Step 3 wires engine) */
+  groupStockSignDelivery: { type: Boolean, default: false },
   groupAdvLocation: { type: Boolean, default: true },
   groupStockStorageCategories: { type: Boolean, default: false },
   groupPutawayRules: { type: Boolean, default: true },
@@ -41,6 +40,26 @@ const schema = new mongoose.Schema({
   groupStockBarcode: { type: Boolean, default: false },
   menuPos: { type: Boolean, default: false },
   menuManufacturing: { type: Boolean, default: false },
+  groupBatchTransfer: { type: Boolean, default: false },
+  groupStockWarning: { type: Boolean, default: false },
+  defaultPickingPolicy: { type: String, enum: ['direct', 'one'], default: 'direct' },
+  moduleQuality: { type: Boolean, default: false },
+  barcodeNomenclatureId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvBarcodeNomenclature', default: null },
+  stockSmsConfirmation: { type: Boolean, default: false },
+  groupGs1Nomenclature: { type: Boolean, default: false },
+  groupStockTrackingOwner: { type: Boolean, default: false },
+  groupLotOnDeliverySlip: { type: Boolean, default: true },
+  groupLotOnInvoice: { type: Boolean, default: false },
+  /** Carrier connector flags — no live API; UI shows “not installed” */
+  moduleCarrierUps: { type: Boolean, default: false },
+  moduleCarrierDhl: { type: Boolean, default: false },
+  moduleCarrierFedex: { type: Boolean, default: false },
+  moduleCarrierUsps: { type: Boolean, default: false },
+  moduleCarrierSmsa: { type: Boolean, default: false },
+  moduleCarrierAramex: { type: Boolean, default: false },
+  moduleCarrierNaqel: { type: Boolean, default: false },
+  moduleCarrierEasypost: { type: Boolean, default: false },
+  moduleCarrierSendcloud: { type: Boolean, default: false },
   version: { type: Number, default: 0 },
 }, { timestamps: true });
 

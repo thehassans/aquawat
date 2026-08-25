@@ -9,6 +9,8 @@ import { getDefaultUom } from './bootstrap.js';
 import { recomputeTransferState } from './transferState.js';
 import { runWithTransaction } from './reserve.js';
 import { InventoryValidationError } from './errors.js';
+import { getInvSettings } from './settingsService.js';
+import Customer from '../../models/Customer.js';
 
 /**
  * Create a transfer with move lines.
@@ -18,6 +20,18 @@ import { InventoryValidationError } from './errors.js';
 export async function createTransfer(tenantId, payload, userId = null) {
   return runWithTransaction(async (session) => {
     const tid = toObjectId(tenantId);
+    const settings = await getInvSettings(tid);
+
+    if (settings.groupStockWarning && payload.partnerId) {
+      const partner = await Customer.findOne({ _id: payload.partnerId, tenantId: tid }).session(session);
+      if (partner?.stockWarn === 'block') {
+        throw new InventoryValidationError(
+          partner.stockWarnMsg || 'Partner is blocked for stock operations',
+          'PARTNER_BLOCK',
+        );
+      }
+    }
+
     const opType = await InvOperationType.findOne({
       _id: toObjectId(payload.operationTypeId),
       tenantId: tid,
@@ -31,6 +45,20 @@ export async function createTransfer(tenantId, payload, userId = null) {
       throw new InventoryValidationError('Source and destination locations required', 'LOCATIONS_REQUIRED');
     }
 
+    if (!settings.groupStockMultiLocations && String(sourceLocationId) !== String(destLocationId)
+      && opType.code === 'internal') {
+      throw new InventoryValidationError(
+        'Internal transfers require Storage Locations to be enabled',
+        'MULTI_LOC_OFF',
+      );
+    }
+
+    let scheduledDate = payload.scheduledDate ? new Date(payload.scheduledDate) : new Date();
+    if (opType.code === 'outgoing' && settings.securityLeadTimeSales) {
+      scheduledDate = new Date(scheduledDate);
+      scheduledDate.setDate(scheduledDate.getDate() - Number(settings.securityLeadTimeSales || 0));
+    }
+
     const name = payload.name || await nextSequenceName(tid, opType.sequenceCode, session);
     const defaultUom = await getDefaultUom(tid);
 
@@ -41,12 +69,13 @@ export async function createTransfer(tenantId, payload, userId = null) {
       partnerId: payload.partnerId || null,
       sourceLocationId,
       destLocationId,
-      scheduledDate: payload.scheduledDate || new Date(),
+      scheduledDate,
       deadlineDate: payload.deadlineDate,
       origin: payload.origin,
       note: payload.note,
       priority: payload.priority || 'normal',
       procurementGroupId: payload.procurementGroupId || null,
+      ownerId: settings.groupStockTrackingOwner ? (payload.ownerId || null) : null,
       responsibleId: payload.responsibleId || userId,
       sourceModel: payload.sourceModel,
       sourceDocId: payload.sourceDocId,

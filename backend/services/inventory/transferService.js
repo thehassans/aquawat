@@ -14,6 +14,15 @@ import { nextSequenceName } from './sequence.js';
 import { resolveOrCreateLot, isLotExpired } from './lotService.js';
 import InvQuant from '../../models/inventory/InvQuant.js';
 import { InventoryValidationError, InventoryConflictError } from './errors.js';
+import {
+  getInvSettings,
+  lotsEnabled,
+  packagesEnabled,
+  signatureRequired,
+} from './settingsService.js';
+import InvQualityPoint from '../../models/inventory/InvQualityPoint.js';
+import InvQualityCheck from '../../models/inventory/InvQualityCheck.js';
+import Customer from '../../models/Customer.js';
 
 /**
  * Confirm a draft transfer: moves → confirmed, optionally reserve.
@@ -27,6 +36,20 @@ export async function confirmTransfer(tenantId, transferId, userId = null) {
     if (!transfer) throw new InventoryValidationError('Transfer not found', 'NOT_FOUND');
     if (transfer.state === 'done' || transfer.state === 'cancelled') {
       throw new InventoryValidationError(`Cannot confirm transfer in state ${transfer.state}`, 'INVALID_STATE');
+    }
+
+    const settings = await getInvSettings(tenantId);
+    if (settings.groupStockWarning && transfer.partnerId) {
+      const partner = await Customer.findOne({
+        _id: transfer.partnerId,
+        tenantId: toObjectId(tenantId),
+      }).session(session);
+      if (partner?.stockWarn === 'block') {
+        throw new InventoryValidationError(
+          partner.stockWarnMsg || 'Partner is blocked for stock operations',
+          'PARTNER_BLOCK',
+        );
+      }
     }
 
     const opType = await InvOperationType.findById(transfer.operationTypeId).session(session);
@@ -44,6 +67,31 @@ export async function confirmTransfer(tenantId, transferId, userId = null) {
       }
       if (opType?.reservationMethod === 'atConfirm' && move.state === 'confirmed') {
         await reserveMove(move, session);
+      }
+    }
+
+    if (settings.moduleQuality && opType) {
+      const points = await InvQualityPoint.find({
+        tenantId: toObjectId(tenantId),
+        operationTypeId: opType._id,
+        active: true,
+      }).session(session);
+      for (const point of points) {
+        const exists = await InvQualityCheck.findOne({
+          tenantId: toObjectId(tenantId),
+          transferId: transfer._id,
+          pointId: point._id,
+        }).session(session);
+        if (!exists) {
+          await InvQualityCheck.create([{
+            tenantId: toObjectId(tenantId),
+            pointId: point._id,
+            transferId: transfer._id,
+            productId: point.productId || null,
+            state: 'none',
+            createdBy: userId,
+          }], { session });
+        }
       }
     }
 
@@ -82,7 +130,39 @@ export async function validateTransfer(tenantId, transferId, {
     }
 
     try {
+      const settings = await getInvSettings(tenantId);
       const opType = await InvOperationType.findById(transfer.operationTypeId).session(session);
+
+      if (signatureRequired(settings) && opType?.code === 'outgoing' && !transfer.signature) {
+        throw new InventoryValidationError('Signature required on delivery', 'SIGNATURE_REQUIRED');
+      }
+
+      if (settings.moduleQuality) {
+        const openChecks = await InvQualityCheck.countDocuments({
+          tenantId: tid,
+          transferId: transfer._id,
+          state: 'none',
+        }).session(session);
+        if (openChecks > 0) {
+          throw new InventoryValidationError('Quality checks incomplete', 'QUALITY_PENDING');
+        }
+      }
+
+      if (settings.defaultPickingPolicy === 'one') {
+        const openMoves = await InvMove.find({
+          tenantId: tid,
+          transferId: transfer._id,
+          state: { $nin: ['cancelled', 'done'] },
+        }).session(session);
+        const allReady = openMoves.every((m) => m.state === 'assigned');
+        if (!allReady) {
+          throw new InventoryValidationError(
+            'Waiting another operation — picking policy requires full availability',
+            'WAITING_ANOTHER',
+          );
+        }
+      }
+
       const moves = await InvMove.find({
         tenantId: tid,
         transferId: transfer._id,
@@ -135,8 +215,21 @@ export async function validateTransfer(tenantId, transferId, {
           const product = await Product.findById(line.productId).session(session);
           const tracking = product?.tracking || 'none';
 
+          if ((line.lotId || line.lotName) && !lotsEnabled(settings)) {
+            throw new InventoryValidationError('Lots & serials are disabled in settings', 'LOTS_DISABLED');
+          }
+          if ((line.packageId || line.resultPackageId) && !packagesEnabled(settings)) {
+            throw new InventoryValidationError('Packages are disabled in settings', 'PACKAGES_DISABLED');
+          }
+
           // Lot / serial guards
           if (tracking !== 'none') {
+            if (!lotsEnabled(settings)) {
+              throw new InventoryValidationError(
+                'Product requires lot tracking but Lots & serials are disabled',
+                'LOTS_DISABLED',
+              );
+            }
             if (!line.lotId && !line.lotName) {
               throw new InventoryValidationError(
                 `Lot/serial required for ${product.nameEn || product.sku}`,
@@ -350,6 +443,14 @@ export async function validateTransfer(tenantId, transferId, {
       transfer.state = 'done';
       transfer.doneDate = new Date();
       if (userId) transfer.updatedBy = userId;
+      if (settings.emailConfirmationOnDelivery && opType?.code === 'outgoing') {
+        const stamp = new Date().toISOString();
+        transfer.note = [transfer.note, `[email-confirmation queued ${stamp}]`].filter(Boolean).join('\n');
+      }
+      if (settings.stockSmsConfirmation && opType?.code === 'outgoing') {
+        const stamp = new Date().toISOString();
+        transfer.note = [transfer.note, `[sms-confirmation queued ${stamp}]`].filter(Boolean).join('\n');
+      }
       await transfer.save({ session });
       await recomputeTransferState(transfer._id, tenantId, session);
 
@@ -445,6 +546,7 @@ async function createBackorderMove(session, transfer, move, remainingQty, opType
 
 export async function checkAvailability(tenantId, transferId) {
   return runWithTransaction(async (session) => {
+    const settings = await getInvSettings(tenantId);
     const moves = await InvMove.find({
       tenantId: toObjectId(tenantId),
       transferId: toObjectId(transferId),
@@ -455,6 +557,30 @@ export async function checkAvailability(tenantId, transferId) {
       await reserveMove(move, session);
     }
     await recomputeTransferState(transferId, tenantId, session);
+
+    if (settings.defaultPickingPolicy === 'one') {
+      const after = await InvMove.find({
+        tenantId: toObjectId(tenantId),
+        transferId: toObjectId(transferId),
+        state: { $nin: ['cancelled', 'done'] },
+      }).session(session);
+      const allAssigned = after.length > 0 && after.every((m) => m.state === 'assigned');
+      if (!allAssigned) {
+        for (const move of after) {
+          if (move.state === 'assigned' || move.state === 'partiallyAvailable') {
+            await unreserveMove(move, session);
+          }
+        }
+        await InvTransfer.updateOne(
+          { _id: toObjectId(transferId), tenantId: toObjectId(tenantId) },
+          { $set: { state: 'waiting' } },
+          { session },
+        );
+        const transfer = await InvTransfer.findById(transferId).session(session);
+        return { ...transfer.toObject(), waitingAnotherOperation: true };
+      }
+    }
+
     return InvTransfer.findById(transferId).session(session);
   });
 }
