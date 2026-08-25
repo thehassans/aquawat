@@ -427,6 +427,17 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | UI | `/inventory/product-packagings` list + create + activate/deactivate |
 | Ledger | Packaging qty is conversion metadata only — stock still via validate → quant |
 
+## v3 P1 — Physical Inventory rebuild
+
+| Topic | Decision |
+|---|---|
+| Persist | Counted qty / schedule / assignee saved on blur via `POST /stock/physical-inventory/set` (`isCountSet`) — survives reload |
+| Apply | Confirm dialog: lines, ± diffs, valuation impact, accounting date, reason; **one txn per line** via moves ↔ `inventoryLoss` → `applyQuantDelta` only |
+| Request a Count | Stamps schedule on quants in scope; optionally creates **zero-qty** quants for missing product×location (shrinkage) |
+| History | `GET /physical-inventory/history` — done move lines to/from inventory adjustment |
+| Import | Dry-run then fill counted qty only (`location`, `product_sku`, `lot`, `counted_qty`); never auto-applies |
+| Export | CSV of current filtered page (universal import/export shell still §2.2) |
+| List shape | `{ data, _meta }` with chips All / To count / To apply / Negative / Scheduled this month + pager |
 
 
 

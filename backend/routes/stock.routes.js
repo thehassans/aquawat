@@ -36,6 +36,9 @@ import {
   clearCountedQuantity,
   applyInventoryCounts,
   requestCount,
+  previewApplyCounts,
+  countLineHistory,
+  importCountedQuantities,
 } from '../services/inventory/inventoryCount.js';
 import { createScrap, validateScrap, listScraps } from '../services/inventory/scrapService.js';
 import { getReturnWizard, createReturnTransfer } from '../services/inventory/returns.js';
@@ -1033,6 +1036,9 @@ router.get('/physical-inventory', checkPermission('inventory', 'read'), async (r
       warehouseId: req.query.warehouseId,
       productId: req.query.productId,
       filter: req.query.filter,
+      search: req.query.search,
+      page: req.query.page,
+      limit: req.query.limit,
     }));
   } catch (err) {
     handleInventoryError(res, err);
@@ -1058,6 +1064,14 @@ router.post('/physical-inventory/clear', checkPermission('inventory', 'update'),
   }
 });
 
+router.post('/physical-inventory/apply-preview', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await previewApplyCounts(req.user.tenantId, req.body.ids || []));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.post('/physical-inventory/apply', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     res.json(await applyInventoryCounts(req.user.tenantId, {
@@ -1074,7 +1088,45 @@ router.post('/physical-inventory/apply', checkPermission('inventory', 'update'),
 router.post('/physical-inventory/request-count', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     res.json(await requestCount(req.user.tenantId, {
-      ...req.body,
+      warehouseId: req.body.warehouseId,
+      locationId: req.body.locationId,
+      categoryId: req.body.categoryId,
+      productIds: req.body.productIds,
+      scheduledDate: req.body.scheduledDate,
+      includeZero: req.body.includeZero !== false,
+      countUserId: req.body.countUserId || req.body.userId,
+      userId: req.user._id,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/physical-inventory/history', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json({
+      items: await countLineHistory(req.user.tenantId, {
+        productId: req.query.productId,
+        locationId: req.query.locationId,
+        limit: req.query.limit,
+      }),
+    });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/physical-inventory/import', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    let rows = req.body.rows;
+    if (!rows?.length) {
+      const { resolveImportCsvText, parseCsv } = await import('../services/inventory/importExport.js');
+      const text = await resolveImportCsvText(req.body);
+      const parsed = parseCsv(text);
+      rows = parsed.records;
+    }
+    res.json(await importCountedQuantities(req.user.tenantId, rows || [], {
+      dryRun: req.body.dryRun !== false,
       userId: req.user._id,
     }));
   } catch (err) {

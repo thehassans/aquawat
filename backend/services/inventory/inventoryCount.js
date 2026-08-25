@@ -1,4 +1,4 @@
-import { D, decStr, decIsZero, decIsPositive } from '../../utils/decimal.js';
+import { D, decStr, decIsZero } from '../../utils/decimal.js';
 import InvQuant from '../../models/inventory/InvQuant.js';
 import InvLocation from '../../models/inventory/InvLocation.js';
 import InvMove from '../../models/inventory/InvMove.js';
@@ -9,6 +9,7 @@ import { applyQuantDelta } from './quantDelta.js';
 import { runWithTransaction } from './reserve.js';
 import { getDefaultUom } from './bootstrap.js';
 import { InventoryValidationError } from './errors.js';
+import { withTenant } from '../../utils/tenantScope.js';
 
 /**
  * List quants for physical inventory (editable count fields).
@@ -18,16 +19,30 @@ export async function listInventoryQuants(tenantId, {
   warehouseId,
   productId,
   filter: filterName,
+  search,
+  page = 1,
+  limit = 100,
 } = {}) {
   const tid = toObjectId(tenantId);
-  const locFilter = { tenantId: tid, usage: 'internal', active: true };
+  const locFilter = withTenant(tid, { usage: 'internal', active: true });
   if (warehouseId) locFilter.warehouseId = warehouseId;
   if (locationId) locFilter._id = locationId;
 
   const locs = await InvLocation.find(locFilter).select('_id').lean();
   const locIds = locs.map((l) => l._id);
+  if (!locIds.length) {
+    return {
+      data: [],
+      _meta: {
+        total: 0,
+        page: 1,
+        pageSize: limit,
+        appliedFilters: { filter: filterName || null },
+      },
+    };
+  }
 
-  const filter = { tenantId: tid, locationId: { $in: locIds } };
+  const filter = withTenant(tid, { locationId: { $in: locIds } });
   if (productId) filter.productId = productId;
 
   if (filterName === 'toCount') {
@@ -35,26 +50,69 @@ export async function listInventoryQuants(tenantId, {
       { lastCountDate: { $exists: false } },
       { lastCountDate: null },
       { countScheduledDate: { $lte: new Date() } },
+      { isCountSet: false, countedQuantity: null },
     ];
   } else if (filterName === 'toApply') {
     filter.isCountSet = true;
   } else if (filterName === 'negative') {
-    filter.quantityNum = { $lt: 0 };
-  } else if (filterName === 'onHand') {
-    // default: any with quantity or reserved
+    filter.$expr = { $lt: [{ $toDouble: '$quantity' }, 0] };
+  } else if (filterName === 'scheduledMonth') {
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 1);
+    filter.countScheduledDate = { $gte: start, $lt: end };
   }
 
-  return InvQuant.find(filter)
-    .populate('productId', 'nameEn nameAr sku unitOfMeasure uomId tracking')
-    .populate('locationId', 'name completePath usage warehouseId')
-    .populate('lotId', 'name expirationDate removalDate')
-    .sort({ updatedAt: -1 })
-    .limit(500)
-    .lean();
+  if (search?.trim()) {
+    const products = await Product.find({
+      tenantId: tid,
+      $or: [
+        { nameEn: new RegExp(search.trim(), 'i') },
+        { nameAr: new RegExp(search.trim(), 'i') },
+        { sku: new RegExp(search.trim(), 'i') },
+      ],
+    }).select('_id').limit(200).lean();
+    filter.productId = { $in: products.map((p) => p._id) };
+  }
+
+  const pageN = Math.max(1, Number(page) || 1);
+  const pageSize = Math.min(500, Math.max(1, Number(limit) || 100));
+  const skip = (pageN - 1) * pageSize;
+
+  const [rows, total] = await Promise.all([
+    InvQuant.find(filter)
+      .populate('productId', 'nameEn nameAr sku unitOfMeasure uomId tracking costPrice')
+      .populate('locationId', 'name completePath usage warehouseId')
+      .populate('lotId', 'name expirationDate removalDate')
+      .populate('packageId', 'name')
+      .populate('countUserId', 'name email')
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(pageSize)
+      .lean(),
+    InvQuant.countDocuments(filter),
+  ]);
+
+  return {
+    data: rows,
+    _meta: {
+      total,
+      page: pageN,
+      pageSize,
+      appliedFilters: {
+        warehouseId: warehouseId || null,
+        locationId: locationId || null,
+        filter: filterName || null,
+        search: search || null,
+      },
+    },
+  };
 }
 
 /**
- * Set counted quantity on a quant (survives reload).
+ * Set counted quantity on a quant (survives reload). Also updates schedule/user when provided.
  */
 export async function setCountedQuantity(tenantId, {
   quantId,
@@ -63,11 +121,12 @@ export async function setCountedQuantity(tenantId, {
   lotId,
   packageId,
   countedQty,
+  countScheduledDate,
+  countUserId,
   userId,
   reason,
 }) {
   const tid = toObjectId(tenantId);
-  const counted = decStr(countedQty);
 
   let quant;
   if (quantId) {
@@ -97,12 +156,26 @@ export async function setCountedQuantity(tenantId, {
 
   if (!quant) throw new InventoryValidationError('Quant not found', 'QUANT_NOT_FOUND');
 
-  const onHand = D(quant.quantity);
-  quant.countedQuantity = counted;
-  quant.isCountSet = true;
-  quant.countDifference = decStr(D(counted).minus(onHand));
-  quant.countScheduledDate = quant.countScheduledDate || new Date();
-  if (userId) quant.countUserId = userId;
+  if (countedQty != null && countedQty !== '') {
+    const counted = decStr(countedQty);
+    const onHand = D(quant.quantity);
+    quant.countedQuantity = counted;
+    quant.isCountSet = true;
+    quant.countDifference = decStr(D(counted).minus(onHand));
+  }
+
+  if (countScheduledDate != null) {
+    quant.countScheduledDate = countScheduledDate ? new Date(countScheduledDate) : null;
+  } else if (quant.isCountSet && !quant.countScheduledDate) {
+    quant.countScheduledDate = new Date();
+  }
+
+  if (countUserId !== undefined) {
+    quant.countUserId = countUserId || null;
+  } else if (userId && quant.isCountSet && !quant.countUserId) {
+    quant.countUserId = userId;
+  }
+
   if (reason) quant.countReason = reason;
   await quant.save();
   return quant;
@@ -118,8 +191,128 @@ export async function clearCountedQuantity(tenantId, quantId) {
   return quant;
 }
 
+export async function previewApplyCounts(tenantId, ids) {
+  const tid = toObjectId(tenantId);
+  const quants = await InvQuant.find({
+    _id: { $in: ids },
+    tenantId: tid,
+    isCountSet: true,
+  })
+    .populate('productId', 'costPrice nameEn sku')
+    .lean();
+
+  let positiveDiff = D(0);
+  let negativeDiff = D(0);
+  let valuationImpact = D(0);
+  for (const q of quants) {
+    const diff = D(q.countDifference || 0);
+    if (diff.gt(0)) positiveDiff = positiveDiff.plus(diff);
+    if (diff.lt(0)) negativeDiff = negativeDiff.plus(diff);
+    const cost = D(q.productId?.costPrice || 0);
+    valuationImpact = valuationImpact.plus(diff.times(cost));
+  }
+  return {
+    lines: quants.length,
+    positiveDiff: decStr(positiveDiff),
+    negativeDiff: decStr(negativeDiff),
+    valuationImpact: decStr(valuationImpact),
+  };
+}
+
+async function applyOneCount(session, tid, quant, invAdj, defaultUom, now, reason, userId) {
+  const diff = D(quant.countDifference || 0);
+  if (decIsZero(diff)) {
+    quant.isCountSet = false;
+    quant.countedQuantity = null;
+    quant.countDifference = '0';
+    quant.lastCountDate = now;
+    await quant.save({ session });
+    return { quantId: quant._id, skipped: true };
+  }
+
+  const product = await Product.findById(quant.productId).session(session);
+  const uomId = product?.uomId || defaultUom?._id;
+  if (!uomId) {
+    throw new InventoryValidationError(`UoM missing for product ${quant.productId}`, 'NO_UOM');
+  }
+
+  const absDiff = decStr(diff.abs());
+  const isGain = diff.gt(0);
+  const sourceLocationId = isGain ? invAdj._id : quant.locationId;
+  const destLocationId = isGain ? quant.locationId : invAdj._id;
+  const ref = reason || quant.countReason || `INV/${now.toISOString().slice(0, 10)}`;
+
+  const [move] = await InvMove.create([{
+    tenantId: tid,
+    reference: ref,
+    origin: ref,
+    productId: quant.productId,
+    variantId: quant.variantId,
+    uomId,
+    demandQty: absDiff,
+    doneQty: absDiff,
+    sourceLocationId,
+    destLocationId,
+    state: 'done',
+    date: now,
+    isScrapped: false,
+    createdBy: userId,
+  }], { session });
+
+  await InvMoveLine.create([{
+    tenantId: tid,
+    moveId: move._id,
+    productId: quant.productId,
+    variantId: quant.variantId,
+    uomId,
+    quantity: absDiff,
+    quantityInProductUom: absDiff,
+    sourceLocationId,
+    destLocationId,
+    lotId: quant.lotId || null,
+    packageId: quant.packageId || null,
+    ownerId: quant.ownerId || null,
+    state: 'done',
+    reference: ref,
+    createdBy: userId,
+  }], { session });
+
+  const dims = {
+    variantId: quant.variantId,
+    lotId: quant.lotId,
+    packageId: quant.packageId,
+    ownerId: quant.ownerId,
+    tracking: product?.tracking,
+  };
+
+  if (isGain) {
+    await applyQuantDelta(session, tid, quant.productId, quant.locationId, absDiff, '0', now, dims);
+  } else {
+    await applyQuantDelta(
+      session,
+      tid,
+      quant.productId,
+      quant.locationId,
+      decStr(D(0).minus(D(absDiff))),
+      '0',
+      now,
+      dims,
+    );
+  }
+
+  quant.isCountSet = false;
+  quant.countedQuantity = null;
+  quant.countDifference = '0';
+  quant.lastCountDate = now;
+  if (reason) quant.countReason = reason;
+  await quant.save({ session });
+
+  return { quantId: quant._id, moveId: move._id, diff: absDiff, isGain };
+}
+
 /**
- * Apply inventory counts — moves vs Inventory adjustment location (ledger only).
+ * Apply inventory counts — one transaction per line; partial success reported.
+ * Never writes quant qty except via applyQuantDelta (same path as validate).
  */
 export async function applyInventoryCounts(tenantId, {
   ids,
@@ -129,139 +322,296 @@ export async function applyInventoryCounts(tenantId, {
 }) {
   if (!ids?.length) throw new InventoryValidationError('No quant ids provided', 'NO_IDS');
 
-  return runWithTransaction(async (session) => {
-    const tid = toObjectId(tenantId);
-    const invAdj = await InvLocation.findOne({
-      tenantId: tid,
-      usage: 'inventoryLoss',
-    }).session(session);
+  const tid = toObjectId(tenantId);
+  const invAdj = await InvLocation.findOne({ tenantId: tid, usage: 'inventoryLoss' });
+  if (!invAdj) {
+    throw new InventoryValidationError(
+      'Inventory adjustment location not found — run bootstrap',
+      'NO_INV_ADJ',
+    );
+  }
+  const defaultUom = await getDefaultUom(tid);
+  const now = accountingDate ? new Date(accountingDate) : new Date();
+  const preview = await previewApplyCounts(tid, ids);
 
-    if (!invAdj) {
-      throw new InventoryValidationError(
-        'Inventory adjustment location not found — run bootstrap',
-        'NO_INV_ADJ',
-      );
-    }
+  const results = [];
+  let applied = 0;
+  let failed = 0;
+  let skipped = 0;
 
-    const defaultUom = await getDefaultUom(tid);
-    const quants = await InvQuant.find({
-      _id: { $in: ids },
-      tenantId: tid,
-      isCountSet: true,
-    }).session(session);
-
-    const now = accountingDate ? new Date(accountingDate) : new Date();
-    const results = [];
-
-    for (const quant of quants) {
-      const diff = D(quant.countDifference || 0);
-      if (decIsZero(diff)) {
-        quant.isCountSet = false;
-        quant.countedQuantity = null;
-        quant.countDifference = '0';
-        quant.lastCountDate = now;
-        await quant.save({ session });
-        results.push({ quantId: quant._id, skipped: true });
-        continue;
-      }
-
-      const product = await Product.findById(quant.productId).session(session);
-      const uomId = product?.uomId || defaultUom?._id;
-      if (!uomId) {
-        throw new InventoryValidationError(`UoM missing for product ${quant.productId}`, 'NO_UOM');
-      }
-
-      const absDiff = decStr(diff.abs());
-      const isGain = diff.gt(0);
-      const sourceLocationId = isGain ? invAdj._id : quant.locationId;
-      const destLocationId = isGain ? quant.locationId : invAdj._id;
-      const ref = reason || quant.countReason || `INV/${now.toISOString().slice(0, 10)}`;
-
-      const [move] = await InvMove.create([{
-        tenantId: tid,
-        reference: ref,
-        origin: ref,
-        productId: quant.productId,
-        variantId: quant.variantId,
-        uomId,
-        demandQty: absDiff,
-        doneQty: absDiff,
-        sourceLocationId,
-        destLocationId,
-        state: 'done',
-        date: now,
-        isScrapped: false,
-        createdBy: userId,
-      }], { session });
-
-      await InvMoveLine.create([{
-        tenantId: tid,
-        moveId: move._id,
-        productId: quant.productId,
-        variantId: quant.variantId,
-        uomId,
-        quantity: absDiff,
-        quantityInProductUom: absDiff,
-        sourceLocationId,
-        destLocationId,
-        lotId: quant.lotId || null,
-        packageId: quant.packageId || null,
-        ownerId: quant.ownerId || null,
-        state: 'done',
-        reference: ref,
-        createdBy: userId,
-      }], { session });
-
-      const dims = {
-        variantId: quant.variantId,
-        lotId: quant.lotId,
-        packageId: quant.packageId,
-        ownerId: quant.ownerId,
-        tracking: product?.tracking,
-      };
-
-      if (isGain) {
-        // Dest internal only — source is virtual
-        await applyQuantDelta(session, tid, quant.productId, quant.locationId, absDiff, '0', now, dims);
+  for (const id of ids) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const row = await runWithTransaction(async (session) => {
+        const quant = await InvQuant.findOne({
+          _id: id,
+          tenantId: tid,
+          isCountSet: true,
+        }).session(session);
+        if (!quant) {
+          return { quantId: id, error: 'Not found or not set', failed: true };
+        }
+        return applyOneCount(session, tid, quant, invAdj, defaultUom, now, reason, userId);
+      });
+      if (row?.failed) {
+        failed += 1;
+        results.push(row);
+      } else if (row?.skipped) {
+        skipped += 1;
+        results.push(row);
+        applied += 1;
       } else {
-        await applyQuantDelta(
-          session,
-          tid,
-          quant.productId,
-          quant.locationId,
-          decStr(D(0).minus(D(absDiff))),
-          '0',
-          now,
-          dims,
-        );
+        applied += 1;
+        results.push(row);
       }
-
-      quant.isCountSet = false;
-      quant.countedQuantity = null;
-      quant.countDifference = '0';
-      quant.lastCountDate = now;
-      if (reason) quant.countReason = reason;
-      await quant.save({ session });
-
-      results.push({ quantId: quant._id, moveId: move._id, diff: absDiff, isGain });
+    } catch (err) {
+      failed += 1;
+      results.push({ quantId: id, error: err.message || String(err), failed: true });
     }
+  }
 
-    return { applied: results.length, results };
-  });
+  return {
+    applied,
+    failed,
+    skipped,
+    results,
+    preview,
+  };
 }
 
-export async function requestCount(tenantId, { locationId, productIds, scheduledDate, userId }) {
+/**
+ * Request a count: stamp schedule on existing quants; optionally create zero-qty lines
+ * for products in scope that have no quant (catches shrinkage).
+ */
+export async function requestCount(tenantId, {
+  warehouseId,
+  locationId,
+  categoryId,
+  productIds,
+  scheduledDate,
+  userId,
+  countUserId,
+  includeZero = true,
+}) {
   const tid = toObjectId(tenantId);
-  const filter = { tenantId: tid };
-  if (locationId) filter.locationId = locationId;
-  if (productIds?.length) filter.productId = { $in: productIds };
+  if (!locationId && !warehouseId) {
+    throw new InventoryValidationError('locationId or warehouseId required', 'MISSING_FIELDS');
+  }
+
+  let locIds = [];
+  if (locationId) {
+    locIds = [toObjectId(locationId)];
+  } else {
+    const locs = await InvLocation.find({
+      tenantId: tid,
+      warehouseId,
+      usage: 'internal',
+      active: true,
+    }).select('_id').lean();
+    locIds = locs.map((l) => l._id);
+  }
+  if (!locIds.length) {
+    throw new InventoryValidationError('No internal locations in scope', 'NO_LOCATION');
+  }
 
   const when = scheduledDate ? new Date(scheduledDate) : new Date();
-  const res = await InvQuant.updateMany(filter, {
+  const assignee = countUserId || userId || undefined;
+  const quantFilter = withTenant(tid, { locationId: { $in: locIds } });
+  if (productIds?.length) quantFilter.productId = { $in: productIds.map(toObjectId) };
+
+  const res = await InvQuant.updateMany(quantFilter, {
     $set: {
       countScheduledDate: when,
-      countUserId: userId || undefined,
+      ...(assignee ? { countUserId: toObjectId(assignee) } : {}),
     },
   });
-  return { matched: res.matchedCount, modified: res.modifiedCount };
+
+  let zeroCreated = 0;
+  if (includeZero) {
+    const productFilter = {
+      tenantId: tid,
+      trackInventory: { $ne: false },
+      productType: { $ne: 'service' },
+    };
+    if (categoryId) productFilter.categoryId = categoryId;
+    if (productIds?.length) productFilter._id = { $in: productIds.map(toObjectId) };
+
+    const products = await Product.find(productFilter).select('_id').limit(5000).lean();
+    const existing = await InvQuant.find({
+      tenantId: tid,
+      locationId: { $in: locIds },
+      productId: { $in: products.map((p) => p._id) },
+    }).select('productId locationId').lean();
+
+    const have = new Set(existing.map((q) => `${q.productId}:${q.locationId}`));
+    const docs = [];
+    for (const loc of locIds) {
+      for (const p of products) {
+        const key = `${p._id}:${loc}`;
+        if (have.has(key)) continue;
+        const doc = {
+          tenantId: tid,
+          productId: p._id,
+          locationId: loc,
+          variantId: null,
+          lotId: null,
+          packageId: null,
+          ownerId: null,
+          countScheduledDate: when,
+          countUserId: assignee ? toObjectId(assignee) : undefined,
+          createdBy: userId,
+        };
+        setDecimalPair(doc, 'quantity', '0');
+        setDecimalPair(doc, 'reservedQuantity', '0');
+        setDecimalPair(doc, 'value', '0');
+        docs.push(doc);
+      }
+    }
+    if (docs.length) {
+      try {
+        const inserted = await InvQuant.insertMany(docs, { ordered: false });
+        zeroCreated = inserted.length;
+      } catch (err) {
+        zeroCreated = err?.insertedDocs?.length || err?.result?.nInserted || 0;
+      }
+    }
+  }
+
+  return {
+    matched: res.matchedCount,
+    modified: res.modifiedCount,
+    zeroCreated,
+    scheduledDate: when,
+  };
+}
+
+/** Move-line history for inventory adjustments on a product+location. */
+export async function countLineHistory(tenantId, { productId, locationId, limit = 50 }) {
+  const tid = toObjectId(tenantId);
+  const invAdj = await InvLocation.findOne({ tenantId: tid, usage: 'inventoryLoss' }).select('_id').lean();
+  const filter = withTenant(tid, {
+    productId,
+    state: 'done',
+    $or: [
+      { sourceLocationId: locationId, destLocationId: invAdj?._id },
+      { destLocationId: locationId, sourceLocationId: invAdj?._id },
+      { reference: /^INV\// },
+    ],
+  });
+  return InvMoveLine.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(Math.min(200, Number(limit) || 50))
+    .populate('moveId', 'reference origin date')
+    .lean();
+}
+
+/**
+ * Import counted quantities — dry-run or commit.
+ * Rows: { location, product_sku|sku, lot?, counted_qty }
+ */
+export async function importCountedQuantities(tenantId, rows, { dryRun = true, userId } = {}) {
+  const tid = toObjectId(tenantId);
+  const report = { ok: [], errors: [], wouldCreate: 0, wouldUpdate: 0 };
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i] || {};
+    const rowNum = i + 2;
+    const sku = String(row.product_sku || row.sku || row.SKU || '').trim();
+    const locPath = String(row.location || row.location_path || row.completePath || '').trim();
+    const counted = row.counted_qty ?? row.countedQty ?? row.counted;
+    const lotName = String(row.lot || row.lot_name || '').trim();
+
+    if (!sku || !locPath || counted == null || counted === '') {
+      report.errors.push({
+        row: rowNum,
+        field: 'sku/location/counted_qty',
+        reason: 'Missing required field',
+      });
+      continue;
+    }
+
+    // eslint-disable-next-line no-await-in-loop
+    const product = await Product.findOne({ tenantId: tid, sku }).select('_id').lean();
+    if (!product) {
+      report.errors.push({ row: rowNum, field: 'product_sku', reason: `No product with sku ${sku}` });
+      continue;
+    }
+
+    // eslint-disable-next-line no-await-in-loop
+    const location = await InvLocation.findOne({
+      tenantId: tid,
+      $or: [{ completePath: locPath }, { name: locPath }],
+    }).select('_id').lean();
+    if (!location) {
+      report.errors.push({ row: rowNum, field: 'location', reason: `Location not found: ${locPath}` });
+      continue;
+    }
+
+    let lotId = null;
+    if (lotName) {
+      const { default: InvLot } = await import('../../models/inventory/InvLot.js');
+      // eslint-disable-next-line no-await-in-loop
+      const lot = await InvLot.findOne({
+        tenantId: tid,
+        productId: product._id,
+        name: lotName,
+      }).select('_id').lean();
+      if (!lot) {
+        report.errors.push({ row: rowNum, field: 'lot', reason: `Lot not found: ${lotName}` });
+        continue;
+      }
+      lotId = lot._id;
+    }
+
+    // eslint-disable-next-line no-await-in-loop
+    const existing = await InvQuant.findOne({
+      tenantId: tid,
+      productId: product._id,
+      locationId: location._id,
+      lotId: lotId || null,
+      packageId: null,
+      ownerId: null,
+      variantId: null,
+    }).select('_id').lean();
+
+    if (existing) report.wouldUpdate += 1;
+    else report.wouldCreate += 1;
+
+    report.ok.push({
+      row: rowNum,
+      productId: product._id,
+      locationId: location._id,
+      lotId,
+      countedQty: String(counted),
+      action: existing ? 'update' : 'create',
+    });
+  }
+
+  if (dryRun) {
+    return {
+      dryRun: true,
+      ...report,
+      matched: report.ok.length,
+      unmatched: report.errors.length,
+    };
+  }
+
+  const committed = [];
+  for (const row of report.ok) {
+    // eslint-disable-next-line no-await-in-loop
+    const quant = await setCountedQuantity(tid, {
+      productId: row.productId,
+      locationId: row.locationId,
+      lotId: row.lotId,
+      countedQty: row.countedQty,
+      userId,
+    });
+    committed.push({ quantId: quant._id, row: row.row });
+  }
+  return {
+    dryRun: false,
+    committed: committed.length,
+    errors: report.errors,
+    items: committed,
+  };
 }
