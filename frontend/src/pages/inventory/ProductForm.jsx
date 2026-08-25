@@ -34,6 +34,12 @@ export default function ProductForm() {
       productType: 'goods',
       unitOfMeasure: getDefaultUom(tenant),
       taxRate: defaultTaxRate,
+      canBeSold: true,
+      canBePurchased: true,
+      canBeSoldOnPos: true,
+      trackInventory: true,
+      tracking: 'none',
+      useExpirationDate: false,
     },
   })
   const [product, setProduct] = useState(null)
@@ -172,6 +178,38 @@ export default function ProductForm() {
   })
   const engineOn = Boolean(engineStatus?.engineEnabled)
 
+  const { data: invSettings } = useQuery({
+    queryKey: ['stock-settings'],
+    queryFn: () => api.get('/stock/settings').then((r) => r.data),
+    staleTime: 60_000,
+  })
+
+  const { data: smartButtons } = useQuery({
+    queryKey: ['product-smart-buttons', id],
+    queryFn: () => api.get(`/stock/products/${id}/smart-buttons`).then((r) => r.data),
+    enabled: isEdit && engineOn,
+  })
+
+  const { data: invCategories } = useQuery({
+    queryKey: ['inv-product-categories'],
+    queryFn: () => api.get('/stock/product-categories').then((r) => r.data),
+  })
+
+  const { data: invUoms } = useQuery({
+    queryKey: ['inv-uoms'],
+    queryFn: () => api.get('/stock/uoms').then((r) => r.data),
+    enabled: invSettings?.groupUom !== false,
+  })
+
+  const { data: invRoutes } = useQuery({
+    queryKey: ['inv-routes'],
+    queryFn: () => api.get('/stock/routes').then((r) => r.data?.items || r.data || []),
+    enabled: invSettings?.groupAdvLocation !== false,
+  })
+
+  const [productTab, setProductTab] = useState('general')
+
+
   const warehouseOptions = useMemo(() => {
     return Array.isArray(warehouses) ? warehouses : []
   }, [warehouses])
@@ -274,14 +312,74 @@ export default function ProductForm() {
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon"><ArrowLeft className="w-5 h-5" /></button>
-        <div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-slate-500">{language === 'ar' ? 'المنتجات' : 'Products'}{isEdit ? ` / ${product?.nameEn || product?.sku || ''}` : ''}</p>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {isEdit ? (language === 'ar' ? 'تعديل منتج' : 'Edit Product') : (language === 'ar' ? 'إضافة منتج' : 'Add Product')}
           </h1>
         </div>
       </div>
 
+      {isEdit && engineOn && smartButtons && (
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: language === 'ar' ? 'بالمخزن' : 'On Hand', value: smartButtons.onHand, to: '/app/dashboard/inventory/physical' },
+            { label: language === 'ar' ? 'المتوقع' : 'Forecasted', value: smartButtons.forecasted, to: '/app/dashboard/inventory/report/forecast' },
+            { label: language === 'ar' ? 'إعادة الطلب' : 'Reordering', value: smartButtons.reorderRules, to: '/app/dashboard/inventory/reordering-rules' },
+            { label: language === 'ar' ? 'الدفعات' : 'Lots', value: smartButtons.lots, to: '/app/dashboard/inventory/lots', hide: !(invSettings?.groupProductionLot || invSettings?.groupStockTrackingLot) },
+            { label: language === 'ar' ? 'الحركات' : 'Moves', value: smartButtons.moves, to: `/app/dashboard/inventory/moves?productId=${id}` },
+            { label: language === 'ar' ? 'التخزين' : 'Putaway', value: smartButtons.putawayRules, to: '/app/dashboard/inventory/putaway', hide: invSettings?.groupPutawayRules === false },
+          ].filter((b) => !b.hide).map((b) => (
+            <button
+              key={b.label}
+              type="button"
+              className="rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-start shadow-sm hover:border-primary-300 dark:border-dark-600 dark:bg-dark-800"
+              onClick={() => navigate(b.to)}
+            >
+              <div className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{b.value ?? 0}</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">{b.label}</div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-4 rounded-xl border border-slate-200/80 bg-white px-4 py-3 text-sm dark:border-dark-600 dark:bg-dark-800">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" {...register('canBeSold')} className="rounded border-gray-300 text-primary-600" />
+          {language === 'ar' ? 'مبيعات' : 'Sales'}
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" {...register('canBeSoldOnPos')} className="rounded border-gray-300 text-primary-600" />
+          {language === 'ar' ? 'نقطة البيع' : 'Point of Sale'}
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" {...register('canBePurchased')} className="rounded border-gray-300 text-primary-600" />
+          {language === 'ar' ? 'مشتريات' : 'Purchase'}
+        </label>
+      </div>
+
+      <div className="flex flex-wrap gap-1">
+        {[
+          { id: 'general', en: 'General', ar: 'عام' },
+          { id: 'inventory', en: 'Inventory', ar: 'المخزون' },
+          { id: 'purchase', en: 'Purchase', ar: 'الشراء', hide: invSettings?.groupUom === false && false },
+        ].filter((t) => !t.hide).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
+              productTab === t.id ? 'bg-primary-50 text-primary-700 dark:bg-primary-950/40' : 'text-slate-500'
+            }`}
+            onClick={() => setProductTab(t.id)}
+          >
+            {language === 'ar' ? t.ar : t.en}
+          </button>
+        ))}
+      </div>
+
       <form onSubmit={handleSubmit((data) => mutation.mutate(buildPayload(data)))} className="space-y-6">
+        {(productTab === 'general') && (
+        <>
         {/* Basic Info */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card p-6">
           <div className="flex items-center gap-3 mb-6">
@@ -328,6 +426,15 @@ export default function ProductForm() {
               <label className="label">{t('category')}</label>
               <input {...register('category')} className="input" />
             </div>
+            <div>
+              <label className="label">{language === 'ar' ? 'فئة المخزون' : 'Inventory category'}</label>
+              <select {...register('categoryId')} className="select">
+                <option value="">—</option>
+                {(Array.isArray(invCategories) ? invCategories : []).map((c) => (
+                  <option key={c._id} value={c._id}>{c.completePath}</option>
+                ))}
+              </select>
+            </div>
             <div className="md:col-span-2 lg:col-span-3">
               <label className="label">{language === 'ar' ? 'الوصف' : 'Description'}</label>
               <textarea {...register('descriptionEn')} className="input" rows={2} />
@@ -373,32 +480,114 @@ export default function ProductForm() {
             </div>
           </div>
         </motion.div>
+        </>
+        )}
 
-        {/* Stock */}
+        {(productTab === 'inventory' || productTab === 'purchase') && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg"><Warehouse className="w-5 h-5 text-blue-600" /></div>
-            <h3 className="text-lg font-semibold">{language === 'ar' ? 'المخزون' : 'Stock'}</h3>
+            <h3 className="text-lg font-semibold">
+              {productTab === 'purchase'
+                ? (language === 'ar' ? 'الشراء' : 'Purchase')
+                : (language === 'ar' ? 'المخزون' : 'Inventory')}
+            </h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {!isService && productTab === 'inventory' && (
+              <>
+                <div className="md:col-span-3 flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" {...register('trackInventory')} className="rounded border-gray-300 text-primary-600" />
+                    {language === 'ar' ? 'تتبع المخزون' : 'Track Inventory'}
+                  </label>
+                </div>
+                {(invSettings?.groupProductionLot || invSettings?.groupStockTrackingLot) && (
+                  <div>
+                    <label className="label">{language === 'ar' ? 'التتبع' : 'Tracking'}</label>
+                    <select {...register('tracking')} className="select">
+                      <option value="none">{language === 'ar' ? 'بدون' : 'No tracking'}</option>
+                      <option value="lot">{language === 'ar' ? 'بالدفعات' : 'By Lots'}</option>
+                      <option value="serial">{language === 'ar' ? 'تسلسلي فريد' : 'By Unique Serial'}</option>
+                    </select>
+                  </div>
+                )}
+                {invSettings?.moduleProductExpiry && (
+                  <>
+                    <div className="flex items-center pt-6">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" {...register('useExpirationDate')} className="rounded border-gray-300 text-primary-600" />
+                        {language === 'ar' ? 'تواريخ الصلاحية' : 'Expiration dates'}
+                      </label>
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'أيام الانتهاء' : 'Expiration days'}</label>
+                      <input type="number" className="input" {...register('expirationDays', { valueAsNumber: true })} />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'أيام التنبيه' : 'Alert days'}</label>
+                      <input type="number" className="input" {...register('alertDays', { valueAsNumber: true })} />
+                    </div>
+                  </>
+                )}
+                {invSettings?.groupAdvLocation !== false && (
+                  <div className="md:col-span-3">
+                    <label className="label">{language === 'ar' ? 'المسارات' : 'Routes'}</label>
+                    <select
+                      multiple
+                      className="select min-h-[5rem]"
+                      value={(watch('routeIds') || []).map(String)}
+                      onChange={(e) => {
+                        const vals = Array.from(e.target.selectedOptions).map((o) => o.value)
+                        setValue('routeIds', vals, { shouldDirty: true })
+                      }}
+                    >
+                      {(Array.isArray(invRoutes) ? invRoutes : []).map((r) => (
+                        <option key={r._id} value={r._id}>{r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
             <div>
               <label className="label">{language === 'ar' ? 'وحدة القياس (اختياري)' : 'Unit of Measure (Optional)'}</label>
-              <Select
-                inputId="unitOfMeasure"
-                options={[
-                  { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' },
-                  ...uomOptions.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))
-                ]}
-                value={watch('unitOfMeasure') ? (uomOptions.find(u => u.code === watch('unitOfMeasure')) ? { value: watch('unitOfMeasure'), label: language === 'ar' ? uomOptions.find(u => u.code === watch('unitOfMeasure'))?.labelAr : uomOptions.find(u => u.code === watch('unitOfMeasure'))?.labelEn } : { value: watch('unitOfMeasure'), label: watch('unitOfMeasure') }) : { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' }}
-                onChange={(selected) => setValue('unitOfMeasure', selected?.value || '')}
-                isClearable
-                isSearchable
-                styles={{
-                  control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
-                }}
-              />
+              {invSettings?.groupUom !== false && Array.isArray(invUoms) && invUoms.length > 0 ? (
+                <select {...register('uomId')} className="select">
+                  <option value="">—</option>
+                  {invUoms.map((u) => (
+                    <option key={u._id} value={u._id}>{u.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <Select
+                  inputId="unitOfMeasure"
+                  options={[
+                    { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' },
+                    ...uomOptions.map(u => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn }))
+                  ]}
+                  value={watch('unitOfMeasure') ? (uomOptions.find(u => u.code === watch('unitOfMeasure')) ? { value: watch('unitOfMeasure'), label: language === 'ar' ? uomOptions.find(u => u.code === watch('unitOfMeasure'))?.labelAr : uomOptions.find(u => u.code === watch('unitOfMeasure'))?.labelEn } : { value: watch('unitOfMeasure'), label: watch('unitOfMeasure') }) : { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' }}
+                  onChange={(selected) => setValue('unitOfMeasure', selected?.value || '')}
+                  isClearable
+                  isSearchable
+                  styles={{
+                    control: (base) => ({ ...base, borderRadius: '0.75rem', borderColor: '#e5e7eb', padding: '0.125rem', minHeight: '42px' })
+                  }}
+                />
+              )}
               <input type="hidden" {...register('unitOfMeasure')} />
             </div>
+            {productTab === 'purchase' && invSettings?.groupUom !== false && (
+              <div>
+                <label className="label">{language === 'ar' ? 'وحدة الشراء' : 'Purchase UoM'}</label>
+                <select {...register('purchaseUomId')} className="select">
+                  <option value="">—</option>
+                  {(Array.isArray(invUoms) ? invUoms : []).map((u) => (
+                    <option key={u._id} value={u._id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             {!isService && (
             <div className="flex items-center pt-2 md:pt-6">
               <label className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-xl border border-gray-200 dark:border-dark-700 hover:bg-gray-50 dark:hover:bg-dark-700/50 transition-colors w-full">
@@ -418,7 +607,7 @@ export default function ProductForm() {
               </label>
             </div>
             )}
-            {!isService && !isEdit && warehouseOptions.length > 0 && (
+            {!isService && !isEdit && warehouseOptions.length > 0 && productTab === 'inventory' && (
               <>
                 <div>
                   <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
@@ -445,7 +634,7 @@ export default function ProductForm() {
                   : 'This is a service — stock is not required and invoices will not decrement inventory.'}
               </div>
             )}
-            {!isService && isEdit && (
+            {!isService && isEdit && productTab === 'inventory' && (
               <div className="md:col-span-3 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm text-slate-500">
@@ -490,6 +679,9 @@ export default function ProductForm() {
                       onChange={(e) => setStockQuantity(Number(e.target.value))}
                       min={0}
                     />
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {language === 'ar' ? 'للقراءة فقط عبر الأزرار الذكية — التسوية عبر الزر أدناه' : 'Prefer smart-button On Hand for view; adjust via button below'}
+                    </p>
                   </div>
                 </div>
 
@@ -530,6 +722,7 @@ export default function ProductForm() {
             )}
           </div>
         </motion.div>
+        )}
 
         {/* Submit */}
         <div className="flex justify-end gap-3">

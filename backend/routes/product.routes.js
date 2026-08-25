@@ -231,6 +231,29 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
+    // Block turning off inventory tracking while stock exists
+    if (req.body.trackInventory === false && product.trackInventory !== false) {
+      const stocks = Array.isArray(product.stocks) ? product.stocks : [];
+      const hasLegacy = stocks.some((s) => Number(s.quantity) > 0);
+      let hasEngine = false;
+      try {
+        const { isInvEngineEnabled } = await import('../services/inventory/legacyAdapter.js');
+        if (await isInvEngineEnabled(req.user.tenantId)) {
+          const { computeOnHand } = await import('../services/inventory/forecast.js');
+          const oh = await computeOnHand(req.user.tenantId, product._id);
+          hasEngine = Number(oh.onHand) !== 0;
+        }
+      } catch {
+        // ignore
+      }
+      if (hasLegacy || hasEngine) {
+        return res.status(400).json({
+          error: 'Cannot disable Track Inventory while stock exists',
+          code: 'HAS_STOCK',
+        });
+      }
+    }
+
     Object.assign(product, req.body);
     product.productType = normalizeProductType(product.productType);
     await product.save();

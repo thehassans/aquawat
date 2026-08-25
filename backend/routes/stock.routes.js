@@ -449,13 +449,117 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
     if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
     await assertTransferWarehouseAccess(req, transfer);
     const moves = await InvMove.find({ tenantId: req.user.tenantId, transferId: transfer._id })
-      .populate('productId', 'nameEn nameAr sku barcode unitOfMeasure')
+      .populate('productId', 'nameEn nameAr sku barcode unitOfMeasure tracking')
       .lean();
     const moveLines = await InvMoveLine.find({
       tenantId: req.user.tenantId,
       transferId: transfer._id,
-    }).lean();
-    res.json({ ...transfer, moves, moveLines });
+    })
+      .populate('lotId', 'name')
+      .populate('packageId', 'name')
+      .lean();
+    let partner = null;
+    if (transfer.partnerId) {
+      const Customer = (await import('../models/Customer.js')).default;
+      partner = await Customer.findOne({ _id: transfer.partnerId, tenantId: req.user.tenantId })
+        .select('name nameAr stockWarn stockWarnMsg')
+        .lean();
+    }
+    const settings = await getInvSettings(req.user.tenantId);
+    res.json({
+      ...transfer,
+      moves,
+      moveLines,
+      partner,
+      settingsHints: {
+        multiLocations: settings.groupStockMultiLocations !== false,
+        barcode: !!settings.groupStockBarcode,
+        signatureRequired: !!(settings.signatureOnDelivery || settings.groupStockSignDelivery),
+        partnerWarnings: !!settings.groupStockWarning,
+        showDetailedOps: !!transfer.operationTypeId?.showDetailedOperations,
+        lotsEnabled: !!(settings.groupProductionLot || settings.groupStockTrackingLot),
+        packagesEnabled: !!(settings.groupStockTrackingLot || settings.groupStockPackaging),
+      },
+    });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/transfers/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+
+    if (transfer.state === 'done' || transfer.state === 'cancelled') {
+      // Only chatter-like note append + signature metadata allowed when done
+      if (req.body.logNote) {
+        transfer.note = [transfer.note, `[note ${new Date().toISOString()}] ${req.body.logNote}`].filter(Boolean).join('\n');
+      }
+      if (req.body.signature != null && !transfer.signature) {
+        transfer.signature = req.body.signature;
+        transfer.signedBy = req.body.signedBy || req.user.name || req.user.email;
+        transfer.signedOn = new Date();
+      }
+      transfer.updatedBy = req.user._id;
+      await transfer.save();
+      return res.json(transfer);
+    }
+
+    if (transfer.state === 'draft') {
+      if (req.body.operationTypeId) {
+        const ot = await InvOperationType.findOne({
+          _id: req.body.operationTypeId,
+          ...req.tenantFilter,
+          active: true,
+        });
+        if (!ot) return res.status(400).json({ error: 'Operation type not found' });
+        transfer.operationTypeId = ot._id;
+        if (ot.defaultSourceLocationId) transfer.sourceLocationId = ot.defaultSourceLocationId;
+        if (ot.defaultDestLocationId) transfer.destLocationId = ot.defaultDestLocationId;
+      }
+      if (req.body.sourceLocationId) transfer.sourceLocationId = req.body.sourceLocationId;
+      if (req.body.destLocationId) transfer.destLocationId = req.body.destLocationId;
+      if (req.body.partnerId !== undefined) transfer.partnerId = req.body.partnerId || null;
+      if (req.body.scheduledDate) transfer.scheduledDate = new Date(req.body.scheduledDate);
+      if (req.body.deadlineDate !== undefined) {
+        transfer.deadlineDate = req.body.deadlineDate ? new Date(req.body.deadlineDate) : null;
+      }
+      if (req.body.origin !== undefined) transfer.origin = req.body.origin;
+      if (req.body.priority) transfer.priority = req.body.priority;
+    }
+
+    if (req.body.note !== undefined) transfer.note = req.body.note;
+    if (req.body.logNote) {
+      transfer.note = [transfer.note, `[note ${new Date().toISOString()}] ${req.body.logNote}`].filter(Boolean).join('\n');
+    }
+    if (req.body.signature != null) {
+      transfer.signature = req.body.signature;
+      transfer.signedBy = req.body.signedBy || req.user.name || req.user.email;
+      transfer.signedOn = new Date();
+    }
+    if (req.body.responsibleId !== undefined) transfer.responsibleId = req.body.responsibleId || null;
+
+    transfer.updatedBy = req.user._id;
+    await transfer.save();
+    res.json(transfer);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/transfers/:id/signature', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    if (!req.body.signature) return res.status(400).json({ error: 'signature required' });
+    transfer.signature = req.body.signature;
+    transfer.signedBy = req.body.signedBy || req.user.name || req.user.email;
+    transfer.signedOn = new Date();
+    transfer.updatedBy = req.user._id;
+    await transfer.save();
+    res.json(transfer);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -671,6 +775,34 @@ router.get('/products/:productId/on-hand', checkPermission('inventory', 'read'),
       warehouseId: req.query.warehouseId,
       locationId: req.query.locationId,
     }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+/** Aggregate counts for product form smart buttons */
+router.get('/products/:productId/smart-buttons', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const productId = req.params.productId;
+    const tid = req.user.tenantId;
+    const [onHand, forecast, reorderCount, lotCount, moveCount, putawayCount] = await Promise.all([
+      computeOnHand(tid, productId),
+      computeForecast(tid, productId),
+      InvReorderRule.countDocuments({ tenantId: tid, productId }),
+      InvLot.countDocuments({ tenantId: tid, productId }),
+      InvMove.countDocuments({ tenantId: tid, productId, state: { $ne: 'cancelled' } }),
+      InvPutawayRule.countDocuments({ tenantId: tid, productId }),
+    ]);
+    res.json({
+      onHand: onHand.onHand,
+      forecasted: forecast.forecasted ?? forecast.forecast,
+      incoming: forecast.incoming,
+      outgoing: forecast.outgoing,
+      reorderRules: reorderCount,
+      lots: lotCount,
+      moves: moveCount,
+      putawayRules: putawayCount,
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }

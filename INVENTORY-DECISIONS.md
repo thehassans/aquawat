@@ -209,3 +209,14 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Quality / Batch | Minimal `InvQualityPoint`/`InvQualityCheck` / `InvBatchTransfer` models; quality blocks validate while `none` |
 | Partner warnings | `Customer.stockWarn` / `stockWarnMsg`; block on create/confirm when `block` |
 | UI | `InventorySettingsPage.jsx` — sectioned, sticky Save, dirty `beforeunload` |
+
+## v2 IA — Step 4 (Product + picking form parity)
+
+| Topic | Decision |
+|---|---|
+| Smart buttons | `GET /stock/products/:id/smart-buttons` aggregate; product form deep-links |
+| Sale/PoS/Purchase | Mapped to existing `canBeSold` / `canBeSoldOnPos` / `canBePurchased` |
+| Track Inventory off | Blocked while legacy or engine stock exists |
+| Picking form | Partner, op-type-driven locations, barcode scan [flag], detailed ops tab, signature capture, lightweight chatter (log notes on transfer.note) |
+| Variants / Attributes | Still deferred (placeholder routes) — needs Step 4+ attributes model |
+| Full Odoo chatter | Not ported; inventory uses transfer note trail only |
