@@ -1,4 +1,4 @@
-import { useState, useOptimistic, useTransition } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -30,7 +30,8 @@ export default function PickingForm() {
   const [returnLines, setReturnLines] = useState([])
   const [editLine, setEditLine] = useState(null)
   const [lineDraft, setLineDraft] = useState({ lotName: '', quantity: '' })
-  const [, startTransition] = useTransition()
+  /** Local optimistic status overlay (React 18 — no useOptimistic) */
+  const [optimisticState, setOptimisticState] = useState(null)
 
   const { data: opTypes } = useQuery({
     queryKey: ['stock-op-types'],
@@ -57,12 +58,11 @@ export default function PickingForm() {
   const picking = detail?.picking
   const moves = detail?.moves || []
   const moveLines = detail?.moveLines || []
-
-  const [optimisticState, setOptimisticState] = useOptimistic(
-    picking?.state,
-    (_current, next) => next,
-  )
   const displayState = optimisticState ?? picking?.state
+
+  useEffect(() => {
+    setOptimisticState(null)
+  }, [picking?.state, picking?._id])
 
   const invalidate = () => {
     queryClient.invalidateQueries(['stock-picking', id])
@@ -84,10 +84,11 @@ export default function PickingForm() {
     onSuccess: () => {
       toast.success(isAr ? 'تم' : 'Done')
       setBackorderPrompt(false)
+      setOptimisticState(null)
       invalidate()
     },
     onError: (err) => {
-      startTransition(() => setOptimisticState(picking?.state))
+      setOptimisticState(null)
       if (err.response?.data?.code === 'BACKORDER_REQUIRED') {
         setBackorderPrompt(true)
         return
@@ -97,13 +98,9 @@ export default function PickingForm() {
   })
 
   const runAction = (action, body) => {
-    if (action === 'validate') {
-      startTransition(() => setOptimisticState('done'))
-    } else if (action === 'cancel') {
-      startTransition(() => setOptimisticState('cancel'))
-    } else if (action === 'confirm') {
-      startTransition(() => setOptimisticState('confirmed'))
-    }
+    if (action === 'validate') setOptimisticState('done')
+    else if (action === 'cancel') setOptimisticState('cancel')
+    else if (action === 'confirm') setOptimisticState('confirmed')
     actionMutation.mutate({ action, body })
   }
 
