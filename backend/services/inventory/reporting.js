@@ -7,6 +7,7 @@ import Product from '../../models/Product.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { computeForecast } from './forecast.js';
 import { productInventoryValue } from './valuation.js';
+import { InventoryValidationError } from './errors.js';
 
 /**
  * Aggregate done moves by product / day / direction.
@@ -333,4 +334,113 @@ export async function stockExportRows(tenantId, { warehouseId } = {}) {
     });
   }
   return rows;
+}
+
+/**
+ * Inventory at Date — replay done move lines + valuation layers up to `asOf`.
+ * On-hand = net qty into internal locations; value = Σ layer.value with createdAt ≤ asOf.
+ * Forecast columns are blank (point-in-time snapshot, not live forecast).
+ */
+export async function inventoryAtDate(tenantId, { asOf, warehouseId } = {}) {
+  if (!asOf) throw new InventoryValidationError('asOf is required', 'ASOF_REQUIRED');
+  const tid = toObjectId(tenantId);
+  const at = new Date(asOf);
+  if (Number.isNaN(at.getTime())) throw new InventoryValidationError('Invalid asOf datetime', 'ASOF_INVALID');
+
+  const locFilter = { tenantId: tid, usage: 'internal', active: { $ne: false } };
+  if (warehouseId) locFilter.warehouseId = toObjectId(warehouseId);
+  const locs = await InvLocation.find(locFilter).select('_id').lean();
+  const locIds = locs.map((l) => l._id);
+  const locSet = new Set(locIds.map(String));
+  if (!locIds.length) {
+    return { asOf: at.toISOString(), data: [], total: 0, valueTotal: '0' };
+  }
+
+  const lines = await InvMoveLine.find({
+    tenantId: tid,
+    state: 'done',
+    updatedAt: { $lte: at },
+    $or: [
+      { sourceLocationId: { $in: locIds } },
+      { destLocationId: { $in: locIds } },
+    ],
+  })
+    .select('productId quantityInProductUom quantity sourceLocationId destLocationId')
+    .lean();
+
+  const qtyByProduct = new Map();
+  for (const line of lines) {
+    const pid = String(line.productId);
+    const qty = D(line.quantityInProductUom || line.quantity || 0);
+    let net = qtyByProduct.get(pid) || D(0);
+    if (locSet.has(String(line.destLocationId))) net = net.plus(qty);
+    if (locSet.has(String(line.sourceLocationId))) net = net.minus(qty);
+    qtyByProduct.set(pid, net);
+  }
+
+  const InvValuationLayer = (await import('../../models/inventory/InvValuationLayer.js')).default;
+  const valueAgg = await InvValuationLayer.aggregate([
+    {
+      $match: {
+        tenantId: tid,
+        createdAt: { $lte: at },
+      },
+    },
+    {
+      $group: {
+        _id: '$productId',
+        valueNum: { $sum: '$valueNum' },
+      },
+    },
+  ]);
+  const valueByProduct = new Map(
+    valueAgg.map((r) => [String(r._id), D(r.valueNum?.toString?.() || '0')]),
+  );
+
+  const productIds = [...new Set([...qtyByProduct.keys(), ...valueByProduct.keys()])]
+    .filter((id) => {
+      const q = qtyByProduct.get(id) || D(0);
+      return !q.eq(0) || !(valueByProduct.get(id) || D(0)).eq(0);
+    });
+
+  const products = await Product.find({
+    tenantId: tid,
+    _id: { $in: productIds },
+  }).select('nameEn nameAr sku barcode costPrice unitOfMeasure').lean();
+  const byId = new Map(products.map((p) => [String(p._id), p]));
+
+  const rows = [];
+  let valueTotal = D(0);
+  for (const pid of productIds) {
+    const p = byId.get(pid);
+    if (!p) continue;
+    const onHand = decStr(qtyByProduct.get(pid) || D(0));
+    const valueD = valueByProduct.get(pid) || D(0);
+    const value = decStr(valueD);
+    valueTotal = valueTotal.plus(valueD);
+    const unitCost = D(onHand).eq(0)
+      ? (p.costPrice || '0')
+      : decStr(valueD.div(D(onHand)));
+    rows.push({
+      productId: p._id,
+      product: p,
+      onHand,
+      reserved: '0',
+      freeToUse: onHand,
+      incoming: '0',
+      outgoing: '0',
+      forecast: onHand,
+      unitCost,
+      value,
+      asOf: true,
+    });
+  }
+
+  rows.sort((a, b) => String(a.product?.sku || '').localeCompare(String(b.product?.sku || '')));
+  return {
+    asOf: at.toISOString(),
+    data: rows,
+    total: rows.length,
+    valueTotal: decStr(valueTotal),
+  };
 }

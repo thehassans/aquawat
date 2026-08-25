@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
-import { ReportShell, REPORT_TABS, useReportFilters } from './ReportShell'
+import { ReportShell, REPORT_TABS, useReportFilters, exportCsv } from './ReportShell'
 import ImportExportDialog from '../../components/inventory/ImportExportDialog'
 
 export default function ReportingHub() {
@@ -45,8 +45,10 @@ export default function ReportingHub() {
 
 export function MovesAnalysisPage() {
   const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
   const { filters, setFilter, queryParams } = useReportFilters()
   const groupBy = filters.groupBy || 'product'
+  const view = filters.view || 'list'
 
   const { data, isLoading } = useQuery({
     queryKey: ['moves-analysis', groupBy, queryParams],
@@ -57,51 +59,108 @@ export function MovesAnalysisPage() {
   })
 
   const items = data?.items || []
+  const totals = items.reduce(
+    (acc, row) => ({
+      incomingQty: acc.incomingQty + Number(row.incomingQty || 0),
+      outgoingQty: acc.outgoingQty + Number(row.outgoingQty || 0),
+      netQty: acc.netQty + Number(row.netQty || 0),
+      lines: acc.lines + Number(row.lines || 0),
+    }),
+    { incomingQty: 0, outgoingQty: 0, netQty: 0, lines: 0 },
+  )
 
   return (
     <ReportShell
       activeId="moves-analysis"
-      title={language === 'ar' ? 'تحليل الحركات' : 'Moves Analysis'}
+      title={ar ? 'تحليل الحركات' : 'Moves Analysis'}
+      subtitle={ar ? 'تصدير كل المجموعات المصفّاة' : 'Export exports the full filtered aggregation'}
       extraFilters={(
         <div>
-          <label className="label text-[11px]">{language === 'ar' ? 'تجميع' : 'Group by'}</label>
+          <label className="label text-[11px]">{ar ? 'تجميع' : 'Group by'}</label>
           <select className="select select-sm" value={groupBy} onChange={(e) => setFilter('groupBy', e.target.value)}>
-            <option value="product">{language === 'ar' ? 'حسب المنتج' : 'By product'}</option>
-            <option value="day">{language === 'ar' ? 'حسب اليوم' : 'By day'}</option>
-            <option value="partner">{language === 'ar' ? 'حسب الشريك' : 'By partner'}</option>
+            <option value="product">{ar ? 'حسب المنتج' : 'By product'}</option>
+            <option value="day">{ar ? 'حسب اليوم' : 'By day'}</option>
+            <option value="partner">{ar ? 'حسب الشريك' : 'By partner'}</option>
           </select>
         </div>
+      )}
+      toolbar={(
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={!items.length}
+          onClick={() => exportCsv('moves-analysis.csv', items, [
+            { label: 'Group', get: (r) => r.label },
+            { label: 'Incoming', get: (r) => r.incomingQty },
+            { label: 'Outgoing', get: (r) => r.outgoingQty },
+            { label: 'Net', get: (r) => r.netQty },
+            { label: 'Lines', get: (r) => r.lines },
+          ])}
+        >
+          {ar ? 'تصدير الكل' : 'Export all'}
+        </button>
       )}
     >
       {isLoading ? (
         <div className="text-sm text-slate-500">…</div>
       ) : !items.length ? (
-        <EmptyState title={language === 'ar' ? 'لا بيانات' : 'No moves yet'} />
+        <EmptyState title={ar ? 'لا بيانات' : 'No moves yet'} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
-              <tr>
-                <th className="px-3 py-2 text-start">{language === 'ar' ? 'المجموعة' : 'Group'}</th>
-                <th className="px-3 py-2 text-right">{language === 'ar' ? 'وارد' : 'In'}</th>
-                <th className="px-3 py-2 text-right">{language === 'ar' ? 'صادر' : 'Out'}</th>
-                <th className="px-3 py-2 text-right">{language === 'ar' ? 'صافي' : 'Net'}</th>
-                <th className="px-3 py-2 text-right">{language === 'ar' ? 'أسطر' : 'Lines'}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
-              {items.slice(0, 80).map((row) => (
-                <tr key={row.key}>
-                  <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-white">{row.label}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{row.incomingQty}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{row.outgoingQty}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{row.netQty}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{row.lines}</td>
+        <>
+          {view === 'graph' && (
+            <div className="rounded-xl border border-slate-200/80 p-4 dark:border-dark-600">
+              <p className="mb-3 text-xs font-medium uppercase text-slate-500">{ar ? 'صافي الكمية' : 'Net qty'}</p>
+              <div className="flex h-40 items-end gap-1">
+                {items.slice(0, 32).map((r) => {
+                  const max = Math.max(...items.map((x) => Math.abs(Number(x.netQty || 0))), 1)
+                  const h = Math.max(4, (Math.abs(Number(r.netQty || 0)) / max) * 100)
+                  const neg = Number(r.netQty || 0) < 0
+                  return (
+                    <div
+                      key={r.key}
+                      className={`flex-1 rounded-t ${neg ? 'bg-rose-500/80' : 'bg-sky-600/80'}`}
+                      style={{ height: `${h}%` }}
+                      title={`${r.label}: ${r.netQty}`}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )}
+          <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
+                <tr>
+                  <th className="px-3 py-2 text-start">{ar ? 'المجموعة' : 'Group'}</th>
+                  <th className="px-3 py-2 text-right">{ar ? 'وارد' : 'In'}</th>
+                  <th className="px-3 py-2 text-right">{ar ? 'صادر' : 'Out'}</th>
+                  <th className="px-3 py-2 text-right">{ar ? 'صافي' : 'Net'}</th>
+                  <th className="px-3 py-2 text-right">{ar ? 'أسطر' : 'Lines'}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+                {items.map((row) => (
+                  <tr key={row.key}>
+                    <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-white">{row.label}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{row.incomingQty}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{row.outgoingQty}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{row.netQty}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{row.lines}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t border-slate-200 bg-slate-50/80 text-sm font-semibold dark:border-dark-600 dark:bg-dark-900/40">
+                <tr>
+                  <td className="px-3 py-2.5">{ar ? 'الإجمالي' : 'Total'}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{totals.incomingQty}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{totals.outgoingQty}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{totals.netQty}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{totals.lines}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
       )}
     </ReportShell>
   )

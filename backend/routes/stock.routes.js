@@ -715,6 +715,16 @@ router.post('/transfers/:id/cancel', checkPermission('inventory', 'update'), asy
 
 router.get('/report/stock', checkPermission('inventory', 'read'), async (req, res) => {
   try {
+    if (req.query.asOf) {
+      const { inventoryAtDate } = await import('../services/inventory/reporting.js');
+      const warehouseId = req.query.warehouseId || undefined;
+      if (warehouseId) await assertWarehouseAccess(req, warehouseId);
+      return res.json(await inventoryAtDate(req.user.tenantId, {
+        asOf: req.query.asOf,
+        warehouseId,
+      }));
+    }
+
     const scope = await resolveWarehouseScope(req);
     const locFilter = {
       ...req.tenantFilter,
@@ -1442,7 +1452,7 @@ router.get('/moves-history', checkPermission('inventory', 'read'), async (req, r
       dateTo: req.query.dateTo,
       direction: req.query.direction,
       page: req.query.page,
-      limit: req.query.limit,
+      limit: Math.min(10000, Number(req.query.limit) || 80),
     }));
   } catch (err) {
     handleInventoryError(res, err);

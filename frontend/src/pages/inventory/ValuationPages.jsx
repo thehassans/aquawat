@@ -5,10 +5,12 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
-import { ReportShell, useReportFilters } from './ReportShell'
+import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
+import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 
 export default function ValuationReport() {
   const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
   const { queryParams } = useReportFilters()
 
   const { data, isLoading } = useQuery({
@@ -22,10 +24,30 @@ export default function ValuationReport() {
   return (
     <ReportShell
       activeId="valuation"
-      title={language === 'ar' ? 'تقرير التقييم' : 'Inventory Valuation'}
-      subtitle={language === 'ar'
+      title={ar ? 'تقرير التقييم' : 'Inventory Valuation'}
+      subtitle={ar
         ? 'قيمة المخزون حسب طريقة التكلفة — يجب أن تطابق تقرير المخزون'
         : 'On-hand value by costing method — must match Stock report'}
+      toolbar={(
+        <div className="flex flex-wrap gap-2">
+          <InventoryIeButtons model="valuation" importable={false} ar={ar} filters={queryParams} />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!items.length}
+            onClick={() => exportCsv('valuation.csv', items, [
+              { label: 'SKU', get: (r) => r.sku },
+              { label: 'Name', get: (r) => r.name },
+              { label: 'Method', get: (r) => r.costMethod },
+              { label: 'Qty', get: (r) => r.qty },
+              { label: 'UnitCost', get: (r) => r.unitCost },
+              { label: 'Value', get: (r) => r.value },
+            ])}
+          >
+            CSV
+          </button>
+        </div>
+      )}
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <Link to="/app/dashboard/inventory/report/reconcile" className="text-xs font-medium text-primary-600 hover:underline">

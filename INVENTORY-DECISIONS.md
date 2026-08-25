@@ -488,5 +488,15 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Reparent | `updateProductCategory` recomputes path then `cascadeCategoryPaths` via **one** `bulkWrite` for subtree |
 | Products list | Honors `?categoryId=` query (filter chip + clear) |
 
+## v3 P1 — Reports family (§2.6)
+
+| Topic | Decision |
+|---|---|
+| Shell | Shared `ReportShell` — warehouse/date filters, list/pivot/graph view, saved filters (localStorage), IE + CSV |
+| Inventory at Date | Stock report `asOf` → `inventoryAtDate`: replay done move lines into internal locs + Σ valuation `value` layers ≤ asOf |
+| Stock row actions | **History** → Moves History (`?productId=`) · **Replenishment** → replenishment page |
+| Full export | Moves History / Moves Analysis export **full filtered set** (limit 10k / all buckets), not the visible page only |
+| As-of edit | Inline On Hand disabled when `asOf` is set (snapshot is read-only) |
+
 
 

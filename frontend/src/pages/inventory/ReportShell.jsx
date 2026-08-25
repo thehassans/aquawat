@@ -1,8 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import api from '../../lib/api'
+
+const SAVED_KEY = 'maqder-inv-report-filters'
 
 export const REPORT_TABS = [
   { id: 'stock', path: '/app/dashboard/inventory/stock', en: 'Stock', ar: 'المخزون' },
@@ -25,6 +27,8 @@ export function useReportFilters() {
     dateFrom: params.get('dateFrom') || '',
     dateTo: params.get('dateTo') || '',
     groupBy: params.get('groupBy') || '',
+    asOf: params.get('asOf') || '',
+    view: params.get('view') || 'list',
   }), [params])
 
   const setFilter = (key, value) => {
@@ -42,23 +46,67 @@ export function useReportFilters() {
     if (filters.dateFrom) q.dateFrom = filters.dateFrom
     if (filters.dateTo) q.dateTo = filters.dateTo
     if (filters.groupBy) q.groupBy = filters.groupBy
+    if (filters.asOf) q.asOf = filters.asOf
     return q
   }, [filters])
 
   const qs = useMemo(() => {
     const sp = new URLSearchParams()
     Object.entries(queryParams).forEach(([k, v]) => { if (v) sp.set(k, v) })
+    if (filters.view && filters.view !== 'list') sp.set('view', filters.view)
     const s = sp.toString()
     return s ? `?${s}` : ''
-  }, [queryParams])
+  }, [queryParams, filters.view])
 
-  return { filters, setFilter, queryParams, qs, params, setParams }
+  const clearFilters = () => {
+    const next = new URLSearchParams()
+    if (filters.view && filters.view !== 'list') next.set('view', filters.view)
+    setParams(next, { replace: true })
+  }
+
+  const saveFilters = (name) => {
+    const label = String(name || '').trim()
+    if (!label) return
+    let list = []
+    try {
+      list = JSON.parse(localStorage.getItem(SAVED_KEY) || '[]')
+    } catch {
+      list = []
+    }
+    const entry = { name: label, filters: { ...queryParams }, savedAt: new Date().toISOString() }
+    list = [entry, ...list.filter((e) => e.name !== label)].slice(0, 12)
+    localStorage.setItem(SAVED_KEY, JSON.stringify(list))
+  }
+
+  const loadSaved = () => {
+    try {
+      return JSON.parse(localStorage.getItem(SAVED_KEY) || '[]')
+    } catch {
+      return []
+    }
+  }
+
+  const applySaved = (entry) => {
+    const next = new URLSearchParams()
+    Object.entries(entry?.filters || {}).forEach(([k, v]) => { if (v) next.set(k, v) })
+    if (filters.view && filters.view !== 'list') next.set('view', filters.view)
+    setParams(next, { replace: true })
+  }
+
+  return {
+    filters, setFilter, queryParams, qs, params, setParams,
+    clearFilters, saveFilters, loadSaved, applySaved,
+  }
 }
 
-export function ReportShell({ activeId, title, subtitle, children, extraFilters }) {
+export function ReportShell({ activeId, title, subtitle, children, extraFilters, toolbar }) {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
-  const { filters, setFilter, qs } = useReportFilters()
+  const {
+    filters, setFilter, qs, clearFilters, saveFilters, loadSaved, applySaved,
+  } = useReportFilters()
+  const [savedOpen, setSavedOpen] = useState(false)
+  const saved = savedOpen ? loadSaved() : []
 
   const { data: settings } = useQuery({
     queryKey: ['stock-settings'],
@@ -78,6 +126,11 @@ export function ReportShell({ activeId, title, subtitle, children, extraFilters 
     return true
   })
 
+  const hasFilters = Boolean(
+    filters.warehouseId || filters.dateFrom || filters.dateTo
+    || filters.productId || filters.locationId || filters.asOf || filters.groupBy,
+  )
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -85,9 +138,12 @@ export function ReportShell({ activeId, title, subtitle, children, extraFilters 
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
           {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
         </div>
-        <Link to={`/app/dashboard/inventory/reports${qs}`} className="text-xs font-medium text-primary-600 hover:underline">
-          {ar ? 'مركز التقارير' : 'Reports hub'}
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {toolbar}
+          <Link to={`/app/dashboard/inventory/reports${qs}`} className="text-xs font-medium text-primary-600 hover:underline">
+            {ar ? 'مركز التقارير' : 'Reports hub'}
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-1 border-b border-slate-200/80 pb-2 dark:border-dark-600">
@@ -138,20 +194,54 @@ export function ReportShell({ activeId, title, subtitle, children, extraFilters 
             onChange={(e) => setFilter('dateTo', e.target.value)}
           />
         </div>
-        {extraFilters}
-        {(filters.warehouseId || filters.dateFrom || filters.dateTo || filters.productId) && (
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => {
-              setFilter('warehouseId', '')
-              setFilter('dateFrom', '')
-              setFilter('dateTo', '')
-              setFilter('productId', '')
-              setFilter('locationId', '')
-              setFilter('groupBy', '')
-            }}
+        <div>
+          <label className="label text-[11px]">{ar ? 'العرض' : 'View'}</label>
+          <select
+            className="select select-sm"
+            value={filters.view || 'list'}
+            onChange={(e) => setFilter('view', e.target.value === 'list' ? '' : e.target.value)}
           >
+            <option value="list">{ar ? 'قائمة' : 'List'}</option>
+            <option value="pivot">{ar ? 'محوري' : 'Pivot'}</option>
+            <option value="graph">{ar ? 'رسم' : 'Graph'}</option>
+          </select>
+        </div>
+        {extraFilters}
+        <div className="relative">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSavedOpen((o) => !o)}>
+            {ar ? 'فلاتر محفوظة' : 'Saved filters'}
+          </button>
+          {savedOpen && (
+            <div className="absolute end-0 z-20 mt-1 min-w-[14rem] rounded-xl border border-slate-200 bg-white p-2 shadow-lg dark:border-dark-600 dark:bg-dark-800">
+              <button
+                type="button"
+                className="mb-1 block w-full rounded-lg px-2 py-1.5 text-start text-sm hover:bg-slate-50 dark:hover:bg-dark-700"
+                onClick={() => {
+                  const name = window.prompt(ar ? 'اسم الفلتر' : 'Filter name')
+                  if (name) saveFilters(name)
+                  setSavedOpen(false)
+                }}
+              >
+                {ar ? 'حفظ الحالي…' : 'Save current…'}
+              </button>
+              {saved.length === 0 && (
+                <p className="px-2 py-1 text-xs text-slate-400">{ar ? 'لا محفوظات' : 'None saved'}</p>
+              )}
+              {saved.map((e) => (
+                <button
+                  key={e.name}
+                  type="button"
+                  className="block w-full rounded-lg px-2 py-1.5 text-start text-sm hover:bg-slate-50 dark:hover:bg-dark-700"
+                  onClick={() => { applySaved(e); setSavedOpen(false) }}
+                >
+                  {e.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {hasFilters && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={clearFilters}>
             {ar ? 'مسح الفلاتر' : 'Clear filters'}
           </button>
         )}

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
 import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
+import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 
 export function LocationsReportPage() {
   const { language } = useSelector((s) => s.ui)
@@ -21,23 +22,26 @@ export function LocationsReportPage() {
       activeId="locations"
       title={ar ? 'تقرير المواقع' : 'Locations report'}
       subtitle={ar ? 'الكميات حسب شجرة المواقع' : 'On-hand rolled up by location tree'}
+      toolbar={(
+        <div className="flex flex-wrap gap-2">
+          <InventoryIeButtons model="locations" importable={false} ar={ar} filters={queryParams} />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!items.length}
+            onClick={() => exportCsv('locations-report.csv', items, [
+              { label: 'Path', get: (r) => r.completePath },
+              { label: 'Usage', get: (r) => r.usage },
+              { label: 'OnHand', get: (r) => r.onHand },
+              { label: 'Reserved', get: (r) => r.reserved },
+              { label: 'Products', get: (r) => r.productCount },
+            ])}
+          >
+            CSV
+          </button>
+        </div>
+      )}
     >
-      <div className="flex justify-end">
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
-          disabled={!items.length}
-          onClick={() => exportCsv('locations-report.csv', items, [
-            { label: 'Path', get: (r) => r.completePath },
-            { label: 'Usage', get: (r) => r.usage },
-            { label: 'OnHand', get: (r) => r.onHand },
-            { label: 'Reserved', get: (r) => r.reserved },
-            { label: 'Products', get: (r) => r.productCount },
-          ])}
-        >
-          CSV
-        </button>
-      </div>
       {isLoading ? (
         <div className="text-sm text-slate-500">…</div>
       ) : !items.length ? (

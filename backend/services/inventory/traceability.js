@@ -38,7 +38,7 @@ export async function movesHistory(tenantId, {
     .populate('transferId', 'name partnerId origin state')
     .sort({ updatedAt: -1 })
     .skip((Number(page) - 1) * Number(limit))
-    .limit(Number(limit) * (direction ? 3 : 1))
+    .limit(Math.min(10000, Number(limit) * (direction ? 3 : 1)))
     .lean();
 
   if (direction === 'incoming') {
