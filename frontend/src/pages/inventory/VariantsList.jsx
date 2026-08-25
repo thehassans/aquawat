@@ -21,7 +21,7 @@ export default function VariantsList() {
   const columns = [
     {
       key: 'name',
-      label: isAr ? 'القالب' : 'Template',
+      label: isAr ? 'المتغير' : 'Variant',
       render: (row) => (
         <Link
           to={row.templateId?._id ? INVENTORY_PATH.product(row.templateId._id) : INVENTORY_PATH.products}
@@ -31,25 +31,26 @@ export default function VariantsList() {
         </Link>
       ),
     },
+    {
+      key: 'template',
+      label: isAr ? 'القالب' : 'Template',
+      render: (row) => row.templateId?.name || '—',
+    },
     { key: 'defaultCode', label: isAr ? 'الرمز' : 'Code', render: (r) => r.defaultCode || '—' },
     { key: 'barcode', label: isAr ? 'باركود' : 'Barcode', render: (r) => r.barcode || '—' },
     {
       key: 'attrs',
       label: isAr ? 'الخصائص' : 'Attributes',
-      render: (r) => (r.attributeValueIds?.length ? `${r.attributeValueIds.length} values` : (isAr ? 'افتراضي' : 'Default')),
+      render: (r) => {
+        const labels = r.attributeLabels || []
+        if (labels.length) return labels.join(' / ')
+        return isAr ? 'افتراضي' : 'Default'
+      },
     },
   ]
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isAr ? 'متغيرات المنتج' : 'Product Variants'}</h1>
-        <p className="text-gray-500 mt-1">{isAr ? 'كل المتغيرات النشطة في المحرك' : 'All active stock variants'}</p>
-      </div>
-      <div className="flex flex-wrap gap-2 text-sm">
-        <Link to={INVENTORY_PATH.products} className="btn btn-ghost">{isAr ? 'القوالب' : 'Templates'}</Link>
-        <Link to={INVENTORY_PATH.lots} className="btn btn-ghost">{isAr ? 'الدفعات' : 'Lots'}</Link>
-      </div>
+    <div className="w-full space-y-4">
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input

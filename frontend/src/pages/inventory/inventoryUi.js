@@ -53,7 +53,9 @@ export const fieldLabelClass =
   'mb-1.5 block text-[12px] font-medium tracking-wide text-slate-500 dark:text-slate-400'
 
 export const formShellClass =
-  'card w-full max-w-5xl space-y-6 p-6 sm:p-8 md:grid md:grid-cols-2 md:gap-x-6 md:gap-y-5 md:space-y-0'
+  'card w-full space-y-6 p-6 sm:p-8 md:grid md:grid-cols-2 md:gap-x-6 md:gap-y-5 md:space-y-0'
+
+export const pageShellClass = 'w-full space-y-6'
 
 export const backBtnClass =
   'inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 text-[13px] font-medium text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/5'
@@ -93,16 +95,34 @@ export function pickingStatusLabel(state, language) {
   return (language === 'ar' ? ar : en)[state] || state
 }
 
-/** Label for a stock move / variant (template name preferred). */
+/** Label for a stock move / variant (template name + attribute values). */
 export function stockProductLabel(productOrMove) {
   const p = productOrMove?.productId || productOrMove
   if (!p) return '—'
   if (typeof p === 'string') return p
+
   const template = p.templateId
-  if (template && typeof template === 'object') {
-    return template.name || template.defaultCode || p.defaultCode || String(p._id)
+  const baseName = (template && typeof template === 'object')
+    ? (template.name || template.defaultCode)
+    : (p.name || p.defaultCode)
+
+  const attrLabels = p.attributeLabels
+    || productOrMove?.attributeLabels
+    || []
+  if (attrLabels.length) {
+    return baseName ? `${baseName} (${attrLabels.join(' / ')})` : attrLabels.join(' / ')
   }
-  return p.defaultCode || p.name || String(p._id)
+
+  if (baseName) return baseName
+  return p.defaultCode || String(p._id)
+}
+
+export function variantAttributeLabel(variant, valueNameById = {}, isAr = false) {
+  const labels = (variant?.attributeValueIds || [])
+    .map((id) => valueNameById[String(id)])
+    .filter(Boolean)
+  if (labels.length) return labels.join(' / ')
+  return isAr ? 'افتراضي' : 'Default'
 }
 
 export function stockLocationLabel(location) {

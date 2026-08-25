@@ -78,6 +78,7 @@ const ReceiptsList = lazy(() => import('./pages/inventory/ReceiptsList'))
 const DeliveriesList = lazy(() => import('./pages/inventory/DeliveriesList'))
 const InternalTransfersList = lazy(() => import('./pages/inventory/InternalTransfersList'))
 const PickingForm = lazy(() => import('./pages/inventory/PickingForm'))
+const ProductsHub = lazy(() => import('./pages/inventory/ProductsHub'))
 const StockProducts = lazy(() => import('./pages/inventory/StockProducts'))
 const StockProductForm = lazy(() => import('./pages/inventory/StockProductForm'))
 const StockReport = lazy(() => import('./pages/inventory/StockReport'))
@@ -795,13 +796,15 @@ function App() {
             <Route path="internal/new" element={<PickingForm />} />
           </Route>
           <Route path="pickings/:id" element={<PickingForm />} />
-          <Route path="products" element={<StockProducts />} />
-          <Route path="products/new" element={<StockProductForm />} />
-          <Route path="products/variants" element={<VariantsList />} />
-          <Route path="products/lots" element={<LotsList />} />
-          <Route path="products/lots/:id" element={<LotTraceability />} />
-          <Route path="products/packages" element={<PackagesList />} />
-          <Route path="products/:id" element={<StockProductForm />} />
+          <Route path="products" element={<ProductsHub />}>
+            <Route index element={<StockProducts />} />
+            <Route path="new" element={<StockProductForm />} />
+            <Route path="variants" element={<VariantsList />} />
+            <Route path="lots" element={<LotsList />} />
+            <Route path="lots/:id" element={<LotTraceability />} />
+            <Route path="packages" element={<PackagesList />} />
+            <Route path=":id" element={<StockProductForm />} />
+          </Route>
           <Route path="reporting" element={<ReportingHub />}>
             <Route index element={<Navigate to="stock" replace />} />
             <Route path="stock" element={<StockReport />} />

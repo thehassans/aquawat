@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { Save } from 'lucide-react'
 import api from '../../lib/api'
-import { INVENTORY_PATH, fieldControlClass, ghostBtn, primaryBtn } from './inventoryUi'
+import { INVENTORY_PATH, fieldControlClass, ghostBtn, pageShellClass, primaryBtn, variantAttributeLabel } from './inventoryUi'
 import { InventoryField, InventoryFormShell, InventoryPageHeader } from './InventoryChrome'
 
 export default function StockProductForm() {
@@ -19,7 +19,7 @@ export default function StockProductForm() {
   const [pickAttributeId, setPickAttributeId] = useState('')
   const [pickValueIds, setPickValueIds] = useState([])
 
-  const { register, handleSubmit, reset } = useForm({
+  const { register, handleSubmit, reset, watch } = useForm({
     defaultValues: {
       name: '',
       defaultCode: '',
@@ -139,13 +139,15 @@ export default function StockProductForm() {
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
 
+  const useExpirationDate = watch('useExpirationDate')
+
   const selectedAttr = allAttributes.find((a) => a._id === pickAttributeId)
   const valueNameById = Object.fromEntries(
     allAttributes.flatMap((a) => (a.values || []).map((v) => [String(v._id), v.name])),
   )
 
   return (
-    <div className="space-y-8">
+    <div className={pageShellClass}>
       <InventoryPageHeader
         title={isEdit ? (isAr ? 'تعديل منتج' : 'Edit product') : (isAr ? 'منتج جديد' : 'New product')}
         subtitle={isAr ? 'قالب المنتج ووحدة القياس والتتبع' : 'Template, unit of measure, and tracking'}
@@ -165,7 +167,7 @@ export default function StockProductForm() {
       />
 
       {isEdit && data?.onHand && (
-        <div className="sticky top-0 z-10 flex flex-wrap gap-2 rounded-2xl border border-slate-200/80 bg-white/95 p-2 backdrop-blur dark:border-white/10 dark:bg-[#0c111a]/95">
+        <div className="sticky top-0 z-10 flex w-full flex-wrap gap-2 rounded-2xl border border-slate-200/80 bg-white/95 p-2 backdrop-blur dark:border-white/10 dark:bg-[#0c111a]/95">
           <Link
             to={`${INVENTORY_PATH.stockReport}?search=${encodeURIComponent(data.template?.name || '')}`}
             className="inline-flex items-center rounded-xl border border-slate-200/80 px-3 py-2 text-sm font-medium hover:border-teal-300 hover:bg-teal-50 dark:border-white/10 dark:hover:bg-teal-500/10"
@@ -252,7 +254,7 @@ export default function StockProductForm() {
             <option value="serial">{isAr ? 'بالتسلسل' : 'By Unique Serial'}</option>
           </select>
         </InventoryField>
-        <div className="flex flex-col justify-end gap-3 pb-1">
+        <div className="flex flex-col justify-end gap-3 pb-1 md:col-span-2">
           <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input type="checkbox" id="isStorable" className="rounded border-slate-300" {...register('isStorable')} />
             {isAr ? 'قابل للتخزين' : 'Storable'}
@@ -262,18 +264,22 @@ export default function StockProductForm() {
             {isAr ? 'تواريخ الصلاحية' : 'Expiration dates'}
           </label>
         </div>
-        <InventoryField label={isAr ? 'أيام الصلاحية' : 'Expiration (days)'}>
-          <input type="number" className={fieldControlClass} {...register('expirationTime')} />
-        </InventoryField>
-        <InventoryField label={isAr ? 'أيام الاستخدام' : 'Best before (days)'}>
-          <input type="number" className={fieldControlClass} {...register('useTime')} />
-        </InventoryField>
-        <InventoryField label={isAr ? 'أيام الإزالة (FEFO)' : 'Removal (days, FEFO)'}>
-          <input type="number" className={fieldControlClass} {...register('removalTime')} />
-        </InventoryField>
-        <InventoryField label={isAr ? 'أيام التنبيه' : 'Alert (days)'}>
-          <input type="number" className={fieldControlClass} {...register('alertTime')} />
-        </InventoryField>
+        {useExpirationDate && (
+          <>
+            <InventoryField label={isAr ? 'أيام الصلاحية' : 'Expiration (days)'}>
+              <input type="number" min="0" className={fieldControlClass} {...register('expirationTime')} />
+            </InventoryField>
+            <InventoryField label={isAr ? 'أيام الاستخدام' : 'Best before (days)'}>
+              <input type="number" min="0" className={fieldControlClass} {...register('useTime')} />
+            </InventoryField>
+            <InventoryField label={isAr ? 'أيام الإزالة (FEFO)' : 'Removal (days, FEFO)'}>
+              <input type="number" min="0" className={fieldControlClass} {...register('removalTime')} />
+            </InventoryField>
+            <InventoryField label={isAr ? 'أيام التنبيه' : 'Alert (days)'}>
+              <input type="number" min="0" className={fieldControlClass} {...register('alertTime')} />
+            </InventoryField>
+          </>
+        )}
         <InventoryField label={isAr ? 'وصف للالتقاط' : 'Picking description'} className="md:col-span-2">
           <textarea className={fieldControlClass} rows={2} {...register('descriptionPicking')} />
         </InventoryField>
@@ -288,10 +294,17 @@ export default function StockProductForm() {
             {isAr ? 'حفظ' : 'Save'}
           </button>
         </div>
+        {!isEdit && (
+          <p className="md:col-span-2 text-xs text-slate-500">
+            {isAr
+              ? 'بعد الحفظ يمكنك إضافة الخصائص (مثل الحجم واللون) لتوليد المتغيرات تلقائياً.'
+              : 'After saving, add attributes (e.g. Size, Color) to auto-generate variants.'}
+          </p>
+        )}
       </InventoryFormShell>
 
       {isEdit && (
-        <div className="card w-full max-w-5xl space-y-4 p-6 sm:p-8">
+        <div className="card w-full space-y-4 p-6 sm:p-8">
           <div>
             <h2 className="font-semibold text-slate-900 dark:text-white">{isAr ? 'الخصائص والمتغيرات' : 'Attributes & Variants'}</h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -340,14 +353,15 @@ export default function StockProductForm() {
               <label className="label">{isAr ? 'القيم' : 'Values'}</label>
               <div className="flex flex-wrap gap-2 max-h-28 overflow-auto border rounded-xl p-2">
                 {(selectedAttr?.values || []).map((v) => {
-                  const checked = pickValueIds.includes(v._id)
+                  const vid = String(v._id)
+                  const checked = pickValueIds.includes(vid)
                   return (
                     <label key={v._id} className="inline-flex items-center gap-1 text-sm">
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => setPickValueIds((ids) => (
-                          checked ? ids.filter((x) => x !== v._id) : [...ids, v._id]
+                          checked ? ids.filter((x) => x !== vid) : [...ids, vid]
                         ))}
                       />
                       {v.name}
@@ -375,6 +389,7 @@ export default function StockProductForm() {
                 <tr>
                   <th>{isAr ? 'المتغير' : 'Variant'}</th>
                   <th>{isAr ? 'الرمز' : 'Code'}</th>
+                  <th>{isAr ? 'باركود' : 'Barcode'}</th>
                   <th>{isAr ? 'نشط' : 'Active'}</th>
                 </tr>
               </thead>
@@ -382,13 +397,20 @@ export default function StockProductForm() {
                 {(data?.variants || []).map((v) => (
                   <tr key={v._id} className={v.active === false ? 'opacity-50' : ''}>
                     <td className="text-sm">
-                      {(v.attributeValueIds || []).map((vid) => valueNameById[String(vid)] || String(vid)).join(' / ')
-                        || (isAr ? 'افتراضي' : 'Default')}
+                      {variantAttributeLabel(v, valueNameById, isAr)}
                     </td>
                     <td>{v.defaultCode || '—'}</td>
+                    <td>{v.barcode || '—'}</td>
                     <td>{v.active === false ? (isAr ? 'مؤرشف' : 'Archived') : (isAr ? 'نعم' : 'Yes')}</td>
                   </tr>
                 ))}
+                {!data?.variants?.length && (
+                  <tr>
+                    <td colSpan={4} className="text-center py-6 text-slate-500">
+                      {isAr ? 'لا متغيرات — أضف خصائص أعلاه' : 'No variants — add attributes above'}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -396,7 +418,7 @@ export default function StockProductForm() {
       )}
 
       {isEdit && valuation?.layers?.length > 0 && (
-        <div className="card overflow-hidden max-w-3xl">
+        <div className="card w-full overflow-hidden">
           <div className="px-4 py-3 border-b font-medium">{isAr ? 'طبقات التقييم' : 'Valuation layers'}</div>
           <div className="table-container">
             <table className="table">
@@ -457,7 +479,7 @@ function ProductPackagingsPanel({ variantId, isAr }) {
   })
 
   return (
-    <div className="card p-6 max-w-3xl space-y-4">
+    <div className="card w-full p-6 space-y-4">
       <div>
         <h2 className="font-semibold">{isAr ? 'تعبئة المنتج' : 'Product Packagings'}</h2>
         <p className="text-xs text-slate-500 mt-1">{isAr ? 'عدد الوحدات في العبوة' : 'Units per packaging'}</p>

@@ -33,16 +33,30 @@ export default function StockProducts() {
     },
     { key: 'defaultCode', label: isAr ? 'الرمز' : 'Code', render: (r) => r.defaultCode || '—' },
     { key: 'uom', label: isAr ? 'الوحدة' : 'UoM', render: (r) => r.uomId?.name || '—' },
+    {
+      key: 'variants',
+      label: isAr ? 'المتغيرات' : 'Variants',
+      render: (r) => {
+        const count = r.variantCount ?? 0
+        if (count <= 1) return isAr ? 'افتراضي' : 'Default'
+        return `${count} ${isAr ? 'متغيرات' : 'variants'}`
+      },
+    },
     { key: 'listPrice', label: isAr ? 'سعر البيع' : 'List price', render: (r) => r.listPrice },
     { key: 'standardPrice', label: isAr ? 'التكلفة' : 'Cost', render: (r) => r.standardPrice },
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isAr ? 'المنتجات' : 'Products'}</h1>
-          <p className="text-gray-500 mt-1">{isAr ? 'قوالب وم variants المخزون' : 'Stock product templates & variants'}</p>
+    <div className="w-full space-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            className="input pl-10"
+            placeholder={isAr ? 'بحث...' : 'Search...'}
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+          />
         </div>
         <Link to={INVENTORY_PATH.productNew} className={primaryBtn}>
           <Plus className="w-4 h-4" />
@@ -50,23 +64,17 @@ export default function StockProducts() {
         </Link>
       </div>
 
-      <div className="flex flex-wrap gap-2 text-sm">
-        <Link to={INVENTORY_PATH.variants} className="btn btn-ghost">{isAr ? 'المتغيرات' : 'Variants'}</Link>
-        <Link to={INVENTORY_PATH.lots} className="btn btn-ghost">{isAr ? 'الدفعات / التسلسل' : 'Lots / Serials'}</Link>
-        <Link to={INVENTORY_PATH.packages} className="btn btn-ghost">{isAr ? 'الطرود' : 'Packages'}</Link>
-        <Link to={INVENTORY_PATH.movesHistory} className="btn btn-ghost">{isAr ? 'سجل الحركات' : 'Moves History'}</Link>
-      </div>
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          className="input pl-10"
-          placeholder={isAr ? 'بحث...' : 'Search...'}
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-        />
-      </div>
-
-      <InventoryDataTable columns={columns} data={items} loading={isLoading} />
+      <InventoryDataTable
+        columns={columns}
+        data={items}
+        loading={isLoading}
+        pagination={data?.total > 80 ? {
+          page,
+          limit: 80,
+          total: data.total,
+          onPageChange: setPage,
+        } : undefined}
+      />
     </div>
   )
 }

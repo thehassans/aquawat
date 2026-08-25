@@ -630,11 +630,22 @@ router.get('/products/variants', checkPermission('inventory', 'read'), async (re
       .limit(Number(limit))
       .lean();
 
-    let items = variants;
+    const allValueIds = [...new Set(variants.flatMap((v) => (v.attributeValueIds || []).map(String)))];
+    const valueDocs = allValueIds.length
+      ? await StockProductAttributeValue.find({ _id: { $in: allValueIds }, ...req.tenantFilter }).lean()
+      : [];
+    const valueNameById = Object.fromEntries(valueDocs.map((v) => [String(v._id), v.name]));
+
+    let items = variants.map((v) => ({
+      ...v,
+      attributeLabels: (v.attributeValueIds || []).map((id) => valueNameById[String(id)]).filter(Boolean),
+    }));
+
     if (search) {
       const re = new RegExp(search, 'i');
-      items = variants.filter((v) =>
-        re.test(v.templateId?.name || '') || re.test(v.defaultCode || '') || re.test(String(v._id)));
+      items = items.filter((v) =>
+        re.test(v.templateId?.name || '') || re.test(v.defaultCode || '') || re.test(String(v._id))
+        || (v.attributeLabels || []).some((label) => re.test(label)));
     }
     res.json(items);
   } catch (err) {
@@ -660,8 +671,20 @@ router.get('/products/templates', checkPermission('inventory', 'read'), async (r
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
       .lean();
+    const templateIds = templates.map((t) => t._id);
+    const variantCounts = templateIds.length
+      ? await StockProductVariant.aggregate([
+        { $match: { ...req.tenantFilter, templateId: { $in: templateIds }, active: true } },
+        { $group: { _id: '$templateId', count: { $sum: 1 } } },
+      ])
+      : [];
+    const countByTemplate = Object.fromEntries(variantCounts.map((row) => [String(row._id), row.count]));
+    const items = templates.map((t) => ({
+      ...t,
+      variantCount: countByTemplate[String(t._id)] || 0,
+    }));
     const total = await StockProductTemplate.countDocuments(filter);
-    res.json({ items: templates, total, page: Number(page), limit: Number(limit) });
+    res.json({ items, total, page: Number(page), limit: Number(limit) });
   } catch (err) {
     handleError(res, err);
   }
