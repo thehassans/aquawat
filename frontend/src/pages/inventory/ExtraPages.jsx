@@ -268,6 +268,9 @@ export function DeliveryMethodsPage() {
     queryFn: () => api.get('/stock/delivery-carriers').then((r) => asInvList(r.data)),
   })
   const items = data || []
+
+  const createMut = useMutation({
+    mutationFn: () => api.post('/stock/delivery-carriers', {
       name,
       carrierType: 'fixed',
       fixedPrice: price,
