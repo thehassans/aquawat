@@ -440,7 +440,7 @@ export default function Warehouses() {
               disabled={loadingWarehouses || !(warehouses || []).length}
             />
             <Link
-              to="/app/dashboard/warehouses/new"
+              to="/app/dashboard/inventory/warehouses/new"
               className="group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-slate-900 px-5 py-2.5 text-[14px] font-semibold text-white transition-all hover:bg-slate-800 hover:shadow-lg active:scale-95"
             >
               <Plus className="relative h-4 w-4 transition-transform group-hover:rotate-90" />
@@ -462,7 +462,7 @@ export default function Warehouses() {
           </div>
           <p className="mt-6 text-xl font-bold text-slate-900">{language === 'ar' ? 'لا توجد مستودعات' : 'No warehouses found'}</p>
           <p className="mt-2 max-w-sm text-[14px] text-slate-500">{language === 'ar' ? 'أضف مستودعك الأول للبدء في تتبع المخزون.' : 'Add your first warehouse to start tracking inventory.'}</p>
-          <Link to="/app/dashboard/warehouses/new" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-[14px] font-medium text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-700">
+          <Link to="/app/dashboard/inventory/warehouses/new" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-[14px] font-medium text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-700">
             <Plus className="h-5 w-5" />
             {language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}
           </Link>
@@ -597,7 +597,7 @@ export default function Warehouses() {
                     <motion.button
                       whileHover={{ scale: 1.01 }}
                       whileTap={{ scale: 0.99 }}
-                      onClick={() => navigate(`/app/dashboard/warehouses/${warehouse._id}`)}
+                      onClick={() => navigate(`/app/dashboard/inventory/warehouses/${warehouse._id}`)}
                       className="group/btn flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 text-[13px] font-semibold text-white shadow-sm transition-all hover:bg-slate-800 hover:shadow-md active:scale-95"
                     >
                       {language === 'ar' ? 'عرض التفاصيل' : 'View Details'}

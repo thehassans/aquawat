@@ -790,7 +790,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     <select {...register('warehouseId')} className="select"><option value="">{language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet'}</option>{(Array.isArray(warehouses) ? warehouses : warehouses?.warehouses || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
                     <div className="mt-2 flex gap-2">
                       <button type="button" className="btn btn-secondary" onClick={() => setValue('warehouseId', '')} disabled={!selectedWarehouseId}>{language === 'ar' ? 'إلغاء التحديد' : 'Clear'}</button>
-                      <button type="button" className="btn btn-action-dark" onClick={() => navigate(`/app/dashboard/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/purchase')}`)}>{language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}</button>
+                      <button type="button" className="btn btn-action-dark" onClick={() => navigate(`/app/dashboard/inventory/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/purchase')}`)}>{language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}</button>
                     </div>
                   </div>
                   <div>

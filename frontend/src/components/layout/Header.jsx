@@ -129,7 +129,7 @@ export default function Header() {
       } else if (query.includes('contact') || query.includes('contacts') || query.includes('جهات') || query.includes('اتصال')) {
         navigate('/app/dashboard/contacts')
       } else if (query.includes('product') || query.includes('منتج')) {
-        navigate('/app/dashboard/products')
+        navigate('/app/dashboard/inventory/products')
       } else if (query.includes('report') || query.includes('تقرير')) {
         navigate('/app/dashboard/reports')
       }

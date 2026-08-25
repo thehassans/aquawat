@@ -2068,7 +2068,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         {language === 'ar' ? 'إلغاء التحديد' : 'Clear'}
                       </button>
                     )}
-                    <button type="button" className="rounded-full bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white dark:bg-white dark:text-slate-900" onClick={() => navigate(`/app/dashboard/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/sell')}`)}>
+                    <button type="button" className="rounded-full bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white dark:bg-white dark:text-slate-900" onClick={() => navigate(`/app/dashboard/inventory/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/sell')}`)}>
                       {language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}
                     </button>
                   </div>

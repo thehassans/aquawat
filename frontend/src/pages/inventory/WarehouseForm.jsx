@@ -92,7 +92,7 @@ export default function WarehouseForm() {
             : 'Warehouse added'
       )
       queryClient.invalidateQueries(['warehouses'])
-      navigate(returnTo || '/app/dashboard/warehouses')
+      navigate(returnTo || '/app/dashboard/inventory/warehouses')
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -117,7 +117,7 @@ export default function WarehouseForm() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate(returnTo || '/app/dashboard/warehouses')} className="btn btn-ghost btn-icon">
+        <button onClick={() => navigate(returnTo || '/app/dashboard/inventory/warehouses')} className="btn btn-ghost btn-icon">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
@@ -279,7 +279,7 @@ export default function WarehouseForm() {
         </motion.div>
 
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => navigate(returnTo || '/app/dashboard/warehouses')} className="btn btn-secondary">
+          <button type="button" onClick={() => navigate(returnTo || '/app/dashboard/inventory/warehouses')} className="btn btn-secondary">
             {t('cancel')}
           </button>
           <button type="submit" disabled={mutation.isPending} className="btn btn-primary">

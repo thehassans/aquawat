@@ -200,7 +200,7 @@ export default function ProductForm() {
       toast.success(isEdit ? (language === 'ar' ? 'تم تحديث المنتج' : 'Product updated') : (language === 'ar' ? 'تم إضافة المنتج' : 'Product added'))
       queryClient.invalidateQueries(['products'])
       queryClient.invalidateQueries(['products-stats'])
-      navigate('/products')
+      navigate('/app/dashboard/inventory/products')
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error saving product')
   })

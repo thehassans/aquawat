@@ -45,7 +45,7 @@ export default function WarehouseDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/app/dashboard/warehouses')} className="btn btn-ghost btn-icon">
+          <button onClick={() => navigate('/app/dashboard/inventory/warehouses')} className="btn btn-ghost btn-icon">
             <ArrowLeft className={`h-5 w-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
           </button>
           <div>
@@ -56,7 +56,7 @@ export default function WarehouseDashboard() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Link to={`/app/dashboard/warehouses/${id}/edit`} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+          <Link to={`/app/dashboard/inventory/warehouses/${id}/edit`} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
             <Settings className="h-4 w-4" />
             {language === 'ar' ? 'الإعدادات' : 'Settings'}
           </Link>
@@ -78,7 +78,7 @@ export default function WarehouseDashboard() {
               <p className="text-[13px] text-slate-500 text-center py-8">{language === 'ar' ? 'لا يوجد مخزون' : 'No stock'}</p>
             ) : (
               inventory.map((item, idx) => (
-                <Link to={`/app/dashboard/products/${item.product._id}`} key={idx} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl transition hover:bg-slate-100 dark:bg-white/[0.02] dark:hover:bg-white/[0.04]">
+                <Link to={`/app/dashboard/inventory/products/${item.product._id}`} key={idx} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl transition hover:bg-slate-100 dark:bg-white/[0.02] dark:hover:bg-white/[0.04]">
                   <div>
                     <p className="text-[13px] font-medium text-slate-900 dark:text-white">{language === 'ar' ? item.product.nameAr || item.product.nameEn : item.product.nameEn}</p>
                     <p className="text-[11px] font-mono text-slate-500 mt-1">{item.product.sku}</p>

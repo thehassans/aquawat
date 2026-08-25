@@ -165,7 +165,7 @@ export default function Products() {
             title={isAr ? 'المخزون' : 'Inventory'}
             disabled={isLoading || products.length === 0}
           />
-          <Link to="/products/new" className="inline-flex items-center gap-2 rounded-xl bg-[#1a3d28] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#244d33]">
+          <Link to="/app/dashboard/inventory/products/new" className="inline-flex items-center gap-2 rounded-xl bg-[#1a3d28] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#244d33]">
             <Plus className="h-4 w-4" />
             {isAr ? 'إضافة صنف' : 'Add SKU'}
           </Link>
@@ -375,10 +375,10 @@ export default function Products() {
                                 <Plus className="h-4 w-4" />
                               </button>
                             ) : null}
-                            <Link to={`/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                            <Link to={`/app/dashboard/inventory/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                               <Eye className="h-4 w-4" />
                             </Link>
-                            <Link to={`/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                            <Link to={`/app/dashboard/inventory/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                               <Edit className="h-4 w-4" />
                             </Link>
                           </div>

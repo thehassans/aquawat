@@ -70,7 +70,6 @@ const Leaves = lazy(() => import('./pages/hr/Leaves'))
 const Performance = lazy(() => import('./pages/hr/Performance'))
 const HRReports = lazy(() => import('./pages/hr/HRReports'))
 const ExpenseClaims = lazy(() => import('./pages/hr/ExpenseClaims'))
-const InventoryHub = lazy(() => import('./pages/inventory/InventoryHub'))
 const InventoryLayout = lazy(() => import('./pages/inventory/InventoryLayout'))
 const InventoryOverview = lazy(() => import('./pages/inventory/InventoryOverview'))
 const TransfersList = lazy(() => import('./pages/inventory/TransfersList'))
@@ -339,10 +338,10 @@ function LegacyModuleRedirect({ module }) {
   return <Navigate to={`${nextPath}${location.search}${location.hash}`} replace />
 }
 
-function PurchasesIdRedirect({ to }) {
+function PurchasesIdRedirect({ to, suffix = '' }) {
   const { id } = useParams()
   const location = useLocation()
-  return <Navigate to={`${to}/${id}${location.search}${location.hash}`} replace />
+  return <Navigate to={`${to}/${id}${suffix}${location.search}${location.hash}`} replace />
 }
 
 function ProtectedRoute({ children, allowedRoles, redirectSuperAdmin }) {
@@ -754,15 +753,22 @@ function App() {
         <Route path="crm/deals" element={<CRMDealsTab />} />
         <Route path="crm/activities" element={<CRMActivitiesTab />} />
         <Route path="crm/campaigns" element={<CRMCampaignsTab />} />
-        <Route path="products" element={<BusinessTypeRoute allowedTypes={['trading']}><InventoryHub /></BusinessTypeRoute>} />
-        <Route path="products/new" element={<BusinessTypeRoute allowedTypes={['trading']}><ProductForm /></BusinessTypeRoute>} />
-        <Route path="products/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><ProductForm /></BusinessTypeRoute>} />
-        <Route path="warehouses" element={<BusinessTypeRoute allowedTypes={['trading']}><Warehouses /></BusinessTypeRoute>} />
-        <Route path="warehouses/new" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseForm /></BusinessTypeRoute>} />
-        <Route path="warehouses/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseDashboard /></BusinessTypeRoute>} />
-        <Route path="warehouses/:id/edit" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseForm /></BusinessTypeRoute>} />
+        <Route path="products" element={<Navigate to="/app/dashboard/inventory/products" replace />} />
+        <Route path="products/new" element={<Navigate to="/app/dashboard/inventory/products/new" replace />} />
+        <Route path="products/:id" element={<PurchasesIdRedirect to="/app/dashboard/inventory/products" />} />
+        <Route path="warehouses" element={<Navigate to="/app/dashboard/inventory/warehouses" replace />} />
+        <Route path="warehouses/new" element={<Navigate to="/app/dashboard/inventory/warehouses/new" replace />} />
+        <Route path="warehouses/:id/edit" element={<PurchasesIdRedirect to="/app/dashboard/inventory/warehouses" suffix="/edit" />} />
+        <Route path="warehouses/:id" element={<PurchasesIdRedirect to="/app/dashboard/inventory/warehouses" />} />
         <Route path="inventory" element={<BusinessTypeRoute allowedTypes={['trading', 'furniture_shop']}><InventoryLayout /></BusinessTypeRoute>}>
           <Route index element={<InventoryOverview />} />
+          <Route path="products" element={<Products />} />
+          <Route path="products/new" element={<ProductForm />} />
+          <Route path="products/:id" element={<ProductForm />} />
+          <Route path="warehouses" element={<Warehouses />} />
+          <Route path="warehouses/new" element={<WarehouseForm />} />
+          <Route path="warehouses/:id" element={<WarehouseDashboard />} />
+          <Route path="warehouses/:id/edit" element={<WarehouseForm />} />
           <Route path="receipts" element={<TransfersList />} />
           <Route path="receipts/:id" element={<TransferForm />} />
           <Route path="deliveries" element={<TransfersList />} />

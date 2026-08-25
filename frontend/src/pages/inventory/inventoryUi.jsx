@@ -44,6 +44,8 @@ export function StatusChip({ status, language = 'en' }) {
 
 export const INV_NAV = [
   { id: 'overview', path: '/app/dashboard/inventory', end: true, en: 'Overview', ar: 'نظرة عامة' },
+  { id: 'products', path: '/app/dashboard/inventory/products', en: 'Products', ar: 'المنتجات' },
+  { id: 'warehouses', path: '/app/dashboard/inventory/warehouses', en: 'Warehouses', ar: 'المستودعات' },
   { id: 'receipts', path: '/app/dashboard/inventory/receipts', code: 'incoming', en: 'Receipts', ar: 'الاستلامات' },
   { id: 'deliveries', path: '/app/dashboard/inventory/deliveries', code: 'outgoing', en: 'Deliveries', ar: 'التسليمات' },
   { id: 'internal', path: '/app/dashboard/inventory/internal', code: 'internal', en: 'Internal', ar: 'داخلي' },
@@ -58,6 +60,4 @@ export const INV_NAV = [
   { id: 'reports', path: '/app/dashboard/inventory/reports', en: 'Reports', ar: 'تقارير' },
   { id: 'stock', path: '/app/dashboard/inventory/stock', en: 'Stock', ar: 'المخزون' },
   { id: 'settings', path: '/app/dashboard/inventory/settings', en: 'Settings', ar: 'إعدادات' },
-  { id: 'products', path: '/app/dashboard/products', en: 'Products', ar: 'المنتجات' },
-  { id: 'warehouses', path: '/app/dashboard/warehouses', en: 'Warehouses', ar: 'المستودعات' },
 ];

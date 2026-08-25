@@ -52,13 +52,13 @@ const APP_STYLE_MAP = {
 
   // Inventory & Operations Group (Green / Teal)
   '/app/dashboard/inventory': { gradient: 'from-[#11998e] to-[#38ef7d]' },
-  '/app/dashboard/products': { gradient: 'from-[#11998e] to-[#38ef7d]' },
+  '/app/dashboard/inventory/products': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/purchases': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/purchase-orders': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/suppliers': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/shipments': { gradient: 'from-[#11998e] to-[#38ef7d]' },
   '/app/dashboard/landed-costs': { gradient: 'from-[#11998e] to-[#38ef7d]' },
-  '/app/dashboard/warehouses': { gradient: 'from-[#11998e] to-[#38ef7d]' },
+  '/app/dashboard/inventory/warehouses': { gradient: 'from-[#11998e] to-[#38ef7d]' },
 
   // Project & Task Management (Blue)
   '/app/dashboard/projects': { gradient: 'from-[#00c6ff] to-[#0072ff]' },

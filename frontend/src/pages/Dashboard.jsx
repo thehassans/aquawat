@@ -1254,7 +1254,7 @@ export default function Dashboard() {
                   <h3 className="text-base font-bold text-gray-900 dark:text-white">
                     {isAr ? 'أفضل المنتجات مبيعاً' : 'Top Selling Products'}
                   </h3>
-                  <Link to="/products" className="text-xs text-primary-600 hover:text-primary-700 font-bold flex items-center gap-1">
+                  <Link to="/app/dashboard/inventory/products" className="text-xs text-primary-600 hover:text-primary-700 font-bold flex items-center gap-1">
                     {isAr ? 'عرض الكل' : 'View All'}
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </Link>
