@@ -364,6 +364,25 @@ router.get('/product-categories', checkPermission('inventory', 'read'), async (r
   }
 });
 
+/** Top-used categories for this tenant (product.categoryId counts). */
+router.get('/product-categories/popular', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const Product = (await import('../models/Product.js')).default;
+    const rows = await Product.aggregate([
+      { $match: { tenantId: req.user.tenantId, categoryId: { $ne: null } } },
+      { $group: { _id: '$categoryId', n: { $sum: 1 } } },
+      { $sort: { n: -1 } },
+      { $limit: 8 },
+    ]);
+    const ids = rows.map((r) => r._id);
+    const cats = await InvProductCategory.find({ ...req.tenantFilter, _id: { $in: ids } }).lean();
+    const byId = new Map(cats.map((c) => [String(c._id), c]));
+    res.json({ items: ids.map((id) => byId.get(String(id))).filter(Boolean) });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/product-categories/:id', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const cat = await InvProductCategory.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
@@ -991,10 +1010,21 @@ router.get('/variants', checkPermission('inventory', 'read'), async (req, res) =
     const items = await listVariants(req.user.tenantId, {
       productId: req.query.productId,
       q: req.query.q,
+      attributeId: req.query.attributeId,
       activeOnly: req.query.active !== 'false',
       limit: req.query.limit,
+      enrichStock: req.query.enrich === '1' || req.query.enrich === 'true',
     });
     res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/variants/preview-count', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { previewVariantCount } = await import('../services/inventory/variants.js');
+    res.json(await previewVariantCount(req.user.tenantId, req.body));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1012,7 +1042,12 @@ router.post('/variants', checkPermission('inventory', 'create'), async (req, res
 router.post('/variants/generate', checkPermission('inventory', 'create'), async (req, res) => {
   try {
     const { generateVariants } = await import('../services/inventory/variants.js');
-    res.json(await generateVariants(req.user.tenantId, req.user._id, req.body));
+    res.json(await generateVariants(req.user.tenantId, req.user._id, {
+      productId: req.body.productId,
+      attributeIds: req.body.attributeIds,
+      attributeLines: req.body.attributeLines,
+      dryRun: req.body.dryRun === true,
+    }));
   } catch (err) {
     handleInventoryError(res, err);
   }

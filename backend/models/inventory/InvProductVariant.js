@@ -20,6 +20,10 @@ const schema = new mongoose.Schema({
   attributeValueIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'InvAttributeValue' }],
   /** Sorted value ObjectIds joined — unique per product combination */
   combinationKey: { type: String, required: true },
+  /** Extra price override (else sum of value extraPrice) */
+  extraPrice: { type: Number, default: 0 },
+  imageUrl: { type: String },
+  imageThumbUrl: { type: String },
   active: { type: Boolean, default: true },
 }, { timestamps: true });
 

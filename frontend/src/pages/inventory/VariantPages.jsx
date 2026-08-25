@@ -6,6 +6,8 @@ import toast from 'react-hot-toast'
 import { Plus } from 'lucide-react'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
+import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
+import Money from '../../components/ui/Money'
 
 export function AttributesPage() {
   const { language } = useSelector((s) => s.ui)
@@ -13,9 +15,11 @@ export function AttributesPage() {
   const qc = useQueryClient()
   const [name, setName] = useState('')
   const [nameAr, setNameAr] = useState('')
+  const [mode, setMode] = useState('always')
   const [selectedId, setSelectedId] = useState('')
   const [valueName, setValueName] = useState('')
   const [valueNameAr, setValueNameAr] = useState('')
+  const [extraPrice, setExtraPrice] = useState('0')
 
   const { data, isLoading } = useQuery({
     queryKey: ['inv-attributes'],
@@ -31,7 +35,11 @@ export function AttributesPage() {
   const values = valuesData?.items || []
 
   const createAttr = useMutation({
-    mutationFn: () => api.post('/stock/attributes', { name, nameAr: nameAr || undefined }),
+    mutationFn: () => api.post('/stock/attributes', {
+      name,
+      nameAr: nameAr || undefined,
+      createVariantMode: mode,
+    }),
     onSuccess: (res) => {
       toast.success(ar ? 'تم إنشاء السمة' : 'Attribute created')
       setName('')
@@ -46,11 +54,13 @@ export function AttributesPage() {
     mutationFn: () => api.post(`/stock/attributes/${selectedId}/values`, {
       name: valueName,
       nameAr: valueNameAr || undefined,
+      extraPrice: Number(extraPrice) || 0,
     }),
     onSuccess: () => {
       toast.success(ar ? 'تم القيمة' : 'Value added')
       setValueName('')
       setValueNameAr('')
+      setExtraPrice('0')
       qc.invalidateQueries({ queryKey: ['inv-attribute-values', selectedId] })
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
@@ -64,8 +74,8 @@ export function AttributesPage() {
         </h2>
         <p className="text-sm text-slate-500">
           {ar
-            ? 'السمات والقيم لتوليد المتغيرات — الرصيد يبقى على productId + variantId'
-            : 'Attributes and values for variant generation — stock stays on productId + variantId'}
+            ? 'Always / Dynamically / Never — الرصيد يبقى على productId + variantId'
+            : 'Always / Dynamically / Never — stock stays on productId + variantId'}
         </p>
       </div>
 
@@ -81,6 +91,14 @@ export function AttributesPage() {
           <label className="label text-xs">{ar ? 'عربي' : 'Arabic'}</label>
           <input className="input input-sm" value={nameAr} onChange={(e) => setNameAr(e.target.value)} />
         </div>
+        <div>
+          <label className="label text-xs">{ar ? 'إنشاء متغير' : 'Create variant'}</label>
+          <select className="select select-sm" value={mode} onChange={(e) => setMode(e.target.value)}>
+            <option value="always">{ar ? 'دائماً' : 'Always'}</option>
+            <option value="dynamic">{ar ? 'ديناميكي' : 'Dynamically'}</option>
+            <option value="never">{ar ? 'أبداً' : 'Never'}</option>
+          </select>
+        </div>
         <button type="submit" className="btn btn-primary btn-sm" disabled={createAttr.isPending}>
           <Plus className="h-4 w-4" /> {ar ? 'سمة' : 'Attribute'}
         </button>
@@ -95,7 +113,7 @@ export function AttributesPage() {
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
                 <tr>
                   <th className="px-3 py-2">{ar ? 'السمة' : 'Attribute'}</th>
-                  <th className="px-3 py-2">{ar ? 'متغير' : 'Creates variants'}</th>
+                  <th className="px-3 py-2">{ar ? 'الوضع' : 'Mode'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -108,7 +126,7 @@ export function AttributesPage() {
                     <td className="px-3 py-2.5 font-medium">
                       {ar && a.nameAr ? a.nameAr : a.name}
                     </td>
-                    <td className="px-3 py-2.5 text-slate-500">{a.createVariant !== false ? (ar ? 'نعم' : 'Yes') : (ar ? 'لا' : 'No')}</td>
+                    <td className="px-3 py-2.5 text-slate-500">{a.createVariantMode || (a.createVariant !== false ? 'always' : 'never')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -129,6 +147,7 @@ export function AttributesPage() {
                 >
                   <input className="input input-sm" required value={valueName} onChange={(e) => setValueName(e.target.value)} placeholder={ar ? 'أحمر' : 'Red'} />
                   <input className="input input-sm" value={valueNameAr} onChange={(e) => setValueNameAr(e.target.value)} placeholder={ar ? 'عربي' : 'AR'} />
+                  <input className="input input-sm w-24" type="number" step="0.01" value={extraPrice} onChange={(e) => setExtraPrice(e.target.value)} placeholder={ar ? 'سعر إضافي' : 'Extra'} />
                   <button type="submit" className="btn btn-secondary btn-sm" disabled={createVal.isPending}>
                     <Plus className="h-4 w-4" />
                   </button>
@@ -138,9 +157,9 @@ export function AttributesPage() {
                 ) : (
                   <ul className="space-y-1 text-sm">
                     {values.map((v) => (
-                      <li key={v._id} className="rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-dark-800">
-                        {ar && v.nameAr ? v.nameAr : v.name}
-                        {!v.active ? <span className="ms-2 text-xs text-slate-400">(off)</span> : null}
+                      <li key={v._id} className="flex justify-between rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-dark-800">
+                        <span>{ar && v.nameAr ? v.nameAr : v.name}</span>
+                        <span className="tabular-nums text-slate-400">+{v.extraPrice || 0}</span>
                       </li>
                     ))}
                   </ul>
@@ -148,7 +167,7 @@ export function AttributesPage() {
               </>
             )}
             <Link to="/app/dashboard/inventory/variants" className="inline-block text-sm text-primary-600 hover:underline">
-              {ar ? '← توليد المتغيرات' : '← Generate variants'}
+              {ar ? '← المتغيرات' : '← Variants'}
             </Link>
           </div>
         </div>
@@ -163,6 +182,8 @@ export function VariantsPage() {
   const qc = useQueryClient()
   const [productId, setProductId] = useState('')
   const [productQ, setProductQ] = useState('')
+  const [attrFilter, setAttrFilter] = useState('')
+  const [q, setQ] = useState('')
   const [attrIds, setAttrIds] = useState([])
   const [manualName, setManualName] = useState('')
 
@@ -181,11 +202,17 @@ export function VariantsPage() {
   const attrs = attrsData?.items || []
 
   const { data: variantsData, isLoading } = useQuery({
-    queryKey: ['inv-variants', productId],
+    queryKey: ['inv-variants', productId, q, attrFilter],
     queryFn: () => api.get('/stock/variants', {
-      params: { productId: productId || undefined, active: 'false', limit: 300 },
+      params: {
+        productId: productId || undefined,
+        q: q || undefined,
+        attributeId: attrFilter || undefined,
+        active: 'false',
+        limit: 300,
+        enrich: '1',
+      },
     }).then((r) => r.data),
-    enabled: Boolean(productId),
   })
   const variants = variantsData?.items || []
 
@@ -196,9 +223,9 @@ export function VariantsPage() {
     }),
     onSuccess: (res) => {
       toast.success(ar
-        ? `أُنشئ ${res.data.created} · تخطّي ${res.data.skipped}`
-        : `Created ${res.data.created} · skipped ${res.data.skipped}`)
-      qc.invalidateQueries({ queryKey: ['inv-variants', productId] })
+        ? `أُنشئ ${res.data.created} · تخطّي ${res.data.skipped} · أرشفة ${res.data.archived || 0}`
+        : `Created ${res.data.created} · skipped ${res.data.skipped} · archived ${res.data.archived || 0}`)
+      qc.invalidateQueries({ queryKey: ['inv-variants'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
@@ -208,7 +235,7 @@ export function VariantsPage() {
     onSuccess: () => {
       toast.success(ar ? 'تم المتغير' : 'Variant created')
       setManualName('')
-      qc.invalidateQueries({ queryKey: ['inv-variants', productId] })
+      qc.invalidateQueries({ queryKey: ['inv-variants'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
@@ -217,7 +244,7 @@ export function VariantsPage() {
     mutationFn: ({ id, ...body }) => api.patch(`/stock/variants/${id}`, body),
     onSuccess: () => {
       toast.success(ar ? 'تم الحفظ' : 'Saved')
-      qc.invalidateQueries({ queryKey: ['inv-variants', productId] })
+      qc.invalidateQueries({ queryKey: ['inv-variants'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
@@ -233,135 +260,159 @@ export function VariantsPage() {
 
   return (
     <div className="space-y-4" dir={ar ? 'rtl' : 'ltr'}>
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {ar ? 'متغيرات المنتج' : 'Product variants'}
-        </h2>
-        <p className="text-sm text-slate-500">
-          {ar
-            ? 'توليد توافقي من السمات أو إضافة يدوية — المحرك يخزّن variantId على الكميات'
-            : 'Cartesian generate from attributes or add manually — engine stores variantId on quants'}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+            {ar ? 'متغيرات المنتج' : 'Product variants'}
+          </h2>
+          <p className="text-sm text-slate-500">
+            {ar
+              ? 'Product ID · السمات · SKU · الرصيد · المتوقع · التكلفة · السعر'
+              : 'Product ID · attributes · SKU · on hand · forecasted · cost · price'}
+          </p>
+        </div>
+        <InventoryIeButtons
+          model="product_variants"
+          ar={ar}
+          filters={{ productId: productId || undefined, search: q || undefined }}
+          onImported={() => qc.invalidateQueries({ queryKey: ['inv-variants'] })}
+        />
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
         <div className="grow">
+          <label className="label text-xs">{ar ? 'بحث' : 'Search'}</label>
+          <input className="input input-sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder={ar ? 'اسم / SKU / باركود' : 'Name / SKU / barcode'} />
+        </div>
+        <div className="grow">
           <label className="label text-xs">{ar ? 'بحث منتج' : 'Find product'}</label>
           <input className="input input-sm" value={productQ} onChange={(e) => setProductQ(e.target.value)} placeholder={ar ? 'اسم أو SKU' : 'Name or SKU'} />
         </div>
-        <div className="min-w-[14rem]">
-          <label className="label text-xs">{ar ? 'المنتج' : 'Product'}</label>
+        <div className="min-w-[12rem]">
+          <label className="label text-xs">{ar ? 'القالب' : 'Template'}</label>
           <select className="select select-sm w-full" value={productId} onChange={(e) => setProductId(e.target.value)}>
-            <option value="">{ar ? '— اختر —' : '— Select —'}</option>
+            <option value="">{ar ? '— الكل —' : '— All —'}</option>
             {products.map((p) => (
               <option key={p._id} value={p._id}>
-                {(ar && p.nameAr) || p.nameEn || p.name} {p.sku ? `(${p.sku})` : ''}
+                {p.productId ? `${p.productId} · ` : ''}{(ar && p.nameAr) || p.nameEn || p.name} {p.sku ? `(${p.sku})` : ''}
               </option>
+            ))}
+          </select>
+        </div>
+        <div className="min-w-[10rem]">
+          <label className="label text-xs">{ar ? 'سمة' : 'Attribute'}</label>
+          <select className="select select-sm w-full" value={attrFilter} onChange={(e) => setAttrFilter(e.target.value)}>
+            <option value="">—</option>
+            {attrs.map((a) => (
+              <option key={a._id} value={a._id}>{ar && a.nameAr ? a.nameAr : a.name}</option>
             ))}
           </select>
         </div>
       </div>
 
       {productId && (
-        <>
-          <div className="rounded-xl border border-slate-200/80 p-3 dark:border-dark-600">
-            <p className="mb-2 text-xs text-slate-500">{ar ? 'سمات التوليد' : 'Attributes for generate'}: {selectedAttrsLabel}</p>
-            <div className="mb-3 flex flex-wrap gap-2">
-              {attrs.map((a) => (
-                <label key={a._id} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1 text-xs dark:border-dark-600">
-                  <input type="checkbox" checked={attrIds.includes(a._id)} onChange={() => toggleAttr(a._id)} />
-                  {ar && a.nameAr ? a.nameAr : a.name}
-                </label>
-              ))}
-              {!attrs.length && (
-                <Link to="/app/dashboard/inventory/attributes" className="text-xs text-primary-600 hover:underline">
-                  {ar ? 'أضف سمات أولاً' : 'Add attributes first'}
-                </Link>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                disabled={generateMut.isPending || !attrs.length}
-                onClick={() => generateMut.mutate()}
-              >
-                {ar ? 'توليد التوافيق' : 'Generate combinations'}
-              </button>
-              <form
-                className="flex flex-wrap items-end gap-2"
-                onSubmit={(e) => { e.preventDefault(); createMut.mutate() }}
-              >
-                <input
-                  className="input input-sm"
-                  required
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  placeholder={ar ? 'متغير يدوي' : 'Manual variant name'}
-                />
-                <button type="submit" className="btn btn-secondary btn-sm" disabled={createMut.isPending}>
-                  <Plus className="h-4 w-4" /> {ar ? 'يدوي' : 'Manual'}
-                </button>
-              </form>
-            </div>
+        <div className="rounded-xl border border-slate-200/80 p-3 dark:border-dark-600">
+          <p className="mb-2 text-xs text-slate-500">{ar ? 'سمات التوليد' : 'Attributes for generate'}: {selectedAttrsLabel}</p>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {attrs.map((a) => (
+              <label key={a._id} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1 text-xs dark:border-dark-600">
+                <input type="checkbox" checked={attrIds.includes(a._id)} onChange={() => toggleAttr(a._id)} />
+                {ar && a.nameAr ? a.nameAr : a.name}
+              </label>
+            ))}
           </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={generateMut.isPending || !attrs.length}
+              onClick={() => generateMut.mutate()}
+            >
+              {ar ? 'توليد التوافيق' : 'Generate combinations'}
+            </button>
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(e) => { e.preventDefault(); createMut.mutate() }}
+            >
+              <input
+                className="input input-sm"
+                required
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                placeholder={ar ? 'متغير يدوي' : 'Manual variant name'}
+              />
+              <button type="submit" className="btn btn-secondary btn-sm" disabled={createMut.isPending}>
+                <Plus className="h-4 w-4" /> {ar ? 'يدوي' : 'Manual'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
-          {isLoading ? <div className="text-sm text-slate-500">…</div> : !variants.length ? (
-            <EmptyState title={ar ? 'لا متغيرات بعد' : 'No variants yet'} />
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
-                  <tr>
-                    <th className="px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
-                    <th className="px-3 py-2">SKU</th>
-                    <th className="px-3 py-2">{ar ? 'باركود' : 'Barcode'}</th>
-                    <th className="px-3 py-2">{ar ? 'نشط' : 'Active'}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
-                  {variants.map((v) => (
-                    <tr key={v._id}>
-                      <td className="px-3 py-2.5 font-medium">{ar && v.nameAr ? v.nameAr : v.name}</td>
-                      <td className="px-3 py-2.5">
-                        <input
-                          className="input input-sm w-28"
-                          defaultValue={v.sku || ''}
-                          placeholder="SKU"
-                          onBlur={(e) => {
-                            const next = e.target.value.trim()
-                            if (next !== (v.sku || '')) patchMut.mutate({ id: v._id, sku: next })
-                          }}
-                        />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <input
-                          className="input input-sm w-36"
-                          defaultValue={v.barcode || ''}
-                          placeholder="Barcode"
-                          onBlur={(e) => {
-                            const next = e.target.value.trim()
-                            if (next !== (v.barcode || '')) patchMut.mutate({ id: v._id, barcode: next })
-                          }}
-                        />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <label className="inline-flex items-center gap-1.5 text-xs">
-                          <input
-                            type="checkbox"
-                            checked={v.active !== false}
-                            onChange={(e) => patchMut.mutate({ id: v._id, active: e.target.checked })}
-                          />
-                          {v.active !== false ? (ar ? 'نعم' : 'Yes') : (ar ? 'لا' : 'No')}
-                        </label>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
+      {isLoading ? <div className="text-sm text-slate-500">…</div> : !variants.length ? (
+        <EmptyState title={ar ? 'لا متغيرات' : 'No variants'} />
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+          <table className="min-w-[960px] w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
+              <tr>
+                <th className="px-3 py-2">{ar ? 'معرّف المنتج' : 'Product ID'}</th>
+                <th className="px-3 py-2">{ar ? 'المتغير' : 'Variant'}</th>
+                <th className="px-3 py-2">{ar ? 'القيم' : 'Attribute values'}</th>
+                <th className="px-3 py-2">SKU</th>
+                <th className="px-3 py-2">{ar ? 'باركود' : 'Barcode'}</th>
+                <th className="px-3 py-2">{ar ? 'المتاح' : 'On hand'}</th>
+                <th className="px-3 py-2">{ar ? 'متوقع' : 'Forecasted'}</th>
+                <th className="px-3 py-2">{ar ? 'تكلفة' : 'Cost'}</th>
+                <th className="px-3 py-2">{ar ? 'سعر' : 'Price'}</th>
+                <th className="px-3 py-2">{ar ? 'نشط' : 'Active'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+              {variants.map((v) => (
+                <tr key={v._id}>
+                  <td className="px-3 py-2 font-mono text-xs text-emerald-700">{v.productCode || v.productId?.productId || '—'}</td>
+                  <td className="px-3 py-2.5 font-medium">
+                    <div>{ar && v.nameAr ? v.nameAr : v.name}</div>
+                    <div className="text-[11px] text-slate-400">{v.productId?.nameEn || v.productId?.sku}</div>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{v.attributeValuesLabel || '—'}</td>
+                  <td className="px-3 py-2.5">
+                    <input
+                      className="input input-sm w-28"
+                      defaultValue={v.sku || ''}
+                      onBlur={(e) => {
+                        const next = e.target.value.trim()
+                        if (next !== (v.sku || '')) patchMut.mutate({ id: v._id, sku: next })
+                      }}
+                    />
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <input
+                      className="input input-sm w-32"
+                      defaultValue={v.barcode || ''}
+                      onBlur={(e) => {
+                        const next = e.target.value.trim()
+                        if (next !== (v.barcode || '')) patchMut.mutate({ id: v._id, barcode: next })
+                      }}
+                    />
+                  </td>
+                  <td className="px-3 py-2 tabular-nums">{v.onHand ?? '—'}</td>
+                  <td className="px-3 py-2 tabular-nums">{v.forecasted ?? '—'}</td>
+                  <td className="px-3 py-2"><Money value={v.cost} /></td>
+                  <td className="px-3 py-2"><Money value={v.price} /></td>
+                  <td className="px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={v.active !== false}
+                      onChange={(e) => patchMut.mutate({ id: v._id, active: e.target.checked })}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

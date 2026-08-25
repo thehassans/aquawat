@@ -7,6 +7,16 @@ const schema = new mongoose.Schema({
   nameAr: { type: String, trim: true },
   /** When true, values participate in variant cartesian generation */
   createVariant: { type: Boolean, default: true },
+  /**
+   * always = cartesian on generate
+   * dynamic = create on demand when used
+   * never = informational only (no variant)
+   */
+  createVariantMode: {
+    type: String,
+    enum: ['always', 'dynamic', 'never'],
+    default: 'always',
+  },
   sequence: { type: Number, default: 10 },
   active: { type: Boolean, default: true },
 }, { timestamps: true });

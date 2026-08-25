@@ -465,5 +465,17 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | UI | Form header + read-only field + help text; list column; search includes productId |
 | Roles | Product ID = system identity · SKU = editable ref · barcode = scan key |
 
+## v3 P1 — Products variants / images / category (§2.4)
+
+| Topic | Decision |
+|---|---|
+| Variants list | Columns Product ID · Variant · Attribute values · SKU · Barcode · On hand · Forecasted · Cost · Price; filter + IE |
+| Generate | Uses product `attributeLines` (Always mode); archives obsolete combos (`active:false`) — never deletes; dry-run warning when archiving |
+| Modes | Attribute `createVariantMode`: always / dynamic / never; value `extraPrice`; variant price = template + extras |
+| Images | `POST/PATCH /products/:id/images` — sharp WebP full + 256px thumb, EXIF stripped, max 9, 5MB jpg/png/webp |
+| Category | `CategoryCombobox` — searchable path, indent by depth, popular top-8, inline create |
+| Form tabs | General · Attributes & Variants · Purchase · Inventory · Accounting |
+| Stock dims | `computeOnHand`/`computeForecast` accept optional `variantId` |
+
 
 

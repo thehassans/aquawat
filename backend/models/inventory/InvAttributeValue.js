@@ -11,6 +11,8 @@ const schema = new mongoose.Schema({
   },
   name: { type: String, required: true, trim: true },
   nameAr: { type: String, trim: true },
+  /** Extra price added to template selling price for this value */
+  extraPrice: { type: Number, default: 0 },
   sequence: { type: Number, default: 10 },
   active: { type: Boolean, default: true },
 }, { timestamps: true });

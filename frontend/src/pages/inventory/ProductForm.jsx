@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
@@ -15,6 +15,38 @@ import Select from 'react-select'
 import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { normalizeProductType } from '../../lib/productType'
 import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
+import CategoryCombobox from '../../components/inventory/CategoryCombobox'
+import ProductImageGallery from '../../components/inventory/ProductImageGallery'
+
+function AttributeValuesMulti({ attributeId, valueIds, onChange, language }) {
+  const ar = language === 'ar'
+  const { data } = useQuery({
+    queryKey: ['inv-attribute-values', attributeId],
+    queryFn: () => api.get(`/stock/attributes/${attributeId}/values`).then((r) => r.data),
+    enabled: Boolean(attributeId),
+  })
+  const values = data?.items || []
+  if (!attributeId) {
+    return <div className="text-xs text-slate-400">{ar ? 'اختر سمة' : 'Pick attribute'}</div>
+  }
+  return (
+    <div className="flex max-h-24 flex-wrap gap-1 overflow-y-auto">
+      {values.map((v) => {
+        const on = valueIds.includes(v._id)
+        return (
+          <button
+            key={v._id}
+            type="button"
+            className={`rounded-lg border px-2 py-0.5 text-xs ${on ? 'border-primary-400 bg-primary-50' : 'border-slate-200'}`}
+            onClick={() => onChange(on ? valueIds.filter((x) => x !== v._id) : [...valueIds, v._id])}
+          >
+            {ar && v.nameAr ? v.nameAr : v.name}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function ProductForm() {
   const { id } = useParams()
@@ -77,6 +109,14 @@ export default function ProductForm() {
         productId: c.productId,
         quantity: Number.isFinite(Number(c.quantity)) ? Number(c.quantity) : 0,
         notes: c.notes || undefined,
+      }))
+
+    payload.attributeLines = (Array.isArray(attributeLines) ? attributeLines : [])
+      .filter((l) => l?.attributeId)
+      .map((l) => ({
+        attributeId: l.attributeId,
+        valueIds: l.valueIds || [],
+        createVariantMode: l.createVariantMode || 'always',
       }))
 
     if (isEdit) {
@@ -152,6 +192,13 @@ export default function ProductForm() {
           notes: c?.notes || ''
         }))
       )
+      setAttributeLines(
+        (Array.isArray(normalized?.attributeLines) ? normalized.attributeLines : []).map((l) => ({
+          attributeId: String(l.attributeId?._id || l.attributeId || ''),
+          valueIds: (l.valueIds || []).map((v) => String(v?._id || v)),
+          createVariantMode: l.createVariantMode || 'always',
+        })),
+      )
     }
   }, [isEdit, rawProductData, reset])
 
@@ -209,7 +256,45 @@ export default function ProductForm() {
   })
 
   const [productTab, setProductTab] = useState('general')
+  const [attributeLines, setAttributeLines] = useState([])
+  const [generateWarning, setGenerateWarning] = useState(null)
 
+  const { data: attrsData } = useQuery({
+    queryKey: ['inv-attributes'],
+    queryFn: () => api.get('/stock/attributes', { params: { active: 'false' } }).then((r) => r.data),
+    enabled: invSettings?.groupProductVariant !== false,
+  })
+  const attrs = attrsData?.items || []
+
+  const { data: previewCount } = useQuery({
+    queryKey: ['variant-preview-count', attributeLines],
+    queryFn: () => api.post('/stock/variants/preview-count', { attributeLines }).then((r) => r.data?.count || 0),
+    enabled: isEdit && invSettings?.groupProductVariant !== false && attributeLines.some((l) => l.attributeId),
+  })
+
+  const runGenerate = async (dryRun) => {
+    try {
+      const res = await api.post('/stock/variants/generate', {
+        productId: id,
+        attributeLines,
+        dryRun: !!dryRun,
+      })
+      if (!dryRun) {
+        setGenerateWarning(null)
+        toast.success(
+          language === 'ar'
+            ? `أُنشئ ${res.data.created} · أُرشف ${res.data.archived || 0}`
+            : `Created ${res.data.created} · archived ${res.data.archived || 0}`,
+        )
+        queryClient.invalidateQueries({ queryKey: ['inv-variants'] })
+        queryClient.invalidateQueries({ queryKey: ['product', id] })
+      }
+      return res.data
+    } catch (e) {
+      toast.error(e.response?.data?.error || e.message)
+      return null
+    }
+  }
 
   const warehouseOptions = useMemo(() => {
     return Array.isArray(warehouses) ? warehouses : []
@@ -372,8 +457,10 @@ export default function ProductForm() {
       <div className="flex flex-wrap gap-1">
         {[
           { id: 'general', en: 'General', ar: 'عام' },
+          { id: 'variants', en: 'Attributes & Variants', ar: 'السمات والمتغيرات', hide: invSettings?.groupProductVariant === false },
+          { id: 'purchase', en: 'Purchase', ar: 'الشراء' },
           { id: 'inventory', en: 'Inventory', ar: 'المخزون' },
-          { id: 'purchase', en: 'Purchase', ar: 'الشراء', hide: invSettings?.groupUom === false && false },
+          { id: 'accounting', en: 'Accounting', ar: 'المحاسبة' },
         ].filter((t) => !t.hide).map((t) => (
           <button
             key={t.id}
@@ -471,21 +558,37 @@ export default function ProductForm() {
               </div>
             )}
             <div>
-              <label className="label">{t('category')}</label>
-              <input {...register('category')} className="input" />
-            </div>
-            <div>
               <label className="label">{language === 'ar' ? 'فئة المخزون' : 'Inventory category'}</label>
-              <select {...register('categoryId')} className="select">
-                <option value="">—</option>
-                {(Array.isArray(invCategories) ? invCategories : []).map((c) => (
-                  <option key={c._id} value={c._id}>{c.completePath}</option>
-                ))}
-              </select>
+              <CategoryCombobox
+                value={watch('categoryId') || ''}
+                onChange={(id, cat) => {
+                  setValue('categoryId', id || '', { shouldDirty: true })
+                  if (cat?.legacyName || cat?.name) {
+                    setValue('category', cat.legacyName || cat.name, { shouldDirty: true })
+                  }
+                }}
+                language={language}
+              />
+              <input type="hidden" {...register('categoryId')} />
+              <input type="hidden" {...register('category')} />
             </div>
             <div className="md:col-span-2 lg:col-span-3">
-              <label className="label">{language === 'ar' ? 'الوصف' : 'Description'}</label>
+              <label className="label">{language === 'ar' ? 'الوصف (EN)' : 'Description (EN)'}</label>
               <textarea {...register('descriptionEn')} className="input" rows={2} />
+            </div>
+            {showArabicFields && (
+              <div className="md:col-span-2 lg:col-span-3">
+                <label className="label">{language === 'ar' ? 'الوصف (AR)' : 'Description (AR)'}</label>
+                <textarea {...register('descriptionAr')} className="input" rows={2} dir="rtl" />
+              </div>
+            )}
+            <div className="md:col-span-2 lg:col-span-3">
+              <label className="label mb-2 block">{language === 'ar' ? 'الصور' : 'Images'}</label>
+              <ProductImageGallery
+                productId={isEdit ? id : null}
+                images={product?.images || rawProductData?.images || []}
+                language={language}
+              />
             </div>
           </div>
         </motion.div>
@@ -770,6 +873,152 @@ export default function ProductForm() {
             )}
           </div>
         </motion.div>
+        )}
+
+        {productTab === 'variants' && invSettings?.groupProductVariant !== false && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="card space-y-4 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-lg font-semibold">
+                {language === 'ar' ? 'سمات ومتغيرات المنتج' : 'Product attributes & variants'}
+              </h3>
+              <Link to="/app/dashboard/inventory/attributes" className="text-sm text-primary-600 hover:underline">
+                {language === 'ar' ? 'إدارة السمات' : 'Manage attributes'}
+              </Link>
+            </div>
+            {!isEdit && (
+              <p className="text-sm text-slate-500">
+                {language === 'ar' ? 'احفظ المنتج أولاً ثم ولّد المتغيرات.' : 'Save the product first, then generate variants.'}
+              </p>
+            )}
+            <div className="space-y-3">
+              {attributeLines.map((line, idx) => (
+                <div key={idx} className="grid gap-2 rounded-xl border border-slate-100 p-3 dark:border-dark-600 md:grid-cols-4">
+                  <select
+                    className="select"
+                    value={line.attributeId}
+                    onChange={(e) => {
+                      const next = [...attributeLines]
+                      next[idx] = { ...next[idx], attributeId: e.target.value, valueIds: [] }
+                      setAttributeLines(next)
+                    }}
+                  >
+                    <option value="">{language === 'ar' ? 'سمة…' : 'Attribute…'}</option>
+                    {attrs.map((a) => (
+                      <option key={a._id} value={a._id}>{language === 'ar' && a.nameAr ? a.nameAr : a.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="select"
+                    value={line.createVariantMode || 'always'}
+                    onChange={(e) => {
+                      const next = [...attributeLines]
+                      next[idx] = { ...next[idx], createVariantMode: e.target.value }
+                      setAttributeLines(next)
+                    }}
+                  >
+                    <option value="always">{language === 'ar' ? 'دائماً' : 'Always'}</option>
+                    <option value="dynamic">{language === 'ar' ? 'ديناميكي' : 'Dynamically'}</option>
+                    <option value="never">{language === 'ar' ? 'أبداً' : 'Never (no variant)'}</option>
+                  </select>
+                  <AttributeValuesMulti
+                    attributeId={line.attributeId}
+                    valueIds={line.valueIds || []}
+                    language={language}
+                    onChange={(valueIds) => {
+                      const next = [...attributeLines]
+                      next[idx] = { ...next[idx], valueIds }
+                      setAttributeLines(next)
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setAttributeLines(attributeLines.filter((_, i) => i !== idx))}
+                  >
+                    {language === 'ar' ? 'حذف' : 'Remove'}
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setAttributeLines([...attributeLines, { attributeId: '', valueIds: [], createVariantMode: 'always' }])}
+              >
+                <Plus className="h-4 w-4" /> {language === 'ar' ? 'سطر سمة' : 'Attribute line'}
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              {language === 'ar'
+                ? <>سيُنشئ هذا <strong>{previewCount ?? 0}</strong> متغيراً</>
+                : <>This will generate <strong>{previewCount ?? 0}</strong> variants</>}
+            </p>
+            {generateWarning && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {generateWarning}
+                <div className="mt-2 flex gap-2">
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => runGenerate(false)}>
+                    {language === 'ar' ? 'تطبيق (أرشفة الزائد)' : 'Apply (archive extras)'}
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setGenerateWarning(null)}>
+                    {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {isEdit && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={async () => {
+                  try {
+                    const dry = await api.post('/stock/variants/generate', {
+                      productId: id,
+                      attributeLines,
+                      dryRun: true,
+                    })
+                    if ((dry.data?.archived || 0) > 0 || (dry.data?.warnings || []).length) {
+                      setGenerateWarning(
+                        language === 'ar'
+                          ? `سيُنشأ ${dry.data.created} ويُؤرشف ${dry.data.archived}. المتغيرات ذات الحركات تُؤرشف ولا تُحذف.`
+                          : `Will create ${dry.data.created} and archive ${dry.data.archived}. Variants with stock moves are archived, never deleted.`,
+                      )
+                    } else {
+                      await runGenerate(false)
+                    }
+                  } catch (e) {
+                    toast.error(e.response?.data?.error || e.message)
+                  }
+                }}
+              >
+                {language === 'ar' ? 'توليد المتغيرات' : 'Generate variants'}
+              </button>
+            )}
+          </motion.div>
+        )}
+
+        {productTab === 'accounting' && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="card space-y-3 p-6">
+            <h3 className="text-lg font-semibold">{language === 'ar' ? 'المحاسبة' : 'Accounting'}</h3>
+            <p className="text-sm text-slate-500">
+              {language === 'ar'
+                ? 'طريقة التكلفة والتقييم تأتي من فئة المخزون المحددة في التبويب العام.'
+                : 'Costing method and valuation come from the inventory category set on the General tab.'}
+            </p>
+            {(() => {
+              const cat = (Array.isArray(invCategories) ? invCategories : []).find(
+                (c) => String(c._id) === String(watch('categoryId') || ''),
+              )
+              return cat ? (
+                <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                  <div><dt className="text-slate-400">{language === 'ar' ? 'المسار' : 'Path'}</dt><dd>{cat.completePath}</dd></div>
+                  <div><dt className="text-slate-400">{language === 'ar' ? 'التكلفة' : 'Costing'}</dt><dd>{cat.costingMethod}</dd></div>
+                  <div><dt className="text-slate-400">{language === 'ar' ? 'التقييم' : 'Valuation'}</dt><dd>{cat.valuationMode}</dd></div>
+                </dl>
+              ) : (
+                <p className="text-sm text-slate-400">{language === 'ar' ? 'لا فئة محددة' : 'No category selected'}</p>
+              )
+            })()}
+          </motion.div>
         )}
 
         {/* Submit */}

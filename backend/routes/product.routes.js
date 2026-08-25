@@ -1,11 +1,22 @@
 import express from 'express';
+import multer from 'multer';
+import sharp from 'sharp';
 import Product from '../models/Product.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { isStockTrackedProductType, normalizeProductType } from '../utils/productType.js';
 import { isInvEngineEnabled } from '../services/inventory/legacyAdapter.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 
 const router = express.Router();
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter(_req, file, cb) {
+    if (/^image\/(jpeg|png|webp)$/i.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only jpg/png/webp up to 5MB'));
+  },
+});
 
 router.use(protect);
 router.use(tenantFilter);
@@ -416,6 +427,93 @@ router.post('/:id/transfer', checkPermission('inventory', 'update'), async (req,
     await product.save();
     
     res.json(product);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/products/:id/images
+router.post('/:id/images', checkPermission('inventory', 'update'), imageUpload.single('image'), async (req, res) => {
+  try {
+    const product = await Product.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+
+    const images = Array.isArray(product.images) ? product.images : [];
+    if (images.length >= 9) {
+      return res.status(400).json({ error: 'Maximum 9 images (1 main + 8)', code: 'IMAGE_LIMIT' });
+    }
+
+    const tenantIdStr = String(req.user.tenantId);
+    const stamp = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const fullKey = `products/${tenantIdStr}/${stamp}.webp`;
+    const thumbKey = `products/${tenantIdStr}/${stamp}-thumb.webp`;
+
+    // Strip EXIF via sharp pipeline; full + thumb WebP
+    const fullBuf = await sharp(req.file.buffer)
+      .rotate()
+      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+    const thumbBuf = await sharp(req.file.buffer)
+      .rotate()
+      .resize({ width: 256, height: 256, fit: 'cover' })
+      .webp({ quality: 75 })
+      .toBuffer();
+
+    const [{ url }, { url: thumbUrl }] = await Promise.all([
+      saveUploadBuffer({ buffer: fullBuf, key: fullKey, contentType: 'image/webp', publicUrlPath: `/uploads/${fullKey}` }),
+      saveUploadBuffer({ buffer: thumbBuf, key: thumbKey, contentType: 'image/webp', publicUrlPath: `/uploads/${thumbKey}` }),
+    ]);
+
+    const isPrimary = images.length === 0 || req.body.isPrimary === 'true' || req.body.isPrimary === true;
+    if (isPrimary) {
+      images.forEach((img) => { img.isPrimary = false; });
+    }
+    images.push({
+      url,
+      thumbUrl,
+      isPrimary,
+      alt: req.body.alt || product.nameEn || '',
+      sortOrder: images.length,
+    });
+    product.images = images;
+    await product.save();
+    res.status(201).json({ images: product.images });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch('/:id/images', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const product = await Product.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    let images = Array.isArray(product.images) ? [...product.images] : [];
+
+    if (Array.isArray(req.body.order)) {
+      const byUrl = new Map(images.map((img) => [img.url, img]));
+      images = req.body.order.map((url, i) => {
+        const img = byUrl.get(url);
+        if (!img) return null;
+        return { ...img.toObject?.() || img, sortOrder: i };
+      }).filter(Boolean);
+    }
+    if (req.body.primaryUrl) {
+      images = images.map((img) => ({
+        ...img.toObject?.() || img,
+        isPrimary: img.url === req.body.primaryUrl,
+      }));
+    }
+    if (req.body.removeUrl) {
+      images = images.filter((img) => img.url !== req.body.removeUrl);
+      if (images.length && !images.some((img) => img.isPrimary)) {
+        images[0].isPrimary = true;
+      }
+    }
+    product.images = images;
+    await product.save();
+    res.json({ images: product.images });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

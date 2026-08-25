@@ -359,7 +359,7 @@ export default function Products() {
                           <div className="flex items-center gap-3">
                             <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
                               {product.images?.[0] ? (
-                                <img src={product.images[0].url} alt="" className="h-full w-full object-cover" />
+                                <img src={product.images[0].thumbUrl || product.images[0].url} alt="" className="h-full w-full object-cover" />
                               ) : (
                                 <Package className="h-5 w-5 text-slate-400" />
                               )}

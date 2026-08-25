@@ -116,11 +116,27 @@ const productSchema = new mongoose.Schema({
   landedCostHistory: [landedCostSchema],
   averageLandedCost: { type: Number, default: 0 },
   
-  // Images
+  // Images (main + up to 8 extras; thumbUrl for list views)
   images: [{
     url: { type: String },
+    thumbUrl: { type: String },
     isPrimary: { type: Boolean, default: false },
-    alt: { type: String }
+    alt: { type: String },
+    sortOrder: { type: Number, default: 0 },
+  }],
+
+  /**
+   * Attribute lines for this product template (variants tab).
+   * createVariantMode: always | dynamic | never
+   */
+  attributeLines: [{
+    attributeId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductAttribute', required: true },
+    valueIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'InvAttributeValue' }],
+    createVariantMode: {
+      type: String,
+      enum: ['always', 'dynamic', 'never'],
+      default: 'always',
+    },
   }],
   
   // Supplier Info

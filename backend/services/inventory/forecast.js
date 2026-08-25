@@ -5,7 +5,7 @@ import InvLocation from '../../models/inventory/InvLocation.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { getInternalLocationIds } from './locationHelpers.js';
 
-export async function computeOnHand(tenantId, productId, { warehouseId, locationId } = {}) {
+export async function computeOnHand(tenantId, productId, { warehouseId, locationId, variantId } = {}) {
   const tid = toObjectId(tenantId);
   let locationFilter = {};
 
@@ -29,11 +29,16 @@ export async function computeOnHand(tenantId, productId, { warehouseId, location
     locationFilter = { locationId: { $in: internalLocs.map((l) => l._id) } };
   }
 
-  const quants = await InvQuant.find({
+  const quantFilter = {
     tenantId: tid,
     productId: toObjectId(productId),
     ...locationFilter,
-  }).lean();
+  };
+  if (variantId != null && variantId !== '') {
+    quantFilter.variantId = toObjectId(variantId);
+  }
+
+  const quants = await InvQuant.find(quantFilter).lean();
 
   let onHand = D(0);
   let reserved = D(0);
@@ -49,9 +54,9 @@ export async function computeOnHand(tenantId, productId, { warehouseId, location
   };
 }
 
-export async function computeForecast(tenantId, productId, { warehouseId } = {}) {
+export async function computeForecast(tenantId, productId, { warehouseId, variantId } = {}) {
   const tid = toObjectId(tenantId);
-  const { onHand, reserved, freeToUse } = await computeOnHand(tenantId, productId, { warehouseId });
+  const { onHand, reserved, freeToUse } = await computeOnHand(tenantId, productId, { warehouseId, variantId });
 
   const internalLocs = await InvLocation.find({
     tenantId: tid,
@@ -61,11 +66,15 @@ export async function computeForecast(tenantId, productId, { warehouseId } = {})
   }).select('_id').lean();
   const internalIds = new Set(internalLocs.map((l) => String(l._id)));
 
-  const pendingMoves = await InvMove.find({
+  const moveFilter = {
     tenantId: tid,
     productId: toObjectId(productId),
     state: { $in: ['waiting', 'confirmed', 'partiallyAvailable', 'assigned'] },
-  }).lean();
+  };
+  if (variantId != null && variantId !== '') {
+    moveFilter.variantId = toObjectId(variantId);
+  }
+  const pendingMoves = await InvMove.find(moveFilter).lean();
 
   let incoming = D(0);
   let outgoing = D(0);
