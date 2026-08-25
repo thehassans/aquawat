@@ -218,7 +218,9 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Sale/PoS/Purchase | Mapped to existing `canBeSold` / `canBeSoldOnPos` / `canBePurchased` |
 | Track Inventory off | Blocked while legacy or engine stock exists |
 | Picking form | Partner, op-type-driven locations, barcode scan [flag], detailed ops tab, signature capture, lightweight chatter (log notes on transfer.note) |
-| Variants / Attributes | Still deferred (placeholder routes) — needs Step 4+ attributes model |
+| Variants / Attributes | Shipped — `InvProductAttribute` / values / `InvProductVariant`; see later section |
+
+
 | Full Odoo chatter | Not ported; inventory uses transfer note trail only |
 
 ## v2 IA — Step 5 (Report family + reconciliation)
@@ -284,7 +286,17 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | References | Procurement groups list |
 | Delivery methods | Fixed-price carriers CRUD |
 | Shipping connectors | Flag status + stub rows (no live APIs) |
-| Variants / Attributes | Explicit deferred pages (engine has `variantId` only) |
+| Variants / Attributes | Real pages — see Attributes & variants below |
+
+## Attributes & variants
+
+| Topic | Decision |
+|---|---|
+| Models | `InvProductAttribute`, `InvAttributeValue`, `InvProductVariant` |
+| Stock key | Unchanged — quants/moves use `productId` + `variantId` (never direct write) |
+| Generate | Cartesian of active `createVariant` attribute values; skip existing `combinationKey` |
+| Transfers | `createTransfer` accepts `line.variantId`; picking prompts when product has variants |
+| Settings | `groupProductVariant` gates menu + create APIs |
 
 ## XLSX import wrap
 

@@ -32,3 +32,6 @@ export { default as InvDeliveryCarrier } from './InvDeliveryCarrier.js';
 export { default as InvProductStockCache } from './InvProductStockCache.js';
 export { default as InvConfigAudit } from './InvConfigAudit.js';
 export { default as InvIdempotencyKey } from './InvIdempotencyKey.js';
+export { default as InvProductAttribute } from './InvProductAttribute.js';
+export { default as InvAttributeValue } from './InvAttributeValue.js';
+export { default as InvProductVariant } from './InvProductVariant.js';

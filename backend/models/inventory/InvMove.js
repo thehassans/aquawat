@@ -10,7 +10,7 @@ const schema = new mongoose.Schema({
   reference: { type: String },
   origin: { type: String },
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-  variantId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   uomId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvUom', required: true },
   demandQty: { ...decimalField, default: '0' },
   demandQtyNum: { ...decimal128Field },

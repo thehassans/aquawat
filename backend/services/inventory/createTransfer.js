@@ -89,6 +89,19 @@ export async function createTransfer(tenantId, payload, userId = null) {
       const product = await Product.findOne({ _id: line.productId, tenantId: tid }).session(session);
       if (!product) throw new InventoryValidationError(`Product ${line.productId} not found`, 'PRODUCT_NOT_FOUND');
 
+      if (line.variantId) {
+        const { default: InvProductVariant } = await import('../../models/inventory/InvProductVariant.js');
+        const variant = await InvProductVariant.findOne({
+          _id: line.variantId,
+          tenantId: tid,
+          productId: product._id,
+          active: true,
+        }).session(session).lean();
+        if (!variant) {
+          throw new InventoryValidationError('Variant not found for product', 'VARIANT_NOT_FOUND');
+        }
+      }
+
       const uomId = line.uomId || product.uomId || defaultUom?._id;
       if (!uomId) throw new InventoryValidationError('UoM required — run bootstrap first', 'UOM_REQUIRED');
 
@@ -103,6 +116,7 @@ export async function createTransfer(tenantId, payload, userId = null) {
         reference: name,
         origin: payload.origin,
         productId: product._id,
+        variantId: line.variantId ? toObjectId(line.variantId) : null,
         uomId,
         demandQty: qty,
         unitCost: line.unitCost != null && line.unitCost !== '' ? String(line.unitCost) : undefined,

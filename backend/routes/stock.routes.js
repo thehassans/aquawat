@@ -485,6 +485,7 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
     await assertTransferWarehouseAccess(req, transfer);
     const moves = await InvMove.find({ tenantId: req.user.tenantId, transferId: transfer._id })
       .populate('productId', 'nameEn nameAr sku barcode unitOfMeasure tracking')
+      .populate('variantId', 'name nameAr sku barcode')
       .lean();
     const moveLines = await InvMoveLine.find({
       tenantId: req.user.tenantId,
@@ -517,6 +518,7 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
         showLotsOnDeliverySlips: !!(settings.showLotsOnDeliverySlips || settings.groupLotOnDeliverySlip),
         emailConfirmationOnDelivery: !!settings.emailConfirmationOnDelivery,
         stockSmsConfirmation: !!settings.stockSmsConfirmation,
+        variantsEnabled: !!settings.groupProductVariant,
       },
     });
   } catch (err) {
@@ -927,6 +929,112 @@ router.get('/lots/:id/traceability', checkPermission('inventory', 'read'), async
     const tree = await lotTraceability(req.user.tenantId, req.params.id);
     if (!tree) return res.status(404).json({ error: 'Lot not found' });
     res.json(tree);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Product attributes & variants ──────────────────────────────────
+
+router.get('/attributes', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listAttributes } = await import('../services/inventory/variants.js');
+    const items = await listAttributes(req.user.tenantId, {
+      activeOnly: req.query.active !== 'false',
+    });
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/attributes', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { createAttribute } = await import('../services/inventory/variants.js');
+    res.status(201).json(await createAttribute(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/attributes/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { updateAttribute } = await import('../services/inventory/variants.js');
+    res.json(await updateAttribute(req.user.tenantId, req.params.id, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/attributes/:id/values', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listAttributeValues } = await import('../services/inventory/variants.js');
+    res.json({ items: await listAttributeValues(req.user.tenantId, req.params.id) });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/attributes/:id/values', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { createAttributeValue } = await import('../services/inventory/variants.js');
+    res.status(201).json(await createAttributeValue(
+      req.user.tenantId,
+      req.user._id,
+      req.params.id,
+      req.body,
+    ));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/attribute-values/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { updateAttributeValue } = await import('../services/inventory/variants.js');
+    res.json(await updateAttributeValue(req.user.tenantId, req.params.id, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/variants', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listVariants } = await import('../services/inventory/variants.js');
+    const items = await listVariants(req.user.tenantId, {
+      productId: req.query.productId,
+      q: req.query.q,
+      activeOnly: req.query.active !== 'false',
+      limit: req.query.limit,
+    });
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/variants', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { createVariant } = await import('../services/inventory/variants.js');
+    res.status(201).json(await createVariant(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/variants/generate', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { generateVariants } = await import('../services/inventory/variants.js');
+    res.json(await generateVariants(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/variants/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { updateVariant } = await import('../services/inventory/variants.js');
+    res.json(await updateVariant(req.user.tenantId, req.params.id, req.user._id, req.body));
   } catch (err) {
     handleInventoryError(res, err);
   }

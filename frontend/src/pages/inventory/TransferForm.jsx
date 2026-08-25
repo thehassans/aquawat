@@ -91,6 +91,7 @@ export default function TransferForm() {
     showDetailedOps: false,
     lotsEnabled: !!(settings?.groupProductionLot || settings?.groupStockTrackingLot),
     showLotsOnDeliverySlips: !!(settings?.showLotsOnDeliverySlips || settings?.groupLotOnDeliverySlip),
+    variantsEnabled: !!settings?.groupProductVariant,
   }
 
   const activeOpType = useMemo(
@@ -179,13 +180,46 @@ export default function TransferForm() {
       origin: form.origin,
       note: form.note,
       priority: form.priority,
-      lines: lines.map((l) => ({ productId: l.productId, demandQty: l.demandQty })),
+      lines: lines.map((l) => ({
+        productId: l.productId,
+        demandQty: l.demandQty,
+        variantId: l.variantId || undefined,
+      })),
     })
   }
 
-  const pickProduct = (product) => {
+  const pickProduct = async (product) => {
+    let variantId = null
+    let variantName = ''
+    if (hints.variantsEnabled || settings?.groupProductVariant) {
+      try {
+        const { items = [] } = await api.get('/stock/variants', {
+          params: { productId: product._id, limit: 50 },
+        }).then((r) => r.data)
+        if (items.length === 1) {
+          variantId = items[0]._id
+          variantName = items[0].name
+        } else if (items.length > 1) {
+          const labels = items.map((v, i) => `${i + 1}. ${v.name}`).join('\n')
+          const choice = window.prompt(
+            (ar ? 'اختر متغيرًا (رقم):\n' : 'Pick a variant (number):\n') + labels,
+            '1',
+          )
+          const idx = Math.max(0, (Number(choice) || 1) - 1)
+          if (items[idx]) {
+            variantId = items[idx]._id
+            variantName = items[idx].name
+          }
+        }
+      } catch {
+        /* variants optional */
+      }
+    }
+
     setForm((f) => {
-      const existing = f.lines.findIndex((l) => String(l.productId) === String(product._id))
+      const lineKey = (l) => `${l.productId}:${l.variantId || ''}`
+      const nextKey = `${product._id}:${variantId || ''}`
+      const existing = f.lines.findIndex((l) => lineKey(l) === nextKey)
       if (existing >= 0) {
         const lines = [...f.lines]
         const nextQty = String(Number(lines[existing].demandQty || 0) + 1)
@@ -201,6 +235,8 @@ export default function TransferForm() {
             productName: ar && product.nameAr ? product.nameAr : product.name,
             sku: product.sku,
             demandQty: '1',
+            variantId,
+            variantName,
           },
         ],
       }
@@ -211,6 +247,37 @@ export default function TransferForm() {
     const q = barcodeBuf.trim()
     if (!q) return
     try {
+      if (hints.variantsEnabled || settings?.groupProductVariant) {
+        const variants = await api.get('/stock/variants', { params: { q, limit: 5 } }).then((r) => r.data?.items || [])
+        const hit = variants.find((v) => v.barcode === q || v.sku === q)
+        if (hit?.productId) {
+          const product = typeof hit.productId === 'object'
+            ? hit.productId
+            : { _id: hit.productId, name: hit.productId?.nameEn, sku: hit.productId?.sku }
+          setForm((f) => {
+            const nextKey = `${product._id || hit.productId}:${hit._id}`
+            const existing = f.lines.findIndex((l) => `${l.productId}:${l.variantId || ''}` === nextKey)
+            if (existing >= 0) {
+              const lines = [...f.lines]
+              lines[existing] = { ...lines[existing], demandQty: String(Number(lines[existing].demandQty || 0) + 1) }
+              return { ...f, lines }
+            }
+            return {
+              ...f,
+              lines: [...f.lines, {
+                productId: product._id || hit.productId,
+                productName: product.nameEn || product.name || hit.name,
+                sku: product.sku || hit.sku,
+                demandQty: '1',
+                variantId: hit._id,
+                variantName: hit.name,
+              }],
+            }
+          })
+          setBarcodeBuf('')
+          return
+        }
+      }
       const product = await api.get('/products/lookup', { params: { barcode: q } }).then((r) => r.data).catch(async () => {
         return api.get('/products/lookup', { params: { sku: q } }).then((r) => r.data)
       })
@@ -218,15 +285,10 @@ export default function TransferForm() {
         toast.error(ar ? 'غير موجود' : 'Not found')
         return
       }
-      pickProduct({
-        _id: product._id,
-        name: product.nameEn || product.name,
-        nameAr: product.nameAr,
-        sku: product.sku,
-      })
+      await pickProduct(product)
       setBarcodeBuf('')
-    } catch (e) {
-      toast.error(e.response?.data?.error || e.message)
+    } catch {
+      toast.error(ar ? 'غير موجود' : 'Not found')
     }
   }
 
@@ -470,10 +532,13 @@ export default function TransferForm() {
             ) : (
               <div className="space-y-2">
                 {form.lines.map((line, idx) => (
-                  <div key={line.productId} className="grid items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2 sm:grid-cols-[1fr_120px_40px] dark:border-dark-600 dark:bg-dark-900/40">
+                  <div key={`${line.productId}:${line.variantId || ''}`} className="grid items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2 sm:grid-cols-[1fr_120px_40px] dark:border-dark-600 dark:bg-dark-900/40">
                     <div>
                       <div className="font-medium text-slate-900 dark:text-white">{line.productName}</div>
-                      {line.sku ? <div className="text-xs text-slate-400">SKU {line.sku}</div> : null}
+                      <div className="text-xs text-slate-400">
+                        {line.sku ? `SKU ${line.sku}` : ''}
+                        {line.variantName ? `${line.sku ? ' · ' : ''}${line.variantName}` : ''}
+                      </div>
                     </div>
                     <input
                       className="input"
@@ -590,6 +655,9 @@ export default function TransferForm() {
                               {label}
                             </Link>
                           ) : label}
+                          {m.variantId?.name ? (
+                            <div className="text-xs text-slate-400">{m.variantId.name}</div>
+                          ) : null}
                         </td>
                         <td className="py-2 tabular-nums">{m.demandQty}</td>
                         <td className="py-2 tabular-nums">{m.doneQty}</td>

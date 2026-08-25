@@ -29,7 +29,7 @@ export const SETTINGS_EFFECTS = {
   groupAdvLocation: 'multi_step_routes_force_multi_loc',
   groupStockStorageCategories: 'storage_categories_menu',
   groupPutawayRules: 'putaway_menu_and_resolve',
-  groupProductVariant: 'variants_menu_placeholder',
+  groupProductVariant: 'attributes_variants_crud_and_move_variantId',
   groupStockPackaging: 'packages_enforced_on_moves',
   groupProductionLot: 'lots_enforced_on_moves',
   groupLandedCosts: 'landed_costs_menu_and_post',

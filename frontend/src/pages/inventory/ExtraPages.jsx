@@ -397,36 +397,3 @@ export function ShippingConnectorsPage() {
     </div>
   )
 }
-
-export function VariantsDeferredPage() {
-  const { language } = useSelector((s) => s.ui)
-  const ar = language === 'ar'
-  return (
-    <div className="space-y-3" dir={ar ? 'rtl' : 'ltr'}>
-      <h2 className="text-lg font-semibold">{ar ? 'متغيرات المنتج' : 'Product variants'}</h2>
-      <p className="text-sm text-slate-500">
-        {ar
-          ? 'مؤجّل عمدًا — يحتاج نموذج سمات/متغيرات قبل واجهة كاملة. المحرك يدعم variantId على الكميات.'
-          : 'Intentionally deferred — needs an attributes/variants model before a full UI. The engine already accepts variantId on quants.'}
-      </p>
-      <Link to="/app/dashboard/inventory/products" className="text-sm text-primary-600 hover:underline">
-        {ar ? '← المنتجات' : '← Products'}
-      </Link>
-    </div>
-  )
-}
-
-export function AttributesDeferredPage() {
-  const { language } = useSelector((s) => s.ui)
-  const ar = language === 'ar'
-  return (
-    <div className="space-y-3" dir={ar ? 'rtl' : 'ltr'}>
-      <h2 className="text-lg font-semibold">{ar ? 'السمات' : 'Attributes'}</h2>
-      <p className="text-sm text-slate-500">
-        {ar
-          ? 'مؤجّل مع المتغيرات — لا نموذج سمات مستقل بعد.'
-          : 'Deferred with variants — no standalone attributes model yet.'}
-      </p>
-    </div>
-  )
-}

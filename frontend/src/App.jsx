@@ -102,8 +102,8 @@ const ReturnsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) =
 const ReferencesPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReferencesPage })))
 const DeliveryMethodsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.DeliveryMethodsPage })))
 const ShippingConnectorsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ShippingConnectorsPage })))
-const VariantsDeferredPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.VariantsDeferredPage })))
-const AttributesDeferredPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.AttributesDeferredPage })))
+const AttributesPage = lazy(() => import('./pages/inventory/VariantPages').then((m) => ({ default: m.AttributesPage })))
+const VariantsPage = lazy(() => import('./pages/inventory/VariantPages').then((m) => ({ default: m.VariantsPage })))
 const LocationsPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationsPage })))
 const LocationForm = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationForm })))
 const OperationTypesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.OperationTypesPage })))
@@ -817,7 +817,7 @@ function App() {
           <Route path="barcode" element={<BarcodeNomenclaturePage />} />
           <Route path="returns" element={<ReturnsPage />} />
           <Route path="references" element={<ReferencesPage />} />
-          <Route path="variants" element={<VariantsDeferredPage />} />
+          <Route path="variants" element={<VariantsPage />} />
           <Route path="packages" element={<PackagesPage />} />
           <Route path="report/locations" element={<LocationsReportPage />} />
           <Route path="report/reconcile" element={<ReconcileReportPage />} />
@@ -833,7 +833,7 @@ function App() {
           <Route path="product-categories" element={<ProductCategoriesPage />} />
           <Route path="product-categories/new" element={<ProductCategoryForm />} />
           <Route path="product-categories/:id/edit" element={<ProductCategoryForm />} />
-          <Route path="attributes" element={<AttributesDeferredPage />} />
+          <Route path="attributes" element={<AttributesPage />} />
           <Route path="uom" element={<InventoryUomPage />} />
           <Route path="delivery-methods" element={<DeliveryMethodsPage />} />
           <Route path="shipping-connectors" element={<ShippingConnectorsPage />} />
