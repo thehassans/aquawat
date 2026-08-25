@@ -297,7 +297,14 @@ router.post('/login', async (req, res) => {
     }
     
     if (user.lockUntil && user.lockUntil > now) {
-      return res.status(401).json({ error: 'Account is temporarily locked' });
+      const retryAfterMs = user.lockUntil - now;
+      const retryAfterMinutes = Math.max(1, Math.ceil(retryAfterMs / 60000));
+      return res.status(401).json({
+        error: `Account is temporarily locked. Try again in about ${retryAfterMinutes} minute(s).`,
+        code: 'ACCOUNT_LOCKED',
+        retryAfterMinutes,
+        lockUntil: user.lockUntil,
+      });
     }
     
     const isMatch = passwordAlreadyVerified ? true : await user.comparePassword(password);
@@ -310,14 +317,22 @@ router.post('/login', async (req, res) => {
         },
       };
 
+      // Lock after 5 failures for 15 minutes (was 30)
       if (failedLoginAttempts >= 5) {
-        failedUpdate.$set.lockUntil = new Date(Date.now() + 30 * 60 * 1000);
+        failedUpdate.$set.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
       } else if (hadExpiredLock) {
         failedUpdate.$unset = { lockUntil: 1 };
       }
 
       await withQueryTimeout(User.updateOne({ _id: user._id }, failedUpdate));
-      return res.status(401).json({ error: 'Invalid credentials' });
+      const remaining = Math.max(0, 5 - failedLoginAttempts);
+      return res.status(401).json({
+        error: remaining > 0
+          ? `Invalid credentials (${remaining} attempt(s) left before lock)`
+          : 'Invalid credentials. Account locked for 15 minutes.',
+        code: remaining > 0 ? 'INVALID_CREDENTIALS' : 'ACCOUNT_LOCKED',
+        attemptsRemaining: remaining,
+      });
     }
     
     // Reset login attempts on successful login — fire-and-forget so the response

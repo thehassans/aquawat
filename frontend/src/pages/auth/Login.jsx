@@ -67,11 +67,19 @@ export default function Login() {
   const errorStr = typeof error === 'string' ? error : (error ? String(error?.message || error?.error || '') : '')
   const isAccountNotFound = /account does not exist|الحساب غير موجود/i.test(errorStr)
   const isInvalidCredentials = /invalid credentials|بيانات الدخول غير صحيحة|incorrect/i.test(errorStr)
-  const isAccountLocked = /temporarily locked|مؤقتاً مقفل|مؤقتاً مغلق/i.test(errorStr)
+  const isAccountLocked = /temporarily locked|ACCOUNT_LOCKED|مؤقتاً مقفل|مؤقتاً مغلق/i.test(errorStr)
+  const lockMinutesMatch = errorStr.match(/about\s+(\d+)\s+minute/i)
+  const lockMinutes = lockMinutesMatch ? Number(lockMinutesMatch[1]) : null
   const friendlyError = (isInvalidCredentials || isAccountNotFound)
     ? (language === 'ar' ? 'اسم المستخدم أو كلمة المرور قد تكون غير صحيحة. يرجى المحاولة مرة أخرى.' : 'Username or password may not exist. Please try again.')
     : isAccountLocked
-    ? (language === 'ar' ? 'تم قفل الحساب مؤقتاً بسبب محاولات كثيرة. حاول مرة أخرى لاحقاً.' : 'Account is temporarily locked due to too many attempts. Please try again later.')
+    ? (language === 'ar'
+      ? (lockMinutes
+        ? `تم قفل الحساب مؤقتاً بسبب محاولات كثيرة. حاول مرة أخرى خلال حوالي ${lockMinutes} دقيقة.`
+        : 'تم قفل الحساب مؤقتاً بسبب محاولات كثيرة. حاول مرة أخرى لاحقاً (حتى 15 دقيقة).')
+      : (lockMinutes
+        ? `Account is temporarily locked due to too many attempts. Try again in about ${lockMinutes} minute(s).`
+        : 'Account is temporarily locked due to too many attempts. Please try again in up to 15 minutes.'))
     : errorStr
 
   const demoEmail = searchParams.get('demoEmail')

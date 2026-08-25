@@ -558,6 +558,13 @@ router.put('/:id', checkPermission('settings', 'update'), async (req, res) => {
       const password = String(req.body.password);
       if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
       existing.password = password;
+      existing.loginAttempts = 0;
+      existing.lockUntil = undefined;
+    }
+
+    if (req.body?.unlockAccount === true) {
+      existing.loginAttempts = 0;
+      existing.lockUntil = undefined;
     }
 
     await existing.save();
