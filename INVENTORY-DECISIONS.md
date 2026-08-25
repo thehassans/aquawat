@@ -273,3 +273,14 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Settings effects registry | Every `SETTINGS_ALLOWED` flag maps to `SETTINGS_EFFECTS`; `GET /stock/settings?include=effects` |
 | Carrier stubs | Enabling `moduleCarrier*` upserts `InvDeliveryCarrier` with `installed: false` |
 | Reconcile stress | In-memory 100 random ops (FIFO/AVCO/standard) assert zero value/qty drift — no Mongo required |
+
+## Placeholder cleanup
+
+| Screen | Status |
+|---|---|
+| Packages | Real list + create package/type (`ExtraPages`) |
+| Returns | Done-transfer list → return wizard |
+| References | Procurement groups list |
+| Delivery methods | Fixed-price carriers CRUD |
+| Shipping connectors | Flag status + stub rows (no live APIs) |
+| Variants / Attributes | Explicit deferred pages (engine has `variantId` only) |

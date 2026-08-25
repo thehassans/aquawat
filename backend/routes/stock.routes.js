@@ -1123,6 +1123,56 @@ router.get('/packages', checkPermission('inventory', 'read'), async (req, res) =
   }
 });
 
+router.post('/packages', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const settings = await getInvSettings(req.user.tenantId);
+    if (!(settings.groupStockTrackingLot || settings.groupStockPackaging)) {
+      return res.status(400).json({ error: 'Packages are disabled in settings', code: 'PACKAGES_DISABLED' });
+    }
+    res.status(201).json(await InvPackage.create({
+      tenantId: req.user.tenantId,
+      name: req.body.name,
+      packageTypeId: req.body.packageTypeId || null,
+      locationId: req.body.locationId || null,
+      createdBy: req.user._id,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/delivery-carriers', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { default: InvDeliveryCarrier } = await import('../models/inventory/InvDeliveryCarrier.js');
+    const items = await InvDeliveryCarrier.find({ tenantId: req.user.tenantId })
+      .sort({ name: 1 })
+      .lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/delivery-carriers', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { default: InvDeliveryCarrier } = await import('../models/inventory/InvDeliveryCarrier.js');
+    const doc = await InvDeliveryCarrier.create({
+      tenantId: req.user.tenantId,
+      name: req.body.name || 'Carrier',
+      nameAr: req.body.nameAr,
+      carrierType: req.body.carrierType || 'fixed',
+      providerCode: req.body.providerCode || 'none',
+      fixedPrice: req.body.fixedPrice != null ? String(req.body.fixedPrice) : '0',
+      installed: false,
+      active: req.body.active !== false,
+      createdBy: req.user._id,
+    });
+    res.status(201).json(doc);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/product-packagings', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const filter = { ...req.tenantFilter, active: { $ne: false } };

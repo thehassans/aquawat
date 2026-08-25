@@ -97,7 +97,13 @@ const InventorySettingsPage = lazy(() => import('./pages/inventory/InventorySett
 const ImportExportPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ImportExportPage })))
 const BarcodeNomenclaturePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.BarcodeNomenclaturePage })))
 const ExceptionsQueuePage = lazy(() => import('./pages/inventory/ExceptionsQueuePage'))
-const InventoryPlaceholder = lazy(() => import('./pages/inventory/InventoryPlaceholder'))
+const PackagesPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.PackagesPage })))
+const ReturnsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReturnsPage })))
+const ReferencesPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReferencesPage })))
+const DeliveryMethodsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.DeliveryMethodsPage })))
+const ShippingConnectorsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ShippingConnectorsPage })))
+const VariantsDeferredPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.VariantsDeferredPage })))
+const AttributesDeferredPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.AttributesDeferredPage })))
 const LocationsPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationsPage })))
 const LocationForm = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationForm })))
 const OperationTypesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.OperationTypesPage })))
@@ -809,10 +815,10 @@ function App() {
           <Route path="import-export" element={<ImportExportPage />} />
           <Route path="exceptions" element={<ExceptionsQueuePage />} />
           <Route path="barcode" element={<BarcodeNomenclaturePage />} />
-          <Route path="returns" element={<InventoryPlaceholder titleEn="Returns" titleAr="المرتجعات" step={3} />} />
-          <Route path="references" element={<InventoryPlaceholder titleEn="References" titleAr="المراجع" step={3} />} />
-          <Route path="variants" element={<InventoryPlaceholder titleEn="Product Variants" titleAr="متغيرات المنتج" step={4} />} />
-          <Route path="packages" element={<InventoryPlaceholder titleEn="Packages" titleAr="الطرود" step={3} />} />
+          <Route path="returns" element={<ReturnsPage />} />
+          <Route path="references" element={<ReferencesPage />} />
+          <Route path="variants" element={<VariantsDeferredPage />} />
+          <Route path="packages" element={<PackagesPage />} />
           <Route path="report/locations" element={<LocationsReportPage />} />
           <Route path="report/reconcile" element={<ReconcileReportPage />} />
           <Route path="locations" element={<LocationsPage />} />
@@ -827,10 +833,10 @@ function App() {
           <Route path="product-categories" element={<ProductCategoriesPage />} />
           <Route path="product-categories/new" element={<ProductCategoryForm />} />
           <Route path="product-categories/:id/edit" element={<ProductCategoryForm />} />
-          <Route path="attributes" element={<InventoryPlaceholder titleEn="Attributes" titleAr="السمات" step={4} />} />
+          <Route path="attributes" element={<AttributesDeferredPage />} />
           <Route path="uom" element={<InventoryUomPage />} />
-          <Route path="delivery-methods" element={<InventoryPlaceholder titleEn="Delivery Methods" titleAr="طرق التسليم" step={3} />} />
-          <Route path="shipping-connectors" element={<InventoryPlaceholder titleEn="Shipping Connectors" titleAr="موصلات الشحن" step={3} />} />
+          <Route path="delivery-methods" element={<DeliveryMethodsPage />} />
+          <Route path="shipping-connectors" element={<ShippingConnectorsPage />} />
         </Route>
         <Route path="suppliers" element={<BusinessTypeRoute allowedTypes={['trading']}><Suppliers /></BusinessTypeRoute>} />
         <Route path="suppliers/new" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
