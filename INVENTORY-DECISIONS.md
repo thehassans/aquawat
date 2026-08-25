@@ -532,4 +532,16 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Rate limit | `stockHeavyLimiter` (30/min/tenant) on export, scheduler run, stock report, moves-analysis, integrity run |
 | Repair | Cache mismatches suggest `POST /stock/report/reconcile/repair-cache`; never edit done ledger rows |
 
+## v3 P2 — API contract + Jobs UI (§3.3–3.4 slice)
+
+| Topic | Decision |
+|---|---|
+| Error envelope | `{ error: { code, message, messageAr, field?, details? } }` via `sendInvError`; FE `getApiErrorMessage` unwraps string or object |
+| Typed codes | Catalog in `errors.js` for brief minimum set + bilingual next-step copy; `invError(code)` helper |
+| Zod | Boundary schemas on validate / pos-consume / apply-count / integrity-run (`invValidate.js`); passthrough unknown keys for FE compat |
+| List envelope | `listEnvelope` + dual `{ data, _meta }` / `{ items }` on `GET /stock/jobs` (gradual rollout — not all lists rewritten) |
+| Write conflict | `runWithTransaction` one retry + jitter; exhaust → `WRITE_CONFLICT` 409 |
+| Advisory lock | Shared `acquireAdvisoryLock` helper (validate still uses transfer `validateLock`) |
+| Jobs UI | `/inventory/jobs` lists `InvJobRun`; scheduler success/fail also mirrors into JobRun |
+
 

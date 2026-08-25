@@ -317,6 +317,29 @@ export async function runScheduler(tenantId, {
     await run.save();
 
     try {
+      const { startJobRun, finishJobRun } = await import('./jobRunner.js');
+      const job = await startJobRun(tid, { jobType: 'scheduler', trigger, userId });
+      await finishJobRun(job, {
+        status: errorLog.length ? 'partial' : 'ok',
+        counts: {
+          rulesEvaluated,
+          procurementsCreated,
+          reservationsRetried,
+          cacheAssertChecked,
+          cacheAssertMismatches,
+        },
+        errors: errorLog.slice(0, 50).map((e) => ({
+          code: e.code,
+          message: e.message,
+          at: e.at,
+        })),
+        result: { schedulerRunId: run._id },
+      });
+    } catch {
+      /* JobRun mirror is non-blocking */
+    }
+
+    try {
       const day = Number(settings?.annualInventoryDay) || 31;
       const month = Number(settings?.annualInventoryMonth) || 12;
       const now = new Date();
@@ -351,6 +374,22 @@ export async function runScheduler(tenantId, {
     run.status = 'failed';
     run.endedAt = new Date();
     await run.save();
+    try {
+      const { startJobRun, finishJobRun } = await import('./jobRunner.js');
+      const job = await startJobRun(tid, { jobType: 'scheduler', trigger, userId });
+      await finishJobRun(job, {
+        status: 'failed',
+        counts: { rulesEvaluated, procurementsCreated, reservationsRetried },
+        errors: run.errorLog.slice(0, 50).map((e) => ({
+          code: e.code,
+          message: e.message,
+          at: e.at,
+        })),
+        result: { schedulerRunId: run._id },
+      });
+    } catch {
+      /* non-blocking */
+    }
     throw err;
   }
 }

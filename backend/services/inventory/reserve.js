@@ -10,12 +10,13 @@ import { getInternalLocationIds, sortQuantsForRemoval, resolveRemovalStrategy } 
 import { atomicReserveQuant, applyQuantDelta } from './quantDelta.js';
 import InvLot from '../../models/inventory/InvLot.js';
 import { isLotExpired } from './lotService.js';
-import { InventoryValidationError } from './errors.js';
+import { InventoryConflictError, InventoryValidationError } from './errors.js';
+import { withWriteConflictRetry } from './advisoryLock.js';
 import { demandInProductUom } from './uomConvert.js';
 
 const MAX_CANDIDATE_RETRIES = 5;
 
-export async function runWithTransaction(fn) {
+async function runTransactionOnce(fn) {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
@@ -27,6 +28,25 @@ export async function runWithTransaction(fn) {
     throw err;
   } finally {
     session.endSession();
+  }
+}
+
+/**
+ * Mongo transaction with one automatic write-conflict retry + jitter.
+ * Exhausted retries → typed WRITE_CONFLICT (409).
+ */
+export async function runWithTransaction(fn) {
+  try {
+    return await withWriteConflictRetry(() => runTransactionOnce(fn), { retries: 1 });
+  } catch (err) {
+    if (err?.code === 112 || err?.codeName === 'WriteConflict'
+      || err?.errorLabels?.includes?.('TransientTransactionError')) {
+      throw new InventoryConflictError(
+        'Another concurrent stock update won — refresh and retry',
+        'WRITE_CONFLICT',
+      );
+    }
+    throw err;
   }
 }
 

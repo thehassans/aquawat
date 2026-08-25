@@ -99,6 +99,7 @@ const InventorySettingsPage = lazy(() => import('./pages/inventory/InventorySett
 const ImportExportPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ImportExportPage })))
 const BarcodeNomenclaturePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.BarcodeNomenclaturePage })))
 const ExceptionsQueuePage = lazy(() => import('./pages/inventory/ExceptionsQueuePage'))
+const InventoryJobsPage = lazy(() => import('./pages/inventory/InventoryJobsPage'))
 const PackagesPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.PackagesPage })))
 const ProductPackagingPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ProductPackagingPage })))
 const ReturnsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReturnsPage })))
@@ -828,6 +829,7 @@ function App() {
           <Route path="settings" element={<InventorySettingsPage />} />
           <Route path="import-export" element={<ImportExportPage />} />
           <Route path="exceptions" element={<ExceptionsQueuePage />} />
+          <Route path="jobs" element={<InventoryJobsPage />} />
           <Route path="barcode" element={<BarcodeNomenclaturePage />} />
           <Route path="quality-points" element={<QualityPointsPage />} />
           <Route path="returns" element={<ReturnsPage />} />

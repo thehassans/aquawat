@@ -24,7 +24,8 @@ export const getImageUrl = (url) => {
 }
 
 const getApiErrorMessage = (error) => {
-  const responseMessage = error.response?.data?.error
+  const raw = error.response?.data?.error
+  const responseMessage = typeof raw === 'string' ? raw : raw?.message
 
   if (responseMessage) {
     return responseMessage

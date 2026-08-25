@@ -139,6 +139,13 @@ export const INVENTORY_MENU_TREE = [
         href: '/app/dashboard/inventory/exceptions',
         permission: { module: 'inventory', action: 'read' },
       },
+      {
+        id: 'jobs',
+        label: 'Jobs',
+        labelAr: 'المهام',
+        href: '/app/dashboard/inventory/jobs',
+        permission: { module: 'inventory', action: 'read' },
+      },
     ],
   },
   {

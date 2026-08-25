@@ -26,11 +26,18 @@ import {
 import { computeOnHand, computeForecast } from '../services/inventory/forecast.js';
 import { migrateOpeningBalances } from '../services/inventory/migration.js';
 import { resolveWarehouseScope, warehouseFilter, assertWarehouseAccess } from '../services/inventory/warehouseScope.js';
-import { InventoryError } from '../services/inventory/errors.js';
+import { sendInvError } from '../services/inventory/apiContract.js';
 import { D, decStr } from '../utils/decimal.js';
 import { stockIdempotency } from '../middleware/stockIdempotency.js';
 import { stockQueryBudget } from '../middleware/invQueryBudget.js';
 import { stockHeavyLimiter } from '../middleware/stockHeavyLimit.js';
+import {
+  validateBody,
+  validateTransferBody,
+  posConsumeBody,
+  applyCountsBody,
+  integrityRunBody,
+} from '../middleware/invValidate.js';
 import { listLots, createLot } from '../services/inventory/lotService.js';
 import {
   listInventoryQuants,
@@ -96,15 +103,7 @@ router.use(stockIdempotency());
 router.use(stockQueryBudget({ max: 10 }));
 
 function handleInventoryError(res, err) {
-  if (err instanceof InventoryError) {
-    return res.status(err.status || 400).json({
-      error: err.message,
-      code: err.code,
-      ...(err.meta ? { meta: err.meta } : {}),
-    });
-  }
-  console.error('[inventory]', err);
-  return res.status(500).json({ error: err.message || 'Inventory error' });
+  return sendInvError(res, err);
 }
 
 async function assertMultiLocationsEnabled(tenantId) {
@@ -715,15 +714,17 @@ router.post('/transfers/:id/unreserve', checkPermission('inventory', 'update'), 
   }
 });
 
-router.post('/transfers/:id/validate', checkPermission('inventory', 'update'), async (req, res) => {
+router.post('/transfers/:id/validate', checkPermission('inventory', 'update'), validateBody(validateTransferBody), async (req, res) => {
   try {
     const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
-    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    if (!transfer) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Transfer not found', messageAr: 'التحويل غير موجود' } });
     await assertTransferWarehouseAccess(req, transfer);
     res.json(await validateTransfer(req.user.tenantId, req.params.id, {
       userId: req.user._id,
-      createBackorder: req.body.createBackorder,
-      immediate: req.body.immediate === true,
+      createBackorder: typeof req.validatedBody.createBackorder === 'boolean'
+        ? (req.validatedBody.createBackorder ? 'always' : 'never')
+        : req.validatedBody.createBackorder,
+      immediate: req.validatedBody.immediate === true,
     }));
   } catch (err) {
     handleInventoryError(res, err);
@@ -1117,12 +1118,12 @@ router.post('/physical-inventory/apply-preview', checkPermission('inventory', 'r
   }
 });
 
-router.post('/physical-inventory/apply', checkPermission('inventory', 'update'), async (req, res) => {
+router.post('/physical-inventory/apply', checkPermission('inventory', 'update'), validateBody(applyCountsBody), async (req, res) => {
   try {
     res.json(await applyInventoryCounts(req.user.tenantId, {
-      ids: req.body.ids,
-      accountingDate: req.body.accountingDate,
-      reason: req.body.reason,
+      ids: req.validatedBody.ids,
+      accountingDate: req.validatedBody.accountingDate,
+      reason: req.validatedBody.reason,
       userId: req.user._id,
     }));
   } catch (err) {
@@ -1651,10 +1652,10 @@ router.post('/pos-close', checkPermission('inventory', 'create'), async (req, re
 });
 
 /** PoS consume — create+validate pos picking (works without PoS UI). */
-router.post('/pos/consume', checkPermission('inventory', 'create'), async (req, res) => {
+router.post('/pos/consume', checkPermission('inventory', 'create'), validateBody(posConsumeBody), async (req, res) => {
   try {
     const { posConsume } = await import('../services/inventory/posManufacturing.js');
-    res.status(201).json(await posConsume(req.user.tenantId, req.user._id, req.body));
+    res.status(201).json(await posConsume(req.user.tenantId, req.user._id, req.validatedBody));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2531,15 +2532,15 @@ router.get('/exceptions', checkPermission('inventory', 'read'), async (req, res)
   }
 });
 
-router.post('/integrity/run', checkPermission('inventory', 'update'), stockHeavyLimiter, async (req, res) => {
+router.post('/integrity/run', checkPermission('inventory', 'update'), stockHeavyLimiter, validateBody(integrityRunBody), async (req, res) => {
   try {
     const { runIntegrityJob } = await import('../services/inventory/jobRunner.js');
     const { job, report } = await runIntegrityJob(req.user.tenantId, {
       trigger: 'manual',
       userId: req.user._id,
-      limit: Number(req.body?.limit) || undefined,
+      limit: req.validatedBody.limit,
     });
-    res.json({
+    const payload = {
       jobId: job._id,
       status: job.status,
       durationMs: job.durationMs,
@@ -2547,7 +2548,8 @@ router.post('/integrity/run', checkPermission('inventory', 'update'), stockHeavy
       checks: report.checks,
       failures: report.failures,
       ok: report.ok,
-    });
+    };
+    res.json({ data: payload, ...payload });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2567,10 +2569,20 @@ router.get('/integrity/latest', checkPermission('inventory', 'read'), async (req
 router.get('/jobs', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { listJobRuns } = await import('../services/inventory/jobRunner.js');
-    res.json(await listJobRuns(req.user.tenantId, {
+    const { listEnvelope } = await import('../services/inventory/apiContract.js');
+    const result = await listJobRuns(req.user.tenantId, {
       jobType: req.query.jobType || undefined,
       limit: Number(req.query.limit) || 40,
-    }));
+    });
+    res.json({
+      ...listEnvelope(result.items, {
+        total: result.total,
+        pageSize: Number(req.query.limit) || 40,
+        appliedFilters: { jobType: req.query.jobType || null },
+      }),
+      items: result.items,
+      total: result.total,
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
