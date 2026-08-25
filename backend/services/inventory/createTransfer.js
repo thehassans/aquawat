@@ -15,7 +15,7 @@ import Customer from '../../models/Customer.js';
 /**
  * Create a transfer with move lines.
  * @param {object} payload
- * @param {Array<{ productId, demandQty, uomId? }>} payload.lines
+ * @param {Array<{ productId, demandQty, uomId?, productPackagingId?, packagingQty? }>} payload.lines
  */
 export async function createTransfer(tenantId, payload, userId = null) {
   return runWithTransaction(async (session) => {
@@ -109,10 +109,30 @@ export async function createTransfer(tenantId, payload, userId = null) {
       const uomId = line.uomId || product.uomId || defaultUom?._id;
       if (!uomId) throw new InventoryValidationError('UoM required — run bootstrap first', 'UOM_REQUIRED');
 
-      const qty = decStr(line.demandQty || line.quantity || 0);
+      let qty = decStr(line.demandQty || line.quantity || 0);
+      let productPackagingId = null;
+      let packagingQty;
+
+      if (line.productPackagingId) {
+        if (!settings.groupStockPackaging) {
+          throw new InventoryValidationError('Product packagings are disabled', 'PACKAGING_DISABLED');
+        }
+        const { default: InvProductPackaging } = await import('../../models/inventory/InvProductPackaging.js');
+        const pack = await InvProductPackaging.findOne({
+          _id: line.productPackagingId,
+          tenantId: tid,
+          productId: product._id,
+          active: { $ne: false },
+        }).session(session).lean();
+        if (!pack) throw new InventoryValidationError('Packaging not found', 'PACKAGING_NOT_FOUND');
+        productPackagingId = pack._id;
+        const packs = D(line.packagingQty != null ? line.packagingQty : (line.demandQty || 1));
+        packagingQty = decStr(packs);
+        qty = decStr(packs.mul(D(pack.qty || 1)));
+      }
+
       if (D(qty).lte(0) && product.trackInventory !== false) {
-        // allow zero only if explicitly passed; skip empty
-        if (!line.demandQty && !line.quantity) continue;
+        if (!line.demandQty && !line.quantity && !line.productPackagingId) continue;
       }
 
       await InvMove.create([{
@@ -122,6 +142,8 @@ export async function createTransfer(tenantId, payload, userId = null) {
         productId: product._id,
         variantId: line.variantId ? toObjectId(line.variantId) : null,
         uomId,
+        productPackagingId,
+        packagingQty,
         demandQty: qty,
         unitCost: line.unitCost != null && line.unitCost !== '' ? String(line.unitCost) : undefined,
         sourceLocationId,

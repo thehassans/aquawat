@@ -70,6 +70,49 @@ export async function resolveStockAccounts(tenantId) {
   return { inventory, stockInput, stockOutput, landedCredit, cogs, settings };
 }
 
+/** Five accounts required on each Automated-valuation product category. */
+export const AUTOMATED_CATEGORY_ACCOUNT_KEYS = [
+  'stockValuationAccountId',
+  'stockInputAccountId',
+  'stockOutputAccountId',
+  'stockJournalId',
+  'expenseAccountId',
+];
+
+/**
+ * Validate automated categories have all five accounts set.
+ * Does **not** create or invent accounts — only reports gaps.
+ */
+export async function validateAutomatedCategoryAccounts(tenantId) {
+  const tid = toObjectId(tenantId);
+  const InvProductCategory = (await import('../../models/inventory/InvProductCategory.js')).default;
+  const cats = await InvProductCategory.find({
+    tenantId: tid,
+    valuationMode: 'automated',
+  }).select('name completePath valuationMode stockValuationAccountId stockInputAccountId stockOutputAccountId stockJournalId expenseAccountId incomeAccountId').lean();
+
+  const gaps = [];
+  for (const cat of cats) {
+    const missing = AUTOMATED_CATEGORY_ACCOUNT_KEYS.filter((k) => !cat[k]);
+    if (missing.length) {
+      gaps.push({
+        categoryId: cat._id,
+        name: cat.name,
+        completePath: cat.completePath,
+        missing,
+      });
+    }
+  }
+
+  return {
+    ok: gaps.length === 0,
+    automatedCount: cats.length,
+    gapCount: gaps.length,
+    gaps,
+    requiredKeys: AUTOMATED_CATEGORY_ACCOUNT_KEYS,
+  };
+}
+
 export async function isStockAccountingEnabled(tenantId) {
   const settings = await InvSettings.findOne({ tenantId: toObjectId(tenantId) }).lean();
   if (!settings?.engineEnabled) return false;

@@ -26,19 +26,24 @@ function Section({ title, children }) {
   )
 }
 
-function Toggle({ label, hint, checked, onChange, disabled }) {
+function Toggle({ label, hint, checked, onChange, disabled, notImplemented }) {
   return (
-    <label className={`flex items-start gap-3 text-sm ${disabled ? 'opacity-50' : ''}`}>
+    <label className={`flex items-start gap-3 text-sm ${disabled || notImplemented ? 'opacity-50' : ''}`}>
       <input
         type="checkbox"
         className="mt-0.5 rounded border-slate-300 text-primary-600"
         checked={!!checked}
-        disabled={disabled}
+        disabled={disabled || notImplemented}
         onChange={onChange}
       />
       <span>
         <span className="block text-slate-800 dark:text-slate-200">{label}</span>
         {hint && <span className="block text-xs text-slate-500">{hint}</span>}
+        {notImplemented && (
+          <span className="mt-0.5 block text-xs font-medium text-amber-700">
+            Not implemented
+          </span>
+        )}
       </span>
     </label>
   )
@@ -54,6 +59,7 @@ export default function InventorySettingsPage() {
   })
 
   const [draft, setDraft] = useState(null)
+  const [accountGaps, setAccountGaps] = useState(null)
   const current = draft || settings || {}
   const dirty = draft != null
 
@@ -89,7 +95,20 @@ export default function InventorySettingsPage() {
 
   const ensureAcc = useMutation({
     mutationFn: () => api.post('/stock/accounting/ensure-accounts'),
-    onSuccess: () => toast.success(ar ? 'تم تجهيز الحسابات' : 'Stock accounts ready'),
+    onSuccess: (res) => {
+      const data = res.data || {}
+      if (data.ok) {
+        toast.success(ar ? 'كل فئات التقييم الآلي مكتملة' : 'All automated categories have accounts')
+        setAccountGaps(null)
+      } else {
+        setAccountGaps(data)
+        toast(ar
+          ? `${data.gapCount} فئة تحتاج حسابات`
+          : `${data.gapCount} categor${data.gapCount === 1 ? 'y' : 'ies'} missing accounts`, {
+          icon: '⚠️',
+        })
+      }
+    },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
 
@@ -109,7 +128,7 @@ export default function InventorySettingsPage() {
         </div>
         <div className="flex gap-2">
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => ensureAcc.mutate()}>
-            {ar ? 'تجهيز الحسابات' : 'Ensure accounts'}
+            {ar ? 'التحقق من الحسابات' : 'Ensure accounts'}
           </button>
           {dirty && (
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDraft(null)}>
@@ -135,6 +154,39 @@ export default function InventorySettingsPage() {
   return (
     <div className="space-y-5 pb-16">
       {stickyBar}
+
+      {accountGaps && !accountGaps.ok && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="font-semibold">
+                {ar ? 'فجوات حسابات التقييم الآلي' : 'Automated valuation account gaps'}
+              </p>
+              <p className="mt-1 text-xs opacity-80">
+                {ar
+                  ? 'لم تُنشأ حسابات تلقائياً — عيّن الحسابات الخمسة على كل فئة.'
+                  : 'Nothing was auto-created on categories — set the five accounts on each gap.'}
+              </p>
+            </div>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAccountGaps(null)}>
+              {ar ? 'إغلاق' : 'Dismiss'}
+            </button>
+          </div>
+          <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-xs">
+            {(accountGaps.gaps || []).map((g) => (
+              <li key={g.categoryId} className="rounded-lg bg-white/70 px-2 py-1.5 dark:bg-dark-900/40">
+                <Link
+                  className="font-medium text-primary-700 hover:underline dark:text-primary-300"
+                  to={`/app/dashboard/inventory/product-categories/${g.categoryId}/edit`}
+                >
+                  {g.completePath || g.name}
+                </Link>
+                <span className="ms-2 text-slate-500">missing: {(g.missing || []).join(', ')}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <Section title={ar ? 'العمليات' : 'Operations'}>
         <Toggle
@@ -234,14 +286,16 @@ export default function InventorySettingsPage() {
         />
         <div className="sm:col-span-2 space-y-2 rounded-lg bg-slate-50 p-3 dark:bg-dark-800/60">
           <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
-            {ar ? 'موصلات الشحن (واجهة فقط — بلا API حي)' : 'Shipping connectors (UI only — no live API)'}
+            {ar
+              ? 'موصلات الشحن — واجهة/صف وهمي فقط (لا API حي)'
+              : 'Shipping connectors — stub UI only (no live API)'}
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {CARRIERS.map((c) => (
               <Toggle
                 key={c.key}
                 label={c.label}
-                hint={c.note}
+                hint={`${c.note} · stub row on enable`}
                 checked={current[c.key]}
                 onChange={() => toggle(c.key)}
               />
@@ -252,13 +306,27 @@ export default function InventorySettingsPage() {
 
       <Section title={ar ? 'المنتجات' : 'Products'}>
         <Toggle label={ar ? 'المتغيرات' : 'Variants'} checked={current.groupProductVariant} onChange={() => toggle('groupProductVariant')} />
-        <Toggle label={ar ? 'وحدات القياس' : 'Units of measure'} checked={current.groupUom} onChange={() => toggle('groupUom')} />
+        <Toggle
+          label={ar ? 'وحدات القياس' : 'Units of measure'}
+          hint={ar ? 'قائمة الوحدات + تحويل في المحرك' : 'UoM list + engine conversion'}
+          checked={current.groupUom}
+          onChange={() => toggle('groupUom')}
+        />
         <Toggle
           label={ar ? 'تعبئة المنتجات' : 'Product packagings'}
-          hint={ar ? 'قائمة تعبئة المنتجات (كمية لكل عبوة)' : 'Product packaging list (qty per pack)'}
+          hint={ar ? 'كمية لكل عبوة · اختيار على أسطر النقل' : 'Qty per pack · selector on transfer lines'}
           checked={current.groupStockPackaging}
           onChange={() => toggle('groupStockPackaging')}
         />
+        <p className="sm:col-span-2 text-xs text-slate-500">
+          <Link to="/app/dashboard/inventory/uom" className="text-primary-600 hover:underline">
+            {ar ? 'وحدات القياس' : 'Units of measure'}
+          </Link>
+          {' · '}
+          <Link to="/app/dashboard/inventory/product-packagings" className="text-primary-600 hover:underline">
+            {ar ? 'تعبئة المنتجات' : 'Product packagings'}
+          </Link>
+        </p>
       </Section>
 
       <Section title={ar ? 'التتبع' : 'Traceability'}>

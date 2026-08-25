@@ -102,6 +102,8 @@ export default function TransferForm() {
     partnerWarnings: !!settings?.groupStockWarning,
     showDetailedOps: false,
     lotsEnabled: !!(settings?.groupProductionLot || settings?.groupStockTrackingLot),
+    packagesEnabled: !!(settings?.groupStockTrackingLot || settings?.groupStockPackaging),
+    packagingEnabled: !!settings?.groupStockPackaging,
     showLotsOnDeliverySlips: !!(settings?.showLotsOnDeliverySlips || settings?.groupLotOnDeliverySlip),
     variantsEnabled: !!settings?.groupProductVariant,
     deliveryMethods: !!settings?.groupDeliveryMethods,
@@ -218,6 +220,8 @@ export default function TransferForm() {
         productId: l.productId,
         demandQty: l.demandQty,
         variantId: l.variantId || undefined,
+        productPackagingId: l.productPackagingId || undefined,
+        packagingQty: l.productPackagingId ? (l.packagingQty || l.demandQty) : undefined,
       })),
     })
   }
@@ -634,33 +638,19 @@ export default function TransferForm() {
             ) : (
               <div className="space-y-2">
                 {form.lines.map((line, idx) => (
-                  <div key={`${line.productId}:${line.variantId || ''}`} className="grid items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2 sm:grid-cols-[1fr_120px_40px] dark:border-dark-600 dark:bg-dark-900/40">
-                    <div>
-                      <div className="font-medium text-slate-900 dark:text-white">{line.productName}</div>
-                      <div className="text-xs text-slate-400">
-                        {line.sku ? `SKU ${line.sku}` : ''}
-                        {line.variantName ? `${line.sku ? ' · ' : ''}${line.variantName}` : ''}
-                      </div>
-                    </div>
-                    <input
-                      className="input"
-                      type="text"
-                      inputMode="decimal"
-                      value={line.demandQty}
-                      onChange={(e) => {
-                        const lines = [...form.lines]
-                        lines[idx] = { ...lines[idx], demandQty: e.target.value }
-                        setForm((f) => ({ ...f, lines }))
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-icon text-slate-400 hover:text-rose-600"
-                      onClick={() => setForm((f) => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }))}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  <TransferDraftLine
+                    key={`${line.productId}:${line.variantId || ''}:${idx}`}
+                    line={line}
+                    idx={idx}
+                    ar={ar}
+                    packagingEnabled={!!(hints.packagingEnabled || settings?.groupStockPackaging)}
+                    onChange={(next) => {
+                      const lines = [...form.lines]
+                      lines[idx] = next
+                      setForm((f) => ({ ...f, lines }))
+                    }}
+                    onRemove={() => setForm((f) => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }))}
+                  />
                 ))}
               </div>
             )}
@@ -998,6 +988,75 @@ export default function TransferForm() {
           </aside>
         </div>
       )}
+    </div>
+  )
+}
+
+function TransferDraftLine({ line, ar, packagingEnabled, onChange, onRemove }) {
+  const { data: packsPayload } = useQuery({
+    queryKey: ['inv-product-packagings-line', line.productId],
+    queryFn: () => api.get('/stock/product-packagings', {
+      params: { productId: line.productId },
+    }).then((r) => r.data),
+    enabled: packagingEnabled && !!line.productId,
+    staleTime: 60_000,
+  })
+  const packs = packsPayload?.items || (Array.isArray(packsPayload) ? packsPayload : [])
+  const selected = packs.find((p) => String(p._id) === String(line.productPackagingId))
+  const packQty = Number(selected?.qty || 1)
+  const packsCount = Number(line.packagingQty || line.demandQty || 0)
+  const productQty = selected ? packsCount * packQty : line.demandQty
+
+  return (
+    <div className="grid items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2 sm:grid-cols-[1fr_minmax(8rem,12rem)_100px_40px] dark:border-dark-600 dark:bg-dark-900/40">
+      <div>
+        <div className="font-medium text-slate-900 dark:text-white">{line.productName}</div>
+        <div className="text-xs text-slate-400">
+          {line.sku ? `SKU ${line.sku}` : ''}
+          {line.variantName ? `${line.sku ? ' · ' : ''}${line.variantName}` : ''}
+          {selected ? ` · → ${productQty} ${ar ? 'وحدة' : 'units'}` : ''}
+        </div>
+      </div>
+      {packagingEnabled && packs.length > 0 ? (
+        <select
+          className="select select-sm"
+          value={line.productPackagingId || ''}
+          onChange={(e) => {
+            const id = e.target.value
+            onChange({
+              ...line,
+              productPackagingId: id || undefined,
+              packagingQty: id ? (line.packagingQty || line.demandQty || '1') : undefined,
+            })
+          }}
+        >
+          <option value="">{ar ? 'وحدة المنتج' : 'Product UoM'}</option>
+          {packs.map((p) => (
+            <option key={p._id} value={p._id}>{p.name} (×{p.qty})</option>
+          ))}
+        </select>
+      ) : (
+        <div />
+      )}
+      <input
+        className="input"
+        type="text"
+        inputMode="decimal"
+        title={selected ? (ar ? 'عدد العبوات' : 'Number of packs') : (ar ? 'الكمية' : 'Quantity')}
+        value={selected ? (line.packagingQty || line.demandQty) : line.demandQty}
+        onChange={(e) => {
+          const v = e.target.value
+          if (selected) onChange({ ...line, packagingQty: v, demandQty: v })
+          else onChange({ ...line, demandQty: v })
+        }}
+      />
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon text-slate-400 hover:text-rose-600"
+        onClick={onRemove}
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
     </div>
   )
 }

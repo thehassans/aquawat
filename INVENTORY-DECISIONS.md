@@ -498,5 +498,16 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Full export | Moves History / Moves Analysis export **full filtered set** (limit 10k / all buckets), not the visible page only |
 | As-of edit | Inline On Hand disabled when `asOf` is set (snapshot is read-only) |
 
+## v3 P1 — Settings wiring (§2.7)
+
+| Topic | Decision |
+|---|---|
+| Ensure accounts | Seeds interim COA only; **validates** automated categories for five accounts (`stockValuation`, `stockInput`, `stockOutput`, `stockJournal`, `expense`) — gaps returned to Settings modal, never invents category links |
+| UoM | Categories CRUD + UoM factor/rounding/type; `uomConvert.convertQty` / `demandInProductUom` round **up** on consumption |
+| Packagings | CRUD under Products; move line `productPackagingId` × packs → product UoM demand on create |
+| Carriers | Stub rows only — explicit “no live API” copy; flag still creates `InvDeliveryCarrier` stub |
+| Audit | `updateInvSettings` already writes `recordConfigAudit` per changed flag |
+| Tests | Effect map coverage + packaging/lots/signature predicates + UoM round-up + five-key contract |
+
 
 

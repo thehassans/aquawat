@@ -12,6 +12,9 @@ const schema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   uomId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvUom', required: true },
+  /** Optional product packaging — demandQty is already in product UoM after multiply */
+  productPackagingId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductPackaging', default: null },
+  packagingQty: { type: String, default: null },
   demandQty: { ...decimalField, default: '0' },
   demandQtyNum: { ...decimal128Field },
   doneQty: { ...decimalField, default: '0' },

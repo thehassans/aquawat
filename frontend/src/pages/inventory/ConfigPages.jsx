@@ -1049,8 +1049,16 @@ export function ReorderingRulesPage() {
 
 export function InventoryUomPage() {
   const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
   const qc = useQueryClient()
-  const [form, setForm] = useState({ name: '', categoryId: '', uomType: 'bigger', factor: '1' })
+  const [catForm, setCatForm] = useState({ name: '', nameAr: '' })
+  const [form, setForm] = useState({
+    name: '',
+    categoryId: '',
+    uomType: 'bigger',
+    factor: '1',
+    rounding: '0.01',
+  })
 
   const { data: cats } = useQuery({
     queryKey: ['inv-uom-categories'],
@@ -1063,11 +1071,21 @@ export function InventoryUomPage() {
   const rows = Array.isArray(uoms) ? uoms : []
   const categories = Array.isArray(cats) ? cats : []
 
+  const catMut = useMutation({
+    mutationFn: () => api.post('/stock/uom-categories', catForm),
+    onSuccess: () => {
+      toast.success(ar ? 'تمت إضافة الفئة' : 'Category added')
+      setCatForm({ name: '', nameAr: '' })
+      qc.invalidateQueries({ queryKey: ['inv-uom-categories'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message),
+  })
+
   const mut = useMutation({
     mutationFn: () => api.post('/stock/uoms', form),
     onSuccess: () => {
-      toast.success(language === 'ar' ? 'تمت الإضافة' : 'Added')
-      setForm((f) => ({ ...f, name: '', factor: '1' }))
+      toast.success(ar ? 'تمت الإضافة' : 'Added')
+      setForm((f) => ({ ...f, name: '', factor: '1', rounding: '0.01' }))
       qc.invalidateQueries({ queryKey: ['inv-uoms'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
@@ -1075,21 +1093,58 @@ export function InventoryUomPage() {
 
   return (
     <ListShell
-      title={language === 'ar' ? 'الوحدات والتعبئة' : 'Units & Packagings'}
-      subtitle={language === 'ar' ? 'وحدات القياس للمخزون' : 'Inventory units of measure'}
+      title={ar ? 'الوحدات والتعبئة' : 'Units & Packagings'}
+      subtitle={ar
+        ? 'فئات وحدات القياس · عامل · تقريب (الاستهلاك يُقرّب للأعلى)'
+        : 'UoM categories · factor · rounding (consumption rounds up)'}
+      action={(
+        <Link to="/app/dashboard/inventory/product-packagings" className="btn btn-secondary btn-sm">
+          {ar ? 'تعبئة المنتجات' : 'Product packagings'}
+        </Link>
+      )}
       loading={isLoading}
-      empty={!rows.length && !isLoading ? <EmptyState title={language === 'ar' ? 'لا وحدات' : 'No units'} /> : null}
+      empty={!rows.length && !isLoading ? <EmptyState title={ar ? 'لا وحدات' : 'No units'} /> : null}
     >
       <div className="card grid grid-cols-1 gap-3 p-4 md:grid-cols-4">
-        <input className="input" placeholder={language === 'ar' ? 'الاسم' : 'Name'} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <input
+          className="input"
+          placeholder={ar ? 'فئة جديدة' : 'New category'}
+          value={catForm.name}
+          onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+        />
+        <input
+          className="input"
+          placeholder={ar ? 'الاسم بالعربي' : 'Arabic name'}
+          value={catForm.nameAr}
+          onChange={(e) => setCatForm({ ...catForm, nameAr: e.target.value })}
+        />
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm md:col-span-2"
+          disabled={catMut.isPending || !catForm.name.trim()}
+          onClick={() => catMut.mutate()}
+        >
+          <Plus className="h-4 w-4" />
+          {ar ? 'إضافة فئة' : 'Add category'}
+        </button>
+      </div>
+
+      <div className="card grid grid-cols-1 gap-3 p-4 md:grid-cols-6">
+        <input className="input" placeholder={ar ? 'اسم الوحدة' : 'UoM name'} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <select className="select" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
-          <option value="">{language === 'ar' ? 'الفئة' : 'Category'}</option>
+          <option value="">{ar ? 'الفئة' : 'Category'}</option>
           {categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
         </select>
+        <select className="select" value={form.uomType} onChange={(e) => setForm({ ...form, uomType: e.target.value })}>
+          <option value="reference">{ar ? 'مرجعي' : 'Reference'}</option>
+          <option value="bigger">{ar ? 'أكبر' : 'Bigger'}</option>
+          <option value="smaller">{ar ? 'أصغر' : 'Smaller'}</option>
+        </select>
         <input className="input" placeholder="Factor" value={form.factor} onChange={(e) => setForm({ ...form, factor: e.target.value })} />
+        <input className="input" placeholder="Rounding" value={form.rounding} onChange={(e) => setForm({ ...form, rounding: e.target.value })} />
         <button type="button" className="btn btn-primary btn-sm" disabled={mut.isPending || !form.name || !form.categoryId} onClick={() => mut.mutate()}>
           <Plus className="h-4 w-4" />
-          {language === 'ar' ? 'إضافة' : 'Add'}
+          {ar ? 'إضافة وحدة' : 'Add UoM'}
         </button>
       </div>
       {rows.length > 0 && (
@@ -1097,9 +1152,10 @@ export function InventoryUomPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{language === 'ar' ? 'الاسم' : 'Name'}</th>
-                <th className="px-3 py-2">{language === 'ar' ? 'النوع' : 'Type'}</th>
+                <th className="px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
+                <th className="px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
                 <th className="px-3 py-2 text-right">Factor</th>
+                <th className="px-3 py-2 text-right">{ar ? 'التقريب' : 'Rounding'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -1108,6 +1164,7 @@ export function InventoryUomPage() {
                   <td className="px-3 py-2.5 font-medium">{u.name}</td>
                   <td className="px-3 py-2.5">{u.uomType}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{u.factor}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{u.rounding}</td>
                 </tr>
               ))}
             </tbody>

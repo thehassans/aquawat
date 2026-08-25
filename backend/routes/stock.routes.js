@@ -271,6 +271,23 @@ router.get('/uom-categories', checkPermission('inventory', 'read'), async (req, 
   }
 });
 
+router.post('/uom-categories', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Name required', code: 'UOM_CAT_NAME' });
+    const cat = await InvUomCategory.create({
+      tenantId: req.user.tenantId,
+      name,
+      nameAr: req.body.nameAr,
+      measureType: req.body.measureType || 'unit',
+      createdBy: req.user._id,
+    });
+    res.status(201).json(cat);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/uoms', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const filter = { ...req.tenantFilter };
@@ -2199,9 +2216,23 @@ router.post('/landed-costs/:id/validate', checkPermission('inventory', 'update')
 
 router.post('/accounting/ensure-accounts', checkPermission('inventory', 'update'), async (req, res) => {
   try {
-    const { ensureStockAccountingAccounts, resolveStockAccounts } = await import('../services/inventory/stockAccounting.js');
+    const {
+      ensureStockAccountingAccounts,
+      resolveStockAccounts,
+      validateAutomatedCategoryAccounts,
+    } = await import('../services/inventory/stockAccounting.js');
+    // Seed only the system interim COA codes — never invent category account links
     await ensureStockAccountingAccounts(req.user.tenantId, req.user._id);
-    res.json(await resolveStockAccounts(req.user.tenantId));
+    const validation = await validateAutomatedCategoryAccounts(req.user.tenantId);
+    const accounts = await resolveStockAccounts(req.user.tenantId);
+    res.json({
+      ...validation,
+      accounts: {
+        inventory: accounts.inventory?._id,
+        stockInput: accounts.stockInput?._id,
+        stockOutput: accounts.stockOutput?._id,
+      },
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }

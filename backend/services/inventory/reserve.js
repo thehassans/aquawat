@@ -1,8 +1,7 @@
-import { D, decStr, decMin, decIsPositive, decRoundDown, uomToReference } from '../../utils/decimal.js';
+import { D, decStr, decMin, decIsPositive, decRoundDown } from '../../utils/decimal.js';
 import mongoose from 'mongoose';
 import InvQuant from '../../models/inventory/InvQuant.js';
 import InvMoveLine from '../../models/inventory/InvMoveLine.js';
-import InvUom from '../../models/inventory/InvUom.js';
 import InvLocation from '../../models/inventory/InvLocation.js';
 import InvProductCategory from '../../models/inventory/InvProductCategory.js';
 import Product from '../../models/Product.js';
@@ -12,6 +11,7 @@ import { atomicReserveQuant, applyQuantDelta } from './quantDelta.js';
 import InvLot from '../../models/inventory/InvLot.js';
 import { isLotExpired } from './lotService.js';
 import { InventoryValidationError } from './errors.js';
+import { demandInProductUom } from './uomConvert.js';
 
 const MAX_CANDIDATE_RETRIES = 5;
 
@@ -28,23 +28,6 @@ export async function runWithTransaction(fn) {
   } finally {
     session.endSession();
   }
-}
-
-async function loadUom(uomId, session) {
-  const uom = await InvUom.findById(uomId).session(session);
-  if (!uom) throw new InventoryValidationError('UoM not found', 'UOM_NOT_FOUND');
-  return uom;
-}
-
-async function demandInProductUom(move, product, session) {
-  const moveUom = await loadUom(move.uomId, session);
-  const productUomId = product.uomId || move.uomId;
-  const refQty = uomToReference(move.demandQty, moveUom.factor || '1');
-  if (String(productUomId) === String(move.uomId)) return { need: decStr(refQty), rounding: moveUom.rounding || '0.01' };
-
-  const productUom = await loadUom(productUomId, session);
-  const inProduct = D(refQty).mul(D(productUom.factor || '1'));
-  return { need: decStr(inProduct), rounding: productUom.rounding || '0.01' };
 }
 
 /**
