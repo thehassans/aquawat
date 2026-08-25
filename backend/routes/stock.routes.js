@@ -247,6 +247,38 @@ router.get('/product-categories', checkPermission('inventory', 'read'), async (r
 
 // ── Transfers ──────────────────────────────────────────────────────
 
+/** Aggregated open-transfer counts for inventory overview (one round-trip). */
+router.get('/transfer-counts', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const scope = await resolveWarehouseScope(req);
+    const otFilter = { ...req.tenantFilter, active: true, ...warehouseFilter(scope) };
+    const opTypes = await InvOperationType.find(otFilter).select('_id code').lean();
+    const byCode = { incoming: [], outgoing: [], internal: [] };
+    for (const ot of opTypes) {
+      if (byCode[ot.code]) byCode[ot.code].push(ot._id);
+    }
+    const states = ['assigned', 'waiting', 'confirmed'];
+    const result = { incoming: {}, outgoing: {}, internal: {} };
+    await Promise.all(
+      Object.keys(byCode).flatMap((code) =>
+        states.map(async (state) => {
+          const ids = byCode[code];
+          result[code][state] = ids.length
+            ? await InvTransfer.countDocuments({
+                ...req.tenantFilter,
+                operationTypeId: { $in: ids },
+                state,
+              })
+            : 0;
+        }),
+      ),
+    );
+    res.json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/transfers', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const scope = await resolveWarehouseScope(req);

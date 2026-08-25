@@ -248,7 +248,14 @@ export default function AppLauncher() {
   }
 
   const businessTypes = getTenantBusinessTypes(tenant)
-  const hiddenMenuSet = new Set((hiddenMenuItems || []).filter((p) => !['/app/dashboard/settings', '/app/dashboard/hidden-navbars'].includes(p)))
+  const hiddenMenuKey = useMemo(
+    () => (hiddenMenuItems || []).filter((p) => !['/app/dashboard/settings', '/app/dashboard/hidden-navbars'].includes(p)).join('|'),
+    [hiddenMenuItems],
+  )
+  const hiddenMenuSet = useMemo(
+    () => new Set(hiddenMenuKey ? hiddenMenuKey.split('|') : []),
+    [hiddenMenuKey],
+  )
 
   const govChildren = getGovChildren(tenant, language)
   const hasAccess = (module, action) => {
@@ -261,6 +268,7 @@ export default function AppLauncher() {
 
   // Calculate visible apps (similar to Sidebar logic but flattened)
   const allApps = useMemo(() => {
+    if (!appLauncherOpen) return []
     const navSections = getNavSections({ language, t, tenant, businessTypes, govChildren })
     const apps = []
 
@@ -303,7 +311,7 @@ export default function AppLauncher() {
     }
 
     return uniqueApps
-  }, [language, tenant, businessTypes, hiddenMenuSet, user, govChildren])
+  }, [appLauncherOpen, language, tenant, businessTypes, hiddenMenuSet, user, govChildren, t])
 
   const filteredApps = useMemo(() => {
     if (!searchQuery) return allApps

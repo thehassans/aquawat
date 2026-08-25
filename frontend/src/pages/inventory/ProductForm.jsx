@@ -150,7 +150,9 @@ export default function ProductForm() {
 
   const { data: productsList } = useQuery({
     queryKey: ['products-list-lookup'],
-    queryFn: () => api.get('/products', { params: { limit: 200 } }).then((res) => res.data.products),
+    queryFn: () => api.get('/products', { params: { limit: 100, productType: 'goods' } }).then((res) => res.data.products),
+    enabled: Boolean(isManufactured),
+    staleTime: 5 * 60 * 1000,
   })
 
   const bomProductOptions = useMemo(() => {

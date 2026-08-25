@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType } from '../../lib/productType'
+import api from '../../lib/api'
 
 export function normalizeCatalogProduct(p, source = 'bakala') {
   if (!p) return null
@@ -21,8 +22,19 @@ export function normalizeCatalogProduct(p, source = 'bakala') {
 }
 
 /** Trading Product catalog only — safe for Inv* transfers / physical count. */
-export async function loadTradingProducts(api, { stockTrackedOnly = true, limit = 500 } = {}) {
-  const res = await api.get('/products', { params: { limit } })
+export async function loadTradingProducts(apiClient = api, {
+  stockTrackedOnly = true,
+  limit = 40,
+  search = '',
+  productType = 'goods',
+} = {}) {
+  const res = await apiClient.get('/products', {
+    params: {
+      limit,
+      search: search || undefined,
+      productType: stockTrackedOnly ? productType : undefined,
+    },
+  })
   const list = Array.isArray(res.data) ? res.data : (res.data?.products || [])
   return list
     .map((p) => normalizeCatalogProduct(p, 'trading'))
@@ -33,17 +45,17 @@ export async function loadTradingProducts(api, { stockTrackedOnly = true, limit 
     })
 }
 
-export async function loadInventoryProducts(api) {
+export async function loadInventoryProducts(apiClient = api) {
   const bags = []
   try {
-    const res = await api.get('/bakala-products', { params: { limit: 500 } })
+    const res = await apiClient.get('/bakala-products', { params: { limit: 200 } })
     const list = Array.isArray(res.data) ? res.data : (res.data?.products || [])
     bags.push(...list.map((p) => normalizeCatalogProduct(p, 'bakala')))
   } catch {
     /* bakala catalog optional */
   }
   try {
-    bags.push(...(await loadTradingProducts(api, { stockTrackedOnly: false })))
+    bags.push(...(await loadTradingProducts(apiClient, { stockTrackedOnly: false, limit: 200 })))
   } catch {
     /* trading catalog optional */
   }
@@ -79,22 +91,59 @@ function exactProduct(products, term) {
   )
 }
 
+/**
+ * @param {object} props
+ * @param {Array} [props.products] — local catalog (ignored when remote)
+ * @param {boolean} [props.remote] — fetch trading products on demand (debounced)
+ * @param {(p: object) => void} props.onPick
+ */
 export default function ProductChooser({
-  products = [],
+  products: productsProp = [],
+  remote = false,
   onPick,
   accent = 'emerald',
   placeholder = 'Search by name, SKU, or scan barcode…',
 }) {
   const [term, setTerm] = useState('')
+  const [debouncedTerm, setDebouncedTerm] = useState('')
   const [open, setOpen] = useState(false)
+  const [remoteProducts, setRemoteProducts] = useState([])
+  const [loading, setLoading] = useState(false)
   const ring = accent === 'rose'
     ? 'focus:border-rose-400 focus:ring-rose-500/15'
     : 'focus:border-emerald-400 focus:ring-emerald-500/15'
   const addTone = accent === 'rose' ? 'text-rose-700' : 'text-emerald-700'
 
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedTerm(term), 280)
+    return () => clearTimeout(handle)
+  }, [term])
+
+  useEffect(() => {
+    if (!remote) return undefined
+    let cancelled = false
+    setLoading(true)
+    loadTradingProducts(api, { search: debouncedTerm, limit: 40 })
+      .then((list) => {
+        if (!cancelled) setRemoteProducts(list)
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteProducts([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [remote, debouncedTerm])
+
+  const products = remote ? remoteProducts : productsProp
+
   const suggestions = useMemo(() => {
+    if (remote) return products.slice(0, 14)
     return products.filter((p) => matchesProduct(p, term)).slice(0, 14)
-  }, [products, term])
+  }, [products, term, remote])
 
   const pick = (product) => {
     if (!product) return
@@ -110,7 +159,9 @@ export default function ProductChooser({
       pick(exact)
       return
     }
-    const named = products.filter((p) => matchesProduct(p, term))
+    const named = remote
+      ? products
+      : products.filter((p) => matchesProduct(p, term))
     if (named.length === 1) {
       pick(named[0])
       return
@@ -138,13 +189,19 @@ export default function ProductChooser({
       </form>
       {open && (
         <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)]">
-          {products.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-400">No products in catalog yet.</p>
+          {loading ? (
+            <p className="px-4 py-3 text-sm text-slate-400">Searching…</p>
+          ) : products.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-slate-400">
+              {remote && !debouncedTerm.trim()
+                ? 'Type to search the product catalog.'
+                : 'No products in catalog yet.'}
+            </p>
           ) : suggestions.length === 0 ? (
             <p className="px-4 py-3 text-sm text-slate-400">No matching products. Try a name, SKU, or barcode.</p>
           ) : (
             <>
-              {!term.trim() && (
+              {!term.trim() && !remote && (
                 <p className="border-b border-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
                   Choose a product
                 </p>

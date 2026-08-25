@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
@@ -33,8 +33,14 @@ export default function Products() {
   const { t } = useTranslation(language)
   const isAr = language === 'ar'
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filters, setFilters] = useState({ status: '', stockHealth: '', productType: '' })
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(handle)
+  }, [search])
 
   const queryClient = useQueryClient()
   const [stockModal, setStockModal] = useState({ isOpen: false, productId: null, productName: '' })
@@ -125,8 +131,9 @@ export default function Products() {
   ]
 
   const { data, isLoading } = useQuery({
-    queryKey: ['products', page, search, filters],
-    queryFn: () => api.get('/products', { params: { page, limit: 25, search, ...filters } }).then((res) => res.data)
+    queryKey: ['products', page, debouncedSearch, filters],
+    queryFn: () => api.get('/products', { params: { page, limit: 25, search: debouncedSearch, ...filters } }).then((res) => res.data),
+    placeholderData: (prev) => prev,
   })
 
   const getExportRows = async () => {
@@ -134,7 +141,7 @@ export default function Products() {
     let currentPage = 1
     let all = []
     while (true) {
-      const res = await api.get('/products', { params: { page: currentPage, limit, search, ...filters } })
+      const res = await api.get('/products', { params: { page: currentPage, limit, search: debouncedSearch, ...filters } })
       const batch = res.data?.products || []
       all = all.concat(batch)
       if (currentPage >= (res.data?.pagination?.pages || 1) || all.length >= 10000) break

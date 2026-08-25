@@ -15,12 +15,15 @@ export default function StockReport() {
   const { data: warehouses = [] } = useQuery({
     queryKey: ['warehouses'],
     queryFn: () => api.get('/warehouses').then((r) => r.data?.warehouses || r.data || []),
+    staleTime: 10 * 60 * 1000,
   })
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['stock-report', warehouseId],
     queryFn: () =>
       api.get('/stock/report/stock', { params: warehouseId ? { warehouseId } : {} }).then((r) => r.data),
+    placeholderData: (prev) => prev,
+    staleTime: 30_000,
   })
 
   const adjust = useMutation({
@@ -76,8 +79,8 @@ export default function StockReport() {
               <th className="px-4 py-3 text-start">{language === 'ar' ? 'متوقع' : 'Forecast'}</th>
             </tr>
           </thead>
-          <tbody>
-            {isLoading && (
+          <tbody className={isFetching && !isLoading ? 'opacity-60 transition-opacity' : ''}>
+            {isLoading && !rows.length && (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">…</td></tr>
             )}
             {!isLoading && rows.length === 0 && (

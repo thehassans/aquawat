@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
@@ -19,14 +19,21 @@ function TransferModal({ warehouse, warehouses, onClose, language }) {
   const isAr = language === 'ar'
   const [destWarehouse, setDestWarehouse] = useState('')
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [lines, setLines] = useState([{ productName: '', quantity: 1 }])
   const [isLoading, setIsLoading] = useState(false)
   const qc = useQueryClient()
 
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(handle)
+  }, [search])
+
   const { data: products } = useQuery({
-    queryKey: ['products-search', search],
-    queryFn: () => api.get('/products', { params: { search, limit: 20 } }).then(r => r.data?.products || r.data || []),
-    enabled: search.length > 1
+    queryKey: ['products-search', debouncedSearch],
+    queryFn: () => api.get('/products', { params: { search: debouncedSearch, limit: 20 } }).then(r => r.data?.products || r.data || []),
+    enabled: debouncedSearch.length > 1,
+    staleTime: 30_000,
   })
 
   const addLine = () => setLines(l => [...l, { productId: '', productName: '', quantity: 1 }])

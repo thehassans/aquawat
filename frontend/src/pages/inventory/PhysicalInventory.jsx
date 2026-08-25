@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
-import ProductChooser, { loadTradingProducts } from '../../components/inventory/ProductChooser'
+import ProductChooser from '../../components/inventory/ProductChooser'
 
 export default function PhysicalInventory() {
   const { language } = useSelector((s) => s.ui)
@@ -20,11 +20,7 @@ export default function PhysicalInventory() {
   const { data: warehouses = [] } = useQuery({
     queryKey: ['warehouses'],
     queryFn: () => api.get('/warehouses').then((r) => r.data?.warehouses || r.data || []),
-  })
-
-  const { data: products = [] } = useQuery({
-    queryKey: ['trading-products-stock'],
-    queryFn: () => loadTradingProducts(api),
+    staleTime: 10 * 60 * 1000,
   })
 
   const { data: locations = [] } = useQuery({
@@ -38,6 +34,7 @@ export default function PhysicalInventory() {
           },
         })
         .then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
   })
 
   const { data: rows = [], isLoading } = useQuery({
@@ -187,18 +184,16 @@ export default function PhysicalInventory() {
           />
         </div>
         <ProductChooser
-          products={products}
+          remote
           onPick={addProductToCount}
           placeholder={language === 'ar' ? 'ابحث عن منتج من الكتالوج…' : 'Search catalog products to count…'}
         />
-        {products.length === 0 && (
-          <p className="mt-2 text-sm text-slate-500">
-            {language === 'ar' ? 'أضف منتجات بضاعة أولاً.' : 'Create goods products first.'}{' '}
-            <Link className="text-primary-600 hover:underline" to="/app/dashboard/inventory/products/new">
-              {language === 'ar' ? 'إضافة منتج' : 'Add product'}
-            </Link>
-          </p>
-        )}
+        <p className="mt-2 text-xs text-slate-400">
+          {language === 'ar' ? 'اكتب للبحث ثم اختر المنتج.' : 'Type to search, then pick a product.'}{' '}
+          <Link className="text-primary-600 hover:underline" to="/app/dashboard/inventory/products/new">
+            {language === 'ar' ? 'إضافة منتج' : 'Add product'}
+          </Link>
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-2">

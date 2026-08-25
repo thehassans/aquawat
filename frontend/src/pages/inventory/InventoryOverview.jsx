@@ -38,27 +38,41 @@ export default function InventoryOverview() {
   const { data: settings } = useQuery({
     queryKey: ['stock-settings'],
     queryFn: () => api.get('/stock/settings').then((r) => r.data),
+    staleTime: 10 * 60 * 1000,
   })
 
   const { data: opTypes = [] } = useQuery({
     queryKey: ['stock-op-types'],
     queryFn: () => api.get('/stock/operation-types').then((r) => r.data),
+    staleTime: 10 * 60 * 1000,
   })
 
   const countsQuery = useQuery({
     queryKey: ['stock-transfer-counts'],
     queryFn: async () => {
-      const states = ['assigned', 'waiting', 'confirmed']
-      const result = {}
-      for (const code of ['incoming', 'outgoing', 'internal']) {
-        result[code] = {}
-        for (const state of states) {
-          const res = await api.get('/stock/transfers', { params: { code, state, limit: 1 } })
-          result[code][state] = res.data.total || 0
+      try {
+        return await api.get('/stock/transfer-counts').then((r) => r.data)
+      } catch {
+        // Fallback: parallel per-bucket counts (never sequential)
+        const states = ['assigned', 'waiting', 'confirmed']
+        const codes = ['incoming', 'outgoing', 'internal']
+        const entries = await Promise.all(
+          codes.flatMap((code) =>
+            states.map(async (state) => {
+              const res = await api.get('/stock/transfers', { params: { code, state, limit: 1 } })
+              return [code, state, res.data.total || 0]
+            }),
+          ),
+        )
+        const result = {}
+        for (const [code, state, total] of entries) {
+          if (!result[code]) result[code] = {}
+          result[code][state] = total
         }
+        return result
       }
-      return result
     },
+    staleTime: 60_000,
   })
 
   const bootstrap = useMutation({

@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import api from '../../lib/api'
-import ProductChooser, { loadTradingProducts } from '../../components/inventory/ProductChooser'
+import ProductChooser from '../../components/inventory/ProductChooser'
 import { StatusChip } from './inventoryUi'
 
 const CODE_FROM_PATH = () => {
@@ -31,11 +31,7 @@ export default function TransferForm() {
   const { data: opTypes = [] } = useQuery({
     queryKey: ['stock-op-types', code],
     queryFn: () => api.get('/stock/operation-types', { params: { code } }).then((r) => r.data),
-  })
-
-  const { data: products = [] } = useQuery({
-    queryKey: ['trading-products-stock'],
-    queryFn: () => loadTradingProducts(api),
+    staleTime: 10 * 60 * 1000,
   })
 
   const { data: transfer, isLoading } = useQuery({
@@ -246,20 +242,16 @@ export default function TransferForm() {
               </Link>
             </div>
             <ProductChooser
-              products={products}
+              remote
               onPick={pickProduct}
               placeholder={language === 'ar' ? 'ابحث بالاسم أو الرمز أو الباركود…' : 'Search products by name, SKU, or barcode…'}
             />
-            {products.length === 0 && (
-              <p className="text-sm text-slate-500">
-                {language === 'ar'
-                  ? 'لا توجد منتجات مخزّنة بعد. أضف منتجات من نوع بضاعة أولاً.'
-                  : 'No stocked products yet. Create goods products first.'}{' '}
-                <Link className="text-primary-600 hover:underline" to="/app/dashboard/inventory/products/new">
-                  {language === 'ar' ? 'إضافة منتج' : 'Add product'}
-                </Link>
-              </p>
-            )}
+            <p className="text-xs text-slate-400">
+              {language === 'ar' ? 'اكتب للبحث في كتالوج المنتجات.' : 'Type to search the product catalog.'}{' '}
+              <Link className="text-primary-600 hover:underline" to="/app/dashboard/inventory/products/new">
+                {language === 'ar' ? 'إضافة منتج' : 'Add product'}
+              </Link>
+            </p>
             {form.lines.length === 0 ? (
               <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400 dark:border-dark-600">
                 {language === 'ar' ? 'اختر منتجاً من الكتالوج أعلاه' : 'Pick a product from the catalog above'}
