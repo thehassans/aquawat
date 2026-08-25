@@ -99,7 +99,6 @@ import CRMDeal from '../models/CRMDeal.js';
 import CRMContact from '../models/CRMContact.js';
 import CRMCampaign from '../models/CRMCampaign.js';
 import CRMActivity from '../models/CRMActivity.js';
-import LoyaltyPoints from '../models/LoyaltyPoints.js';
 import WasteEntry from '../models/WasteEntry.js';
 import MaintenanceRecord from '../models/MaintenanceRecord.js';
 import GovIntegrationLog from '../models/GovIntegrationLog.js';
@@ -1696,7 +1695,6 @@ router.post('/tenants/:id/reset', async (req, res) => {
       ['crmContacts', CRMContact],
       ['crmCampaigns', CRMCampaign],
       ['crmActivities', CRMActivity],
-      ['loyaltyPoints', LoyaltyPoints],
       ['wasteEntries', WasteEntry],
       ['maintenanceRecords', MaintenanceRecord],
       ['govIntegrationLogs', GovIntegrationLog],
@@ -1853,7 +1851,6 @@ router.delete('/tenants/:id', async (req, res) => {
       ['crmContacts', CRMContact],
       ['crmCampaigns', CRMCampaign],
       ['crmActivities', CRMActivity],
-      ['loyaltyPoints', LoyaltyPoints],
       ['wasteEntries', WasteEntry],
       ['maintenanceRecords', MaintenanceRecord],
       ['govIntegrationLogs', GovIntegrationLog],
