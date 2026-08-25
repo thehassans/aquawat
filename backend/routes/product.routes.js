@@ -66,6 +66,20 @@ const normalizeProductForClient = (product) => {
 // @route   GET /api/products
 router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
   try {
+    // Ensure legacy rows get P00001 codes (idempotent; no-op when complete)
+    try {
+      const missing = await Product.exists({
+        ...req.tenantFilter,
+        $or: [{ productId: { $exists: false } }, { productId: null }, { productId: '' }],
+      });
+      if (missing) {
+        const { backfillProductIds } = await import('../services/inventory/productIdentity.js');
+        await backfillProductIds(req.user.tenantId);
+      }
+    } catch {
+      // ignore backfill errors — list still returns
+    }
+
     const { page = 1, limit = 50, category, status, search, lowStock, allowNegativeStock, stockHealth, productType } = req.query;
 
     const query = { ...req.tenantFilter };
@@ -88,7 +102,8 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
         { nameEn: { $regex: search, $options: 'i' } },
         { nameAr: { $regex: search, $options: 'i' } },
         { sku: { $regex: search, $options: 'i' } },
-        { barcode: { $regex: search, $options: 'i' } }
+        { barcode: { $regex: search, $options: 'i' } },
+        { productId: { $regex: search, $options: 'i' } },
       ];
     }
 
@@ -208,13 +223,17 @@ router.get('/:id', checkPermission('inventory', 'read'), async (req, res) => {
 // @route   POST /api/products
 router.post('/', checkTrialLimits('products'), checkPermission('inventory', 'create'), async (req, res) => {
   try {
+    const { nextProductId } = await import('../services/inventory/productIdentity.js');
     const productData = {
       ...req.body,
       productType: normalizeProductType(req.body?.productType),
       tenantId: req.user.tenantId,
-      createdBy: req.user._id
+      createdBy: req.user._id,
     };
-    
+    // Immutable sequential code — never trust client
+    delete productData.productId;
+    productData.productId = await nextProductId(req.user.tenantId);
+
     const product = await Product.create(productData);
     res.status(201).json(computeTotalStock(product));
   } catch (error) {
@@ -254,7 +273,15 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
       }
     }
 
-    Object.assign(product, req.body);
+    const lockedProductId = product.productId;
+    const { productId: _dropProductId, ...safeBody } = req.body || {};
+    void _dropProductId;
+    Object.assign(product, safeBody);
+    product.productId = lockedProductId;
+    if (!product.productId) {
+      const { nextProductId } = await import('../services/inventory/productIdentity.js');
+      product.productId = await nextProductId(req.user.tenantId);
+    }
     product.productType = normalizeProductType(product.productType);
     await product.save();
     

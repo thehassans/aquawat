@@ -132,7 +132,7 @@ export async function csvTextToXlsxBuffer(csvText, sheetName = 'Export') {
 }
 
 const PRODUCT_EXPORT_COLUMNS = [
-  'externalId', 'sku', 'barcode', 'nameEn', 'nameAr', 'costPrice', 'salePrice',
+  'productId', 'externalId', 'sku', 'barcode', 'nameEn', 'nameAr', 'costPrice', 'salePrice',
   'category', 'tracking', 'unitOfMeasure', 'canBeSold', 'canBePurchased',
 ];
 
@@ -147,6 +147,7 @@ export async function exportCollection(tenantId, collection, { warehouseId } = {
   if (collection === 'products') {
     const products = await Product.find({ tenantId: tid }).limit(5000).lean();
     const rows = products.map((p) => ({
+      productId: p.productId || '',
       externalId: p.externalId || String(p._id),
       sku: p.sku,
       barcode: p.barcode || '',
@@ -255,20 +256,24 @@ export async function importProducts(tenantId, userId, {
     const rowNum = idx + 2;
     const sku = String(row.sku || '').trim();
     const nameEn = String(row.nameEn || row.name || '').trim();
-    const externalId = String(row.externalId || '').trim();
+    const externalId = String(row.externalId || row.external_ref || row.id || '').trim();
     const barcode = String(row.barcode || '').trim();
+    const productCode = String(row.productId || row.product_id || '').trim().toUpperCase();
 
-    if (!sku && !externalId && !barcode) {
-      errors.push({ row: rowNum, message: 'sku, barcode or externalId required' });
+    if (!sku && !externalId && !barcode && !productCode) {
+      errors.push({ row: rowNum, message: 'sku, barcode, productId or externalId required' });
       continue;
     }
-    if (!nameEn && !externalId && !barcode) {
+    if (!nameEn && !externalId && !barcode && !productCode) {
       errors.push({ row: rowNum, message: 'nameEn required for create' });
       continue;
     }
 
     let product = null;
-    if (externalId) {
+    if (productCode) {
+      product = await Product.findOne({ tenantId: tid, productId: productCode });
+    }
+    if (!product && externalId) {
       const or = [{ externalId }];
       if (/^[a-f0-9]{24}$/i.test(externalId)) or.push({ _id: externalId });
       product = await Product.findOne({ tenantId: tid, $or: or });
@@ -301,6 +306,7 @@ export async function importProducts(tenantId, userId, {
     preview.push({
       row: rowNum,
       action: product ? 'update' : 'create',
+      productId: product?.productId || null,
       sku: payload.sku,
       barcode: payload.barcode,
       externalId: payload.externalId,
@@ -320,9 +326,12 @@ export async function importProducts(tenantId, userId, {
         errors.push({ row: rowNum, message: 'Cannot create without sku and nameEn' });
         continue;
       }
+      const { nextProductId } = await import('./productIdentity.js');
       product = await Product.create({
         tenantId: tid,
         ...payload,
+        productId: await nextProductId(tid),
+        sellingPrice: payload.salePrice ?? payload.sellingPrice ?? 0,
         createdBy: userId,
       });
       created += 1;

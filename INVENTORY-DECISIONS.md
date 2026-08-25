@@ -452,5 +452,18 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Ledger | Product opening qty still via adjustment transfers; physical inventory import fills counted only |
 | Wired | Products, Warehouses, Locations, Stock report, Physical Inventory, Import & Export settings page |
 
+## v3 P1 — Product identity (§2.3)
+
+| Topic | Decision |
+|---|---|
+| Field | `Product.productId` — immutable human code `P00001` via `InvSequence` code `PRODUCT` (`nextProductId`) — never `count()` |
+| Uniqueness | Per-tenant unique on `productId`, `sku`; barcode unique with partial filter (non-empty only) |
+| Create | Assigned in `POST /products` and product CSV/IE import; client cannot set/change it |
+| Update | Stripped from body; missing codes backfilled on save / bootstrap |
+| Backfill | `backfillProductIds` on inventory bootstrap (idempotent; syncs sequence to max existing) |
+| Lookup | Import accepts `productId` alongside sku / barcode / external_ref |
+| UI | Form header + read-only field + help text; list column; search includes productId |
+| Roles | Product ID = system identity · SKU = editable ref · barcode = scan key |
+
 
 

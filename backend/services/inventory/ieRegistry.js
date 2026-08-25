@@ -10,9 +10,10 @@ export const IE_MODELS = {
   products: {
     label: 'Products',
     importable: true,
-    defaultExport: ['sku', 'barcode', 'nameEn', 'nameAr', 'costPrice', 'salePrice', 'tracking', 'unitOfMeasure'],
+    defaultExport: ['productId', 'sku', 'barcode', 'nameEn', 'nameAr', 'costPrice', 'salePrice', 'tracking', 'unitOfMeasure'],
     fields: [
       { key: 'id', label: 'id', importable: true },
+      { key: 'productId', label: 'Product ID', importable: true },
       { key: 'external_ref', label: 'external_ref', importable: true },
       { key: 'sku', label: 'SKU', importable: true },
       { key: 'barcode', label: 'Barcode', importable: true },

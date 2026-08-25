@@ -74,6 +74,14 @@ export async function ensureInventoryBootstrap(tenantId, userId = null) {
     bootstrapped.push(result);
   }
 
+  // Assign missing human-readable product codes (P00001)
+  try {
+    const { backfillProductIds } = await import('./productIdentity.js');
+    await backfillProductIds(tid);
+  } catch {
+    // non-fatal — index/create races should not block bootstrap
+  }
+
   return { settings, uom, rootCat, roots, bootstrappedWarehouses: bootstrapped };
 }
 

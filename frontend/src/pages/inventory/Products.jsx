@@ -116,6 +116,7 @@ export default function Products() {
   }
 
   const exportColumns = [
+    { key: 'productId', label: isAr ? 'معرّف المنتج' : 'Product ID', value: (r) => r?.productId || '' },
     { key: 'name', label: t('productName'), value: (r) => (isAr ? r?.nameAr || r?.nameEn : r?.nameEn || r?.nameAr) || '' },
     { key: 'sku', label: t('sku'), value: (r) => r?.sku || '' },
     { key: 'barcode', label: t('barcode'), value: (r) => r?.barcode || '' },
@@ -254,7 +255,7 @@ export default function Products() {
             <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder={isAr ? 'بحث بالاسم أو الباركود أو SKU' : 'Search name, barcode, or SKU'}
+              placeholder={isAr ? 'بحث بالاسم أو الباركود أو SKU أو معرّف المنتج' : 'Search name, barcode, SKU, or Product ID'}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1) }}
               className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2.5 ps-10 pe-3 text-sm outline-none transition focus:border-emerald-600/40 focus:bg-white focus:ring-2 focus:ring-emerald-700/10"
@@ -309,6 +310,7 @@ export default function Products() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold text-slate-900">{isAr ? product.nameAr || product.nameEn : product.nameEn}</p>
+                      <p className="font-mono text-xs text-emerald-700">{product.productId || '—'}</p>
                       <p className="font-mono text-xs text-slate-400">{product.sku}</p>
                     </div>
                     <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${productTypeBadgeClass(type)}`}>
@@ -333,6 +335,7 @@ export default function Products() {
                 <thead>
                   <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                     <th className="px-5 py-3 font-semibold">{t('productName')}</th>
+                    <th className="px-3 py-3 font-semibold">{isAr ? 'المعرّف' : 'ID'}</th>
                     <th className="px-3 py-3 font-semibold">{t('sku')}</th>
                     <th className="px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>
                     <th className="px-3 py-3 font-semibold">{isAr ? 'الوحدة' : 'UOM'}</th>
@@ -371,6 +374,7 @@ export default function Products() {
                             </div>
                           </div>
                         </td>
+                        <td className="px-3 py-3.5 font-mono text-xs font-semibold text-emerald-700">{product.productId || '—'}</td>
                         <td className="px-3 py-3.5 font-mono text-xs text-slate-500">{product.sku}</td>
                         <td className="px-3 py-3.5">
                           <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${productTypeBadgeClass(type)}`}>

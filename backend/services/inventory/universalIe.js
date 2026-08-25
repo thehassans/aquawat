@@ -80,6 +80,7 @@ async function loadExportRows(tenantId, model, filters = {}) {
       const rows = await Product.find(q).limit(limit).lean();
       return rows.map((p) => ({
         id: String(p._id),
+        productId: p.productId || '',
         external_ref: p.externalId || '',
         sku: p.sku,
         barcode: p.barcode || '',

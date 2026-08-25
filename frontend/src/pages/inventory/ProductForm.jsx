@@ -57,6 +57,7 @@ export default function ProductForm() {
     const payload = { ...data }
     delete payload._id
     delete payload.id
+    delete payload.productId
     delete payload.__v
     delete payload.tenantId
     delete payload.createdBy
@@ -314,8 +315,18 @@ export default function ProductForm() {
         <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon"><ArrowLeft className="w-5 h-5" /></button>
         <div className="min-w-0 flex-1">
           <p className="text-xs text-slate-500">{language === 'ar' ? 'المنتجات' : 'Products'}{isEdit ? ` / ${product?.nameEn || product?.sku || ''}` : ''}</p>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {isEdit ? (language === 'ar' ? 'تعديل منتج' : 'Edit Product') : (language === 'ar' ? 'إضافة منتج' : 'Add Product')}
+          <h1 className="flex flex-wrap items-baseline gap-3 text-2xl font-bold text-gray-900 dark:text-white">
+            <span>
+              {isEdit ? (language === 'ar' ? 'تعديل منتج' : 'Edit Product') : (language === 'ar' ? 'إضافة منتج' : 'Add Product')}
+            </span>
+            {isEdit && product?.productId && (
+              <span className="font-mono text-base font-semibold tracking-wide text-emerald-700 dark:text-emerald-400">
+                {product.productId}
+              </span>
+            )}
+            {isEdit && product?.nameEn && (
+              <span className="truncate text-lg font-medium text-slate-500">{product.nameEn}</span>
+            )}
           </h1>
         </div>
       </div>
@@ -417,11 +428,48 @@ export default function ProductForm() {
             <div>
               <label className="label">{t('sku')} *</label>
               <input {...register('sku', { required: true })} className="input" placeholder="SKU-001" />
+              <p className="mt-1 text-[11px] text-slate-400">
+                {language === 'ar'
+                  ? 'مرجع داخلي قابل للتعديل (SKU).'
+                  : 'User-editable internal reference (SKU / default code).'}
+              </p>
             </div>
             <div>
               <label className="label">{t('barcode')}</label>
               <input {...register('barcode')} className="input" placeholder="1234567890123" />
+              <p className="mt-1 text-[11px] text-slate-400">
+                {language === 'ar'
+                  ? 'مفتاح المسح الضوئي — منفصل عن معرّف المنتج وSKU.'
+                  : 'Scan key — distinct from Product ID and SKU.'}
+              </p>
             </div>
+            {isEdit && product?.productId && (
+              <div>
+                <label className="label">{language === 'ar' ? 'معرّف المنتج' : 'Product ID'}</label>
+                <input className="input font-mono" value={product.productId} readOnly disabled />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {language === 'ar'
+                    ? 'رمز ثابت تلقائي (مثل P00001) — لا يُغيَّر. منفصل عن SKU والباركود.'
+                    : 'Immutable sequential code (e.g. P00001) — not editable. Distinct from SKU and barcode.'}
+                </p>
+              </div>
+            )}
+            {!isEdit && (
+              <div>
+                <label className="label">{language === 'ar' ? 'معرّف المنتج' : 'Product ID'}</label>
+                <input
+                  className="input font-mono text-slate-400"
+                  value={language === 'ar' ? 'يُنشأ عند الحفظ (P00001…)' : 'Assigned on save (P00001…)'}
+                  readOnly
+                  disabled
+                />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {language === 'ar'
+                    ? 'ثلاثة حقول مختلفة: معرّف المنتج · SKU · باركود.'
+                    : 'Three different jobs: Product ID · SKU · Barcode.'}
+                </p>
+              </div>
+            )}
             <div>
               <label className="label">{t('category')}</label>
               <input {...register('category')} className="input" />

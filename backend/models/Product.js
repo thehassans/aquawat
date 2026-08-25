@@ -40,10 +40,15 @@ const productSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   
   // Basic Info
+  /**
+   * Human-readable immutable product code (P00001). Assigned by sequence — never from count().
+   * Distinct from SKU (user-editable ref) and barcode (scan key).
+   */
+  productId: { type: String, trim: true },
   sku: { type: String, required: true },
   /** Stable id for import/export upserts (never use for display) */
   externalId: { type: String },
-  barcode: { type: String, index: true },
+  barcode: { type: String },
   qrCode: { type: String },
   nameEn: { type: String, required: true },
   nameAr: { type: String },
@@ -157,13 +162,20 @@ const productSchema = new mongoose.Schema({
 });
 
 productSchema.index({ tenantId: 1, sku: 1 }, { unique: true });
+productSchema.index({ tenantId: 1, productId: 1 }, { unique: true, sparse: true });
 productSchema.index({ tenantId: 1, externalId: 1 }, { unique: true, sparse: true });
-productSchema.index({ tenantId: 1, barcode: 1 });
+productSchema.index(
+  { tenantId: 1, barcode: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { barcode: { $type: 'string', $gt: '' } },
+  },
+);
 productSchema.index({ tenantId: 1, category: 1 });
 productSchema.index({ tenantId: 1, productType: 1 });
 productSchema.index({ tenantId: 1, status: 1 });
 productSchema.index({ tenantId: 1, allowNegativeStock: 1 });
-productSchema.index({ tenantId: 1, nameEn: 'text', nameAr: 'text', sku: 'text', barcode: 'text' });
+productSchema.index({ tenantId: 1, nameEn: 'text', nameAr: 'text', sku: 'text', barcode: 'text', productId: 'text' });
 
 productSchema.pre('save', function(next) {
   const stocks = Array.isArray(this.stocks) ? this.stocks : [];
