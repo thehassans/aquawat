@@ -17,7 +17,7 @@ import { StockValidationError } from './errors.js';
 /**
  * List real orderpoints + virtual ones for products with negative forecast.
  */
-export async function listReplenishment(tenantId, { warehouseId } = {}) {
+export async function listReplenishment(tenantId, { warehouseId, permanentOnly } = {}) {
   const tid = new mongoose.Types.ObjectId(String(tenantId));
   const filter = { tenantId: tid, active: true };
   if (warehouseId) filter.warehouseId = warehouseId;
@@ -42,6 +42,10 @@ export async function listReplenishment(tenantId, { warehouseId } = {}) {
       qtyToOrder: toOrder,
       snoozed: op.snoozedUntil && new Date(op.snoozedUntil) > new Date(),
     });
+  }
+
+  if (permanentOnly === true || permanentOnly === '1' || permanentOnly === 'true') {
+    return rows;
   }
 
   // Virtual: variants with negative forecast not already covered

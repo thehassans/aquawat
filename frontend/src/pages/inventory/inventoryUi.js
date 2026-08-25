@@ -40,6 +40,7 @@ export const INVENTORY_PATH = {
   uom: '/app/dashboard/inventory/configuration/uom',
   productCategories: '/app/dashboard/inventory/configuration/product-categories',
   attributes: '/app/dashboard/inventory/configuration/attributes',
+  orderpoints: '/app/dashboard/inventory/configuration/orderpoints',
 }
 
 export const fieldControlClass =

@@ -156,6 +156,8 @@ export async function recomputeWarehouseRoutes(warehouseId, tenantId, userId = n
       stock, input, qc, pack, output, vendor, customer, receiptOt, deliveryOt,
     });
 
+    await syncInterWarehouseResupply(session, tid, userId, wh, stock);
+
     await session.commitTransaction();
     return StockWarehouse.findById(wh._id).lean();
   } catch (err) {
@@ -163,6 +165,101 @@ export async function recomputeWarehouseRoutes(warehouseId, tenantId, userId = n
     throw err;
   } finally {
     session.endSession();
+  }
+}
+
+/**
+ * For each resupplyWarehouseIds entry, ensure a pull route from supplier stock → this stock.
+ */
+async function syncInterWarehouseResupply(session, tenantId, userId, wh, stock) {
+  const supplierIds = (wh.resupplyWarehouseIds || []).map((id) => String(id));
+
+  // Deactivate obsolete inter-WH routes for this warehouse as supplied
+  const existingRoutes = await StockRoute.find({
+    tenantId,
+    suppliedWhId: wh._id,
+    supplierWhId: { $ne: null },
+  }).session(session);
+
+  for (const route of existingRoutes) {
+    if (!supplierIds.includes(String(route.supplierWhId))) {
+      route.active = false;
+      await route.save({ session });
+      await StockRule.updateMany(
+        { tenantId, routeId: route._id },
+        { $set: { active: false } },
+        { session },
+      );
+    }
+  }
+
+  const internalOt = await StockOperationType.findOne({
+    tenantId,
+    warehouseId: wh._id,
+    code: 'internal',
+    active: true,
+  }).session(session);
+
+  for (const supplierId of supplierIds) {
+    if (String(supplierId) === String(wh._id)) continue;
+    const supplier = await StockWarehouse.findOne({
+      _id: supplierId,
+      tenantId,
+      active: true,
+    }).session(session);
+    if (!supplier?.lotStockId) continue;
+
+    const routeName = `${wh.code}: Resupply from ${supplier.code}`;
+    let route = await StockRoute.findOne({
+      tenantId,
+      suppliedWhId: wh._id,
+      supplierWhId: supplier._id,
+    }).session(session);
+
+    if (!route) {
+      [route] = await StockRoute.create([{
+        tenantId,
+        name: routeName,
+        sequence: 50,
+        warehouseIds: [wh._id, supplier._id],
+        warehouseSelectable: true,
+        suppliedWhId: wh._id,
+        supplierWhId: supplier._id,
+        createdBy: userId,
+      }], { session });
+    } else {
+      route.active = true;
+      route.name = routeName;
+      route.warehouseIds = [wh._id, supplier._id];
+      await route.save({ session });
+    }
+
+    let rule = await StockRule.findOne({
+      tenantId,
+      routeId: route._id,
+      action: 'pull',
+      locationDestId: stock._id,
+    }).session(session);
+
+    if (!rule) {
+      await StockRule.create([{
+        tenantId,
+        name: `${supplier.code} → ${wh.code}`,
+        routeId: route._id,
+        sequence: 10,
+        action: 'pull',
+        operationTypeId: internalOt?._id || null,
+        locationSrcId: supplier.lotStockId,
+        locationDestId: stock._id,
+        procureMethod: 'make_to_stock',
+        createdBy: userId,
+      }], { session });
+    } else {
+      rule.active = true;
+      rule.locationSrcId = supplier.lotStockId;
+      rule.operationTypeId = internalOt?._id || rule.operationTypeId;
+      await rule.save({ session });
+    }
   }
 }
 

@@ -132,6 +132,12 @@
 - Config: Locations tree editor, Operation Types reservation/backorder/lots
 - Stock report product name links to forecast timeline
 
+## Phase 16 — Overview charts, reordering rules, inter-WH resupply
+
+- Overview cards: 7-day scheduled work bar chart
+- Config Reordering Rules (permanent orderpoints)
+- Warehouse `resupplyWarehouseIds` → pull routes supplier stock → supplied stock
+
 ## Deferred / polish
 
 _(none — concurrent reserve covered by optimistic versioning + optional Mongo integration test)_

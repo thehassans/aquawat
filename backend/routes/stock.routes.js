@@ -67,6 +67,7 @@ import {
   setTemplateAttributeLine,
   deleteTemplateAttributeLine,
 } from '../services/stock/variantGeneration.js';
+import { bucketScheduledByDay } from '../services/stock/overview.js';
 import { StockValidationError } from '../services/stock/errors.js';
 import { D, decStr } from '../utils/decimal.js';
 
@@ -171,7 +172,7 @@ router.get('/warehouses', checkPermission('inventory', 'read'), async (req, res)
 
 router.patch('/warehouses/:id', checkPermission('inventory', 'update'), async (req, res) => {
   try {
-    const allowed = ['name', 'receptionSteps', 'deliverySteps', 'buyToResupply', 'active'];
+    const allowed = ['name', 'receptionSteps', 'deliverySteps', 'buyToResupply', 'active', 'resupplyWarehouseIds'];
     const updates = {};
     for (const k of allowed) {
       if (req.body[k] !== undefined) updates[k] = req.body[k];
@@ -183,7 +184,7 @@ router.patch('/warehouses/:id', checkPermission('inventory', 'update'), async (r
     );
     if (!wh) return res.status(404).json({ error: 'Not found' });
 
-    if (updates.receptionSteps || updates.deliverySteps) {
+    if (updates.receptionSteps || updates.deliverySteps || updates.resupplyWarehouseIds) {
       await recomputeWarehouseRoutes(wh._id, req.user.tenantId, req.user._id);
       return res.json(await StockWarehouse.findById(wh._id).lean());
     }
@@ -780,8 +781,10 @@ router.get('/dashboard/overview', checkPermission('inventory', 'read'), async (r
   try {
     const opTypes = await StockOperationType.find({ ...req.tenantFilter, active: true }).lean();
     const now = new Date();
-    const weekAgo = new Date(now);
-    weekAgo.setDate(weekAgo.getDate() - 7);
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
 
     const cards = [];
     for (const ot of opTypes) {
@@ -797,13 +800,14 @@ router.get('/dashboard/overview', checkPermission('inventory', 'read'), async (r
       const scheduled = await StockPicking.find({
         ...req.tenantFilter,
         operationTypeId: ot._id,
-        scheduledDate: { $gte: weekAgo, $lte: now },
+        scheduledDate: { $gte: start, $lt: end },
+        state: { $nin: ['cancel'] },
       }).select('scheduledDate state').lean();
 
       cards.push({
         operationType: ot,
         counts: { ready, waiting, late },
-        scheduled,
+        weekBars: bucketScheduledByDay(scheduled, start, 7),
       });
     }
 

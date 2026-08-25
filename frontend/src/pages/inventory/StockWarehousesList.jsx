@@ -60,10 +60,12 @@ export default function StockWarehousesList() {
                 onSubmit={(e) => {
                   e.preventDefault()
                   const fd = new FormData(e.currentTarget)
+                  const resupply = fd.getAll('resupplyWarehouseIds')
                   save.mutate({
                     id: wh._id,
                     receptionSteps: fd.get('receptionSteps'),
                     deliverySteps: fd.get('deliverySteps'),
+                    resupplyWarehouseIds: resupply,
                   })
                 }}
               >
@@ -82,6 +84,24 @@ export default function StockWarehousesList() {
                     <option value="pick_ship">Pick + Ship</option>
                     <option value="pick_pack_ship">Pick + Pack + Ship</option>
                   </select>
+                </div>
+                <div>
+                  <label className="label">{isAr ? 'إعادة التوريد من مستودعات' : 'Resupply from warehouses'}</label>
+                  <select
+                    name="resupplyWarehouseIds"
+                    multiple
+                    className={`${fieldControlClass} min-h-[88px]`}
+                    defaultValue={(wh.resupplyWarehouseIds || []).map(String)}
+                  >
+                    {(warehouses || [])
+                      .filter((o) => o._id !== wh._id)
+                      .map((o) => (
+                        <option key={o._id} value={o._id}>{o.name} ({o.code})</option>
+                      ))}
+                  </select>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {isAr ? 'Ctrl/Cmd للاختيار المتعدد. يُنشئ مسار سحب بين المخازن.' : 'Ctrl/Cmd multi-select. Creates pull routes between stocks.'}
+                  </p>
                 </div>
                 <p className="text-xs text-slate-400">
                   {isAr

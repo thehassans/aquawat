@@ -326,3 +326,17 @@ test('forecast timeline flags first negative balance', async () => {
   assert.equal(String(firstNegativeDate), '2026-01-05');
   assert.equal(finalBalance, '18');
 });
+
+test('overview week bars bucket scheduled pickings', async () => {
+  const { bucketScheduledByDay } = await import('../services/stock/overview.js');
+  const start = new Date('2026-08-25T00:00:00');
+  const bars = bucketScheduledByDay([
+    { scheduledDate: '2026-08-25T10:00:00' },
+    { scheduledDate: '2026-08-25T18:00:00' },
+    { scheduledDate: '2026-08-27T09:00:00' },
+  ], start, 7);
+  assert.equal(bars.length, 7);
+  assert.equal(bars[0].count, 2);
+  assert.equal(bars[2].count, 1);
+  assert.equal(bars[1].count, 0);
+});

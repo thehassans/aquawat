@@ -17,6 +17,24 @@ const CODE_PATHS = {
   internal: { list: INVENTORY_PATH.internal, new: INVENTORY_PATH.internalNew },
 }
 
+function WeekBars({ bars }) {
+  const max = Math.max(1, ...(bars || []).map((b) => b.count))
+  return (
+    <div className="flex items-end gap-1 h-12" title="Next 7 days scheduled">
+      {(bars || []).map((b) => (
+        <div key={b.date} className="flex-1 flex flex-col items-center gap-0.5 min-w-0">
+          <div
+            className="w-full rounded-t bg-teal-600/80 dark:bg-teal-400/70"
+            style={{ height: `${Math.max(4, (b.count / max) * 100)}%` }}
+            title={`${b.label}: ${b.count}`}
+          />
+          <span className="text-[9px] text-slate-400 truncate w-full text-center">{b.label?.slice(0, 2)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function InventoryOverview() {
   const { language } = useSelector((state) => state.ui)
   const isAr = language === 'ar'
@@ -49,7 +67,7 @@ export default function InventoryOverview() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {cards.map(({ operationType, counts }) => {
+          {cards.map(({ operationType, counts, weekBars }) => {
             const code = operationType?.code || 'internal'
             const Icon = CODE_ICONS[code] || Package
             const paths = CODE_PATHS[code] || CODE_PATHS.internal
@@ -71,6 +89,8 @@ export default function InventoryOverview() {
                     {isAr ? 'فتح' : 'Open'}
                   </Link>
                 </div>
+
+                <WeekBars bars={weekBars} />
 
                 <div className="grid grid-cols-3 gap-2 text-center text-sm">
                   <Link to={`${paths.list}?state=assigned`} className="rounded-xl bg-emerald-50 py-2 dark:bg-emerald-500/10">

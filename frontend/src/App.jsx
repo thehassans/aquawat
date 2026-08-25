@@ -114,6 +114,7 @@ const LocationsReport = lazy(() => import('./pages/inventory/LocationsReport'))
 const ForecastReport = lazy(() => import('./pages/inventory/ForecastReport'))
 const LocationsConfigList = lazy(() => import('./pages/inventory/LocationsConfigList'))
 const OperationTypesList = lazy(() => import('./pages/inventory/OperationTypesList'))
+const OrderpointsConfigList = lazy(() => import('./pages/inventory/OrderpointsConfigList'))
 const Products = lazy(() => import('./pages/inventory/Products'))
 const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
@@ -858,6 +859,7 @@ function App() {
             <Route path="operation-types" element={<OperationTypesList />} />
             <Route path="product-categories" element={<ProductCategoriesList />} />
             <Route path="attributes" element={<ProductAttributesList />} />
+            <Route path="orderpoints" element={<OrderpointsConfigList />} />
             <Route path="routes" element={<RoutesList />} />
             <Route path="rules" element={<RulesList />} />
             <Route path="putaway" element={<PutawayRulesList />} />
