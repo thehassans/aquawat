@@ -253,7 +253,8 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 |---|---|
 | No live ZATCA QR on slips | Brief: placeholder until invoicing slots in |
 | Cache also mirrors `Product.stocks[]` | Keep legacy list UIs working |
-| XLSX import not added | CSV dry-run/commit covers products + locations; XLSX can wrap same parser later |
+| XLSX import | First sheet → CSV via `xlsx`; same dry-run / adjustment-transfer path (`xlsxBase64` on import APIs) |
+
 
 ## Acceptance pass (post Step 6)
 
@@ -284,3 +285,12 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Delivery methods | Fixed-price carriers CRUD |
 | Shipping connectors | Flag status + stub rows (no live APIs) |
 | Variants / Attributes | Explicit deferred pages (engine has `variantId` only) |
+
+## XLSX import wrap
+
+| Topic | Decision |
+|---|---|
+| Conversion | `xlsxBufferToCsv` / `resolveImportCsvText` — first sheet only |
+| APIs | `POST /stock/import/products` + `/locations` accept `xlsxBase64` (or CSV text) |
+| Ledger | Unchanged — opening qty still posts adjustment transfers |
+| UI | Import & Export: file picker (.csv/.xlsx), target products\|locations |

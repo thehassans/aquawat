@@ -1857,6 +1857,7 @@ router.post('/import/products', checkPermission('inventory', 'create'), async (r
     const { importProducts } = await import('../services/inventory/importExport.js');
     const result = await importProducts(req.user.tenantId, req.user._id, {
       csvText: req.body.csvText || req.body.csv || '',
+      xlsxBase64: req.body.xlsxBase64,
       dryRun: req.body.dryRun !== false && req.body.dryRun !== '0',
       warehouseId: req.body.warehouseId,
     });
@@ -1871,6 +1872,7 @@ router.post('/import/locations', checkPermission('inventory', 'create'), async (
     const { importLocations } = await import('../services/inventory/importExport.js');
     const result = await importLocations(req.user.tenantId, req.user._id, {
       csvText: req.body.csvText || req.body.csv || '',
+      xlsxBase64: req.body.xlsxBase64,
       dryRun: req.body.dryRun !== false && req.body.dryRun !== '0',
       warehouseId: req.body.warehouseId,
     });

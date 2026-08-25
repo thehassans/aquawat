@@ -85,6 +85,36 @@ export function parseCsv(text) {
   return { headers, records };
 }
 
+/**
+ * First sheet of an .xlsx/.xls buffer → CSV text for the existing parsers.
+ * Does not change dry-run / adjustment-transfer semantics.
+ */
+export async function xlsxBufferToCsv(buffer) {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  const sheetName = wb.SheetNames[0];
+  if (!sheetName) {
+    throw new InventoryValidationError('Workbook has no sheets', 'XLSX_EMPTY');
+  }
+  return XLSX.utils.sheet_to_csv(wb.Sheets[sheetName]);
+}
+
+/**
+ * Prefer xlsxBase64 when provided; otherwise csvText / csv.
+ * Accepts optional data-URL prefix on the base64 string.
+ */
+export async function resolveImportCsvText({ csvText, csv, xlsxBase64 } = {}) {
+  if (xlsxBase64) {
+    const raw = String(xlsxBase64).replace(/^data:[^;]+;base64,/, '');
+    const buf = Buffer.from(raw, 'base64');
+    if (!buf.length) {
+      throw new InventoryValidationError('Empty XLSX payload', 'XLSX_EMPTY');
+    }
+    return xlsxBufferToCsv(buf);
+  }
+  return String(csvText || csv || '');
+}
+
 const PRODUCT_EXPORT_COLUMNS = [
   'externalId', 'sku', 'barcode', 'nameEn', 'nameAr', 'costPrice', 'salePrice',
   'category', 'tracking', 'unitOfMeasure', 'canBeSold', 'canBePurchased',
@@ -168,11 +198,14 @@ export async function exportCollection(tenantId, collection, { warehouseId } = {
  */
 export async function importProducts(tenantId, userId, {
   csvText,
+  csv,
+  xlsxBase64,
   dryRun = true,
   warehouseId = null,
 } = {}) {
   const tid = toObjectId(tenantId);
-  const { records } = parseCsv(csvText);
+  const text = await resolveImportCsvText({ csvText, csv, xlsxBase64 });
+  const { records } = parseCsv(text);
   if (!records.length) throw new InventoryValidationError('CSV has no data rows', 'CSV_EMPTY');
 
   const defaultUom = await getDefaultUom(tid);
@@ -333,9 +366,16 @@ export async function importProducts(tenantId, userId, {
 /**
  * Import locations (name/path/usage) — dry-run then create under warehouse.
  */
-export async function importLocations(tenantId, userId, { csvText, dryRun = true, warehouseId = null } = {}) {
+export async function importLocations(tenantId, userId, {
+  csvText,
+  csv,
+  xlsxBase64,
+  dryRun = true,
+  warehouseId = null,
+} = {}) {
   const tid = toObjectId(tenantId);
-  const { records } = parseCsv(csvText);
+  const text = await resolveImportCsvText({ csvText, csv, xlsxBase64 });
+  const { records } = parseCsv(text);
   if (!records.length) throw new InventoryValidationError('CSV has no data rows', 'CSV_EMPTY');
   if (!warehouseId) throw new InventoryValidationError('warehouseId required', 'WH_REQUIRED');
 

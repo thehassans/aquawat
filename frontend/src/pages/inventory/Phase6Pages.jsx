@@ -216,7 +216,11 @@ export { default as InventorySettingsPage } from './InventorySettingsPage'
 
 export function ImportExportPage() {
   const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
   const [csvText, setCsvText] = useState('')
+  const [xlsxBase64, setXlsxBase64] = useState(null)
+  const [fileName, setFileName] = useState('')
+  const [target, setTarget] = useState('products')
   const [result, setResult] = useState(null)
   const [warehouseId, setWarehouseId] = useState('')
 
@@ -225,15 +229,49 @@ export function ImportExportPage() {
     queryFn: () => api.get('/warehouses').then((r) => r.data?.warehouses || r.data || []),
   })
 
+  const fileToBase64 = async (file) => {
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    let binary = ''
+    const chunk = 8192
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+    }
+    return btoa(binary)
+  }
+
+  const onFile = async (e) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setFileName(f.name)
+    setResult(null)
+    const lower = f.name.toLowerCase()
+    try {
+      if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+        setXlsxBase64(await fileToBase64(f))
+        setCsvText('')
+      } else {
+        setXlsxBase64(null)
+        setCsvText(await f.text())
+      }
+    } catch (err) {
+      toast.error(err.message || 'File read failed')
+    }
+  }
+
   const importMut = useMutation({
     mutationFn: (dryRun) =>
-      api.post('/stock/import/products', { csvText, dryRun, warehouseId: warehouseId || undefined }),
+      api.post(`/stock/import/${target}`, {
+        csvText: xlsxBase64 ? undefined : csvText,
+        xlsxBase64: xlsxBase64 || undefined,
+        dryRun,
+        warehouseId: warehouseId || undefined,
+      }),
     onSuccess: (res) => {
       setResult(res.data)
       toast.success(
         res.data.dryRun
-          ? (language === 'ar' ? 'معاينة جاهزة' : 'Dry-run ready')
-          : (language === 'ar' ? 'تم الاستيراد' : 'Import committed'),
+          ? (ar ? 'معاينة جاهزة' : 'Dry-run ready')
+          : (ar ? 'تم الاستيراد' : 'Import committed'),
       )
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
@@ -256,46 +294,82 @@ export function ImportExportPage() {
     }
   }
 
+  const canImport = Boolean(xlsxBase64 || csvText.trim())
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {language === 'ar' ? 'استيراد وتصدير' : 'Import & Export'}
+          {ar ? 'استيراد وتصدير' : 'Import & Export'}
         </h2>
         <p className="text-sm text-slate-500">
-          {language === 'ar'
-            ? 'معاينة أولاً. الكميات الافتتاحية تُرحَّل كتحويل تسوية — لا كتابة مباشرة على الرصيد.'
-            : 'Dry-run first. Opening qty posts as an inventory adjustment transfer — never a direct quant write.'}
+          {ar
+            ? 'معاينة أولاً. CSV أو Excel (.xlsx) — الكميات الافتتاحية تُرحَّل كتحويل تسوية.'
+            : 'Dry-run first. CSV or Excel (.xlsx) — opening qty posts as an adjustment transfer.'}
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <select className="select select-sm" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-          <option value="">{language === 'ar' ? 'مستودع (للافتتاحي / المواقع)' : 'Warehouse (opening / locations)'}</option>
+          <option value="">{ar ? 'مستودع (للافتتاحي / المواقع)' : 'Warehouse (opening / locations)'}</option>
           {(warehouses || []).map((w) => (
             <option key={w._id} value={w._id}>{w.name || w.code}</option>
           ))}
         </select>
         {['products', 'stock', 'locations', 'lots', 'reorder-rules'].map((c) => (
           <button key={c} type="button" className="btn btn-secondary btn-sm" onClick={() => download(c)}>
-            {language === 'ar' ? `تصدير ${c}` : `Export ${c}`}
+            {ar ? `تصدير ${c}` : `Export ${c}`}
           </button>
         ))}
       </div>
 
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="label text-xs">{ar ? 'الهدف' : 'Import target'}</label>
+          <select className="select select-sm" value={target} onChange={(e) => setTarget(e.target.value)}>
+            <option value="products">{ar ? 'منتجات' : 'Products'}</option>
+            <option value="locations">{ar ? 'مواقع' : 'Locations'}</option>
+          </select>
+        </div>
+        <div>
+          <label className="label text-xs">{ar ? 'ملف CSV / Excel' : 'CSV / Excel file'}</label>
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            className="block text-sm"
+            onChange={onFile}
+          />
+          {fileName ? (
+            <p className="mt-1 text-xs text-slate-500">
+              {fileName}
+              {xlsxBase64 ? (ar ? ' (Excel → نفس المحلّل)' : ' (Excel → same parser)') : ''}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
       <textarea
         className="textarea min-h-[10rem] font-mono text-xs"
-        placeholder="externalId,sku,barcode,nameEn,costPrice,onHand"
-        value={csvText}
-        onChange={(e) => setCsvText(e.target.value)}
+        placeholder={
+          target === 'locations'
+            ? 'name,nameAr,usage,barcode'
+            : 'externalId,sku,barcode,nameEn,costPrice,onHand'
+        }
+        value={xlsxBase64 ? (ar ? '— محتوى Excel محمّل (معاينة عبر الخادم) —' : '— Excel loaded (server-side dry-run) —') : csvText}
+        onChange={(e) => {
+          setXlsxBase64(null)
+          setFileName('')
+          setCsvText(e.target.value)
+        }}
+        disabled={Boolean(xlsxBase64)}
       />
 
       <div className="flex gap-2">
-        <button type="button" className="btn btn-secondary" disabled={!csvText || importMut.isPending} onClick={() => importMut.mutate(true)}>
-          {language === 'ar' ? 'معاينة (dry-run)' : 'Dry-run'}
+        <button type="button" className="btn btn-secondary" disabled={!canImport || importMut.isPending} onClick={() => importMut.mutate(true)}>
+          {ar ? 'معاينة (dry-run)' : 'Dry-run'}
         </button>
-        <button type="button" className="btn btn-primary" disabled={!csvText || importMut.isPending} onClick={() => importMut.mutate(false)}>
-          {language === 'ar' ? 'تنفيذ الاستيراد' : 'Commit import'}
+        <button type="button" className="btn btn-primary" disabled={!canImport || importMut.isPending} onClick={() => importMut.mutate(false)}>
+          {ar ? 'تنفيذ الاستيراد' : 'Commit import'}
         </button>
       </div>
 
