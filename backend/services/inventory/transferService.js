@@ -457,14 +457,6 @@ export async function validateTransfer(tenantId, transferId, {
       transfer.state = 'done';
       transfer.doneDate = new Date();
       if (userId) transfer.updatedBy = userId;
-      if (settings.emailConfirmationOnDelivery && opType?.code === 'outgoing') {
-        const stamp = new Date().toISOString();
-        transfer.note = [transfer.note, `[email-confirmation queued ${stamp}]`].filter(Boolean).join('\n');
-      }
-      if (settings.stockSmsConfirmation && opType?.code === 'outgoing') {
-        const stamp = new Date().toISOString();
-        transfer.note = [transfer.note, `[sms-confirmation queued ${stamp}]`].filter(Boolean).join('\n');
-      }
       await transfer.save({ session });
       await recomputeTransferState(transfer._id, tenantId, session);
 
@@ -511,6 +503,15 @@ export async function validateTransfer(tenantId, transferId, {
       );
     } catch (err) {
       console.error('[inventory] product cache sync failed', err?.message || err);
+    }
+    try {
+      const { sendDeliveryConfirmations } = await import('./deliveryConfirmations.js');
+      await sendDeliveryConfirmations(tenantId, result.transfer);
+      // Reload note / any confirmation stamps for the HTTP response
+      const fresh = await InvTransfer.findById(result.transfer._id);
+      if (fresh) return fresh;
+    } catch (err) {
+      console.error('[inventory] delivery confirmation failed', err?.message || err);
     }
     return result.transfer;
   });

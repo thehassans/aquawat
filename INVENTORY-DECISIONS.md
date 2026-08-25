@@ -277,6 +277,7 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 |---|---|
 | Lots on delivery slip | `settingsHints.showLotsOnDeliverySlips` gates lot column on outgoing print |
 | Lots on invoices | `showLotsOnInvoices` / `groupLotOnInvoice` → `GET /stock/invoices/:id/lots` from linked transfers/DNs; InvoiceView line hints + lot table (read-only) |
+| Delivery email/SMS confirm | Outgoing validate sends partner email/SMS when flags on; stamps `sent`/`failed`/`skipped` on `transfer.note` (post-txn; no ledger write) |
 | Settings effects registry | Every `SETTINGS_ALLOWED` flag maps to `SETTINGS_EFFECTS`; `GET /stock/settings?include=effects` |
 | Carrier stubs | Enabling `moduleCarrier*` upserts `InvDeliveryCarrier` with `installed: false` |
 | Reconcile stress | In-memory 100 random ops (FIFO/AVCO/standard) assert zero value/qty drift — no Mongo required |
@@ -368,6 +369,16 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | GS1 | Enabling `groupGs1Nomenclature` seeds GTIN/AI rules onto default barcode nomenclature |
 | Export | `GET /stock/export/:collection?format=xlsx` wraps CSV via SheetJS — same columns as CSV |
 
+## Delivery email / SMS confirmation
+
+| Topic | Decision |
+|---|---|
+| Trigger | Outgoing `validateTransfer` post-txn (after quant deltas + cache sync) |
+| Email | `sendTenantEmail` to partner `Customer.email` when `emailConfirmationOnDelivery` |
+| SMS | `sendSms` to partner phone when `stockSmsConfirmation` + SMS addon + provider enabled |
+| Audit | Append `[email|sms-confirmation sent|failed|skipped …]` lines on `transfer.note` |
+| Ledger | Unchanged — notify never writes quants |
+| SMS settings path | Prefer `settings.communication.sms`, fall back to legacy `settings.sms` |
 
 
 

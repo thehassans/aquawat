@@ -209,12 +209,15 @@ export default function InventorySettingsPage() {
       <Section title={ar ? 'الشحن' : 'Shipping'}>
         <Toggle
           label={ar ? 'تأكيد بالبريد' : 'Email confirmation'}
+          hint={ar ? 'يُرسل للعميل عند تحقق التسليم الصادر' : 'Sends to partner on outgoing validate'}
           checked={current.emailConfirmationOnDelivery}
           onChange={() => toggle('emailConfirmationOnDelivery')}
         />
         <Toggle
           label={ar ? 'تأكيد بالرسائل' : 'SMS confirmation'}
-          hint={smsOk ? undefined : (ar ? 'لا يوجد مزود رسائل مُعدّ' : 'No SMS provider configured')}
+          hint={smsOk
+            ? (ar ? 'يُرسل للعميل عند تحقق التسليم الصادر' : 'Sends to partner on outgoing validate')
+            : (ar ? 'لا يوجد مزود رسائل مُعدّ' : 'No SMS provider configured')}
           checked={current.stockSmsConfirmation}
           disabled={!smsOk && !current.stockSmsConfirmation}
           onChange={() => toggle('stockSmsConfirmation')}

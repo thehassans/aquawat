@@ -13,8 +13,8 @@ test('listSettingsEffects returns one row per flag', () => {
 });
 
 test('email and SMS confirmation effects are documented', () => {
-  assert.equal(SETTINGS_EFFECTS.emailConfirmationOnDelivery, 'validate_stamps_email_note');
-  assert.equal(SETTINGS_EFFECTS.stockSmsConfirmation, 'validate_stamps_sms_note_requires_provider');
+  assert.equal(SETTINGS_EFFECTS.emailConfirmationOnDelivery, 'outgoing_validate_sends_partner_email');
+  assert.equal(SETTINGS_EFFECTS.stockSmsConfirmation, 'outgoing_validate_sends_partner_sms_requires_provider');
 });
 
 test('lots on delivery slip effect is print_lot_column_on_delivery', () => {

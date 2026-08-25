@@ -106,8 +106,14 @@ export function signatureRequired(settings) {
 }
 
 export async function isSmsProviderConfigured(tenantId) {
-  const tenant = await Tenant.findById(tenantId).select('settings.sms').lean();
-  const sms = tenant?.settings?.sms;
+  const tenant = await Tenant.findById(tenantId)
+    .select('settings.sms settings.communication.sms')
+    .lean();
+  const comm = tenant?.settings?.communication?.sms;
+  const legacy = tenant?.settings?.sms;
+  const sms = (comm && (comm.enabled || comm.provider || comm.twilioAccountSid || comm.customUrl))
+    ? comm
+    : (legacy || comm || {});
   if (!sms?.enabled) return false;
   if (sms.provider === 'twilio' && sms.twilioAccountSid && sms.twilioAuthToken && sms.fromNumber) return true;
   if (sms.provider === 'unifonic' && (sms.unifonicToken || sms.unifonicAppSid)) return true;

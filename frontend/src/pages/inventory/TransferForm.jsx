@@ -921,6 +921,19 @@ export default function TransferForm() {
                     )}
                   </div>
                 )}
+                {code === 'outgoing' && transfer?.note && /\[(email|sms)-confirmation /.test(transfer.note) && (
+                  <div className="rounded-xl border border-slate-200 p-3 text-xs dark:border-dark-600">
+                    <div className="mb-1 font-medium text-slate-600">
+                      {ar ? 'تأكيد التسليم' : 'Delivery confirmation'}
+                    </div>
+                    <pre className="whitespace-pre-wrap font-mono text-[11px] text-slate-500">
+                      {String(transfer.note)
+                        .split('\n')
+                        .filter((line) => /\[(email|sms)-confirmation /.test(line))
+                        .join('\n')}
+                    </pre>
+                  </div>
+                )}
               </div>
             )}
 
