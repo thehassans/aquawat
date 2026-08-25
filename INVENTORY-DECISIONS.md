@@ -538,7 +538,7 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 |---|---|
 | Error envelope | `{ error: { code, message, messageAr, field?, details? } }` via `sendInvError`; FE `getApiErrorMessage` unwraps string or object |
 | Typed codes | Catalog in `errors.js` for brief minimum set + bilingual next-step copy; `invError(code)` helper |
-| Zod | Boundary schemas on validate / pos-consume / apply-count / integrity-run (`invValidate.js`); passthrough unknown keys for FE compat |
+| Zod | Pin `zod@^3.25.76` (not v4) so `npm ci` resolves with openai’s optional peer; boundary schemas on validate / pos-consume / apply-count / integrity-run (`invValidate.js`); passthrough unknown keys for FE compat |
 | List envelope | `listEnvelope` + dual `{ data, _meta }` / `{ items }` on `GET /stock/jobs` (gradual rollout — not all lists rewritten) |
 | Write conflict | `runWithTransaction` one retry + jitter; exhaust → `WRITE_CONFLICT` 409 |
 | Advisory lock | Shared `acquireAdvisoryLock` helper (validate still uses transfer `validateLock`) |
