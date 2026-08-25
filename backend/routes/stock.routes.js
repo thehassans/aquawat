@@ -404,33 +404,12 @@ router.patch('/product-categories/:id', checkPermission('inventory', 'update'), 
 
 // ── Transfers ──────────────────────────────────────────────────────
 
-/** Aggregated open-transfer counts for inventory overview (one round-trip). */
+/** Aggregated open-transfer counts for inventory overview (same builder as list). */
 router.get('/transfer-counts', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const scope = await resolveWarehouseScope(req);
-    const otFilter = { ...req.tenantFilter, active: true, ...warehouseFilter(scope) };
-    const opTypes = await InvOperationType.find(otFilter).select('_id code').lean();
-    const byCode = { incoming: [], outgoing: [], internal: [] };
-    for (const ot of opTypes) {
-      if (byCode[ot.code]) byCode[ot.code].push(ot._id);
-    }
-    const states = ['assigned', 'waiting', 'confirmed'];
-    const result = { incoming: {}, outgoing: {}, internal: {} };
-    await Promise.all(
-      Object.keys(byCode).flatMap((code) =>
-        states.map(async (state) => {
-          const ids = byCode[code];
-          result[code][state] = ids.length
-            ? await InvTransfer.countDocuments({
-                ...req.tenantFilter,
-                operationTypeId: { $in: ids },
-                state,
-              })
-            : 0;
-        }),
-      ),
-    );
-    res.json(result);
+    const { countTransfersByCodeAndState } = await import('../services/inventory/transferQuery.js');
+    res.json(await countTransfersByCodeAndState(req.user.tenantId, scope));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -439,39 +418,16 @@ router.get('/transfer-counts', checkPermission('inventory', 'read'), async (req,
 router.get('/transfers', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const scope = await resolveWarehouseScope(req);
-    const filter = { ...req.tenantFilter };
-    if (req.query.state) filter.state = req.query.state;
-
-    if (req.query.code || req.query.operationTypeId || scope) {
-      const otFilter = { ...req.tenantFilter, ...warehouseFilter(scope) };
-      if (req.query.code) otFilter.code = req.query.code;
-      const ots = await InvOperationType.find(otFilter).select('_id');
-      const otIds = ots.map((o) => o._id);
-      if (req.query.operationTypeId) {
-        if (!otIds.some((id) => String(id) === String(req.query.operationTypeId))) {
-          return res.json({ data: [], total: 0, page: 1, limit: 40 });
-        }
-        filter.operationTypeId = req.query.operationTypeId;
-      } else {
-        filter.operationTypeId = { $in: otIds };
-      }
-    }
-
-    const page = Math.max(1, Number(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
-    const skip = (page - 1) * limit;
-
-    const [rows, total] = await Promise.all([
-      InvTransfer.find(filter)
-        .sort({ scheduledDate: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .populate('operationTypeId', 'name nameAr code cardColor')
-        .lean(),
-      InvTransfer.countDocuments(filter),
-    ]);
-
-    res.json({ data: rows, total, page, limit });
+    const { listTransfers } = await import('../services/inventory/transferQuery.js');
+    const payload = await listTransfers(req.user.tenantId, req.query, scope);
+    // Backward-compatible top-level total/page/limit + v3 _meta
+    res.json({
+      data: payload.data,
+      total: payload._meta.total,
+      page: payload._meta.page,
+      limit: payload._meta.pageSize,
+      _meta: payload._meta,
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1591,6 +1547,26 @@ router.post('/pos-close', checkPermission('inventory', 'create'), async (req, re
       partnerId: req.body.partnerId,
     });
     res.status(201).json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+/** PoS consume — create+validate pos picking (works without PoS UI). */
+router.post('/pos/consume', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { posConsume } = await import('../services/inventory/posManufacturing.js');
+    res.status(201).json(await posConsume(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+/** Manual MO: consume components + produce finished (no BoM required). */
+router.post('/manufacturing/consume-produce', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { manufactureConsumeProduce } = await import('../services/inventory/posManufacturing.js');
+    res.status(201).json(await manufactureConsumeProduce(req.user.tenantId, req.user._id, req.body));
   } catch (err) {
     handleInventoryError(res, err);
   }

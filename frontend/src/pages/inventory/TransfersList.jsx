@@ -10,11 +10,14 @@ import EmptyState from '../../components/ui/EmptyState'
 function codeFromPath(pathname) {
   if (pathname.includes('/receipts')) return 'incoming'
   if (pathname.includes('/deliveries')) return 'outgoing'
+  if (pathname.includes('/pos')) return 'pos'
+  if (pathname.includes('/manufacturing')) return 'manufacturing'
   return 'internal'
 }
 
 export default function TransfersList() {
   const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const code = codeFromPath(location.pathname)
@@ -22,9 +25,11 @@ export default function TransfersList() {
   const [q, setQ] = useState('')
 
   const title = {
-    incoming: language === 'ar' ? 'الاستلامات' : 'Receipts',
-    outgoing: language === 'ar' ? 'أوامر التسليم' : 'Delivery Orders',
-    internal: language === 'ar' ? 'تحويلات داخلية' : 'Internal Transfers',
+    incoming: ar ? 'الاستلامات' : 'Receipts',
+    outgoing: ar ? 'أوامر التسليم' : 'Delivery Orders',
+    internal: ar ? 'تحويلات داخلية' : 'Internal Transfers',
+    pos: ar ? 'طلبات نقطة البيع' : 'PoS Orders',
+    manufacturing: ar ? 'التصنيع' : 'Manufacturing',
   }[code]
 
   const { data, isLoading } = useQuery({
@@ -44,8 +49,19 @@ export default function TransfersList() {
     )
   }, [data, q])
 
+  const meta = data?._meta
+  const applied = meta?.appliedFilters || {}
+  const clearFilters = () => {
+    setSearchParams({})
+    setQ('')
+  }
+
   const basePath = `/app/dashboard/inventory/${
-    code === 'incoming' ? 'receipts' : code === 'outgoing' ? 'deliveries' : 'internal'
+    code === 'incoming' ? 'receipts'
+      : code === 'outgoing' ? 'deliveries'
+        : code === 'pos' ? 'pos'
+          : code === 'manufacturing' ? 'manufacturing'
+            : 'internal'
   }`
 
   return (
@@ -54,7 +70,7 @@ export default function TransfersList() {
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
         <Link to={`${basePath}/new`} className="btn btn-primary text-sm">
           <Plus className="h-4 w-4" />
-          {language === 'ar' ? 'جديد' : 'New'}
+          {ar ? 'جديد' : 'New'}
         </Link>
       </div>
 
@@ -65,7 +81,7 @@ export default function TransfersList() {
             className="input w-full ps-9"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={language === 'ar' ? 'بحث…' : 'Search…'}
+            placeholder={ar ? 'بحث…' : 'Search…'}
           />
         </div>
         <select
@@ -78,21 +94,37 @@ export default function TransfersList() {
             setSearchParams(next)
           }}
         >
-          <option value="">{language === 'ar' ? 'كل الحالات' : 'All states'}</option>
+          <option value="">{ar ? 'كل الحالات' : 'All states'}</option>
           {['draft', 'waiting', 'confirmed', 'assigned', 'done', 'cancelled'].map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+        {(state || q) && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
+            {ar ? 'مسح التصفية' : 'Clear filters'}
+          </button>
+        )}
       </div>
+
+      {meta && (
+        <p className="text-xs text-slate-400">
+          {meta.total ?? 0} {ar ? 'سجل' : 'record(s)'}
+          {applied.state ? ` · state=${applied.state}` : ''}
+          {applied.code ? ` · code=${applied.code}` : ''}
+          {applied.emptyOperationTypeMatch
+            ? (ar ? ' · لا أنواع عمليات مطابقة' : ' · no matching operation types')
+            : ''}
+        </p>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-start text-xs uppercase tracking-wide text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
             <tr>
-              <th className="px-4 py-3 font-medium">{language === 'ar' ? 'المرجع' : 'Reference'}</th>
-              <th className="px-4 py-3 font-medium">{language === 'ar' ? 'المصدر' : 'Origin'}</th>
-              <th className="px-4 py-3 font-medium">{language === 'ar' ? 'الموعد' : 'Scheduled'}</th>
-              <th className="px-4 py-3 font-medium">{language === 'ar' ? 'الحالة' : 'Status'}</th>
+              <th className="px-4 py-3 font-medium">{ar ? 'المرجع' : 'Reference'}</th>
+              <th className="px-4 py-3 font-medium">{ar ? 'المصدر' : 'Origin'}</th>
+              <th className="px-4 py-3 font-medium">{ar ? 'الموعد' : 'Scheduled'}</th>
+              <th className="px-4 py-3 font-medium">{ar ? 'الحالة' : 'Status'}</th>
             </tr>
           </thead>
           <tbody>
@@ -105,9 +137,26 @@ export default function TransfersList() {
               <tr>
                 <td colSpan={4} className="p-8">
                   <EmptyState
-                    title={language === 'ar' ? 'لا توجد تحويلات' : 'No transfers'}
-                    description={language === 'ar' ? 'أنشئ مستنداً جديداً للبدء' : 'Create a document to get started'}
+                    title={ar ? 'لا توجد تحويلات' : 'No transfers'}
+                    description={
+                      applied.emptyOperationTypeMatch
+                        ? (ar
+                          ? 'لا توجد أنواع عمليات لهذا المستودع/الكود — شغّل التهيئة من الإعدادات'
+                          : 'No operation types for this warehouse/code — run bootstrap from Settings')
+                        : state
+                          ? (ar
+                            ? `لا نتائج للتصفية الحالية (state=${state}). جرّب «كل الحالات» أو مسح التصفية.`
+                            : `No rows for current filters (state=${state}). Try “All states” or Clear filters.`)
+                          : (ar ? 'أنشئ مستنداً جديداً للبدء' : 'Create a document to get started')
+                    }
                   />
+                  {(state || applied.emptyOperationTypeMatch) && (
+                    <div className="mt-3 flex justify-center">
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                        {ar ? 'مسح التصفية' : 'Clear filters'}
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             )}
@@ -118,8 +167,8 @@ export default function TransfersList() {
                     {t.name}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{t.origin || '—'}</td>
-                <td className="px-4 py-3 tabular-nums text-slate-600 dark:text-slate-300">
+                <td className="px-4 py-3 text-slate-500">{t.origin || '—'}</td>
+                <td className="px-4 py-3 tabular-nums text-slate-500">
                   {t.scheduledDate ? new Date(t.scheduledDate).toLocaleDateString() : '—'}
                 </td>
                 <td className="px-4 py-3">
@@ -129,11 +178,6 @@ export default function TransfersList() {
             ))}
           </tbody>
         </table>
-        {data?.total != null && (
-          <div className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500 dark:border-dark-600">
-            1–{rows.length} / {data.total}
-          </div>
-        )}
       </div>
     </div>
   )

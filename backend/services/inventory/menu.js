@@ -67,7 +67,7 @@ export const INVENTORY_MENU_TREE = [
         id: 'manufacturing',
         label: 'Manufacturings',
         labelAr: 'التصنيع',
-        href: '/app/dashboard/manufacturing',
+        href: '/app/dashboard/inventory/manufacturing',
         flag: 'manufacturing',
         permission: { module: 'inventory', action: 'read' },
       },
@@ -75,7 +75,7 @@ export const INVENTORY_MENU_TREE = [
         id: 'pos-orders',
         label: 'PoS Orders',
         labelAr: 'طلبات نقطة البيع',
-        href: '/app/dashboard/inventory/deliveries?isPos=1',
+        href: '/app/dashboard/inventory/pos',
         flag: 'pos',
         permission: { module: 'inventory', action: 'read' },
       },
@@ -434,6 +434,8 @@ export function isMenuFlagOn(settings, flagKey) {
     'groupUom',
     'groupLandedCosts',
     'stockAccountingEnabled',
+    'menuPos',
+    'menuManufacturing',
   ]);
   return defaultsOn.has(mapped);
 }

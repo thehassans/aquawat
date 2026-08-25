@@ -803,6 +803,10 @@ function App() {
           <Route path="deliveries/:id" element={<TransferForm />} />
           <Route path="internal" element={<TransfersList />} />
           <Route path="internal/:id" element={<TransferForm />} />
+          <Route path="pos" element={<TransfersList />} />
+          <Route path="pos/:id" element={<TransferForm />} />
+          <Route path="manufacturing" element={<TransfersList />} />
+          <Route path="manufacturing/:id" element={<TransferForm />} />
           <Route path="stock" element={<StockReport />} />
           <Route path="physical" element={<PhysicalInventory />} />
           <Route path="scrap" element={<ScrapList />} />

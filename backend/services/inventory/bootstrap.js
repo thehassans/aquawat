@@ -197,6 +197,30 @@ export async function bootstrapWarehouse(tenantId, warehouse, roots = null, crea
       cardColor: '#b45309',
       reservationMethod: 'manual',
     },
+    {
+      name: 'PoS Orders',
+      nameAr: 'طلبات نقطة البيع',
+      code: 'pos',
+      sequencePrefix: `${code}/POS`,
+      sequenceCode: `${code}/POS`,
+      defaultSourceLocationId: whStock._id,
+      defaultDestLocationId: r.customerLoc._id,
+      cardColor: '#ea580c',
+      createBackorder: 'never',
+      reservationMethod: 'atConfirm',
+      useExistingLots: true,
+    },
+    {
+      name: 'Manufacturing',
+      nameAr: 'التصنيع',
+      code: 'manufacturing',
+      sequencePrefix: `${code}/MO`,
+      sequenceCode: `${code}/MO`,
+      defaultSourceLocationId: whStock._id,
+      defaultDestLocationId: whStock._id,
+      cardColor: '#c2410c',
+      reservationMethod: 'atConfirm',
+    },
   ];
 
   for (const ot of opDefs) {
@@ -215,7 +239,7 @@ export async function bootstrapWarehouse(tenantId, warehouse, roots = null, crea
         useCreateLots: ot.useCreateLots || false,
         useExistingLots: ot.useExistingLots || false,
         reservationMethod: ot.reservationMethod || 'atConfirm',
-        createBackorder: 'ask',
+        createBackorder: ot.createBackorder || 'ask',
         cardColor: ot.cardColor,
         createdBy,
       });

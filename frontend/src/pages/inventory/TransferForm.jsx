@@ -16,6 +16,8 @@ const CODE_FROM_PATH = () => {
   const seg = parts[i + 1]
   if (seg === 'receipts') return 'incoming'
   if (seg === 'deliveries') return 'outgoing'
+  if (seg === 'pos') return 'pos'
+  if (seg === 'manufacturing') return 'manufacturing'
   return 'internal'
 }
 
@@ -30,7 +32,11 @@ export default function TransferForm() {
   const qc = useQueryClient()
   const code = CODE_FROM_PATH()
   const listPath = `/app/dashboard/inventory/${
-    code === 'incoming' ? 'receipts' : code === 'outgoing' ? 'deliveries' : 'internal'
+    code === 'incoming' ? 'receipts'
+      : code === 'outgoing' ? 'deliveries'
+        : code === 'pos' ? 'pos'
+          : code === 'manufacturing' ? 'manufacturing'
+            : 'internal'
   }`
   const partnerLabel = code === 'incoming'
     ? (ar ? 'استلام من' : 'Receive From')

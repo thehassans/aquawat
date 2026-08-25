@@ -19,6 +19,8 @@ const cards = [
   { code: 'incoming', path: '/app/dashboard/inventory/receipts', icon: ArrowDownToLine, en: 'Receipts', ar: 'الاستلامات', accent: 'from-teal-500/20 to-teal-500/5' },
   { code: 'outgoing', path: '/app/dashboard/inventory/deliveries', icon: ArrowUpFromLine, en: 'Delivery Orders', ar: 'أوامر التسليم', accent: 'from-sky-500/20 to-sky-500/5' },
   { code: 'internal', path: '/app/dashboard/inventory/internal', icon: ArrowLeftRight, en: 'Internal Transfers', ar: 'تحويلات داخلية', accent: 'from-violet-500/20 to-violet-500/5' },
+  { code: 'pos', path: '/app/dashboard/inventory/pos', icon: Boxes, en: 'PoS Orders', ar: 'نقطة البيع', accent: 'from-orange-500/20 to-orange-500/5' },
+  { code: 'manufacturing', path: '/app/dashboard/inventory/manufacturing', icon: PackagePlus, en: 'Manufacturing', ar: 'التصنيع', accent: 'from-amber-500/20 to-amber-500/5' },
 ]
 
 const quickLinks = [
@@ -51,7 +53,7 @@ export default function InventoryOverview() {
       try {
         return await api.get('/stock/transfer-counts').then((r) => r.data)
       } catch {
-        const states = ['assigned', 'waiting', 'confirmed']
+        const states = ['draft', 'assigned', 'waiting', 'confirmed']
         const codes = ['incoming', 'outgoing', 'internal']
         const entries = await Promise.all(
           codes.flatMap((code) =>
@@ -141,6 +143,10 @@ export default function InventoryOverview() {
                 </Link>
               </div>
               <div className="mt-6 flex flex-wrap gap-3 text-sm">
+                <Link to={`${card.path}?state=draft`} className="flex items-center gap-1.5">
+                  <StatusChip status="draft" language={language} />
+                  <span className="font-medium tabular-nums">{c.draft ?? '—'}</span>
+                </Link>
                 <Link to={`${card.path}?state=assigned`} className="flex items-center gap-1.5">
                   <StatusChip status="assigned" language={language} />
                   <span className="font-medium tabular-nums">{c.assigned ?? '—'}</span>

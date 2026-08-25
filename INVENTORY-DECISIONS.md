@@ -258,6 +258,42 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Cache also mirrors `Product.stocks[]` | Keep legacy list UIs working |
 | XLSX import | First sheet → CSV via `xlsx`; same dry-run / adjustment-transfer path (`xlsxBase64` on import APIs) |
 
+## v3 P0 diagnosis (2026-08-25)
+
+### 1.1 Empty transfer lists / 0·0·0 dashboard
+
+**Could not query live Mongo** (no local Docker / `.env` in this environment). Root cause from code + create path:
+
+| Check | Finding |
+|---|---|
+| Create state | `createTransfer` always saves `state: 'draft'` |
+| Overview `/transfer-counts` | Counted only `assigned` · `waiting` · `confirmed` — **never `draft`** |
+| Chip links | Overview Ready/Waiting/Confirmed links open lists with `?state=…` that exclude drafts |
+| List “Open” (no state) | Should return drafts if OTs resolve; empty chips created the “lists are empty after create” report |
+| `$in: []` risk | If no OT matches `code`, list used `operationTypeId: { $in: [] }` → silent empty (no meta) |
+| Response shape | `{ data, total }` — client reads `data.data` correctly (not the bug) |
+| Tenant typing | Inventory create uses `toObjectId`; list used raw `req.tenantFilter` — normalised via `withTenant` + ObjectId in shared builder |
+
+**Root cause (primary):** **Default state filter / counter mismatch** — dashboard and chip filters ignored `draft`, which is the state of every newly created picking.
+
+**Fix:** Shared `transferQuery.js` for list + counts; counters include `draft`; list `_meta.appliedFilters` + Clear filters empty state; tenant via `withTenant(toObjectId)`.
+
+### 1.2 Config dropdown clip/overlap
+
+**Cause:** Absolute dropdown inside page flow, translucent header, no portal/collision.
+
+**Fix:** `PortalDropdown` → `document.body`, flip + max-height, `INV_Z.navDropdown`, close on outside/Esc/scroll/route.
+
+### 1.3 Warehouses marketing cards
+
+**Cause:** Card UI with Transfer/Adjust/Receive, not a record list.
+
+**Fix:** Table list (name, code, stock path, address, steps, value, active); row → warehouse form; quick actions removed from list (belong on form).
+
+### 1.4 PoS / Manufacturing
+
+**Deviation:** Schema already enums `code: 'pos' | 'manufacturing'` (not `outgoing`+`isPos` / `mrp_operation`). Kept enum; seeded both OTs per warehouse on bootstrap; menu flags default **on**; routes `/inventory/pos` + `/inventory/manufacturing`; `POST /stock/pos/consume` + `/stock/manufacturing/consume-produce`.
+
 
 
 
