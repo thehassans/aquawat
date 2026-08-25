@@ -5,7 +5,7 @@ import InvTransfer from '../../models/inventory/InvTransfer.js';
 import InvProductStockCache from '../../models/inventory/InvProductStockCache.js';
 import { toObjectId } from '../../models/inventory/common.js';
 
-export const ENGINE_VERSION = '3.0.0-p2';
+export const ENGINE_VERSION = '3.1.0-p2';
 
 /**
  * Module health snapshot for Overview strip + ops.

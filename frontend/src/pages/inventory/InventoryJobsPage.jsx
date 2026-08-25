@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import api from '../../lib/api'
@@ -11,8 +11,20 @@ const TYPE_LABEL = {
   import: { en: 'Import', ar: 'استيراد' },
   cache_reconcile: { en: 'Cache reconcile', ar: 'مطابقة الكاش' },
   expiry_alerts: { en: 'Expiry alerts', ar: 'تنبيهات انتهاء' },
+  reservation_retry: { en: 'Reservation retry', ar: 'إعادة الحجز' },
+  cyclic_count: { en: 'Cyclic count', ar: 'جرد دوري' },
+  delivery_notify: { en: 'Delivery notify', ar: 'إشعار التسليم' },
   other: { en: 'Other', ar: 'أخرى' },
 }
+
+const QUICK_JOBS = [
+  { jobType: 'integrity', label: { en: 'Integrity', ar: 'سلامة' } },
+  { jobType: 'scheduler', label: { en: 'Scheduler', ar: 'مجدول' } },
+  { jobType: 'cache_reconcile', label: { en: 'Cache', ar: 'كاش' }, payload: { repair: true } },
+  { jobType: 'reservation_retry', label: { en: 'Reserve', ar: 'حجز' } },
+  { jobType: 'expiry_alerts', label: { en: 'Expiry', ar: 'انتهاء' } },
+  { jobType: 'cyclic_count', label: { en: 'Cyclic', ar: 'دوري' } },
+]
 
 function statusClass(status) {
   if (status === 'ok' || status === 'done') return 'text-emerald-600'
@@ -24,14 +36,31 @@ function statusClass(status) {
 export default function InventoryJobsPage() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
+  const qc = useQueryClient()
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['inv-jobs'],
     queryFn: () => api.get('/stock/jobs', { params: { limit: 50 } }).then((r) => r.data),
+    refetchInterval: 15_000,
+  })
+
+  const { data: metrics } = useQuery({
+    queryKey: ['inv-metrics'],
+    queryFn: () => api.get('/stock/metrics').then((r) => r.data?.data || r.data),
     refetchInterval: 30_000,
   })
 
+  const enqueue = useMutation({
+    mutationFn: ({ jobType, payload }) =>
+      api.post('/stock/jobs/enqueue', { jobType, payload }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inv-jobs'] })
+      qc.invalidateQueries({ queryKey: ['inv-metrics'] })
+    },
+  })
+
   const items = data?.data || data?.items || []
+  const queue = data?._links?.queue || metrics?.queue
 
   return (
     <div className="space-y-4" dir={ar ? 'rtl' : 'ltr'}>
@@ -42,8 +71,10 @@ export default function InventoryJobsPage() {
           </h2>
           <p className="text-sm text-slate-500">
             {ar
-              ? 'سجل تشغيل المجدول، سلامة البيانات، والتصدير'
-              : 'Run log for scheduler, integrity checks, and exports'}
+              ? 'BullMQ أو تشغيل فوري — سجل JobRun لكل مهمة'
+              : 'BullMQ or inline — every run lands in JobRun'}
+            {queue?.mode ? ` · ${queue.mode}` : ''}
+            {queue?.waiting != null ? ` · waiting ${queue.waiting}` : ''}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -64,14 +95,46 @@ export default function InventoryJobsPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        {QUICK_JOBS.map((j) => (
+          <button
+            key={j.jobType}
+            type="button"
+            disabled={enqueue.isPending}
+            onClick={() => enqueue.mutate({ jobType: j.jobType, payload: j.payload || {} })}
+            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50 dark:border-dark-600 dark:hover:bg-dark-800"
+          >
+            {ar ? j.label.ar : j.label.en}
+          </button>
+        ))}
+      </div>
+
+      {enqueue.isError && (
+        <p className="text-sm text-rose-600">
+          {enqueue.error?.response?.data?.error?.message
+            || enqueue.error?.response?.data?.error
+            || enqueue.error?.message}
+        </p>
+      )}
+
+      {metrics?.jobs && (
+        <p className="text-xs text-slate-500">
+          {ar ? 'المهام' : 'Jobs'}: ok {metrics.jobs.successes} · fail {metrics.jobs.failures}
+          {metrics.writeConflictRetries != null ? ` · write-conflict retries ${metrics.writeConflictRetries}` : ''}
+          {metrics.endpoints?.[0]?.p95Ms != null
+            ? ` · slowest p95 ${metrics.endpoints[0].path} ${metrics.endpoints[0].p95Ms}ms`
+            : ''}
+        </p>
+      )}
+
       {isLoading ? (
         <div className="text-sm text-slate-500">…</div>
       ) : !items.length ? (
         <EmptyState
           title={ar ? 'لا مهام بعد' : 'No jobs yet'}
           description={ar
-            ? 'شغّل الفحوصات من قائمة الاستثناءات أو المجدول'
-            : 'Run integrity checks from Exceptions or start the scheduler'}
+            ? 'شغّل مهمة من الأزرار أعلاه'
+            : 'Enqueue a job with the buttons above'}
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">

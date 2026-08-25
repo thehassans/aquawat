@@ -12,6 +12,7 @@ import InvLot from '../../models/inventory/InvLot.js';
 import { isLotExpired } from './lotService.js';
 import { InventoryConflictError, InventoryValidationError } from './errors.js';
 import { withWriteConflictRetry } from './advisoryLock.js';
+import { recordWriteConflictRetry } from './invMetrics.js';
 import { demandInProductUom } from './uomConvert.js';
 
 const MAX_CANDIDATE_RETRIES = 5;
@@ -37,7 +38,10 @@ async function runTransactionOnce(fn) {
  */
 export async function runWithTransaction(fn) {
   try {
-    return await withWriteConflictRetry(() => runTransactionOnce(fn), { retries: 1 });
+    return await withWriteConflictRetry(async (attempt) => {
+      if (attempt > 0) recordWriteConflictRetry();
+      return runTransactionOnce(fn);
+    }, { retries: 1 });
   } catch (err) {
     if (err?.code === 112 || err?.codeName === 'WriteConflict'
       || err?.errorLabels?.includes?.('TransientTransactionError')) {

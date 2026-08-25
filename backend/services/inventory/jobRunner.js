@@ -35,6 +35,13 @@ export async function finishJobRun(job, {
   job.errors = errors;
   job.result = result;
   await job.save();
+  try {
+    const { recordJobOutcome, recordCacheDrift } = await import('./invMetrics.js');
+    recordJobOutcome(status === 'ok' || status === 'partial');
+    if (counts?.cacheAssertMismatches != null || counts?.mismatchCount != null) {
+      recordCacheDrift(counts.cacheAssertMismatches ?? counts.mismatchCount);
+    }
+  } catch { /* non-blocking */ }
   return job;
 }
 

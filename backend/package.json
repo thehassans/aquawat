@@ -14,6 +14,7 @@
     "test:k6:auth": "k6 run tests/k6/authRateLimit.js",
     "seed": "node seeders/seed.js",
     "seed:inventory-perf": "node scripts/seedInventoryPerf.js",
+    "bench:inventory-perf": "node scripts/benchInventoryPerf.js",
     "cleanup:ecommerce": "node scripts/removeEcommerceTenantData.mjs",
     "worker:whatsapp": "node workers/whatsappWorker.js",
     "worker:pdf": "node workers/invoicePdfWorker.js"

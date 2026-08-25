@@ -1,6 +1,6 @@
 /**
  * §3.3 response helpers — list/record/error envelopes.
- * Existing `{ items }` responses remain valid; prefer these for new surfaces.
+ * Dual-shape lists: `{ data, _meta }` + legacy `{ items, total }`.
  */
 
 import { InventoryError, toErrorBody } from './errors.js';
@@ -28,6 +28,42 @@ export function listEnvelope(items, {
     },
     ...(Object.keys(links).length ? { _links: links } : {}),
   };
+}
+
+/**
+ * Dual-shape list response for Express.
+ */
+export function sendList(res, items, {
+  total = items?.length || 0,
+  page,
+  pageSize,
+  appliedFilters = {},
+  nextCursor = null,
+  links = {},
+  status = 200,
+} = {}) {
+  const env = listEnvelope(items, {
+    total,
+    page,
+    pageSize,
+    appliedFilters,
+    nextCursor,
+    links,
+  });
+  return res.status(status).json({
+    ...env,
+    items,
+    total: env._meta.total,
+    ...(page != null ? { page } : {}),
+    ...(pageSize != null ? { limit: pageSize } : {}),
+  });
+}
+
+export function sendRecord(res, data, { status = 200 } = {}) {
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    return res.status(status).json({ data, ...data });
+  }
+  return res.status(status).json({ data });
 }
 
 export function sendInvError(res, err) {

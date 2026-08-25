@@ -35,6 +35,7 @@ export const applyCountsBody = z.object({
 
 export const integrityRunBody = z.object({
   limit: z.coerce.number().int().positive().max(5000).optional(),
+  async: z.boolean().optional(),
 }).passthrough();
 
 /** Express middleware: validate req.body with a Zod schema → req.validatedBody */

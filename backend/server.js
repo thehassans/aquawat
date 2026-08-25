@@ -979,6 +979,9 @@ const PORT = process.env.PORT || 5000;
 const httpServer = app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   startInvoicePdfWorker();
+  import('./services/inventory/inventoryQueue.js')
+    .then(({ startInventoryQueueWorker }) => startInventoryQueueWorker())
+    .catch((err) => logger.warn(`[server] inventory queue worker: ${err.message}`));
 });
 
 // Initialize Socket.io using the HTTP server

@@ -444,31 +444,22 @@ export async function universalExport(tenantId, userId, opts) {
     status: 'pending',
   });
 
-  setImmediate(async () => {
-    try {
-      await InvExportJob.updateOne({ _id: job._id }, { $set: { status: 'running' } });
-      const built = await buildExportPayload(tenantId, {
-        model,
-        fields,
-        importCompatible,
-        format,
-        filters,
-      });
-      await InvExportJob.updateOne({ _id: job._id }, {
-        $set: {
-          status: 'done',
-          rowCount: built.rowCount,
-          filename: built.filename,
-          payload: built.payload,
-          payloadEncoding: built.encoding,
-        },
-      });
-    } catch (err) {
-      await InvExportJob.updateOne({ _id: job._id }, {
-        $set: { status: 'failed', error: err.message || String(err) },
-      });
-    }
-  });
+  // Persist opts on job via filename placeholder fields — store in error? Better: attach to enqueue payload
+  const exportOpts = { model, fields, importCompatible, format, filters };
+
+  try {
+    const { enqueueInventoryJob } = await import('./inventoryQueue.js');
+    await enqueueInventoryJob({
+      jobType: 'export',
+      tenantId,
+      userId,
+      trigger: 'api',
+      payload: { exportJobId: String(job._id), exportOpts },
+    });
+  } catch {
+    // fallback inline
+    setImmediate(() => runQueuedExport(tenantId, job._id, exportOpts));
+  }
 
   return {
     async: true,
@@ -476,6 +467,34 @@ export async function universalExport(tenantId, userId, opts) {
     message: 'Export queued — poll job status for download',
     threshold: SYNC_ROW_LIMIT,
   };
+}
+
+export async function runQueuedExport(tenantId, exportJobId, exportOpts = {}) {
+  await InvExportJob.updateOne({ _id: exportJobId }, { $set: { status: 'running' } });
+  try {
+    const built = await buildExportPayload(tenantId, {
+      model: exportOpts.model,
+      fields: exportOpts.fields,
+      importCompatible: exportOpts.importCompatible,
+      format: exportOpts.format,
+      filters: exportOpts.filters || {},
+    });
+    await InvExportJob.updateOne({ _id: exportJobId }, {
+      $set: {
+        status: 'done',
+        rowCount: built.rowCount,
+        filename: built.filename,
+        payload: built.payload,
+        payloadEncoding: built.encoding,
+      },
+    });
+    return built;
+  } catch (err) {
+    await InvExportJob.updateOne({ _id: exportJobId }, {
+      $set: { status: 'failed', error: err.message || String(err) },
+    });
+    throw err;
+  }
 }
 
 export async function getExportJob(tenantId, jobId) {

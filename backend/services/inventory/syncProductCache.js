@@ -161,3 +161,18 @@ export async function assertProductStockCache(tenantId, { limit = 500 } = {}) {
     mismatches,
   };
 }
+
+/** Re-sync cache rows that drift from ledger (reads quants only — no ledger writes). */
+export async function repairProductStockCache(tenantId, { limit = 500 } = {}) {
+  const assert = await assertProductStockCache(tenantId, { limit });
+  let repaired = 0;
+  const seen = new Set();
+  for (const m of assert.mismatches || []) {
+    const key = String(m.productId);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    await syncProductStockCache(tenantId, m.productId);
+    repaired += 1;
+  }
+  return { repaired, mismatchCount: assert.mismatchCount, checked: assert.checked };
+}

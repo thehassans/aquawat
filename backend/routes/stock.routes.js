@@ -26,7 +26,8 @@ import {
 import { computeOnHand, computeForecast } from '../services/inventory/forecast.js';
 import { migrateOpeningBalances } from '../services/inventory/migration.js';
 import { resolveWarehouseScope, warehouseFilter, assertWarehouseAccess } from '../services/inventory/warehouseScope.js';
-import { sendInvError } from '../services/inventory/apiContract.js';
+import { sendInvError, sendList } from '../services/inventory/apiContract.js';
+import { stockMetricsMiddleware } from '../services/inventory/invMetrics.js';
 import { D, decStr } from '../utils/decimal.js';
 import { stockIdempotency } from '../middleware/stockIdempotency.js';
 import { stockQueryBudget } from '../middleware/invQueryBudget.js';
@@ -101,6 +102,7 @@ const router = express.Router();
 router.use(protect, tenantFilter, requireTenantFilter);
 router.use(stockIdempotency());
 router.use(stockQueryBudget({ max: 10 }));
+router.use(stockMetricsMiddleware());
 
 function handleInventoryError(res, err) {
   return sendInvError(res, err);
@@ -496,13 +498,12 @@ router.get('/transfers', checkPermission('inventory', 'read'), async (req, res) 
     const scope = await resolveWarehouseScope(req);
     const { listTransfers } = await import('../services/inventory/transferQuery.js');
     const payload = await listTransfers(req.user.tenantId, req.query, scope);
-    // Backward-compatible top-level total/page/limit + v3 _meta
-    res.json({
-      data: payload.data,
+    return sendList(res, payload.data, {
       total: payload._meta.total,
       page: payload._meta.page,
-      limit: payload._meta.pageSize,
-      _meta: payload._meta,
+      pageSize: payload._meta.pageSize,
+      appliedFilters: payload._meta.appliedFilters || {},
+      nextCursor: payload._meta.nextCursor,
     });
   } catch (err) {
     handleInventoryError(res, err);
@@ -1920,9 +1921,21 @@ router.get('/scheduler', checkPermission('inventory', 'read'), async (req, res) 
 
 router.post('/scheduler/run', checkPermission('inventory', 'update'), stockHeavyLimiter, async (req, res) => {
   try {
+    if (req.body?.async || req.query.async === '1') {
+      const { enqueueInventoryJob } = await import('../services/inventory/inventoryQueue.js');
+      const q = await enqueueInventoryJob({
+        jobType: 'scheduler',
+        tenantId: req.user.tenantId,
+        userId: req.user._id,
+        trigger: 'api',
+        payload: { force: !!req.body?.force },
+      });
+      return res.status(202).json({ data: q, ...q, async: true });
+    }
     const run = await runScheduler(req.user.tenantId, {
       trigger: 'manual',
       userId: req.user._id,
+      force: !!req.body?.force,
     });
     res.json(run);
   } catch (err) {
@@ -2524,9 +2537,13 @@ router.post('/import/locations', checkPermission('inventory', 'create'), async (
 router.get('/exceptions', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { listInventoryExceptions } = await import('../services/inventory/exceptions.js');
-    res.json(await listInventoryExceptions(req.user.tenantId, {
+    const result = await listInventoryExceptions(req.user.tenantId, {
       limit: Number(req.query.limit) || 100,
-    }));
+    });
+    return sendList(res, result.items, {
+      total: result.total,
+      appliedFilters: { limit: Number(req.query.limit) || 100 },
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2534,6 +2551,17 @@ router.get('/exceptions', checkPermission('inventory', 'read'), async (req, res)
 
 router.post('/integrity/run', checkPermission('inventory', 'update'), stockHeavyLimiter, validateBody(integrityRunBody), async (req, res) => {
   try {
+    if (req.query.async === '1' || req.validatedBody.async) {
+      const { enqueueInventoryJob } = await import('../services/inventory/inventoryQueue.js');
+      const q = await enqueueInventoryJob({
+        jobType: 'integrity',
+        tenantId: req.user.tenantId,
+        userId: req.user._id,
+        trigger: 'api',
+        payload: { limit: req.validatedBody.limit },
+      });
+      return res.status(202).json({ data: q, ...q, async: true });
+    }
     const { runIntegrityJob } = await import('../services/inventory/jobRunner.js');
     const { job, report } = await runIntegrityJob(req.user.tenantId, {
       trigger: 'manual',
@@ -2569,19 +2597,62 @@ router.get('/integrity/latest', checkPermission('inventory', 'read'), async (req
 router.get('/jobs', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { listJobRuns } = await import('../services/inventory/jobRunner.js');
-    const { listEnvelope } = await import('../services/inventory/apiContract.js');
+    const { inventoryQueueStats } = await import('../services/inventory/inventoryQueue.js');
     const result = await listJobRuns(req.user.tenantId, {
       jobType: req.query.jobType || undefined,
       limit: Number(req.query.limit) || 40,
     });
-    res.json({
-      ...listEnvelope(result.items, {
-        total: result.total,
-        pageSize: Number(req.query.limit) || 40,
-        appliedFilters: { jobType: req.query.jobType || null },
-      }),
-      items: result.items,
+    const queue = await inventoryQueueStats();
+    return sendList(res, result.items, {
       total: result.total,
+      pageSize: Number(req.query.limit) || 40,
+      appliedFilters: { jobType: req.query.jobType || null },
+      links: { queue },
+    });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/jobs/enqueue', checkPermission('inventory', 'update'), stockHeavyLimiter, async (req, res) => {
+  try {
+    const jobType = req.body?.jobType;
+    const allowed = [
+      'integrity', 'scheduler', 'cache_reconcile', 'reservation_retry',
+      'expiry_alerts', 'cyclic_count', 'delivery_notify',
+    ];
+    if (!allowed.includes(jobType)) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION',
+          message: `jobType must be one of ${allowed.join(', ')}`,
+          messageAr: 'نوع المهمة غير صالح',
+        },
+      });
+    }
+    const { enqueueInventoryJob } = await import('../services/inventory/inventoryQueue.js');
+    const q = await enqueueInventoryJob({
+      jobType,
+      tenantId: req.user.tenantId,
+      userId: req.user._id,
+      trigger: 'api',
+      payload: req.body?.payload || {},
+    });
+    res.status(202).json({ data: q, ...q });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/metrics', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { getInvMetricsSnapshot } = await import('../services/inventory/invMetrics.js');
+    const { inventoryQueueStats } = await import('../services/inventory/inventoryQueue.js');
+    res.json({
+      data: {
+        ...getInvMetricsSnapshot(),
+        queue: await inventoryQueueStats(),
+      },
     });
   } catch (err) {
     handleInventoryError(res, err);
