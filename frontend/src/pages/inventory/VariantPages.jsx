@@ -213,6 +213,15 @@ export function VariantsPage() {
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
 
+  const patchMut = useMutation({
+    mutationFn: ({ id, ...body }) => api.patch(`/stock/variants/${id}`, body),
+    onSuccess: () => {
+      toast.success(ar ? 'تم الحفظ' : 'Saved')
+      qc.invalidateQueries({ queryKey: ['inv-variants', productId] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message),
+  })
+
   const selectedAttrsLabel = useMemo(() => {
     if (!attrIds.length) return ar ? 'كل السمات النشطة' : 'All active attributes'
     return attrs.filter((a) => attrIds.includes(a._id)).map((a) => a.name).join(', ')
@@ -314,9 +323,38 @@ export function VariantsPage() {
                   {variants.map((v) => (
                     <tr key={v._id}>
                       <td className="px-3 py-2.5 font-medium">{ar && v.nameAr ? v.nameAr : v.name}</td>
-                      <td className="px-3 py-2.5 text-slate-500">{v.sku || '—'}</td>
-                      <td className="px-3 py-2.5 text-slate-500">{v.barcode || '—'}</td>
-                      <td className="px-3 py-2.5">{v.active !== false ? (ar ? 'نعم' : 'Yes') : (ar ? 'لا' : 'No')}</td>
+                      <td className="px-3 py-2.5">
+                        <input
+                          className="input input-sm w-28"
+                          defaultValue={v.sku || ''}
+                          placeholder="SKU"
+                          onBlur={(e) => {
+                            const next = e.target.value.trim()
+                            if (next !== (v.sku || '')) patchMut.mutate({ id: v._id, sku: next })
+                          }}
+                        />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <input
+                          className="input input-sm w-36"
+                          defaultValue={v.barcode || ''}
+                          placeholder="Barcode"
+                          onBlur={(e) => {
+                            const next = e.target.value.trim()
+                            if (next !== (v.barcode || '')) patchMut.mutate({ id: v._id, barcode: next })
+                          }}
+                        />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <label className="inline-flex items-center gap-1.5 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={v.active !== false}
+                            onChange={(e) => patchMut.mutate({ id: v._id, active: e.target.checked })}
+                          />
+                          {v.active !== false ? (ar ? 'نعم' : 'Yes') : (ar ? 'لا' : 'No')}
+                        </label>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

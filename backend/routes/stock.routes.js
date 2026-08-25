@@ -2188,10 +2188,18 @@ router.post('/report/reconcile/repair-cache', checkPermission('inventory', 'upda
 
 router.get('/export/:collection', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const { exportCollection } = await import('../services/inventory/importExport.js');
+    const { exportCollection, csvTextToXlsxBuffer } = await import('../services/inventory/importExport.js');
     const { filename, csv } = await exportCollection(req.user.tenantId, req.params.collection, {
       warehouseId: req.query.warehouseId,
     });
+    const format = String(req.query.format || 'csv').toLowerCase();
+    if (format === 'xlsx' || format === 'xls') {
+      const buf = await csvTextToXlsxBuffer(csv, req.params.collection);
+      const xlsxName = filename.replace(/\.csv$/i, '.xlsx');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${xlsxName}"`);
+      return res.send(buf);
+    }
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);

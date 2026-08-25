@@ -45,7 +45,7 @@ export const SETTINGS_EFFECTS = {
   barcodeNomenclatureId: 'barcode_match_rules',
   stockSmsConfirmation: 'validate_stamps_sms_note_requires_provider',
   groupStockSignDelivery: 'alias_signatureOnDelivery',
-  groupGs1Nomenclature: 'gs1_barcode_rules',
+  groupGs1Nomenclature: 'gs1_rules_seeded_on_default_nomenclature',
   groupStockTrackingOwner: 'ownerId_on_transfer_and_picker_ui',
   groupLotOnDeliverySlip: 'alias_showLotsOnDeliverySlips',
   groupLotOnInvoice: 'alias_showLotsOnInvoices',
@@ -106,6 +106,61 @@ export async function syncCarrierStubs(tenantId, settingsDoc, prior = {}) {
     synced.push(provider);
   }
   return synced;
+}
+
+const GS1_RULES = [
+  { name: 'GTIN-13', pattern: '^[0-9]{13}$', type: 'product', encoding: 'gtin', sequence: 10 },
+  { name: 'GTIN-14', pattern: '^[0-9]{14}$', type: 'product', encoding: 'gtin', sequence: 20 },
+  { name: 'GS1 AI (01) GTIN', pattern: '\\(01\\)[0-9]{14}', type: 'product', encoding: 'gs1', sequence: 30 },
+  { name: 'GS1 AI (10) Lot', pattern: '\\(10\\)([^\\(]+)', type: 'lot', encoding: 'gs1', sequence: 40 },
+  { name: 'GS1 AI (21) Serial', pattern: '\\(21\\)([^\\(]+)', type: 'lot', encoding: 'gs1', sequence: 50 },
+  { name: 'GS1 AI (17) Expiry YYMMDD', pattern: '\\(17\\)[0-9]{6}', type: 'any', encoding: 'gs1', sequence: 60 },
+];
+
+/**
+ * When GS1 nomenclature flag turns on, ensure a GS1 rule set exists on the default nomenclature.
+ */
+export async function syncGs1Nomenclature(tenantId, settingsDoc, prior = {}) {
+  const nowOn = !!settingsDoc?.groupGs1Nomenclature;
+  const wasOn = !!prior?.groupGs1Nomenclature;
+  if (!nowOn || wasOn) return { synced: false };
+
+  const { default: InvBarcodeNomenclature } = await import('../../models/inventory/InvBarcodeNomenclature.js');
+  const { toObjectId } = await import('../../models/inventory/common.js');
+  const tid = toObjectId(tenantId);
+
+  let nom = await InvBarcodeNomenclature.findOne({ tenantId: tid, isDefault: true });
+  if (!nom) {
+    nom = await InvBarcodeNomenclature.create({
+      tenantId: tid,
+      name: 'GS1 Default',
+      nameAr: 'GS1 افتراضي',
+      isDefault: true,
+      rules: GS1_RULES.map((r) => ({ ...r, active: true })),
+    });
+    return { synced: true, created: true, nomenclatureId: nom._id };
+  }
+
+  const existingNames = new Set((nom.rules || []).map((r) => r.name));
+  let added = 0;
+  for (const rule of GS1_RULES) {
+    if (existingNames.has(rule.name)) continue;
+    nom.rules.push({ ...rule, active: true });
+    added += 1;
+  }
+  if (added) {
+    nom.version = (nom.version || 0) + 1;
+    await nom.save();
+  }
+  // Keep settings barcodeNomenclatureId pointed at default when empty
+  if (!settingsDoc.barcodeNomenclatureId) {
+    const InvSettings = (await import('../../models/inventory/InvSettings.js')).default;
+    await InvSettings.updateOne(
+      { tenantId: tid },
+      { $set: { barcodeNomenclatureId: nom._id } },
+    );
+  }
+  return { synced: true, created: false, added, nomenclatureId: nom._id };
 }
 
 export function listSettingsEffects() {

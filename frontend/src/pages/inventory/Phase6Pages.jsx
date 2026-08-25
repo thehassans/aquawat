@@ -307,6 +307,7 @@ export function ImportExportPage() {
   const [target, setTarget] = useState('products')
   const [result, setResult] = useState(null)
   const [warehouseId, setWarehouseId] = useState('')
+  const [exportFormat, setExportFormat] = useState('csv')
 
   const { data: warehouses } = useQuery({
     queryKey: ['warehouses-lite'],
@@ -364,13 +365,16 @@ export function ImportExportPage() {
   const download = async (collection) => {
     try {
       const res = await api.get(`/stock/export/${collection}`, {
-        params: { warehouseId: warehouseId || undefined },
+        params: {
+          warehouseId: warehouseId || undefined,
+          format: exportFormat,
+        },
         responseType: 'blob',
       })
       const url = URL.createObjectURL(res.data)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${collection}-export.csv`
+      a.download = `${collection}-export.${exportFormat === 'xlsx' ? 'xlsx' : 'csv'}`
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
@@ -399,6 +403,10 @@ export function ImportExportPage() {
           {(warehouses || []).map((w) => (
             <option key={w._id} value={w._id}>{w.name || w.code}</option>
           ))}
+        </select>
+        <select className="select select-sm" value={exportFormat} onChange={(e) => setExportFormat(e.target.value)}>
+          <option value="csv">CSV</option>
+          <option value="xlsx">Excel (.xlsx)</option>
         </select>
         {['products', 'stock', 'locations', 'lots', 'reorder-rules'].map((c) => (
           <button key={c} type="button" className="btn btn-secondary btn-sm" onClick={() => download(c)}>

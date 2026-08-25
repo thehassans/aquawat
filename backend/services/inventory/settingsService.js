@@ -211,8 +211,9 @@ export async function updateInvSettings(tenantId, userId, body) {
   );
 
   try {
-    const { syncCarrierStubs } = await import('./settingsEffects.js');
+    const { syncCarrierStubs, syncGs1Nomenclature } = await import('./settingsEffects.js');
     await syncCarrierStubs(tid, updated, prior);
+    await syncGs1Nomenclature(tid, updated, prior);
   } catch {
     /* non-blocking */
   }

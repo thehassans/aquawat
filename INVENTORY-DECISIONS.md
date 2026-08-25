@@ -316,7 +316,8 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 
 | Topic | Decision |
 |---|---|
-| Conversion | `xlsxBufferToCsv` / `resolveImportCsvText` — first sheet only |
+| Conversion | `xlsxBufferToCsv` / `resolveImportCsvText` — first sheet only; export `format=xlsx` via `csvTextToXlsxBuffer` |
+
 | APIs | `POST /stock/import/products` + `/locations` accept `xlsxBase64` (or CSV text) |
 | Ledger | Unchanged — opening qty still posts adjustment transfers |
 | UI | Import & Export: file picker (.csv/.xlsx), target products\|locations |
@@ -357,6 +358,15 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Data | Done incoming transfers + move lines in period (ledger read) |
 | UI | `/inventory/report/reception` in report family |
 | Owner picker | When `groupStockTrackingOwner`, transfer form sets `ownerId` (partner) — still dimension on quants |
+
+## Variants edit + GS1 + XLSX export
+
+| Topic | Decision |
+|---|---|
+| Variants UI | Inline SKU / barcode / active via existing `PATCH /stock/variants/:id` |
+| GS1 | Enabling `groupGs1Nomenclature` seeds GTIN/AI rules onto default barcode nomenclature |
+| Export | `GET /stock/export/:collection?format=xlsx` wraps CSV via SheetJS — same columns as CSV |
+
 
 
 

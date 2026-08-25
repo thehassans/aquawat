@@ -115,6 +115,22 @@ export async function resolveImportCsvText({ csvText, csv, xlsxBase64 } = {}) {
   return String(csvText || csv || '');
 }
 
+/** CSV text → .xlsx buffer (single sheet) for download. */
+export async function csvTextToXlsxBuffer(csvText, sheetName = 'Export') {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(String(csvText || ''), { type: 'string' });
+  if (sheetName && wb.SheetNames[0]) {
+    const old = wb.SheetNames[0];
+    const next = String(sheetName).slice(0, 31);
+    if (old !== next) {
+      wb.Sheets[next] = wb.Sheets[old];
+      delete wb.Sheets[old];
+      wb.SheetNames[0] = next;
+    }
+  }
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
 const PRODUCT_EXPORT_COLUMNS = [
   'externalId', 'sku', 'barcode', 'nameEn', 'nameAr', 'costPrice', 'salePrice',
   'category', 'tracking', 'unitOfMeasure', 'canBeSold', 'canBePurchased',
