@@ -74,6 +74,48 @@ export default function InvoiceView() {
     queryFn: () => api.get(`/invoices/${id}`).then(res => res.data)
   })
 
+  const { data: invoiceLots } = useQuery({
+    queryKey: ['invoice-lots', id],
+    queryFn: () => api.get(`/stock/invoices/${id}/lots`).then((res) => res.data),
+    enabled: Boolean(id),
+  })
+
+  const invoiceForDisplay = useMemo(() => {
+    if (!invoice) return invoice
+    if (!invoiceLots?.enabled || !invoiceLots?.byProduct) return invoice
+    const byProduct = invoiceLots.byProduct
+    return {
+      ...invoice,
+      lineItems: (invoice.lineItems || []).map((item) => {
+        const pid = String(item.productId?._id || item.productId || '')
+        const hint = byProduct[pid]
+        if (!hint) return item
+        const lotLabel = language === 'ar' ? `دفعة: ${hint}` : `Lot: ${hint}`
+        const description = item.description
+          ? `${item.description}\n${lotLabel}`
+          : lotLabel
+        return { ...item, description, lotHint: hint }
+      }),
+    }
+  }, [invoice, invoiceLots, language])
+
+  const thermalItems = useMemo(() => {
+    const src = invoiceForDisplay || invoice
+    if (!src?.lineItems) return []
+    return src.lineItems.map((item) => {
+      const baseEn = item.productName || item.name || ''
+      const baseAr = item.productNameAr || item.nameAr || ''
+      const lot = item.lotHint
+      return {
+        nameEn: lot ? `${baseEn} (${lot})` : baseEn,
+        nameAr: lot ? `${baseAr || baseEn} (${lot})` : baseAr,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: item.taxableAmount || (item.quantity * item.unitPrice),
+      }
+    })
+  }, [invoiceForDisplay, invoice])
+
   const isSarTenant = isSaudiTenant(tenant) || String(invoice?.currency || tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   const templateId = getInvoiceTemplateId(tenant, invoice?.businessContext, invoice?.pdfTemplateId)
   const invoiceTypeLabel = invoice?.transactionType === 'B2B' ? t('b2bInvoice') : t('b2cInvoice')
@@ -201,7 +243,7 @@ export default function InvoiceView() {
       }
 
       const attachmentBlob = await buildInvoicePdfBlob({
-        invoice,
+        invoice: invoiceForDisplay || invoice,
         language,
         tenant,
         sourceElement: invoicePreviewRef.current,
@@ -384,7 +426,7 @@ export default function InvoiceView() {
                 return
               }
               try {
-                const printed = await printInvoiceSnapshot({ invoice, language, tenant, sourceElement: invoicePreviewRef.current })
+                const printed = await printInvoiceSnapshot({ invoice: invoiceForDisplay || invoice, language, tenant, sourceElement: invoicePreviewRef.current })
                 if (!printed) {
                   toast.error(language === 'ar' ? 'تعذر تجهيز الطباعة' : 'Unable to prepare print view')
                 }
@@ -406,7 +448,7 @@ export default function InvoiceView() {
               }
               try {
                 setDownloadingPdf(true)
-                await downloadInvoicePdf({ invoice, language, tenant, sourceElement: invoicePreviewRef.current })
+                await downloadInvoicePdf({ invoice: invoiceForDisplay || invoice, language, tenant, sourceElement: invoicePreviewRef.current })
               } catch (e) {
                 toast.error(language === 'ar' ? 'فشل تحميل PDF' : 'Failed to download PDF')
               } finally {
@@ -591,19 +633,13 @@ export default function InvoiceView() {
                     totalVat: invoice.totalTax,
                     subtotal: invoice.subTotal || (invoice.grandTotal - invoice.totalTax),
                     zatcaQrCode: invoice.zatca?.qrCodeData,
-                    items: invoice.lineItems?.map(item => ({
-                      nameEn: item.productName || item.name,
-                      nameAr: item.productNameAr || item.nameAr,
-                      quantity: item.quantity,
-                      unitPrice: item.unitPrice,
-                      total: item.taxableAmount || (item.quantity * item.unitPrice)
-                    }))
+                    items: thermalItems,
                   }}
                   type={invoice?.businessContext || tenantBusinessTypes[0] || 'bakala'}
                 />
               ) : (
                 <InvoiceLivePreview
-                  invoice={invoice}
+                  invoice={invoiceForDisplay || invoice}
                   tenant={tenant}
                   language={language}
                   templateId={templateId}
@@ -614,6 +650,41 @@ export default function InvoiceView() {
               )}
             </div>
           </motion.div>
+
+          {invoiceLots?.enabled && invoiceLots?.items?.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="card p-6"
+            >
+              <p className="text-sm font-medium text-gray-500 mb-3">
+                {language === 'ar' ? 'دفعات المخزون' : 'Stock lots'}
+              </p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b border-gray-100">
+                      <th className="py-2 pe-3 font-medium">{language === 'ar' ? 'المنتج' : 'Product'}</th>
+                      <th className="py-2 pe-3 font-medium">{language === 'ar' ? 'الدفعة' : 'Lot'}</th>
+                      <th className="py-2 pe-3 font-medium">{language === 'ar' ? 'الكمية' : 'Qty'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoiceLots.items.map((row, idx) => (
+                      <tr key={`${row.lotId}-${idx}`} className="border-b border-gray-50">
+                        <td className="py-2 pe-3">
+                          {language === 'ar' ? (row.productNameAr || row.productName) : row.productName}
+                        </td>
+                        <td className="py-2 pe-3 font-mono text-xs">{row.lotName}</td>
+                        <td className="py-2 pe-3">{row.qty}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
 
           {(invoice?.restaurantOrderId || invoice?.travelBookingId || invoice?.contractNumber || invoice?.sourceQuotationId) && (
             <motion.div
@@ -783,13 +854,7 @@ export default function InvoiceView() {
                   totalVat: invoice.totalTax,
                   subtotal: invoice.subTotal || (invoice.grandTotal - invoice.totalTax),
                   zatcaQrCode: invoice.zatca?.qrCodeData,
-                  items: invoice.lineItems?.map(item => ({
-                    nameEn: item.productName || item.name,
-                    nameAr: item.productNameAr || item.nameAr,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                    total: item.taxableAmount || (item.quantity * item.unitPrice)
-                  }))
+                  items: thermalItems,
                 }}
                 type={invoice?.businessContext || tenantBusinessTypes[0] || 'bakala'}
                 isUpdated={invoice?.updatedAt && invoice?.createdAt && new Date(invoice.updatedAt).getTime() > new Date(invoice.createdAt).getTime() + 5000}

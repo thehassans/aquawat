@@ -276,6 +276,7 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Topic | Decision |
 |---|---|
 | Lots on delivery slip | `settingsHints.showLotsOnDeliverySlips` gates lot column on outgoing print |
+| Lots on invoices | `showLotsOnInvoices` / `groupLotOnInvoice` → `GET /stock/invoices/:id/lots` from linked transfers/DNs; InvoiceView line hints + lot table (read-only) |
 | Settings effects registry | Every `SETTINGS_ALLOWED` flag maps to `SETTINGS_EFFECTS`; `GET /stock/settings?include=effects` |
 | Carrier stubs | Enabling `moduleCarrier*` upserts `InvDeliveryCarrier` with `installed: false` |
 | Reconcile stress | In-memory 100 random ops (FIFO/AVCO/standard) assert zero value/qty drift — no Mongo required |

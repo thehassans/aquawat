@@ -2122,6 +2122,15 @@ router.get('/report/forecast', checkPermission('inventory', 'read'), async (req,
   }
 });
 
+router.get('/invoices/:invoiceId/lots', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { getInvoiceLotLines } = await import('../services/inventory/invoiceLots.js');
+    res.json(await getInvoiceLotLines(req.user.tenantId, req.params.invoiceId));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/report/reception', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const settings = await getInvSettings(req.user.tenantId);

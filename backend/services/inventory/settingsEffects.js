@@ -22,7 +22,7 @@ export const SETTINGS_EFFECTS = {
   propertyLandedCostAccountId: 'landed_cost_account_ref',
   stockJournalId: 'stock_journal_ref',
   showLotsOnDeliverySlips: 'print_lot_column_on_delivery',
-  showLotsOnInvoices: 'invoice_lot_display_hint',
+  showLotsOnInvoices: 'invoice_lot_lines_from_linked_transfers',
   receptionReportEnabled: 'reception_report_api_and_menu',
   emailConfirmationOnDelivery: 'validate_stamps_email_note',
   signatureOnDelivery: 'outgoing_validate_requires_signature',
