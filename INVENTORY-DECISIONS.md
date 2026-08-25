@@ -264,3 +264,12 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Multi-loc off | Locations mutations + putaway create gated; putaway menu needs multi-loc |
 | PO approve → Receipt | Draft GRN + draft incoming transfer linked (`GRN.inventoryTransferId` ↔ note/origin) |
 | SO approve → Delivery | Draft DN + outgoing transfer; cancel order cancels unstarted DN/GRN/transfers |
+
+## Soft gaps closed
+
+| Topic | Decision |
+|---|---|
+| Lots on delivery slip | `settingsHints.showLotsOnDeliverySlips` gates lot column on outgoing print |
+| Settings effects registry | Every `SETTINGS_ALLOWED` flag maps to `SETTINGS_EFFECTS`; `GET /stock/settings?include=effects` |
+| Carrier stubs | Enabling `moduleCarrier*` upserts `InvDeliveryCarrier` with `installed: false` |
+| Reconcile stress | In-memory 100 random ops (FIFO/AVCO/standard) assert zero value/qty drift — no Mongo required |

@@ -78,6 +78,7 @@ import {
   updateInvSettings,
   getInvSettings,
   isSmsProviderConfigured,
+  SETTINGS_ALLOWED,
 } from '../services/inventory/settingsService.js';
 
 const router = express.Router();
@@ -138,10 +139,16 @@ router.get('/settings', checkPermission('inventory', 'read'), async (req, res) =
   try {
     const settings = await getInvSettings(req.user.tenantId);
     const smsProviderConfigured = await isSmsProviderConfigured(req.user.tenantId);
-    res.json({
+    const payload = {
       ...(settings.toObject ? settings.toObject() : settings),
       smsProviderConfigured,
-    });
+    };
+    if (req.query.include === 'effects' || req.query.effects === '1') {
+      const { listSettingsEffects, SETTINGS_EFFECTS } = await import('../services/inventory/settingsEffects.js');
+      payload.effects = listSettingsEffects();
+      payload.effectsCoverage = SETTINGS_ALLOWED.every((k) => SETTINGS_EFFECTS[k]);
+    }
+    res.json(payload);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -507,6 +514,9 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
         showDetailedOps: !!transfer.operationTypeId?.showDetailedOperations,
         lotsEnabled: !!(settings.groupProductionLot || settings.groupStockTrackingLot),
         packagesEnabled: !!(settings.groupStockTrackingLot || settings.groupStockPackaging),
+        showLotsOnDeliverySlips: !!(settings.showLotsOnDeliverySlips || settings.groupLotOnDeliverySlip),
+        emailConfirmationOnDelivery: !!settings.emailConfirmationOnDelivery,
+        stockSmsConfirmation: !!settings.stockSmsConfirmation,
       },
     });
   } catch (err) {

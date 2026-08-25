@@ -3,12 +3,15 @@ import { Printer } from 'lucide-react'
 
 /**
  * ZATCA-aware bilingual print for receipts / delivery slips.
- * VAT number + QR placeholder for invoicing module to fill later.
+ * VAT number + QR placeholder; lot column gated by showLotsOnDeliverySlips.
  */
-export function TransferPrintButton({ transfer, code }) {
+export function TransferPrintButton({ transfer, code, settingsHints }) {
   const { language } = useSelector((s) => s.ui)
   const { tenant } = useSelector((s) => s.auth)
   const ar = language === 'ar'
+  const showLots = code !== 'outgoing'
+    ? true
+    : settingsHints?.showLotsOnDeliverySlips !== false
 
   const print = () => {
     try {
@@ -16,6 +19,7 @@ export function TransferPrintButton({ transfer, code }) {
       const companyEn = tenant?.business?.legalNameEn || tenant?.nameEn || tenant?.name || 'Company'
       const companyAr = tenant?.business?.legalNameAr || tenant?.nameAr || companyEn
       const lines = transfer?.moves || []
+      const moveLines = transfer?.moveLines || []
       const title = code === 'incoming'
         ? { en: 'Goods Receipt', ar: 'إيصال استلام' }
         : code === 'outgoing'
@@ -23,9 +27,11 @@ export function TransferPrintButton({ transfer, code }) {
           : { en: 'Internal Transfer', ar: 'تحويل داخلي' }
 
       const moveRows = (lines || []).flatMap((m) => {
-        const mls = m.moveLines || m.lines || []
-        if (mls.length) {
-          return mls.map((l) => ({
+        const mls = moveLines.filter((l) => String(l.moveId) === String(m._id))
+        const fromMove = m.moveLines || m.lines || []
+        const use = mls.length ? mls : fromMove
+        if (use.length) {
+          return use.map((l) => ({
             product: l.productId?.nameEn || m.productId?.nameEn || '—',
             productAr: l.productId?.nameAr || m.productId?.nameAr || '',
             qty: l.quantityInProductUom || l.quantity || m.quantityDone || m.productUomQty || '',
@@ -40,6 +46,7 @@ export function TransferPrintButton({ transfer, code }) {
         }]
       })
 
+      const lotHeader = showLots ? '<th>Lot / دفعة</th>' : ''
       const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
       if (!w) return
       w.document.write(`<!DOCTYPE html><html lang="${ar ? 'ar' : 'en'}" dir="${ar ? 'rtl' : 'ltr'}">
@@ -75,23 +82,23 @@ export function TransferPrintButton({ transfer, code }) {
       <div dir="rtl">${title.ar}</div>
       <div style="margin-top:8px">${escapeHtml(transfer?.name || '')}</div>
       <div>${transfer?.scheduledDate ? new Date(transfer.scheduledDate).toLocaleDateString() : new Date().toLocaleDateString()}</div>
-      <div>${escapeHtml(transfer?.partnerId?.name || transfer?.partnerName || '')}</div>
+      <div>${escapeHtml(transfer?.partnerId?.name || transfer?.partner?.name || transfer?.partnerName || '')}</div>
     </div>
   </div>
   <table>
     <thead>
       <tr>
         <th>Product / المنتج</th>
-        <th>Lot / دفعة</th>
+        ${lotHeader}
         <th>Qty / الكمية</th>
       </tr>
     </thead>
     <tbody>
       ${moveRows.map((r) => `<tr>
         <td>${escapeHtml(r.product)}${r.productAr ? `<div dir="rtl" style="font-size:11px;color:#64748b">${escapeHtml(r.productAr)}</div>` : ''}</td>
-        <td>${escapeHtml(r.lot || '—')}</td>
+        ${showLots ? `<td>${escapeHtml(r.lot || '—')}</td>` : ''}
         <td>${escapeHtml(String(r.qty))}</td>
-      </tr>`).join('') || '<tr><td colspan="3">—</td></tr>'}
+      </tr>`).join('') || `<tr><td colspan="${showLots ? 3 : 2}">—</td></tr>`}
     </tbody>
   </table>
   <div class="foot">

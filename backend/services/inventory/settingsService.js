@@ -211,6 +211,13 @@ export async function updateInvSettings(tenantId, userId, body) {
   );
 
   try {
+    const { syncCarrierStubs } = await import('./settingsEffects.js');
+    await syncCarrierStubs(tid, updated, prior);
+  } catch {
+    /* non-blocking */
+  }
+
+  try {
     const { recordConfigAudit, diffFields } = await import('./configAudit.js');
     const after = updated.toObject ? updated.toObject() : updated;
     const changes = diffFields(prior, after, Object.keys($set).filter((k) => k !== 'updatedBy'));

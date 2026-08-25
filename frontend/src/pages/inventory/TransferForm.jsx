@@ -90,6 +90,7 @@ export default function TransferForm() {
     partnerWarnings: !!settings?.groupStockWarning,
     showDetailedOps: false,
     lotsEnabled: !!(settings?.groupProductionLot || settings?.groupStockTrackingLot),
+    showLotsOnDeliverySlips: !!(settings?.showLotsOnDeliverySlips || settings?.groupLotOnDeliverySlip),
   }
 
   const activeOpType = useMemo(
@@ -265,7 +266,7 @@ export default function TransferForm() {
         </div>
         {!isNew && (
           <div className="flex flex-wrap gap-2">
-            <TransferPrintButton transfer={transfer} code={code} />
+            <TransferPrintButton transfer={transfer} code={code} settingsHints={hints} />
             <Link to={`/app/dashboard/inventory/moves?transferId=${id}`} className="btn btn-ghost btn-sm">
               {ar ? 'الحركات' : 'Moves'} ({transfer?.moves?.length || 0})
             </Link>
