@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { tenantFields, decimalField, decimal128Field, setDecimalPair } from './common.js';
+import { installNoDeleteGuard } from '../../services/inventory/appendOnly.js';
 
 const schema = new mongoose.Schema({
   ...tenantFields,
@@ -34,5 +35,7 @@ schema.pre('validate', function syncMirrors(next) {
   setDecimalPair(this, 'remainingValue', this.remainingValue ?? '0');
   next();
 });
+
+installNoDeleteGuard(schema);
 
 export default mongoose.models.InvValuationLayer || mongoose.model('InvValuationLayer', schema);

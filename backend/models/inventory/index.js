@@ -37,3 +37,23 @@ export { default as InvAttributeValue } from './InvAttributeValue.js';
 export { default as InvProductVariant } from './InvProductVariant.js';
 export { default as InvIeTemplate } from './InvIeTemplate.js';
 export { default as InvExportJob } from './InvExportJob.js';
+
+import { invQueryCounterPlugin } from '../../middleware/invQueryBudget.js';
+import InvQuantModel from './InvQuant.js';
+import InvMoveModel from './InvMove.js';
+import InvMoveLineModel from './InvMoveLine.js';
+import InvTransferModel from './InvTransfer.js';
+import InvValuationLayerModel from './InvValuationLayer.js';
+import InvLocationModel from './InvLocation.js';
+import InvSchedulerRunModel from './InvSchedulerRun.js';
+
+const PLUGIN_MARK = '__invQueryBudget';
+for (const Model of [
+  InvQuantModel, InvMoveModel, InvMoveLineModel, InvTransferModel,
+  InvValuationLayerModel, InvLocationModel, InvSchedulerRunModel,
+]) {
+  if (Model?.schema && !Model.schema[PLUGIN_MARK]) {
+    Model.schema.plugin(invQueryCounterPlugin);
+    Model.schema[PLUGIN_MARK] = true;
+  }
+}

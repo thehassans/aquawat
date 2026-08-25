@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { tenantFields, decimalField, decimal128Field, setDecimalPair } from './common.js';
+import { installAppendOnlyGuard } from '../../services/inventory/appendOnly.js';
 
 const MOVE_STATES = [
   'draft', 'waiting', 'confirmed', 'partiallyAvailable', 'assigned', 'done', 'cancelled',
@@ -49,6 +50,7 @@ schema.index({ tenantId: 1, transferId: 1 });
 schema.index({ tenantId: 1, productId: 1, state: 1 });
 schema.index({ tenantId: 1, state: 1, date: 1 });
 schema.index({ tenantId: 1, sourceModel: 1, sourceDocId: 1 });
+schema.index({ tenantId: 1, procurementGroupId: 1 });
 
 schema.pre('validate', function syncMirrors(next) {
   setDecimalPair(this, 'demandQty', this.demandQty ?? '0');
@@ -58,6 +60,8 @@ schema.pre('validate', function syncMirrors(next) {
   }
   next();
 });
+
+installAppendOnlyGuard(schema);
 
 export { MOVE_STATES };
 export default mongoose.models.InvMove || mongoose.model('InvMove', schema);

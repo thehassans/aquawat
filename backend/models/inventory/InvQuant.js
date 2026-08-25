@@ -39,6 +39,8 @@ schema.index(
   { unique: true },
 );
 schema.index({ tenantId: 1, productId: 1, locationId: 1 });
+schema.index({ tenantId: 1, locationId: 1, productId: 1 });
+schema.index({ tenantId: 1, productId: 1, inDate: 1 });
 schema.index({ tenantId: 1, locationId: 1 });
 schema.index({ tenantId: 1, isCountSet: 1 });
 

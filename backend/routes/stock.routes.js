@@ -29,6 +29,7 @@ import { resolveWarehouseScope, warehouseFilter, assertWarehouseAccess } from '.
 import { InventoryError } from '../services/inventory/errors.js';
 import { D, decStr } from '../utils/decimal.js';
 import { stockIdempotency } from '../middleware/stockIdempotency.js';
+import { stockQueryBudget } from '../middleware/invQueryBudget.js';
 import { listLots, createLot } from '../services/inventory/lotService.js';
 import {
   listInventoryQuants,
@@ -91,6 +92,7 @@ const router = express.Router();
 
 router.use(protect, tenantFilter, requireTenantFilter);
 router.use(stockIdempotency());
+router.use(stockQueryBudget({ max: 10 }));
 
 function handleInventoryError(res, err) {
   if (err instanceof InventoryError) {
@@ -174,6 +176,16 @@ router.get('/engine-status', async (req, res) => {
       engineEnabled: Boolean(settings?.engineEnabled),
       enforceWarehouseRestriction: Boolean(settings?.enforceWarehouseRestriction),
     });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+/** Module health for Overview strip (§3.5) */
+router.get('/health', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { inventoryModuleHealth } = await import('../services/inventory/moduleHealth.js');
+    res.json(await inventoryModuleHealth(req.user.tenantId));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -753,66 +765,11 @@ router.get('/report/stock', checkPermission('inventory', 'read'), async (req, re
     const locs = await InvLocation.find(locFilter).select('_id').lean();
     const locIds = locs.map((l) => l._id);
 
-    const quants = await InvQuant.aggregate([
-      {
-        $match: {
-          tenantId: req.user.tenantId,
-          locationId: { $in: locIds },
-        },
-      },
-      {
-        $group: {
-          _id: '$productId',
-          onHandNum: { $sum: '$quantityNum' },
-          reservedNum: { $sum: '$reservedQuantityNum' },
-        },
-      },
-    ]);
-
-    const productIds = quants.map((q) => q._id);
-    const products = await Product.find({
-      ...req.tenantFilter,
-      _id: { $in: productIds },
-    }).select('nameEn nameAr sku barcode costPrice unitOfMeasure uomId sellingPrice').lean();
-
-    const byId = new Map(products.map((p) => [String(p._id), p]));
-    const rows = [];
-    let valueTotal = D(0);
-    for (const q of quants) {
-      const p = byId.get(String(q._id));
-      if (!p) continue;
-      const onHand = decStr(q.onHandNum?.toString?.() || '0');
-      const reserved = decStr(q.reservedNum?.toString?.() || '0');
-      const forecast = await computeForecast(req.user.tenantId, q._id, {
-        warehouseId: req.query.warehouseId,
-      });
-      let value = '0';
-      let unitCost = p.costPrice;
-      try {
-        const { productInventoryValue } = await import('../services/inventory/valuation.js');
-        const v = await productInventoryValue(req.user.tenantId, q._id);
-        value = v.value;
-        unitCost = v.unitCost || p.costPrice;
-        valueTotal = valueTotal.plus(D(value));
-      } catch {
-        value = decStr(D(onHand).mul(D(p.costPrice || 0)));
-        valueTotal = valueTotal.plus(D(value));
-      }
-      rows.push({
-        productId: q._id,
-        product: p,
-        onHand,
-        reserved,
-        freeToUse: decStr(D(onHand).minus(D(reserved))),
-        incoming: forecast.incoming,
-        outgoing: forecast.outgoing,
-        forecast: forecast.forecast,
-        unitCost,
-        value,
-      });
-    }
-
-    res.json({ data: rows, total: rows.length, valueTotal: decStr(valueTotal) });
+    const { stockReportLive } = await import('../services/inventory/reporting.js');
+    return res.json(await stockReportLive(req.user.tenantId, {
+      warehouseId: req.query.warehouseId,
+      locIds,
+    }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1470,6 +1427,7 @@ router.get('/moves-history', checkPermission('inventory', 'read'), async (req, r
       direction: req.query.direction,
       page: req.query.page,
       limit: Math.min(10000, Number(req.query.limit) || 80),
+      cursor: req.query.cursor,
     }));
   } catch (err) {
     handleInventoryError(res, err);

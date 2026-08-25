@@ -1,9 +1,11 @@
 import InvMoveLine from '../../models/inventory/InvMoveLine.js';
 import InvLot from '../../models/inventory/InvLot.js';
 import { toObjectId } from '../../models/inventory/common.js';
+import { cursorFilter, pageMeta } from './cursorPage.js';
 
 /**
  * Done move-line history with filters.
+ * Supports offset page/limit or cursor keyset (`cursor` query).
  */
 export async function movesHistory(tenantId, {
   productId,
@@ -15,8 +17,10 @@ export async function movesHistory(tenantId, {
   direction, // incoming | outgoing | internal
   page = 1,
   limit = 80,
+  cursor,
 } = {}) {
   const tid = toObjectId(tenantId);
+  const pageSize = Math.min(10000, Number(limit) || 80);
   const filter = { tenantId: tid, state: 'done' };
   if (productId) filter.productId = productId;
   if (lotId) filter.lotId = lotId;
@@ -30,16 +34,24 @@ export async function movesHistory(tenantId, {
     if (dateTo) filter.updatedAt.$lte = new Date(dateTo);
   }
 
-  let items = await InvMoveLine.find(filter)
+  const keyset = cursorFilter(cursor, 'updatedAt');
+  if (Object.keys(keyset).length) {
+    filter.$and = [...(filter.$and || []), keyset];
+  }
+
+  let q = InvMoveLine.find(filter)
+    .select('productId lotId sourceLocationId destLocationId transferId quantity quantityInProductUom updatedAt reference state')
     .populate('productId', 'nameEn nameAr sku')
     .populate('lotId', 'name expirationDate')
     .populate('sourceLocationId', 'name completePath usage')
     .populate('destLocationId', 'name completePath usage')
     .populate('transferId', 'name partnerId origin state')
-    .sort({ updatedAt: -1 })
-    .skip((Number(page) - 1) * Number(limit))
-    .limit(Math.min(10000, Number(limit) * (direction ? 3 : 1)))
-    .lean();
+    .sort({ updatedAt: -1, _id: -1 });
+
+  if (!cursor) {
+    q = q.skip((Number(page) - 1) * pageSize);
+  }
+  let items = await q.limit(pageSize * (direction ? 3 : 1)).lean();
 
   if (direction === 'incoming') {
     items = items.filter(
@@ -55,10 +67,25 @@ export async function movesHistory(tenantId, {
     );
   }
 
-  if (direction) items = items.slice(0, Number(limit));
+  if (direction) items = items.slice(0, pageSize);
 
-  const total = await InvMoveLine.countDocuments(filter);
-  return { items, total, page: Number(page), limit: Number(limit) };
+  const total = cursor ? undefined : await InvMoveLine.countDocuments({
+    tenantId: tid,
+    state: 'done',
+    ...(productId ? { productId } : {}),
+    ...(lotId ? { lotId } : {}),
+    ...(transferId ? { transferId } : {}),
+  });
+
+  return {
+    items,
+    ...(total != null ? { total } : {}),
+    _meta: pageMeta({ items, limit: pageSize, total }),
+  };
+}
+
+export async function productMoveHistory(tenantId, productId, opts = {}) {
+  return movesHistory(tenantId, { ...opts, productId });
 }
 
 /**
@@ -112,8 +139,4 @@ export async function lotTraceability(tenantId, lotId) {
   }
 
   return { lot, upstream, downstream, lines };
-}
-
-export async function productMoveHistory(tenantId, productId, opts = {}) {
-  return movesHistory(tenantId, { ...opts, productId });
 }

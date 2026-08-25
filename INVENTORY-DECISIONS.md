@@ -509,5 +509,17 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Audit | `updateInvSettings` already writes `recordConfigAudit` per changed flag |
 | Tests | Effect map coverage + packaging/lots/signature predicates + UoM round-up + five-key contract |
 
+## v3 P2 — Enterprise hardening (§3.1–3.5 slice)
+
+| Topic | Decision |
+|---|---|
+| Indexes | Quant `location+product`, `product+inDate`; MoveLine `product+updatedAt`; Transfer `opType+state+scheduled`, `origin`, `backorderOfId`; Move `procurementGroupId` |
+| Query budget | `stockQueryBudget` ALS counter + `X-Inv-Query-Count`; fail when `INV_QUERY_BUDGET_FAIL=1` and count > 10 |
+| Stock report | `stockReportLive` — 4 queries (quants + pending moves + layers + products), no per-row forecast/value |
+| Cursor page | Moves History accepts `cursor` keyset; `_meta.nextCursor` |
+| Append-only | Done `InvMove` / `InvMoveLine` blocked; valuation layers **no delete** (remaining* updates still allowed for FIFO) |
+| Health | `GET /stock/health` → Overview strip (status, version, waiting past deadline, last scheduler) |
+| Idempotency | Already mounted (`Idempotency-Key`) on `/api/stock` mutations |
+
 
 

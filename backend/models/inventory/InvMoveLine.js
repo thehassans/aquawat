@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { tenantFields, decimalField, decimal128Field, setDecimalPair } from './common.js';
+import { installAppendOnlyGuard } from '../../services/inventory/appendOnly.js';
 
 const schema = new mongoose.Schema({
   ...tenantFields,
@@ -32,11 +33,15 @@ const schema = new mongoose.Schema({
 schema.index({ tenantId: 1, moveId: 1, state: 1 });
 schema.index({ tenantId: 1, transferId: 1 });
 schema.index({ tenantId: 1, lotId: 1 });
+schema.index({ tenantId: 1, productId: 1, updatedAt: -1 });
+schema.index({ tenantId: 1, state: 1, updatedAt: -1 });
 
 schema.pre('validate', function syncMirrors(next) {
   setDecimalPair(this, 'quantity', this.quantity ?? '0');
   setDecimalPair(this, 'quantityInProductUom', this.quantityInProductUom ?? this.quantity ?? '0');
   next();
 });
+
+installAppendOnlyGuard(schema);
 
 export default mongoose.models.InvMoveLine || mongoose.model('InvMoveLine', schema);

@@ -444,3 +444,123 @@ export async function inventoryAtDate(tenantId, { asOf, warehouseId } = {}) {
     valueTotal: decStr(valueTotal),
   };
 }
+
+/**
+ * Live stock report in a bounded number of queries (no per-product N+1).
+ */
+export async function stockReportLive(tenantId, { warehouseId, locIds } = {}) {
+  const tid = toObjectId(tenantId);
+  const InvQuant = (await import('../../models/inventory/InvQuant.js')).default;
+  const InvValuationLayer = (await import('../../models/inventory/InvValuationLayer.js')).default;
+
+  let locations = locIds;
+  if (!locations?.length) {
+    const locFilter = { tenantId: tid, usage: 'internal', active: { $ne: false } };
+    if (warehouseId) locFilter.warehouseId = toObjectId(warehouseId);
+    const locs = await InvLocation.find(locFilter).select('_id').lean();
+    locations = locs.map((l) => l._id);
+  }
+  if (!locations.length) {
+    return { data: [], total: 0, valueTotal: '0' };
+  }
+
+  const internalIds = new Set(locations.map(String));
+
+  const [quants, pendingMoves, valueAgg] = await Promise.all([
+    InvQuant.aggregate([
+      { $match: { tenantId: tid, locationId: { $in: locations } } },
+      {
+        $group: {
+          _id: '$productId',
+          onHandNum: { $sum: '$quantityNum' },
+          reservedNum: { $sum: '$reservedQuantityNum' },
+        },
+      },
+    ]),
+    InvMove.find({
+      tenantId: tid,
+      state: { $in: ['waiting', 'confirmed', 'partiallyAvailable', 'assigned'] },
+      $or: [
+        { sourceLocationId: { $in: locations } },
+        { destLocationId: { $in: locations } },
+      ],
+    }).select('productId sourceLocationId destLocationId demandQty doneQty').lean(),
+    InvValuationLayer.aggregate([
+      { $match: { tenantId: tid } },
+      {
+        $group: {
+          _id: '$productId',
+          remainingValueNum: { $sum: '$remainingValueNum' },
+          valueNum: { $sum: '$valueNum' },
+        },
+      },
+    ]),
+  ]);
+
+  const productIds = quants.map((q) => q._id);
+  const products = await Product.find({
+    tenantId: tid,
+    _id: { $in: productIds },
+  }).select('nameEn nameAr sku barcode costPrice unitOfMeasure uomId sellingPrice').lean();
+  const byId = new Map(products.map((p) => [String(p._id), p]));
+
+  const ioByProduct = new Map();
+  for (const m of pendingMoves) {
+    const pid = String(m.productId);
+    const qty = D(m.demandQty).minus(D(m.doneQty || 0));
+    if (qty.lte(0)) continue;
+    const srcInternal = internalIds.has(String(m.sourceLocationId));
+    const destInternal = internalIds.has(String(m.destLocationId));
+    const prev = ioByProduct.get(pid) || { incoming: D(0), outgoing: D(0) };
+    if (destInternal && !srcInternal) prev.incoming = prev.incoming.plus(qty);
+    if (srcInternal && !destInternal) prev.outgoing = prev.outgoing.plus(qty);
+    ioByProduct.set(pid, prev);
+  }
+
+  const valueByProduct = new Map(
+    valueAgg.map((r) => {
+      const rem = D(r.remainingValueNum?.toString?.() || '0');
+      // Prefer FIFO remaining; fall back to signed journal sum when remaining is zero
+      const fallback = D(r.valueNum?.toString?.() || '0');
+      return [String(r._id), rem.eq(0) ? fallback : rem];
+    }),
+  );
+
+  const rows = [];
+  let valueTotal = D(0);
+  for (const q of quants) {
+    const p = byId.get(String(q._id));
+    if (!p) continue;
+    const onHand = decStr(q.onHandNum?.toString?.() || '0');
+    const reserved = decStr(q.reservedNum?.toString?.() || '0');
+    const io = ioByProduct.get(String(q._id)) || { incoming: D(0), outgoing: D(0) };
+    const incoming = decStr(io.incoming);
+    const outgoing = decStr(io.outgoing);
+    const forecast = decStr(D(onHand).plus(io.incoming).minus(io.outgoing));
+
+    let valueD = valueByProduct.get(String(q._id));
+    if (valueD == null || valueD.eq(0)) {
+      valueD = D(onHand).mul(D(p.costPrice || 0));
+    }
+    const value = decStr(valueD);
+    valueTotal = valueTotal.plus(valueD);
+    const unitCost = D(onHand).eq(0)
+      ? (p.costPrice || '0')
+      : decStr(valueD.div(D(onHand)));
+
+    rows.push({
+      productId: q._id,
+      product: p,
+      onHand,
+      reserved,
+      freeToUse: decStr(D(onHand).minus(D(reserved))),
+      incoming,
+      outgoing,
+      forecast,
+      unitCost,
+      value,
+    });
+  }
+
+  return { data: rows, total: rows.length, valueTotal: decStr(valueTotal) };
+}

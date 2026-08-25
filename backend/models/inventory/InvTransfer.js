@@ -38,8 +38,11 @@ const schema = new mongoose.Schema({
 }, { timestamps: true });
 
 schema.index({ tenantId: 1, name: 1 }, { unique: true });
+schema.index({ tenantId: 1, operationTypeId: 1, state: 1, scheduledDate: 1 });
 schema.index({ tenantId: 1, operationTypeId: 1, state: 1 });
 schema.index({ tenantId: 1, state: 1, scheduledDate: 1 });
+schema.index({ tenantId: 1, origin: 1 });
+schema.index({ tenantId: 1, backorderOfId: 1 });
 schema.index({ tenantId: 1, sourceModel: 1, sourceDocId: 1 });
 
 export { TRANSFER_STATES };

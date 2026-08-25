@@ -41,6 +41,13 @@ export default function InventoryOverview() {
     staleTime: 10 * 60 * 1000,
   })
 
+  const { data: health } = useQuery({
+    queryKey: ['stock-health'],
+    queryFn: () => api.get('/stock/health').then((r) => r.data),
+    staleTime: 60_000,
+    enabled: !!settings?.engineEnabled,
+  })
+
   const { data: opTypes = [] } = useQuery({
     queryKey: ['stock-op-types'],
     queryFn: () => api.get('/stock/operation-types').then((r) => r.data),
@@ -96,7 +103,24 @@ export default function InventoryOverview() {
               ? (language === 'ar' ? 'محرك المخزون مفعّل' : 'Inventory engine active')
               : (language === 'ar' ? 'المحرك غير مفعّل — فعّله من الإعدادات' : 'Engine off — enable from Settings')}
           </p>
-          {settings?.engineEnabled && (
+          {settings?.engineEnabled && health && (
+            <p className={`mt-0.5 text-xs ${
+              health.status === 'critical' ? 'text-rose-600'
+                : health.status === 'warning' ? 'text-amber-600'
+                  : 'text-emerald-700'
+            }`}
+            >
+              {language === 'ar' ? 'الصحة' : 'Health'}: {health.status}
+              {' · '}v{health.engineVersion}
+              {health.waitingPastDeadline > 0
+                ? ` · ${health.waitingPastDeadline} ${language === 'ar' ? 'متأخر' : 'past deadline'}`
+                : ''}
+              {health.lastSchedulerRun?.status
+                ? ` · ${language === 'ar' ? 'مجدول' : 'scheduler'} ${health.lastSchedulerRun.status}`
+                : ''}
+            </p>
+          )}
+          {settings?.engineEnabled && !health && (
             <p className="mt-0.5 text-xs text-slate-400">
               {language === 'ar' ? 'الصيانة (تهيئة / ترحيل / مزامنة) في الإعدادات' : 'Maintenance (bootstrap / migrate / sync) lives under Settings'}
             </p>
