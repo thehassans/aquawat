@@ -8,10 +8,11 @@ import InvReorderRule from '../../models/inventory/InvReorderRule.js';
 import Product from '../../models/Product.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { computeForecast } from './forecast.js';
+import { latestIntegrityFailures } from './jobRunner.js';
 
 /**
  * Activity / exception queue — stuck moves, failed procurements, no-rule,
- * negative forecast, expired lots still on hand.
+ * negative forecast, expired lots still on hand, last integrity failures.
  */
 export async function listInventoryExceptions(tenantId, { limit = 100 } = {}) {
   const tid = toObjectId(tenantId);
@@ -23,9 +24,9 @@ export async function listInventoryExceptions(tenantId, { limit = 100 } = {}) {
   const lateMoves = await InvMove.find({
     tenantId: tid,
     state: { $in: ['waiting', 'confirmed', 'partiallyAvailable'] },
-    dateDeadline: { $lt: now },
+    deadlineDate: { $lt: now },
   })
-    .sort({ dateDeadline: 1 })
+    .sort({ deadlineDate: 1 })
     .limit(cap)
     .populate('productId', 'nameEn sku')
     .lean();
@@ -34,8 +35,8 @@ export async function listInventoryExceptions(tenantId, { limit = 100 } = {}) {
     items.push({
       type: 'waiting_past_deadline',
       severity: 'warning',
-      at: m.dateDeadline,
-      message: `Move ${m.name || m._id} waiting past deadline`,
+      at: m.deadlineDate,
+      message: `Move ${m.reference || m._id} waiting past deadline`,
       messageAr: `حركة متأخرة عن الموعد`,
       productId: m.productId?._id || m.productId,
       productName: m.productId?.nameEn || m.productId?.sku,
@@ -57,7 +58,7 @@ export async function listInventoryExceptions(tenantId, { limit = 100 } = {}) {
     });
   }
 
-  // 3) Negative forecast (sample products with reorder coverage or top trackable)
+  // 3) Negative forecast (sample products with reorder coverage)
   const rules = await InvReorderRule.find({ tenantId: tid, active: true }).limit(80).lean();
   const seen = new Set();
   for (const op of rules) {
@@ -66,17 +67,17 @@ export async function listInventoryExceptions(tenantId, { limit = 100 } = {}) {
     seen.add(key);
     try {
       const fc = await computeForecast(tid, op.productId, { warehouseId: op.warehouseId });
-      if (D(fc.forecasted).lt(0)) {
+      if (D(fc.forecasted ?? fc.forecast).lt(0)) {
         const p = await Product.findById(op.productId).select('nameEn sku').lean();
         items.push({
           type: 'negative_forecast',
           severity: 'warning',
           at: now,
-          message: `${p?.sku || op.productId} forecast ${fc.forecasted}`,
+          message: `${p?.sku || op.productId} forecast ${fc.forecasted ?? fc.forecast}`,
           messageAr: `توقع سالب للمخزون`,
           productId: op.productId,
           productName: p?.nameEn,
-          qty: fc.forecasted,
+          qty: fc.forecasted ?? fc.forecast,
           ref: { warehouseId: op.warehouseId, reorderRuleId: op._id },
         });
       }
@@ -123,6 +124,14 @@ export async function listInventoryExceptions(tenantId, { limit = 100 } = {}) {
       qty: decStr(qty),
       ref: { lotId: lot._id, lotName: lot.name },
     });
+  }
+
+  // 5) Latest integrity job failures
+  try {
+    const { items: integrityItems } = await latestIntegrityFailures(tid, { limit: 40 });
+    items.push(...integrityItems);
+  } catch {
+    /* non-blocking */
   }
 
   items.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));

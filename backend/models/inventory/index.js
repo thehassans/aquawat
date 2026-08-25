@@ -37,6 +37,7 @@ export { default as InvAttributeValue } from './InvAttributeValue.js';
 export { default as InvProductVariant } from './InvProductVariant.js';
 export { default as InvIeTemplate } from './InvIeTemplate.js';
 export { default as InvExportJob } from './InvExportJob.js';
+export { default as InvJobRun } from './InvJobRun.js';
 
 import { invQueryCounterPlugin } from '../../middleware/invQueryBudget.js';
 import InvQuantModel from './InvQuant.js';

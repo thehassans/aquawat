@@ -30,6 +30,7 @@ import { InventoryError } from '../services/inventory/errors.js';
 import { D, decStr } from '../utils/decimal.js';
 import { stockIdempotency } from '../middleware/stockIdempotency.js';
 import { stockQueryBudget } from '../middleware/invQueryBudget.js';
+import { stockHeavyLimiter } from '../middleware/stockHeavyLimit.js';
 import { listLots, createLot } from '../services/inventory/lotService.js';
 import {
   listInventoryQuants,
@@ -742,7 +743,7 @@ router.post('/transfers/:id/cancel', checkPermission('inventory', 'update'), asy
 
 // ── Stock report / forecast ────────────────────────────────────────
 
-router.get('/report/stock', checkPermission('inventory', 'read'), async (req, res) => {
+router.get('/report/stock', checkPermission('inventory', 'read'), stockHeavyLimiter, async (req, res) => {
   try {
     if (req.query.asOf) {
       const { inventoryAtDate } = await import('../services/inventory/reporting.js');
@@ -1916,7 +1917,7 @@ router.get('/scheduler', checkPermission('inventory', 'read'), async (req, res) 
   }
 });
 
-router.post('/scheduler/run', checkPermission('inventory', 'update'), async (req, res) => {
+router.post('/scheduler/run', checkPermission('inventory', 'update'), stockHeavyLimiter, async (req, res) => {
   try {
     const run = await runScheduler(req.user.tenantId, {
       trigger: 'manual',
@@ -2221,7 +2222,7 @@ router.post('/sync-product-cache', checkPermission('inventory', 'update'), async
 
 // ── Phase 6: Reporting, import/export, barcode, settings extras ───
 
-router.get('/report/moves-analysis', checkPermission('inventory', 'read'), async (req, res) => {
+router.get('/report/moves-analysis', checkPermission('inventory', 'read'), stockHeavyLimiter, async (req, res) => {
   try {
     const { movesAnalysis } = await import('../services/inventory/reporting.js');
     const items = await movesAnalysis(req.user.tenantId, {
@@ -2365,7 +2366,7 @@ router.get('/ie/models/:model/fields', checkPermission('inventory', 'read'), asy
   }
 });
 
-router.post('/ie/export', checkPermission('inventory', 'read'), async (req, res) => {
+router.post('/ie/export', checkPermission('inventory', 'read'), stockHeavyLimiter, async (req, res) => {
   try {
     const { universalExport } = await import('../services/inventory/universalIe.js');
     const result = await universalExport(req.user.tenantId, req.user._id, {
@@ -2524,6 +2525,51 @@ router.get('/exceptions', checkPermission('inventory', 'read'), async (req, res)
     const { listInventoryExceptions } = await import('../services/inventory/exceptions.js');
     res.json(await listInventoryExceptions(req.user.tenantId, {
       limit: Number(req.query.limit) || 100,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/integrity/run', checkPermission('inventory', 'update'), stockHeavyLimiter, async (req, res) => {
+  try {
+    const { runIntegrityJob } = await import('../services/inventory/jobRunner.js');
+    const { job, report } = await runIntegrityJob(req.user.tenantId, {
+      trigger: 'manual',
+      userId: req.user._id,
+      limit: Number(req.body?.limit) || undefined,
+    });
+    res.json({
+      jobId: job._id,
+      status: job.status,
+      durationMs: job.durationMs,
+      failureCount: report.failureCount,
+      checks: report.checks,
+      failures: report.failures,
+      ok: report.ok,
+    });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/integrity/latest', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { latestIntegrityFailures } = await import('../services/inventory/jobRunner.js');
+    res.json(await latestIntegrityFailures(req.user.tenantId, {
+      limit: Number(req.query.limit) || 50,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/jobs', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listJobRuns } = await import('../services/inventory/jobRunner.js');
+    res.json(await listJobRuns(req.user.tenantId, {
+      jobType: req.query.jobType || undefined,
+      limit: Number(req.query.limit) || 40,
     }));
   } catch (err) {
     handleInventoryError(res, err);

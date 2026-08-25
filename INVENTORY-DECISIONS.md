@@ -521,5 +521,15 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Health | `GET /stock/health` → Overview strip (status, version, waiting past deadline, last scheduler) |
 | Idempotency | Already mounted (`Idempotency-Key`) on `/api/stock` mutations |
 
+## v3 P2 — Integrity + jobs + rate limits (§3.6 slice)
+
+| Topic | Decision |
+|---|---|
+| Integrity suite | `runIntegrityChecks` sample-capped (checks 1–9); check 10 done-checksum **deferred** (no column yet) |
+| JobRun | `InvJobRun` persists integrity (and future) runs; `POST /stock/integrity/run`, `GET /stock/integrity/latest`, `GET /stock/jobs` |
+| Exceptions | Queue merges latest integrity failures; deadline field is `deadlineDate`; UI **Run checks** |
+| Cron | Optional `STOCK_INTEGRITY_CRON=1` → Sunday 03:00 per engine-enabled tenant |
+| Rate limit | `stockHeavyLimiter` (30/min/tenant) on export, scheduler run, stock report, moves-analysis, integrity run |
+| Repair | Cache mismatches suggest `POST /stock/report/reconcile/repair-cache`; never edit done ledger rows |
 
 
