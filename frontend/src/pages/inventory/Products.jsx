@@ -47,16 +47,40 @@ export default function Products() {
   })
   const warehouseOptions = Array.isArray(warehouses) ? warehouses : []
 
+  const { data: engineStatus } = useQuery({
+    queryKey: ['stock-engine-status'],
+    queryFn: () => api.get('/stock/engine-status').then((r) => r.data),
+    staleTime: 60_000,
+  })
+  const engineOn = Boolean(engineStatus?.engineEnabled)
+
   const addStockMutation = useMutation({
-    mutationFn: (data) => api.post(`/products/${data.productId}/stock`, {
-      warehouseId: data.warehouseId,
-      quantity: Number(data.quantity),
-      type: 'add'
-    }),
+    mutationFn: async (data) => {
+      const qty = Number(data.quantity)
+      if (engineOn) {
+        const current = await api
+          .get(`/stock/products/${data.productId}/on-hand`, {
+            params: { warehouseId: data.warehouseId },
+          })
+          .then((r) => Number(r.data?.onHand || 0))
+        return api.post(`/stock/report/stock/${data.productId}/adjust`, {
+          warehouseId: data.warehouseId,
+          onHand: current + qty,
+          reason: 'Products list receive stock',
+        })
+      }
+      return api.post(`/products/${data.productId}/stock`, {
+        warehouseId: data.warehouseId,
+        quantity: qty,
+        type: 'add',
+      })
+    },
     onSuccess: () => {
       toast.success(isAr ? 'تمت إضافة المخزون' : 'Stock received')
       queryClient.invalidateQueries(['products'])
       queryClient.invalidateQueries(['products-stats'])
+      queryClient.invalidateQueries(['stock-report'])
+      queryClient.invalidateQueries(['physical-inventory'])
       setStockModal({ isOpen: false, productId: null, productName: '' })
     },
     onError: (err) => {
@@ -414,6 +438,13 @@ export default function Products() {
                 {isAr ? 'استلام مخزون' : 'Receive stock'}
               </h3>
               <p className="mt-1 text-sm text-slate-500">{stockModal.productName}</p>
+              {engineOn && (
+                <p className="mt-2 text-xs text-slate-400">
+                  {isAr
+                    ? 'المحرك مفعّل — الاستلام يمر عبر تسوية مخزون مرتبطة بالمنتج.'
+                    : 'Engine on — receive posts an adjustment transfer for this product.'}
+                </p>
+              )}
               <form onSubmit={handleAddStock} className="mt-5 space-y-4">
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{isAr ? 'المستودع' : 'Warehouse'}</label>

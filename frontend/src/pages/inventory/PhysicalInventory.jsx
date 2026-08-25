@@ -1,21 +1,43 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
+import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
+import ProductChooser, { loadTradingProducts } from '../../components/inventory/ProductChooser'
 
 export default function PhysicalInventory() {
   const { language } = useSelector((s) => s.ui)
   const qc = useQueryClient()
   const [filter, setFilter] = useState('')
   const [warehouseId, setWarehouseId] = useState('')
+  const [locationId, setLocationId] = useState('')
+  const [addCountedQty, setAddCountedQty] = useState('0')
   const [selected, setSelected] = useState(() => new Set())
   const [edits, setEdits] = useState({})
 
   const { data: warehouses = [] } = useQuery({
     queryKey: ['warehouses'],
     queryFn: () => api.get('/warehouses').then((r) => r.data?.warehouses || r.data || []),
+  })
+
+  const { data: products = [] } = useQuery({
+    queryKey: ['trading-products-stock'],
+    queryFn: () => loadTradingProducts(api),
+  })
+
+  const { data: locations = [] } = useQuery({
+    queryKey: ['stock-locations-internal', warehouseId],
+    queryFn: () =>
+      api
+        .get('/stock/locations', {
+          params: {
+            usage: 'internal',
+            warehouseId: warehouseId || undefined,
+          },
+        })
+        .then((r) => r.data),
   })
 
   const { data: rows = [], isLoading } = useQuery({
@@ -43,6 +65,7 @@ export default function PhysicalInventory() {
       setSelected(new Set())
       qc.invalidateQueries({ queryKey: ['physical-inventory'] })
       qc.invalidateQueries({ queryKey: ['stock-report'] })
+      qc.invalidateQueries({ queryKey: ['products'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
@@ -54,6 +77,9 @@ export default function PhysicalInventory() {
 
   const list = useMemo(() => (Array.isArray(rows) ? rows : []), [rows])
   const whList = Array.isArray(warehouses) ? warehouses : []
+  const locList = Array.isArray(locations) ? locations : []
+
+  const effectiveLocationId = locationId || locList[0]?._id || ''
 
   const toggle = (id) => {
     setSelected((prev) => {
@@ -62,6 +88,33 @@ export default function PhysicalInventory() {
       else next.add(id)
       return next
     })
+  }
+
+  const addProductToCount = (product) => {
+    if (!effectiveLocationId) {
+      toast.error(
+        language === 'ar'
+          ? 'اختر مستودعاً بموقع داخلي أولاً'
+          : 'Select a warehouse with an internal location first',
+      )
+      return
+    }
+    setCount.mutate(
+      {
+        productId: product._id,
+        locationId: effectiveLocationId,
+        countedQty: addCountedQty === '' ? '0' : addCountedQty,
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            language === 'ar'
+              ? `تمت إضافة ${product.name} للجرد`
+              : `Added ${product.name} to count`,
+          )
+        },
+      },
+    )
   }
 
   return (
@@ -90,13 +143,65 @@ export default function PhysicalInventory() {
         </div>
       </div>
 
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-medium text-slate-900 dark:text-white">
+            {language === 'ar' ? 'إضافة منتج للجرد' : 'Add product to count'}
+          </div>
+          <Link to="/app/dashboard/inventory/products" className="text-xs font-medium text-primary-600 hover:underline">
+            {language === 'ar' ? 'إدارة المنتجات' : 'Manage products'}
+          </Link>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-2">
+          <select
+            className="select"
+            value={warehouseId}
+            onChange={(e) => {
+              setWarehouseId(e.target.value)
+              setLocationId('')
+            }}
+          >
+            <option value="">{language === 'ar' ? 'كل المستودعات (عرض)' : 'All warehouses (view)'}</option>
+            {whList.map((w) => (
+              <option key={w._id} value={w._id}>{language === 'ar' && w.nameAr ? w.nameAr : w.nameEn}</option>
+            ))}
+          </select>
+          <select className="select" value={effectiveLocationId} onChange={(e) => setLocationId(e.target.value)}>
+            {locList.length === 0 && (
+              <option value="">{language === 'ar' ? 'لا مواقع داخلية' : 'No internal locations'}</option>
+            )}
+            {locList.map((loc) => (
+              <option key={loc._id} value={loc._id}>
+                {loc.completePath || loc.name}
+              </option>
+            ))}
+          </select>
+          <input
+            className="input w-28"
+            type="text"
+            inputMode="decimal"
+            value={addCountedQty}
+            onChange={(e) => setAddCountedQty(e.target.value)}
+            placeholder={language === 'ar' ? 'العد' : 'Counted'}
+            aria-label={language === 'ar' ? 'الكمية المعدودة' : 'Counted quantity'}
+          />
+        </div>
+        <ProductChooser
+          products={products}
+          onPick={addProductToCount}
+          placeholder={language === 'ar' ? 'ابحث عن منتج من الكتالوج…' : 'Search catalog products to count…'}
+        />
+        {products.length === 0 && (
+          <p className="mt-2 text-sm text-slate-500">
+            {language === 'ar' ? 'أضف منتجات بضاعة أولاً.' : 'Create goods products first.'}{' '}
+            <Link className="text-primary-600 hover:underline" to="/app/dashboard/inventory/products/new">
+              {language === 'ar' ? 'إضافة منتج' : 'Add product'}
+            </Link>
+          </p>
+        )}
+      </div>
+
       <div className="flex flex-wrap gap-2">
-        <select className="select" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-          <option value="">{language === 'ar' ? 'كل المستودعات' : 'All warehouses'}</option>
-          {whList.map((w) => (
-            <option key={w._id} value={w._id}>{language === 'ar' && w.nameAr ? w.nameAr : w.nameEn}</option>
-          ))}
-        </select>
         {[
           { id: '', en: 'All', ar: 'الكل' },
           { id: 'toCount', en: 'To count', ar: 'للعد' },
@@ -132,7 +237,14 @@ export default function PhysicalInventory() {
             {!isLoading && list.length === 0 && (
               <tr>
                 <td colSpan={7} className="p-8">
-                  <EmptyState title={language === 'ar' ? 'لا كميات' : 'No quants'} description={language === 'ar' ? 'رحّل الأرصدة أولاً' : 'Migrate balances first'} />
+                  <EmptyState
+                    title={language === 'ar' ? 'لا كميات بعد' : 'No lines yet'}
+                    description={
+                      language === 'ar'
+                        ? 'أضف منتجاً من الكتالوج أعلاه، أو اعتمد استلاماً لإنشاء رصيد.'
+                        : 'Add a catalog product above, or validate a receipt to create balances.'
+                    }
+                  />
                 </td>
               </tr>
             )}
@@ -141,6 +253,8 @@ export default function PhysicalInventory() {
               const diff = row.isCountSet || edits[row._id] != null
                 ? (Number(counted || 0) - Number(row.quantity || 0)).toFixed(2)
                 : row.countDifference || '—'
+              const pid = row.productId?._id || row.productId
+              const pname = language === 'ar' && row.productId?.nameAr ? row.productId.nameAr : row.productId?.nameEn
               return (
                 <tr key={row._id} className="border-b border-slate-50 dark:border-dark-700">
                   <td className="px-3 py-2">
@@ -153,7 +267,13 @@ export default function PhysicalInventory() {
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-500">{row.locationId?.completePath || row.locationId?.name}</td>
                   <td className="px-3 py-2">
-                    <div className="font-medium">{language === 'ar' && row.productId?.nameAr ? row.productId.nameAr : row.productId?.nameEn}</div>
+                    <div className="font-medium">
+                      {pid ? (
+                        <Link className="text-primary-700 hover:underline dark:text-primary-300" to={`/app/dashboard/inventory/products/${pid}`}>
+                          {pname}
+                        </Link>
+                      ) : pname}
+                    </div>
                     <div className="text-xs text-slate-400">{row.productId?.sku}</div>
                   </td>
                   <td className="px-3 py-2 tabular-nums">{row.lotId?.name || '—'}</td>

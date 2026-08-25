@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 import api from '../../lib/api'
+import ProductChooser, { loadTradingProducts } from '../../components/inventory/ProductChooser'
 import { StatusChip } from './inventoryUi'
 
 const CODE_FROM_PATH = () => {
@@ -33,8 +34,8 @@ export default function TransferForm() {
   })
 
   const { data: products = [] } = useQuery({
-    queryKey: ['products-lite'],
-    queryFn: () => api.get('/products', { params: { limit: 200 } }).then((r) => r.data?.products || r.data?.data || r.data || []),
+    queryKey: ['trading-products-stock'],
+    queryFn: () => loadTradingProducts(api),
   })
 
   const { data: transfer, isLoading } = useQuery({
@@ -47,7 +48,7 @@ export default function TransferForm() {
     operationTypeId: '',
     origin: '',
     note: '',
-    lines: [{ productId: '', demandQty: '1' }],
+    lines: [],
   })
 
   const activeOpType = useMemo(
@@ -71,6 +72,9 @@ export default function TransferForm() {
       toast.success(language === 'ar' ? 'تم' : 'Done')
       qc.invalidateQueries({ queryKey: ['stock-transfer', id] })
       qc.invalidateQueries({ queryKey: ['stock-transfers'] })
+      qc.invalidateQueries({ queryKey: ['physical-inventory'] })
+      qc.invalidateQueries({ queryKey: ['stock-report'] })
+      qc.invalidateQueries({ queryKey: ['products'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
@@ -82,11 +86,40 @@ export default function TransferForm() {
       toast.error(language === 'ar' ? 'اختر نوع العملية' : 'Select operation type')
       return
     }
+    const lines = form.lines.filter((l) => l.productId && l.demandQty)
+    if (!lines.length) {
+      toast.error(language === 'ar' ? 'أضف منتجاً واحداً على الأقل' : 'Add at least one product')
+      return
+    }
     createMut.mutate({
       operationTypeId,
       origin: form.origin,
       note: form.note,
-      lines: form.lines.filter((l) => l.productId && l.demandQty),
+      lines: lines.map((l) => ({ productId: l.productId, demandQty: l.demandQty })),
+    })
+  }
+
+  const pickProduct = (product) => {
+    setForm((f) => {
+      const existing = f.lines.findIndex((l) => String(l.productId) === String(product._id))
+      if (existing >= 0) {
+        const lines = [...f.lines]
+        const nextQty = String(Number(lines[existing].demandQty || 0) + 1)
+        lines[existing] = { ...lines[existing], demandQty: nextQty }
+        return { ...f, lines }
+      }
+      return {
+        ...f,
+        lines: [
+          ...f.lines,
+          {
+            productId: product._id,
+            productName: language === 'ar' && product.nameAr ? product.nameAr : product.name,
+            sku: product.sku,
+            demandQty: '1',
+          },
+        ],
+      }
     })
   }
 
@@ -144,8 +177,8 @@ export default function TransferForm() {
                     const ret = await api.post(`/stock/transfers/${id}/return`, { lines }).then((r) => r.data)
                     toast.success(language === 'ar' ? 'تم إنشاء المرتجع' : 'Return created')
                     qc.invalidateQueries({ queryKey: ['stock-transfers'] })
-                    const code = ret.operationTypeId?.code || CODE_FROM_PATH()
-                    const path = code === 'incoming' ? 'receipts' : code === 'outgoing' ? 'deliveries' : 'internal'
+                    const retCode = ret.operationTypeId?.code || CODE_FROM_PATH()
+                    const path = retCode === 'incoming' ? 'receipts' : retCode === 'outgoing' ? 'deliveries' : 'internal'
                     navigate(`/app/dashboard/inventory/${path}/${ret._id}`)
                   } catch (e) {
                     toast.error(e.response?.data?.error || e.message)
@@ -164,7 +197,6 @@ export default function TransferForm() {
         )}
       </div>
 
-      {/* Status bar */}
       {!isNew && (
         <div className="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-dark-700">
           {['draft', 'waiting', 'assigned', 'done'].map((s) => {
@@ -206,46 +238,63 @@ export default function TransferForm() {
             </label>
           </div>
 
-          <div className="space-y-2">
-            <div className="text-sm font-medium">{language === 'ar' ? 'البنود' : 'Operations'}</div>
-            {form.lines.map((line, idx) => (
-              <div key={idx} className="grid gap-2 sm:grid-cols-[1fr_120px]">
-                <select
-                  className="select"
-                  value={line.productId}
-                  onChange={(e) => {
-                    const lines = [...form.lines]
-                    lines[idx] = { ...lines[idx], productId: e.target.value }
-                    setForm((f) => ({ ...f, lines }))
-                  }}
-                >
-                  <option value="">{language === 'ar' ? 'منتج…' : 'Product…'}</option>
-                  {(Array.isArray(products) ? products : []).map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {language === 'ar' && p.nameAr ? p.nameAr : p.nameEn} ({p.sku})
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="input"
-                  type="text"
-                  inputMode="decimal"
-                  value={line.demandQty}
-                  onChange={(e) => {
-                    const lines = [...form.lines]
-                    lines[idx] = { ...lines[idx], demandQty: e.target.value }
-                    setForm((f) => ({ ...f, lines }))
-                  }}
-                />
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-medium">{language === 'ar' ? 'المنتجات' : 'Products'}</div>
+              <Link to="/app/dashboard/inventory/products" className="text-xs font-medium text-primary-600 hover:underline">
+                {language === 'ar' ? 'إدارة المنتجات' : 'Manage products'}
+              </Link>
+            </div>
+            <ProductChooser
+              products={products}
+              onPick={pickProduct}
+              placeholder={language === 'ar' ? 'ابحث بالاسم أو الرمز أو الباركود…' : 'Search products by name, SKU, or barcode…'}
+            />
+            {products.length === 0 && (
+              <p className="text-sm text-slate-500">
+                {language === 'ar'
+                  ? 'لا توجد منتجات مخزّنة بعد. أضف منتجات من نوع بضاعة أولاً.'
+                  : 'No stocked products yet. Create goods products first.'}{' '}
+                <Link className="text-primary-600 hover:underline" to="/app/dashboard/inventory/products/new">
+                  {language === 'ar' ? 'إضافة منتج' : 'Add product'}
+                </Link>
+              </p>
+            )}
+            {form.lines.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400 dark:border-dark-600">
+                {language === 'ar' ? 'اختر منتجاً من الكتالوج أعلاه' : 'Pick a product from the catalog above'}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {form.lines.map((line, idx) => (
+                  <div key={line.productId} className="grid items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2 sm:grid-cols-[1fr_120px_40px] dark:border-dark-600 dark:bg-dark-900/40">
+                    <div>
+                      <div className="font-medium text-slate-900 dark:text-white">{line.productName}</div>
+                      {line.sku ? <div className="text-xs text-slate-400">SKU {line.sku}</div> : null}
+                    </div>
+                    <input
+                      className="input"
+                      type="text"
+                      inputMode="decimal"
+                      aria-label={language === 'ar' ? 'الكمية' : 'Quantity'}
+                      value={line.demandQty}
+                      onChange={(e) => {
+                        const lines = [...form.lines]
+                        lines[idx] = { ...lines[idx], demandQty: e.target.value }
+                        setForm((f) => ({ ...f, lines }))
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-icon text-slate-400 hover:text-rose-600"
+                      onClick={() => setForm((f) => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setForm((f) => ({ ...f, lines: [...f.lines, { productId: '', demandQty: '1' }] }))}
-            >
-              {language === 'ar' ? 'إضافة بند' : 'Add a line'}
-            </button>
+            )}
           </div>
 
           <button type="submit" className="btn btn-primary" disabled={createMut.isPending}>
@@ -274,18 +323,26 @@ export default function TransferForm() {
               </tr>
             </thead>
             <tbody>
-              {(transfer?.moves || []).map((m) => (
-                <tr key={m._id} className="border-t border-slate-100 dark:border-dark-600">
-                  <td className="py-2">
-                    {language === 'ar' && m.productId?.nameAr
-                      ? m.productId.nameAr
-                      : m.productId?.nameEn || m.productId?.sku || '—'}
-                  </td>
-                  <td className="py-2 tabular-nums">{m.demandQty}</td>
-                  <td className="py-2 tabular-nums">{m.doneQty}</td>
-                  <td className="py-2"><StatusChip status={m.state} language={language} /></td>
-                </tr>
-              ))}
+              {(transfer?.moves || []).map((m) => {
+                const pid = m.productId?._id || m.productId
+                const label = language === 'ar' && m.productId?.nameAr
+                  ? m.productId.nameAr
+                  : m.productId?.nameEn || m.productId?.sku || '—'
+                return (
+                  <tr key={m._id} className="border-t border-slate-100 dark:border-dark-600">
+                    <td className="py-2">
+                      {pid ? (
+                        <Link className="font-medium text-primary-700 hover:underline dark:text-primary-300" to={`/app/dashboard/inventory/products/${pid}`}>
+                          {label}
+                        </Link>
+                      ) : label}
+                    </td>
+                    <td className="py-2 tabular-nums">{m.demandQty}</td>
+                    <td className="py-2 tabular-nums">{m.doneQty}</td>
+                    <td className="py-2"><StatusChip status={m.state} language={language} /></td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

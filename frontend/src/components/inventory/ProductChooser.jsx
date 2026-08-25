@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
-import { formatProductTypeLabel, normalizeProductType } from '../../lib/productType'
+import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType } from '../../lib/productType'
 
 export function normalizeCatalogProduct(p, source = 'bakala') {
   if (!p) return null
@@ -13,10 +13,24 @@ export function normalizeCatalogProduct(p, source = 'bakala') {
     barcodes: Array.isArray(p.barcodes) ? p.barcodes.map(String) : [],
     sku: String(p.sku || ''),
     productType: normalizeProductType(p.productType),
+    unitOfMeasure: p.unitOfMeasure || p.uom || 'EA',
     costPrice: Number(p.costPrice || 0),
     source,
     raw: p,
   }
+}
+
+/** Trading Product catalog only — safe for Inv* transfers / physical count. */
+export async function loadTradingProducts(api, { stockTrackedOnly = true, limit = 500 } = {}) {
+  const res = await api.get('/products', { params: { limit } })
+  const list = Array.isArray(res.data) ? res.data : (res.data?.products || [])
+  return list
+    .map((p) => normalizeCatalogProduct(p, 'trading'))
+    .filter((p) => {
+      if (!p?._id) return false
+      if (stockTrackedOnly && !isStockTrackedProductType(p.productType)) return false
+      return true
+    })
 }
 
 export async function loadInventoryProducts(api) {
@@ -29,9 +43,7 @@ export async function loadInventoryProducts(api) {
     /* bakala catalog optional */
   }
   try {
-    const res = await api.get('/products', { params: { limit: 200 } })
-    const list = Array.isArray(res.data) ? res.data : (res.data?.products || [])
-    bags.push(...list.map((p) => normalizeCatalogProduct(p, 'trading')))
+    bags.push(...(await loadTradingProducts(api, { stockTrackedOnly: false })))
   } catch {
     /* trading catalog optional */
   }
