@@ -96,6 +96,7 @@ const ForecastPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m)
 const InventorySettingsPage = lazy(() => import('./pages/inventory/InventorySettingsPage'))
 const ImportExportPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ImportExportPage })))
 const BarcodeNomenclaturePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.BarcodeNomenclaturePage })))
+const ExceptionsQueuePage = lazy(() => import('./pages/inventory/ExceptionsQueuePage'))
 const InventoryPlaceholder = lazy(() => import('./pages/inventory/InventoryPlaceholder'))
 const LocationsPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationsPage })))
 const LocationForm = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationForm })))
@@ -806,6 +807,7 @@ function App() {
           <Route path="forecast" element={<ForecastPage />} />
           <Route path="settings" element={<InventorySettingsPage />} />
           <Route path="import-export" element={<ImportExportPage />} />
+          <Route path="exceptions" element={<ExceptionsQueuePage />} />
           <Route path="barcode" element={<BarcodeNomenclaturePage />} />
           <Route path="returns" element={<InventoryPlaceholder titleEn="Returns" titleAr="المرتجعات" step={3} />} />
           <Route path="references" element={<InventoryPlaceholder titleEn="References" titleAr="المراجع" step={3} />} />

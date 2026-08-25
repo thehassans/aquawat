@@ -65,13 +65,16 @@ export async function applyQuantDelta(
   const newQty = D(quant.quantity).plus(D(qtyDelta));
   const newReserved = D(quant.reservedQuantity).plus(D(reservedDelta));
 
-  if (newQty.lt(0)) {
-    throw new InventoryValidationError('Insufficient stock', 'INSUFFICIENT_STOCK');
+  if (newQty.lt(0) && !dims.allowNegative) {
+    throw new InventoryValidationError(
+      'Insufficient stock — negative quantities are not allowed for this product category',
+      'INSUFFICIENT_STOCK',
+    );
   }
   if (newReserved.lt(0)) {
     throw new InventoryValidationError('Reserved quantity underflow', 'RESERVED_UNDERFLOW');
   }
-  if (newReserved.gt(newQty)) {
+  if (newReserved.gt(newQty) && !dims.allowNegative) {
     throw new InventoryValidationError('Reserved exceeds on-hand', 'OVER_RESERVED');
   }
 

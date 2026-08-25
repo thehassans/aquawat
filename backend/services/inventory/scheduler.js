@@ -168,11 +168,22 @@ export async function orderOnce(tenantId, userId, {
 }
 
 /**
- * Run scheduler with per-tenant re-entrancy lock.
+ * Run scheduler with per-tenant re-entrancy lock + rate limit (min interval).
+ * Default: at most one successful run per tenant every 15 minutes (cron or manual).
  */
-export async function runScheduler(tenantId, { trigger = 'manual', userId = null } = {}) {
+export async function runScheduler(tenantId, {
+  trigger = 'manual',
+  userId = null,
+  minIntervalMs = 15 * 60 * 1000,
+  force = false,
+} = {}) {
   const tid = toObjectId(tenantId);
   const lockKey = randomUUID();
+  const settings = await InvSettings.findOne({ tenantId: tid }).lean();
+
+  if (settings && settings.schedulerEnabled === false && trigger === 'cron') {
+    throw new InventoryValidationError('Scheduler disabled for tenant', 'SCHEDULER_DISABLED');
+  }
 
   const running = await InvSchedulerRun.findOne({
     tenantId: tid,
@@ -181,6 +192,31 @@ export async function runScheduler(tenantId, { trigger = 'manual', userId = null
   });
   if (running) {
     throw new InventoryConflictError('Scheduler already running for this tenant', 'SCHEDULER_LOCKED');
+  }
+
+  if (!force) {
+    const recent = await InvSchedulerRun.findOne({
+      tenantId: tid,
+      status: 'done',
+      startedAt: { $gte: new Date(Date.now() - minIntervalMs) },
+    }).lean();
+    if (recent) {
+      const [skipped] = await InvSchedulerRun.create([{
+        tenantId: tid,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        trigger,
+        status: 'skipped',
+        rateLimited: true,
+        lockKey,
+        errorLog: [{
+          message: `Rate limited — last run ${recent._id} within ${minIntervalMs}ms`,
+          code: 'RATE_LIMIT',
+          at: new Date(),
+        }],
+      }]);
+      return skipped;
+    }
   }
 
   const [run] = await InvSchedulerRun.create([{
@@ -194,6 +230,8 @@ export async function runScheduler(tenantId, { trigger = 'manual', userId = null
   let rulesEvaluated = 0;
   let procurementsCreated = 0;
   let reservationsRetried = 0;
+  let cacheAssertChecked = 0;
+  let cacheAssertMismatches = 0;
   const errorLog = [];
 
   try {
@@ -235,7 +273,6 @@ export async function runScheduler(tenantId, { trigger = 'manual', userId = null
       }
     }
 
-    // Retry reservation on confirmed / partially available moves without enough reserved
     const candidates = await InvMove.find({
       tenantId: tid,
       state: { $in: ['confirmed', 'partiallyAvailable'] },
@@ -253,15 +290,32 @@ export async function runScheduler(tenantId, { trigger = 'manual', userId = null
       }
     }
 
+    try {
+      const { assertProductStockCache } = await import('./syncProductCache.js');
+      const assert = await assertProductStockCache(tid, { limit: 500 });
+      cacheAssertChecked = assert.checked;
+      cacheAssertMismatches = assert.mismatchCount;
+      if (!assert.ok) {
+        errorLog.push({
+          message: `ProductStockCache drift: ${assert.mismatchCount} mismatch(es)`,
+          code: 'CACHE_DRIFT',
+          at: new Date(),
+        });
+      }
+    } catch (err) {
+      errorLog.push({ message: err.message, code: 'CACHE_ASSERT', at: new Date() });
+    }
+
     run.rulesEvaluated = rulesEvaluated;
     run.procurementsCreated = procurementsCreated;
     run.reservationsRetried = reservationsRetried;
+    run.cacheAssertChecked = cacheAssertChecked;
+    run.cacheAssertMismatches = cacheAssertMismatches;
     run.errorLog = errorLog;
     run.status = 'done';
     run.endedAt = new Date();
     await run.save();
 
-    // Annual inventory day: stamp nextCountDate on cyclic-frequency-0 internals
     try {
       const day = Number(settings?.annualInventoryDay) || 31;
       const month = Number(settings?.annualInventoryMonth) || 12;
@@ -282,7 +336,7 @@ export async function runScheduler(tenantId, { trigger = 'manual', userId = null
         },
         { $set: { nextCountDate: next } },
       );
-    } catch (e) {
+    } catch {
       // non-fatal
     }
 
@@ -291,6 +345,8 @@ export async function runScheduler(tenantId, { trigger = 'manual', userId = null
     run.rulesEvaluated = rulesEvaluated;
     run.procurementsCreated = procurementsCreated;
     run.reservationsRetried = reservationsRetried;
+    run.cacheAssertChecked = cacheAssertChecked;
+    run.cacheAssertMismatches = cacheAssertMismatches;
     run.errorLog = [...errorLog, { message: err.message, code: err.code || 'FATAL', at: new Date() }];
     run.status = 'failed';
     run.endedAt = new Date();

@@ -7,6 +7,7 @@ import { ArrowLeft, Trash2 } from 'lucide-react'
 import api from '../../lib/api'
 import ProductChooser from '../../components/inventory/ProductChooser'
 import { StatusChip } from './inventoryUi'
+import { TransferPrintButton } from './TransferPrint'
 
 const CODE_FROM_PATH = () => {
   const parts = window.location.pathname.split('/')
@@ -264,6 +265,7 @@ export default function TransferForm() {
         </div>
         {!isNew && (
           <div className="flex flex-wrap gap-2">
+            <TransferPrintButton transfer={transfer} code={code} />
             <Link to={`/app/dashboard/inventory/moves?transferId=${id}`} className="btn btn-ghost btn-sm">
               {ar ? 'الحركات' : 'Moves'} ({transfer?.moves?.length || 0})
             </Link>

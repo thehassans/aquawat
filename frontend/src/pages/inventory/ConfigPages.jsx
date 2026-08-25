@@ -538,6 +538,7 @@ export function ProductCategoryForm() {
     parentId: '',
     costingMethod: 'average',
     valuationMode: 'automated',
+    allowNegativeStock: false,
     forceRemovalStrategy: '',
   })
 
@@ -552,16 +553,16 @@ export function ProductCategoryForm() {
   })
 
   useEffect(() => {
-    if (existing) {
-      setForm({
-        name: existing.name || '',
-        nameAr: existing.nameAr || '',
-        parentId: existing.parentId || '',
-        costingMethod: existing.costingMethod || 'average',
-        valuationMode: existing.valuationMode || 'automated',
-        forceRemovalStrategy: existing.forceRemovalStrategy || '',
-      })
-    }
+    if (!existing) return
+    setForm({
+      name: existing.name || '',
+      nameAr: existing.nameAr || '',
+      parentId: existing.parentId?._id || existing.parentId || '',
+      costingMethod: existing.costingMethod || 'average',
+      valuationMode: existing.valuationMode || 'automated',
+      allowNegativeStock: !!existing.allowNegativeStock,
+      forceRemovalStrategy: existing.forceRemovalStrategy || '',
+    })
   }, [existing])
 
   const mut = useMutation({
@@ -630,6 +631,20 @@ export function ProductCategoryForm() {
             <option value="">—</option>
             {['fifo', 'lifo', 'fefo', 'closest'].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
+        </div>
+        <div className="flex items-center gap-2 md:col-span-2">
+          <input
+            id="allowNeg"
+            type="checkbox"
+            className="checkbox"
+            checked={form.allowNegativeStock}
+            onChange={(e) => setForm({ ...form, allowNegativeStock: e.target.checked })}
+          />
+          <label htmlFor="allowNeg" className="text-sm text-slate-700 dark:text-slate-200">
+            {language === 'ar'
+              ? 'السماح بالمخزون السالب عند الاعتماد'
+              : 'Allow negative stock on validate'}
+          </label>
         </div>
       </div>
     </FormShell>

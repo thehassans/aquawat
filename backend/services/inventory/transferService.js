@@ -215,6 +215,15 @@ export async function validateTransfer(tenantId, transferId, {
           const product = await Product.findById(line.productId).session(session);
           const tracking = product?.tracking || 'none';
 
+          let allowNegative = false;
+          if (product?.categoryId) {
+            const { default: InvProductCategory } = await import('../../models/inventory/InvProductCategory.js');
+            const cat = await InvProductCategory.findById(product.categoryId).session(session).lean();
+            allowNegative = !!cat?.allowNegativeStock;
+          } else if (product?.allowNegativeStock) {
+            allowNegative = true;
+          }
+
           if ((line.lotId || line.lotName) && !lotsEnabled(settings)) {
             throw new InventoryValidationError('Lots & serials are disabled in settings', 'LOTS_DISABLED');
           }
@@ -341,6 +350,7 @@ export async function validateTransfer(tenantId, transferId, {
                 packageId: line.packageId,
                 ownerId: line.ownerId,
                 tracking,
+                allowNegative,
               },
             );
           }
@@ -361,6 +371,7 @@ export async function validateTransfer(tenantId, transferId, {
                 packageId: line.resultPackageId || line.packageId,
                 ownerId: line.ownerId,
                 tracking,
+                allowNegative,
               },
             );
           }

@@ -233,3 +233,24 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Stock report | Rows include `value`; response includes `valueTotal` (same valuation helper) |
 | Menu | Reporting adds **Reconcile**; Locations stays under Reporting (config **Locations** unchanged) |
 | Ledger | Not redesigned — reconcile reads quants / layers / product cache only |
+
+## v2 IA — Step 6 (Section 15 enhancements)
+
+| Topic | Decision |
+|---|---|
+| RTL / Arabic | Inherited app `dir`; print layouts + exception queue bilingual; inventory screens keep `labelAr` / `language === 'ar'` |
+| ZATCA print | `TransferPrint` — company VAT, bilingual headers, QR **placeholder** (no new transmission client) |
+| Negative stock | `InvProductCategory.allowNegativeStock` default **false**; validate → `applyQuantDelta` blocks below-zero unless flag (product flag as fallback) |
+| ProductStockCache | New `InvProductStockCache` upserted in `syncProductStockCache` (same session when provided); reports still read ledger; scheduler asserts cache == ledger |
+| Exception queue | `GET /stock/exceptions` + Operations menu — late waits, scheduler errors / NO_RULE, negative forecast, expired lots on hand |
+| Bulk import | Dry-run first; opening qty → **adjustment transfer** (not direct write); `POST /stock/import/locations` added |
+| Config audit | `InvConfigAudit` on settings + product-category changes; `GET /stock/config-audit` |
+| Idempotency | `Idempotency-Key` middleware on `/api/stock` mutating methods; 24h TTL replay |
+| Scheduler | 15‑min rate limit (`status: skipped`); run log includes cache assert counts; fixed annual-inventory `settings` load |
+
+### Deviations
+| Deviation | Reason |
+|---|---|
+| No live ZATCA QR on slips | Brief: placeholder until invoicing slots in |
+| Cache also mirrors `Product.stocks[]` | Keep legacy list UIs working |
+| XLSX import not added | CSV dry-run/commit covers products + locations; XLSX can wrap same parser later |

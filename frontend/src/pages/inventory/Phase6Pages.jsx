@@ -264,14 +264,14 @@ export function ImportExportPage() {
         </h2>
         <p className="text-sm text-slate-500">
           {language === 'ar'
-            ? 'الكميات المستوردة تُحفظ كجرد محسوب فقط — طبّق من الجرد الفعلي'
-            : 'Imported quantities become counted stock only — apply via Physical Inventory'}
+            ? 'معاينة أولاً. الكميات الافتتاحية تُرحَّل كتحويل تسوية — لا كتابة مباشرة على الرصيد.'
+            : 'Dry-run first. Opening qty posts as an inventory adjustment transfer — never a direct quant write.'}
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <select className="select select-sm" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-          <option value="">{language === 'ar' ? 'مستودع (لجرد الاستيراد)' : 'Warehouse (for count import)'}</option>
+          <option value="">{language === 'ar' ? 'مستودع (للافتتاحي / المواقع)' : 'Warehouse (opening / locations)'}</option>
           {(warehouses || []).map((w) => (
             <option key={w._id} value={w._id}>{w.name || w.code}</option>
           ))}
@@ -285,7 +285,7 @@ export function ImportExportPage() {
 
       <textarea
         className="textarea min-h-[10rem] font-mono text-xs"
-        placeholder="externalId,sku,nameEn,costPrice,countedQty"
+        placeholder="externalId,sku,barcode,nameEn,costPrice,onHand"
         value={csvText}
         onChange={(e) => setCsvText(e.target.value)}
       />

@@ -120,6 +120,13 @@ export const INVENTORY_MENU_TREE = [
         action: 'runScheduler',
         permission: { module: 'inventory', action: 'update' },
       },
+      {
+        id: 'exceptions',
+        label: 'Exception queue',
+        labelAr: 'قائمة الاستثناءات',
+        href: '/app/dashboard/inventory/exceptions',
+        permission: { module: 'inventory', action: 'read' },
+      },
     ],
   },
   {

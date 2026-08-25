@@ -28,6 +28,7 @@ import { migrateOpeningBalances } from '../services/inventory/migration.js';
 import { resolveWarehouseScope, warehouseFilter, assertWarehouseAccess } from '../services/inventory/warehouseScope.js';
 import { InventoryError } from '../services/inventory/errors.js';
 import { D, decStr } from '../utils/decimal.js';
+import { stockIdempotency } from '../middleware/stockIdempotency.js';
 import { listLots, createLot } from '../services/inventory/lotService.js';
 import {
   listInventoryQuants,
@@ -82,6 +83,7 @@ import {
 const router = express.Router();
 
 router.use(protect, tenantFilter, requireTenantFilter);
+router.use(stockIdempotency());
 
 function handleInventoryError(res, err) {
   if (err instanceof InventoryError) {
@@ -1772,6 +1774,55 @@ router.post('/import/products', checkPermission('inventory', 'create'), async (r
       warehouseId: req.body.warehouseId,
     });
     res.json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/import/locations', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { importLocations } = await import('../services/inventory/importExport.js');
+    const result = await importLocations(req.user.tenantId, req.user._id, {
+      csvText: req.body.csvText || req.body.csv || '',
+      dryRun: req.body.dryRun !== false && req.body.dryRun !== '0',
+      warehouseId: req.body.warehouseId,
+    });
+    res.json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/exceptions', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listInventoryExceptions } = await import('../services/inventory/exceptions.js');
+    res.json(await listInventoryExceptions(req.user.tenantId, {
+      limit: Number(req.query.limit) || 100,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/config-audit', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { default: InvConfigAudit } = await import('../models/inventory/InvConfigAudit.js');
+    const items = await InvConfigAudit.find({ tenantId: req.user.tenantId })
+      .sort({ createdAt: -1 })
+      .limit(Number(req.query.limit) || 50)
+      .lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/report/cache-assert', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { assertProductStockCache } = await import('../services/inventory/syncProductCache.js');
+    res.json(await assertProductStockCache(req.user.tenantId, {
+      limit: Number(req.query.limit) || 500,
+    }));
   } catch (err) {
     handleInventoryError(res, err);
   }

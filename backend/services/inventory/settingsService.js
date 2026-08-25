@@ -203,9 +203,28 @@ export async function updateInvSettings(tenantId, userId, body) {
   if ($set.showLotsOnInvoices != null) $set.groupLotOnInvoice = $set.showLotsOnInvoices;
   if ($set.groupLotOnInvoice != null) $set.showLotsOnInvoices = $set.groupLotOnInvoice;
 
-  return InvSettings.findOneAndUpdate(
+  const prior = current.toObject ? current.toObject() : { ...current };
+  const updated = await InvSettings.findOneAndUpdate(
     { tenantId: tid },
     { $set },
     { new: true, upsert: true },
   );
+
+  try {
+    const { recordConfigAudit, diffFields } = await import('./configAudit.js');
+    const after = updated.toObject ? updated.toObject() : updated;
+    const changes = diffFields(prior, after, Object.keys($set).filter((k) => k !== 'updatedBy'));
+    await recordConfigAudit({
+      tenantId: tid,
+      userId,
+      resourceType: 'settings',
+      resourceId: updated._id,
+      resourceName: 'InvSettings',
+      changes,
+    });
+  } catch {
+    /* non-blocking */
+  }
+
+  return updated;
 }

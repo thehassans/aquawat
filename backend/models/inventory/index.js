@@ -29,3 +29,6 @@ export { default as InvBatchTransfer } from './InvBatchTransfer.js';
 export { default as InvQualityPoint } from './InvQualityPoint.js';
 export { default as InvQualityCheck } from './InvQualityCheck.js';
 export { default as InvDeliveryCarrier } from './InvDeliveryCarrier.js';
+export { default as InvProductStockCache } from './InvProductStockCache.js';
+export { default as InvConfigAudit } from './InvConfigAudit.js';
+export { default as InvIdempotencyKey } from './InvIdempotencyKey.js';

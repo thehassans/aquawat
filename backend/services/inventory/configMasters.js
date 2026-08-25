@@ -228,6 +228,7 @@ export async function createProductCategory(tenantId, userId, body) {
     reservePackagings: body.reservePackagings || 'partial',
     costingMethod: body.costingMethod || 'average',
     valuationMode: body.valuationMode || 'automated',
+    allowNegativeStock: body.allowNegativeStock === true,
     incomeAccountId: body.incomeAccountId || null,
     expenseAccountId: body.expenseAccountId || null,
     priceDifferenceAccountId: body.priceDifferenceAccountId || null,
@@ -244,6 +245,7 @@ export async function updateProductCategory(tenantId, userId, id, body) {
   const cat = await InvProductCategory.findOne({ _id: id, tenantId: tid });
   if (!cat) throw new InventoryValidationError('Category not found', 'CAT_NOT_FOUND');
 
+  const prior = cat.toObject();
   const oldPath = cat.completePath;
   const name = body.name != null ? String(body.name).trim() : cat.name;
   const parentId = body.parentId !== undefined ? (body.parentId || null) : cat.parentId;
@@ -267,6 +269,7 @@ export async function updateProductCategory(tenantId, userId, id, body) {
   if (body.reservePackagings != null) cat.reservePackagings = body.reservePackagings;
   if (body.costingMethod != null) cat.costingMethod = body.costingMethod;
   if (body.valuationMode != null) cat.valuationMode = body.valuationMode;
+  if (body.allowNegativeStock !== undefined) cat.allowNegativeStock = !!body.allowNegativeStock;
   for (const k of [
     'incomeAccountId', 'expenseAccountId', 'priceDifferenceAccountId',
     'stockValuationAccountId', 'stockJournalId', 'stockInputAccountId', 'stockOutputAccountId',
@@ -277,5 +280,23 @@ export async function updateProductCategory(tenantId, userId, id, body) {
   cat.completePath = await buildCategoryPath(tid, cat.parentId, cat.name);
   await cat.save();
   await cascadeCategoryPaths(tid, cat, oldPath);
+
+  try {
+    const { recordConfigAudit, diffFields } = await import('./configAudit.js');
+    const changes = diffFields(prior || {}, cat.toObject(), [
+      'name', 'nameAr', 'parentId', 'costingMethod', 'valuationMode', 'allowNegativeStock',
+      'forceRemovalStrategy', 'completePath',
+    ]);
+    await recordConfigAudit({
+      tenantId: tid,
+      userId,
+      resourceType: 'productCategory',
+      resourceId: cat._id,
+      resourceName: cat.completePath,
+      changes,
+    });
+  } catch {
+    /* non-blocking */
+  }
   return cat;
 }

@@ -16,6 +16,8 @@ const schema = new mongoose.Schema({
   reservePackagings: { type: String, enum: ['fullOnly', 'partial'], default: 'partial' },
   costingMethod: { type: String, enum: ['standard', 'fifo', 'average'], default: 'average' },
   valuationMode: { type: String, enum: ['manual', 'automated'], default: 'automated' },
+  /** When false (default), validate cannot push an internal quant below zero */
+  allowNegativeStock: { type: Boolean, default: false },
   incomeAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount' },
   expenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount' },
   priceDifferenceAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount' },

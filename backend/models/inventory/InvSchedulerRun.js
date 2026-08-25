@@ -9,8 +9,11 @@ const schema = new mongoose.Schema({
   rulesEvaluated: { type: Number, default: 0 },
   procurementsCreated: { type: Number, default: 0 },
   reservationsRetried: { type: Number, default: 0 },
+  cacheAssertChecked: { type: Number, default: 0 },
+  cacheAssertMismatches: { type: Number, default: 0 },
+  rateLimited: { type: Boolean, default: false },
   errorLog: [{ message: String, code: String, at: Date }],
-  status: { type: String, enum: ['running', 'done', 'failed'], default: 'running' },
+  status: { type: String, enum: ['running', 'done', 'failed', 'skipped'], default: 'running' },
   /** Re-entrancy lock token */
   lockKey: { type: String },
 }, { timestamps: true });
