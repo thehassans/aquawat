@@ -35,3 +35,5 @@ export { default as InvIdempotencyKey } from './InvIdempotencyKey.js';
 export { default as InvProductAttribute } from './InvProductAttribute.js';
 export { default as InvAttributeValue } from './InvAttributeValue.js';
 export { default as InvProductVariant } from './InvProductVariant.js';
+export { default as InvIeTemplate } from './InvIeTemplate.js';
+export { default as InvExportJob } from './InvExportJob.js';

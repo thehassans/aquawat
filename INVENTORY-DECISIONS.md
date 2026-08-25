@@ -439,5 +439,18 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Export | CSV of current filtered page (universal import/export shell still §2.2) |
 | List shape | `{ data, _meta }` with chips All / To count / To apply / Negative / Scheduled this month + pager |
 
+## v3 P1 — Universal Import / Export (§2.2)
+
+| Topic | Decision |
+|---|---|
+| Shell | One dialog (`ImportExportDialog`) + `InventoryIeButtons`; hub page picks model |
+| Registry | `ieRegistry.js` field trees per model; relational one-level (`warehouse/code`) |
+| Export | Field picker + import-compatible toggle (forces `id`) + CSV/XLSX; templates per user/model (`InvIeTemplate`) |
+| Async | Rows > 5,000 → `InvExportJob` background; poll + download |
+| Import | Always dry-run first; column remap; `id`/`external_ref` → update else create; partial success reported |
+| Read-only | `stock`, `moves_history`, `valuation`, `transfers` — export only (Import disabled + tooltip) |
+| Ledger | Product opening qty still via adjustment transfers; physical inventory import fills counted only |
+| Wired | Products, Warehouses, Locations, Stock report, Physical Inventory, Import & Export settings page |
+
 
 

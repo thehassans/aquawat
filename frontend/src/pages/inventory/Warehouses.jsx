@@ -1,17 +1,19 @@
 ﻿import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Loader2, Search } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import ExportMenu from '../../components/ui/ExportMenu'
+import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import Money from '../../components/ui/Money'
 
 export default function Warehouses() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const ar = language === 'ar'
   const [q, setQ] = useState('')
   const [selected, setSelected] = useState(() => new Set())
@@ -73,6 +75,11 @@ export default function Warehouses() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <InventoryIeButtons
+            model="warehouses"
+            ar={ar}
+            onImported={() => qc.invalidateQueries({ queryKey: ['warehouses'] })}
+          />
           <ExportMenu
             language={language}
             t={t}

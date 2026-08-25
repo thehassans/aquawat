@@ -2276,6 +2276,138 @@ router.post('/report/reconcile/repair-cache', checkPermission('inventory', 'upda
   }
 });
 
+// ── Universal Import / Export (v3 §2.2) ───────────────────────────
+
+router.get('/ie/models', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listIeModels } = await import('../services/inventory/universalIe.js');
+    res.json({ models: listIeModels() });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/ie/models/:model/fields', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { flattenIeFields, getIeModel } = await import('../services/inventory/universalIe.js');
+    const def = getIeModel(req.params.model);
+    if (!def) return res.status(404).json({ error: 'Unknown model' });
+    res.json({
+      model: req.params.model,
+      label: def.label,
+      importable: def.importable !== false,
+      defaultExport: def.defaultExport || [],
+      fields: flattenIeFields(req.params.model, {
+        importCompatible: req.query.importCompatible === '1' || req.query.importCompatible === 'true',
+      }),
+    });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/ie/export', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { universalExport } = await import('../services/inventory/universalIe.js');
+    const result = await universalExport(req.user.tenantId, req.user._id, {
+      model: req.body.model,
+      fields: req.body.fields,
+      importCompatible: !!req.body.importCompatible,
+      format: req.body.format || 'csv',
+      filters: req.body.filters || {},
+      forceAsync: !!req.body.forceAsync,
+    });
+    if (result.async) return res.status(202).json(result);
+    if (req.body.download === false) return res.json(result);
+    const buf = result.encoding === 'base64'
+      ? Buffer.from(result.payload, 'base64')
+      : Buffer.from(result.payload, 'utf8');
+    res.setHeader('Content-Type', result.mime || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('X-Row-Count', String(result.rowCount || 0));
+    return res.send(buf);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/ie/export/jobs/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { getExportJob } = await import('../services/inventory/universalIe.js');
+    const job = await getExportJob(req.user.tenantId, req.params.id);
+    if (req.query.download === '1' && job.status === 'done' && job.payload) {
+      const buf = job.payloadEncoding === 'base64'
+        ? Buffer.from(job.payload, 'base64')
+        : Buffer.from(job.payload, 'utf8');
+      const mime = job.format === 'xlsx'
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'text/csv;charset=utf-8';
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Content-Disposition', `attachment; filename="${job.filename || 'export.csv'}"`);
+      return res.send(buf);
+    }
+    res.json({
+      _id: job._id,
+      model: job.model,
+      format: job.format,
+      status: job.status,
+      rowCount: job.rowCount,
+      filename: job.filename,
+      error: job.error,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+    });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/ie/import', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { universalImport } = await import('../services/inventory/universalIe.js');
+    res.json(await universalImport(req.user.tenantId, req.user._id, {
+      model: req.body.model,
+      csvText: req.body.csvText || req.body.csv,
+      xlsxBase64: req.body.xlsxBase64,
+      rows: req.body.rows,
+      columnMap: req.body.columnMap,
+      dryRun: req.body.dryRun !== false && req.body.dryRun !== '0',
+      warehouseId: req.body.warehouseId,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/ie/templates', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listTemplates } = await import('../services/inventory/universalIe.js');
+    res.json({
+      items: await listTemplates(req.user.tenantId, req.user._id, req.query.model),
+    });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/ie/templates', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { saveTemplate } = await import('../services/inventory/universalIe.js');
+    res.json(await saveTemplate(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.delete('/ie/templates/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { deleteTemplate } = await import('../services/inventory/universalIe.js');
+    res.json(await deleteTemplate(req.user.tenantId, req.user._id, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/export/:collection', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { exportCollection, csvTextToXlsxBuffer } = await import('../services/inventory/importExport.js');

@@ -6,6 +6,7 @@ import { ArrowLeft, Plus, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
+import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 
 const USAGES = [
   'view', 'internal', 'vendor', 'customer',
@@ -62,6 +63,7 @@ function FormShell({ title, backTo, children, onSubmit, pending }) {
 
 export function LocationsPage() {
   const { language } = useSelector((s) => s.ui)
+  const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['inv-locations'],
     queryFn: () => api.get('/stock/locations', { params: { active: 'false' } }).then((r) => r.data),
@@ -73,10 +75,17 @@ export function LocationsPage() {
       title={language === 'ar' ? 'المواقع' : 'Locations'}
       subtitle={language === 'ar' ? 'شجرة مواقع التخزين' : 'Storage location tree'}
       action={
-        <Link to="/app/dashboard/inventory/locations/new" className="btn btn-primary btn-sm">
-          <Plus className="h-4 w-4" />
-          {language === 'ar' ? 'موقع' : 'Location'}
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <InventoryIeButtons
+            model="locations"
+            ar={language === 'ar'}
+            onImported={() => qc.invalidateQueries({ queryKey: ['inv-locations'] })}
+          />
+          <Link to="/app/dashboard/inventory/locations/new" className="btn btn-primary btn-sm">
+            <Plus className="h-4 w-4" />
+            {language === 'ar' ? 'موقع' : 'Location'}
+          </Link>
+        </div>
       }
       loading={isLoading}
       empty={

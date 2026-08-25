@@ -9,6 +9,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
+import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import { getUomLabel } from '../../lib/uomOptions'
 import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType, productTypeBadgeClass } from '../../lib/productType'
@@ -186,6 +187,15 @@ export default function Products() {
           </p>
         </div>
         <div className="flex gap-2">
+          <InventoryIeButtons
+            model="products"
+            ar={isAr}
+            filters={{ search: debouncedSearch, ...filters }}
+            onImported={() => {
+              queryClient.invalidateQueries({ queryKey: ['products'] })
+              queryClient.invalidateQueries({ queryKey: ['products-stats'] })
+            }}
+          />
           <ExportMenu
             language={language}
             t={t}

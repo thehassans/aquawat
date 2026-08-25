@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
 import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
+import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 
 export default function StockReport() {
   const { language } = useSelector((s) => s.ui)
@@ -63,22 +64,30 @@ export default function StockReport() {
             <span className="font-semibold tabular-nums">{data.valueTotal}</span>
           </p>
         )}
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
-          disabled={!rows.length}
-          onClick={() => exportCsv('stock-report.csv', rows, [
-            { label: 'SKU', get: (r) => r.product?.sku },
-            { label: 'Name', get: (r) => r.product?.nameEn },
-            { label: 'OnHand', get: (r) => r.onHand },
-            { label: 'Free', get: (r) => r.freeToUse },
-            { label: 'Forecast', get: (r) => r.forecast },
-            { label: 'UnitCost', get: (r) => r.unitCost },
-            { label: 'Value', get: (r) => r.value },
-          ])}
-        >
-          CSV
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <InventoryIeButtons
+            model="stock"
+            importable={false}
+            ar={ar}
+            filters={{ warehouseId: filters.warehouseId || undefined }}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!rows.length}
+            onClick={() => exportCsv('stock-report.csv', rows, [
+              { label: 'SKU', get: (r) => r.product?.sku },
+              { label: 'Name', get: (r) => r.product?.nameEn },
+              { label: 'OnHand', get: (r) => r.onHand },
+              { label: 'Free', get: (r) => r.freeToUse },
+              { label: 'Forecast', get: (r) => r.forecast },
+              { label: 'UnitCost', get: (r) => r.unitCost },
+              { label: 'Value', get: (r) => r.value },
+            ])}
+          >
+            CSV
+          </button>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">

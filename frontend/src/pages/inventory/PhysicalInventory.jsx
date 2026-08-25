@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
 import ProductChooser from '../../components/inventory/ProductChooser'
-import { exportCsv } from './ReportShell'
+import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 
 function fmtDate(d) {
   if (!d) return ''
@@ -53,9 +53,6 @@ export default function PhysicalInventory() {
   const [reqZero, setReqZero] = useState(true)
 
   const [historyOpen, setHistoryOpen] = useState(null)
-  const [importOpen, setImportOpen] = useState(false)
-  const [importFile, setImportFile] = useState({ name: '', csvText: '', xlsxBase64: null })
-  const [importReport, setImportReport] = useState(null)
 
   const pageSize = 50
 
@@ -193,31 +190,6 @@ export default function PhysicalInventory() {
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
 
-  const importMut = useMutation({
-    mutationFn: (dryRun) =>
-      api.post('/stock/physical-inventory/import', {
-        csvText: importFile.xlsxBase64 ? undefined : importFile.csvText,
-        xlsxBase64: importFile.xlsxBase64 || undefined,
-        dryRun,
-      }),
-    onSuccess: (res) => {
-      setImportReport(res.data)
-      if (res.data?.dryRun) {
-        toast.success(ar ? 'معاينة الاستيراد جاهزة' : 'Import dry-run ready')
-      } else {
-        toast.success(
-          ar
-            ? `تم تعبئة ${res.data.committed || 0} كميات معدودة`
-            : `Filled counted qty on ${res.data.committed || 0} lines`,
-        )
-        setImportOpen(false)
-        setFilter('toApply')
-        invalidate()
-      }
-    },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
-  })
-
   const whList = Array.isArray(warehouses) ? warehouses : []
   const locList = Array.isArray(locations) ? locations : []
   const reqLocList = Array.isArray(reqLocations) ? reqLocations : []
@@ -279,49 +251,6 @@ export default function PhysicalInventory() {
     qc.invalidateQueries({ queryKey: ['physical-inventory'] })
   }
 
-  const doExport = () => {
-    exportCsv('physical-inventory.csv', list, [
-      { label: 'location', get: (r) => r.locationId?.completePath || r.locationId?.name || '' },
-      { label: 'product_sku', get: (r) => r.productId?.sku || '' },
-      { label: 'product', get: (r) => (ar && r.productId?.nameAr ? r.productId.nameAr : r.productId?.nameEn) || '' },
-      { label: 'lot', get: (r) => r.lotId?.name || '' },
-      { label: 'package', get: (r) => r.packageId?.name || '' },
-      { label: 'on_hand', get: (r) => r.quantity ?? '' },
-      { label: 'uom', get: (r) => r.productId?.unitOfMeasure || '' },
-      { label: 'counted_qty', get: (r) => r.countedQuantity ?? '' },
-      { label: 'difference', get: (r) => r.countDifference ?? '' },
-      { label: 'scheduled_date', get: (r) => fmtDate(r.countScheduledDate) },
-      { label: 'user', get: (r) => r.countUserId?.name || r.countUserId?.email || '' },
-      { label: 'last_count_date', get: (r) => fmtDate(r.lastCountDate) },
-    ])
-  }
-
-  const fileToBase64 = async (file) => {
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    let binary = ''
-    const chunk = 8192
-    for (let i = 0; i < bytes.length; i += chunk) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-    }
-    return btoa(binary)
-  }
-
-  const onImportFile = async (e) => {
-    const f = e.target.files?.[0]
-    if (!f) return
-    setImportReport(null)
-    const lower = f.name.toLowerCase()
-    try {
-      if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
-        setImportFile({ name: f.name, csvText: '', xlsxBase64: await fileToBase64(f) })
-      } else {
-        setImportFile({ name: f.name, csvText: await f.text(), xlsxBase64: null })
-      }
-    } catch (err) {
-      toast.error(err.message || 'File read failed')
-    }
-  }
-
   const chips = [
     { id: '', en: 'All', ar: 'الكل' },
     { id: 'toCount', en: 'To count', ar: 'للعد' },
@@ -367,12 +296,20 @@ export default function PhysicalInventory() {
           <button type="button" className="btn btn-secondary text-sm" onClick={() => setRequestOpen(true)}>
             {ar ? 'طلب جرد' : 'Request a Count'}
           </button>
-          <button type="button" className="btn btn-secondary text-sm" onClick={() => { setImportOpen(true); setImportReport(null) }}>
-            {ar ? 'استيراد' : 'Import'}
-          </button>
-          <button type="button" className="btn btn-secondary text-sm" onClick={doExport}>
-            {ar ? 'تصدير' : 'Export'}
-          </button>
+          <InventoryIeButtons
+            model="physical_inventory"
+            ar={ar}
+            filters={{
+              warehouseId: warehouseId || undefined,
+              locationId: locationId || undefined,
+              filter: filter || undefined,
+              search: search || undefined,
+            }}
+            onImported={() => {
+              setFilter('toApply')
+              invalidate()
+            }}
+          />
         </div>
       </div>
 
@@ -769,65 +706,6 @@ export default function PhysicalInventory() {
                 </li>
               ))}
             </ul>
-          </div>
-        </div>
-      )}
-
-      {/* Import */}
-      {importOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-              {ar ? 'استيراد كميات معدودة' : 'Import counted quantities'}
-            </h3>
-            <p className="mt-1 text-xs text-slate-500">
-              {ar
-                ? 'أعمدة: location, product_sku, lot, counted_qty — يعبّئ العد فقط؛ التطبيق منفصل.'
-                : 'Columns: location, product_sku, lot, counted_qty — fills counted qty only; Apply separately.'}
-            </p>
-            <input
-              type="file"
-              accept=".csv,.xlsx,.xls,text/csv"
-              className="mt-3 block w-full text-sm"
-              onChange={onImportFile}
-            />
-            {importFile.name && (
-              <p className="mt-1 text-xs text-slate-400">{importFile.name}</p>
-            )}
-            {importReport && (
-              <div className="mt-3 rounded-xl border border-slate-100 p-3 text-sm dark:border-dark-600">
-                <div className="flex flex-wrap gap-3">
-                  <span>{ar ? 'مطابق' : 'Matched'}: {importReport.matched ?? importReport.ok?.length ?? 0}</span>
-                  <span>{ar ? 'أخطاء' : 'Errors'}: {importReport.unmatched ?? importReport.errors?.length ?? 0}</span>
-                  <span>{ar ? 'تحديث' : 'Update'}: {importReport.wouldUpdate ?? 0}</span>
-                  <span>{ar ? 'إنشاء' : 'Create'}: {importReport.wouldCreate ?? 0}</span>
-                </div>
-                {(importReport.errors || []).slice(0, 8).map((err) => (
-                  <div key={`${err.row}-${err.field}`} className="mt-1 text-xs text-rose-600">
-                    Row {err.row}: {err.field} — {err.reason}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <button type="button" className="btn btn-secondary" onClick={() => setImportOpen(false)}>{ar ? 'إغلاق' : 'Close'}</button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={!(importFile.csvText || importFile.xlsxBase64) || importMut.isPending}
-                onClick={() => importMut.mutate(true)}
-              >
-                {ar ? 'معاينة' : 'Dry run'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={!importReport?.dryRun || !(importReport.matched || importReport.ok?.length) || importMut.isPending}
-                onClick={() => importMut.mutate(false)}
-              >
-                {ar ? 'تعبئة العد' : 'Fill counted'}
-              </button>
-            </div>
           </div>
         </div>
       )}

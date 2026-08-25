@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
 import { ReportShell, REPORT_TABS, useReportFilters } from './ReportShell'
+import ImportExportDialog from '../../components/inventory/ImportExportDialog'
 
 export default function ReportingHub() {
   const { language } = useSelector((s) => s.ui)
@@ -301,88 +302,15 @@ export { default as InventorySettingsPage } from './InventorySettingsPage'
 export function ImportExportPage() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
-  const [csvText, setCsvText] = useState('')
-  const [xlsxBase64, setXlsxBase64] = useState(null)
-  const [fileName, setFileName] = useState('')
-  const [target, setTarget] = useState('products')
-  const [result, setResult] = useState(null)
-  const [warehouseId, setWarehouseId] = useState('')
-  const [exportFormat, setExportFormat] = useState('csv')
+  const [model, setModel] = useState('products')
+  const [dialog, setDialog] = useState(null)
 
-  const { data: warehouses } = useQuery({
-    queryKey: ['warehouses-lite'],
-    queryFn: () => api.get('/warehouses').then((r) => r.data?.warehouses || r.data || []),
+  const { data } = useQuery({
+    queryKey: ['ie-models'],
+    queryFn: () => api.get('/stock/ie/models').then((r) => r.data),
   })
-
-  const fileToBase64 = async (file) => {
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    let binary = ''
-    const chunk = 8192
-    for (let i = 0; i < bytes.length; i += chunk) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-    }
-    return btoa(binary)
-  }
-
-  const onFile = async (e) => {
-    const f = e.target.files?.[0]
-    if (!f) return
-    setFileName(f.name)
-    setResult(null)
-    const lower = f.name.toLowerCase()
-    try {
-      if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
-        setXlsxBase64(await fileToBase64(f))
-        setCsvText('')
-      } else {
-        setXlsxBase64(null)
-        setCsvText(await f.text())
-      }
-    } catch (err) {
-      toast.error(err.message || 'File read failed')
-    }
-  }
-
-  const importMut = useMutation({
-    mutationFn: (dryRun) =>
-      api.post(`/stock/import/${target}`, {
-        csvText: xlsxBase64 ? undefined : csvText,
-        xlsxBase64: xlsxBase64 || undefined,
-        dryRun,
-        warehouseId: warehouseId || undefined,
-      }),
-    onSuccess: (res) => {
-      setResult(res.data)
-      toast.success(
-        res.data.dryRun
-          ? (ar ? 'معاينة جاهزة' : 'Dry-run ready')
-          : (ar ? 'تم الاستيراد' : 'Import committed'),
-      )
-    },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
-  })
-
-  const download = async (collection) => {
-    try {
-      const res = await api.get(`/stock/export/${collection}`, {
-        params: {
-          warehouseId: warehouseId || undefined,
-          format: exportFormat,
-        },
-        responseType: 'blob',
-      })
-      const url = URL.createObjectURL(res.data)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${collection}-export.${exportFormat === 'xlsx' ? 'xlsx' : 'csv'}`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      toast.error(e.response?.data?.error || e.message)
-    }
-  }
-
-  const canImport = Boolean(xlsxBase64 || csvText.trim())
+  const models = data?.models || []
+  const selected = models.find((m) => m.key === model)
 
   return (
     <div className="space-y-6">
@@ -392,83 +320,44 @@ export function ImportExportPage() {
         </h2>
         <p className="text-sm text-slate-500">
           {ar
-            ? 'معاينة أولاً. CSV أو Excel (.xlsx) — الكميات الافتتاحية تُرحَّل كتحويل تسوية.'
-            : 'Dry-run first. CSV or Excel (.xlsx) — opening qty posts as an adjustment transfer.'}
+            ? 'واجهة موحّدة لكل قوائم المخزون — معاينة أولاً؛ دفتر الحركات للتصدير فقط.'
+            : 'Shared shell for every inventory list — dry-run first; ledger models are export-only.'}
         </p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <select className="select select-sm" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-          <option value="">{ar ? 'مستودع (للافتتاحي / المواقع)' : 'Warehouse (opening / locations)'}</option>
-          {(warehouses || []).map((w) => (
-            <option key={w._id} value={w._id}>{w.name || w.code}</option>
-          ))}
-        </select>
-        <select className="select select-sm" value={exportFormat} onChange={(e) => setExportFormat(e.target.value)}>
-          <option value="csv">CSV</option>
-          <option value="xlsx">Excel (.xlsx)</option>
-        </select>
-        {['products', 'stock', 'locations', 'lots', 'reorder-rules'].map((c) => (
-          <button key={c} type="button" className="btn btn-secondary btn-sm" onClick={() => download(c)}>
-            {ar ? `تصدير ${c}` : `Export ${c}`}
-          </button>
-        ))}
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="label text-xs">{ar ? 'الهدف' : 'Import target'}</label>
-          <select className="select select-sm" value={target} onChange={(e) => setTarget(e.target.value)}>
-            <option value="products">{ar ? 'منتجات' : 'Products'}</option>
-            <option value="locations">{ar ? 'مواقع' : 'Locations'}</option>
+          <label className="label text-xs">{ar ? 'النموذج' : 'Model'}</label>
+          <select className="select" value={model} onChange={(e) => setModel(e.target.value)}>
+            {models.map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label}{!m.importable ? (ar ? ' (تصدير فقط)' : ' (export only)') : ''}
+              </option>
+            ))}
           </select>
         </div>
-        <div>
-          <label className="label text-xs">{ar ? 'ملف CSV / Excel' : 'CSV / Excel file'}</label>
-          <input
-            type="file"
-            accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            className="block text-sm"
-            onChange={onFile}
-          />
-          {fileName ? (
-            <p className="mt-1 text-xs text-slate-500">
-              {fileName}
-              {xlsxBase64 ? (ar ? ' (Excel → نفس المحلّل)' : ' (Excel → same parser)') : ''}
-            </p>
-          ) : null}
-        </div>
-      </div>
-
-      <textarea
-        className="textarea min-h-[10rem] font-mono text-xs"
-        placeholder={
-          target === 'locations'
-            ? 'name,nameAr,usage,barcode'
-            : 'externalId,sku,barcode,nameEn,costPrice,onHand'
-        }
-        value={xlsxBase64 ? (ar ? '— محتوى Excel محمّل (معاينة عبر الخادم) —' : '— Excel loaded (server-side dry-run) —') : csvText}
-        onChange={(e) => {
-          setXlsxBase64(null)
-          setFileName('')
-          setCsvText(e.target.value)
-        }}
-        disabled={Boolean(xlsxBase64)}
-      />
-
-      <div className="flex gap-2">
-        <button type="button" className="btn btn-secondary" disabled={!canImport || importMut.isPending} onClick={() => importMut.mutate(true)}>
-          {ar ? 'معاينة (dry-run)' : 'Dry-run'}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={!selected?.importable}
+          title={!selected?.importable ? (ar ? 'تصدير فقط' : 'Export only') : undefined}
+          onClick={() => setDialog('import')}
+        >
+          {ar ? 'استيراد' : 'Import'}
         </button>
-        <button type="button" className="btn btn-primary" disabled={!canImport || importMut.isPending} onClick={() => importMut.mutate(false)}>
-          {ar ? 'تنفيذ الاستيراد' : 'Commit import'}
+        <button type="button" className="btn btn-primary" onClick={() => setDialog('export')}>
+          {ar ? 'تصدير' : 'Export'}
         </button>
       </div>
 
-      {result && (
-        <pre className="overflow-auto rounded-xl border border-slate-200/80 bg-slate-50 p-3 text-xs dark:border-dark-600 dark:bg-dark-800">
-          {JSON.stringify(result, null, 2)}
-        </pre>
+      {dialog && (
+        <ImportExportDialog
+          mode={dialog}
+          model={model}
+          importable={selected?.importable}
+          ar={ar}
+          onClose={() => setDialog(null)}
+        />
       )}
     </div>
   )
