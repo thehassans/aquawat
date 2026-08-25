@@ -666,12 +666,41 @@ export default function PurchaseOrderForm() {
   const approveMutation = useMutation({
     mutationFn: (targetId) => api.post(`/purchase-orders/${targetId || id}/approve`),
     onSuccess: (res) => {
-      toast.success(language === 'ar' ? 'تم اعتماد طلب الشراء بنجاح' : 'Purchase order approved')
+      const draft = res.data?.draftGrn
+      if (draft?.grnNumber && draft?._id) {
+        toast.success(
+          (t) => (
+            <span className="flex flex-col gap-1 text-sm">
+              <span>
+                {language === 'ar'
+                  ? `تم الاعتماد — مسودة استلام ${draft.grnNumber}`
+                  : `Approved — draft receipt ${draft.grnNumber}`}
+              </span>
+              <button
+                type="button"
+                className="text-left font-semibold text-teal-700 underline dark:text-teal-300"
+                onClick={() => {
+                  toast.dismiss(t.id)
+                  navigate(`/app/dashboard/purchases/grn/${draft._id}`)
+                }}
+              >
+                {language === 'ar' ? 'فتح إشعار الاستلام' : 'Open GRN'}
+              </button>
+            </span>
+          ),
+          { duration: 8000 },
+        )
+      } else {
+        toast.success(language === 'ar' ? 'تم اعتماد طلب الشراء بنجاح' : 'Purchase order approved')
+      }
       queryClient.invalidateQueries(['purchase-orders'])
       queryClient.invalidateQueries(['purchase-orders-stats'])
       queryClient.invalidateQueries(['purchase-order', id || res.data?._id])
+      queryClient.invalidateQueries(['grn'])
+      queryClient.invalidateQueries(['grn-list'])
+      queryClient.invalidateQueries(['grn-upcoming'])
       if (createdOrderForPreview) {
-        setCreatedOrderForPreview((prev) => (prev ? { ...prev, status: 'approved' } : null))
+        setCreatedOrderForPreview((prev) => (prev ? { ...prev, status: 'approved', draftGrn: draft || null } : null))
       }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
@@ -1295,6 +1324,18 @@ export default function PurchaseOrderForm() {
                   {language === 'ar' ? 'إلغاء الطلب' : 'Cancel PO'}
                 </button>
               </>
+            )}
+            {order?.status === 'approved' && (
+              <button
+                type="button"
+                onClick={() => cancelMutation.mutate(order._id)}
+                disabled={cancelMutation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-[12px] font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-40 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-300"
+                title={language === 'ar' ? 'يلغى إن لم يُستلم مخزون بعد' : 'Allowed if no stock has been received yet'}
+              >
+                {cancelMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+                {language === 'ar' ? 'إلغاء الطلب' : 'Cancel PO'}
+              </button>
             )}
           </div>
         )}

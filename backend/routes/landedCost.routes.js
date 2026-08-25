@@ -373,7 +373,11 @@ router.post('/:id/post', checkPermission('landed_costs', 'update'), async (req, 
     const lc = await LandedCost.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!lc) return res.status(404).json({ error: 'Landed cost not found' });
     if (lc.status !== 'calculated') return res.status(400).json({ error: 'Only calculated landed costs can be posted' });
-    await applyLandedCostToProducts({ tenantFilter: req.tenantFilter, landedCost: lc });
+    await applyLandedCostToProducts({
+      tenantFilter: req.tenantFilter,
+      landedCost: lc,
+      userId: req.user._id,
+    });
     lc.status = 'posted';
     lc.postedAt = new Date();
     lc.postedBy = req.user._id;

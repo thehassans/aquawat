@@ -28,6 +28,9 @@ import { emitPlatformEvent } from '../utils/platformEvents.js';
 import { createInvoiceFromMultipleDNs } from '../controllers/invoiceController.js';
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
 import { sendInvoiceOnWhatsApp, getWhatsAppConfig } from '../services/whatsappCloudService.js';
+import { assertThreeWayMatchOrThrow } from '../services/inventory/threeWayMatch.js';
+import { isInvEngineEnabled, postLinesViaEngine } from '../services/inventory/legacyAdapter.js';
+import { InventoryError } from '../services/inventory/errors.js';
 import { clampTemplateId } from '../utils/premiumTemplates.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 import { isFbrCurrency } from '../utils/fbrCurrency.js';
@@ -98,6 +101,11 @@ async function postSellInvoiceLedgers(invoice, req, tenant) {
     return;
   }
 
+  // Trading stock: post via inventory engine / legacy when warehouse set
+  if (invoice.warehouseId || invoice?.inventory?.warehouseId) {
+    await postInventoryForInvoice(invoice, req.tenantFilter);
+  }
+
   try {
     const { postSalesInvoiceJournal, postInvoicePaymentJournal } = await import('../services/accountingService.js');
     await postSalesInvoiceJournal({
@@ -120,6 +128,22 @@ async function postSellInvoiceLedgers(invoice, req, tenant) {
     }
   } catch (glError) {
     console.warn('[accounting] invoice journal failed:', glError.message);
+  }
+}
+
+/** After invoice create: post stock; on inventory failure return 409 with the saved invoice. */
+async function postSellLedgersOrConflict(res, invoice, req, tenant) {
+  try {
+    await postSellInvoiceLedgers(invoice, req, tenant);
+    return null;
+  } catch (stockErr) {
+    const status = stockErr instanceof InventoryError ? (stockErr.status || 409) : 409;
+    res.status(status).json({
+      error: stockErr.message || 'Inventory post failed',
+      code: stockErr.code || 'INVENTORY_POST_FAILED',
+      invoice: typeof invoice.toJSON === 'function' ? invoice.toJSON() : invoice,
+    });
+    return stockErr;
   }
 }
 
@@ -564,6 +588,76 @@ async function postInventoryForInvoice(invoice, tenantFilterValue) {
     } catch {
       /* billing status is best-effort */
     }
+    return invoice;
+  }
+
+  // Engine enabled: sell stock — prefer DeliveryNote; otherwise post outgoing via engine (PoS / direct invoice).
+  if (invoice.flow === 'sell' && await isInvEngineEnabled(invoice.tenantId)) {
+    const hasDn = Array.isArray(invoice.deliveryNoteIds) && invoice.deliveryNoteIds.length > 0;
+    if (hasDn) {
+      invoice.inventory = {
+        ...(invoice.inventory || {}),
+        warehouseId,
+        skippedAt: new Date(),
+        skipReason: 'stock_posted_via_delivery_note',
+      };
+      await invoice.save();
+      return invoice;
+    }
+
+    const result = await postLinesViaEngine({
+      tenantId: invoice.tenantId,
+      userId: invoice.createdBy,
+      warehouseId,
+      direction: 'out',
+      lines: (invoice.lineItems || []).map((li) => ({
+        productId: li.productId,
+        quantity: li.quantity,
+        productType: li.productType,
+      })),
+      origin: invoice.invoiceNumber,
+      partnerId: invoice.customerId,
+      sourceModel: 'invoice',
+      sourceDocId: invoice._id,
+      idempotencyKey: `INV-SELL ${invoice.invoiceNumber}`,
+    });
+    invoice.inventory = {
+      ...(invoice.inventory || {}),
+      warehouseId,
+      postedAt: new Date(),
+      reversedAt: null,
+      transferIds: result?.transfer?._id ? [result.transfer._id] : [],
+    };
+    await invoice.save();
+    return invoice;
+  }
+
+  // Engine enabled: standalone purchase bill (no PO) receives via engine
+  if (invoice.flow === 'purchase' && await isInvEngineEnabled(invoice.tenantId)) {
+    await postLinesViaEngine({
+      tenantId: invoice.tenantId,
+      userId: invoice.createdBy,
+      warehouseId,
+      direction: 'in',
+      lines: (invoice.lineItems || []).map((li) => ({
+        productId: li.productId,
+        quantity: li.quantity,
+        productType: li.productType,
+        costPrice: li.unitPrice,
+      })),
+      origin: invoice.invoiceNumber,
+      partnerId: invoice.supplierId,
+      sourceModel: 'invoice',
+      sourceDocId: invoice._id,
+      idempotencyKey: `INV ${invoice.invoiceNumber}`,
+    });
+    invoice.inventory = {
+      ...(invoice.inventory || {}),
+      warehouseId,
+      postedAt: new Date(),
+      reversedAt: null,
+    };
+    await invoice.save();
     return invoice;
   }
 
@@ -1373,7 +1467,7 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
       await syncCustomerStats(invoice.tenantId, invoice.customerId);
     }
 
-    await postSellInvoiceLedgers(invoice, req, tenant);
+    if (await postSellLedgersOrConflict(res, invoice, req, tenant)) return;
     afterInvoiceWrite(invoice, { userId: req.user._id, created: true, previousPaymentStatus: 'pending' });
 
     let emailDelivery = { sent: false, reason: 'disabled' };
@@ -1448,6 +1542,15 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
         const warehouse = await Warehouse.findOne({ _id: req.body.warehouseId, ...req.tenantFilter, isActive: true });
         if (!warehouse) {
           return res.status(400).json({ error: 'Warehouse not found' });
+        }
+      } else if (await isInvEngineEnabled(req.user.tenantId)) {
+        const initialStatus = resolveInitialSellInvoiceStatus(req.body?.status, tenant);
+        const isProforma = String(req.body?.invoiceSubtype || '').toLowerCase() === 'proforma';
+        if (!isProforma && initialStatus !== 'draft') {
+          return res.status(400).json({
+            error: 'warehouseId required when inventory engine is enabled',
+            code: 'WAREHOUSE_REQUIRED',
+          });
         }
       }
     }
@@ -1603,6 +1706,13 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
     await applyResolvedPayment(createdInvoice);
     const invoice = await attachDraftQr(createdInvoice, tenant.business, tenant);
 
+    try {
+      const { ensureInvoiceZatcaStub } = await import('../services/inventory/zatcaStub.js');
+      await ensureInvoiceZatcaStub(invoice, { userId: req.user._id });
+    } catch (zErr) {
+      console.error('[invoice] zatca stub', zErr?.message || zErr);
+    }
+
     if (restaurantOrder) {
       await RestaurantOrder.updateOne(
         { _id: restaurantOrder._id, ...req.tenantFilter },
@@ -1637,7 +1747,7 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
       await syncCustomerStats(invoice.tenantId, invoice.customerId);
     }
 
-    await postSellInvoiceLedgers(invoice, req, tenant);
+    if (await postSellLedgersOrConflict(res, invoice, req, tenant)) return;
     afterInvoiceWrite(invoice, { userId: req.user._id, created: true, previousPaymentStatus: 'pending' });
 
     const invoiceCustomer = invoice.customerId
@@ -1707,6 +1817,28 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
     res.status(201).json({ ...invoice.toObject(), emailDelivery, whatsappDelivery });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/invoices/three-way-match — preview for vendor bills
+router.post('/three-way-match', checkPermission('invoicing', 'create'), async (req, res) => {
+  try {
+    const { threeWayMatch } = await import('../services/inventory/threeWayMatch.js');
+    const purchaseOrderId = cleanObjectId(req.body.purchaseOrderId);
+    if (!purchaseOrderId) {
+      return res.status(400).json({ error: 'purchaseOrderId required' });
+    }
+    const result = await threeWayMatch({
+      tenantId: req.user.tenantId,
+      purchaseOrderId,
+      billLines: req.body.billLines || [],
+      qtyTolerance: Number(req.body.qtyTolerance) || 0,
+      priceTolerancePct: Number(req.body.priceTolerancePct) || 0,
+    });
+    res.json(result);
+  } catch (error) {
+    const status = error.code === 'PO_NOT_FOUND' ? 404 : 400;
+    res.status(status).json({ error: error.message, code: error.code });
   }
 });
 
@@ -1830,11 +1962,83 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
 
     resolvePaymentStatus(invoiceData);
 
+    const poId = cleanObjectId(req.body.sourcePurchaseOrderId || invoiceData.sourcePurchaseOrderId);
+    if (poId) {
+      try {
+        await assertThreeWayMatchOrThrow({
+          tenantId: req.user.tenantId,
+          purchaseOrderId: poId,
+          billLines: lineItems.map((li) => ({
+            productId: li.productId,
+            quantity: li.quantity,
+            unitPrice: li.unitPrice,
+          })),
+          qtyTolerance: Number(req.body.qtyTolerance) || 0,
+          priceTolerancePct: Number(req.body.priceTolerancePct) || 0,
+        });
+      } catch (matchErr) {
+        if (matchErr.code === 'THREE_WAY_MATCH') {
+          return res.status(409).json({
+            error: matchErr.message,
+            code: matchErr.code,
+            exceptions: matchErr.exceptions || [],
+          });
+        }
+        throw matchErr;
+      }
+      invoiceData.sourcePurchaseOrderId = poId;
+    }
+
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const createdInvoice = await Invoice.create(enrichedInvoiceData);
     await applyResolvedPayment(createdInvoice);
     const invoice = await attachDraftQr(createdInvoice, seller, tenant);
     afterInvoiceWrite(invoice, { userId: req.user._id, created: true, previousPaymentStatus: 'pending' });
+
+    try {
+      const { ensureInvoiceZatcaStub } = await import('../services/inventory/zatcaStub.js');
+      await ensureInvoiceZatcaStub(invoice, { userId: req.user._id });
+    } catch (zErr) {
+      console.error('[invoice] zatca stub', zErr?.message || zErr);
+    }
+
+    try {
+      const { postPurchaseInvoiceJournal } = await import('../services/inventory/stockAccounting.js');
+      const je = await postPurchaseInvoiceJournal({
+        tenantId: req.user.tenantId,
+        userId: req.user._id,
+        invoice,
+      });
+      if (je?._id) {
+        invoice.inventory = {
+          ...(invoice.inventory?.toObject?.() || invoice.inventory || {}),
+          journalEntryId: je._id,
+        };
+        await invoice.save();
+      }
+    } catch (jErr) {
+      console.error('[invoice] purchase stock journal', jErr?.message || jErr);
+    }
+
+    // Bump PO quantityInvoiced after successful match + create
+    if (poId) {
+      try {
+        const PurchaseOrder = mongoose.model('PurchaseOrder');
+        const po = await PurchaseOrder.findOne({ _id: poId, ...req.tenantFilter });
+        if (po) {
+          for (const li of lineItems) {
+            if (!li.productId) continue;
+            const target = (po.lineItems || []).find((p) => String(p.productId) === String(li.productId));
+            if (target) {
+              target.quantityInvoiced = toNumber(target.quantityInvoiced, 0) + toNumber(li.quantity, 0);
+            }
+          }
+          await po.save();
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
 
     if (businessContext === 'trading') {
       const posted = await postInventoryForInvoice(invoice, req.tenantFilter);

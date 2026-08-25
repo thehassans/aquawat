@@ -422,7 +422,39 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         navigate(`/app/dashboard/invoices/${res.data?._id || invoiceId}`)
       }
     },
-    onError: (error) => toast.error(error.response?.data?.error || (isEdit ? 'Failed to update purchase invoice' : 'Failed to create purchase invoice')),
+    onError: (error) => {
+      const data = error.response?.data
+      if (data?.code === 'THREE_WAY_MATCH' && Array.isArray(data.exceptions) && data.exceptions.length) {
+        const first = data.exceptions[0]
+        toast.error(
+          `${data.error}: ${first.message || first.type}${data.exceptions.length > 1 ? ` (+${data.exceptions.length - 1})` : ''}`,
+          { duration: 8000 },
+        )
+        return
+      }
+      toast.error(data?.error || (isEdit ? 'Failed to update purchase invoice' : 'Failed to create purchase invoice'))
+    },
+  })
+
+  const billLinesForMatch = useMemo(
+    () => (lineItems || [])
+      .filter((line) => line?.productId && toNumber(line.quantity, 0) > 0)
+      .map((line) => ({
+        productId: line.productId,
+        quantity: toNumber(line.quantity, 0),
+        unitPrice: toNumber(line.unitPrice, 0),
+      })),
+    [lineItems],
+  )
+
+  const threeWayQuery = useQuery({
+    queryKey: ['three-way-match', selectedPoId, JSON.stringify(billLinesForMatch)],
+    queryFn: () => api.post('/invoices/three-way-match', {
+      purchaseOrderId: selectedPoId,
+      billLines: billLinesForMatch,
+    }).then((r) => r.data),
+    enabled: Boolean(isTradingContext && selectedPoId && billLinesForMatch.length > 0 && !isEdit),
+    staleTime: 5_000,
   })
 
   const onSelectProduct = (index, productId) => {
@@ -775,7 +807,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               )}
             </div>
             {isTradingContext && selectedPo?._id ? (
-              <div className="mt-5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="mt-5 space-y-4">
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="grid flex-1 gap-3 sm:grid-cols-3">
                     <div>
@@ -825,6 +858,52 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 <div className="mt-4">
                   <PurchaseReceivingLedger order={selectedPo} language={language} />
                 </div>
+              </div>
+              {!isEdit && billLinesForMatch.length > 0 && (
+                <div
+                  className={`rounded-2xl border p-4 ${
+                    threeWayQuery.data?.ok === false
+                      ? 'border-rose-200 bg-rose-50/80 dark:border-rose-500/30 dark:bg-rose-500/10'
+                      : threeWayQuery.data?.ok
+                        ? 'border-teal-200 bg-teal-50/70 dark:border-teal-500/30 dark:bg-teal-500/10'
+                        : 'border-slate-200/80 bg-white dark:border-white/10 dark:bg-white/[0.03]'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {language === 'ar' ? 'مطابقة ثلاثية (طلب ↔ استلام ↔ فاتورة)' : 'Three-way match (PO ↔ received ↔ bill)'}
+                    </p>
+                    {threeWayQuery.isFetching ? (
+                      <span className="text-xs text-slate-500">{language === 'ar' ? 'جارٍ التحقق…' : 'Checking…'}</span>
+                    ) : threeWayQuery.data?.ok ? (
+                      <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">
+                        {language === 'ar' ? 'مطابقة ناجحة' : 'Match OK'}
+                      </span>
+                    ) : threeWayQuery.data?.ok === false ? (
+                      <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">
+                        {language === 'ar' ? 'محظورة حتى الإصلاح' : 'Blocked until fixed'}
+                      </span>
+                    ) : null}
+                  </div>
+                  {Array.isArray(threeWayQuery.data?.exceptions) && threeWayQuery.data.exceptions.length > 0 && (
+                    <ul className="mt-3 space-y-1.5 text-sm text-rose-800 dark:text-rose-200">
+                      {threeWayQuery.data.exceptions.map((ex, i) => (
+                        <li key={`${ex.type}-${ex.productId}-${i}`}>
+                          • {ex.message || ex.type}
+                          {ex.billedQty != null && ex.remainingBillable != null
+                            ? ` (${language === 'ar' ? 'المفوتر' : 'billed'} ${ex.billedQty} / ${language === 'ar' ? 'المتبقي' : 'remaining'} ${ex.remainingBillable})`
+                            : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="mt-2 text-xs text-slate-500">
+                    {language === 'ar'
+                      ? 'الفوترة فوق الكمية المستلمة تُرفض عند الحفظ.'
+                      : 'Billing more than received quantity is rejected on save.'}
+                  </p>
+                </div>
+              )}
               </div>
             ) : null}
             {isTravelContext && (

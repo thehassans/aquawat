@@ -4,6 +4,9 @@ import bcrypt from 'bcryptjs';
 const userSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', index: true },
   branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', index: true },
+  /** Empty = all warehouses. When set, inventory APIs scope to these warehouses. */
+  warehouseIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' }],
+
   email: { type: String, required: true, lowercase: true },
   password: { type: String, required: true, select: false },
   firstName: { type: String, required: true },

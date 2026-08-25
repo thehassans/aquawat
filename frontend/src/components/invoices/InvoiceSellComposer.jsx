@@ -529,6 +529,21 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     enabled: isTradingContext,
   })
 
+  const { data: stockSettings } = useQuery({
+    queryKey: ['stock-engine-status'],
+    queryFn: () => api.get('/stock/engine-status').then((r) => r.data).catch(() => ({ engineEnabled: false })),
+    enabled: isTradingContext,
+  })
+  const engineRequiresWarehouse = Boolean(isTradingContext && stockSettings?.engineEnabled)
+
+  useEffect(() => {
+    if (!engineRequiresWarehouse || selectedWarehouseId) return
+    const list = Array.isArray(warehouses) ? warehouses : []
+    if (!list.length) return
+    const primary = list.find((w) => w.isPrimary || w.isDefault) || list[0]
+    if (primary?._id) setValue('warehouseId', String(primary._id))
+  }, [engineRequiresWarehouse, warehouses, selectedWarehouseId, setValue])
+
   const { data: customers } = useQuery({
     queryKey: ['customers-lookup'],
     queryFn: () => api.get('/customers', { params: { limit: 200 } }).then((res) => res.data.customers),
@@ -847,6 +862,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     if (!payload.manpowerAssignmentId) delete payload.manpowerAssignmentId
     if (!payload.contractNumber) delete payload.contractNumber
     if (!isTradingContext) delete payload.warehouseId
+    if (engineRequiresWarehouse && !payload.warehouseId && data?.status !== 'draft' && invoiceSubtype !== 'proforma') {
+      toast.error(language === 'ar' ? 'اختر المستودع — محرك المخزون مفعّل' : 'Select a warehouse — inventory engine is enabled')
+      return null
+    }
     if (isTravelContext || invoiceSubtype === 'travel_ticket') {
       payload.travelDetails = sanitizeTravelDetails({
         ...data.travelDetails,
@@ -2016,18 +2035,39 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               <div className="space-y-3 border-t border-slate-200/80 pt-6 dark:border-dark-600">
                 <p className={sectionEyebrowClass}>
                   {language === 'ar' ? 'المستودع' : 'Warehouse'}
+                  {engineRequiresWarehouse && <span className="ms-1 text-rose-500">*</span>}
                 </p>
+                {engineRequiresWarehouse && (
+                  <p className="text-xs text-slate-500">
+                    {language === 'ar'
+                      ? 'محرك المخزون مفعّل — يجب اختيار مستودع لخصم الكميات.'
+                      : 'Inventory engine is on — a warehouse is required to deduct stock.'}
+                  </p>
+                )}
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div className="flex-1">
-                    <select {...register('warehouseId')} className={`mt-1.5 ${fieldControlClass}`}>
-                      <option value="">{language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet'}</option>
+                    <select
+                      {...register('warehouseId', {
+                        required: engineRequiresWarehouse
+                          ? (language === 'ar' ? 'المستودع مطلوب' : 'Warehouse required')
+                          : false,
+                      })}
+                      className={`mt-1.5 ${fieldControlClass}`}
+                    >
+                      <option value="">
+                        {engineRequiresWarehouse
+                          ? (language === 'ar' ? 'اختر المستودع…' : 'Select warehouse…')
+                          : (language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet')}
+                      </option>
                       {(warehouses || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}
                     </select>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-dark-500" onClick={() => setValue('warehouseId', '')} disabled={!selectedWarehouseId}>
-                      {language === 'ar' ? 'إلغاء التحديد' : 'Clear'}
-                    </button>
+                    {!engineRequiresWarehouse && (
+                      <button type="button" className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-dark-500" onClick={() => setValue('warehouseId', '')} disabled={!selectedWarehouseId}>
+                        {language === 'ar' ? 'إلغاء التحديد' : 'Clear'}
+                      </button>
+                    )}
                     <button type="button" className="rounded-full bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white dark:bg-white dark:text-slate-900" onClick={() => navigate(`/app/dashboard/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/sell')}`)}>
                       {language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}
                     </button>

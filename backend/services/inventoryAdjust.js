@@ -11,8 +11,9 @@ export async function findCatalogProduct(tenantId, productId) {
 /**
  * Apply a stock delta to either the bakala catalog or the trading catalog.
  * GRN / purchase-return lines may reference either collection.
+ * When the inventory engine is enabled, trading Product updates must go through transfers.
  */
-export async function adjustProductStock({ tenantId, productId, delta, warehouseId, setFields = {} }) {
+export async function adjustProductStock({ tenantId, productId, delta, warehouseId, setFields = {}, allowLegacy = false }) {
   if (!tenantId || !productId) return null;
 
   const qty = Number(delta) || 0;
@@ -32,6 +33,22 @@ export async function adjustProductStock({ tenantId, productId, delta, warehouse
     { new: true }
   );
   if (bakala) return { kind: 'bakala', product: bakala };
+
+  if (!allowLegacy) {
+    try {
+      const { isInvEngineEnabled } = await import('./inventory/legacyAdapter.js');
+      if (await isInvEngineEnabled(tenantId)) {
+        const err = new Error(
+          'Inventory engine is enabled — use transfers / GRN / Delivery Note instead of direct stock adjust',
+        );
+        err.code = 'ENGINE_BLOCKS_LEGACY_STOCK';
+        throw err;
+      }
+    } catch (e) {
+      if (e.code === 'ENGINE_BLOCKS_LEGACY_STOCK') throw e;
+      // adapter missing — continue legacy
+    }
+  }
 
   const product = await Product.findOne({ _id: productId, tenantId });
   if (!product) return null;

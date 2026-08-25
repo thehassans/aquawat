@@ -440,6 +440,7 @@ router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'
     const created = await User.create({
       tenantId,
       branchId: req.body?.branchId || undefined,
+      warehouseIds: Array.isArray(req.body?.warehouseIds) ? req.body.warehouseIds.filter(Boolean) : [],
       email,
       password,
       firstName,
@@ -526,6 +527,11 @@ router.put('/:id', checkPermission('settings', 'update'), async (req, res) => {
     if (typeof req.body?.lastNameAr !== 'undefined') existing.lastNameAr = req.body.lastNameAr;
     if (typeof req.body?.phone !== 'undefined') existing.phone = req.body.phone;
     if (typeof req.body?.branchId !== 'undefined') existing.branchId = req.body.branchId || undefined;
+    if (typeof req.body?.warehouseIds !== 'undefined') {
+      existing.warehouseIds = Array.isArray(req.body.warehouseIds)
+        ? req.body.warehouseIds.filter(Boolean)
+        : [];
+    }
 
     if (typeof req.body?.role !== 'undefined') {
       const role = String(req.body.role || 'viewer');

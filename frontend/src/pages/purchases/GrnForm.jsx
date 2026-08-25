@@ -227,6 +227,10 @@ export default function GrnForm() {
   const receiveMutation = useMutation({
     mutationFn: async () => {
       if (!guardDelayDetails()) throw new Error('DELAY_REASON_REQUIRED')
+      if (!warehouseId) {
+        toast.error(language === 'ar' ? 'اختر المستودع قبل الاستلام' : 'Select a warehouse before receiving')
+        throw new Error('WAREHOUSE_REQUIRED')
+      }
       const totalRecv = (lines || []).reduce((sum, l) => sum + (l.isDelayed ? 0 : Number(l.quantityReceived || 0)), 0)
       if (totalRecv <= 0 && !(lines || []).some(l => l.isDelayed)) {
         toast.error(language === 'ar' ? 'أدخل كميات مستلمة أكبر من 0 أو علّم البنود كمتأخرة لإنشاء طلب متبقي' : 'Enter received quantity > 0 or mark lines as delayed for backorder')

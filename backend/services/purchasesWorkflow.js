@@ -16,7 +16,13 @@ import {
   stockDeltaForLine,
   toNumber,
   round2,
+  buildOpenReceiveLines,
 } from './purchasesLogic.js';
+import {
+  isInvEngineEnabled,
+  postLinesViaEngine,
+  reverseDocumentViaEngine,
+} from './inventory/legacyAdapter.js';
 
 function datePrefix(code) {
   const today = new Date();
@@ -36,6 +42,65 @@ async function nextNumber(Model, field, tenantFilter, code) {
 
 export async function generateGrnNumber(tenantFilter) {
   return nextNumber(GRN, 'grnNumber', tenantFilter, 'GRN');
+}
+
+/**
+ * Idempotent: ensure a draft GRN exists for an approved purchase PO.
+ * Does not post stock — confirm/receive still does that (GRN façade).
+ * @returns {{ grn: object|null, created: boolean }}
+ */
+export async function ensureDraftGrnForApprovedPo({
+  tenantFilter,
+  tenantId,
+  userId,
+  purchaseOrder,
+}) {
+  const order = purchaseOrder;
+  if (!order?._id) return { grn: null, created: false };
+  if ((order.flow || 'purchase') !== 'purchase') return { grn: null, created: false };
+  if (!order.supplierId) return { grn: null, created: false };
+  if (['cancelled', 'received', 'billed', 'closed'].includes(order.status)) {
+    return { grn: null, created: false };
+  }
+
+  const existing = await GRN.findOne({
+    ...tenantFilter,
+    purchaseOrderId: order._id,
+    status: 'draft',
+  }).sort({ createdAt: 1 });
+
+  if (existing) return { grn: existing, created: false };
+
+  const openLines = buildOpenReceiveLines(order).filter(
+    (line) => normalizeProductType(line.productType) !== 'service' && toNumber(line.quantityReceived) > 0,
+  );
+  if (!openLines.length) return { grn: null, created: false };
+
+  const warehouseId = order.warehouseId?._id || order.warehouseId || undefined;
+  const grn = await GRN.create({
+    tenantId: tenantId || order.tenantId,
+    grnNumber: await generateGrnNumber(tenantFilter),
+    supplierId: order.supplierId?._id || order.supplierId,
+    purchaseOrderId: order._id,
+    warehouseId,
+    expectedDate: order.expectedDate || undefined,
+    notes: order.notes ? `From ${order.poNumber}: ${order.notes}` : `Draft receipt for ${order.poNumber}`,
+    createdBy: userId,
+    status: 'draft',
+    lines: openLines.map((line) => ({
+      productId: line.productId,
+      productName: line.productName,
+      barcode: line.barcode,
+      productType: line.productType || 'goods',
+      uom: line.uom || '',
+      quantityOrdered: toNumber(line.quantityOrdered),
+      quantityReceived: toNumber(line.quantityReceived),
+      costPrice: toNumber(line.costPrice),
+      isDelayed: false,
+    })),
+  });
+
+  return { grn, created: true };
 }
 
 export async function generateReturnNumber(tenantFilter) {
@@ -205,12 +270,31 @@ export async function postGrnStock({ tenantId, warehouseId, lines, direction = '
 export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }) {
   if (grn.stockPostedAt) return grn;
   const whId = warehouseId || grn.warehouseId;
-  await postGrnStock({
-    tenantId: user.tenantId,
-    warehouseId: whId,
-    lines: grn.lines,
-    direction: 'in',
-  });
+
+  if (await isInvEngineEnabled(user.tenantId)) {
+    const { transfer } = await postLinesViaEngine({
+      tenantId: user.tenantId,
+      userId: user._id,
+      warehouseId: whId,
+      direction: 'in',
+      lines: grn.lines,
+      origin: grn.grnNumber,
+      note: grn.notes,
+      partnerId: grn.supplierId,
+      sourceModel: 'grn',
+      sourceDocId: grn._id,
+      idempotencyKey: `GRN ${grn.grnNumber}`,
+    });
+    if (transfer) grn.inventoryTransferId = transfer._id;
+  } else {
+    await postGrnStock({
+      tenantId: user.tenantId,
+      warehouseId: whId,
+      lines: grn.lines,
+      direction: 'in',
+    });
+  }
+
   if (grn.purchaseOrderId) {
     await syncPurchaseOrderFromGrn({
       tenantFilter,
@@ -235,18 +319,32 @@ export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }
 export async function cancelGrn({ tenantFilter, user, grn }) {
   if (grn.status === 'cancelled') return grn;
   if (grn.stockPostedAt) {
-    await postGrnStock({
-      tenantId: user.tenantId,
-      warehouseId: grn.warehouseId,
-      lines: grn.lines,
-      direction: 'out',
-    });
+    if (await isInvEngineEnabled(user.tenantId)) {
+      await reverseDocumentViaEngine({
+        tenantId: user.tenantId,
+        userId: user._id,
+        sourceModel: 'grn',
+        sourceDocId: grn._id,
+        warehouseId: grn.warehouseId,
+        lines: grn.lines,
+        origin: `Reverse ${grn.grnNumber}`,
+        partnerId: grn.supplierId,
+      });
+    } else {
+      await postGrnStock({
+        tenantId: user.tenantId,
+        warehouseId: grn.warehouseId,
+        lines: grn.lines,
+        direction: 'out',
+      });
+    }
     await reversePurchaseOrderReceive({
       tenantFilter,
       purchaseOrderId: grn.purchaseOrderId,
       receiveLines: grn.lines,
     });
     grn.stockPostedAt = null;
+    grn.inventoryTransferId = null;
   }
   grn.status = 'cancelled';
   grn.cancelledAt = new Date();
@@ -292,15 +390,34 @@ export async function confirmPurchaseReturn({ tenantFilter, user, purchaseReturn
     }
   }
 
-  await postGrnStock({
-    tenantId: user.tenantId,
-    warehouseId: purchaseReturn.warehouseId,
-    lines: (purchaseReturn.lines || []).map((line) => ({
-      ...line.toObject?.() || line,
-      quantityReceived: line.quantityReturned,
-    })),
-    direction: 'out',
-  });
+  if (await isInvEngineEnabled(user.tenantId)) {
+    const { transfer } = await postLinesViaEngine({
+      tenantId: user.tenantId,
+      userId: user._id,
+      warehouseId: purchaseReturn.warehouseId,
+      direction: 'out',
+      lines: (purchaseReturn.lines || []).map((line) => ({
+        ...(line.toObject?.() || line),
+        quantityReturned: line.quantityReturned,
+      })),
+      origin: purchaseReturn.returnNumber,
+      partnerId: purchaseReturn.supplierId,
+      sourceModel: 'purchaseReturn',
+      sourceDocId: purchaseReturn._id,
+      idempotencyKey: `PR ${purchaseReturn.returnNumber}`,
+    });
+    if (transfer) purchaseReturn.inventoryTransferId = transfer._id;
+  } else {
+    await postGrnStock({
+      tenantId: user.tenantId,
+      warehouseId: purchaseReturn.warehouseId,
+      lines: (purchaseReturn.lines || []).map((line) => ({
+        ...line.toObject?.() || line,
+        quantityReceived: line.quantityReturned,
+      })),
+      direction: 'out',
+    });
+  }
 
   purchaseReturn.status = 'completed';
   purchaseReturn.stockPostedAt = new Date();
@@ -313,15 +430,31 @@ export async function confirmPurchaseReturn({ tenantFilter, user, purchaseReturn
 export async function cancelPurchaseReturn({ tenantFilter, user, purchaseReturn }) {
   if (purchaseReturn.status === 'cancelled') return purchaseReturn;
   if (purchaseReturn.stockPostedAt) {
-    await postGrnStock({
-      tenantId: user.tenantId,
-      warehouseId: purchaseReturn.warehouseId,
-      lines: (purchaseReturn.lines || []).map((line) => ({
-        ...line.toObject?.() || line,
-        quantityReceived: line.quantityReturned,
-      })),
-      direction: 'in',
-    });
+    if (await isInvEngineEnabled(user.tenantId)) {
+      await reverseDocumentViaEngine({
+        tenantId: user.tenantId,
+        userId: user._id,
+        sourceModel: 'purchaseReturn',
+        sourceDocId: purchaseReturn._id,
+        warehouseId: purchaseReturn.warehouseId,
+        lines: (purchaseReturn.lines || []).map((line) => ({
+          ...(line.toObject?.() || line),
+          quantityReturned: line.quantityReturned,
+        })),
+        origin: `Reverse ${purchaseReturn.returnNumber}`,
+        partnerId: purchaseReturn.supplierId,
+      });
+    } else {
+      await postGrnStock({
+        tenantId: user.tenantId,
+        warehouseId: purchaseReturn.warehouseId,
+        lines: (purchaseReturn.lines || []).map((line) => ({
+          ...line.toObject?.() || line,
+          quantityReceived: line.quantityReturned,
+        })),
+        direction: 'in',
+      });
+    }
     if (purchaseReturn.grnId) {
       const grn = await GRN.findOne({ _id: purchaseReturn.grnId, ...tenantFilter });
       if (grn) {
@@ -354,7 +487,7 @@ export async function cancelPurchaseReturn({ tenantFilter, user, purchaseReturn 
   return purchaseReturn;
 }
 
-export async function applyLandedCostToProducts({ tenantFilter, landedCost }) {
+export async function applyLandedCostToProducts({ tenantFilter, landedCost, userId = null }) {
   for (const alloc of landedCost.allocations || []) {
     if (!alloc.productId || toNumber(alloc.allocatedCost) <= 0) continue;
     const qty = toNumber(alloc.quantity, 1) || 1;
@@ -375,6 +508,17 @@ export async function applyLandedCostToProducts({ tenantFilter, landedCost }) {
       bakala.costPrice = round2(toNumber(bakala.costPrice) + extraUnit);
       await bakala.save();
     }
+  }
+
+  // Engine: also write valuation layers + journals when enabled
+  try {
+    const tenantId = tenantFilter?.tenantId || landedCost.tenantId;
+    if (tenantId && (await isInvEngineEnabled(tenantId))) {
+      const { applyLegacyLandedCostToLayers } = await import('./inventory/landedCost.js');
+      await applyLegacyLandedCostToLayers(tenantId, userId || landedCost.postedBy, landedCost);
+    }
+  } catch (err) {
+    console.error('[purchases] landed cost valuation bridge failed', err?.message || err);
   }
 }
 

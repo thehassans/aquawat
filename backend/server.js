@@ -100,7 +100,9 @@ import grnRoutes from './routes/grn.routes.js';
 import purchaseReturnsRoutes from './routes/purchaseReturns.routes.js';
 import inventoryAdjustmentsRoutes from './routes/inventoryAdjustments.routes.js';
 import stockTransferRoutes from './routes/stockTransfer.routes.js';
+import stockRoutes from './routes/stock.routes.js';
 import voucherRoutes from './routes/voucher.routes.js';
+
 import backupRoutes from './routes/backup.routes.js';
 import syncRoutes from './routes/syncRoutes.js';
 import desktopSyncRoutes from './routes/desktopSync.routes.js';
@@ -345,6 +347,11 @@ const startJobs = async () => {
       redisRequired: process.env.REDIS_ENABLED !== 'false',
     });
   });
+
+  if (process.env.STOCK_SCHEDULER_CRON === '1') {
+    const { startInventoryScheduler } = await import('./jobs/inventoryScheduler.js');
+    startInventoryScheduler();
+  }
 };
 
 const scheduleReconnect = () => {
@@ -847,6 +854,7 @@ app.use('/api/vouchers', ensureDatabaseReady, voucherRoutes);
 app.use('/api/backup', ensureDatabaseReady, backupRoutes);
 app.use('/api/inventory-adjustments', ensureDatabaseReady, inventoryAdjustmentsRoutes);
 app.use('/api/stock-transfers', ensureDatabaseReady, stockTransferRoutes);
+app.use('/api/stock', ensureDatabaseReady, stockRoutes);
 app.use('/api/delivery-notes', ensureDatabaseReady, deliveryNoteRoutes);
 app.use('/api/marquee', ensureDatabaseReady, marqueeRoutes);
 

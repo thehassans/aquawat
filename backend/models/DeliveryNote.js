@@ -50,6 +50,9 @@ const deliveryNoteSchema = new mongoose.Schema({
   recipientPhone: { type: String },
   recipientSignature: { type: String },
   notes: { type: String },
+  warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true },
+  inventoryTransferId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer' },
+  stockPostedAt: { type: Date },
   
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });

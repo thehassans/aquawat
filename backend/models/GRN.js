@@ -37,6 +37,8 @@ const grnSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   notes: { type: String },
   stockPostedAt: { type: Date },
+  /** Inventory engine transfer created on confirm (when engineEnabled) */
+  inventoryTransferId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer' },
   completedAt: { type: Date },
   cancelledAt: { type: Date },
   lines: { type: [grnLineSchema], default: [] }

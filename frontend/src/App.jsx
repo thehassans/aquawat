@@ -71,6 +71,30 @@ const Performance = lazy(() => import('./pages/hr/Performance'))
 const HRReports = lazy(() => import('./pages/hr/HRReports'))
 const ExpenseClaims = lazy(() => import('./pages/hr/ExpenseClaims'))
 const InventoryHub = lazy(() => import('./pages/inventory/InventoryHub'))
+const InventoryLayout = lazy(() => import('./pages/inventory/InventoryLayout'))
+const InventoryOverview = lazy(() => import('./pages/inventory/InventoryOverview'))
+const TransfersList = lazy(() => import('./pages/inventory/TransfersList'))
+const TransferForm = lazy(() => import('./pages/inventory/TransferForm'))
+const StockReport = lazy(() => import('./pages/inventory/StockReport'))
+const PhysicalInventory = lazy(() => import('./pages/inventory/PhysicalInventory'))
+const ScrapList = lazy(() => import('./pages/inventory/ScrapPages'))
+const ScrapForm = lazy(() => import('./pages/inventory/ScrapPages').then((m) => ({ default: m.ScrapForm })))
+const LotsList = lazy(() => import('./pages/inventory/LotsList'))
+const LotTraceability = lazy(() => import('./pages/inventory/LotsList').then((m) => ({ default: m.LotTraceability })))
+const MovesHistory = lazy(() => import('./pages/inventory/MovesHistory'))
+const ReplenishmentPage = lazy(() => import('./pages/inventory/AutomationPages'))
+const RoutesRulesPage = lazy(() => import('./pages/inventory/AutomationPages').then((m) => ({ default: m.RoutesRulesPage })))
+const SchedulerPage = lazy(() => import('./pages/inventory/AutomationPages').then((m) => ({ default: m.SchedulerPage })))
+const PutawayPage = lazy(() => import('./pages/inventory/AutomationPages').then((m) => ({ default: m.PutawayPage })))
+const ValuationReport = lazy(() => import('./pages/inventory/ValuationPages'))
+const InvLandedCostsPage = lazy(() => import('./pages/inventory/ValuationPages').then((m) => ({ default: m.InvLandedCostsPage })))
+const ReportingHub = lazy(() => import('./pages/inventory/Phase6Pages'))
+const MovesAnalysisPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.MovesAnalysisPage })))
+const PerformancePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.PerformancePage })))
+const ForecastPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ForecastPage })))
+const InventorySettingsPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.InventorySettingsPage })))
+const ImportExportPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ImportExportPage })))
+const BarcodeNomenclaturePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.BarcodeNomenclaturePage })))
 const Products = lazy(() => import('./pages/inventory/Products'))
 const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
@@ -737,8 +761,35 @@ function App() {
         <Route path="warehouses/new" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseForm /></BusinessTypeRoute>} />
         <Route path="warehouses/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseDashboard /></BusinessTypeRoute>} />
         <Route path="warehouses/:id/edit" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseForm /></BusinessTypeRoute>} />
-        <Route path="inventory" element={<Navigate to="/app/dashboard/products" replace />} />
-        <Route path="inventory/*" element={<Navigate to="/app/dashboard/products" replace />} />
+        <Route path="inventory" element={<BusinessTypeRoute allowedTypes={['trading', 'furniture_shop']}><InventoryLayout /></BusinessTypeRoute>}>
+          <Route index element={<InventoryOverview />} />
+          <Route path="receipts" element={<TransfersList />} />
+          <Route path="receipts/:id" element={<TransferForm />} />
+          <Route path="deliveries" element={<TransfersList />} />
+          <Route path="deliveries/:id" element={<TransferForm />} />
+          <Route path="internal" element={<TransfersList />} />
+          <Route path="internal/:id" element={<TransferForm />} />
+          <Route path="stock" element={<StockReport />} />
+          <Route path="physical" element={<PhysicalInventory />} />
+          <Route path="scrap" element={<ScrapList />} />
+          <Route path="scrap/:id" element={<ScrapForm />} />
+          <Route path="lots" element={<LotsList />} />
+          <Route path="lots/:id" element={<LotTraceability />} />
+          <Route path="moves" element={<MovesHistory />} />
+          <Route path="replenishment" element={<ReplenishmentPage />} />
+          <Route path="routes" element={<RoutesRulesPage />} />
+          <Route path="scheduler" element={<SchedulerPage />} />
+          <Route path="putaway" element={<PutawayPage />} />
+          <Route path="valuation" element={<ValuationReport />} />
+          <Route path="landed-costs" element={<InvLandedCostsPage />} />
+          <Route path="reports" element={<ReportingHub />} />
+          <Route path="moves-analysis" element={<MovesAnalysisPage />} />
+          <Route path="performance" element={<PerformancePage />} />
+          <Route path="forecast" element={<ForecastPage />} />
+          <Route path="settings" element={<InventorySettingsPage />} />
+          <Route path="import-export" element={<ImportExportPage />} />
+          <Route path="barcode" element={<BarcodeNomenclaturePage />} />
+        </Route>
         <Route path="suppliers" element={<BusinessTypeRoute allowedTypes={['trading']}><Suppliers /></BusinessTypeRoute>} />
         <Route path="suppliers/new" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
         <Route path="suppliers/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierDashboard /></BusinessTypeRoute>} />
@@ -751,9 +802,9 @@ function App() {
           <Route path="orders/:id" element={<PurchaseOrderForm />} />
           <Route path="suppliers" element={<PurchasesSuppliers />} />
           <Route path="reports" element={<PurchasesReports />} />
-          <Route path="grn" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
-          <Route path="grn/new" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
-          <Route path="grn/:id" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
+          <Route path="grn" element={<GrnList />} />
+          <Route path="grn/new" element={<GrnForm />} />
+          <Route path="grn/:id" element={<GrnForm />} />
           <Route path="returns" element={<PurchaseReturnList />} />
           <Route path="returns/new" element={<PurchaseReturnForm />} />
           <Route path="returns/:id" element={<PurchaseReturnForm />} />
@@ -764,9 +815,9 @@ function App() {
         <Route path="purchase-orders" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
         <Route path="purchase-orders/new" element={<Navigate to="/app/dashboard/purchases/orders/new" replace />} />
         <Route path="purchase-orders/:id" element={<PurchasesIdRedirect to="/app/dashboard/purchases/orders" />} />
-        <Route path="grn" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
-        <Route path="grn/new" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
-        <Route path="grn/:id" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
+        <Route path="grn" element={<Navigate to="/app/dashboard/purchases/grn" replace />} />
+        <Route path="grn/new" element={<Navigate to="/app/dashboard/purchases/grn/new" replace />} />
+        <Route path="grn/:id" element={<PurchasesIdRedirect to="/app/dashboard/purchases/grn" />} />
         <Route path="purchase-returns" element={<Navigate to="/app/dashboard/purchases/returns" replace />} />
         <Route path="purchase-returns/new" element={<Navigate to="/app/dashboard/purchases/returns/new" replace />} />
         <Route path="purchase-returns/:id" element={<PurchasesIdRedirect to="/app/dashboard/purchases/returns" />} />

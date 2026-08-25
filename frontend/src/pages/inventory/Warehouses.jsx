@@ -174,7 +174,12 @@ function AdjustModal({ warehouse, onClose, language }) {
     if (!validLines.length) return toast.error(isAr ? 'أضف منتجاً واحداً على الأقل' : 'Add at least one product')
     setIsLoading(true)
     try {
-      await api.post('/inventory-adjustments', { reason, notes, lines: validLines })
+      await api.post('/inventory-adjustments', {
+        reason,
+        notes,
+        warehouseId: warehouse._id,
+        lines: validLines,
+      })
       toast.success(isAr ? 'تم تعديل المخزون بنجاح' : 'Stock adjusted!')
       qc.invalidateQueries(['warehouses-stock-stats'])
       onClose()
@@ -277,7 +282,8 @@ function ReceiveModal({ warehouse, onClose, language }) {
       await api.post('/inventory-adjustments', {
         reason: 'Manual Correction',
         notes: notes || `Direct receive into ${language === 'ar' ? warehouse.nameAr || warehouse.nameEn : warehouse.nameEn}`,
-        lines: validLines.map(l => ({ ...l, difference: l.quantity }))
+        warehouseId: warehouse._id,
+        lines: validLines.map(l => ({ ...l, difference: l.quantity })),
       })
       toast.success(isAr ? 'تم استلام المخزون بنجاح' : 'Stock received successfully!')
       qc.invalidateQueries(['warehouses-stock-stats'])

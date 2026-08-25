@@ -164,6 +164,12 @@ export default function ProductForm() {
     queryFn: () => api.get('/warehouses').then(res => res.data)
   })
 
+  const { data: engineStatus } = useQuery({
+    queryKey: ['stock-engine-status'],
+    queryFn: () => api.get('/stock/engine-status').then((r) => r.data).catch(() => ({ engineEnabled: false })),
+  })
+  const engineOn = Boolean(engineStatus?.engineEnabled)
+
   const warehouseOptions = useMemo(() => {
     return Array.isArray(warehouses) ? warehouses : []
   }, [warehouses])
@@ -204,6 +210,22 @@ export default function ProductForm() {
     if (!stockWarehouseId) return
     try {
       setSavingStock(true)
+      if (engineOn) {
+        await api.post(`/stock/report/stock/${id}/adjust`, {
+          warehouseId: stockWarehouseId,
+          onHand: stockQuantity,
+          reason: 'Product form adjustment',
+        })
+        toast.success(language === 'ar' ? 'تم تسوية المخزون عبر المحرك' : 'Stock adjusted via inventory engine')
+        queryClient.invalidateQueries(['product', id])
+        queryClient.invalidateQueries(['products'])
+        queryClient.invalidateQueries(['stock-report'])
+        const refreshed = await api.get(`/products/${id}`).then((r) => r.data)
+        setProduct(refreshed)
+        reset(refreshed)
+        queryClient.setQueryData(['product', id], refreshed)
+        return
+      }
       const res = await api.post(`/products/${id}/stock/set`, {
         warehouseId: stockWarehouseId,
         quantity: stockQuantity,
@@ -423,6 +445,24 @@ export default function ProductForm() {
             )}
             {!isService && isEdit && (
               <div className="md:col-span-3 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-slate-500">
+                    {engineOn
+                      ? (language === 'ar'
+                        ? 'محرك المخزون مفعّل — التسوية تنشئ حركة تعديل (لا كتابة مباشرة).'
+                        : 'Engine on — this creates an adjustment transfer (no direct write).')
+                      : (language === 'ar' ? 'تحديث كمية المخزون للمستودع' : 'Update on-hand quantity per warehouse')}
+                  </p>
+                  {engineOn && (
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-teal-700 underline dark:text-teal-300"
+                      onClick={() => navigate('/app/dashboard/inventory/stock')}
+                    >
+                      {language === 'ar' ? 'تقرير المخزون' : 'Stock report'}
+                    </button>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>

@@ -279,6 +279,20 @@ export default function DeliveryNoteForm() {
   const [destinationCity, setDestinationCity] = useState('')
   const [recipientName, setRecipientName] = useState('')
   const [recipientPhone, setRecipientPhone] = useState('')
+  const [warehouseId, setWarehouseId] = useState('')
+
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: () => api.get('/warehouses').then((r) => (Array.isArray(r.data) ? r.data : r.data?.warehouses || [])),
+    enabled: !isEdit,
+  })
+
+  const { data: engineStatus } = useQuery({
+    queryKey: ['stock-engine-status'],
+    queryFn: () => api.get('/stock/engine-status').then((r) => r.data).catch(() => ({ engineEnabled: false })),
+    enabled: !isEdit,
+  })
+  const engineOn = Boolean(engineStatus?.engineEnabled)
 
   // Fetch Delivery Note if viewing/editing
   const { data: dn, isLoading: dnLoading } = useQuery({
@@ -349,12 +363,29 @@ export default function DeliveryNoteForm() {
     if (po.notes) {
       setNotes(prev => prev || po.notes)
     }
+    const poWh = po.warehouseId?._id || po.warehouseId
+    if (poWh) setWarehouseId((prev) => prev || String(poWh))
   }, [po])
+
+  useEffect(() => {
+    if (warehouseId || !warehouses.length) return
+    const primary = warehouses.find((w) => w.isPrimary || w.isDefault) || warehouses[0]
+    if (primary?._id) setWarehouseId(String(primary._id))
+  }, [warehouses, warehouseId])
 
   const saveMutation = useMutation({
     mutationFn: (payload) => api.post('/delivery-notes', payload),
     onSuccess: (res) => {
-      toast.success(language === 'ar' ? 'تم إنشاء سند التسليم بنجاح' : 'Delivery Note created successfully')
+      if (res.data?.stockError) {
+        toast.error(
+          language === 'ar'
+            ? `تم إنشاء السند لكن فشل خصم المخزون: ${res.data.stockError}`
+            : `Delivery note created but stock failed: ${res.data.stockError}`,
+          { duration: 8000 },
+        )
+      } else {
+        toast.success(language === 'ar' ? 'تم إنشاء سند التسليم بنجاح' : 'Delivery Note created successfully')
+      }
       queryClient.invalidateQueries({ queryKey: ['delivery-notes'] })
       queryClient.invalidateQueries({ queryKey: ['quotations'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
@@ -412,11 +443,17 @@ export default function DeliveryNoteForm() {
       return
     }
 
+    if (engineOn && !warehouseId) {
+      toast.error(language === 'ar' ? 'اختر المستودع — محرك المخزون مفعّل' : 'Select a warehouse — inventory engine is enabled')
+      return
+    }
+
     const payload = {
       poId: poId || undefined,
       quotationId: quotationId || undefined,
       customerId: po?.customerId?._id || po?.customerId || quotation?.customerId?._id || quotation?.customerId || undefined,
       customerName: po?.customerId?.nameEn || po?.customerId?.nameAr || quotation?.buyer?.name || quotation?.buyer?.nameAr || recipientName || '',
+      warehouseId: warehouseId || undefined,
       lineItems,
       driverName,
       driverPhone,
@@ -766,6 +803,29 @@ export default function DeliveryNoteForm() {
           {/* Delivery Window & Destination */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
+              <label className="label">
+                {language === 'ar' ? 'المستودع' : 'Warehouse'}
+                {engineOn && <span className="ms-1 text-rose-500">*</span>}
+              </label>
+              <select
+                value={warehouseId}
+                onChange={(e) => setWarehouseId(e.target.value)}
+                className="select mt-1 font-medium"
+              >
+                <option value="">
+                  {engineOn
+                    ? (language === 'ar' ? 'اختر المستودع…' : 'Select warehouse…')
+                    : (language === 'ar' ? 'بدون تحديد' : 'Optional')}
+                </option>
+                {warehouses.map((w) => (
+                  <option key={w._id} value={w._id}>
+                    {language === 'ar' ? (w.nameAr || w.nameEn) : w.nameEn}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <label className="label">{language === 'ar' ? 'فترة التسليم (Delivery Window)' : 'Delivery Window'}</label>
               <select
                 value={deliveryWindow}
@@ -790,7 +850,9 @@ export default function DeliveryNoteForm() {
                 className="input mt-1"
               />
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className="label">{language === 'ar' ? 'هاتف المستلم' : 'Recipient Phone'}</label>
               <input

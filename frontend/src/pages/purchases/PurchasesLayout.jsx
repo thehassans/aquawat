@@ -4,6 +4,7 @@ import { PURCHASES_PATH } from './purchasesUi'
 
 const TABS = [
   { to: PURCHASES_PATH.orders, en: 'Purchase Orders', ar: 'طلبات الشراء' },
+  { to: PURCHASES_PATH.grn, en: 'Receipts (GRN)', ar: 'إشعارات الاستلام' },
   { to: PURCHASES_PATH.suppliers, en: 'Suppliers & POs', ar: 'الموردون وطلباتهم' },
   { to: PURCHASES_PATH.reports, en: 'Purchases Reports', ar: 'تقارير المشتريات' },
   { to: PURCHASES_PATH.returns, en: 'Purchase Return', ar: 'مرتجع المشتريات' },

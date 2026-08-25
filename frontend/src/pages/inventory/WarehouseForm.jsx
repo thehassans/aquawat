@@ -72,6 +72,9 @@ export default function WarehouseForm() {
           totalSpace: warehouseData?.capacity?.totalSpace || 0,
           unit: warehouseData?.capacity?.unit || 'sqm',
         },
+        receptionSteps: warehouseData?.receptionSteps || 'one',
+        deliverySteps: warehouseData?.deliverySteps || 'ship',
+        buyToResupply: warehouseData?.buyToResupply !== false,
       })
     }
   }, [isEdit, warehouseData, reset])
@@ -90,6 +93,15 @@ export default function WarehouseForm() {
       )
       queryClient.invalidateQueries(['warehouses'])
       navigate(returnTo || '/app/dashboard/warehouses')
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+  })
+
+  const recomputeMut = useMutation({
+    mutationFn: (body) => api.post(`/stock/warehouses/${id}/recompute-routes`, body),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم تحديث المسارات' : 'Warehouse routes recomputed')
+      queryClient.invalidateQueries(['warehouse', id])
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -191,6 +203,57 @@ export default function WarehouseForm() {
             </div>
           </div>
         </motion.div>
+
+        </motion.div>
+
+        {isEdit && warehouseData?.engineBootstrappedAt && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="card p-6">
+            <h3 className="mb-4 text-lg font-semibold">
+              {language === 'ar' ? 'خطوات المخزون' : 'Inventory steps'}
+            </h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="label">{language === 'ar' ? 'الاستلام' : 'Reception'}</label>
+                <select {...register('receptionSteps')} className="select">
+                  <option value="one">{language === 'ar' ? 'خطوة واحدة (مباشر)' : 'One step (direct)'}</option>
+                  <option value="two">{language === 'ar' ? 'خطوتان (مدخل → مخزون)' : 'Two steps (input → stock)'}</option>
+                  <option value="three">{language === 'ar' ? 'ثلاث خطوات (+ جودة)' : 'Three steps (+ QC)'}</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'التسليم' : 'Delivery'}</label>
+                <select {...register('deliverySteps')} className="select">
+                  <option value="ship">{language === 'ar' ? 'شحن مباشر' : 'Ship only'}</option>
+                  <option value="pickShip">{language === 'ar' ? 'انتقاء ثم شحن' : 'Pick + ship'}</option>
+                  <option value="pickPackShip">{language === 'ar' ? 'انتقاء + تعبئة + شحن' : 'Pick + pack + ship'}</option>
+                </select>
+              </div>
+              <div className="md:col-span-2 flex items-center gap-3">
+                <input type="checkbox" id="buyToResupply" {...register('buyToResupply')} className="w-4 h-4 rounded border-gray-300 text-primary-600" />
+                <label htmlFor="buyToResupply" className="text-sm cursor-pointer">
+                  {language === 'ar' ? 'إعادة التوريد بالشراء' : 'Buy to resupply'}
+                </label>
+              </div>
+            </div>
+            <div className="mt-4">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={recomputeMut.isPending}
+                onClick={() => {
+                  const values = watch()
+                  recomputeMut.mutate({
+                    receptionSteps: values.receptionSteps,
+                    deliverySteps: values.deliverySteps,
+                    buyToResupply: values.buyToResupply,
+                  })
+                }}
+              >
+                {language === 'ar' ? 'إعادة حساب المسارات والقواعد' : 'Recompute routes & rules'}
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6">
           <div className="flex items-center gap-3 mb-6">

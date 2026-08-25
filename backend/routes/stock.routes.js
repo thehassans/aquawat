@@ -1,0 +1,1436 @@
+import express from 'express';
+import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../middleware/auth.js';
+import {
+  InvSettings,
+  InvLocation,
+  InvUom,
+  InvUomCategory,
+  InvOperationType,
+  InvTransfer,
+  InvMove,
+  InvMoveLine,
+  InvQuant,
+  InvProductCategory,
+} from '../models/inventory/index.js';
+import Warehouse from '../models/Warehouse.js';
+import Product from '../models/Product.js';
+import { ensureInventoryBootstrap, enableEngine, bootstrapWarehouse } from '../services/inventory/bootstrap.js';
+import { createTransfer } from '../services/inventory/createTransfer.js';
+import {
+  confirmTransfer,
+  validateTransfer,
+  checkAvailability,
+  unreserveTransfer,
+  cancelTransfer,
+} from '../services/inventory/transferService.js';
+import { computeOnHand, computeForecast } from '../services/inventory/forecast.js';
+import { migrateOpeningBalances } from '../services/inventory/migration.js';
+import { resolveWarehouseScope, warehouseFilter, assertWarehouseAccess } from '../services/inventory/warehouseScope.js';
+import { InventoryError } from '../services/inventory/errors.js';
+import { D, decStr } from '../utils/decimal.js';
+import { listLots, createLot } from '../services/inventory/lotService.js';
+import {
+  listInventoryQuants,
+  setCountedQuantity,
+  clearCountedQuantity,
+  applyInventoryCounts,
+  requestCount,
+} from '../services/inventory/inventoryCount.js';
+import { createScrap, validateScrap, listScraps } from '../services/inventory/scrapService.js';
+import { getReturnWizard, createReturnTransfer } from '../services/inventory/returns.js';
+import { movesHistory, lotTraceability, productMoveHistory } from '../services/inventory/traceability.js';
+import InvScrap from '../models/inventory/InvScrap.js';
+import InvLot from '../models/inventory/InvLot.js';
+import InvPackageType from '../models/inventory/InvPackageType.js';
+import InvPackage from '../models/inventory/InvPackage.js';
+import { threeWayMatch } from '../services/inventory/threeWayMatch.js';
+import { postPosSaleViaEngine, isInvEngineEnabled } from '../services/inventory/legacyAdapter.js';
+import {
+  InvRoute,
+  InvRule,
+  InvReorderRule,
+  InvPutawayRule,
+  InvStorageCategory,
+  InvProcurementGroup,
+  InvSchedulerRun,
+} from '../models/inventory/index.js';
+import {
+  listReplenishment,
+  upsertReorderRule,
+  snoozeReorderRule,
+  orderOnce,
+  runScheduler,
+  getSchedulerStatus,
+} from '../services/inventory/scheduler.js';
+import { runProcurement } from '../services/inventory/procurement.js';
+import { recomputeWarehouseRoutes } from '../services/inventory/warehouseSteps.js';
+import { resolvePutawayLocation } from '../services/inventory/putaway.js';
+
+const router = express.Router();
+
+router.use(protect, tenantFilter, requireTenantFilter);
+
+function handleInventoryError(res, err) {
+  if (err instanceof InventoryError) {
+    return res.status(err.status || 400).json({ error: err.message, code: err.code });
+  }
+  console.error('[inventory]', err);
+  return res.status(500).json({ error: err.message || 'Inventory error' });
+}
+
+async function assertTransferWarehouseAccess(req, transfer) {
+  if (!transfer?.operationTypeId) return;
+  const otId = transfer.operationTypeId._id || transfer.operationTypeId;
+  const ot = transfer.operationTypeId.warehouseId
+    ? transfer.operationTypeId
+    : await InvOperationType.findById(otId).select('warehouseId').lean();
+  if (ot?.warehouseId) await assertWarehouseAccess(req, ot.warehouseId);
+}
+
+// ── Bootstrap / settings ───────────────────────────────────────────
+
+router.post('/bootstrap', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const result = await ensureInventoryBootstrap(req.user.tenantId, req.user._id);
+    res.json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/enable', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    await ensureInventoryBootstrap(req.user.tenantId, req.user._id);
+    const settings = await enableEngine(req.user.tenantId, req.user._id);
+    res.json(settings);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/settings', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    let settings = await InvSettings.findOne({ ...req.tenantFilter });
+    if (!settings) {
+      await ensureInventoryBootstrap(req.user.tenantId, req.user._id);
+      settings = await InvSettings.findOne({ ...req.tenantFilter });
+    }
+    res.json(settings);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+/** Lightweight flag for sell/PoS UIs that may lack inventory:read */
+router.get('/engine-status', async (req, res) => {
+  try {
+    const settings = await InvSettings.findOne({ ...req.tenantFilter })
+      .select('engineEnabled enforceWarehouseRestriction')
+      .lean();
+    res.json({
+      engineEnabled: Boolean(settings?.engineEnabled),
+      enforceWarehouseRestriction: Boolean(settings?.enforceWarehouseRestriction),
+    });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/settings', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const allowed = [
+      'engineEnabled', 'groupUom', 'groupStockMultiLocations', 'groupStockTrackingLot',
+      'moduleProductExpiry', 'annualInventoryMonth', 'annualInventoryDay',
+      'securityLeadTimeSales', 'securityLeadTimePurchase', 'daysToPurchase',
+      'enforceWarehouseRestriction', 'schedulerEnabled',
+      'stockAccountingEnabled',
+      'propertyStockValuationAccountId', 'propertyStockInputAccountId',
+      'propertyStockOutputAccountId', 'propertyLandedCostAccountId',
+      'showLotsOnDeliverySlips', 'showLotsOnInvoices', 'receptionReportEnabled',
+      'emailConfirmationOnDelivery', 'signatureOnDelivery',
+    ];
+    const $set = {};
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) $set[k] = req.body[k];
+    }
+    $set.updatedBy = req.user._id;
+    const settings = await InvSettings.findOneAndUpdate(
+      { ...req.tenantFilter },
+      { $set },
+      { new: true, upsert: true },
+    );
+    res.json(settings);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/migrate-opening-balances', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const result = await migrateOpeningBalances(req.user.tenantId, {
+      userId: req.user._id,
+      batchSize: Number(req.body.batchSize) || 50,
+      enableEngineAfter: req.body.enableEngineAfter === true,
+    });
+    res.json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/warehouses/:id/bootstrap', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    await ensureInventoryBootstrap(req.user.tenantId, req.user._id);
+    const wh = await Warehouse.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!wh) return res.status(404).json({ error: 'Warehouse not found' });
+    const result = await bootstrapWarehouse(req.user.tenantId, wh, null, req.user._id);
+    res.json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Locations / UoM / Op types ─────────────────────────────────────
+
+router.get('/locations', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const scope = await resolveWarehouseScope(req);
+    const filter = { ...req.tenantFilter, ...warehouseFilter(scope) };
+    if (req.query.usage) filter.usage = req.query.usage;
+    if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
+    if (req.query.active !== 'false') filter.active = true;
+    const locations = await InvLocation.find(filter).sort({ completePath: 1 }).lean();
+    res.json(locations);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/uom-categories', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await InvUomCategory.find({ ...req.tenantFilter }).sort({ name: 1 }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/uoms', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const filter = { ...req.tenantFilter };
+    if (req.query.categoryId) filter.categoryId = req.query.categoryId;
+    if (req.query.active !== 'false') filter.active = true;
+    res.json(await InvUom.find(filter).sort({ name: 1 }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/operation-types', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const scope = await resolveWarehouseScope(req);
+    const filter = { ...req.tenantFilter, active: true, ...warehouseFilter(scope) };
+    if (req.query.code) filter.code = req.query.code;
+    if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
+    res.json(await InvOperationType.find(filter).sort({ name: 1 }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/product-categories', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await InvProductCategory.find({ ...req.tenantFilter }).sort({ completePath: 1 }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Transfers ──────────────────────────────────────────────────────
+
+router.get('/transfers', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const scope = await resolveWarehouseScope(req);
+    const filter = { ...req.tenantFilter };
+    if (req.query.state) filter.state = req.query.state;
+
+    if (req.query.code || req.query.operationTypeId || scope) {
+      const otFilter = { ...req.tenantFilter, ...warehouseFilter(scope) };
+      if (req.query.code) otFilter.code = req.query.code;
+      const ots = await InvOperationType.find(otFilter).select('_id');
+      const otIds = ots.map((o) => o._id);
+      if (req.query.operationTypeId) {
+        if (!otIds.some((id) => String(id) === String(req.query.operationTypeId))) {
+          return res.json({ data: [], total: 0, page: 1, limit: 40 });
+        }
+        filter.operationTypeId = req.query.operationTypeId;
+      } else {
+        filter.operationTypeId = { $in: otIds };
+      }
+    }
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
+    const skip = (page - 1) * limit;
+
+    const [rows, total] = await Promise.all([
+      InvTransfer.find(filter)
+        .sort({ scheduledDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('operationTypeId', 'name nameAr code cardColor')
+        .lean(),
+      InvTransfer.countDocuments(filter),
+    ]);
+
+    res.json({ data: rows, total, page, limit });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter })
+      .populate('operationTypeId')
+      .lean();
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+    const moves = await InvMove.find({ tenantId: req.user.tenantId, transferId: transfer._id })
+      .populate('productId', 'nameEn nameAr sku barcode unitOfMeasure')
+      .lean();
+    const moveLines = await InvMoveLine.find({
+      tenantId: req.user.tenantId,
+      transferId: transfer._id,
+    }).lean();
+    res.json({ ...transfer, moves, moveLines });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/transfers', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    if (req.body.operationTypeId) {
+      const ot = await InvOperationType.findOne({
+        _id: req.body.operationTypeId,
+        ...req.tenantFilter,
+      }).select('warehouseId').lean();
+      if (ot?.warehouseId) await assertWarehouseAccess(req, ot.warehouseId);
+    }
+    const transfer = await createTransfer(req.user.tenantId, req.body, req.user._id);
+    res.status(201).json(transfer);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/transfers/:id/confirm', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+    res.json(await confirmTransfer(req.user.tenantId, req.params.id, req.user._id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/transfers/:id/check-availability', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+    res.json(await checkAvailability(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/transfers/:id/unreserve', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+    res.json(await unreserveTransfer(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/transfers/:id/validate', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+    res.json(await validateTransfer(req.user.tenantId, req.params.id, {
+      userId: req.user._id,
+      createBackorder: req.body.createBackorder,
+      immediate: req.body.immediate === true,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/transfers/:id/cancel', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+    res.json(await cancelTransfer(req.user.tenantId, req.params.id, req.user._id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Stock report / forecast ────────────────────────────────────────
+
+router.get('/report/stock', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const scope = await resolveWarehouseScope(req);
+    const locFilter = {
+      ...req.tenantFilter,
+      usage: 'internal',
+      active: true,
+      ...warehouseFilter(scope),
+    };
+    if (req.query.warehouseId) locFilter.warehouseId = req.query.warehouseId;
+    const locs = await InvLocation.find(locFilter).select('_id').lean();
+    const locIds = locs.map((l) => l._id);
+
+    const quants = await InvQuant.aggregate([
+      {
+        $match: {
+          tenantId: req.user.tenantId,
+          locationId: { $in: locIds },
+        },
+      },
+      {
+        $group: {
+          _id: '$productId',
+          onHandNum: { $sum: '$quantityNum' },
+          reservedNum: { $sum: '$reservedQuantityNum' },
+        },
+      },
+    ]);
+
+    const productIds = quants.map((q) => q._id);
+    const products = await Product.find({
+      ...req.tenantFilter,
+      _id: { $in: productIds },
+    }).select('nameEn nameAr sku barcode costPrice unitOfMeasure uomId sellingPrice').lean();
+
+    const byId = new Map(products.map((p) => [String(p._id), p]));
+    const rows = [];
+    for (const q of quants) {
+      const p = byId.get(String(q._id));
+      if (!p) continue;
+      const onHand = decStr(q.onHandNum?.toString?.() || '0');
+      const reserved = decStr(q.reservedNum?.toString?.() || '0');
+      const forecast = await computeForecast(req.user.tenantId, q._id, {
+        warehouseId: req.query.warehouseId,
+      });
+      rows.push({
+        productId: q._id,
+        product: p,
+        onHand,
+        reserved,
+        freeToUse: decStr(D(onHand).minus(D(reserved))),
+        incoming: forecast.incoming,
+        outgoing: forecast.outgoing,
+        forecast: forecast.forecast,
+        unitCost: p.costPrice,
+      });
+    }
+
+    res.json({ data: rows, total: rows.length });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+/** Inline On Hand — adjustment transfer only (never direct quant write). */
+router.post('/report/stock/:productId/adjust', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const productId = req.params.productId;
+    const warehouseId = req.body.warehouseId;
+    const newQty = D(req.body.onHand);
+    if (!warehouseId) return res.status(400).json({ error: 'warehouseId required' });
+    await assertWarehouseAccess(req, warehouseId);
+
+    const wh = await Warehouse.findOne({ _id: warehouseId, ...req.tenantFilter });
+    if (!wh?.stockLocationId) {
+      return res.status(400).json({ error: 'Warehouse not bootstrapped' });
+    }
+
+    const current = await computeOnHand(req.user.tenantId, productId, { warehouseId });
+    const diff = newQty.minus(D(current.onHand));
+    if (diff.isZero()) return res.json({ onHand: current.onHand, adjusted: false });
+
+    const adjLoc = await InvLocation.findOne({ ...req.tenantFilter, usage: 'inventoryLoss' });
+    const code = (wh.code || 'WH').toUpperCase();
+    const opType = await InvOperationType.findOne({
+      ...req.tenantFilter,
+      sequenceCode: `${code}/ADJ`,
+    });
+    if (!adjLoc || !opType) {
+      return res.status(400).json({ error: 'Adjustment configuration missing — run bootstrap' });
+    }
+
+    const isGain = diff.gt(0);
+    const transfer = await createTransfer(req.user.tenantId, {
+      operationTypeId: opType._id,
+      sourceLocationId: isGain ? adjLoc._id : wh.stockLocationId,
+      destLocationId: isGain ? wh.stockLocationId : adjLoc._id,
+      origin: 'Stock report adjustment',
+      note: req.body.reason || 'Inline on-hand edit',
+      sourceModel: 'stockReport',
+      lines: [{ productId, demandQty: decStr(diff.abs()) }],
+    }, req.user._id);
+
+    await confirmTransfer(req.user.tenantId, transfer._id, req.user._id);
+    await validateTransfer(req.user.tenantId, transfer._id, {
+      userId: req.user._id,
+      immediate: true,
+      createBackorder: false,
+    });
+
+    const after = await computeOnHand(req.user.tenantId, productId, { warehouseId });
+    res.json({ onHand: after.onHand, adjusted: true, transferId: transfer._id });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/products/:productId/forecast', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await computeForecast(req.user.tenantId, req.params.productId, {
+      warehouseId: req.query.warehouseId,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/products/:productId/on-hand', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await computeOnHand(req.user.tenantId, req.params.productId, {
+      warehouseId: req.query.warehouseId,
+      locationId: req.query.locationId,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/quants', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const scope = await resolveWarehouseScope(req);
+    const locFilter = {
+      ...req.tenantFilter,
+      usage: 'internal',
+      active: true,
+      ...warehouseFilter(scope),
+    };
+    if (req.query.warehouseId) locFilter.warehouseId = req.query.warehouseId;
+    const locs = await InvLocation.find(locFilter).select('_id').lean();
+    const filter = {
+      ...req.tenantFilter,
+      locationId: { $in: locs.map((l) => l._id) },
+    };
+    if (req.query.productId) filter.productId = req.query.productId;
+    const rows = await InvQuant.find(filter)
+      .populate('productId', 'nameEn nameAr sku')
+      .populate('locationId', 'name completePath')
+      .limit(500)
+      .lean();
+    res.json(rows);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Lots / serials ─────────────────────────────────────────────────
+
+router.get('/lots', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await listLots(req.user.tenantId, {
+      productId: req.query.productId,
+      q: req.query.q,
+      page: req.query.page,
+      limit: req.query.limit,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/lots', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    res.status(201).json(await createLot(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/lots/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const lot = await InvLot.findOne({ _id: req.params.id, ...req.tenantFilter })
+      .populate('productId', 'nameEn nameAr sku tracking')
+      .lean();
+    if (!lot) return res.status(404).json({ error: 'Lot not found' });
+    res.json(lot);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/lots/:id/traceability', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const tree = await lotTraceability(req.user.tenantId, req.params.id);
+    if (!tree) return res.status(404).json({ error: 'Lot not found' });
+    res.json(tree);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Physical inventory ─────────────────────────────────────────────
+
+router.get('/physical-inventory', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await listInventoryQuants(req.user.tenantId, {
+      locationId: req.query.locationId,
+      warehouseId: req.query.warehouseId,
+      productId: req.query.productId,
+      filter: req.query.filter,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/physical-inventory/set', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    res.json(await setCountedQuantity(req.user.tenantId, {
+      ...req.body,
+      userId: req.user._id,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/physical-inventory/clear', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    res.json(await clearCountedQuantity(req.user.tenantId, req.body.quantId));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/physical-inventory/apply', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    res.json(await applyInventoryCounts(req.user.tenantId, {
+      ids: req.body.ids,
+      accountingDate: req.body.accountingDate,
+      reason: req.body.reason,
+      userId: req.user._id,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/physical-inventory/request-count', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    res.json(await requestCount(req.user.tenantId, {
+      ...req.body,
+      userId: req.user._id,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Scrap ──────────────────────────────────────────────────────────
+
+router.get('/scraps', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await listScraps(req.user.tenantId, {
+      state: req.query.state,
+      page: req.query.page,
+      limit: req.query.limit,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/scraps', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    res.status(201).json(await createScrap(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/scraps/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const scrap = await InvScrap.findOne({ _id: req.params.id, ...req.tenantFilter })
+      .populate('productId', 'nameEn nameAr sku')
+      .populate('sourceLocationId', 'name completePath')
+      .populate('scrapLocationId', 'name completePath')
+      .lean();
+    if (!scrap) return res.status(404).json({ error: 'Scrap not found' });
+    res.json(scrap);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/scraps/:id/validate', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    res.json(await validateScrap(req.params.id, req.user.tenantId));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Returns ────────────────────────────────────────────────────────
+
+router.get('/transfers/:id/return-wizard', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await getReturnWizard(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/transfers/:id/return', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const transfer = await createReturnTransfer(
+      req.user.tenantId,
+      req.user._id,
+      req.params.id,
+      { lines: req.body.lines },
+    );
+    res.status(201).json(transfer);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Moves history / product history ────────────────────────────────
+
+router.get('/moves-history', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await movesHistory(req.user.tenantId, {
+      productId: req.query.productId,
+      lotId: req.query.lotId,
+      locationId: req.query.locationId,
+      transferId: req.query.transferId,
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo,
+      direction: req.query.direction,
+      page: req.query.page,
+      limit: req.query.limit,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/products/:productId/moves', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await productMoveHistory(req.user.tenantId, req.params.productId, {
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo,
+      page: req.query.page,
+      limit: req.query.limit,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Packages (basic CRUD) ──────────────────────────────────────────
+
+router.get('/package-types', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await InvPackageType.find({ ...req.tenantFilter, active: { $ne: false } }).sort({ name: 1 }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/package-types', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    res.status(201).json(await InvPackageType.create({
+      ...req.body,
+      tenantId: req.user.tenantId,
+      createdBy: req.user._id,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/packages', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const filter = { ...req.tenantFilter };
+    if (req.query.locationId) filter.locationId = req.query.locationId;
+    res.json(await InvPackage.find(filter).populate('packageTypeId').sort({ createdAt: -1 }).limit(200));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/product-packagings', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const filter = { ...req.tenantFilter, active: { $ne: false } };
+    if (req.query.productId) filter.productId = req.query.productId;
+    res.json(await InvProductPackaging.find(filter).sort({ name: 1 }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/product-packagings', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    res.status(201).json(await InvProductPackaging.create({
+      ...req.body,
+      tenantId: req.user.tenantId,
+      createdBy: req.user._id,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── PoS close (idempotent) ─────────────────────────────────────────
+
+router.post('/pos-close', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    if (!(await isInvEngineEnabled(req.user.tenantId))) {
+      return res.status(400).json({ error: 'Inventory engine is not enabled' });
+    }
+    const result = await postPosSaleViaEngine({
+      tenantId: req.user.tenantId,
+      userId: req.user._id,
+      warehouseId: req.body.warehouseId,
+      lines: req.body.lines,
+      orderId: req.body.orderId,
+      offlineId: req.body.offlineId,
+      partnerId: req.body.partnerId,
+    });
+    res.status(201).json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Three-way match preview ────────────────────────────────────────
+
+router.post('/three-way-match', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const result = await threeWayMatch({
+      tenantId: req.user.tenantId,
+      purchaseOrderId: req.body.purchaseOrderId,
+      billLines: req.body.billLines,
+      qtyTolerance: req.body.qtyTolerance,
+      priceTolerancePct: req.body.priceTolerancePct,
+    });
+    res.json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Phase 4: Routes & Rules ────────────────────────────────────────
+
+router.get('/routes', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const items = await InvRoute.find({ tenantId: req.user.tenantId })
+      .sort({ sequence: 1, name: 1 })
+      .lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/routes', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const route = await InvRoute.create({
+      tenantId: req.user.tenantId,
+      name: req.body.name,
+      nameAr: req.body.nameAr,
+      sequence: req.body.sequence ?? 10,
+      active: req.body.active !== false,
+      productSelectable: req.body.productSelectable !== false,
+      categorySelectable: req.body.categorySelectable !== false,
+      warehouseSelectable: req.body.warehouseSelectable !== false,
+      warehouseIds: req.body.warehouseIds || [],
+      suppliedWarehouseId: req.body.suppliedWarehouseId || null,
+      supplierWarehouseId: req.body.supplierWarehouseId || null,
+      createdBy: req.user._id,
+    });
+    res.status(201).json(route);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/routes/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const route = await InvRoute.findOneAndUpdate(
+      { _id: req.params.id, tenantId: req.user.tenantId },
+      {
+        $set: {
+          ...(req.body.name != null && { name: req.body.name }),
+          ...(req.body.nameAr != null && { nameAr: req.body.nameAr }),
+          ...(req.body.sequence != null && { sequence: req.body.sequence }),
+          ...(req.body.active != null && { active: req.body.active }),
+          ...(req.body.warehouseIds != null && { warehouseIds: req.body.warehouseIds }),
+          ...(req.body.suppliedWarehouseId !== undefined && { suppliedWarehouseId: req.body.suppliedWarehouseId }),
+          ...(req.body.supplierWarehouseId !== undefined && { supplierWarehouseId: req.body.supplierWarehouseId }),
+          updatedBy: req.user._id,
+        },
+      },
+      { new: true },
+    );
+    if (!route) return res.status(404).json({ error: 'Route not found' });
+    res.json(route);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/rules', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const filter = { tenantId: req.user.tenantId };
+    if (req.query.routeId) filter.routeId = req.query.routeId;
+    const items = await InvRule.find(filter)
+      .populate('routeId', 'name')
+      .populate('operationTypeId', 'name code')
+      .populate('sourceLocationId', 'completePath')
+      .populate('destLocationId', 'completePath')
+      .sort({ sequence: 1 })
+      .lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/rules', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const rule = await InvRule.create({
+      tenantId: req.user.tenantId,
+      name: req.body.name,
+      routeId: req.body.routeId,
+      sequence: req.body.sequence ?? 20,
+      action: req.body.action || 'pull',
+      operationTypeId: req.body.operationTypeId || null,
+      sourceLocationId: req.body.sourceLocationId || null,
+      destLocationId: req.body.destLocationId,
+      procureMethod: req.body.procureMethod || 'makeToStock',
+      groupPropagation: req.body.groupPropagation || 'propagate',
+      leadDays: req.body.leadDays || 0,
+      active: req.body.active !== false,
+      createdBy: req.user._id,
+    });
+    res.status(201).json(rule);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/rules/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const allowed = [
+      'name', 'sequence', 'action', 'operationTypeId', 'sourceLocationId', 'destLocationId',
+      'procureMethod', 'groupPropagation', 'leadDays', 'active', 'propagateCancel',
+    ];
+    const $set = { updatedBy: req.user._id };
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) $set[k] = req.body[k];
+    }
+    const rule = await InvRule.findOneAndUpdate(
+      { _id: req.params.id, tenantId: req.user.tenantId },
+      { $set },
+      { new: true },
+    );
+    if (!rule) return res.status(404).json({ error: 'Rule not found' });
+    res.json(rule);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Replenishment / reorder ────────────────────────────────────────
+
+router.get('/replenishment', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const items = await listReplenishment(req.user.tenantId, {
+      warehouseId: req.query.warehouseId,
+      permanentOnly: req.query.permanentOnly,
+    });
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/reorder-rules', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const filter = { tenantId: req.user.tenantId };
+    if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
+    const items = await InvReorderRule.find(filter)
+      .populate('productId', 'nameEn nameAr sku')
+      .populate('locationId', 'completePath')
+      .populate('warehouseId', 'name code')
+      .lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/reorder-rules', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const rule = await upsertReorderRule(req.user.tenantId, req.user._id, req.body);
+    res.status(201).json(rule);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/reorder-rules/:id/snooze', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const rule = await snoozeReorderRule(req.user.tenantId, req.params.id, req.body);
+    res.json(rule);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/replenishment/order', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const result = await orderOnce(req.user.tenantId, req.user._id, req.body);
+    res.status(201).json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/procurement/run', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const result = await runProcurement({
+      tenantId: req.user.tenantId,
+      productId: req.body.productId,
+      qty: req.body.qty,
+      locationId: req.body.locationId,
+      dateDeadline: req.body.dateDeadline,
+      preferredRouteId: req.body.routeId,
+      warehouseId: req.body.warehouseId,
+      preferredVendorId: req.body.preferredVendorId,
+      userId: req.user._id,
+    });
+    res.status(201).json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Scheduler ──────────────────────────────────────────────────────
+
+router.get('/scheduler', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await getSchedulerStatus(req.user.tenantId));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/scheduler/run', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const run = await runScheduler(req.user.tenantId, {
+      trigger: 'manual',
+      userId: req.user._id,
+    });
+    res.json(run);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/scheduler/runs', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const items = await InvSchedulerRun.find({ tenantId: req.user.tenantId })
+      .sort({ startedAt: -1 })
+      .limit(Number(req.query.limit) || 20)
+      .lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Putaway & storage ──────────────────────────────────────────────
+
+router.get('/putaway-rules', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const items = await InvPutawayRule.find({ tenantId: req.user.tenantId })
+      .populate('productId', 'nameEn sku')
+      .populate('fromLocationId', 'completePath')
+      .populate('toLocationId', 'completePath')
+      .sort({ sequence: -1 })
+      .lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/putaway-rules', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const rule = await InvPutawayRule.create({
+      tenantId: req.user.tenantId,
+      sequence: req.body.sequence ?? 10,
+      productId: req.body.productId || null,
+      categoryId: req.body.categoryId || null,
+      packageTypeId: req.body.packageTypeId || null,
+      fromLocationId: req.body.fromLocationId,
+      toLocationId: req.body.toLocationId,
+      storageCategoryId: req.body.storageCategoryId || null,
+      active: req.body.active !== false,
+      createdBy: req.user._id,
+    });
+    res.status(201).json(rule);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/storage-categories', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const items = await InvStorageCategory.find({ tenantId: req.user.tenantId }).sort({ name: 1 }).lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/storage-categories', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const cat = await InvStorageCategory.create({
+      tenantId: req.user.tenantId,
+      name: req.body.name,
+      nameAr: req.body.nameAr,
+      maxWeight: req.body.maxWeight != null ? String(req.body.maxWeight) : null,
+      allowNewProduct: req.body.allowNewProduct || 'mixed',
+      capacityByProduct: req.body.capacityByProduct || [],
+      capacityByPackageType: req.body.capacityByPackageType || [],
+      createdBy: req.user._id,
+    });
+    res.status(201).json(cat);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/putaway/resolve', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const locationId = await resolvePutawayLocation(req.user.tenantId, {
+      fromLocationId: req.body.fromLocationId,
+      productId: req.body.productId,
+      packageTypeId: req.body.packageTypeId,
+    });
+    res.json({ locationId });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Warehouse multi-step ───────────────────────────────────────────
+
+router.post('/warehouses/:id/recompute-routes', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    if (req.body.receptionSteps || req.body.deliverySteps || req.body.buyToResupply != null
+      || req.body.resupplyFromWarehouseIds) {
+      await Warehouse.findOneAndUpdate(
+        { _id: req.params.id, tenantId: req.user.tenantId },
+        {
+          $set: {
+            ...(req.body.receptionSteps && { receptionSteps: req.body.receptionSteps }),
+            ...(req.body.deliverySteps && { deliverySteps: req.body.deliverySteps }),
+            ...(req.body.buyToResupply != null && { buyToResupply: req.body.buyToResupply }),
+            ...(req.body.resupplyFromWarehouseIds && { resupplyFromWarehouseIds: req.body.resupplyFromWarehouseIds }),
+          },
+        },
+      );
+    }
+    const wh = await recomputeWarehouseRoutes(req.params.id, req.user.tenantId, req.user._id);
+    res.json(wh);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/procurement-groups', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const items = await InvProcurementGroup.find({ tenantId: req.user.tenantId })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Phase 5: Valuation & landed costs ──────────────────────────────
+
+router.get('/valuation-layers', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { default: InvValuationLayer } = await import('../models/inventory/InvValuationLayer.js');
+    const filter = { tenantId: req.user.tenantId };
+    if (req.query.productId) filter.productId = req.query.productId;
+    const items = await InvValuationLayer.find(filter)
+      .populate('productId', 'nameEn nameAr sku costPrice')
+      .sort({ createdAt: -1 })
+      .limit(Number(req.query.limit) || 100)
+      .lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/products/:productId/inventory-value', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { productInventoryValue } = await import('../services/inventory/valuation.js');
+    res.json(await productInventoryValue(req.user.tenantId, req.params.productId));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/valuation-report', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { productInventoryValue } = await import('../services/inventory/valuation.js');
+    const products = await Product.find({
+      tenantId: req.user.tenantId,
+      isActive: { $ne: false },
+      trackInventory: { $ne: false },
+    }).select('nameEn nameAr sku costPrice').limit(200).lean();
+
+    const rows = [];
+    for (const p of products) {
+      const v = await productInventoryValue(req.user.tenantId, p._id);
+      if (Number(v.qty) === 0 && Number(v.value) === 0) continue;
+      rows.push({
+        productId: p._id,
+        name: p.nameEn || p.sku,
+        sku: p.sku,
+        costMethod: v.costMethod,
+        qty: v.qty,
+        unitCost: v.unitCost || p.costPrice,
+        value: v.value,
+      });
+    }
+    res.json({ items: rows });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/landed-costs', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { default: InvLandedCost } = await import('../models/inventory/InvLandedCost.js');
+    const items = await InvLandedCost.find({ tenantId: req.user.tenantId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/landed-costs', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { createLandedCost } = await import('../services/inventory/landedCost.js');
+    const doc = await createLandedCost(req.user.tenantId, req.user._id, req.body);
+    res.status(201).json(doc);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/landed-costs/:id/compute', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { computeLandedCost } = await import('../services/inventory/landedCost.js');
+    res.json(await computeLandedCost(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/landed-costs/:id/validate', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { validateLandedCost } = await import('../services/inventory/landedCost.js');
+    res.json(await validateLandedCost(req.user.tenantId, req.params.id, req.user._id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/accounting/ensure-accounts', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { ensureStockAccountingAccounts, resolveStockAccounts } = await import('../services/inventory/stockAccounting.js');
+    await ensureStockAccountingAccounts(req.user.tenantId, req.user._id);
+    res.json(await resolveStockAccounts(req.user.tenantId));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/sync-product-cache', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { syncProductsStockCache, syncProductStockCache } = await import('../services/inventory/syncProductCache.js');
+    if (req.body.productId) {
+      const product = await syncProductStockCache(req.user.tenantId, req.body.productId);
+      return res.json({ product });
+    }
+    const ids = Array.isArray(req.body.productIds) ? req.body.productIds : [];
+    if (!ids.length) {
+      const products = await Product.find({
+        tenantId: req.user.tenantId,
+        trackInventory: { $ne: false },
+      }).select('_id').limit(500).lean();
+      await syncProductsStockCache(req.user.tenantId, products.map((p) => p._id));
+      return res.json({ synced: products.length });
+    }
+    await syncProductsStockCache(req.user.tenantId, ids);
+    res.json({ synced: ids.length });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Phase 6: Reporting, import/export, barcode, settings extras ───
+
+router.get('/report/moves-analysis', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { movesAnalysis } = await import('../services/inventory/reporting.js');
+    const items = await movesAnalysis(req.user.tenantId, {
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo,
+      warehouseId: req.query.warehouseId,
+      groupBy: req.query.groupBy || 'product',
+    });
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/report/performance', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { performanceKpis } = await import('../services/inventory/reporting.js');
+    res.json(await performanceKpis(req.user.tenantId, {
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo,
+      warehouseId: req.query.warehouseId,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/report/forecast', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { forecastReport } = await import('../services/inventory/reporting.js');
+    const items = await forecastReport(req.user.tenantId, {
+      warehouseId: req.query.warehouseId,
+      limit: req.query.limit,
+    });
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/export/:collection', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { exportCollection } = await import('../services/inventory/importExport.js');
+    const { filename, csv } = await exportCollection(req.user.tenantId, req.params.collection, {
+      warehouseId: req.query.warehouseId,
+    });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/import/products', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { importProducts } = await import('../services/inventory/importExport.js');
+    const result = await importProducts(req.user.tenantId, req.user._id, {
+      csvText: req.body.csvText || req.body.csv || '',
+      dryRun: req.body.dryRun !== false && req.body.dryRun !== '0',
+      warehouseId: req.body.warehouseId,
+    });
+    res.json(result);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/barcode-nomenclatures', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { default: InvBarcodeNomenclature } = await import('../models/inventory/InvBarcodeNomenclature.js');
+    const items = await InvBarcodeNomenclature.find({ tenantId: req.user.tenantId }).lean();
+    res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/barcode-nomenclatures', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { default: InvBarcodeNomenclature } = await import('../models/inventory/InvBarcodeNomenclature.js');
+    const doc = await InvBarcodeNomenclature.create({
+      tenantId: req.user.tenantId,
+      name: req.body.name || 'Default',
+      nameAr: req.body.nameAr,
+      isDefault: !!req.body.isDefault,
+      rules: req.body.rules || [
+        { name: 'EAN-13', pattern: '^\\d{13}$', type: 'product', sequence: 10 },
+        { name: 'Lot prefix', pattern: '^LOT', type: 'lot', sequence: 20 },
+      ],
+      createdBy: req.user._id,
+    });
+    res.status(201).json(doc);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/barcode-nomenclatures/:id/test', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { default: InvBarcodeNomenclature, matchBarcode } = await import('../models/inventory/InvBarcodeNomenclature.js');
+    const nom = await InvBarcodeNomenclature.findOne({ _id: req.params.id, tenantId: req.user.tenantId }).lean();
+    if (!nom) return res.status(404).json({ error: 'Not found' });
+    res.json(matchBarcode(nom, req.body.barcode || ''));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+export default router;

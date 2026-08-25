@@ -34,6 +34,7 @@ const purchaseReturnSchema = new mongoose.Schema({
   reason: { type: String },
   returnAmount: { type: Number, default: 0 },
   stockPostedAt: { type: Date },
+  inventoryTransferId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer' },
   cancelledAt: { type: Date },
   lines: { type: [purchaseReturnLineSchema], default: [] }
 }, { timestamps: true });

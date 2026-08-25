@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import Quotation from '../models/Quotation.js';
 import DeliveryNote from '../models/DeliveryNote.js';
+import { isInvEngineEnabled, postLinesViaEngine } from '../services/inventory/legacyAdapter.js';
 
 export const createDeliveryNoteFromPO = async (req, res) => {
   const session = await mongoose.startSession();
@@ -31,7 +32,8 @@ export const createDeliveryNoteFromPO = async (req, res) => {
       destinationCity,
       recipientName,
       recipientPhone,
-      notes
+      notes,
+      warehouseId: bodyWarehouseId,
     } = req.body;
 
     const tenantId = req.user.tenantId;
@@ -168,6 +170,15 @@ export const createDeliveryNoteFromPO = async (req, res) => {
     }
     const dnNumber = `DN-${new Date().getFullYear()}-${String(seq).padStart(5, '0')}`;
 
+    const resolvedWarehouseId = bodyWarehouseId || po?.warehouseId || undefined;
+    if (await isInvEngineEnabled(tenantId) && !resolvedWarehouseId) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        error: 'warehouseId required when inventory engine is enabled',
+        code: 'WAREHOUSE_REQUIRED',
+      });
+    }
+
     // Create Delivery Note
     const dn = new DeliveryNote({
       tenantId,
@@ -179,6 +190,7 @@ export const createDeliveryNoteFromPO = async (req, res) => {
       sourceDocType,
       status: 'pending_invoice',
       lineItems: dnItems,
+      warehouseId: resolvedWarehouseId,
       driverName,
       driverPhone,
       vehicleNumber,
@@ -201,6 +213,44 @@ export const createDeliveryNoteFromPO = async (req, res) => {
     await dn.save({ session });
 
     await session.commitTransaction();
+
+    // Inventory engine: outgoing delivery transfer (after DN commit — separate txn)
+    try {
+      const whId = dn.warehouseId || po?.warehouseId;
+      if (whId && await isInvEngineEnabled(tenantId)) {
+        const { transfer } = await postLinesViaEngine({
+          tenantId,
+          userId: req.user._id,
+          warehouseId: whId,
+          direction: 'out',
+          lines: (dn.lineItems || []).map((li) => ({
+            productId: li.productId,
+            quantityDelivered: li.quantityDelivered,
+            productType: 'goods',
+          })),
+          origin: dn.dnNumber,
+          note: dn.notes,
+          partnerId: dn.customerId,
+          sourceModel: 'deliveryNote',
+          sourceDocId: dn._id,
+          idempotencyKey: `DN ${dn.dnNumber}`,
+        });
+        if (transfer) {
+          dn.inventoryTransferId = transfer._id;
+          dn.stockPostedAt = new Date();
+          await dn.save();
+        }
+      }
+    } catch (stockErr) {
+      console.error('[deliveryNote] inventory engine post failed:', stockErr);
+      return res.status(201).json({
+        message: 'Delivery Note created but stock posting failed',
+        deliveryNote: dn,
+        poStatus: po?.status,
+        stockError: stockErr.message,
+      });
+    }
+
     res.status(201).json({
       message: 'Delivery Note created successfully',
       deliveryNote: dn,

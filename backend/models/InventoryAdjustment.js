@@ -7,6 +7,8 @@ const inventoryAdjustmentSchema = new mongoose.Schema({
   adjustedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   reason: { type: String, required: true }, // e.g. 'Shrinkage', 'Damage', 'Found'
   notes: { type: String },
+  warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
+  inventoryTransferIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer' }],
   lines: [{
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     productName: { type: String },

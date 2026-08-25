@@ -3,6 +3,7 @@ import Product from '../models/Product.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { isStockTrackedProductType, normalizeProductType } from '../utils/productType.js';
+import { isInvEngineEnabled } from '../services/inventory/legacyAdapter.js';
 
 const router = express.Router();
 
@@ -242,6 +243,12 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
 
 router.post('/:id/stock/set', checkPermission('inventory', 'update'), async (req, res) => {
   try {
+    if (await isInvEngineEnabled(req.user.tenantId)) {
+      return res.status(409).json({
+        error: 'Inventory engine is enabled — adjust on-hand via Stock Report (adjustment transfer)',
+        code: 'ENGINE_BLOCKS_LEGACY_STOCK',
+      });
+    }
     const { warehouseId, quantity, reorderPoint } = req.body;
 
     const safeQuantity = Number(quantity);
@@ -284,6 +291,12 @@ router.post('/:id/stock/set', checkPermission('inventory', 'update'), async (req
 // @route   POST /api/products/:id/stock
 router.post('/:id/stock', checkPermission('inventory', 'update'), async (req, res) => {
   try {
+    if (await isInvEngineEnabled(req.user.tenantId)) {
+      return res.status(409).json({
+        error: 'Inventory engine is enabled — adjust on-hand via Stock Report (adjustment transfer)',
+        code: 'ENGINE_BLOCKS_LEGACY_STOCK',
+      });
+    }
     const { warehouseId, quantity, type = 'add' } = req.body;
 
     const safeQuantity = Number(quantity);

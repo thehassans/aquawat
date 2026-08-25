@@ -19,7 +19,10 @@ const stockTransferSchema = new mongoose.Schema({
   shippedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   receivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   notes: { type: String },
-  lines: [transferLineSchema]
+  lines: [transferLineSchema],
+  /** Engine InvTransfer when inventory engine is enabled */
+  inventoryTransferId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer' },
+  completedAt: { type: Date },
 }, { timestamps: true });
 
 stockTransferSchema.index({ tenantId: 1, transferNumber: 1 }, { unique: true });

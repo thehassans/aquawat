@@ -355,11 +355,13 @@ export default function Users() {
       role: 'viewer',
       isActive: true,
       permissions: [],
+      warehouseIds: [],
       sendWelcomeEmail: true,
     },
   })
 
   const permissions = watch('permissions')
+  const warehouseIds = watch('warehouseIds') || []
   const watchedRole = watch('role')
   const watchedFirstName = watch('firstName')
   const watchedLastName = watch('lastName')
@@ -369,6 +371,12 @@ export default function Users() {
     queryKey: ['tenant-users', page, search],
     queryFn: () => api.get('/users', { params: { page, limit: 25, search } }).then((res) => res.data),
   })
+
+  const { data: warehousesData } = useQuery({
+    queryKey: ['warehouses-for-users'],
+    queryFn: () => api.get('/warehouses').then((res) => res.data?.warehouses || res.data || []),
+  })
+  const warehouses = Array.isArray(warehousesData) ? warehousesData : []
 
   // Fetch users stats
   const { data: stats } = useQuery({
@@ -452,6 +460,7 @@ export default function Users() {
         role: u?.role || 'viewer',
         isActive: typeof u?.isActive === 'boolean' ? u.isActive : true,
         permissions: Array.isArray(u?.permissions) ? u.permissions : [],
+        warehouseIds: Array.isArray(u?.warehouseIds) ? u.warehouseIds.map((id) => String(id?._id || id)) : [],
         sendWelcomeEmail: false,
       })
     } else {
@@ -466,6 +475,7 @@ export default function Users() {
         role: roles[0]?.key || 'viewer',
         isActive: true,
         permissions: [],
+        warehouseIds: [],
         sendWelcomeEmail: true,
       })
     }
@@ -1298,6 +1308,49 @@ export default function Users() {
                           })}
                         </div>
                       </div>
+
+                      {/* Warehouse scope */}
+                      {warehouses.length > 0 && (
+                        <div>
+                          <label className="mb-2 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {isAr ? 'مستودعات مسموح بها' : 'Allowed warehouses'}
+                          </label>
+                          <p className="mb-2 text-[11px] text-slate-400">
+                            {isAr
+                              ? 'اترك الكل فارغاً للوصول لكل المستودعات. يُطبَّق عند تفعيل تقييد المستودع في إعدادات المخزون.'
+                              : 'Leave empty for all warehouses. Enforced when warehouse restriction is on in Inventory Settings.'}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {warehouses.map((w) => {
+                              const id = String(w._id)
+                              const checked = warehouseIds.includes(id)
+                              return (
+                                <label
+                                  key={id}
+                                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${
+                                    checked
+                                      ? 'border-primary-400 bg-primary-50 text-primary-800 dark:border-primary-600 dark:bg-primary-950/40 dark:text-primary-200'
+                                      : 'border-slate-200 text-slate-600 dark:border-dark-600 dark:text-slate-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="rounded border-slate-300 text-primary-600"
+                                    checked={checked}
+                                    onChange={() => {
+                                      const next = checked
+                                        ? warehouseIds.filter((x) => x !== id)
+                                        : [...warehouseIds, id]
+                                      setValue('warehouseIds', next)
+                                    }}
+                                  />
+                                  {w.nameEn || w.name || w.code}
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Scoped Modules Checklist */}
                       <div className="space-y-3">

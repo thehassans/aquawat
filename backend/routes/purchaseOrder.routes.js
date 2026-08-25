@@ -13,7 +13,7 @@ import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer, readUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
-import { confirmGrnReceive, generateGrnNumber, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
+import { confirmGrnReceive, generateGrnNumber, ensureDraftGrnForApprovedPo, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
 import { computePurchaseLineTotals, buildPoReceivingLedger, round2 } from '../services/purchasesLogic.js';
 
 const router = express.Router();
@@ -594,7 +594,30 @@ router.post('/:id/approve', checkPermission('supply_chain', 'approve'), async (r
     order.approvedAt = new Date();
     await order.save();
 
-    res.json(order);
+    let draftGrn = null;
+    try {
+      const populated = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter })
+        .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType costPrice');
+      const result = await ensureDraftGrnForApprovedPo({
+        tenantFilter: req.tenantFilter,
+        tenantId: req.user.tenantId,
+        userId: req.user._id,
+        purchaseOrder: populated || order,
+      });
+      draftGrn = result.grn
+        ? {
+            _id: result.grn._id,
+            grnNumber: result.grn.grnNumber,
+            status: result.grn.status,
+            created: result.created,
+          }
+        : null;
+    } catch (draftErr) {
+      console.warn('[po] draft GRN on approve failed:', draftErr.message);
+    }
+
+    const payload = typeof order.toJSON === 'function' ? order.toJSON() : order;
+    res.json({ ...payload, draftGrn });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -628,8 +651,27 @@ router.post('/:id/cancel', checkPermission('supply_chain', 'update'), async (req
       return res.status(400).json({ error: 'Order is already cancelled' });
     }
 
-    if (['approved', 'partially_received', 'received', 'billed'].includes(order.status)) {
+    if (['partially_received', 'received', 'billed'].includes(order.status)) {
       return res.status(400).json({ error: 'Cannot cancel an approved or processed order' });
+    }
+
+    if (order.status === 'approved') {
+      const stockedGrn = await GRN.findOne({
+        ...req.tenantFilter,
+        purchaseOrderId: order._id,
+        stockPostedAt: { $ne: null },
+        status: { $ne: 'cancelled' },
+      }).select('_id');
+      if (stockedGrn) {
+        return res.status(400).json({
+          error: 'Cannot cancel — stock already received against this order',
+          code: 'PO_HAS_RECEIVED_STOCK',
+        });
+      }
+      await GRN.updateMany(
+        { ...req.tenantFilter, purchaseOrderId: order._id, status: 'draft' },
+        { $set: { status: 'cancelled', cancelledAt: new Date() } },
+      );
     }
 
     order.status = 'cancelled';

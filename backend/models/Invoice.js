@@ -144,6 +144,8 @@ const zatcaSchema = new mongoose.Schema({
     enum: ['pending', 'submitted', 'cleared', 'reported', 'rejected', 'warning'],
     default: 'pending'
   },
+  /** standard (B2B clearance) vs simplified (B2C reporting) — ZATCA model hint */
+  invoiceType: { type: String, enum: ['standard', 'simplified'], default: 'standard' },
   clearanceStatus: { type: String },
   reportingStatus: { type: String },
   zatcaResponse: { type: mongoose.Schema.Types.Mixed },
@@ -186,7 +188,11 @@ const countryComplianceSchema = new mongoose.Schema({
 const inventorySchema = new mongoose.Schema({
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', set: cleanObjectId },
   postedAt: { type: Date },
-  reversedAt: { type: Date }
+  reversedAt: { type: Date },
+  /** Engine transfer(s) linked when stock posted via inventory engine */
+  transferIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer' }],
+  /** Stock valuation / interim clearing journal */
+  journalEntryId: { type: mongoose.Schema.Types.ObjectId, ref: 'JournalEntry' },
 }, { _id: false });
 
 const invoiceSchema = new mongoose.Schema({

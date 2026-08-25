@@ -41,6 +41,8 @@ const productSchema = new mongoose.Schema({
   
   // Basic Info
   sku: { type: String, required: true },
+  /** Stable id for import/export upserts (never use for display) */
+  externalId: { type: String },
   barcode: { type: String, index: true },
   qrCode: { type: String },
   nameEn: { type: String, required: true },
@@ -70,6 +72,26 @@ const productSchema = new mongoose.Schema({
   unitOfMeasure: { type: String, default: 'PCE' },
   unitOfMeasureAr: { type: String, default: 'قطعة' },
   unitsPerPack: { type: Number, default: 1 },
+  /** Inventory engine UoM (InvUom). When set, preferred over unitOfMeasure string. */
+  uomId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvUom' },
+  purchaseUomId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvUom' },
+  /** Promoted category document (optional; legacy `category` string remains) */
+  categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductCategory' },
+  /** Preferred inventory routes (InvRoute) for procurement */
+  routeIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'InvRoute' }],
+  trackInventory: { type: Boolean, default: true },
+  tracking: { type: String, enum: ['none', 'lot', 'serial'], default: 'none' },
+  useExpirationDate: { type: Boolean, default: false },
+  expirationDays: { type: Number, default: 0 },
+  useByDays: { type: Number, default: 0 },
+  removalDays: { type: Number, default: 0 },
+  alertDays: { type: Number, default: 0 },
+  canBeSold: { type: Boolean, default: true },
+  canBePurchased: { type: Boolean, default: true },
+  canBeSoldOnPos: { type: Boolean, default: true },
+  invoicingPolicy: { type: String, enum: ['ordered', 'delivered'], default: 'ordered' },
+  isFavorite: { type: Boolean, default: false },
+
   
   // Physical Attributes
   weight: { type: Number },
@@ -135,6 +157,7 @@ const productSchema = new mongoose.Schema({
 });
 
 productSchema.index({ tenantId: 1, sku: 1 }, { unique: true });
+productSchema.index({ tenantId: 1, externalId: 1 }, { unique: true, sparse: true });
 productSchema.index({ tenantId: 1, barcode: 1 });
 productSchema.index({ tenantId: 1, category: 1 });
 productSchema.index({ tenantId: 1, productType: 1 });
