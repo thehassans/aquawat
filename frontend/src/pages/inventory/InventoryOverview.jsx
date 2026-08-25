@@ -7,11 +7,8 @@ import {
   ArrowUpFromLine,
   ArrowLeftRight,
   Boxes,
-  Play,
-  Database,
   BarChart3,
   Settings,
-  RefreshCw,
   PackagePlus,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -20,8 +17,8 @@ import { StatusChip } from './inventoryUi'
 
 const cards = [
   { code: 'incoming', path: '/app/dashboard/inventory/receipts', icon: ArrowDownToLine, en: 'Receipts', ar: 'الاستلامات', accent: 'from-teal-500/20 to-teal-500/5' },
-  { code: 'outgoing', path: '/app/dashboard/inventory/deliveries', icon: ArrowUpFromLine, en: 'Deliveries', ar: 'التسليمات', accent: 'from-sky-500/20 to-sky-500/5' },
-  { code: 'internal', path: '/app/dashboard/inventory/internal', icon: ArrowLeftRight, en: 'Internal', ar: 'داخلي', accent: 'from-violet-500/20 to-violet-500/5' },
+  { code: 'outgoing', path: '/app/dashboard/inventory/deliveries', icon: ArrowUpFromLine, en: 'Delivery Orders', ar: 'أوامر التسليم', accent: 'from-sky-500/20 to-sky-500/5' },
+  { code: 'internal', path: '/app/dashboard/inventory/internal', icon: ArrowLeftRight, en: 'Internal Transfers', ar: 'تحويلات داخلية', accent: 'from-violet-500/20 to-violet-500/5' },
 ]
 
 const quickLinks = [
@@ -33,6 +30,7 @@ const quickLinks = [
 
 export default function InventoryOverview() {
   const { language } = useSelector((s) => s.ui)
+  const { user } = useSelector((s) => s.auth)
   const qc = useQueryClient()
 
   const { data: settings } = useQuery({
@@ -53,7 +51,6 @@ export default function InventoryOverview() {
       try {
         return await api.get('/stock/transfer-counts').then((r) => r.data)
       } catch {
-        // Fallback: parallel per-bucket counts (never sequential)
         const states = ['assigned', 'waiting', 'confirmed']
         const codes = ['incoming', 'outgoing', 'internal']
         const entries = await Promise.all(
@@ -75,50 +72,18 @@ export default function InventoryOverview() {
     staleTime: 60_000,
   })
 
-  const bootstrap = useMutation({
-    mutationFn: () => api.post('/stock/bootstrap'),
-    onSuccess: () => {
-      toast.success(language === 'ar' ? 'تم التهيئة' : 'Bootstrap complete')
-      qc.invalidateQueries({ queryKey: ['stock-'] })
-    },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
-  })
-
   const enable = useMutation({
     mutationFn: () => api.post('/stock/enable'),
     onSuccess: () => {
       toast.success(language === 'ar' ? 'تم تفعيل المحرك' : 'Engine enabled')
       qc.invalidateQueries({ queryKey: ['stock-settings'] })
-    },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
-  })
-
-  const migrate = useMutation({
-    mutationFn: () => api.post('/stock/migrate-opening-balances', { batchSize: 100, enableEngineAfter: true }),
-    onSuccess: (res) => {
-      toast.success(
-        language === 'ar'
-          ? `ترحيل ${res.data.migrated} رصيد`
-          : `Migrated ${res.data.migrated} balances`,
-      )
-      qc.invalidateQueries({ queryKey: ['stock-'] })
-    },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
-  })
-
-  const syncCache = useMutation({
-    mutationFn: () => api.post('/stock/sync-product-cache', {}),
-    onSuccess: (res) => {
-      toast.success(
-        language === 'ar'
-          ? `مزامنة ${res.data.synced ?? 0} منتج`
-          : `Synced ${res.data.synced ?? 0} products`,
-      )
+      qc.invalidateQueries({ queryKey: ['inventory-menu'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
 
   const counts = countsQuery.data || {}
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
 
   return (
     <div className="space-y-8">
@@ -127,28 +92,25 @@ export default function InventoryOverview() {
           <p className="text-sm text-slate-500">
             {settings?.engineEnabled
               ? (language === 'ar' ? 'محرك المخزون مفعّل' : 'Inventory engine active')
-              : (language === 'ar' ? 'المحرك غير مفعّل — شغّل التهيئة أولاً' : 'Engine off — bootstrap, then enable')}
+              : (language === 'ar' ? 'المحرك غير مفعّل — فعّله من الإعدادات' : 'Engine off — enable from Settings')}
           </p>
+          {settings?.engineEnabled && (
+            <p className="mt-0.5 text-xs text-slate-400">
+              {language === 'ar' ? 'الصيانة (تهيئة / ترحيل / مزامنة) في الإعدادات' : 'Maintenance (bootstrap / migrate / sync) lives under Settings'}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn btn-secondary text-sm" onClick={() => bootstrap.mutate()} disabled={bootstrap.isPending}>
-            <Play className="h-4 w-4" />
-            {language === 'ar' ? 'تهيئة' : 'Bootstrap'}
-          </button>
-          <button type="button" className="btn btn-secondary text-sm" onClick={() => migrate.mutate()} disabled={migrate.isPending}>
-            <Database className="h-4 w-4" />
-            {language === 'ar' ? 'ترحيل الأرصدة' : 'Migrate balances'}
-          </button>
-          {settings?.engineEnabled && (
-            <button type="button" className="btn btn-secondary text-sm" onClick={() => syncCache.mutate()} disabled={syncCache.isPending}>
-              <RefreshCw className={`h-4 w-4 ${syncCache.isPending ? 'animate-spin' : ''}`} />
-              {language === 'ar' ? 'مزامنة الكاش' : 'Sync product cache'}
-            </button>
-          )}
           {!settings?.engineEnabled && (
             <button type="button" className="btn btn-primary text-sm" onClick={() => enable.mutate()} disabled={enable.isPending}>
-              {language === 'ar' ? 'تفعيل' : 'Enable engine'}
+              {language === 'ar' ? 'تفعيل المحرك' : 'Enable engine'}
             </button>
+          )}
+          {isAdmin && (
+            <Link to="/app/dashboard/inventory/settings" className="btn btn-secondary text-sm">
+              <Settings className="h-4 w-4" />
+              {language === 'ar' ? 'الإعدادات' : 'Settings'}
+            </Link>
           )}
         </div>
       </div>

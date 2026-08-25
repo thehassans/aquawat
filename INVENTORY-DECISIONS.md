@@ -154,3 +154,29 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 - Bakala / furniture / bookstore catalog merge into Inv* ledger
 - Full Odoo-parity import wizard (XLSX, field trees, saved templates) — Phase 6 ships CSV core only
 - ZATCA transmission client (explicitly out of scope until confirmed)
+
+## v2 IA (2026-08-25) — Step 1
+
+| Topic | Decision |
+|---|---|
+| Models / ledger | Keep **`Inv*`** (`InvTransfer` = Picking). UI labels follow v2 terminology. |
+| API | Keep **`/api/stock/*`**. Add **`/api/inventory/menu`** (presentation). |
+| Menu file | `frontend/src/pages/inventory/inventory.menu.js` + backend `services/inventory/menu.js` |
+| Manufacturing / PoS | Menu entries gated by flags; Manufacturing → standalone `/app/dashboard/manufacturing`; PoS → `/inventory/deliveries?isPos=1` |
+| Missing screens | Placeholder pages under InventoryLayout until Steps 2–4 |
+| Flat top tabs | Replaced by Overview + Operations / Products / Reporting / Configuration dropdowns |
+
+### Menu migration (current → v2)
+
+| Old | New |
+|---|---|
+| Overview | Overview |
+| Products | Products ▾ |
+| Warehouses | Configuration ▾ → Warehouses |
+| Receipts / Deliveries / Internal | Operations ▾ |
+| Physical / Scrap | Operations ▾ → Adjustments |
+| Lots | Products ▾ |
+| Moves / Stock / Valuation / Reports | Reporting ▾ |
+| Replenish | Operations ▾ → Procurement |
+| Routes / Putaway / Settings | Configuration ▾ |
+| Bootstrap / Migrate / Sync | Configuration → Settings → Maintenance (admin) |

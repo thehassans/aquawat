@@ -42,29 +42,5 @@ export function StatusChip({ status, language = 'en' }) {
   );
 }
 
-/** Always-visible inventory tabs (keep this short for layout paint cost). */
-export const INV_NAV_PRIMARY = [
-  { id: 'overview', path: '/app/dashboard/inventory', end: true, en: 'Overview', ar: 'نظرة عامة' },
-  { id: 'products', path: '/app/dashboard/inventory/products', en: 'Products', ar: 'المنتجات' },
-  { id: 'warehouses', path: '/app/dashboard/inventory/warehouses', en: 'Warehouses', ar: 'المستودعات' },
-  { id: 'receipts', path: '/app/dashboard/inventory/receipts', code: 'incoming', en: 'Receipts', ar: 'الاستلامات' },
-  { id: 'deliveries', path: '/app/dashboard/inventory/deliveries', code: 'outgoing', en: 'Deliveries', ar: 'التسليمات' },
-  { id: 'internal', path: '/app/dashboard/inventory/internal', code: 'internal', en: 'Internal', ar: 'داخلي' },
-  { id: 'physical', path: '/app/dashboard/inventory/physical', en: 'Physical', ar: 'جرد' },
-  { id: 'stock', path: '/app/dashboard/inventory/stock', en: 'Stock', ar: 'المخزون' },
-];
-
-/** Secondary tabs rendered under a compact “More” menu. */
-export const INV_NAV_MORE = [
-  { id: 'scrap', path: '/app/dashboard/inventory/scrap', en: 'Scrap', ar: 'خردة' },
-  { id: 'lots', path: '/app/dashboard/inventory/lots', en: 'Lots', ar: 'دفعات' },
-  { id: 'moves', path: '/app/dashboard/inventory/moves', en: 'Moves', ar: 'حركات' },
-  { id: 'replenish', path: '/app/dashboard/inventory/replenishment', en: 'Replenish', ar: 'توريد' },
-  { id: 'routes', path: '/app/dashboard/inventory/routes', en: 'Routes', ar: 'مسارات' },
-  { id: 'putaway', path: '/app/dashboard/inventory/putaway', en: 'Putaway', ar: 'تخزين' },
-  { id: 'valuation', path: '/app/dashboard/inventory/valuation', en: 'Valuation', ar: 'تقييم' },
-  { id: 'reports', path: '/app/dashboard/inventory/reports', en: 'Reports', ar: 'تقارير' },
-  { id: 'settings', path: '/app/dashboard/inventory/settings', en: 'Settings', ar: 'إعدادات' },
-];
-
-export const INV_NAV = [...INV_NAV_PRIMARY, ...INV_NAV_MORE];
+/** @deprecated v2 IA — use inventory.menu.js / GET /api/inventory/menu */
+export { INVENTORY_MENU_TREE as INV_NAV } from './inventory.menu';

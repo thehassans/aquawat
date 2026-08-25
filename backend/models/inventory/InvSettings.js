@@ -23,12 +23,24 @@ const schema = new mongoose.Schema({
   propertyStockInputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   propertyStockOutputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   propertyLandedCostAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
-  /** UI / document feature flags */
+  /** UI / document feature flags (v1) */
   showLotsOnDeliverySlips: { type: Boolean, default: true },
   showLotsOnInvoices: { type: Boolean, default: false },
   receptionReportEnabled: { type: Boolean, default: false },
   emailConfirmationOnDelivery: { type: Boolean, default: false },
   signatureOnDelivery: { type: Boolean, default: false },
+  /** v2 IA menu / behaviour gates (Step 1: menu only; Step 3 wires engine) */
+  groupAdvLocation: { type: Boolean, default: true },
+  groupStockStorageCategories: { type: Boolean, default: false },
+  groupPutawayRules: { type: Boolean, default: true },
+  groupProductVariant: { type: Boolean, default: false },
+  groupStockPackaging: { type: Boolean, default: false },
+  groupProductionLot: { type: Boolean, default: false },
+  groupLandedCosts: { type: Boolean, default: true },
+  groupDeliveryMethods: { type: Boolean, default: false },
+  groupStockBarcode: { type: Boolean, default: false },
+  menuPos: { type: Boolean, default: false },
+  menuManufacturing: { type: Boolean, default: false },
   version: { type: Number, default: 0 },
 }, { timestamps: true });
 

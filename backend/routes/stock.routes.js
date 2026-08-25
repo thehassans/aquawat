@@ -148,6 +148,10 @@ router.patch('/settings', checkPermission('inventory', 'update'), async (req, re
       'propertyStockOutputAccountId', 'propertyLandedCostAccountId',
       'showLotsOnDeliverySlips', 'showLotsOnInvoices', 'receptionReportEnabled',
       'emailConfirmationOnDelivery', 'signatureOnDelivery',
+      'groupAdvLocation', 'groupStockStorageCategories', 'groupPutawayRules',
+      'groupProductVariant', 'groupStockPackaging', 'groupProductionLot',
+      'groupLandedCosts', 'groupDeliveryMethods', 'groupStockBarcode',
+      'menuPos', 'menuManufacturing',
     ];
     const $set = {};
     for (const k of allowed) {

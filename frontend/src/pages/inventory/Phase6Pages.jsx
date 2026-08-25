@@ -219,6 +219,7 @@ export function InventorySettingsPage() {
     onSuccess: () => {
       toast.success(language === 'ar' ? 'تم الحفظ' : 'Saved')
       qc.invalidateQueries({ queryKey: ['stock-settings'] })
+      qc.invalidateQueries({ queryKey: ['inventory-menu'] })
       setForm(null)
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
@@ -242,8 +243,21 @@ export function InventorySettingsPage() {
     { key: 'engineEnabled', en: 'Inventory engine', ar: 'محرك المخزون' },
     { key: 'stockAccountingEnabled', en: 'Stock accounting journals', ar: 'قيود تقييم المخزون' },
     { key: 'schedulerEnabled', en: 'Scheduler enabled', ar: 'تفعيل المجدول' },
-    { key: 'groupStockTrackingLot', en: 'Lots & serials', ar: 'دفعات وأرقام تسلسلية' },
+    { key: 'groupStockMultiLocations', en: 'Storage locations (multi)', ar: 'مواقع تخزين متعددة' },
+    { key: 'groupAdvLocation', en: 'Multi-step routes', ar: 'مسارات متعددة الخطوات' },
+    { key: 'groupPutawayRules', en: 'Putaway rules', ar: 'قواعد التخزين' },
+    { key: 'groupStockStorageCategories', en: 'Storage categories', ar: 'فئات التخزين' },
+    { key: 'groupStockTrackingLot', en: 'Lots & serials (legacy flag)', ar: 'دفعات وأرقام تسلسلية' },
+    { key: 'groupProductionLot', en: 'Lots & serial numbers', ar: 'تتبع الدفعات' },
     { key: 'moduleProductExpiry', en: 'Expiration dates', ar: 'تواريخ الصلاحية' },
+    { key: 'groupProductVariant', en: 'Product variants', ar: 'متغيرات المنتج' },
+    { key: 'groupUom', en: 'Units of measure', ar: 'وحدات القياس' },
+    { key: 'groupStockPackaging', en: 'Product packagings', ar: 'تعبئة المنتجات' },
+    { key: 'groupLandedCosts', en: 'Landed costs', ar: 'التكاليف الإضافية' },
+    { key: 'groupDeliveryMethods', en: 'Delivery methods', ar: 'طرق التسليم' },
+    { key: 'groupStockBarcode', en: 'Barcode scanner', ar: 'ماسح الباركود' },
+    { key: 'menuPos', en: 'PoS Orders menu', ar: 'قائمة طلبات نقطة البيع' },
+    { key: 'menuManufacturing', en: 'Manufacturing menu', ar: 'قائمة التصنيع' },
     { key: 'showLotsOnDeliverySlips', en: 'Show lots on delivery slips', ar: 'إظهار الدفعات في التسليم' },
     { key: 'showLotsOnInvoices', en: 'Show lots on invoices', ar: 'إظهار الدفعات في الفواتير' },
     { key: 'receptionReportEnabled', en: 'Reception report', ar: 'تقرير الاستلام' },
@@ -321,7 +335,116 @@ export function InventorySettingsPage() {
           {language === 'ar' ? 'تسمية الباركود' : 'Barcode nomenclature'}
         </Link>
       </p>
+
+      <MaintenanceSection language={language} />
     </div>
+  )
+}
+
+function MaintenanceSection({ language }) {
+  const { user } = useSelector((s) => s.auth)
+  const qc = useQueryClient()
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+
+  const bootstrap = useMutation({
+    mutationFn: () => api.post('/stock/bootstrap'),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم التهيئة' : 'Bootstrap complete')
+      qc.invalidateQueries({ queryKey: ['stock-'] })
+      qc.invalidateQueries({ queryKey: ['inventory-menu'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message),
+  })
+
+  const migrate = useMutation({
+    mutationFn: () => api.post('/stock/migrate-opening-balances', { batchSize: 100, enableEngineAfter: true }),
+    onSuccess: (res) => {
+      toast.success(
+        language === 'ar'
+          ? `ترحيل ${res.data.migrated} رصيد`
+          : `Migrated ${res.data.migrated} balances`,
+      )
+      qc.invalidateQueries({ queryKey: ['stock-'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message),
+  })
+
+  const syncCache = useMutation({
+    mutationFn: () => api.post('/stock/sync-product-cache', {}),
+    onSuccess: (res) => {
+      toast.success(
+        language === 'ar'
+          ? `مزامنة ${res.data.synced ?? 0} منتج`
+          : `Synced ${res.data.synced ?? 0} products`,
+      )
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message),
+  })
+
+  if (!isAdmin) return null
+
+  const confirmRun = (message, run) => {
+    if (window.confirm(message)) run()
+  }
+
+  return (
+    <section className="rounded-xl border border-amber-200/80 bg-amber-50/40 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+        {language === 'ar' ? 'الصيانة (مسؤول فقط)' : 'Maintenance (admin only)'}
+      </h3>
+      <p className="mt-1 text-xs text-slate-500">
+        {language === 'ar'
+          ? 'عمليات تغيّر بيانات المستأجر. أكّد قبل التشغيل.'
+          : 'These change tenant data. Confirm before running.'}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={bootstrap.isPending}
+          onClick={() =>
+            confirmRun(
+              language === 'ar'
+                ? 'تهيئة المستودع الافتراضي والمواقع وأنواع العمليات؟'
+                : 'Bootstrap default warehouse, locations, and operation types?',
+              () => bootstrap.mutate(),
+            )
+          }
+        >
+          {language === 'ar' ? 'تهيئة' : 'Bootstrap'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={migrate.isPending}
+          onClick={() =>
+            confirmRun(
+              language === 'ar'
+                ? 'ترحيل الأرصدة القديمة كجرد افتتاحي (عبر المحرك)؟'
+                : 'Migrate legacy balances as opening inventory via the engine?',
+              () => migrate.mutate(),
+            )
+          }
+        >
+          {language === 'ar' ? 'ترحيل الأرصدة' : 'Migrate balances'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={syncCache.isPending}
+          onClick={() =>
+            confirmRun(
+              language === 'ar'
+                ? 'إعادة بناء كاش الكميات على المنتجات؟'
+                : 'Rebuild denormalised on-hand product cache?',
+              () => syncCache.mutate(),
+            )
+          }
+        >
+          {language === 'ar' ? 'مزامنة الكاش' : 'Sync product cache'}
+        </button>
+      </div>
+    </section>
   )
 }
 
