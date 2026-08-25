@@ -1,8 +1,10 @@
+import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import api from '../../lib/api'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
+import { INVENTORY_PATH } from './inventoryUi'
 
 export default function StockReport() {
   const { language } = useSelector((state) => state.ui)
@@ -19,7 +21,18 @@ export default function StockReport() {
   const rows = data?.rows || []
 
   const columns = [
-    { key: 'productName', label: isAr ? 'المنتج' : 'Product' },
+    {
+      key: 'productName',
+      label: isAr ? 'المنتج' : 'Product',
+      render: (r) => (
+        <Link
+          to={`${INVENTORY_PATH.forecastReport}?productId=${r.productId}`}
+          className="font-medium text-teal-700 dark:text-teal-400"
+        >
+          {r.productName}
+        </Link>
+      ),
+    },
     { key: 'defaultCode', label: isAr ? 'الرمز' : 'Code', render: (r) => r.defaultCode || '—' },
     { key: 'onHand', label: isAr ? 'باليد' : 'On hand' },
     { key: 'freeToUse', label: isAr ? 'متاح' : 'Free to use' },

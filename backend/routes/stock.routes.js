@@ -42,7 +42,7 @@ import {
   validatePicking,
   cancelPicking,
 } from '../services/stock/pickingService.js';
-import { stockReportRows, computeForecast, computeOnHand } from '../services/stock/forecast.js';
+import { stockReportRows, computeForecast, computeOnHand, computeForecastTimeline, locationsReportRows } from '../services/stock/forecast.js';
 import { listInventoryQuants, setCountedQuantity, applyInventoryCounts } from '../services/stock/inventoryCount.js';
 import { createScrap, validateScrap } from '../services/stock/scrapService.js';
 import { movesHistory, lotTraceability, productTraceability } from '../services/stock/traceability.js';
@@ -217,7 +217,7 @@ router.get('/locations', checkPermission('inventory', 'read'), async (req, res) 
 
 router.post('/locations', checkPermission('inventory', 'create'), async (req, res) => {
   try {
-    const { name, parentId, usage, warehouseId } = req.body;
+    const { name, parentId, usage, warehouseId, removalStrategy, barcode, isScrapLocation, isReturnLocation } = req.body;
     if (!name || !usage) return res.status(400).json({ error: 'name and usage required' });
 
     let completeName = name;
@@ -234,9 +234,35 @@ router.post('/locations', checkPermission('inventory', 'create'), async (req, re
       completeName,
       usage,
       warehouseId: warehouseId || null,
+      removalStrategy: removalStrategy || null,
+      barcode: barcode || undefined,
+      isScrapLocation: Boolean(isScrapLocation),
+      isReturnLocation: Boolean(isReturnLocation),
       createdBy: req.user._id,
     }]);
     res.status(201).json(loc);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.patch('/locations/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const allowed = [
+      'removalStrategy', 'barcode', 'storageCategoryId', 'isScrapLocation', 'isReturnLocation',
+      'cyclicInventoryFrequencyDays', 'active',
+    ];
+    const updates = {};
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) updates[k] = req.body[k];
+    }
+    const loc = await StockLocation.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
+      { $set: updates },
+      { new: true },
+    );
+    if (!loc) return res.status(404).json({ error: 'Not found' });
+    res.json(loc);
   } catch (err) {
     handleError(res, err);
   }
@@ -249,8 +275,35 @@ router.get('/operation-types', checkPermission('inventory', 'read'), async (req,
     const { code } = req.query;
     const filter = { ...req.tenantFilter, active: true };
     if (code) filter.code = code;
-    const types = await StockOperationType.find(filter).populate('warehouseId', 'name code').lean();
+    const types = await StockOperationType.find(filter)
+      .populate('warehouseId', 'name code')
+      .populate('defaultLocationSrcId', 'completeName')
+      .populate('defaultLocationDestId', 'completeName')
+      .lean();
     res.json(types);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.patch('/operation-types/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const allowed = [
+      'name', 'reservationMethod', 'reservationDaysBefore', 'createBackorder',
+      'useCreateLots', 'useExistingLots', 'showOperations', 'printLabel', 'active',
+      'defaultLocationSrcId', 'defaultLocationDestId',
+    ];
+    const updates = {};
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) updates[k] = req.body[k];
+    }
+    const row = await StockOperationType.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
+      { $set: updates },
+      { new: true },
+    );
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(row);
   } catch (err) {
     handleError(res, err);
   }
@@ -773,8 +826,16 @@ router.get('/reports/stock', checkPermission('inventory', 'read'), async (req, r
 
 router.get('/reports/forecast/:productId', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const data = await computeForecast(req.user.tenantId, req.params.productId, req.query);
+    const data = await computeForecastTimeline(req.user.tenantId, req.params.productId, req.query);
     res.json(data);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.get('/reports/locations', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    res.json(await locationsReportRows(req.user.tenantId, req.query));
   } catch (err) {
     handleError(res, err);
   }

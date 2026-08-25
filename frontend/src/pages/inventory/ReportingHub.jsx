@@ -4,6 +4,8 @@ import { INVENTORY_PATH } from './inventoryUi'
 
 const SUB = [
   { to: INVENTORY_PATH.stockReport, en: 'Stock', ar: 'المخزون' },
+  { to: INVENTORY_PATH.locationsReport, en: 'Locations', ar: 'المواقع' },
+  { to: INVENTORY_PATH.forecastReport, en: 'Forecasted', ar: 'المتوقع' },
   { to: INVENTORY_PATH.movesHistory, en: 'Moves History', ar: 'سجل الحركات' },
   { to: INVENTORY_PATH.movesAnalysis, en: 'Moves Analysis', ar: 'تحليل الحركات' },
   { to: INVENTORY_PATH.performance, en: 'Performance', ar: 'الأداء' },

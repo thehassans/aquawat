@@ -125,6 +125,13 @@
 - Config Attributes UI + product form Attributes & Variants panel
 - Settings flag `groupProductVariant`
 
+## Phase 15 — Reports + config locations/op types
+
+- Locations report (quants by location + lot/package)
+- Forecasted Inventory timeline with running balance + first-shortage flag
+- Config: Locations tree editor, Operation Types reservation/backorder/lots
+- Stock report product name links to forecast timeline
+
 ## Deferred / polish
 
 _(none — concurrent reserve covered by optimistic versioning + optional Mongo integration test)_

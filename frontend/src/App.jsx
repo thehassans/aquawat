@@ -110,6 +110,10 @@ const PackageTypesList = lazy(() => import('./pages/inventory/PackageTypesList')
 const UomList = lazy(() => import('./pages/inventory/UomList'))
 const ProductCategoriesList = lazy(() => import('./pages/inventory/ProductCategoriesList'))
 const ProductAttributesList = lazy(() => import('./pages/inventory/ProductAttributesList'))
+const LocationsReport = lazy(() => import('./pages/inventory/LocationsReport'))
+const ForecastReport = lazy(() => import('./pages/inventory/ForecastReport'))
+const LocationsConfigList = lazy(() => import('./pages/inventory/LocationsConfigList'))
+const OperationTypesList = lazy(() => import('./pages/inventory/OperationTypesList'))
 const Products = lazy(() => import('./pages/inventory/Products'))
 const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
@@ -841,6 +845,8 @@ function App() {
           <Route path="reporting" element={<ReportingHub />}>
             <Route index element={<Navigate to="stock" replace />} />
             <Route path="stock" element={<StockReport />} />
+            <Route path="locations" element={<LocationsReport />} />
+            <Route path="forecast" element={<ForecastReport />} />
             <Route path="moves-history" element={<MovesHistory />} />
             <Route path="moves-analysis" element={<MovesAnalysis />} />
             <Route path="performance" element={<PerformanceReport />} />
@@ -848,6 +854,8 @@ function App() {
           <Route path="configuration" element={<InventoryConfig />}>
             <Route index element={<StockSettingsPage />} />
             <Route path="warehouses" element={<StockWarehousesList />} />
+            <Route path="locations" element={<LocationsConfigList />} />
+            <Route path="operation-types" element={<OperationTypesList />} />
             <Route path="product-categories" element={<ProductCategoriesList />} />
             <Route path="attributes" element={<ProductAttributesList />} />
             <Route path="routes" element={<RoutesList />} />

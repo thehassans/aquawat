@@ -5,6 +5,8 @@ import { INVENTORY_PATH } from './inventoryUi'
 const SUB = [
   { to: INVENTORY_PATH.config, en: 'Settings', ar: 'الإعدادات', exact: true },
   { to: INVENTORY_PATH.warehouses, en: 'Warehouses', ar: 'المستودعات' },
+  { to: INVENTORY_PATH.locations, en: 'Locations', ar: 'المواقع' },
+  { to: INVENTORY_PATH.operationTypes, en: 'Operation Types', ar: 'أنواع العمليات' },
   { to: INVENTORY_PATH.productCategories, en: 'Product Categories', ar: 'فئات المنتجات' },
   { to: INVENTORY_PATH.attributes, en: 'Attributes', ar: 'الخصائص' },
   { to: INVENTORY_PATH.routes, en: 'Routes', ar: 'المسارات' },

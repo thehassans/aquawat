@@ -312,3 +312,17 @@ test('variant cartesian: empty lines → single empty combo', async () => {
   const { cartesianProduct } = await import('../services/stock/variantGeneration.js');
   assert.deepEqual(cartesianProduct([]), [[]]);
 });
+
+test('forecast timeline flags first negative balance', async () => {
+  const { buildRunningBalanceTimeline } = await import('../services/stock/forecast.js');
+  const { timeline, firstNegativeDate, finalBalance } = buildRunningBalanceTimeline('10', [
+    { date: '2026-01-02', direction: 'out', qty: '4', reference: 'OUT1' },
+    { date: '2026-01-05', direction: 'out', qty: '8', reference: 'OUT2' },
+    { date: '2026-01-10', direction: 'in', qty: '20', reference: 'IN1' },
+  ]);
+  assert.equal(timeline[1].balance, '6');
+  assert.equal(timeline[2].negative, true);
+  assert.equal(timeline[2].balance, '-2');
+  assert.equal(String(firstNegativeDate), '2026-01-05');
+  assert.equal(finalBalance, '18');
+});
