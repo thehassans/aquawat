@@ -254,3 +254,13 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | No live ZATCA QR on slips | Brief: placeholder until invoicing slots in |
 | Cache also mirrors `Product.stocks[]` | Keep legacy list UIs working |
 | XLSX import not added | CSV dry-run/commit covers products + locations; XLSX can wrap same parser later |
+
+## Acceptance pass (post Step 6)
+
+| Gap | Fix |
+|---|---|
+| Category costing delta before save | `GET /stock/product-categories/:id/costing-preview` + banner/confirm on form |
+| Partial validate backorder | Transfer Validate respects OT `createBackorder` (`ask` → confirm, `always`/`never`) |
+| Multi-loc off | Locations mutations + putaway create gated; putaway menu needs multi-loc |
+| PO approve → Receipt | Draft GRN + draft incoming transfer linked (`GRN.inventoryTransferId` ↔ note/origin) |
+| SO approve → Delivery | Draft DN + outgoing transfer; cancel order cancels unstarted DN/GRN/transfers |

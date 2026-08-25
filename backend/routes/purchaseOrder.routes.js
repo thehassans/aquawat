@@ -595,29 +595,70 @@ router.post('/:id/approve', checkPermission('supply_chain', 'approve'), async (r
     await order.save();
 
     let draftGrn = null;
+    let draftDelivery = null;
     try {
       const populated = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter })
-        .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType costPrice');
-      const result = await ensureDraftGrnForApprovedPo({
-        tenantFilter: req.tenantFilter,
-        tenantId: req.user.tenantId,
-        userId: req.user._id,
-        purchaseOrder: populated || order,
-      });
-      draftGrn = result.grn
-        ? {
-            _id: result.grn._id,
-            grnNumber: result.grn.grnNumber,
-            status: result.grn.status,
-            created: result.created,
+        .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType costPrice')
+        .populate('customerId', 'nameEn nameAr')
+        .populate('supplierId', 'nameEn nameAr');
+
+      if ((order.flow || 'purchase') === 'purchase') {
+        const result = await ensureDraftGrnForApprovedPo({
+          tenantFilter: req.tenantFilter,
+          tenantId: req.user.tenantId,
+          userId: req.user._id,
+          purchaseOrder: populated || order,
+        });
+        if (result.grn) {
+          try {
+            const { linkDraftReceiptToGrn } = await import('../services/inventory/documentLinks.js');
+            const linked = await linkDraftReceiptToGrn({
+              tenantId: req.user.tenantId,
+              userId: req.user._id,
+              purchaseOrder: populated || order,
+              grn: result.grn,
+            });
+            draftGrn = {
+              _id: result.grn._id,
+              grnNumber: result.grn.grnNumber,
+              status: result.grn.status,
+              created: result.created,
+              inventoryTransferId: linked.transfer?._id || result.grn.inventoryTransferId,
+            };
+          } catch (linkErr) {
+            console.warn('[po] receipt link failed:', linkErr.message);
+            draftGrn = {
+              _id: result.grn._id,
+              grnNumber: result.grn.grnNumber,
+              status: result.grn.status,
+              created: result.created,
+            };
           }
-        : null;
+        }
+      } else if (order.flow === 'sell') {
+        const { ensureDraftDeliveryForSellOrder } = await import('../services/inventory/documentLinks.js');
+        const result = await ensureDraftDeliveryForSellOrder({
+          tenantId: req.user.tenantId,
+          userId: req.user._id,
+          purchaseOrder: populated || order,
+          tenantFilter: req.tenantFilter,
+        });
+        if (result.deliveryNote) {
+          draftDelivery = {
+            _id: result.deliveryNote._id,
+            dnNumber: result.deliveryNote.dnNumber,
+            status: result.deliveryNote.status,
+            created: result.created,
+            inventoryTransferId: result.transfer?._id || result.deliveryNote.inventoryTransferId,
+          };
+        }
+      }
     } catch (draftErr) {
-      console.warn('[po] draft GRN on approve failed:', draftErr.message);
+      console.warn('[po] draft stock doc on approve failed:', draftErr.message);
     }
 
     const payload = typeof order.toJSON === 'function' ? order.toJSON() : order;
-    res.json({ ...payload, draftGrn });
+    res.json({ ...payload, draftGrn, draftDelivery });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -668,10 +709,22 @@ router.post('/:id/cancel', checkPermission('supply_chain', 'update'), async (req
           code: 'PO_HAS_RECEIVED_STOCK',
         });
       }
-      await GRN.updateMany(
-        { ...req.tenantFilter, purchaseOrderId: order._id, status: 'draft' },
-        { $set: { status: 'cancelled', cancelledAt: new Date() } },
-      );
+
+      try {
+        const { cancelUnstartedStockDocsForOrder } = await import('../services/inventory/documentLinks.js');
+        await cancelUnstartedStockDocsForOrder({
+          tenantId: req.user.tenantId,
+          userId: req.user._id,
+          purchaseOrderId: order._id,
+          tenantFilter: req.tenantFilter,
+        });
+      } catch (cancelStockErr) {
+        console.warn('[po] cancel linked stock docs:', cancelStockErr.message);
+        await GRN.updateMany(
+          { ...req.tenantFilter, purchaseOrderId: order._id, status: 'draft' },
+          { $set: { status: 'cancelled', cancelledAt: new Date() } },
+        );
+      }
     }
 
     order.status = 'cancelled';

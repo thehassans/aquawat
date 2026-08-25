@@ -93,6 +93,17 @@ function handleInventoryError(res, err) {
   return res.status(500).json({ error: err.message || 'Inventory error' });
 }
 
+async function assertMultiLocationsEnabled(tenantId) {
+  const settings = await getInvSettings(tenantId);
+  if (settings.groupStockMultiLocations === false) {
+    const { InventoryValidationError } = await import('../services/inventory/errors.js');
+    throw new InventoryValidationError(
+      'Storage locations are disabled — enable them in Inventory Settings',
+      'MULTI_LOC_OFF',
+    );
+  }
+}
+
 async function assertTransferWarehouseAccess(req, transfer) {
   if (!transfer?.operationTypeId) return;
   const otId = transfer.operationTypeId._id || transfer.operationTypeId;
@@ -217,6 +228,7 @@ router.get('/locations/:id', checkPermission('inventory', 'read'), async (req, r
 
 router.post('/locations', checkPermission('inventory', 'create'), async (req, res) => {
   try {
+    await assertMultiLocationsEnabled(req.user.tenantId);
     const loc = await createLocation(req.user.tenantId, req.user._id, req.body);
     res.status(201).json(loc);
   } catch (err) {
@@ -226,6 +238,7 @@ router.post('/locations', checkPermission('inventory', 'create'), async (req, re
 
 router.patch('/locations/:id', checkPermission('inventory', 'update'), async (req, res) => {
   try {
+    await assertMultiLocationsEnabled(req.user.tenantId);
     const loc = await updateLocation(req.user.tenantId, req.user._id, req.params.id, req.body);
     res.json(loc);
   } catch (err) {
@@ -345,6 +358,19 @@ router.get('/product-categories/:id', checkPermission('inventory', 'read'), asyn
     const cat = await InvProductCategory.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
     if (!cat) return res.status(404).json({ error: 'Category not found' });
     res.json(cat);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/product-categories/:id/costing-preview', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { previewCategoryCostingDelta } = await import('../services/inventory/costingPreview.js');
+    res.json(await previewCategoryCostingDelta(
+      req.user.tenantId,
+      req.params.id,
+      req.query.costingMethod || req.query.method,
+    ));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1420,6 +1446,7 @@ router.get('/putaway-rules', checkPermission('inventory', 'read'), async (req, r
 
 router.post('/putaway-rules', checkPermission('inventory', 'create'), async (req, res) => {
   try {
+    await assertMultiLocationsEnabled(req.user.tenantId);
     const rule = await InvPutawayRule.create({
       tenantId: req.user.tenantId,
       sequence: req.body.sequence ?? 10,

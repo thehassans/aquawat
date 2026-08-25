@@ -7,7 +7,7 @@ export const FLAG_MAP = {
   multiLocations: 'groupStockMultiLocations',
   multiStepRoutes: 'groupAdvLocation',
   storageCategories: 'groupStockStorageCategories',
-  putawayRules: 'groupPutawayRules',
+  putawayRules: (s) => Boolean(s.groupPutawayRules !== false) && s.groupStockMultiLocations !== false,
   variants: 'groupProductVariant',
   lotSerial: (s) => s.groupProductionLot || s.groupStockTrackingLot,
   packages: (s) => s.groupStockPackaging || s.groupStockTrackingLot,

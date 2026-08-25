@@ -541,6 +541,8 @@ export function ProductCategoryForm() {
     allowNegativeStock: false,
     forceRemovalStrategy: '',
   })
+  const [costingPreview, setCostingPreview] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   const { data: existing } = useQuery({
     queryKey: ['inv-product-category', id],
@@ -565,6 +567,25 @@ export function ProductCategoryForm() {
     })
   }, [existing])
 
+  useEffect(() => {
+    if (!isEdit || !form.costingMethod || form.costingMethod === existing?.costingMethod) {
+      setCostingPreview(null)
+      return
+    }
+    let cancelled = false
+    setPreviewLoading(true)
+    api.get(`/stock/product-categories/${id}/costing-preview`, {
+      params: { costingMethod: form.costingMethod },
+    }).then((r) => {
+      if (!cancelled) setCostingPreview(r.data)
+    }).catch(() => {
+      if (!cancelled) setCostingPreview(null)
+    }).finally(() => {
+      if (!cancelled) setPreviewLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [isEdit, id, form.costingMethod, existing?.costingMethod])
+
   const mut = useMutation({
     mutationFn: (body) =>
       isEdit ? api.patch(`/stock/product-categories/${id}`, body) : api.post('/stock/product-categories', body),
@@ -587,6 +608,14 @@ export function ProductCategoryForm() {
       pending={mut.isPending}
       onSubmit={(e) => {
         e.preventDefault()
+        if (costingPreview && Number(costingPreview.delta) !== 0) {
+          const ok = window.confirm(
+            language === 'ar'
+              ? `فرق التقييم المتوقع: ${costingPreview.delta}. المتابعة؟`
+              : `Expected valuation delta: ${costingPreview.delta}. Continue?`,
+          )
+          if (!ok) return
+        }
         mut.mutate({
           ...form,
           parentId: form.parentId || null,
@@ -647,6 +676,27 @@ export function ProductCategoryForm() {
           </label>
         </div>
       </div>
+
+      {isEdit && form.costingMethod !== existing?.costingMethod && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+          {previewLoading ? (
+            <span className="text-slate-500">…</span>
+          ) : costingPreview ? (
+            <div className="space-y-1">
+              <div className="font-medium text-amber-900 dark:text-amber-200">
+                {language === 'ar' ? 'معاينة فرق التقييم' : 'Valuation delta preview'}
+              </div>
+              <div className="tabular-nums text-slate-700 dark:text-slate-200">
+                {costingPreview.currentTotal} → {costingPreview.proposedTotal}
+                {' '}({language === 'ar' ? 'الفرق' : 'delta'}: {costingPreview.delta})
+              </div>
+              <div className="text-xs text-slate-500">
+                {costingPreview.productCount} {language === 'ar' ? 'منتج' : 'products'}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
     </FormShell>
   )
 }

@@ -296,7 +296,21 @@ export default function TransferForm() {
                       setTab('info')
                       return
                     }
-                    actionMut.mutate({ action: 'validate', body: { immediate: true, createBackorder: false } })
+                    const policy = transfer?.operationTypeId?.createBackorder
+                      || activeOpType?.createBackorder
+                      || 'ask'
+                    let createBackorder = false
+                    if (policy === 'always') {
+                      createBackorder = true
+                    } else if (policy === 'ask') {
+                      const ok = window.confirm(
+                        ar
+                          ? 'كمية جزئية — إنشاء أمر متبقٍ (backorder)؟\nموافق = نعم · إلغاء = إسقاط المتبقي'
+                          : 'Partial qty — create a backorder for the remainder?\nOK = yes · Cancel = drop remainder',
+                      )
+                      createBackorder = ok
+                    }
+                    actionMut.mutate({ action: 'validate', body: { immediate: true, createBackorder } })
                   }}
                 >
                   {ar ? 'اعتماد' : 'Validate'}
