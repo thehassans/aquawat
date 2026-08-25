@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import { StatusChip } from './inventoryUi'
 
 const cards = [
@@ -50,7 +51,7 @@ export default function InventoryOverview() {
 
   const { data: opTypes = [] } = useQuery({
     queryKey: ['stock-op-types'],
-    queryFn: () => api.get('/stock/operation-types').then((r) => r.data),
+    queryFn: () => api.get('/stock/operation-types').then((r) => asInvList(r.data)),
     staleTime: 10 * 60 * 1000,
   })
 

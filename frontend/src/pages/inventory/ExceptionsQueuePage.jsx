@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 
 const TYPE_LABEL = {
@@ -20,7 +21,7 @@ export default function ExceptionsQueuePage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['inv-exceptions'],
-    queryFn: () => api.get('/stock/exceptions').then((r) => r.data),
+    queryFn: () => api.get('/stock/exceptions').then((r) => asInvList(r.data)),
     refetchInterval: 60_000,
   })
 
@@ -32,7 +33,7 @@ export default function ExceptionsQueuePage() {
     },
   })
 
-  const items = data?.items || []
+  const items = data || []
 
   return (
     <div className="space-y-4" dir={ar ? 'rtl' : 'ltr'}>

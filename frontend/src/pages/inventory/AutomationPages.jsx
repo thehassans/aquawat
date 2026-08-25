@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { Play, RefreshCw } from 'lucide-react'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import toast from 'react-hot-toast'
 
@@ -173,16 +174,16 @@ export function RoutesRulesPage() {
 
   const { data: routesData, isLoading: loadingRoutes } = useQuery({
     queryKey: ['inv-routes'],
-    queryFn: () => api.get('/stock/routes').then((r) => r.data),
+    queryFn: () => api.get('/stock/routes').then((r) => asInvList(r.data)),
   })
   const { data: rulesData, isLoading: loadingRules } = useQuery({
     queryKey: ['inv-rules', routeId],
     queryFn: () =>
-      api.get('/stock/rules', { params: { routeId: routeId || undefined } }).then((r) => r.data),
+      api.get('/stock/rules', { params: { routeId: routeId || undefined } }).then((r) => asInvList(r.data)),
   })
 
-  const routes = routesData?.items || []
-  const rules = rulesData?.items || []
+  const routes = routesData || []
+  const rules = rulesData || []
 
   return (
     <div className="space-y-6">
@@ -277,7 +278,7 @@ export function SchedulerPage() {
 
   const { data: runsData } = useQuery({
     queryKey: ['inv-scheduler-runs'],
-    queryFn: () => api.get('/stock/scheduler/runs').then((r) => r.data),
+    queryFn: () => api.get('/stock/scheduler/runs').then((r) => asInvList(r.data)),
   })
 
   const runMut = useMutation({
@@ -291,7 +292,7 @@ export function SchedulerPage() {
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
 
-  const runs = runsData?.items || []
+  const runs = runsData || []
 
   return (
     <div className="space-y-6">
@@ -374,15 +375,15 @@ export function PutawayPage() {
 
   const { data: rulesData, isLoading } = useQuery({
     queryKey: ['putaway-rules'],
-    queryFn: () => api.get('/stock/putaway-rules').then((r) => r.data),
+    queryFn: () => api.get('/stock/putaway-rules').then((r) => asInvList(r.data)),
   })
   const { data: catsData } = useQuery({
     queryKey: ['storage-categories'],
-    queryFn: () => api.get('/stock/storage-categories').then((r) => r.data),
+    queryFn: () => api.get('/stock/storage-categories').then((r) => asInvList(r.data)),
   })
 
-  const rules = rulesData?.items || []
-  const cats = catsData?.items || []
+  const rules = rulesData || []
+  const cats = catsData || []
 
   return (
     <div className="space-y-6">

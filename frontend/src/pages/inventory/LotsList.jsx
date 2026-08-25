@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { Link, useParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 
 export default function LotsList() {
@@ -12,9 +13,9 @@ export default function LotsList() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['stock-lots', q],
-    queryFn: () => api.get('/stock/lots', { params: { q: q || undefined, limit: 80 } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/lots', { params: { q: q || undefined, limit: 80 } }).then((r) => asInvList(r.data)),
   })
-  const items = data?.items || []
+  const items = data || []
 
   return (
     <div className="space-y-4">

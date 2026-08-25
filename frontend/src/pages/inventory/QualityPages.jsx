@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { Plus } from 'lucide-react'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { StatusChip } from './inventoryUi'
 
@@ -17,13 +18,13 @@ export function QualityPointsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['quality-points'],
-    queryFn: () => api.get('/stock/quality-points', { params: { active: 'false' } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/quality-points', { params: { active: 'false' } }).then((r) => asInvList(r.data)),
   })
-  const items = data?.items || []
+  const items = data || []
 
   const { data: opTypes = [] } = useQuery({
     queryKey: ['stock-op-types-all'],
-    queryFn: () => api.get('/stock/operation-types').then((r) => r.data),
+    queryFn: () => api.get('/stock/operation-types').then((r) => asInvList(r.data)),
   })
 
   const createMut = useMutation({
@@ -125,10 +126,10 @@ export function TransferQualityPanel({ transferId, readOnly, language }) {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['transfer-quality', transferId],
-    queryFn: () => api.get(`/stock/transfers/${transferId}/quality-checks`).then((r) => r.data),
+    queryFn: () => api.get(`/stock/transfers/${transferId}/quality-checks`).then((r) => asInvList(r.data)),
     enabled: Boolean(transferId),
   })
-  const items = data?.items || []
+  const items = data || []
 
   const ensureMut = useMutation({
     mutationFn: () => api.post(`/stock/transfers/${transferId}/quality-checks/ensure`).then((r) => r.data),

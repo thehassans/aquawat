@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Plus } from 'lucide-react'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import Money from '../../components/ui/Money'
@@ -23,16 +24,16 @@ export function AttributesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['inv-attributes'],
-    queryFn: () => api.get('/stock/attributes', { params: { active: 'false' } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/attributes', { params: { active: 'false' } }).then((r) => asInvList(r.data)),
   })
-  const attrs = data?.items || []
+  const attrs = data || []
 
   const { data: valuesData, isLoading: valuesLoading } = useQuery({
     queryKey: ['inv-attribute-values', selectedId],
-    queryFn: () => api.get(`/stock/attributes/${selectedId}/values`).then((r) => r.data),
+    queryFn: () => api.get(`/stock/attributes/${selectedId}/values`).then((r) => asInvList(r.data)),
     enabled: Boolean(selectedId),
   })
-  const values = valuesData?.items || []
+  const values = valuesData || []
 
   const createAttr = useMutation({
     mutationFn: () => api.post('/stock/attributes', {
@@ -197,7 +198,7 @@ export function VariantsPage() {
 
   const { data: attrsData } = useQuery({
     queryKey: ['inv-attributes'],
-    queryFn: () => api.get('/stock/attributes').then((r) => r.data),
+    queryFn: () => api.get('/stock/attributes').then((r) => asInvList(r.data)),
   })
   const attrs = attrsData?.items || []
 

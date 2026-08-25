@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
@@ -23,7 +24,7 @@ export default function MovesHistory() {
       }).then((r) => r.data),
   })
 
-  const items = data?.items || []
+  const items = asInvList(data)
   const view = filters.view || 'list'
 
   const exportFull = async () => {

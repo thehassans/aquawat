@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Plus } from 'lucide-react'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { StatusChip } from './inventoryUi'
 
@@ -18,13 +19,13 @@ export function BatchTransfersPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['batch-transfers'],
-    queryFn: () => api.get('/stock/batch-transfers').then((r) => r.data),
+    queryFn: () => api.get('/stock/batch-transfers').then((r) => asInvList(r.data)),
   })
-  const items = data?.items || []
+  const items = data || []
 
   const { data: opTypes = [] } = useQuery({
     queryKey: ['stock-op-types-all'],
-    queryFn: () => api.get('/stock/operation-types').then((r) => r.data),
+    queryFn: () => api.get('/stock/operation-types').then((r) => asInvList(r.data)),
   })
 
   const createMut = useMutation({

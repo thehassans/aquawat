@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 
 /**
  * Searchable hierarchical category combobox.
@@ -20,13 +21,13 @@ export default function CategoryCombobox({
 
   const { data: categories = [] } = useQuery({
     queryKey: ['product-categories'],
-    queryFn: () => api.get('/stock/product-categories').then((r) => (Array.isArray(r.data) ? r.data : r.data?.items || [])),
+    queryFn: () => api.get('/stock/product-categories').then((r) => asInvList(r.data)),
     staleTime: 5 * 60 * 1000,
   })
 
   const { data: popular = [] } = useQuery({
     queryKey: ['product-categories-popular'],
-    queryFn: () => api.get('/stock/product-categories/popular').then((r) => r.data?.items || []).catch(() => []),
+    queryFn: () => api.get('/stock/product-categories/popular').then((r) => asInvList(r.data)).catch(() => []),
     staleTime: 10 * 60 * 1000,
   })
 

@@ -562,11 +562,19 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Job types | integrity, scheduler, export, cache_reconcile, reservation_retry, expiry_alerts, cyclic_count, delivery_notify (stub) |
 | Cron | Scheduler/integrity enqueue via queue; `STOCK_MAINT_CRON=1` runs expiry+cyclic+cache repair+reservation retry daily 04:00 |
 | Export | Async IE creates `InvExportJob` then enqueues `export` worker (builds payload + JobRun) |
-| List envelope | `sendList` dual `{ data,_meta }` + `{ items,total }` on transfers, exceptions, jobs; gradual elsewhere |
+| List envelope | `sendList` dual `{ data,_meta }` + `{ items,total }` on **all stock list endpoints**; FE uses `asInvList()` |
 | Metrics | In-process p50/p95 latency + query counts + job failure rate + write-conflict retries; `GET /stock/metrics` |
 | Jobs UI | Quick-enqueue buttons + queue mode strip + metrics line |
 | Bench | `npm run bench:inventory-perf -- --tenant=<id>` DB-side timings vs §3.7 targets |
 | Engine version | `3.1.0-p2` |
 | Delivery SMS/email | Explicitly stubbed JobRun — no live carrier provider |
+
+## v3 P2 — List envelope completion
+
+| Topic | Decision |
+|---|---|
+| Backend | Every `GET` list under `/api/stock` returns dual envelope via `sendList` (bare arrays retired) |
+| Frontend | `frontend/src/lib/invList.js` → `asInvList(payload)` normalizes array / `data` / `items` |
+| Compat | Pages that already read `_meta` / `data` (transfers, physical inventory) unchanged |
 
 

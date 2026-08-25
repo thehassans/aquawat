@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import ProductChooser from '../../components/inventory/ProductChooser'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
@@ -87,7 +88,7 @@ export default function PhysicalInventory() {
 
   const { data: categories = [] } = useQuery({
     queryKey: ['product-categories'],
-    queryFn: () => api.get('/stock/product-categories').then((r) => r.data || []),
+    queryFn: () => api.get('/stock/product-categories').then((r) => asInvList(r.data)),
     staleTime: 10 * 60 * 1000,
   })
 

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Plus } from 'lucide-react'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { StatusChip } from './inventoryUi'
 
@@ -18,11 +19,11 @@ export function PackagesPage() {
 
   const { data: packages = [], isLoading } = useQuery({
     queryKey: ['inv-packages'],
-    queryFn: () => api.get('/stock/packages').then((r) => r.data),
+    queryFn: () => api.get('/stock/packages').then((r) => asInvList(r.data)),
   })
   const { data: types = [] } = useQuery({
     queryKey: ['inv-package-types'],
-    queryFn: () => api.get('/stock/package-types').then((r) => r.data),
+    queryFn: () => api.get('/stock/package-types').then((r) => asInvList(r.data)),
   })
 
   const createType = useMutation({
@@ -264,12 +265,9 @@ export function DeliveryMethodsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['delivery-carriers'],
-    queryFn: () => api.get('/stock/delivery-carriers').then((r) => r.data),
+    queryFn: () => api.get('/stock/delivery-carriers').then((r) => asInvList(r.data)),
   })
-  const items = data?.items || []
-
-  const createMut = useMutation({
-    mutationFn: () => api.post('/stock/delivery-carriers', {
+  const items = data || []
       name,
       carrierType: 'fixed',
       fixedPrice: price,
@@ -394,7 +392,7 @@ export function ShippingConnectorsPage() {
   })
   const { data } = useQuery({
     queryKey: ['delivery-carriers'],
-    queryFn: () => api.get('/stock/delivery-carriers').then((r) => r.data),
+    queryFn: () => api.get('/stock/delivery-carriers').then((r) => asInvList(r.data)),
   })
 
   const flags = [
@@ -461,12 +459,12 @@ export function ProductPackagingPage() {
     queryKey: ['inv-product-packagings', filterProductId],
     queryFn: () => api.get('/stock/product-packagings', {
       params: filterProductId ? { productId: filterProductId } : undefined,
-    }).then((r) => r.data),
+    }).then((r) => asInvList(r.data)),
   })
 
   const { data: types = [] } = useQuery({
     queryKey: ['inv-package-types'],
-    queryFn: () => api.get('/stock/package-types').then((r) => r.data),
+    queryFn: () => api.get('/stock/package-types').then((r) => asInvList(r.data)),
   })
 
   const { data: productsRaw } = useQuery({
@@ -477,7 +475,7 @@ export function ProductPackagingPage() {
   })
 
   const products = productsRaw?.products || productsRaw?.data || (Array.isArray(productsRaw) ? productsRaw : [])
-  const items = data?.items || (Array.isArray(data) ? data : [])
+  const items = data || []
 
   const createMut = useMutation({
     mutationFn: () => api.post('/stock/product-packagings', {

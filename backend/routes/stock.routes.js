@@ -241,7 +241,13 @@ router.get('/locations', checkPermission('inventory', 'read'), async (req, res) 
     if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
     if (req.query.active !== 'false') filter.active = true;
     const locations = await InvLocation.find(filter).sort({ completePath: 1 }).lean();
-    res.json(locations);
+    return sendList(res, locations, {
+      appliedFilters: {
+        usage: req.query.usage || null,
+        warehouseId: req.query.warehouseId || null,
+        active: req.query.active !== 'false',
+      },
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -279,7 +285,7 @@ router.patch('/locations/:id', checkPermission('inventory', 'update'), async (re
 
 router.get('/uom-categories', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    res.json(await InvUomCategory.find({ ...req.tenantFilter }).sort({ name: 1 }));
+    return sendList(res, await InvUomCategory.find({ ...req.tenantFilter }).sort({ name: 1 }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -307,7 +313,7 @@ router.get('/uoms', checkPermission('inventory', 'read'), async (req, res) => {
     const filter = { ...req.tenantFilter };
     if (req.query.categoryId) filter.categoryId = req.query.categoryId;
     if (req.query.active !== 'false') filter.active = true;
-    res.json(await InvUom.find(filter).sort({ name: 1 }));
+    return sendList(res, await InvUom.find(filter).sort({ name: 1 }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -359,7 +365,7 @@ router.get('/operation-types', checkPermission('inventory', 'read'), async (req,
     if (req.query.code) filter.code = req.query.code;
     if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
     if (req.query.active !== 'false') filter.active = true;
-    res.json(await InvOperationType.find(filter).sort({ name: 1 }));
+    return sendList(res, await InvOperationType.find(filter).sort({ name: 1 }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -395,7 +401,7 @@ router.patch('/operation-types/:id', checkPermission('inventory', 'update'), asy
 
 router.get('/product-categories', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    res.json(await InvProductCategory.find({ ...req.tenantFilter }).sort({ completePath: 1 }));
+    return sendList(res, await InvProductCategory.find({ ...req.tenantFilter }).sort({ completePath: 1 }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -414,7 +420,7 @@ router.get('/product-categories/popular', checkPermission('inventory', 'read'), 
     const ids = rows.map((r) => r._id);
     const cats = await InvProductCategory.find({ ...req.tenantFilter, _id: { $in: ids } }).lean();
     const byId = new Map(cats.map((c) => [String(c._id), c]));
-    res.json({ items: ids.map((id) => byId.get(String(id))).filter(Boolean) });
+    return sendList(res, ids.map((id) => byId.get(String(id))).filter(Boolean));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -901,7 +907,14 @@ router.get('/quants', checkPermission('inventory', 'read'), async (req, res) => 
       .populate('locationId', 'name completePath')
       .limit(500)
       .lean();
-    res.json(rows);
+    return sendList(res, rows, {
+      total: rows.length,
+      pageSize: 500,
+      appliedFilters: {
+        warehouseId: req.query.warehouseId || null,
+        productId: req.query.productId || null,
+      },
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -911,12 +924,21 @@ router.get('/quants', checkPermission('inventory', 'read'), async (req, res) => 
 
 router.get('/lots', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    res.json(await listLots(req.user.tenantId, {
+    const result = await listLots(req.user.tenantId, {
       productId: req.query.productId,
       q: req.query.q,
       page: req.query.page,
       limit: req.query.limit,
-    }));
+    });
+    return sendList(res, result.items, {
+      total: result.total,
+      page: result.page,
+      pageSize: result.limit,
+      appliedFilters: {
+        productId: req.query.productId || null,
+        q: req.query.q || null,
+      },
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -960,7 +982,7 @@ router.get('/attributes', checkPermission('inventory', 'read'), async (req, res)
     const items = await listAttributes(req.user.tenantId, {
       activeOnly: req.query.active !== 'false',
     });
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -987,7 +1009,7 @@ router.patch('/attributes/:id', checkPermission('inventory', 'update'), async (r
 router.get('/attributes/:id/values', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { listAttributeValues } = await import('../services/inventory/variants.js');
-    res.json({ items: await listAttributeValues(req.user.tenantId, req.params.id) });
+    return sendList(res, await listAttributeValues(req.user.tenantId, req.params.id));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1027,7 +1049,7 @@ router.get('/variants', checkPermission('inventory', 'read'), async (req, res) =
       limit: req.query.limit,
       enrichStock: req.query.enrich === '1' || req.query.enrich === 'true',
     });
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1078,7 +1100,7 @@ router.patch('/variants/:id', checkPermission('inventory', 'update'), async (req
 
 router.get('/physical-inventory', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    res.json(await listInventoryQuants(req.user.tenantId, {
+    const result = await listInventoryQuants(req.user.tenantId, {
       locationId: req.query.locationId,
       warehouseId: req.query.warehouseId,
       productId: req.query.productId,
@@ -1086,7 +1108,19 @@ router.get('/physical-inventory', checkPermission('inventory', 'read'), async (r
       search: req.query.search,
       page: req.query.page,
       limit: req.query.limit,
-    }));
+    });
+    const items = result.items || result.data || (Array.isArray(result) ? result : []);
+    return sendList(res, items, {
+      total: result.total ?? result._meta?.total ?? items.length,
+      page: result.page ?? result._meta?.page,
+      pageSize: result.limit ?? result._meta?.pageSize,
+      appliedFilters: {
+        warehouseId: req.query.warehouseId || null,
+        locationId: req.query.locationId || null,
+        filter: req.query.filter || null,
+        search: req.query.search || null,
+      },
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1186,12 +1220,10 @@ router.post('/physical-inventory/import', checkPermission('inventory', 'update')
 router.get('/quality-points', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { listQualityPoints } = await import('../services/inventory/quality.js');
-    res.json({
-      items: await listQualityPoints(req.user.tenantId, {
-        operationTypeId: req.query.operationTypeId,
-        activeOnly: req.query.active !== 'false',
-      }),
-    });
+    return sendList(res, await listQualityPoints(req.user.tenantId, {
+      operationTypeId: req.query.operationTypeId,
+      activeOnly: req.query.active !== 'false',
+    }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1221,7 +1253,7 @@ router.get('/transfers/:id/quality-checks', checkPermission('inventory', 'read')
     if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
     await assertTransferWarehouseAccess(req, transfer);
     const { listTransferQualityChecks } = await import('../services/inventory/quality.js');
-    res.json({ items: await listTransferQualityChecks(req.user.tenantId, req.params.id) });
+    return sendList(res, await listTransferQualityChecks(req.user.tenantId, req.params.id));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1253,12 +1285,10 @@ router.patch('/quality-checks/:id', checkPermission('inventory', 'update'), asyn
 router.get('/batch-transfers', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { listBatchTransfers } = await import('../services/inventory/batchTransfers.js');
-    res.json({
-      items: await listBatchTransfers(req.user.tenantId, {
-        state: req.query.state,
-        limit: req.query.limit,
-      }),
-    });
+    return sendList(res, await listBatchTransfers(req.user.tenantId, {
+      state: req.query.state,
+      limit: req.query.limit,
+    }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1352,11 +1382,17 @@ router.post('/batch-transfers/:id/cancel', checkPermission('inventory', 'update'
 
 router.get('/scraps', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    res.json(await listScraps(req.user.tenantId, {
+    const result = await listScraps(req.user.tenantId, {
       state: req.query.state,
       page: req.query.page,
       limit: req.query.limit,
-    }));
+    });
+    return sendList(res, result.items, {
+      total: result.total,
+      page: result.page,
+      pageSize: result.limit,
+      appliedFilters: { state: req.query.state || null },
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1420,7 +1456,7 @@ router.post('/transfers/:id/return', checkPermission('inventory', 'create'), asy
 
 router.get('/moves-history', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    res.json(await movesHistory(req.user.tenantId, {
+    const result = await movesHistory(req.user.tenantId, {
       productId: req.query.productId,
       lotId: req.query.lotId,
       locationId: req.query.locationId,
@@ -1431,7 +1467,20 @@ router.get('/moves-history', checkPermission('inventory', 'read'), async (req, r
       page: req.query.page,
       limit: Math.min(10000, Number(req.query.limit) || 80),
       cursor: req.query.cursor,
-    }));
+    });
+    return sendList(res, result.items, {
+      total: result._meta?.total ?? result.total ?? result.items?.length,
+      page: result._meta?.page,
+      pageSize: result._meta?.pageSize ?? result._meta?.limit,
+      nextCursor: result._meta?.nextCursor || null,
+      appliedFilters: {
+        productId: req.query.productId || null,
+        lotId: req.query.lotId || null,
+        locationId: req.query.locationId || null,
+        transferId: req.query.transferId || null,
+        direction: req.query.direction || null,
+      },
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1454,7 +1503,7 @@ router.get('/products/:productId/moves', checkPermission('inventory', 'read'), a
 
 router.get('/package-types', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    res.json(await InvPackageType.find({ ...req.tenantFilter, active: { $ne: false } }).sort({ name: 1 }));
+    return sendList(res, await InvPackageType.find({ ...req.tenantFilter, active: { $ne: false } }).sort({ name: 1 }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1476,7 +1525,7 @@ router.get('/packages', checkPermission('inventory', 'read'), async (req, res) =
   try {
     const filter = { ...req.tenantFilter };
     if (req.query.locationId) filter.locationId = req.query.locationId;
-    res.json(await InvPackage.find(filter).populate('packageTypeId').sort({ createdAt: -1 }).limit(200));
+    return sendList(res, await InvPackage.find(filter).populate('packageTypeId').sort({ createdAt: -1 }).limit(200));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1506,7 +1555,7 @@ router.get('/delivery-carriers', checkPermission('inventory', 'read'), async (re
     const items = await InvDeliveryCarrier.find({ tenantId: req.user.tenantId })
       .sort({ name: 1 })
       .lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1570,7 +1619,7 @@ router.get('/product-packagings', checkPermission('inventory', 'read'), async (r
       .populate('packageTypeId', 'name')
       .sort({ name: 1 })
       .lean();
-    res.json({ items: rows });
+    return sendList(res, rows);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1696,7 +1745,7 @@ router.get('/routes', checkPermission('inventory', 'read'), async (req, res) => 
     const items = await InvRoute.find({ tenantId: req.user.tenantId })
       .sort({ sequence: 1, name: 1 })
       .lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1760,7 +1809,7 @@ router.get('/rules', checkPermission('inventory', 'read'), async (req, res) => {
       .populate('destLocationId', 'completePath')
       .sort({ sequence: 1 })
       .lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1819,7 +1868,7 @@ router.get('/replenishment', checkPermission('inventory', 'read'), async (req, r
       warehouseId: req.query.warehouseId,
       permanentOnly: req.query.permanentOnly,
     });
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1834,7 +1883,7 @@ router.get('/reorder-rules', checkPermission('inventory', 'read'), async (req, r
       .populate('locationId', 'completePath')
       .populate('warehouseId', 'name code')
       .lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1949,7 +1998,7 @@ router.get('/scheduler/runs', checkPermission('inventory', 'read'), async (req, 
       .sort({ startedAt: -1 })
       .limit(Number(req.query.limit) || 20)
       .lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1965,7 +2014,7 @@ router.get('/putaway-rules', checkPermission('inventory', 'read'), async (req, r
       .populate('toLocationId', 'completePath')
       .sort({ sequence: -1 })
       .lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1995,7 +2044,7 @@ router.post('/putaway-rules', checkPermission('inventory', 'create'), async (req
 router.get('/storage-categories', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const items = await InvStorageCategory.find({ tenantId: req.user.tenantId }).sort({ name: 1 }).lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2084,7 +2133,7 @@ router.get('/procurement-groups', checkPermission('inventory', 'read'), async (r
       .sort({ createdAt: -1 })
       .limit(100)
       .lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2102,7 +2151,7 @@ router.get('/valuation-layers', checkPermission('inventory', 'read'), async (req
       .sort({ createdAt: -1 })
       .limit(Number(req.query.limit) || 100)
       .lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2140,7 +2189,7 @@ router.get('/valuation-report', checkPermission('inventory', 'read'), async (req
         value: v.value,
       });
     }
-    res.json({ items: rows });
+    return sendList(res, rows);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2153,7 +2202,7 @@ router.get('/landed-costs', checkPermission('inventory', 'read'), async (req, re
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2245,7 +2294,7 @@ router.get('/report/moves-analysis', checkPermission('inventory', 'read'), stock
       warehouseId: req.query.warehouseId,
       groupBy: req.query.groupBy || 'product',
     });
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2271,7 +2320,7 @@ router.get('/report/forecast', checkPermission('inventory', 'read'), async (req,
       warehouseId: req.query.warehouseId,
       limit: req.query.limit,
     });
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2456,9 +2505,7 @@ router.post('/ie/import', checkPermission('inventory', 'create'), async (req, re
 router.get('/ie/templates', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { listTemplates } = await import('../services/inventory/universalIe.js');
-    res.json({
-      items: await listTemplates(req.user.tenantId, req.user._id, req.query.model),
-    });
+    return sendList(res, await listTemplates(req.user.tenantId, req.user._id, req.query.model));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2666,7 +2713,7 @@ router.get('/config-audit', checkPermission('inventory', 'read'), async (req, re
       .sort({ createdAt: -1 })
       .limit(Number(req.query.limit) || 50)
       .lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2687,7 +2734,7 @@ router.get('/barcode-nomenclatures', checkPermission('inventory', 'read'), async
   try {
     const { default: InvBarcodeNomenclature } = await import('../models/inventory/InvBarcodeNomenclature.js');
     const items = await InvBarcodeNomenclature.find({ tenantId: req.user.tenantId }).lean();
-    res.json({ items });
+    return sendList(res, items);
   } catch (err) {
     handleInventoryError(res, err);
   }

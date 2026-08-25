@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux'
 import { ArrowLeft, Plus, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import ImportExportDialog, { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 
@@ -66,9 +67,9 @@ export function LocationsPage() {
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['inv-locations'],
-    queryFn: () => api.get('/stock/locations', { params: { active: 'false' } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/locations', { params: { active: 'false' } }).then((r) => asInvList(r.data)),
   })
-  const rows = Array.isArray(data) ? data : []
+  const rows = data || []
 
   return (
     <ListShell
@@ -151,7 +152,7 @@ export function LocationForm() {
   })
   const { data: parents } = useQuery({
     queryKey: ['inv-locations'],
-    queryFn: () => api.get('/stock/locations', { params: { active: 'false' } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/locations', { params: { active: 'false' } }).then((r) => asInvList(r.data)),
   })
   const { data: warehouses } = useQuery({
     queryKey: ['warehouses-lite'],
@@ -261,9 +262,9 @@ export function OperationTypesPage() {
   const { language } = useSelector((s) => s.ui)
   const { data, isLoading } = useQuery({
     queryKey: ['inv-operation-types'],
-    queryFn: () => api.get('/stock/operation-types', { params: { active: 'false' } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/operation-types', { params: { active: 'false' } }).then((r) => asInvList(r.data)),
   })
-  const rows = Array.isArray(data) ? data : []
+  const rows = data || []
 
   return (
     <ListShell
@@ -342,7 +343,7 @@ export function OperationTypeForm() {
   })
   const { data: locations } = useQuery({
     queryKey: ['inv-locations'],
-    queryFn: () => api.get('/stock/locations').then((r) => r.data),
+    queryFn: () => api.get('/stock/locations').then((r) => asInvList(r.data)),
   })
 
   useEffect(() => {
@@ -497,10 +498,10 @@ export function ProductCategoriesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['inv-product-categories'],
-    queryFn: () => api.get('/stock/product-categories').then((r) => r.data),
+    queryFn: () => api.get('/stock/product-categories').then((r) => asInvList(r.data)),
   })
   const allRows = useMemo(() => {
-    const rows = Array.isArray(data) ? data : []
+    const rows = data || []
     return [...rows].sort((a, b) => String(a.completePath || '').localeCompare(String(b.completePath || '')))
   }, [data])
   const total = allRows.length
@@ -734,7 +735,7 @@ export function ProductCategoryForm() {
   })
   const { data: cats } = useQuery({
     queryKey: ['inv-product-categories'],
-    queryFn: () => api.get('/stock/product-categories').then((r) => r.data),
+    queryFn: () => api.get('/stock/product-categories').then((r) => asInvList(r.data)),
   })
 
   useEffect(() => {
@@ -890,9 +891,9 @@ export function StorageCategoriesPage() {
   const [name, setName] = useState('')
   const { data, isLoading } = useQuery({
     queryKey: ['inv-storage-categories'],
-    queryFn: () => api.get('/stock/storage-categories').then((r) => r.data),
+    queryFn: () => api.get('/stock/storage-categories').then((r) => asInvList(r.data)),
   })
-  const items = data?.items || []
+  const items = data || []
 
   const mut = useMutation({
     mutationFn: () => api.post('/stock/storage-categories', { name }),
@@ -951,7 +952,7 @@ export function ReorderingRulesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['inv-reorder-rules'],
-    queryFn: () => api.get('/stock/reorder-rules').then((r) => r.data),
+    queryFn: () => api.get('/stock/reorder-rules').then((r) => asInvList(r.data)),
   })
   const { data: warehouses } = useQuery({
     queryKey: ['warehouses-lite'],
@@ -959,10 +960,10 @@ export function ReorderingRulesPage() {
   })
   const { data: locations } = useQuery({
     queryKey: ['inv-locations-internal'],
-    queryFn: () => api.get('/stock/locations', { params: { usage: 'internal' } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/locations', { params: { usage: 'internal' } }).then((r) => asInvList(r.data)),
   })
-  const items = data?.items || []
-  const locs = Array.isArray(locations) ? locations : []
+  const items = data || []
+  const locs = locations || []
 
   const mut = useMutation({
     mutationFn: () => api.post('/stock/reorder-rules', form),
@@ -1062,14 +1063,14 @@ export function InventoryUomPage() {
 
   const { data: cats } = useQuery({
     queryKey: ['inv-uom-categories'],
-    queryFn: () => api.get('/stock/uom-categories').then((r) => r.data),
+    queryFn: () => api.get('/stock/uom-categories').then((r) => asInvList(r.data)),
   })
   const { data: uoms, isLoading } = useQuery({
     queryKey: ['inv-uoms'],
-    queryFn: () => api.get('/stock/uoms', { params: { active: 'false' } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/uoms', { params: { active: 'false' } }).then((r) => asInvList(r.data)),
   })
-  const rows = Array.isArray(uoms) ? uoms : []
-  const categories = Array.isArray(cats) ? cats : []
+  const rows = uoms || []
+  const categories = cats || []
 
   const catMut = useMutation({
     mutationFn: () => api.post('/stock/uom-categories', catForm),

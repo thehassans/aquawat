@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, Save, Package, DollarSign, Warehouse, Factory, Plus, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import { useTranslation } from '../../lib/translations'
 import CurrencySymbol from '../../components/ui/CurrencySymbol'
 import { showArabicFields as isArabicTenantMarket, getDefaultTaxRate, getTaxRateOptions, getTenantCurrency } from '../../lib/saudiTenant'
@@ -22,10 +23,10 @@ function AttributeValuesMulti({ attributeId, valueIds, onChange, language }) {
   const ar = language === 'ar'
   const { data } = useQuery({
     queryKey: ['inv-attribute-values', attributeId],
-    queryFn: () => api.get(`/stock/attributes/${attributeId}/values`).then((r) => r.data),
+    queryFn: () => api.get(`/stock/attributes/${attributeId}/values`).then((r) => asInvList(r.data)),
     enabled: Boolean(attributeId),
   })
-  const values = data?.items || []
+  const values = data || []
   if (!attributeId) {
     return <div className="text-xs text-slate-400">{ar ? 'اختر سمة' : 'Pick attribute'}</div>
   }
@@ -240,18 +241,18 @@ export default function ProductForm() {
 
   const { data: invCategories } = useQuery({
     queryKey: ['inv-product-categories'],
-    queryFn: () => api.get('/stock/product-categories').then((r) => r.data),
+    queryFn: () => api.get('/stock/product-categories').then((r) => asInvList(r.data)),
   })
 
   const { data: invUoms } = useQuery({
     queryKey: ['inv-uoms'],
-    queryFn: () => api.get('/stock/uoms').then((r) => r.data),
+    queryFn: () => api.get('/stock/uoms').then((r) => asInvList(r.data)),
     enabled: invSettings?.groupUom !== false,
   })
 
   const { data: invRoutes } = useQuery({
     queryKey: ['inv-routes'],
-    queryFn: () => api.get('/stock/routes').then((r) => r.data?.items || r.data || []),
+    queryFn: () => api.get('/stock/routes').then((r) => asInvList(r.data)),
     enabled: invSettings?.groupAdvLocation !== false,
   })
 
@@ -261,10 +262,10 @@ export default function ProductForm() {
 
   const { data: attrsData } = useQuery({
     queryKey: ['inv-attributes'],
-    queryFn: () => api.get('/stock/attributes', { params: { active: 'false' } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/attributes', { params: { active: 'false' } }).then((r) => asInvList(r.data)),
     enabled: invSettings?.groupProductVariant !== false,
   })
-  const attrs = attrsData?.items || []
+  const attrs = attrsData || []
 
   const { data: previewCount } = useQuery({
     queryKey: ['variant-preview-count', attributeLines],

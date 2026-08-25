@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Plus, ArrowLeft } from 'lucide-react'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import { StatusChip } from './inventoryUi'
 import EmptyState from '../../components/ui/EmptyState'
 
@@ -74,7 +75,7 @@ export function ScrapForm() {
   })
   const { data: locations = [] } = useQuery({
     queryKey: ['stock-locations-internal'],
-    queryFn: () => api.get('/stock/locations', { params: { usage: 'internal' } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/locations', { params: { usage: 'internal' } }).then((r) => asInvList(r.data)),
   })
   const { data: scrap } = useQuery({
     queryKey: ['stock-scrap', id],

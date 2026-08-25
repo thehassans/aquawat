@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
 import ProductChooser from '../../components/inventory/ProductChooser'
 import { StatusChip } from './inventoryUi'
 import { TransferPrintButton } from './TransferPrint'
@@ -52,13 +53,13 @@ export default function TransferForm() {
 
   const { data: opTypes = [] } = useQuery({
     queryKey: ['stock-op-types', code],
-    queryFn: () => api.get('/stock/operation-types', { params: { code } }).then((r) => r.data),
+    queryFn: () => api.get('/stock/operation-types', { params: { code } }).then((r) => asInvList(r.data)),
     staleTime: 10 * 60 * 1000,
   })
 
   const { data: locations = [] } = useQuery({
     queryKey: ['inv-locations'],
-    queryFn: () => api.get('/stock/locations').then((r) => r.data),
+    queryFn: () => api.get('/stock/locations').then((r) => asInvList(r.data)),
     enabled: settings?.groupStockMultiLocations !== false,
   })
 
@@ -113,10 +114,10 @@ export default function TransferForm() {
 
   const { data: carriersData } = useQuery({
     queryKey: ['delivery-carriers'],
-    queryFn: () => api.get('/stock/delivery-carriers').then((r) => r.data),
+    queryFn: () => api.get('/stock/delivery-carriers').then((r) => asInvList(r.data)),
     enabled: code === 'outgoing' && !!(hints.deliveryMethods || settings?.groupDeliveryMethods),
   })
-  const carriers = carriersData?.items || []
+  const carriers = carriersData || []
 
   useEffect(() => {
     if (!transfer) return
