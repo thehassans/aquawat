@@ -174,7 +174,7 @@ export default function Warehouses() {
                       </span>
                     </td>
                     <td className="px-3 py-3 tabular-nums">
-                      <Money amount={stats.totalValue || 0} />
+                      <Money value={stats.totalValue || 0} />
                     </td>
                     <td className="px-3 py-3">
                       <span className={`rounded-md px-2 py-0.5 text-xs ${w.isActive === false ? 'bg-slate-100 text-slate-500' : 'bg-emerald-50 text-emerald-700'}`}>
