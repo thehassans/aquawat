@@ -176,6 +176,14 @@ export const INVENTORY_MENU_TREE = [
         flag: 'packages',
         permission: { module: 'inventory', action: 'read' },
       },
+      {
+        id: 'product-packagings',
+        label: 'Product Packagings',
+        labelAr: 'تعبئة المنتجات',
+        href: '/app/dashboard/inventory/product-packagings',
+        flag: 'productPackaging',
+        permission: { module: 'inventory', action: 'read' },
+      },
     ],
   },
   {

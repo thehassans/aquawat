@@ -253,7 +253,12 @@ export default function InventorySettingsPage() {
       <Section title={ar ? 'المنتجات' : 'Products'}>
         <Toggle label={ar ? 'المتغيرات' : 'Variants'} checked={current.groupProductVariant} onChange={() => toggle('groupProductVariant')} />
         <Toggle label={ar ? 'وحدات القياس' : 'Units of measure'} checked={current.groupUom} onChange={() => toggle('groupUom')} />
-        <Toggle label={ar ? 'تعبئة المنتجات' : 'Product packagings'} checked={current.groupStockPackaging} onChange={() => toggle('groupStockPackaging')} />
+        <Toggle
+          label={ar ? 'تعبئة المنتجات' : 'Product packagings'}
+          hint={ar ? 'قائمة تعبئة المنتجات (كمية لكل عبوة)' : 'Product packaging list (qty per pack)'}
+          checked={current.groupStockPackaging}
+          onChange={() => toggle('groupStockPackaging')}
+        />
       </Section>
 
       <Section title={ar ? 'التتبع' : 'Traceability'}>

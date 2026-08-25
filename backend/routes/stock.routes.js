@@ -44,6 +44,7 @@ import InvScrap from '../models/inventory/InvScrap.js';
 import InvLot from '../models/inventory/InvLot.js';
 import InvPackageType from '../models/inventory/InvPackageType.js';
 import InvPackage from '../models/inventory/InvPackage.js';
+import InvProductPackaging from '../models/inventory/InvProductPackaging.js';
 import { threeWayMatch } from '../services/inventory/threeWayMatch.js';
 import { postPosSaleViaEngine, isInvEngineEnabled } from '../services/inventory/legacyAdapter.js';
 import {
@@ -1501,9 +1502,19 @@ router.post('/delivery-carriers/:id/rate', checkPermission('inventory', 'read'),
 
 router.get('/product-packagings', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const filter = { ...req.tenantFilter, active: { $ne: false } };
+    const settings = await getInvSettings(req.user.tenantId);
+    if (!settings.groupStockPackaging) {
+      return res.status(400).json({ error: 'Product packagings are disabled', code: 'PACKAGING_DISABLED' });
+    }
+    const filter = { ...req.tenantFilter };
+    if (req.query.active !== 'all') filter.active = { $ne: false };
     if (req.query.productId) filter.productId = req.query.productId;
-    res.json(await InvProductPackaging.find(filter).sort({ name: 1 }));
+    const rows = await InvProductPackaging.find(filter)
+      .populate('productId', 'nameEn nameAr sku barcode')
+      .populate('packageTypeId', 'name')
+      .sort({ name: 1 })
+      .lean();
+    res.json({ items: rows });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1511,11 +1522,53 @@ router.get('/product-packagings', checkPermission('inventory', 'read'), async (r
 
 router.post('/product-packagings', checkPermission('inventory', 'create'), async (req, res) => {
   try {
-    res.status(201).json(await InvProductPackaging.create({
-      ...req.body,
+    const settings = await getInvSettings(req.user.tenantId);
+    if (!settings.groupStockPackaging) {
+      return res.status(400).json({ error: 'Product packagings are disabled', code: 'PACKAGING_DISABLED' });
+    }
+    const row = await InvProductPackaging.create({
+      productId: req.body.productId,
+      name: req.body.name,
+      qty: req.body.qty ?? '1',
+      barcode: req.body.barcode || undefined,
+      packageTypeId: req.body.packageTypeId || null,
+      purchaseOk: req.body.purchaseOk !== false,
+      salesOk: req.body.salesOk !== false,
+      active: req.body.active !== false,
       tenantId: req.user.tenantId,
       createdBy: req.user._id,
-    }));
+    });
+    const populated = await InvProductPackaging.findById(row._id)
+      .populate('productId', 'nameEn nameAr sku barcode')
+      .populate('packageTypeId', 'name')
+      .lean();
+    res.status(201).json(populated);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/product-packagings/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const settings = await getInvSettings(req.user.tenantId);
+    if (!settings.groupStockPackaging) {
+      return res.status(400).json({ error: 'Product packagings are disabled', code: 'PACKAGING_DISABLED' });
+    }
+    const $set = {};
+    for (const key of ['name', 'qty', 'barcode', 'packageTypeId', 'purchaseOk', 'salesOk', 'active']) {
+      if (req.body[key] !== undefined) $set[key] = req.body[key];
+    }
+    if (req.body.productId !== undefined) $set.productId = req.body.productId;
+    $set.updatedBy = req.user._id;
+    const row = await InvProductPackaging.findOneAndUpdate(
+      { _id: req.params.id, tenantId: req.user.tenantId },
+      { $set, $inc: { version: 1 } },
+      { new: true },
+    )
+      .populate('productId', 'nameEn nameAr sku barcode')
+      .populate('packageTypeId', 'name');
+    if (!row) return res.status(404).json({ error: 'Packaging not found' });
+    res.json(row);
   } catch (err) {
     handleInventoryError(res, err);
   }

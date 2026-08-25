@@ -278,6 +278,7 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Lots on delivery slip | `settingsHints.showLotsOnDeliverySlips` gates lot column on outgoing print |
 | Lots on invoices | `showLotsOnInvoices` / `groupLotOnInvoice` → `GET /stock/invoices/:id/lots` from linked transfers/DNs; InvoiceView line hints + lot table (read-only) |
 | Delivery email/SMS confirm | Outgoing validate sends partner email/SMS when flags on; stamps `sent`/`failed`/`skipped` on `transfer.note` (post-txn; no ledger write) |
+| Product packagings UI | `groupStockPackaging` → menu + `/stock/product-packagings` CRUD; pack qty is metadata (not a quant write) |
 | Settings effects registry | Every `SETTINGS_ALLOWED` flag maps to `SETTINGS_EFFECTS`; `GET /stock/settings?include=effects` |
 | Carrier stubs | Enabling `moduleCarrier*` upserts `InvDeliveryCarrier` with `installed: false` |
 | Reconcile stress | In-memory 100 random ops (FIFO/AVCO/standard) assert zero value/qty drift — no Mongo required |
@@ -288,6 +289,7 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Screen | Status |
 |---|---|
 | Packages | Real list + create package/type (`ExtraPages`) |
+| Product packagings | List/create/deactivate under Products ▾ when `groupStockPackaging` — qty/barcode metadata only |
 | Returns | Done-transfer list → return wizard |
 | References | Procurement groups list |
 | Delivery methods | Fixed-price carriers CRUD |
@@ -379,6 +381,15 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Audit | Append `[email|sms-confirmation sent|failed|skipped …]` lines on `transfer.note` |
 | Ledger | Unchanged — notify never writes quants |
 | SMS settings path | Prefer `settings.communication.sms`, fall back to legacy `settings.sms` |
+
+## Product packagings
+
+| Topic | Decision |
+|---|---|
+| Flag | `groupStockPackaging` gates menu, GET/POST/PATCH APIs |
+| Model | `InvProductPackaging` — product + name + qty (+ optional barcode / package type) |
+| UI | `/inventory/product-packagings` list + create + activate/deactivate |
+| Ledger | Packaging qty is conversion metadata only — stock still via validate → quant |
 
 
 

@@ -30,7 +30,7 @@ export const SETTINGS_EFFECTS = {
   groupStockStorageCategories: 'storage_categories_menu',
   groupPutawayRules: 'putaway_menu_and_resolve',
   groupProductVariant: 'attributes_variants_crud_and_move_variantId',
-  groupStockPackaging: 'packages_enforced_on_moves',
+  groupStockPackaging: 'product_packaging_crud_and_packages_enforced_on_moves',
   groupProductionLot: 'lots_enforced_on_moves',
   groupLandedCosts: 'landed_costs_menu_and_post',
   groupDeliveryMethods: 'delivery_methods_menu_and_fixed_rate',

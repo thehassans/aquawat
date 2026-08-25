@@ -99,6 +99,7 @@ const ImportExportPage = lazy(() => import('./pages/inventory/Phase6Pages').then
 const BarcodeNomenclaturePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.BarcodeNomenclaturePage })))
 const ExceptionsQueuePage = lazy(() => import('./pages/inventory/ExceptionsQueuePage'))
 const PackagesPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.PackagesPage })))
+const ProductPackagingPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ProductPackagingPage })))
 const ReturnsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReturnsPage })))
 const ReferencesPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReferencesPage })))
 const DeliveryMethodsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.DeliveryMethodsPage })))
@@ -827,6 +828,7 @@ function App() {
           <Route path="references" element={<ReferencesPage />} />
           <Route path="variants" element={<VariantsPage />} />
           <Route path="packages" element={<PackagesPage />} />
+          <Route path="product-packagings" element={<ProductPackagingPage />} />
           <Route path="report/locations" element={<LocationsReportPage />} />
           <Route path="report/reconcile" element={<ReconcileReportPage />} />
           <Route path="locations" element={<LocationsPage />} />

@@ -444,3 +444,187 @@ export function ShippingConnectorsPage() {
     </div>
   )
 }
+
+export function ProductPackagingPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  const qc = useQueryClient()
+  const [productId, setProductId] = useState('')
+  const [name, setName] = useState('')
+  const [qty, setQty] = useState('1')
+  const [barcode, setBarcode] = useState('')
+  const [typeId, setTypeId] = useState('')
+  const [filterProductId, setFilterProductId] = useState('')
+  const [productQ, setProductQ] = useState('')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['inv-product-packagings', filterProductId],
+    queryFn: () => api.get('/stock/product-packagings', {
+      params: filterProductId ? { productId: filterProductId } : undefined,
+    }).then((r) => r.data),
+  })
+
+  const { data: types = [] } = useQuery({
+    queryKey: ['inv-package-types'],
+    queryFn: () => api.get('/stock/package-types').then((r) => r.data),
+  })
+
+  const { data: productsRaw } = useQuery({
+    queryKey: ['products-packaging-picker', productQ],
+    queryFn: () => api.get('/products', {
+      params: { search: productQ || undefined, limit: 40, productType: 'goods' },
+    }).then((r) => r.data),
+  })
+
+  const products = productsRaw?.products || productsRaw?.data || (Array.isArray(productsRaw) ? productsRaw : [])
+  const items = data?.items || (Array.isArray(data) ? data : [])
+
+  const createMut = useMutation({
+    mutationFn: () => api.post('/stock/product-packagings', {
+      productId,
+      name,
+      qty: qty || '1',
+      barcode: barcode || undefined,
+      packageTypeId: typeId || undefined,
+    }),
+    onSuccess: () => {
+      toast.success(ar ? 'تم إنشاء التعبئة' : 'Packaging created')
+      setName('')
+      setQty('1')
+      setBarcode('')
+      qc.invalidateQueries({ queryKey: ['inv-product-packagings'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message),
+  })
+
+  const patchMut = useMutation({
+    mutationFn: ({ id, ...body }) => api.patch(`/stock/product-packagings/${id}`, body),
+    onSuccess: () => {
+      toast.success(ar ? 'تم التحديث' : 'Updated')
+      qc.invalidateQueries({ queryKey: ['inv-product-packagings'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message),
+  })
+
+  const productLabel = (p) => {
+    if (!p) return '—'
+    const n = ar ? (p.nameAr || p.nameEn) : (p.nameEn || p.nameAr)
+    return p.sku ? `${n} (${p.sku})` : n
+  }
+
+  return (
+    <div className="space-y-4" dir={ar ? 'rtl' : 'ltr'}>
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          {ar ? 'تعبئة المنتجات' : 'Product packagings'}
+        </h2>
+        <p className="text-sm text-slate-500">
+          {ar
+            ? 'عبوات البيع/الشراء (مثل صندوق = 12) — لا تكتب الرصيد مباشرة'
+            : 'Sales/purchase pack sizes (e.g. box of 12) — never write stock directly'}
+        </p>
+      </div>
+
+      <form
+        className="grid gap-2 rounded-xl border border-slate-200/80 p-3 sm:grid-cols-2 lg:grid-cols-6 dark:border-dark-600"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!productId || !name) return
+          createMut.mutate()
+        }}
+      >
+        <div className="lg:col-span-2">
+          <label className="label text-xs">{ar ? 'المنتج' : 'Product'}</label>
+          <input
+            className="input input-sm mb-1"
+            placeholder={ar ? 'بحث…' : 'Search…'}
+            value={productQ}
+            onChange={(e) => setProductQ(e.target.value)}
+          />
+          <select className="select select-sm w-full" required value={productId} onChange={(e) => setProductId(e.target.value)}>
+            <option value="">{ar ? '— اختر —' : '— Select —'}</option>
+            {products.map((p) => (
+              <option key={p._id} value={p._id}>{productLabel(p)}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label text-xs">{ar ? 'الاسم' : 'Name'}</label>
+          <input className="input input-sm" required value={name} onChange={(e) => setName(e.target.value)} placeholder={ar ? 'صندوق' : 'Box'} />
+        </div>
+        <div>
+          <label className="label text-xs">{ar ? 'الكمية' : 'Qty'}</label>
+          <input className="input input-sm" required value={qty} onChange={(e) => setQty(e.target.value)} />
+        </div>
+        <div>
+          <label className="label text-xs">{ar ? 'باركود' : 'Barcode'}</label>
+          <input className="input input-sm" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
+        </div>
+        <div className="flex flex-col justify-end gap-2">
+          <select className="select select-sm" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+            <option value="">{ar ? '— نوع طرد —' : '— Package type —'}</option>
+            {(Array.isArray(types) ? types : []).map((t) => (
+              <option key={t._id} value={t._id}>{t.name}</option>
+            ))}
+          </select>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>
+            <Plus className="h-4 w-4" /> {ar ? 'إضافة' : 'Add'}
+          </button>
+        </div>
+      </form>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="label text-xs">{ar ? 'تصفية بالمنتج' : 'Filter by product'}</label>
+          <select className="select select-sm" value={filterProductId} onChange={(e) => setFilterProductId(e.target.value)}>
+            <option value="">{ar ? 'الكل' : 'All'}</option>
+            {products.map((p) => (
+              <option key={p._id} value={p._id}>{productLabel(p)}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {isLoading ? <div className="text-sm text-slate-500">…</div> : !items.length ? (
+        <EmptyState title={ar ? 'لا تعبئة' : 'No packagings'} />
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
+              <tr>
+                <th className="px-3 py-2">{ar ? 'المنتج' : 'Product'}</th>
+                <th className="px-3 py-2">{ar ? 'التعبئة' : 'Packaging'}</th>
+                <th className="px-3 py-2">{ar ? 'الكمية' : 'Qty'}</th>
+                <th className="px-3 py-2">{ar ? 'باركود' : 'Barcode'}</th>
+                <th className="px-3 py-2">{ar ? 'الحالة' : 'Active'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+              {items.map((row) => (
+                <tr key={row._id}>
+                  <td className="px-3 py-2.5">{productLabel(row.productId)}</td>
+                  <td className="px-3 py-2.5 font-medium">{row.name}</td>
+                  <td className="px-3 py-2.5 tabular-nums">{row.qty}</td>
+                  <td className="px-3 py-2.5 font-mono text-xs text-slate-500">{row.barcode || '—'}</td>
+                  <td className="px-3 py-2.5">
+                    <button
+                      type="button"
+                      className="text-xs text-primary-600 hover:underline"
+                      onClick={() => patchMut.mutate({ id: row._id, active: row.active === false })}
+                    >
+                      {row.active === false
+                        ? (ar ? 'تفعيل' : 'Activate')
+                        : (ar ? 'إيقاف' : 'Deactivate')}
+                    </button>
+                    {' · '}
+                    <StatusChip status={row.active === false ? 'cancelled' : 'done'} language={language} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
