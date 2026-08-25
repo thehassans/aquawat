@@ -10,6 +10,7 @@ import { runWithTransaction } from './reserve.js';
 import { getDefaultUom } from './bootstrap.js';
 import { InventoryValidationError } from './errors.js';
 import { withTenant } from '../../utils/tenantScope.js';
+import { computeMoveDoneChecksum, computeMoveLineDoneChecksum } from './doneChecksum.js';
 
 /**
  * List quants for physical inventory (editable count fields).
@@ -255,6 +256,16 @@ async function applyOneCount(session, tid, quant, invAdj, defaultUom, now, reaso
     destLocationId,
     state: 'done',
     date: now,
+    doneAt: now,
+    doneChecksum: computeMoveDoneChecksum({
+      productId: quant.productId,
+      variantId: quant.variantId,
+      demandQty: absDiff,
+      doneQty: absDiff,
+      sourceLocationId,
+      destLocationId,
+      uomId,
+    }),
     isScrapped: false,
     createdBy: userId,
   }], { session });
@@ -273,6 +284,18 @@ async function applyOneCount(session, tid, quant, invAdj, defaultUom, now, reaso
     packageId: quant.packageId || null,
     ownerId: quant.ownerId || null,
     state: 'done',
+    doneAt: now,
+    doneChecksum: computeMoveLineDoneChecksum({
+      moveId: move._id,
+      productId: quant.productId,
+      variantId: quant.variantId,
+      quantity: absDiff,
+      quantityInProductUom: absDiff,
+      sourceLocationId,
+      destLocationId,
+      lotId: quant.lotId || null,
+      packageId: quant.packageId || null,
+    }),
     reference: ref,
     createdBy: userId,
   }], { session });

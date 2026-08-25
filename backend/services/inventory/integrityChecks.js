@@ -9,6 +9,7 @@ import InvTransfer from '../../models/inventory/InvTransfer.js';
 import Product from '../../models/Product.js';
 import InvProductStockCache from '../../models/inventory/InvProductStockCache.js';
 import { toObjectId } from '../../models/inventory/common.js';
+import { computeMoveDoneChecksum, computeMoveLineDoneChecksum } from './doneChecksum.js';
 
 const SAMPLE = 2000;
 
@@ -350,8 +351,65 @@ export async function runIntegrityChecks(tenantId, { limit = SAMPLE } = {}) {
     };
   }
 
-  // Check 10 (doneAt checksum) deferred — no checksum column yet
-  checks.doneChecksum = { ok: true, deferred: true };
+  // Check 10) done checksum — sampled done moves/lines with a stamp
+  {
+    const moves = await InvMove.find({
+      tenantId: tid,
+      state: 'done',
+      doneChecksum: { $exists: true, $ne: null },
+    }).limit(Math.min(cap, 500)).lean();
+    let moveMismatch = 0;
+    let missingStamp = 0;
+    for (const m of moves) {
+      const expect = computeMoveDoneChecksum(m);
+      if (m.doneChecksum !== expect) {
+        moveMismatch += 1;
+        if (moveMismatch <= 25) {
+          failures.push(fail(
+            'DONE_CHECKSUM_MISMATCH',
+            `Done move ${m._id} checksum mismatch — record may have been edited after doneAt`,
+            `تجزئة حركة مكتملة لا تطابق — ربما عُدّلت بعد الإكمال`,
+            { moveId: m._id, doneAt: m.doneAt },
+          ));
+        }
+      }
+    }
+    const unstamped = await InvMove.countDocuments({
+      tenantId: tid,
+      state: 'done',
+      $or: [{ doneChecksum: null }, { doneChecksum: { $exists: false } }],
+    });
+    missingStamp = unstamped;
+    // Unstamped legacy rows are informational until backfilled — not hard failures
+    const lines = await InvMoveLine.find({
+      tenantId: tid,
+      state: 'done',
+      doneChecksum: { $exists: true, $ne: null },
+    }).limit(Math.min(cap, 500)).lean();
+    let lineMismatch = 0;
+    for (const l of lines) {
+      const expect = computeMoveLineDoneChecksum(l);
+      if (l.doneChecksum !== expect) {
+        lineMismatch += 1;
+        if (lineMismatch <= 25) {
+          failures.push(fail(
+            'DONE_LINE_CHECKSUM_MISMATCH',
+            `Done move line ${l._id} checksum mismatch`,
+            `تجزئة سطر حركة مكتمل لا تطابق`,
+            { moveLineId: l._id, moveId: l.moveId, doneAt: l.doneAt },
+          ));
+        }
+      }
+    }
+    checks.doneChecksum = {
+      ok: moveMismatch === 0 && lineMismatch === 0,
+      sampledMoves: moves.length,
+      sampledLines: lines.length,
+      moveMismatch,
+      lineMismatch,
+      legacyUnstampedMoves: missingStamp,
+    };
+  }
 
   const ok = failures.length === 0;
   return {

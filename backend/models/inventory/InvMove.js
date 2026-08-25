@@ -43,6 +43,9 @@ const schema = new mongoose.Schema({
   sourceModel: { type: String },
   sourceDocId: { type: mongoose.Schema.Types.ObjectId },
   sourceLineId: { type: String },
+  /** Set when state → done; integrity check 10 verifies checksum still matches */
+  doneAt: { type: Date },
+  doneChecksum: { type: String },
   version: { type: Number, default: 0 },
 }, { timestamps: true });
 
@@ -51,6 +54,7 @@ schema.index({ tenantId: 1, productId: 1, state: 1 });
 schema.index({ tenantId: 1, state: 1, date: 1 });
 schema.index({ tenantId: 1, sourceModel: 1, sourceDocId: 1 });
 schema.index({ tenantId: 1, procurementGroupId: 1 });
+schema.index({ tenantId: 1, state: 1, doneAt: -1 });
 
 schema.pre('validate', function syncMirrors(next) {
   setDecimalPair(this, 'demandQty', this.demandQty ?? '0');

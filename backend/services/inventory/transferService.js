@@ -20,6 +20,7 @@ import {
   packagesEnabled,
   signatureRequired,
 } from './settingsService.js';
+import { stampMoveDone, stampMoveLineDone } from './doneChecksum.js';
 import InvQualityPoint from '../../models/inventory/InvQualityPoint.js';
 import InvQualityCheck from '../../models/inventory/InvQualityCheck.js';
 import Customer from '../../models/Customer.js';
@@ -410,14 +411,14 @@ export async function validateTransfer(tenantId, transferId, {
             }
           }
 
-          line.state = 'done';
+          stampMoveLineDone(line);
           await line.save({ session });
           doneTotal = doneTotal.plus(qty);
         }
 
         const remaining = D(move.demandQty).minus(doneTotal);
         move.doneQty = decStr(doneTotal);
-        move.state = 'done';
+        stampMoveDone(move);
         if (userId) move.updatedBy = userId;
         await move.save({ session });
 

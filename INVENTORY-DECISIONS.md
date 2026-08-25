@@ -544,4 +544,14 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Advisory lock | Shared `acquireAdvisoryLock` helper (validate still uses transfer `validateLock`) |
 | Jobs UI | `/inventory/jobs` lists `InvJobRun`; scheduler success/fail also mirrors into JobRun |
 
+## v3 P2 — Done checksum + perf seed (§3.6 check 10 + §3.7)
+
+| Topic | Decision |
+|---|---|
+| Checksum | `doneAt` + `doneChecksum` (sha256) stamped on move/line at validate/scrap/count; integrity check 10 samples stamped rows; legacy unstamped counted but not hard-fail |
+| Stamp sites | `transferService.validate`, `scrapService.validate`, `inventoryCount` adjustment create |
+| Perf seed | `npm run seed:inventory-perf -- --tenant=<id> --profile=smoke\|brief\|full` |
+| Profiles | smoke 2/500/1k/100; brief 10/50k/200k list + 5k validated; full = brief sizes with 200k engine validates |
+| Stock path | Validated receipts only via create→confirm→validate; list-benchmark transfers are shells (no quant writes) |
+
 

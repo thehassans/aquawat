@@ -10,6 +10,7 @@ import { applyQuantDelta } from './quantDelta.js';
 import { runWithTransaction } from './reserve.js';
 import { getDefaultUom } from './bootstrap.js';
 import { InventoryValidationError } from './errors.js';
+import { computeMoveDoneChecksum, computeMoveLineDoneChecksum } from './doneChecksum.js';
 
 export async function createScrap(tenantId, userId, body) {
   const tid = toObjectId(tenantId);
@@ -86,6 +87,16 @@ export async function validateScrap(scrapId, tenantId) {
       destLocationId: scrap.scrapLocationId,
       state: 'done',
       date: now,
+      doneAt: now,
+      doneChecksum: computeMoveDoneChecksum({
+        productId: scrap.productId,
+        demandQty: qty,
+        doneQty: qty,
+        sourceLocationId: scrap.sourceLocationId,
+        destLocationId: scrap.scrapLocationId,
+        uomId: scrap.uomId,
+        transferId: scrap.transferId || null,
+      }),
       isScrapped: true,
       transferId: scrap.transferId || null,
       createdBy: scrap.createdBy,
@@ -104,6 +115,17 @@ export async function validateScrap(scrapId, tenantId) {
       lotId: scrap.lotId || null,
       packageId: scrap.packageId || null,
       state: 'done',
+      doneAt: now,
+      doneChecksum: computeMoveLineDoneChecksum({
+        moveId: move._id,
+        productId: scrap.productId,
+        quantity: qty,
+        quantityInProductUom: qty,
+        sourceLocationId: scrap.sourceLocationId,
+        destLocationId: scrap.scrapLocationId,
+        lotId: scrap.lotId || null,
+        packageId: scrap.packageId || null,
+      }),
       reference: scrap.name,
       createdBy: scrap.createdBy,
     }], { session });

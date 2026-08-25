@@ -27,6 +27,8 @@ const schema = new mongoose.Schema({
     default: 'draft',
   },
   reference: { type: String },
+  doneAt: { type: Date },
+  doneChecksum: { type: String },
   version: { type: Number, default: 0 },
 }, { timestamps: true });
 
