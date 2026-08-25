@@ -109,6 +109,7 @@ const StorageCategoriesList = lazy(() => import('./pages/inventory/StorageCatego
 const PackageTypesList = lazy(() => import('./pages/inventory/PackageTypesList'))
 const UomList = lazy(() => import('./pages/inventory/UomList'))
 const ProductCategoriesList = lazy(() => import('./pages/inventory/ProductCategoriesList'))
+const ProductAttributesList = lazy(() => import('./pages/inventory/ProductAttributesList'))
 const Products = lazy(() => import('./pages/inventory/Products'))
 const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
@@ -848,6 +849,7 @@ function App() {
             <Route index element={<StockSettingsPage />} />
             <Route path="warehouses" element={<StockWarehousesList />} />
             <Route path="product-categories" element={<ProductCategoriesList />} />
+            <Route path="attributes" element={<ProductAttributesList />} />
             <Route path="routes" element={<RoutesList />} />
             <Route path="rules" element={<RulesList />} />
             <Route path="putaway" element={<PutawayRulesList />} />

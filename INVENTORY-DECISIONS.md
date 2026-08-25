@@ -33,7 +33,7 @@
 
 - Location tree + 1-step warehouse bootstrap per tenant
 - UoM category + reference UoM seed
-- ProductTemplate / ProductVariant (no attribute engine yet)
+- ProductTemplate / ProductVariant (**attributes engine**: cartesian regenerate; archive variants with moves)
 - Quant ledger, StockMove, StockMoveLine, Picking
 - Sequence table with transactional increment
 - reserve / unreserve / confirm / validate / backorder
@@ -117,6 +117,13 @@
 - Product form: barcode, category, expiry use/alert times, picking description, UoM on create
 - Settings: `engineEnabled` toggle (bootstraps on enable), lead times, annual inventory day, COA account overrides
 - Barcode nomenclature “use as default” → `barcodeNomenclatureId`
+
+## Phase 14 — Attributes & variants
+
+- Models: `StockProductAttribute`, `StockProductAttributeValue`, `StockProductTemplateAttributeLine`
+- Cartesian regenerate for `createVariant=always`; obsolete variants archived (never hard-deleted), warning when moves exist
+- Config Attributes UI + product form Attributes & Variants panel
+- Settings flag `groupProductVariant`
 
 ## Deferred / polish
 

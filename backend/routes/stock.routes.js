@@ -10,6 +10,9 @@ import {
   StockLocation,
   StockProductTemplate,
   StockProductVariant,
+  StockProductAttribute,
+  StockProductAttributeValue,
+  StockProductTemplateAttributeLine,
   StockUom,
   StockUomCategory,
   StockProductCategory,
@@ -58,6 +61,12 @@ import { getReturnWizard, createReturnPicking } from '../services/stock/returns.
 import { matchBarcode, defaultBarcodeRules } from '../services/stock/barcode.js';
 import { movesAnalysis, performanceReport } from '../services/stock/analysis.js';
 import { productInventoryValue } from '../services/stock/valuation.js';
+import {
+  regenerateVariants,
+  listTemplateAttributeLines,
+  setTemplateAttributeLine,
+  deleteTemplateAttributeLine,
+} from '../services/stock/variantGeneration.js';
 import { StockValidationError } from '../services/stock/errors.js';
 import { D, decStr } from '../utils/decimal.js';
 
@@ -326,6 +335,111 @@ router.patch('/product-categories/:id', checkPermission('inventory', 'update'), 
   }
 });
 
+// ─── Product attributes ─────────────────────────────────────────────────────
+
+router.get('/product-attributes', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const attrs = await StockProductAttribute.find({ ...req.tenantFilter, active: true })
+      .sort({ sequence: 1, name: 1 })
+      .lean();
+    const withValues = await Promise.all(attrs.map(async (a) => ({
+      ...a,
+      values: await StockProductAttributeValue.find({
+        ...req.tenantFilter,
+        attributeId: a._id,
+        active: true,
+      }).sort({ sequence: 1 }).lean(),
+    })));
+    res.json(withValues);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/product-attributes', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const [attr] = await StockProductAttribute.create([{
+      tenantId: req.user.tenantId,
+      name: req.body.name,
+      displayType: req.body.displayType || 'radio',
+      createVariant: req.body.createVariant || 'always',
+      sequence: Number(req.body.sequence) || 10,
+      createdBy: req.user._id,
+    }]);
+    res.status(201).json(attr);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/product-attributes/:id/values', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const attr = await StockProductAttribute.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!attr) return res.status(404).json({ error: 'Not found' });
+    const [val] = await StockProductAttributeValue.create([{
+      tenantId: req.user.tenantId,
+      attributeId: attr._id,
+      name: req.body.name,
+      sequence: Number(req.body.sequence) || 10,
+      htmlColor: req.body.htmlColor,
+      createdBy: req.user._id,
+    }]);
+    res.status(201).json(val);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.get('/products/templates/:id/attribute-lines', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const template = await StockProductTemplate.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!template) return res.status(404).json({ error: 'Not found' });
+    res.json(await listTemplateAttributeLines(req.user.tenantId, template._id));
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.put('/products/templates/:id/attribute-lines', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const template = await StockProductTemplate.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!template) return res.status(404).json({ error: 'Not found' });
+    const { attributeId, valueIds } = req.body;
+    const line = await setTemplateAttributeLine(
+      req.user.tenantId,
+      template._id,
+      { attributeId, valueIds },
+      req.user._id,
+    );
+    const result = await regenerateVariants(req.user.tenantId, template._id);
+    res.json({ line, regeneration: result });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.delete('/products/templates/:id/attribute-lines/:attributeId', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const template = await StockProductTemplate.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!template) return res.status(404).json({ error: 'Not found' });
+    await deleteTemplateAttributeLine(req.user.tenantId, template._id, req.params.attributeId);
+    const result = await regenerateVariants(req.user.tenantId, template._id);
+    res.json({ ok: true, regeneration: result });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/products/templates/:id/regenerate-variants', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const template = await StockProductTemplate.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!template) return res.status(404).json({ error: 'Not found' });
+    res.json(await regenerateVariants(req.user.tenantId, template._id));
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 // ─── Product templates & variants ───────────────────────────────────────────
 
 router.get('/products/variants', checkPermission('inventory', 'read'), async (req, res) => {
@@ -382,13 +496,15 @@ router.get('/products/templates/:id', checkPermission('inventory', 'read'), asyn
       .lean();
     if (!template) return res.status(404).json({ error: 'Not found' });
     const variants = await StockProductVariant.find({ templateId: template._id, ...req.tenantFilter }).lean();
-    const onHand = variants.length === 1
-      ? await computeOnHand(req.user.tenantId, variants[0]._id)
+    const attributeLines = await listTemplateAttributeLines(req.user.tenantId, template._id);
+    const activeVariants = variants.filter((v) => v.active !== false);
+    const onHand = activeVariants.length === 1
+      ? await computeOnHand(req.user.tenantId, activeVariants[0]._id)
       : null;
-    const forecast = variants.length === 1
-      ? await computeForecast(req.user.tenantId, variants[0]._id)
+    const forecast = onHand
+      ? await computeForecast(req.user.tenantId, activeVariants[0]._id)
       : null;
-    res.json({ template, variants, onHand, forecast });
+    res.json({ template, variants, attributeLines, onHand, forecast });
   } catch (err) {
     handleError(res, err);
   }

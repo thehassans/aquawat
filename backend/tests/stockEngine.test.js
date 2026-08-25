@@ -299,3 +299,16 @@ test('vendor bill without interim uses Inventory debit', () => {
   assert.equal(lines[0].accountCode, '1300');
   assert.equal(lines[1].credit, 50);
 });
+
+test('variant cartesian: Size×Color yields 4 combos', async () => {
+  const { cartesianProduct } = await import('../services/stock/variantGeneration.js');
+  const combos = cartesianProduct([['S', 'M'], ['Red', 'Blue']]);
+  assert.equal(combos.length, 4);
+  assert.deepEqual(combos[0], ['S', 'Red']);
+  assert.deepEqual(combos[3], ['M', 'Blue']);
+});
+
+test('variant cartesian: empty lines → single empty combo', async () => {
+  const { cartesianProduct } = await import('../services/stock/variantGeneration.js');
+  assert.deepEqual(cartesianProduct([]), [[]]);
+});

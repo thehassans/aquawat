@@ -6,6 +6,7 @@ const SUB = [
   { to: INVENTORY_PATH.config, en: 'Settings', ar: 'الإعدادات', exact: true },
   { to: INVENTORY_PATH.warehouses, en: 'Warehouses', ar: 'المستودعات' },
   { to: INVENTORY_PATH.productCategories, en: 'Product Categories', ar: 'فئات المنتجات' },
+  { to: INVENTORY_PATH.attributes, en: 'Attributes', ar: 'الخصائص' },
   { to: INVENTORY_PATH.routes, en: 'Routes', ar: 'المسارات' },
   { to: INVENTORY_PATH.rules, en: 'Rules', ar: 'القواعد' },
   { to: INVENTORY_PATH.putaway, en: 'Putaway Rules', ar: 'قواعد التخزين' },

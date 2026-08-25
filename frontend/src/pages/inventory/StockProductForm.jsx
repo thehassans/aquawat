@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -15,6 +15,8 @@ export default function StockProductForm() {
   const { language } = useSelector((state) => state.ui)
   const isAr = language === 'ar'
   const isEdit = Boolean(id)
+  const [pickAttributeId, setPickAttributeId] = useState('')
+  const [pickValueIds, setPickValueIds] = useState([])
 
   const { register, handleSubmit, reset } = useForm({
     defaultValues: {
@@ -43,7 +45,8 @@ export default function StockProductForm() {
     enabled: isEdit,
   })
 
-  const variantId = data?.variants?.[0]?._id
+  const variantId = (data?.variants || []).find((v) => v.active !== false)?._id
+    || data?.variants?.[0]?._id
 
   const { data: legacyProducts } = useQuery({
     queryKey: ['legacy-products-pick'],
@@ -59,6 +62,12 @@ export default function StockProductForm() {
   const { data: categories = [] } = useQuery({
     queryKey: ['stock-product-categories'],
     queryFn: () => api.get('/stock/product-categories').then((r) => r.data),
+  })
+
+  const { data: allAttributes = [] } = useQuery({
+    queryKey: ['stock-product-attributes'],
+    queryFn: () => api.get('/stock/product-attributes').then((r) => r.data),
+    enabled: isEdit,
   })
 
   const { data: valuation } = useQuery({
@@ -107,6 +116,33 @@ export default function StockProductForm() {
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
+
+  const saveAttrLine = useMutation({
+    mutationFn: (payload) => api.put(`/stock/products/templates/${id}/attribute-lines`, payload),
+    onSuccess: (res) => {
+      const warn = res.data?.regeneration?.warning
+      toast.success(warn || (isAr ? 'تم تحديث المتغيرات' : 'Variants updated'))
+      setPickAttributeId('')
+      setPickValueIds([])
+      queryClient.invalidateQueries(['stock-product-template', id])
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+  })
+
+  const removeAttrLine = useMutation({
+    mutationFn: (attributeId) => api.delete(`/stock/products/templates/${id}/attribute-lines/${attributeId}`),
+    onSuccess: (res) => {
+      const warn = res.data?.regeneration?.warning
+      toast.success(warn || (isAr ? 'تم' : 'Removed'))
+      queryClient.invalidateQueries(['stock-product-template', id])
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+  })
+
+  const selectedAttr = allAttributes.find((a) => a._id === pickAttributeId)
+  const valueNameById = Object.fromEntries(
+    allAttributes.flatMap((a) => (a.values || []).map((v) => [String(v._id), v.name])),
+  )
 
   return (
     <div className="space-y-6">
@@ -242,6 +278,111 @@ export default function StockProductForm() {
           </button>
         </div>
       </form>
+
+      {isEdit && (
+        <div className="card p-6 max-w-3xl space-y-4">
+          <div>
+            <h2 className="font-semibold">{isAr ? 'الخصائص والمتغيرات' : 'Attributes & Variants'}</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              {isAr
+                ? 'تغيير الخصائص يعيد توليد المتغيرات. المتغيرات ذات الحركات تُؤرشف ولا تُحذف.'
+                : 'Changing attributes regenerates variants. Variants with stock moves are archived, never deleted.'}
+            </p>
+          </div>
+
+          {(data?.attributeLines || []).map((line) => (
+            <div key={line._id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-dark-600 pb-2">
+              <div>
+                <div className="font-medium text-sm">{line.attribute?.name}</div>
+                <div className="text-xs text-slate-500">
+                  {(line.values || []).map((v) => v.name).join(', ') || '—'}
+                </div>
+              </div>
+              <button
+                type="button"
+                className={ghostBtn}
+                onClick={() => removeAttrLine.mutate(line.attributeId)}
+              >
+                {isAr ? 'إزالة' : 'Remove'}
+              </button>
+            </div>
+          ))}
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="label">{isAr ? 'خاصية' : 'Attribute'}</label>
+              <select
+                className={fieldControlClass}
+                value={pickAttributeId}
+                onChange={(e) => {
+                  setPickAttributeId(e.target.value)
+                  setPickValueIds([])
+                }}
+              >
+                <option value="">—</option>
+                {allAttributes.map((a) => (
+                  <option key={a._id} value={a._id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">{isAr ? 'القيم' : 'Values'}</label>
+              <div className="flex flex-wrap gap-2 max-h-28 overflow-auto border rounded-xl p-2">
+                {(selectedAttr?.values || []).map((v) => {
+                  const checked = pickValueIds.includes(v._id)
+                  return (
+                    <label key={v._id} className="inline-flex items-center gap-1 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setPickValueIds((ids) => (
+                          checked ? ids.filter((x) => x !== v._id) : [...ids, v._id]
+                        ))}
+                      />
+                      {v.name}
+                    </label>
+                  )
+                })}
+                {pickAttributeId && !(selectedAttr?.values || []).length && (
+                  <span className="text-xs text-slate-500">{isAr ? 'أضف قيماً من الإعدادات' : 'Add values in Configuration'}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            className={primaryBtn}
+            disabled={!pickAttributeId || !pickValueIds.length || saveAttrLine.isPending}
+            onClick={() => saveAttrLine.mutate({ attributeId: pickAttributeId, valueIds: pickValueIds })}
+          >
+            {isAr ? 'حفظ الخاصية وإعادة التوليد' : 'Save attribute & regenerate'}
+          </button>
+
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>{isAr ? 'المتغير' : 'Variant'}</th>
+                  <th>{isAr ? 'الرمز' : 'Code'}</th>
+                  <th>{isAr ? 'نشط' : 'Active'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data?.variants || []).map((v) => (
+                  <tr key={v._id} className={v.active === false ? 'opacity-50' : ''}>
+                    <td className="text-sm">
+                      {(v.attributeValueIds || []).map((vid) => valueNameById[String(vid)] || String(vid)).join(' / ')
+                        || (isAr ? 'افتراضي' : 'Default')}
+                    </td>
+                    <td>{v.defaultCode || '—'}</td>
+                    <td>{v.active === false ? (isAr ? 'مؤرشف' : 'Archived') : (isAr ? 'نعم' : 'Yes')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {isEdit && valuation?.layers?.length > 0 && (
         <div className="card overflow-hidden max-w-3xl">

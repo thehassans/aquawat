@@ -15,6 +15,7 @@ const FLAGS = [
   { key: 'groupStockStorageCategories', en: 'Storage Categories', ar: 'فئات التخزين' },
   { key: 'groupStockPutawayRules', en: 'Putaway Rules', ar: 'قواعد التخزين' },
   { key: 'groupUom', en: 'Units of Measure', ar: 'وحدات القياس' },
+  { key: 'groupProductVariant', en: 'Product Variants', ar: 'متغيرات المنتج' },
   { key: 'schedulerEnabled', en: 'Scheduler', ar: 'المجدول' },
   { key: 'useLandedCosts', en: 'Landed Costs', ar: 'التكاليف المرسية' },
   { key: 'stockAccountingEnabled', en: 'Stock Accounting Journals', ar: 'قيود تقييم المخزون' },

@@ -35,6 +35,7 @@ export const INVENTORY_PATH = {
   packageTypes: '/app/dashboard/inventory/configuration/package-types',
   uom: '/app/dashboard/inventory/configuration/uom',
   productCategories: '/app/dashboard/inventory/configuration/product-categories',
+  attributes: '/app/dashboard/inventory/configuration/attributes',
 }
 
 export const fieldControlClass =
