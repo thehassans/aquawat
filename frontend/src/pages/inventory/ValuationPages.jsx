@@ -5,31 +5,32 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
+import { ReportShell, useReportFilters } from './ReportShell'
 
 export default function ValuationReport() {
   const { language } = useSelector((s) => s.ui)
+  const { queryParams } = useReportFilters()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['valuation-report'],
-    queryFn: () => api.get('/stock/valuation-report').then((r) => r.data),
+    queryKey: ['valuation-report', queryParams],
+    queryFn: () => api.get('/stock/valuation-report', { params: queryParams }).then((r) => r.data),
   })
 
   const items = data?.items || []
   const total = items.reduce((s, r) => s + Number(r.value || 0), 0)
 
   return (
-    <div className="space-y-4">
+    <ReportShell
+      activeId="valuation"
+      title={language === 'ar' ? 'تقرير التقييم' : 'Inventory Valuation'}
+      subtitle={language === 'ar'
+        ? 'قيمة المخزون حسب طريقة التكلفة — يجب أن تطابق تقرير المخزون'
+        : 'On-hand value by costing method — must match Stock report'}
+    >
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-            {language === 'ar' ? 'تقرير التقييم' : 'Inventory Valuation'}
-          </h2>
-          <p className="text-sm text-slate-500">
-            {language === 'ar'
-              ? 'قيمة المخزون حسب طريقة التكلفة (معياري / متوسط / FIFO)'
-              : 'On-hand value by costing method (standard / average / FIFO)'}
-          </p>
-        </div>
+        <Link to="/app/dashboard/inventory/report/reconcile" className="text-xs font-medium text-primary-600 hover:underline">
+          {language === 'ar' ? 'تشغيل المطابقة' : 'Run reconcile'}
+        </Link>
         <div className="rounded-xl border border-slate-200/80 px-4 py-2 dark:border-dark-600">
           <div className="text-xs uppercase tracking-wide text-slate-400">
             {language === 'ar' ? 'الإجمالي' : 'Total'}
@@ -88,7 +89,7 @@ export default function ValuationReport() {
           {language === 'ar' ? 'تكلفة مرسية (مشتريات)' : 'Purchase landed costs'}
         </Link>
       </p>
-    </div>
+    </ReportShell>
   )
 }
 

@@ -5,66 +5,73 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
+import { ReportShell, REPORT_TABS, useReportFilters } from './ReportShell'
 
 export default function ReportingHub() {
   const { language } = useSelector((s) => s.ui)
-  const links = [
-    { to: '/app/dashboard/inventory/moves-analysis', en: 'Moves Analysis', ar: 'تحليل الحركات' },
-    { to: '/app/dashboard/inventory/performance', en: 'Performance', ar: 'الأداء' },
-    { to: '/app/dashboard/inventory/forecast', en: 'Forecast', ar: 'التوقع' },
-    { to: '/app/dashboard/inventory/valuation', en: 'Valuation', ar: 'التقييم' },
-    { to: '/app/dashboard/inventory/moves', en: 'Moves History', ar: 'سجل الحركات' },
-    { to: '/app/dashboard/inventory/stock', en: 'Stock Report', ar: 'تقرير المخزون' },
-  ]
+  const ar = language === 'ar'
+  const { qs } = useReportFilters()
+
+  const links = REPORT_TABS.map((t) => ({
+    to: `${t.path}${qs}`,
+    en: t.en,
+    ar: t.ar,
+    id: t.id,
+  }))
+
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {language === 'ar' ? 'التقارير' : 'Reporting'}
-        </h2>
-        <p className="text-sm text-slate-500">
-          {language === 'ar' ? 'تحليل الحركات والأداء والتقييم' : 'Moves, performance, forecast, and valuation'}
-        </p>
-      </div>
+    <ReportShell
+      activeId="hub"
+      title={ar ? 'التقارير' : 'Reporting'}
+      subtitle={ar
+        ? 'عائلة تقارير واحدة — نفس الفلاتر والتصدير'
+        : 'One report family — shared filters and export'}
+    >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {links.map((l) => (
           <Link
-            key={l.to}
+            key={l.id}
             to={l.to}
             className="rounded-xl border border-slate-200/80 px-4 py-3 text-sm font-medium text-slate-800 transition-colors hover:border-primary-300 hover:bg-primary-50/40 dark:border-dark-600 dark:text-slate-100 dark:hover:bg-dark-800"
           >
-            {language === 'ar' ? l.ar : l.en}
+            {ar ? l.ar : l.en}
           </Link>
         ))}
       </div>
-    </div>
+    </ReportShell>
   )
 }
 
 export function MovesAnalysisPage() {
   const { language } = useSelector((s) => s.ui)
-  const [groupBy, setGroupBy] = useState('product')
+  const { filters, setFilter, queryParams } = useReportFilters()
+  const groupBy = filters.groupBy || 'product'
 
   const { data, isLoading } = useQuery({
-    queryKey: ['moves-analysis', groupBy],
+    queryKey: ['moves-analysis', groupBy, queryParams],
     queryFn: () =>
-      api.get('/stock/report/moves-analysis', { params: { groupBy } }).then((r) => r.data),
+      api.get('/stock/report/moves-analysis', {
+        params: { groupBy, warehouseId: queryParams.warehouseId, dateFrom: queryParams.dateFrom, dateTo: queryParams.dateTo },
+      }).then((r) => r.data),
   })
 
   const items = data?.items || []
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {language === 'ar' ? 'تحليل الحركات' : 'Moves Analysis'}
-        </h2>
-        <select className="select select-sm" value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
-          <option value="product">{language === 'ar' ? 'حسب المنتج' : 'By product'}</option>
-          <option value="day">{language === 'ar' ? 'حسب اليوم' : 'By day'}</option>
-          <option value="partner">{language === 'ar' ? 'حسب الشريك' : 'By partner'}</option>
-        </select>
-      </div>
+    <ReportShell
+      activeId="moves-analysis"
+      title={language === 'ar' ? 'تحليل الحركات' : 'Moves Analysis'}
+      extraFilters={(
+        <div>
+          <label className="label text-[11px]">{language === 'ar' ? 'تجميع' : 'Group by'}</label>
+          <select className="select select-sm" value={groupBy} onChange={(e) => setFilter('groupBy', e.target.value)}>
+            <option value="product">{language === 'ar' ? 'حسب المنتج' : 'By product'}</option>
+            <option value="day">{language === 'ar' ? 'حسب اليوم' : 'By day'}</option>
+            <option value="partner">{language === 'ar' ? 'حسب الشريك' : 'By partner'}</option>
+          </select>
+        </div>
+      )}
+    >
       {isLoading ? (
         <div className="text-sm text-slate-500">…</div>
       ) : !items.length ? (
@@ -95,15 +102,16 @@ export function MovesAnalysisPage() {
           </table>
         </div>
       )}
-    </div>
+    </ReportShell>
   )
 }
 
 export function PerformancePage() {
   const { language } = useSelector((s) => s.ui)
+  const { queryParams } = useReportFilters()
   const { data, isLoading } = useQuery({
-    queryKey: ['inv-performance'],
-    queryFn: () => api.get('/stock/report/performance').then((r) => r.data),
+    queryKey: ['inv-performance', queryParams],
+    queryFn: () => api.get('/stock/report/performance', { params: queryParams }).then((r) => r.data),
   })
 
   const cards = useMemo(() => {
@@ -133,10 +141,10 @@ export function PerformancePage() {
   }, [data, language])
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-        {language === 'ar' ? 'أداء المخزون' : 'Inventory Performance'}
-      </h2>
+    <ReportShell
+      activeId="performance"
+      title={language === 'ar' ? 'أداء المخزون' : 'Inventory Performance'}
+    >
       {isLoading ? (
         <div className="text-sm text-slate-500">…</div>
       ) : (
@@ -149,23 +157,24 @@ export function PerformancePage() {
           ))}
         </div>
       )}
-    </div>
+    </ReportShell>
   )
 }
 
 export function ForecastPage() {
   const { language } = useSelector((s) => s.ui)
+  const { queryParams } = useReportFilters()
   const { data, isLoading } = useQuery({
-    queryKey: ['inv-forecast-report'],
-    queryFn: () => api.get('/stock/report/forecast').then((r) => r.data),
+    queryKey: ['inv-forecast-report', queryParams],
+    queryFn: () => api.get('/stock/report/forecast', { params: queryParams }).then((r) => r.data),
   })
   const items = data?.items || []
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-        {language === 'ar' ? 'المخزون المتوقع' : 'Forecasted Inventory'}
-      </h2>
+    <ReportShell
+      activeId="forecast"
+      title={language === 'ar' ? 'المخزون المتوقع' : 'Forecasted Inventory'}
+    >
       {isLoading ? (
         <div className="text-sm text-slate-500">…</div>
       ) : !items.length ? (
@@ -199,7 +208,7 @@ export function ForecastPage() {
           </table>
         </div>
       )}
-    </div>
+    </ReportShell>
   )
 }
 

@@ -220,3 +220,16 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Picking form | Partner, op-type-driven locations, barcode scan [flag], detailed ops tab, signature capture, lightweight chatter (log notes on transfer.note) |
 | Variants / Attributes | Still deferred (placeholder routes) — needs Step 4+ attributes model |
 | Full Odoo chatter | Not ported; inventory uses transfer note trail only |
+
+## v2 IA — Step 5 (Report family + reconciliation)
+
+| Topic | Decision |
+|---|---|
+| Report shell | Shared `ReportShell` + URL filters (`warehouseId`, dates, …) across Stock / Locations / Moves / Analysis / Performance / Forecast / Valuation / Reconcile |
+| Locations report | `GET /stock/report/locations` — quants rolled up by `completePath`; menu flag `multiLocations` |
+| Hard invariant | Per product: stock report value == valuation value; totals exposed as `stockValueTotal` / `valuationValueTotal` / `valueDrift` |
+| Reconcile API | `GET /stock/report/reconcile` (+ optional `includeCache`); issues: `QTY_LEDGER_VS_VALUATION`, `FIFO_VALUE_VS_LAYERS`, `STOCK_VALUE_VS_VALUATION`, `CACHE_VS_LEDGER` |
+| Cache repair | `POST /stock/report/reconcile/repair-cache` re-runs `syncProductStockCache` then re-reconciles |
+| Stock report | Rows include `value`; response includes `valueTotal` (same valuation helper) |
+| Menu | Reporting adds **Reconcile**; Locations stays under Reporting (config **Locations** unchanged) |
+| Ledger | Not redesigned — reconcile reads quants / layers / product cache only |

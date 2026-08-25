@@ -4,27 +4,29 @@ import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
+import { ReportShell, useReportFilters } from './ReportShell'
 
 export default function MovesHistory() {
   const { language } = useSelector((s) => s.ui)
   const [direction, setDirection] = useState('')
+  const { queryParams } = useReportFilters()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['moves-history', direction],
+    queryKey: ['moves-history', direction, queryParams],
     queryFn: () =>
       api.get('/stock/moves-history', {
-        params: { direction: direction || undefined, limit: 80 },
+        params: { ...queryParams, direction: direction || undefined, limit: 80 },
       }).then((r) => r.data),
   })
 
   const items = data?.items || []
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {language === 'ar' ? 'سجل الحركات' : 'Moves History'}
-        </h2>
+    <ReportShell
+      activeId="moves"
+      title={language === 'ar' ? 'سجل الحركات' : 'Moves History'}
+      subtitle={language === 'ar' ? 'حركات المخزون المكتملة' : 'Completed inventory move lines'}
+      extraFilters={(
         <div className="flex gap-1">
           {[
             { id: '', en: 'All', ar: 'الكل' },
@@ -42,8 +44,8 @@ export default function MovesHistory() {
             </button>
           ))}
         </div>
-      </div>
-
+      )}
+    >
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600">
@@ -95,6 +97,6 @@ export default function MovesHistory() {
           </div>
         )}
       </div>
-    </div>
+    </ReportShell>
   )
 }

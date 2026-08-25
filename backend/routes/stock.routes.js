@@ -679,6 +679,7 @@ router.get('/report/stock', checkPermission('inventory', 'read'), async (req, re
 
     const byId = new Map(products.map((p) => [String(p._id), p]));
     const rows = [];
+    let valueTotal = D(0);
     for (const q of quants) {
       const p = byId.get(String(q._id));
       if (!p) continue;
@@ -687,6 +688,18 @@ router.get('/report/stock', checkPermission('inventory', 'read'), async (req, re
       const forecast = await computeForecast(req.user.tenantId, q._id, {
         warehouseId: req.query.warehouseId,
       });
+      let value = '0';
+      let unitCost = p.costPrice;
+      try {
+        const { productInventoryValue } = await import('../services/inventory/valuation.js');
+        const v = await productInventoryValue(req.user.tenantId, q._id);
+        value = v.value;
+        unitCost = v.unitCost || p.costPrice;
+        valueTotal = valueTotal.plus(D(value));
+      } catch {
+        value = decStr(D(onHand).mul(D(p.costPrice || 0)));
+        valueTotal = valueTotal.plus(D(value));
+      }
       rows.push({
         productId: q._id,
         product: p,
@@ -696,11 +709,12 @@ router.get('/report/stock', checkPermission('inventory', 'read'), async (req, re
         incoming: forecast.incoming,
         outgoing: forecast.outgoing,
         forecast: forecast.forecast,
-        unitCost: p.costPrice,
+        unitCost,
+        value,
       });
     }
 
-    res.json({ data: rows, total: rows.length });
+    res.json({ data: rows, total: rows.length, valueTotal: decStr(valueTotal) });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1688,6 +1702,48 @@ router.get('/report/forecast', checkPermission('inventory', 'read'), async (req,
       limit: req.query.limit,
     });
     res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/report/locations', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { locationsReport } = await import('../services/inventory/reconciliation.js');
+    res.json(await locationsReport(req.user.tenantId, {
+      warehouseId: req.query.warehouseId,
+      usage: req.query.usage || 'internal',
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/report/reconcile', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { reconcileInventory } = await import('../services/inventory/reconciliation.js');
+    res.json(await reconcileInventory(req.user.tenantId, {
+      warehouseId: req.query.warehouseId || null,
+      productId: req.query.productId || null,
+      includeCache: req.query.includeCache !== 'false',
+      limit: Number(req.query.limit) || 500,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/report/reconcile/repair-cache', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { repairStockCache, reconcileInventory } = await import('../services/inventory/reconciliation.js');
+    const repair = await repairStockCache(req.user.tenantId, {
+      productIds: req.body.productIds || null,
+    });
+    const after = await reconcileInventory(req.user.tenantId, {
+      warehouseId: req.body.warehouseId || null,
+      includeCache: true,
+    });
+    res.json({ repair, after });
   } catch (err) {
     handleInventoryError(res, err);
   }

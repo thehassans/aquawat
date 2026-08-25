@@ -75,6 +75,8 @@ const InventoryOverview = lazy(() => import('./pages/inventory/InventoryOverview
 const TransfersList = lazy(() => import('./pages/inventory/TransfersList'))
 const TransferForm = lazy(() => import('./pages/inventory/TransferForm'))
 const StockReport = lazy(() => import('./pages/inventory/StockReport'))
+const LocationsReportPage = lazy(() => import('./pages/inventory/ReportPages').then((m) => ({ default: m.LocationsReportPage })))
+const ReconcileReportPage = lazy(() => import('./pages/inventory/ReportPages').then((m) => ({ default: m.ReconcileReportPage })))
 const PhysicalInventory = lazy(() => import('./pages/inventory/PhysicalInventory'))
 const ScrapList = lazy(() => import('./pages/inventory/ScrapPages'))
 const ScrapForm = lazy(() => import('./pages/inventory/ScrapPages').then((m) => ({ default: m.ScrapForm })))
@@ -809,7 +811,8 @@ function App() {
           <Route path="references" element={<InventoryPlaceholder titleEn="References" titleAr="المراجع" step={3} />} />
           <Route path="variants" element={<InventoryPlaceholder titleEn="Product Variants" titleAr="متغيرات المنتج" step={4} />} />
           <Route path="packages" element={<InventoryPlaceholder titleEn="Packages" titleAr="الطرود" step={3} />} />
-          <Route path="report/locations" element={<InventoryPlaceholder titleEn="Locations report" titleAr="تقرير المواقع" step={5} />} />
+          <Route path="report/locations" element={<LocationsReportPage />} />
+          <Route path="report/reconcile" element={<ReconcileReportPage />} />
           <Route path="locations" element={<LocationsPage />} />
           <Route path="locations/new" element={<LocationForm />} />
           <Route path="locations/:id/edit" element={<LocationForm />} />

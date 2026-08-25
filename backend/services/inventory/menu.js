@@ -218,6 +218,13 @@ export const INVENTORY_MENU_TREE = [
         permission: { module: 'inventory', action: 'read' },
       },
       {
+        id: 'report-reconcile',
+        label: 'Reconcile',
+        labelAr: 'المطابقة',
+        href: '/app/dashboard/inventory/report/reconcile',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
         id: 'reports-hub',
         label: 'Reports hub',
         labelAr: 'مركز التقارير',
