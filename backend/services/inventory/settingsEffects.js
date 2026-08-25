@@ -40,7 +40,7 @@ export const SETTINGS_EFFECTS = {
   groupBatchTransfer: 'batch_transfers_api_menu_and_bulk_validate',
   groupStockWarning: 'partner_stockWarn_block',
   defaultPickingPolicy: 'check_availability_one_vs_direct',
-  moduleQuality: 'quality_blocks_validate',
+  moduleQuality: 'quality_points_checks_block_validate_until_pass',
   groupReceptionReport: 'alias_receptionReportEnabled',
   barcodeNomenclatureId: 'barcode_match_rules',
   stockSmsConfirmation: 'validate_stamps_sms_note_requires_provider',

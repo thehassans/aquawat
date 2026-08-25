@@ -141,10 +141,13 @@ export async function validateTransfer(tenantId, transferId, {
         const openChecks = await InvQualityCheck.countDocuments({
           tenantId: tid,
           transferId: transfer._id,
-          state: 'none',
+          state: { $ne: 'pass' },
         }).session(session);
         if (openChecks > 0) {
-          throw new InventoryValidationError('Quality checks incomplete', 'QUALITY_PENDING');
+          throw new InventoryValidationError(
+            'Quality checks incomplete — all checks must pass before validate',
+            'QUALITY_PENDING',
+          );
         }
       }
 

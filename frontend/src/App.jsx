@@ -106,6 +106,7 @@ const AttributesPage = lazy(() => import('./pages/inventory/VariantPages').then(
 const VariantsPage = lazy(() => import('./pages/inventory/VariantPages').then((m) => ({ default: m.VariantsPage })))
 const BatchTransfersPage = lazy(() => import('./pages/inventory/BatchPages').then((m) => ({ default: m.BatchTransfersPage })))
 const BatchTransferDetailPage = lazy(() => import('./pages/inventory/BatchPages').then((m) => ({ default: m.BatchTransferDetailPage })))
+const QualityPointsPage = lazy(() => import('./pages/inventory/QualityPages').then((m) => ({ default: m.QualityPointsPage })))
 const LocationsPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationsPage })))
 const LocationForm = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationForm })))
 const OperationTypesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.OperationTypesPage })))
@@ -817,6 +818,7 @@ function App() {
           <Route path="import-export" element={<ImportExportPage />} />
           <Route path="exceptions" element={<ExceptionsQueuePage />} />
           <Route path="barcode" element={<BarcodeNomenclaturePage />} />
+          <Route path="quality-points" element={<QualityPointsPage />} />
           <Route path="returns" element={<ReturnsPage />} />
           <Route path="batches" element={<BatchTransfersPage />} />
           <Route path="batches/:id" element={<BatchTransferDetailPage />} />

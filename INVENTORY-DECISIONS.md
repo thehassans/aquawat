@@ -339,4 +339,15 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Ledger | Unchanged — each validate still goes through move → quant delta |
 | UI | `/inventory/batches` list + detail add/remove pickings |
 
+## Quality checks
+
+| Topic | Decision |
+|---|---|
+| Flag | `moduleQuality` gates menu + APIs + validate gate |
+| Points | `InvQualityPoint` per operation type; checks created on confirm (and via ensure) |
+| Validate | All checks must be `pass` (`none` and `fail` block) |
+| Ledger | Unchanged — quality is a gate before validate → quant delta |
+| UI | Quality Points config + Transfer **Quality** tab |
+
+
 

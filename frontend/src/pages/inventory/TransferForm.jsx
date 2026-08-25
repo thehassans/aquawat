@@ -8,6 +8,7 @@ import api from '../../lib/api'
 import ProductChooser from '../../components/inventory/ProductChooser'
 import { StatusChip } from './inventoryUi'
 import { TransferPrintButton } from './TransferPrint'
+import { TransferQualityPanel } from './QualityPages'
 
 const CODE_FROM_PATH = () => {
   const parts = window.location.pathname.split('/')
@@ -97,6 +98,7 @@ export default function TransferForm() {
     showLotsOnDeliverySlips: !!(settings?.showLotsOnDeliverySlips || settings?.groupLotOnDeliverySlip),
     variantsEnabled: !!settings?.groupProductVariant,
     deliveryMethods: !!settings?.groupDeliveryMethods,
+    qualityEnabled: !!settings?.moduleQuality,
   }
 
   const { data: carriersData } = useQuery({
@@ -342,9 +344,10 @@ export default function TransferForm() {
   const tabs = [
     { id: 'operations', en: 'Operations', ar: 'العمليات' },
     { id: 'detailed', en: 'Detailed Operations', ar: 'عمليات تفصيلية' },
+    { id: 'quality', en: 'Quality', ar: 'الجودة', hide: !hints.qualityEnabled },
     { id: 'info', en: 'Additional Info', ar: 'معلومات إضافية' },
     { id: 'note', en: 'Note', ar: 'ملاحظة' },
-  ]
+  ].filter((t) => !t.hide)
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -770,6 +773,10 @@ export default function TransferForm() {
                   })}
                 </tbody>
               </table>
+            )}
+
+            {tab === 'quality' && hints.qualityEnabled && (
+              <TransferQualityPanel transferId={id} readOnly={readOnly} language={language} />
             )}
 
             {tab === 'info' && (

@@ -535,6 +535,7 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
         stockSmsConfirmation: !!settings.stockSmsConfirmation,
         variantsEnabled: !!settings.groupProductVariant,
         deliveryMethods: !!settings.groupDeliveryMethods,
+        qualityEnabled: !!settings.moduleQuality,
       },
     });
   } catch (err) {
@@ -1117,6 +1118,73 @@ router.post('/physical-inventory/request-count', checkPermission('inventory', 'u
       ...req.body,
       userId: req.user._id,
     }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Quality points & checks ────────────────────────────────────────
+
+router.get('/quality-points', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listQualityPoints } = await import('../services/inventory/quality.js');
+    res.json({
+      items: await listQualityPoints(req.user.tenantId, {
+        operationTypeId: req.query.operationTypeId,
+        activeOnly: req.query.active !== 'false',
+      }),
+    });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/quality-points', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { createQualityPoint } = await import('../services/inventory/quality.js');
+    res.status(201).json(await createQualityPoint(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/quality-points/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { updateQualityPoint } = await import('../services/inventory/quality.js');
+    res.json(await updateQualityPoint(req.user.tenantId, req.params.id, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/transfers/:id/quality-checks', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+    const { listTransferQualityChecks } = await import('../services/inventory/quality.js');
+    res.json({ items: await listTransferQualityChecks(req.user.tenantId, req.params.id) });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/transfers/:id/quality-checks/ensure', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+    const { ensureTransferQualityChecks } = await import('../services/inventory/quality.js');
+    res.json(await ensureTransferQualityChecks(req.user.tenantId, req.params.id, req.user._id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/quality-checks/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { resolveQualityCheck } = await import('../services/inventory/quality.js');
+    res.json(await resolveQualityCheck(req.user.tenantId, req.params.id, req.user._id, req.body));
   } catch (err) {
     handleInventoryError(res, err);
   }
