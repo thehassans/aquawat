@@ -1,9 +1,13 @@
 import { useSelector } from 'react-redux'
 import { Printer } from 'lucide-react'
+import QRCode from 'qrcode'
+import api from '../../lib/api'
+import { generateZatcaQrValue } from '../../lib/zatcaQr'
 
 /**
  * ZATCA-aware bilingual print for receipts / delivery slips.
- * VAT number + QR placeholder; lot column gated by showLotsOnDeliverySlips.
+ * QR uses linked invoice stored payload, or Phase-1 TLV from invoice totals.
+ * No transmission / clearance client.
  */
 export function TransferPrintButton({ transfer, code, settingsHints }) {
   const { language } = useSelector((s) => s.ui)
@@ -13,7 +17,7 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
     ? true
     : settingsHints?.showLotsOnDeliverySlips !== false
 
-  const print = () => {
+  const print = async () => {
     try {
       const vat = tenant?.business?.vatNumber || tenant?.vatNumber || tenant?.zatca?.vatNumber || '—'
       const companyEn = tenant?.business?.legalNameEn || tenant?.nameEn || tenant?.name || 'Company'
@@ -26,6 +30,57 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
           ? { en: 'Delivery Slip', ar: 'سند تسليم' }
           : { en: 'Internal Transfer', ar: 'تحويل داخلي' }
 
+      let printCtx = null
+      if (transfer?._id) {
+        try {
+          printCtx = await api.get(`/stock/transfers/${transfer._id}/print-context`).then((r) => r.data)
+        } catch {
+          printCtx = null
+        }
+      }
+
+      let zatcaPayload = printCtx?.zatcaQrPayload || null
+      if (!zatcaPayload && printCtx?.totals && printCtx?.seller?.vatNumber) {
+        zatcaPayload = generateZatcaQrValue({
+          sellerName: printCtx.seller.name || companyAr || companyEn,
+          vatNumber: printCtx.seller.vatNumber,
+          timestamp: printCtx.linked?.invoice?.issueDate || transfer?.scheduledDate || new Date(),
+          totalWithVat: printCtx.totals.totalWithVat,
+          vatTotal: printCtx.totals.vatTotal,
+        })
+      }
+
+      let qrHtml = '<div class="qr">ZATCA QR<br/>—</div>'
+      if (zatcaPayload) {
+        try {
+          const dataUrl = await QRCode.toDataURL(zatcaPayload, { width: 120, margin: 1, errorCorrectionLevel: 'M' })
+          const srcLabel = printCtx?.qrSource === 'invoice_stored' || printCtx?.qrSource === 'invoice_phase2'
+            ? (ar ? 'من الفاتورة' : 'from invoice')
+            : (ar ? 'Phase-1' : 'Phase-1')
+          qrHtml = `<div class="qr-wrap"><img src="${dataUrl}" alt="ZATCA QR" width="96" height="96"/><div class="qr-cap">ZATCA · ${srcLabel}</div></div>`
+        } catch {
+          qrHtml = '<div class="qr">ZATCA QR<br/>error</div>'
+        }
+      } else if (printCtx?.linked?.invoice) {
+        qrHtml = `<div class="qr">${ar ? 'فاتورة بلا QR<br/>تحقق من الرقم الضريبي' : 'Invoice<br/>no valid QR'}</div>`
+      } else {
+        qrHtml = `<div class="qr">${ar ? 'اربط فاتورة<br/>للرمز الضريبي' : 'Link invoice<br/>for ZATCA QR'}</div>`
+      }
+
+      const linkedBits = []
+      if (printCtx?.linked?.invoice?.invoiceNumber) {
+        linkedBits.push(`Invoice: ${printCtx.linked.invoice.invoiceNumber}`)
+      }
+      if (printCtx?.linked?.deliveryNote?.dnNumber) {
+        linkedBits.push(`DN: ${printCtx.linked.deliveryNote.dnNumber}`)
+      }
+      if (printCtx?.linked?.grn?.grnNumber) {
+        linkedBits.push(`GRN: ${printCtx.linked.grn.grnNumber}`)
+      }
+      if (printCtx?.totals) {
+        linkedBits.push(`Total: ${Number(printCtx.totals.totalWithVat).toFixed(2)} (VAT ${Number(printCtx.totals.vatTotal).toFixed(2)})`)
+      }
+
       const moveRows = (lines || []).flatMap((m) => {
         const mls = moveLines.filter((l) => String(l.moveId) === String(m._id))
         const fromMove = m.moveLines || m.lines || []
@@ -34,19 +89,25 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
           return use.map((l) => ({
             product: l.productId?.nameEn || m.productId?.nameEn || '—',
             productAr: l.productId?.nameAr || m.productId?.nameAr || '',
-            qty: l.quantityInProductUom || l.quantity || m.quantityDone || m.productUomQty || '',
+            qty: l.quantityInProductUom || l.quantity || m.quantityDone || m.productUomQty || m.doneQty || m.demandQty || '',
             lot: l.lotId?.name || l.lotName || '',
+            variant: m.variantId?.name || '',
           }))
         }
         return [{
           product: m.productId?.nameEn || '—',
           productAr: m.productId?.nameAr || '',
-          qty: m.quantityDone || m.productUomQty || '',
+          qty: m.quantityDone || m.productUomQty || m.doneQty || m.demandQty || '',
           lot: '',
+          variant: m.variantId?.name || '',
         }]
       })
 
       const lotHeader = showLots ? '<th>Lot / دفعة</th>' : ''
+      const displayVat = printCtx?.seller?.vatNumber || vat
+      const displayCoEn = printCtx?.seller?.nameEn || companyEn
+      const displayCoAr = printCtx?.seller?.nameAr || companyAr
+
       const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
       if (!w) return
       w.document.write(`<!DOCTYPE html><html lang="${ar ? 'ar' : 'en'}" dir="${ar ? 'rtl' : 'ltr'}">
@@ -66,16 +127,19 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
   th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: start; }
   th { background: #f1f5f9; }
   .qr { width: 96px; height: 96px; border: 1px dashed #94a3b8; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #64748b; text-align: center; }
-  .foot { margin-top: 24px; display: flex; justify-content: space-between; align-items: end; font-size: 12px; color: #475569; }
+  .qr-wrap { text-align: center; }
+  .qr-cap { font-size: 9px; color: #64748b; margin-top: 4px; }
+  .foot { margin-top: 24px; display: flex; justify-content: space-between; align-items: end; font-size: 12px; color: #475569; gap: 16px; }
+  .linked { margin-top: 6px; font-size: 11px; color: #64748b; }
   @media print { body { margin: 12mm; } .noprint { display: none; } }
 </style>
 </head>
 <body>
   <div class="hdr">
     <div>
-      <div class="co">${escapeHtml(companyEn)}</div>
-      <div class="co-ar">${escapeHtml(companyAr)}</div>
-      <div style="font-size:12px;margin-top:6px">VAT / الرقم الضريبي: <strong>${escapeHtml(vat)}</strong></div>
+      <div class="co">${escapeHtml(displayCoEn)}</div>
+      <div class="co-ar">${escapeHtml(displayCoAr)}</div>
+      <div style="font-size:12px;margin-top:6px">VAT / الرقم الضريبي: <strong>${escapeHtml(displayVat)}</strong></div>
     </div>
     <div class="meta">
       <h1>${title.en}</h1>
@@ -95,7 +159,7 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
     </thead>
     <tbody>
       ${moveRows.map((r) => `<tr>
-        <td>${escapeHtml(r.product)}${r.productAr ? `<div dir="rtl" style="font-size:11px;color:#64748b">${escapeHtml(r.productAr)}</div>` : ''}</td>
+        <td>${escapeHtml(r.product)}${r.variant ? ` <span style="color:#64748b">(${escapeHtml(r.variant)})</span>` : ''}${r.productAr ? `<div dir="rtl" style="font-size:11px;color:#64748b">${escapeHtml(r.productAr)}</div>` : ''}</td>
         ${showLots ? `<td>${escapeHtml(r.lot || '—')}</td>` : ''}
         <td>${escapeHtml(String(r.qty))}</td>
       </tr>`).join('') || `<tr><td colspan="${showLots ? 3 : 2}">—</td></tr>`}
@@ -105,11 +169,12 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
     <div>
       <div>Origin: ${escapeHtml(transfer?.origin || '—')}</div>
       <div>Signature: ${transfer?.signature ? '✓' : '____________'}</div>
+      ${linkedBits.length ? `<div class="linked">${escapeHtml(linkedBits.join(' · '))}</div>` : ''}
     </div>
-    <div class="qr">ZATCA QR<br/>placeholder</div>
+    ${qrHtml}
   </div>
   <p class="noprint" style="margin-top:16px"><button onclick="window.print()">Print</button></p>
-  <script>setTimeout(() => window.print(), 300)</script>
+  <script>setTimeout(() => window.print(), 400)</script>
 </body></html>`)
       w.document.close()
     } catch (e) {

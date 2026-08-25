@@ -476,6 +476,20 @@ router.get('/transfers', checkPermission('inventory', 'read'), async (req, res) 
   }
 });
 
+router.get('/transfers/:id/print-context', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter })
+      .populate('operationTypeId', 'warehouseId code')
+      .lean();
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+    const { getTransferPrintContext } = await import('../services/inventory/printContext.js');
+    res.json(await getTransferPrintContext(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter })

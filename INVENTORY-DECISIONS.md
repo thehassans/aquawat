@@ -241,7 +241,8 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Topic | Decision |
 |---|---|
 | RTL / Arabic | Inherited app `dir`; print layouts + exception queue bilingual; inventory screens keep `labelAr` / `language === 'ar'` |
-| ZATCA print | `TransferPrint` — company VAT, bilingual headers, QR **placeholder** (no new transmission client) |
+| ZATCA print | `TransferPrint` — company VAT, bilingual headers, QR from linked invoice (stored or Phase-1 TLV) |
+
 | Negative stock | `InvProductCategory.allowNegativeStock` default **false**; validate → `applyQuantDelta` blocks below-zero unless flag (product flag as fallback) |
 | ProductStockCache | New `InvProductStockCache` upserted in `syncProductStockCache` (same session when provided); reports still read ledger; scheduler asserts cache == ledger |
 | Exception queue | `GET /stock/exceptions` + Operations menu — late waits, scheduler errors / NO_RULE, negative forecast, expired lots on hand |
@@ -253,9 +254,11 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 ### Deviations
 | Deviation | Reason |
 |---|---|
-| No live ZATCA QR on slips | Brief: placeholder until invoicing slots in |
+| No live ZATCA QR on slips | Superseded — see ZATCA print QR below |
 | Cache also mirrors `Product.stocks[]` | Keep legacy list UIs working |
 | XLSX import | First sheet → CSV via `xlsx`; same dry-run / adjustment-transfer path (`xlsxBase64` on import APIs) |
+
+
 
 
 ## Acceptance pass (post Step 6)
@@ -276,6 +279,7 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Settings effects registry | Every `SETTINGS_ALLOWED` flag maps to `SETTINGS_EFFECTS`; `GET /stock/settings?include=effects` |
 | Carrier stubs | Enabling `moduleCarrier*` upserts `InvDeliveryCarrier` with `installed: false` |
 | Reconcile stress | In-memory 100 random ops (FIFO/AVCO/standard) assert zero value/qty drift — no Mongo required |
+| ZATCA slip QR | Linked-invoice Phase-1 TLV / stored QR on print — no transmission client |
 
 ## Placeholder cleanup
 
@@ -297,6 +301,16 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Generate | Cartesian of active `createVariant` attribute values; skip existing `combinationKey` |
 | Transfers | `createTransfer` accepts `line.variantId`; picking prompts when product has variants |
 | Settings | `groupProductVariant` gates menu + create APIs |
+
+## ZATCA print QR (Phase-1 TLV)
+
+| Topic | Decision |
+|---|---|
+| API | `GET /stock/transfers/:id/print-context` — linked DN/GRN/invoice + optional QR payload |
+| Payload order | Prefer invoice `zatca.qrCodeData` / `phase2QrCode`; else generate Phase-1 TLV from invoice `grandTotal`/`totalTax` + tenant VAT |
+| No invent | No QR without linked invoice totals or stored QR (delivery slip alone is not a tax invoice) |
+| Transmission | Still out of scope — no clearance/reporting client |
+| Print UI | `TransferPrint` renders QR via `qrcode` when payload exists |
 
 ## XLSX import wrap
 
