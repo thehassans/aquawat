@@ -77,6 +77,8 @@ import {
   updateOperationType,
   createProductCategory,
   updateProductCategory,
+  deleteProductCategory,
+  duplicateProductCategory,
 } from '../services/inventory/configMasters.js';
 import {
   updateInvSettings,
@@ -92,7 +94,11 @@ router.use(stockIdempotency());
 
 function handleInventoryError(res, err) {
   if (err instanceof InventoryError) {
-    return res.status(err.status || 400).json({ error: err.message, code: err.code });
+    return res.status(err.status || 400).json({
+      error: err.message,
+      code: err.code,
+      ...(err.meta ? { meta: err.meta } : {}),
+    });
   }
   console.error('[inventory]', err);
   return res.status(500).json({ error: err.message || 'Inventory error' });
@@ -419,6 +425,25 @@ router.patch('/product-categories/:id', checkPermission('inventory', 'update'), 
   try {
     const cat = await updateProductCategory(req.user.tenantId, req.user._id, req.params.id, req.body);
     res.json(cat);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/product-categories/:id/duplicate', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const cat = await duplicateProductCategory(req.user.tenantId, req.user._id, req.params.id, {
+      nameSuffix: req.body?.nameSuffix,
+    });
+    res.status(201).json(cat);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.delete('/product-categories/:id', checkPermission('inventory', 'delete'), async (req, res) => {
+  try {
+    res.json(await deleteProductCategory(req.user.tenantId, req.params.id));
   } catch (err) {
     handleInventoryError(res, err);
   }

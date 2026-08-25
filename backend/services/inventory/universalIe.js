@@ -132,7 +132,11 @@ async function loadExportRows(tenantId, model, filters = {}) {
       }));
     }
     case 'product_categories': {
-      const rows = await InvProductCategory.find({ tenantId: tid }).sort({ completePath: 1 }).limit(limit).lean();
+      const q = { tenantId: tid };
+      if (Array.isArray(filters.ids) && filters.ids.length) {
+        q._id = { $in: filters.ids };
+      }
+      const rows = await InvProductCategory.find(q).sort({ completePath: 1 }).limit(limit).lean();
       return rows.map((c) => ({
         id: String(c._id),
         external_ref: c.externalId || '',

@@ -477,5 +477,16 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Form tabs | General · Attributes & Variants · Purchase · Inventory · Accounting |
 | Stock dims | `computeOnHand`/`computeForecast` accept optional `variantId` |
 
+## v3 P1 — Product Categories CRUD (§2.5)
+
+| Topic | Decision |
+|---|---|
+| List | Single full-path column (sorted), multi-select, `1–N/N` pager, New + universal IE |
+| Actions | Export (selection → IE `ids` filter) · Duplicate · Delete — no “Insert in spreadsheet” |
+| Delete guard | Blocked when products or child categories exist; `CAT_IN_USE` + `meta` counts; **Show products** → `/products?categoryId=` |
+| Duplicate | Copies logistics/valuation/accounts; name + `" (copy)"`; products not copied |
+| Reparent | `updateProductCategory` recomputes path then `cascadeCategoryPaths` via **one** `bulkWrite` for subtree |
+| Products list | Honors `?categoryId=` query (filter chip + clear) |
+
 
 

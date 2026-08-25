@@ -91,10 +91,11 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
       // ignore backfill errors — list still returns
     }
 
-    const { page = 1, limit = 50, category, status, search, lowStock, allowNegativeStock, stockHealth, productType } = req.query;
+    const { page = 1, limit = 50, category, categoryId, status, search, lowStock, allowNegativeStock, stockHealth, productType } = req.query;
 
     const query = { ...req.tenantFilter };
     if (category) query.category = category;
+    if (categoryId) query.categoryId = categoryId;
     if (status) query.status = status;
     if (productType === 'service') {
       query.productType = 'service';

@@ -49,11 +49,20 @@ async function cascadeCategoryPaths(tenantId, cat, oldPath) {
   const children = await InvProductCategory.find({
     tenantId,
     completePath: new RegExp(`^${escapeRegex(oldPath)}/`),
-  });
-  for (const child of children) {
-    child.completePath = `${newPath}${child.completePath.slice(oldPath.length)}`;
-    await child.save();
-  }
+  }).select('_id completePath').lean();
+  if (!children.length) return;
+  // One bulkWrite for the whole subtree — not sequential row saves
+  const ops = children.map((child) => ({
+    updateOne: {
+      filter: { _id: child._id, tenantId },
+      update: {
+        $set: {
+          completePath: `${newPath}${child.completePath.slice(oldPath.length)}`,
+        },
+      },
+    },
+  }));
+  await InvProductCategory.bulkWrite(ops, { ordered: false });
 }
 
 export async function createLocation(tenantId, userId, body) {
@@ -299,4 +308,77 @@ export async function updateProductCategory(tenantId, userId, id, body) {
     /* non-blocking */
   }
   return cat;
+}
+
+/**
+ * Delete category — blocked when it has children or products.
+ */
+export async function deleteProductCategory(tenantId, id) {
+  const tid = toObjectId(tenantId);
+  const cat = await InvProductCategory.findOne({ _id: id, tenantId: tid }).lean();
+  if (!cat) throw new InventoryValidationError('Category not found', 'CAT_NOT_FOUND');
+
+  const childrenCount = await InvProductCategory.countDocuments({
+    tenantId: tid,
+    parentId: cat._id,
+  });
+  const Product = (await import('../../models/Product.js')).default;
+  const productCount = await Product.countDocuments({
+    tenantId: tid,
+    categoryId: cat._id,
+  });
+
+  if (childrenCount > 0 || productCount > 0) {
+    const err = new InventoryValidationError(
+      `Cannot delete: ${productCount} product(s), ${childrenCount} child categor${childrenCount === 1 ? 'y' : 'ies'}`,
+      'CAT_IN_USE',
+    );
+    err.meta = { productCount, childrenCount, categoryId: String(cat._id) };
+    throw err;
+  }
+
+  await InvProductCategory.deleteOne({ _id: cat._id, tenantId: tid });
+  return { ok: true, deletedId: cat._id };
+}
+
+/**
+ * Duplicate category (logistics + valuation + accounts). Does not copy products.
+ * Name gets " (copy)" / " (نسخة)".
+ */
+export async function duplicateProductCategory(tenantId, userId, id, { nameSuffix } = {}) {
+  const tid = toObjectId(tenantId);
+  const src = await InvProductCategory.findOne({ _id: id, tenantId: tid }).lean();
+  if (!src) throw new InventoryValidationError('Category not found', 'CAT_NOT_FOUND');
+
+  const suffix = nameSuffix || ' (copy)';
+  let baseName = `${src.name}${suffix}`;
+  let completePath = await buildCategoryPath(tid, src.parentId || null, baseName);
+  let n = 2;
+  while (await InvProductCategory.findOne({ tenantId: tid, completePath }).lean()) {
+    baseName = `${src.name}${suffix} ${n}`;
+    completePath = await buildCategoryPath(tid, src.parentId || null, baseName);
+    n += 1;
+  }
+
+  return InvProductCategory.create({
+    tenantId: tid,
+    name: baseName,
+    nameAr: src.nameAr ? `${src.nameAr}${suffix}` : undefined,
+    parentId: src.parentId || null,
+    completePath,
+    routeIds: src.routeIds || [],
+    forceRemovalStrategy: src.forceRemovalStrategy,
+    reservePackagings: src.reservePackagings || 'partial',
+    costingMethod: src.costingMethod || 'average',
+    valuationMode: src.valuationMode || 'automated',
+    allowNegativeStock: !!src.allowNegativeStock,
+    incomeAccountId: src.incomeAccountId || null,
+    expenseAccountId: src.expenseAccountId || null,
+    priceDifferenceAccountId: src.priceDifferenceAccountId || null,
+    stockValuationAccountId: src.stockValuationAccountId || null,
+    stockJournalId: src.stockJournalId || null,
+    stockInputAccountId: src.stockInputAccountId || null,
+    stockOutputAccountId: src.stockOutputAccountId || null,
+    createdBy: userId,
+  });
 }

@@ -6,7 +6,7 @@ import { ArrowLeft, Plus, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
-import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
+import ImportExportDialog, { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 
 const USAGES = [
   'view', 'internal', 'vendor', 'customer',
@@ -485,37 +485,200 @@ export function OperationTypeForm() {
 
 export function ProductCategoriesPage() {
   const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  const qc = useQueryClient()
+  const navigate = useNavigate()
+  const [selected, setSelected] = useState(() => new Set())
+  const [page, setPage] = useState(1)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [deleteBlock, setDeleteBlock] = useState(null)
+  const [ieOpen, setIeOpen] = useState(null)
+  const pageSize = 50
+
   const { data, isLoading } = useQuery({
     queryKey: ['inv-product-categories'],
     queryFn: () => api.get('/stock/product-categories').then((r) => r.data),
   })
-  const rows = Array.isArray(data) ? data : []
+  const allRows = useMemo(() => {
+    const rows = Array.isArray(data) ? data : []
+    return [...rows].sort((a, b) => String(a.completePath || '').localeCompare(String(b.completePath || '')))
+  }, [data])
+  const total = allRows.length
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const rows = allRows.slice((page - 1) * pageSize, page * pageSize)
+  const from = total ? (page - 1) * pageSize + 1 : 0
+  const to = Math.min(page * pageSize, total)
+  const pageAllSelected = rows.length > 0 && rows.every((r) => selected.has(r._id))
+
+  const toggle = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const toggleAll = () => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (pageAllSelected) {
+        rows.forEach((r) => next.delete(r._id))
+      } else {
+        rows.forEach((r) => next.add(r._id))
+      }
+      return next
+    })
+  }
+
+  const dupMut = useMutation({
+    mutationFn: (id) => api.post(`/stock/product-categories/${id}/duplicate`),
+    onSuccess: (res) => {
+      toast.success(ar ? 'تم النسخ' : 'Duplicated')
+      qc.invalidateQueries({ queryKey: ['inv-product-categories'] })
+      navigate(`/app/dashboard/inventory/product-categories/${res.data._id}/edit`)
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message),
+  })
+
+  const delMut = useMutation({
+    mutationFn: (id) => api.delete(`/stock/product-categories/${id}`),
+    onSuccess: () => {
+      toast.success(ar ? 'تم الحذف' : 'Deleted')
+      setSelected(new Set())
+      setDeleteBlock(null)
+      qc.invalidateQueries({ queryKey: ['inv-product-categories'] })
+    },
+    onError: (e) => {
+      const data = e.response?.data
+      if (data?.code === 'CAT_IN_USE') {
+        setDeleteBlock({
+          message: data.error,
+          meta: data.meta || {},
+        })
+      } else {
+        toast.error(data?.error || e.message)
+      }
+    },
+  })
+
+  const selectedIds = [...selected]
+  const primaryId = selectedIds[0]
 
   return (
     <ListShell
-      title={language === 'ar' ? 'فئات المنتجات' : 'Product Categories'}
-      subtitle={language === 'ar' ? 'التقييم والمسارات' : 'Valuation and routes'}
+      title={ar ? 'فئات المنتجات' : 'Product Categories'}
+      subtitle={ar ? 'مسار كامل · تقييم · مسارات' : 'Full path · valuation · routes'}
       action={
-        <Link to="/app/dashboard/inventory/product-categories/new" className="btn btn-primary btn-sm">
-          <Plus className="h-4 w-4" />
-          {language === 'ar' ? 'فئة' : 'Category'}
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <InventoryIeButtons
+            model="product_categories"
+            ar={ar}
+            onImported={() => qc.invalidateQueries({ queryKey: ['inv-product-categories'] })}
+          />
+          <div className="relative">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={!selectedIds.length}
+              onClick={() => setMenuOpen((o) => !o)}
+            >
+              {ar ? 'إجراءات' : 'Actions'}{selectedIds.length ? ` (${selectedIds.length})` : ''}
+            </button>
+            {menuOpen && selectedIds.length > 0 && (
+              <div className="absolute end-0 z-30 mt-1 min-w-[12rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800">
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-start text-sm hover:bg-slate-50 dark:hover:bg-dark-700"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setIeOpen('export')
+                  }}
+                >
+                  {ar ? 'تصدير' : 'Export'}
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-start text-sm hover:bg-slate-50 dark:hover:bg-dark-700"
+                  disabled={!primaryId || dupMut.isPending}
+                  onClick={() => {
+                    setMenuOpen(false)
+                    dupMut.mutate(primaryId)
+                  }}
+                >
+                  {ar ? 'تكرار' : 'Duplicate'}
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-start text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                  disabled={!primaryId || delMut.isPending}
+                  onClick={() => {
+                    setMenuOpen(false)
+                    if (window.confirm(ar ? 'حذف الفئة المحددة؟' : 'Delete selected category?')) {
+                      delMut.mutate(primaryId)
+                    }
+                  }}
+                >
+                  {ar ? 'حذف' : 'Delete'}
+                </button>
+              </div>
+            )}
+          </div>
+          <Link to="/app/dashboard/inventory/product-categories/new" className="btn btn-primary btn-sm">
+            <Plus className="h-4 w-4" />
+            {ar ? 'جديد' : 'New'}
+          </Link>
+        </div>
       }
       loading={isLoading}
-      empty={!rows.length ? <EmptyState title={language === 'ar' ? 'لا فئات' : 'No categories'} /> : null}
+      empty={!allRows.length ? <EmptyState title={ar ? 'لا فئات' : 'No categories'} /> : null}
     >
+      {deleteBlock && (
+        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <p>{deleteBlock.message}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {(deleteBlock.meta?.productCount || 0) > 0 && deleteBlock.meta?.categoryId && (
+              <Link
+                className="btn btn-secondary btn-sm"
+                to={`/app/dashboard/inventory/products?categoryId=${deleteBlock.meta.categoryId}`}
+              >
+                {ar ? `عرض المنتجات (${deleteBlock.meta.productCount})` : `Show products (${deleteBlock.meta.productCount})`}
+              </Link>
+            )}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDeleteBlock(null)}>
+              {ar ? 'إغلاق' : 'Dismiss'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+        <span>{from}-{to} / {total}</span>
+        <div className="flex gap-1">
+          <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>‹</button>
+          <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
+        </div>
+      </div>
+
       <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
             <tr>
-              <th className="px-3 py-2">{language === 'ar' ? 'المسار' : 'Path'}</th>
-              <th className="px-3 py-2">{language === 'ar' ? 'التكلفة' : 'Costing'}</th>
-              <th className="px-3 py-2">{language === 'ar' ? 'التقييم' : 'Valuation'}</th>
+              <th className="w-10 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={pageAllSelected}
+                  onChange={toggleAll}
+                />
+              </th>
+              <th className="px-3 py-2">{ar ? 'فئة المنتج' : 'Product Category'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
             {rows.map((c) => (
-              <tr key={c._id}>
+              <tr key={c._id} className={selected.has(c._id) ? 'bg-primary-50/40 dark:bg-primary-950/20' : ''}>
+                <td className="px-3 py-2.5">
+                  <input type="checkbox" checked={selected.has(c._id)} onChange={() => toggle(c._id)} />
+                </td>
                 <td className="px-3 py-2.5">
                   <Link
                     to={`/app/dashboard/inventory/product-categories/${c._id}/edit`}
@@ -523,14 +686,25 @@ export function ProductCategoriesPage() {
                   >
                     {c.completePath}
                   </Link>
+                  <div className="text-[11px] text-slate-400">
+                    {c.costingMethod} · {c.valuationMode}
+                  </div>
                 </td>
-                <td className="px-3 py-2.5">{c.costingMethod}</td>
-                <td className="px-3 py-2.5">{c.valuationMode}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {ieOpen && (
+        <ImportExportDialog
+          mode={ieOpen}
+          model="product_categories"
+          ar={ar}
+          filters={selectedIds.length ? { ids: selectedIds } : {}}
+          onClose={() => setIeOpen(null)}
+          onImported={() => qc.invalidateQueries({ queryKey: ['inv-product-categories'] })}
+        />
+      )}
     </ListShell>
   )
 }

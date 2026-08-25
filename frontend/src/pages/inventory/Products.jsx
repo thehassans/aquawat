@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, Search, Package, AlertTriangle, Eye, Edit, QrCode, Boxes, Warehouse, CircleOff } from 'lucide-react'
 import api from '../../lib/api'
@@ -33,10 +33,19 @@ export default function Products() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
   const isAr = language === 'ar'
+  const [searchParams] = useSearchParams()
+  const categoryIdFromUrl = searchParams.get('categoryId') || ''
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [filters, setFilters] = useState({ status: '', stockHealth: '', productType: '' })
+  const [filters, setFilters] = useState({ status: '', stockHealth: '', productType: '', categoryId: '' })
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    if (categoryIdFromUrl) {
+      setFilters((f) => ({ ...f, categoryId: categoryIdFromUrl }))
+      setPage(1)
+    }
+  }, [categoryIdFromUrl])
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedSearch(search), 300)
@@ -247,6 +256,24 @@ export default function Products() {
         {' '}{isAr ? 'قيمة المخزون بسعر التكلفة' : 'inventory value at cost'}
         <span className="mx-2 text-slate-300">·</span>
         {(totals.totalStock || 0).toLocaleString()} {isAr ? 'وحدة في اليد' : 'units on hand'}
+        {filters.categoryId ? (
+          <>
+            <span className="mx-2 text-slate-300">·</span>
+            <span className="inline-flex items-center gap-2">
+              {isAr ? 'مصفّى حسب الفئة' : 'Filtered by category'}
+              <button
+                type="button"
+                className="text-xs font-semibold text-emerald-800 underline"
+                onClick={() => {
+                  setFilters((f) => ({ ...f, categoryId: '' }))
+                  setPage(1)
+                }}
+              >
+                {isAr ? 'مسح' : 'Clear'}
+              </button>
+            </span>
+          </>
+        ) : null}
       </div>
 
       <div className="rounded-2xl border border-slate-100 bg-white p-3 sm:p-4">
