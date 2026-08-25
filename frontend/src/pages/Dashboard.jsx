@@ -525,18 +525,14 @@ export default function Dashboard() {
     )
 
     addIf(
-      businessTypes.includes('trading') ||
-        businessTypes.includes('furniture_shop') ||
-        businessTypes.includes('manufacturing') ||
-        isMrpInstalled ||
-        isAppAccessValid(apps.manufacturing_mes),
+      isMrpInstalled || businessTypes.includes('manufacturing') || isAppAccessValid(apps.manufacturing_mes),
       {
         id: 'manufacturing_mes',
-        nameEn: 'Manufacturing',
-        nameAr: 'التصنيع',
-        descEn: 'BOM, MRP & shop floor inside Inventory',
-        descAr: 'شجرة المواد وتخطيط الإنتاج ضمن المخزون',
-        route: '/app/dashboard/inventory/manufacturing',
+        nameEn: 'Manufacturing & MES',
+        nameAr: 'التصنيع والإنتاج',
+        descEn: 'BOM, MRP II & shop floor',
+        descAr: 'شجرة المواد وتخطيط الإنتاج',
+        route: '/app/dashboard/manufacturing',
         icon: Factory,
       }
     )

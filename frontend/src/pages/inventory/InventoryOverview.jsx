@@ -25,10 +25,10 @@ const cards = [
 ]
 
 const quickLinks = [
-  { path: '/app/dashboard/inventory/products', icon: Boxes, en: 'Products', ar: 'المنتجات', subEn: 'Catalog & BOM finished goods', subAr: 'الكتالوج ومنتجات التصنيع' },
-  { path: '/app/dashboard/inventory/manufacturing', icon: PackagePlus, en: 'Manufacturing', ar: 'التصنيع', subEn: 'BOMs, work orders, QA', subAr: 'شجرة المواد وأوامر الإنتاج' },
   { path: '/app/dashboard/inventory/stock', icon: Boxes, en: 'Stock report', ar: 'تقرير المخزون', subEn: 'On hand, free to use, forecast', subAr: 'الكميات المتوقعة والمتاحة' },
+  { path: '/app/dashboard/inventory/reports', icon: BarChart3, en: 'Reports', ar: 'تقارير', subEn: 'Moves analysis & KPIs', subAr: 'تحليل الحركات ومؤشرات الأداء' },
   { path: '/app/dashboard/inventory/replenishment', icon: PackagePlus, en: 'Replenish', ar: 'توريد', subEn: 'Reorder rules & order once', subAr: 'قواعد إعادة الطلب' },
+  { path: '/app/dashboard/inventory/settings', icon: Settings, en: 'Settings', ar: 'إعدادات', subEn: 'Engine flags & lead times', subAr: 'إعدادات المحرك وأوقات التوريد' },
 ]
 
 export default function InventoryOverview() {

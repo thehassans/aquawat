@@ -104,14 +104,8 @@ export const getTenantPermissibleModules = (tenant) => {
     modules.add('job_costing');
   }
 
-  // Manufacturing / MRP — part of Inventory for trading tenants (no separate app required)
-  if (
-    businessTypes.includes('manufacturing') ||
-    businessTypes.includes('trading') ||
-    businessTypes.includes('furniture_shop') ||
-    isAppOn('manufacturing_mes') ||
-    isAppOn('mrp_manufacturing')
-  ) {
+  // Manufacturing / MRP
+  if (businessTypes.includes('manufacturing') || isAppOn('manufacturing_mes') || isAppOn('mrp_manufacturing')) {
     modules.add('mrp');
   }
 

@@ -34,7 +34,6 @@ import {
   Award
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { useTranslation } from '../../lib/translations';
 import { App3DIcon } from '../../components/ui/App3DIcon';
@@ -101,8 +100,8 @@ export default function Manufacturing() {
   });
 
   const { data: productsData } = useQuery({
-    queryKey: ['trading-products-stock'],
-    queryFn: () => api.get('/products', { params: { limit: 500 } }).then((res) => res.data),
+    queryKey: ['products-for-mfg'],
+    queryFn: () => api.get('/products').then((res) => res.data),
   });
 
   const boms = bomsData?.boms || [];
@@ -110,19 +109,15 @@ export default function Manufacturing() {
   const workCenters = workCentersData?.workCenters || [];
   const oee = oeeData?.oee || { overallOEE: 88, availability: 92, performance: 94, quality: 98 };
   const wip = wipData || { totalWIPValue: 0, stageValuation: {} };
-  const products = productsData?.products || (Array.isArray(productsData) ? productsData : []);
+  const products = productsData?.products || [];
 
   // ─── MUTATIONS ───
   const issueMaterialsMutation = useMutation({
     mutationFn: (workOrderId) => api.post(`/manufacturing/work-orders/${workOrderId}/issue-materials`),
     onSuccess: () => {
-      toast.success(language === 'ar' ? 'تم صرف المواد عبر المخزون' : 'Materials issued via inventory');
+      toast.success(language === 'ar' ? 'تم صرف وصرف المواد للمصنع بنجاح' : 'Kitting materials issued to shop floor');
       queryClient.invalidateQueries(['mfg-work-orders']);
       queryClient.invalidateQueries(['mfg-wip-valuation']);
-      queryClient.invalidateQueries(['products']);
-      queryClient.invalidateQueries(['stock-report']);
-      queryClient.invalidateQueries(['physical-inventory']);
-      queryClient.invalidateQueries(['stock-transfers']);
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Material issue failed')
   });
@@ -160,10 +155,6 @@ export default function Manufacturing() {
       toast.success(language === 'ar' ? 'تم اعتماد تقرير فحص الجودة وتمرير البضائع' : 'QA Inspection passed & goods released');
       queryClient.invalidateQueries(['mfg-qa-inspections']);
       queryClient.invalidateQueries(['mfg-work-orders']);
-      queryClient.invalidateQueries(['products']);
-      queryClient.invalidateQueries(['stock-report']);
-      queryClient.invalidateQueries(['physical-inventory']);
-      queryClient.invalidateQueries(['stock-transfers']);
     }
   });
 
@@ -177,42 +168,22 @@ export default function Manufacturing() {
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-5">
             <div className="p-3.5 bg-orange-500/20 rounded-2xl border border-orange-400/30 backdrop-blur-md shadow-inner">
-              <App3DIcon path="/app/dashboard/inventory/manufacturing" label="Manufacturing" className="w-14 h-14" />
+              <App3DIcon path="/app/dashboard/manufacturing" label="Manufacturing" className="w-14 h-14" />
             </div>
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                  {language === 'ar' ? 'التصنيع ضمن المخزون' : 'Manufacturing'}
+                  {language === 'ar' ? 'نظام التصنيع والإنتاج الصناعي (MES & MRP II)' : 'Industrial Manufacturing & MES'}
                 </h1>
                 <span className="px-3 py-1 text-xs font-bold bg-amber-500/30 text-amber-200 rounded-full border border-amber-400/30">
-                  {language === 'ar' ? 'متكامل مع المخزون' : 'Inventory-integrated'}
+                  {language === 'ar' ? 'تخطيط الموارد المتقدم' : 'MRP II Engine'}
                 </span>
               </div>
               <p className="text-slate-300 text-sm sm:text-base mt-1 max-w-2xl font-light">
                 {language === 'ar'
-                  ? 'شجرة المواد، أوامر الإنتاج، صرف المواد واستلام التام عبر محرك المخزون.'
-                  : 'BOMs, work orders, material issue and finished goods receipt via the inventory engine.'}
+                  ? 'منظومة صناعية شاملة: شجرة المواد متعددة المستويات، تخطيط الاحتياجات، أوامر الشغل الحية، فحص الجودة ISO، وحساب تكاليف الإنتاج اللحظية.'
+                  : 'Multi-level BOMs, dynamic MRP engine, shop floor job cards, ISO-grade QA checklists, and live OEE costing.'}
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Link
-                  to="/app/dashboard/inventory/products"
-                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-white/20"
-                >
-                  {language === 'ar' ? 'المنتجات' : 'Products'}
-                </Link>
-                <Link
-                  to="/app/dashboard/inventory/mrp"
-                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-white/20"
-                >
-                  MRP
-                </Link>
-                <Link
-                  to="/app/dashboard/inventory/stock"
-                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-white/20"
-                >
-                  {language === 'ar' ? 'تقرير المخزون' : 'Stock report'}
-                </Link>
-              </div>
             </div>
           </div>
 

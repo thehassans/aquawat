@@ -71,8 +71,7 @@ const APP_STYLE_MAP = {
   '/app/dashboard/pos': { gradient: 'from-[#F2994A] to-[#F2C94C]' },
 
   // Manufacturing & Industrial Group (Orange / Amber)
-  '/app/dashboard/inventory/manufacturing': { gradient: 'from-[#F97316] to-[#EA580C]' },
-  '/app/dashboard/inventory/mrp': { gradient: 'from-[#F97316] to-[#EA580C]' },
+  '/app/dashboard/manufacturing': { gradient: 'from-[#F97316] to-[#EA580C]' },
   '/app/dashboard/mrp': { gradient: 'from-[#F97316] to-[#EA580C]' },
 
   // App Store & Add-ons (Violet / Indigo / Cyan)

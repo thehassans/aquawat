@@ -760,7 +760,7 @@ function App() {
         <Route path="warehouses/new" element={<Navigate to="/app/dashboard/inventory/warehouses/new" replace />} />
         <Route path="warehouses/:id/edit" element={<PurchasesIdRedirect to="/app/dashboard/inventory/warehouses" suffix="/edit" />} />
         <Route path="warehouses/:id" element={<PurchasesIdRedirect to="/app/dashboard/inventory/warehouses" />} />
-        <Route path="inventory" element={<BusinessTypeRoute allowedTypes={['trading', 'furniture_shop', 'manufacturing']}><InventoryLayout /></BusinessTypeRoute>}>
+        <Route path="inventory" element={<BusinessTypeRoute allowedTypes={['trading', 'furniture_shop']}><InventoryLayout /></BusinessTypeRoute>}>
           <Route index element={<InventoryOverview />} />
           <Route path="products" element={<Products />} />
           <Route path="products/new" element={<ProductForm />} />
@@ -769,8 +769,6 @@ function App() {
           <Route path="warehouses/new" element={<WarehouseForm />} />
           <Route path="warehouses/:id" element={<WarehouseDashboard />} />
           <Route path="warehouses/:id/edit" element={<WarehouseForm />} />
-          <Route path="manufacturing" element={<Manufacturing />} />
-          <Route path="mrp" element={<MRP />} />
           <Route path="receipts" element={<TransfersList />} />
           <Route path="receipts/:id" element={<TransferForm />} />
           <Route path="deliveries" element={<TransfersList />} />
@@ -937,8 +935,8 @@ function App() {
         <Route path="job-costing" element={<BusinessTypeRoute allowedTypes={['construction']}><JobCosting /></BusinessTypeRoute>} />
         <Route path="job-costing/new" element={<BusinessTypeRoute allowedTypes={['trading']}><JobCostingForm /></BusinessTypeRoute>} />
         <Route path="job-costing/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><JobCostingForm /></BusinessTypeRoute>} />
-        <Route path="mrp" element={<Navigate to="/app/dashboard/inventory/mrp" replace />} />
-        <Route path="manufacturing" element={<Navigate to="/app/dashboard/inventory/manufacturing" replace />} />
+        <Route path="mrp" element={<BusinessTypeRoute allowedTypes={['trading', 'manufacturing']}><MRP /></BusinessTypeRoute>} />
+        <Route path="manufacturing" element={<BusinessTypeRoute allowedTypes={['manufacturing', 'trading']}><Manufacturing /></BusinessTypeRoute>} />
         <Route path="app-store" element={<AppStore />} />
         <Route path="app-store/:appId" element={<AppStoreDetail />} />
         <Route path="whatsapp" element={<WhatsApp />} />

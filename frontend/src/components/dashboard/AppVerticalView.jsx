@@ -257,7 +257,7 @@ export function AppVerticalView({
       nameAr: 'التصنيع وتخطيط وإدارة خطوط الإنتاج',
       category: 'Industrial & Manufacturing',
       icon: 'factory',
-      defaultRoute: '/app/dashboard/inventory/manufacturing',
+      defaultRoute: '/app/dashboard/manufacturing',
       color: 'from-amber-600 to-orange-700',
       kpis: [
         { label: isAr ? 'أوامر إنتاج نشطة' : 'Active Work Orders', value: data.totals?.[0]?.active || 0, icon: Factory },
@@ -266,11 +266,11 @@ export function AppVerticalView({
         { label: isAr ? 'جاهزية مراكز العمل' : 'Work Centers OEE', value: '94.2%', icon: BarChart3, success: true },
       ],
       quickActions: [
-        { label: isAr ? 'مركز عمليات التصنيع' : 'Manufacturing Hub', route: '/app/dashboard/inventory/manufacturing', icon: Factory, primary: true },
-        { label: isAr ? 'أمر إنتاج جديد' : 'New Work Order', route: '/app/dashboard/inventory/manufacturing', icon: PlusCircle },
-        { label: isAr ? 'شجرة المواد BOM' : 'Bills of Materials', route: '/app/dashboard/inventory/manufacturing', icon: Boxes },
-        { label: isAr ? 'تخطيط الاحتياجات MRP' : 'MRP Material Planning', route: '/app/dashboard/inventory/mrp', icon: TrendingUp },
-        { label: isAr ? 'المنتجات' : 'Products', route: '/app/dashboard/inventory/products', icon: Package },
+        { label: isAr ? 'مركز عمليات التصنيع' : 'Manufacturing Hub', route: '/app/dashboard/manufacturing', icon: Factory, primary: true },
+        { label: isAr ? 'أمر إنتاج جديد' : 'New Work Order', route: '/app/dashboard/manufacturing/work-orders/new', icon: PlusCircle },
+        { label: isAr ? 'شجرة المواد BOM' : 'Bills of Materials', route: '/app/dashboard/manufacturing/bom', icon: Boxes },
+        { label: isAr ? 'تخطيط الاحتياجات MRP' : 'MRP Material Planning', route: '/app/dashboard/mrp', icon: TrendingUp },
+        { label: isAr ? 'مراقبة الجودة والتفتيش' : 'QA/QC Inspections', route: '/app/dashboard/manufacturing/quality', icon: ShieldCheck },
       ],
       recentList: {
         title: isAr ? 'أحدث أوامر الإنتاج' : 'Recent Manufacturing Work Orders',
