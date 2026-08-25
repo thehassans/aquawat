@@ -204,8 +204,6 @@ export default function WarehouseForm() {
           </div>
         </motion.div>
 
-        </motion.div>
-
         {isEdit && warehouseData?.engineBootstrappedAt && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="card p-6">
             <h3 className="mb-4 text-lg font-semibold">
