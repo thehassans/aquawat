@@ -13,6 +13,11 @@ import {
 import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
 import Invoice from '../models/Invoice.js';
+import {
+  issueWorkOrderMaterials,
+  receiveWorkOrderFinishedGoods,
+} from '../services/inventory/manufacturingStock.js';
+import { InventoryValidationError } from '../services/inventory/errors.js';
 
 const router = express.Router();
 router.use(protect);
@@ -40,9 +45,9 @@ router.get('/boms', protect, async (req, res) => {
     }
 
     const boms = await ManufacturingBOM.find(query)
-      .populate('finishedProductId', 'sku nameEn nameAr costPrice salePrice stockQuantity uom isManufactured')
+      .populate('finishedProductId', 'sku nameEn nameAr costPrice salePrice totalStock unitOfMeasure isManufactured')
       .populate('routingId', 'code nameEn nameAr totalStandardTimeMinutes')
-      .populate('components.productId', 'sku nameEn nameAr costPrice stockQuantity uom')
+      .populate('components.productId', 'sku nameEn nameAr costPrice totalStock unitOfMeasure')
       .populate('components.subBomId', 'bomNumber nameEn nameAr version')
       .populate('byProducts.productId', 'sku nameEn nameAr')
       .sort({ updatedAt: -1 });
@@ -382,7 +387,7 @@ router.get('/mps', protect, async (req, res) => {
       tenantId: req.user.tenantId,
       periodYear: Number(req.query.year || currentYear)
     })
-      .populate('productId', 'sku nameEn nameAr stockQuantity minStockAlert isManufactured')
+      .populate('productId', 'sku nameEn nameAr totalStock minStockAlert isManufactured')
       .sort({ productId: 1, periodMonth: 1, weekNumber: 1 });
 
     res.json({ success: true, mpsRecords });
@@ -407,7 +412,7 @@ router.post('/mps/generate', protect, async (req, res) => {
       const prod = bom.finishedProductId;
 
       // Estimate demand based on current stock, min safety buffer, and pending sales orders
-      const stockOnHand = prod.stockQuantity || 0;
+      const stockOnHand = prod.totalStock || 0;
       const safetyStock = prod.minStockAlert || 10;
       const forecastDemand = safetyStock * 2;
       const confirmedOrders = Math.floor(Math.random() * 5); // or compute from open confirmed invoices
@@ -456,7 +461,7 @@ router.get('/mrp/run', protect, async (req, res) => {
       const prod = bom.finishedProductId;
       if (!prod) continue;
 
-      const currentStock = prod.stockQuantity || 0;
+      const currentStock = prod.totalStock || 0;
       const minStock = prod.minStockAlert || 5;
       const suggestedProductionQty = Math.max(0, (minStock * 2) - currentStock);
 
@@ -490,7 +495,7 @@ router.get('/mrp/run', protect, async (req, res) => {
               nameEn: rawProd.nameEn,
               nameAr: rawProd.nameAr,
               uom: comp.uom || rawProd.uom || 'PCS',
-              currentStock: rawProd.stockQuantity || 0,
+              currentStock: rawProd.totalStock || 0,
               costPrice: rawProd.costPrice || comp.costPerUnit || 0,
               grossRequiredQty: 0,
               shortageQty: 0,
@@ -644,7 +649,7 @@ router.get('/work-orders', protect, async (req, res) => {
     }
 
     const workOrders = await ManufacturingWorkOrder.find(query)
-      .populate('productId', 'sku nameEn nameAr stockQuantity uom costPrice')
+      .populate('productId', 'sku nameEn nameAr totalStock unitOfMeasure costPrice')
       .populate('bomId', 'bomNumber version totalStandardCost estimatedMaterialCost estimatedLaborCost')
       .populate('routingId', 'code nameEn nameAr operations')
       .populate('warehouseId', 'name nameAr')
@@ -770,7 +775,7 @@ router.get('/work-orders/:id', protect, async (req, res) => {
       .populate('bomId')
       .populate('routingId')
       .populate('warehouseId')
-      .populate('issuedMaterials.productId', 'sku nameEn nameAr uom stockQuantity');
+      .populate('issuedMaterials.productId', 'sku nameEn nameAr unitOfMeasure totalStock');
 
     if (!workOrder) return res.status(404).json({ error: 'Work Order not found' });
 
@@ -792,35 +797,38 @@ router.post('/work-orders/:id/issue-materials', protect, async (req, res) => {
   try {
     const workOrder = await ManufacturingWorkOrder.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
     if (!workOrder) return res.status(404).json({ error: 'Work Order not found' });
-
-    let actualMatCost = 0;
+    if (workOrder.kittingStatus === 'fully_issued' || workOrder.inventoryIssueTransferId) {
+      return res.status(409).json({ error: 'Materials already issued for this work order' });
+    }
 
     for (const mat of workOrder.issuedMaterials) {
       mat.issuedQty = mat.requiredQty;
       mat.issuedAt = new Date();
-      
-      // Deduct raw material stock
-      const rawProd = await Product.findById(mat.productId);
-      if (rawProd) {
-        rawProd.stockQuantity = Math.max(0, (rawProd.stockQuantity || 0) - mat.issuedQty);
-        await rawProd.save();
-        actualMatCost += (rawProd.costPrice || 0) * mat.issuedQty;
-      }
     }
+
+    const stockResult = await issueWorkOrderMaterials(req.user.tenantId, workOrder, req.user._id);
 
     workOrder.kittingStatus = 'fully_issued';
     workOrder.status = 'in_progress';
     workOrder.wipStage = 'in_production';
-    workOrder.actualMaterialCost = Number(actualMatCost.toFixed(2));
+    workOrder.actualMaterialCost = Number(stockResult.actualMaterialCost || 0);
     workOrder.actualStartDate = workOrder.actualStartDate || new Date();
+    if (stockResult.warehouseId) workOrder.warehouseId = stockResult.warehouseId;
+    if (stockResult.transferId) workOrder.inventoryIssueTransferId = stockResult.transferId;
     await workOrder.save();
 
     res.json({
       success: true,
-      message: 'Raw materials successfully kitted and issued to shop floor',
-      workOrder
+      message: stockResult.engine
+        ? 'Materials issued via inventory transfer (Stock → Production)'
+        : 'Raw materials successfully kitted and issued to shop floor',
+      workOrder,
+      inventory: stockResult,
     });
   } catch (err) {
+    if (err instanceof InventoryValidationError || err.code) {
+      return res.status(err.status || 409).json({ error: err.message, code: err.code });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -1007,15 +1015,35 @@ router.post('/qa/inspections', protect, async (req, res) => {
 
     // If final inspection passed, move to Finished Goods transfer & increment stock
     if (stage === 'final_packaging' || status === 'passed') {
-      workOrder.status = 'completed';
-      workOrder.wipStage = 'finished_goods_transfer';
-      await workOrder.save();
-
-      // Increment finished goods stock
-      const finishedProd = await Product.findById(workOrder.productId);
-      if (finishedProd) {
-        finishedProd.stockQuantity = (finishedProd.stockQuantity || 0) + (workOrder.quantityProduced || workOrder.quantityPlanned);
-        await finishedProd.save();
+      if (workOrder.inventoryReceiptTransferId) {
+        workOrder.status = 'completed';
+        workOrder.wipStage = 'finished_goods_transfer';
+        workOrder.actualEndDate = workOrder.actualEndDate || new Date();
+        await workOrder.save();
+      } else {
+        try {
+          const stockResult = await receiveWorkOrderFinishedGoods(
+            req.user.tenantId,
+            workOrder,
+            req.user._id,
+            { quantity: workOrder.quantityProduced || workOrder.quantityPlanned },
+          );
+          workOrder.status = 'completed';
+          workOrder.wipStage = 'finished_goods_transfer';
+          workOrder.actualEndDate = workOrder.actualEndDate || new Date();
+          if (stockResult.warehouseId) workOrder.warehouseId = stockResult.warehouseId;
+          if (stockResult.transferId) workOrder.inventoryReceiptTransferId = stockResult.transferId;
+          await workOrder.save();
+        } catch (stockErr) {
+          if (stockErr instanceof InventoryValidationError || stockErr.code) {
+            return res.status(stockErr.status || 409).json({
+              error: stockErr.message,
+              code: stockErr.code,
+              inspection,
+            });
+          }
+          throw stockErr;
+        }
       }
     }
 

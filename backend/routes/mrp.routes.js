@@ -9,7 +9,7 @@ const router = express.Router();
 router.use(protect);
 router.use(tenantFilter);
 router.use(requireTenantFilter);
-router.use(requireBusinessType('trading'));
+router.use(requireBusinessType('trading', 'manufacturing'));
 
 function safeNumber(value, fallback = 0) {
   const n = Number(value);

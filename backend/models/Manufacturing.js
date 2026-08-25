@@ -154,6 +154,8 @@ const workOrderSchema = new mongoose.Schema({
   lotNumber: { type: String, default: '', index: true },
   serialNumbers: [{ type: String }],
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
+  inventoryIssueTransferId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer' },
+  inventoryReceiptTransferId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer' },
 
   scheduledStartDate: { type: Date, required: true },
   scheduledEndDate: { type: Date, required: true },

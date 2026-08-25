@@ -359,7 +359,9 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
     {
       title: language === 'ar' ? 'المخزون' : 'Inventory',
       items: [
-        { path: '/app/dashboard/inventory', icon: Package, label: language === 'ar' ? 'المخزون' : 'Inventory', perm: { module: 'inventory', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
+        { path: '/app/dashboard/inventory', icon: Package, label: language === 'ar' ? 'المخزون' : 'Inventory', perm: { module: 'inventory', action: 'read' }, businessTypes: ['trading', 'furniture_shop', 'manufacturing'] },
+        { path: '/app/dashboard/inventory/manufacturing', icon: Factory, label: language === 'ar' ? 'التصنيع' : 'Manufacturing', perm: { module: 'mrp', action: 'read' }, businessTypes: ['trading', 'furniture_shop', 'manufacturing'] },
+        { path: '/app/dashboard/inventory/mrp', icon: Cpu, label: language === 'ar' ? 'تخطيط الاحتياجات' : 'MRP', perm: { module: 'mrp', action: 'read' }, businessTypes: ['trading', 'furniture_shop', 'manufacturing'] },
         {
           path: '/app/dashboard/projects',
           icon: FolderKanban,
@@ -367,6 +369,7 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
           grantBusinessTypes: ['construction'],
           requireAnyApp: ['projects', 'construction_projects'],
         },
+        { path: '/app/dashboard/job-costing', icon: Briefcase, label: language === 'ar' ? 'تكلفة الأعمال' : 'Job Costing', perm: { module: 'job_costing', action: 'read' }, businessTypes: ['construction', 'manufacturing', 'trading'] },
       ]
     },
     {
@@ -450,15 +453,6 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
       requireApp: 'iot_devices',
       items: [
         { path: '/app/dashboard/iot', icon: Cpu, label: language === 'ar' ? 'إنترنت الأشياء' : 'IoT', perm: { module: 'iot', action: 'read' } },
-      ]
-    },
-    {
-      title: language === 'ar' ? 'التصنيع والإنتاج' : 'Manufacturing & MES',
-      requireApp: 'manufacturing_mes',
-      items: [
-        { path: '/app/dashboard/manufacturing', icon: Factory, label: language === 'ar' ? 'نظام التصنيع والإنتاج (MES)' : 'Manufacturing MES', perm: { module: 'mrp', action: 'read' } },
-        { path: '/app/dashboard/mrp', icon: Cpu, label: language === 'ar' ? 'تخطيط الاحتياجات (MRP)' : 'MRP II Planning', perm: { module: 'mrp', action: 'read' } },
-        { path: '/app/dashboard/job-costing', icon: Briefcase, label: language === 'ar' ? 'تكلفة الأعمال' : 'Job Costing', perm: { module: 'job_costing', action: 'read' } },
       ]
     },
     {

@@ -497,8 +497,8 @@ export const DEFAULT_APP_CATALOG = [
     reviewsCount: 342,
     pricingTier: 'free',
     badge: 'Industrial',
-    defaultRoute: '/app/dashboard/manufacturing',
-    businessTypeGrant: 'manufacturing',
+    defaultRoute: '/app/dashboard/inventory/manufacturing',
+    businessTypeGrant: '',
     featuresEn: [
       'Multi-Level BOMs with Sub-assemblies & Revisions',
       'Master Production Schedule (MPS) & MRP Engine',

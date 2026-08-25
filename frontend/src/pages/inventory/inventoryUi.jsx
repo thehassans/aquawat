@@ -46,6 +46,8 @@ export const INV_NAV = [
   { id: 'overview', path: '/app/dashboard/inventory', end: true, en: 'Overview', ar: 'نظرة عامة' },
   { id: 'products', path: '/app/dashboard/inventory/products', en: 'Products', ar: 'المنتجات' },
   { id: 'warehouses', path: '/app/dashboard/inventory/warehouses', en: 'Warehouses', ar: 'المستودعات' },
+  { id: 'manufacturing', path: '/app/dashboard/inventory/manufacturing', en: 'Manufacturing', ar: 'التصنيع' },
+  { id: 'mrp', path: '/app/dashboard/inventory/mrp', en: 'MRP', ar: 'تخطيط الاحتياجات' },
   { id: 'receipts', path: '/app/dashboard/inventory/receipts', code: 'incoming', en: 'Receipts', ar: 'الاستلامات' },
   { id: 'deliveries', path: '/app/dashboard/inventory/deliveries', code: 'outgoing', en: 'Deliveries', ar: 'التسليمات' },
   { id: 'internal', path: '/app/dashboard/inventory/internal', code: 'internal', en: 'Internal', ar: 'داخلي' },

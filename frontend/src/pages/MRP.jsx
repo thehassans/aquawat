@@ -387,7 +387,7 @@ export default function MRP() {
                         >
                           <ShoppingCart className="w-4 h-4 text-gray-600" />
                         </button>
-                        <Link to={`/products/${s.productId}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                        <Link to={`/app/dashboard/inventory/products/${s.productId}`} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
                           <Edit className="w-4 h-4 text-gray-600" />
                         </Link>
                       </div>
