@@ -95,6 +95,15 @@ const InventorySettingsPage = lazy(() => import('./pages/inventory/Phase6Pages')
 const ImportExportPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ImportExportPage })))
 const BarcodeNomenclaturePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.BarcodeNomenclaturePage })))
 const InventoryPlaceholder = lazy(() => import('./pages/inventory/InventoryPlaceholder'))
+const LocationsPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationsPage })))
+const LocationForm = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationForm })))
+const OperationTypesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.OperationTypesPage })))
+const OperationTypeForm = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.OperationTypeForm })))
+const ProductCategoriesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.ProductCategoriesPage })))
+const ProductCategoryForm = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.ProductCategoryForm })))
+const StorageCategoriesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.StorageCategoriesPage })))
+const ReorderingRulesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.ReorderingRulesPage })))
+const InventoryUomPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.InventoryUomPage })))
 const Products = lazy(() => import('./pages/inventory/Products'))
 const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
@@ -796,19 +805,25 @@ function App() {
           <Route path="settings" element={<InventorySettingsPage />} />
           <Route path="import-export" element={<ImportExportPage />} />
           <Route path="barcode" element={<BarcodeNomenclaturePage />} />
-          <Route path="returns" element={<InventoryPlaceholder titleEn="Returns" titleAr="المرتجعات" step={2} />} />
-          <Route path="references" element={<InventoryPlaceholder titleEn="References" titleAr="المراجع" step={2} />} />
+          <Route path="returns" element={<InventoryPlaceholder titleEn="Returns" titleAr="المرتجعات" step={3} />} />
+          <Route path="references" element={<InventoryPlaceholder titleEn="References" titleAr="المراجع" step={3} />} />
           <Route path="variants" element={<InventoryPlaceholder titleEn="Product Variants" titleAr="متغيرات المنتج" step={4} />} />
-          <Route path="packages" element={<InventoryPlaceholder titleEn="Packages" titleAr="الطرود" step={2} />} />
+          <Route path="packages" element={<InventoryPlaceholder titleEn="Packages" titleAr="الطرود" step={3} />} />
           <Route path="report/locations" element={<InventoryPlaceholder titleEn="Locations report" titleAr="تقرير المواقع" step={5} />} />
-          <Route path="locations" element={<InventoryPlaceholder titleEn="Locations" titleAr="المواقع" step={2} />} />
-          <Route path="operation-types" element={<InventoryPlaceholder titleEn="Operations Types" titleAr="أنواع العمليات" step={2} />} />
+          <Route path="locations" element={<LocationsPage />} />
+          <Route path="locations/new" element={<LocationForm />} />
+          <Route path="locations/:id/edit" element={<LocationForm />} />
+          <Route path="operation-types" element={<OperationTypesPage />} />
+          <Route path="operation-types/new" element={<OperationTypeForm />} />
+          <Route path="operation-types/:id/edit" element={<OperationTypeForm />} />
           <Route path="rules" element={<RoutesRulesPage />} />
-          <Route path="storage-categories" element={<InventoryPlaceholder titleEn="Storage Categories" titleAr="فئات التخزين" step={2} />} />
-          <Route path="reordering-rules" element={<InventoryPlaceholder titleEn="Reordering Rules" titleAr="قواعد إعادة الطلب" step={2} />} />
-          <Route path="product-categories" element={<InventoryPlaceholder titleEn="Product Categories" titleAr="فئات المنتجات" step={2} />} />
+          <Route path="storage-categories" element={<StorageCategoriesPage />} />
+          <Route path="reordering-rules" element={<ReorderingRulesPage />} />
+          <Route path="product-categories" element={<ProductCategoriesPage />} />
+          <Route path="product-categories/new" element={<ProductCategoryForm />} />
+          <Route path="product-categories/:id/edit" element={<ProductCategoryForm />} />
           <Route path="attributes" element={<InventoryPlaceholder titleEn="Attributes" titleAr="السمات" step={4} />} />
-          <Route path="uom" element={<InventoryPlaceholder titleEn="Units & Packagings" titleAr="الوحدات والتعبئة" step={2} />} />
+          <Route path="uom" element={<InventoryUomPage />} />
           <Route path="delivery-methods" element={<InventoryPlaceholder titleEn="Delivery Methods" titleAr="طرق التسليم" step={3} />} />
           <Route path="shipping-connectors" element={<InventoryPlaceholder titleEn="Shipping Connectors" titleAr="موصلات الشحن" step={3} />} />
         </Route>

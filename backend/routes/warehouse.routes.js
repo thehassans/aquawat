@@ -201,7 +201,20 @@ router.post('/', checkTrialLimits('warehouses'), checkPermission('inventory', 'c
     };
     
     const warehouse = await Warehouse.create(warehouseData);
-    res.status(201).json(warehouse);
+
+    // Auto-bootstrap Inv* locations, op types, sequences, then routes/rules
+    try {
+      const { ensureInventoryBootstrap, bootstrapWarehouse } = await import('../services/inventory/bootstrap.js');
+      const { recomputeWarehouseRoutes } = await import('../services/inventory/warehouseSteps.js');
+      await ensureInventoryBootstrap(req.user.tenantId, req.user._id);
+      await bootstrapWarehouse(req.user.tenantId, warehouse, null, req.user._id);
+      await recomputeWarehouseRoutes(warehouse._id, req.user.tenantId, req.user._id);
+      const refreshed = await Warehouse.findById(warehouse._id);
+      return res.status(201).json(refreshed || warehouse);
+    } catch (bootErr) {
+      console.error('[warehouse] auto-bootstrap failed', bootErr);
+      return res.status(201).json(warehouse);
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

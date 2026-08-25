@@ -65,6 +65,14 @@ import {
 import { runProcurement } from '../services/inventory/procurement.js';
 import { recomputeWarehouseRoutes } from '../services/inventory/warehouseSteps.js';
 import { resolvePutawayLocation } from '../services/inventory/putaway.js';
+import {
+  createLocation,
+  updateLocation,
+  createOperationType,
+  updateOperationType,
+  createProductCategory,
+  updateProductCategory,
+} from '../services/inventory/configMasters.js';
 
 const router = express.Router();
 
@@ -210,6 +218,34 @@ router.get('/locations', checkPermission('inventory', 'read'), async (req, res) 
   }
 });
 
+router.get('/locations/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const loc = await InvLocation.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    if (!loc) return res.status(404).json({ error: 'Location not found' });
+    res.json(loc);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/locations', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const loc = await createLocation(req.user.tenantId, req.user._id, req.body);
+    res.status(201).json(loc);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/locations/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const loc = await updateLocation(req.user.tenantId, req.user._id, req.params.id, req.body);
+    res.json(loc);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/uom-categories', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     res.json(await InvUomCategory.find({ ...req.tenantFilter }).sort({ name: 1 }));
@@ -229,13 +265,81 @@ router.get('/uoms', checkPermission('inventory', 'read'), async (req, res) => {
   }
 });
 
+router.post('/uoms', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const uom = await InvUom.create({
+      tenantId: req.user.tenantId,
+      name: req.body.name,
+      nameAr: req.body.nameAr,
+      categoryId: req.body.categoryId,
+      uomType: req.body.uomType || 'bigger',
+      factor: req.body.factor != null ? String(req.body.factor) : '1',
+      rounding: req.body.rounding != null ? String(req.body.rounding) : '0.01',
+      externalCode: req.body.externalCode,
+      active: req.body.active !== false,
+      createdBy: req.user._id,
+    });
+    res.status(201).json(uom);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/uoms/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const allowed = ['name', 'nameAr', 'factor', 'rounding', 'externalCode', 'active', 'uomType'];
+    const $set = { updatedBy: req.user._id };
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) $set[k] = k === 'factor' || k === 'rounding' ? String(req.body[k]) : req.body[k];
+    }
+    const uom = await InvUom.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
+      { $set },
+      { new: true },
+    );
+    if (!uom) return res.status(404).json({ error: 'UoM not found' });
+    res.json(uom);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/operation-types', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const scope = await resolveWarehouseScope(req);
-    const filter = { ...req.tenantFilter, active: true, ...warehouseFilter(scope) };
+    const filter = { ...req.tenantFilter, ...warehouseFilter(scope) };
     if (req.query.code) filter.code = req.query.code;
     if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
+    if (req.query.active !== 'false') filter.active = true;
     res.json(await InvOperationType.find(filter).sort({ name: 1 }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/operation-types/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const ot = await InvOperationType.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    if (!ot) return res.status(404).json({ error: 'Operation type not found' });
+    res.json(ot);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/operation-types', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const ot = await createOperationType(req.user.tenantId, req.user._id, req.body);
+    res.status(201).json(ot);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/operation-types/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const ot = await updateOperationType(req.user.tenantId, req.user._id, req.params.id, req.body);
+    res.json(ot);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -244,6 +348,34 @@ router.get('/operation-types', checkPermission('inventory', 'read'), async (req,
 router.get('/product-categories', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     res.json(await InvProductCategory.find({ ...req.tenantFilter }).sort({ completePath: 1 }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/product-categories/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const cat = await InvProductCategory.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    if (!cat) return res.status(404).json({ error: 'Category not found' });
+    res.json(cat);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/product-categories', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const cat = await createProductCategory(req.user.tenantId, req.user._id, req.body);
+    res.status(201).json(cat);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/product-categories/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const cat = await updateProductCategory(req.user.tenantId, req.user._id, req.params.id, req.body);
+    res.json(cat);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1043,6 +1175,29 @@ router.post('/reorder-rules', checkPermission('inventory', 'create'), async (req
   }
 });
 
+router.patch('/reorder-rules/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const existing = await InvReorderRule.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
+    if (!existing) return res.status(404).json({ error: 'Reorder rule not found' });
+    const rule = await upsertReorderRule(req.user.tenantId, req.user._id, {
+      productId: req.body.productId || existing.productId,
+      locationId: req.body.locationId || existing.locationId,
+      warehouseId: req.body.warehouseId || existing.warehouseId,
+      minQty: req.body.minQty,
+      maxQty: req.body.maxQty,
+      qtyMultiple: req.body.qtyMultiple,
+      trigger: req.body.trigger,
+      routeId: req.body.routeId,
+      preferredVendorId: req.body.preferredVendorId,
+      leadDays: req.body.leadDays,
+      active: req.body.active,
+    });
+    res.json(rule);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.post('/reorder-rules/:id/snooze', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     const rule = await snoozeReorderRule(req.user.tenantId, req.params.id, req.body);
@@ -1172,6 +1327,27 @@ router.post('/storage-categories', checkPermission('inventory', 'create'), async
       createdBy: req.user._id,
     });
     res.status(201).json(cat);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/storage-categories/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const allowed = ['name', 'nameAr', 'maxWeight', 'allowNewProduct', 'capacityByProduct', 'capacityByPackageType'];
+    const $set = { updatedBy: req.user._id };
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) {
+        $set[k] = k === 'maxWeight' && req.body[k] != null ? String(req.body[k]) : req.body[k];
+      }
+    }
+    const cat = await InvStorageCategory.findOneAndUpdate(
+      { _id: req.params.id, tenantId: req.user.tenantId },
+      { $set },
+      { new: true },
+    );
+    if (!cat) return res.status(404).json({ error: 'Storage category not found' });
+    res.json(cat);
   } catch (err) {
     handleInventoryError(res, err);
   }

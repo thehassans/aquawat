@@ -29,6 +29,10 @@ export default function WarehouseForm() {
       isPrimary: false,
       address: { city: '', district: '' },
       capacity: { totalSpace: 0, unit: 'sqm' },
+      receptionSteps: 'one',
+      deliverySteps: 'ship',
+      buyToResupply: true,
+      resupplyFromWarehouseIds: [],
     },
   })
 
@@ -75,13 +79,36 @@ export default function WarehouseForm() {
         receptionSteps: warehouseData?.receptionSteps || 'one',
         deliverySteps: warehouseData?.deliverySteps || 'ship',
         buyToResupply: warehouseData?.buyToResupply !== false,
+        resupplyFromWarehouseIds: (warehouseData?.resupplyFromWarehouseIds || []).map(String),
       })
     }
   }, [isEdit, warehouseData, reset])
 
+  const { data: allWarehouses } = useQuery({
+    queryKey: ['warehouses-lite'],
+    queryFn: () => api.get('/warehouses').then((r) => r.data?.warehouses || r.data || []),
+  })
+
   const mutation = useMutation({
-    mutationFn: (data) => (isEdit ? api.put(`/warehouses/${id}`, data) : api.post('/warehouses', data)),
-    onSuccess: () => {
+    mutationFn: async (data) => {
+      const payload = {
+        ...data,
+        resupplyFromWarehouseIds: data.resupplyFromWarehouseIds || [],
+      }
+      const res = isEdit
+        ? await api.put(`/warehouses/${id}`, payload)
+        : await api.post('/warehouses', payload)
+      if (isEdit && warehouseData?.engineBootstrappedAt) {
+        await api.post(`/stock/warehouses/${id}/recompute-routes`, {
+          receptionSteps: payload.receptionSteps,
+          deliverySteps: payload.deliverySteps,
+          buyToResupply: payload.buyToResupply,
+          resupplyFromWarehouseIds: payload.resupplyFromWarehouseIds,
+        })
+      }
+      return res.data
+    },
+    onSuccess: (data) => {
       toast.success(
         isEdit
           ? language === 'ar'
@@ -92,7 +119,11 @@ export default function WarehouseForm() {
             : 'Warehouse added'
       )
       queryClient.invalidateQueries(['warehouses'])
-      navigate(returnTo || '/app/dashboard/inventory/warehouses')
+      if (!isEdit && data?._id) {
+        navigate(`/app/dashboard/inventory/warehouses/${data._id}/edit`)
+      } else {
+        navigate(returnTo || '/app/dashboard/inventory/warehouses')
+      }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -232,6 +263,25 @@ export default function WarehouseForm() {
                   {language === 'ar' ? 'إعادة التوريد بالشراء' : 'Buy to resupply'}
                 </label>
               </div>
+              <div className="md:col-span-2">
+                <label className="label">{language === 'ar' ? 'إعادة التوريد من مستودعات' : 'Resupply from warehouses'}</label>
+                <select
+                  multiple
+                  className="select min-h-[6rem]"
+                  {...register('resupplyFromWarehouseIds')}
+                >
+                  {(allWarehouses || [])
+                    .filter((w) => String(w._id) !== String(id))
+                    .map((w) => (
+                      <option key={w._id} value={w._id}>
+                        {w.code || w.nameEn || w.name}
+                      </option>
+                    ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  {language === 'ar' ? 'Ctrl/Cmd للاختيار المتعدد' : 'Hold Ctrl/Cmd for multi-select'}
+                </p>
+              </div>
             </div>
             <div className="mt-4">
               <button
@@ -244,6 +294,7 @@ export default function WarehouseForm() {
                     receptionSteps: values.receptionSteps,
                     deliverySteps: values.deliverySteps,
                     buyToResupply: values.buyToResupply,
+                    resupplyFromWarehouseIds: values.resupplyFromWarehouseIds || [],
                   })
                 }}
               >

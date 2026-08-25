@@ -180,3 +180,15 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Replenish | Operations ▾ → Procurement |
 | Routes / Putaway / Settings | Configuration ▾ |
 | Bootstrap / Migrate / Sync | Configuration → Settings → Maintenance (admin) |
+
+## v2 IA — Step 2 (Configuration forms)
+
+| Topic | Decision |
+|---|---|
+| Warehouse create | `POST /api/warehouses` auto-runs `ensureInventoryBootstrap` → `bootstrapWarehouse` → `recomputeWarehouseRoutes` |
+| Location / category paths | `completePath` rebuilt on rename/reparent; descendants cascaded; cycle guards |
+| Operation types | Sequence code/prefix immutable after create; archive blocked if open transfers |
+| Location archive | Blocked if any quant has non-zero qty/reserve |
+| Write APIs | `POST/PATCH /stock/locations`, `/operation-types`, `/product-categories`, `/uoms`; `PATCH` storage-categories & reorder-rules |
+| UI | `ConfigPages.jsx` replaces Step 2 placeholders; Routes/Rules stay on `AutomationPages` |
+| Ledger | Unchanged — no InvMove / transfer semantics touched |
