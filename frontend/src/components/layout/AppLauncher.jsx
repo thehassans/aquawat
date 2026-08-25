@@ -24,7 +24,8 @@ import { HighlightText } from '../ui/highlight-text'
 const APP_STYLE_MAP = {
   // Finance & Accounting Group (Purple / Indigo)
   '/app/dashboard/finance': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
-  '/app/dashboard/invoices': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
+  '/app/dashboard/invoices': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
+  '/app/dashboard/sales': { gradient: 'from-[#FF4E50] to-[#F9D423]' },
   '/app/dashboard/letterhead': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   '/app/dashboard/expenses': { gradient: 'from-[#7F00FF] to-[#E100FF]' },
   '/app/dashboard/vat-returns': { gradient: 'from-[#7F00FF] to-[#E100FF]' },

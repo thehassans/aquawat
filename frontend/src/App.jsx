@@ -70,6 +70,7 @@ const Leaves = lazy(() => import('./pages/hr/Leaves'))
 const Performance = lazy(() => import('./pages/hr/Performance'))
 const HRReports = lazy(() => import('./pages/hr/HRReports'))
 const ExpenseClaims = lazy(() => import('./pages/hr/ExpenseClaims'))
+const SalesLayout = lazy(() => import('./pages/sales/SalesLayout'))
 const InventoryLayout = lazy(() => import('./pages/inventory/InventoryLayout'))
 const InventoryOverview = lazy(() => import('./pages/inventory/InventoryOverview'))
 const TransfersList = lazy(() => import('./pages/inventory/TransfersList'))
@@ -673,16 +674,19 @@ function App() {
           <Route path="khayyat/loyalty" element={<BusinessTypeRoute allowedTypes={['khayyat']}><KhayyatLoyalty /></BusinessTypeRoute>} />
           <Route path="khayyat/quick-invoice" element={<BusinessTypeRoute allowedTypes={['khayyat']}><KhayyatQuickInvoice /></BusinessTypeRoute>} />
           <Route path="khayyat/complete-order" element={<BusinessTypeRoute allowedTypes={['khayyat']}><KhayyatCompleteOrder /></BusinessTypeRoute>} />
-        <Route path="invoices" element={<Invoices />} />
-        <Route path="invoices/new" element={<InvoiceCreate />} />
-        <Route path="invoices/new/sell" element={<InvoiceCreateSell />} />
-        <Route path="invoices/new/purchase" element={<InvoiceCreatePurchase />} />
-        <Route path="invoices/:id/edit" element={<InvoiceEditPage />} />
-        <Route path="invoices/:id" element={<InvoiceView />} />
-        <Route path="quotations" element={<Quotations />} />
-        <Route path="quotations/new" element={<QuotationCreatePage />} />
-        <Route path="quotations/:id/edit" element={<QuotationEditPage />} />
-        <Route path="quotations/:id" element={<QuotationView />} />
+        <Route element={<SalesLayout />}>
+          <Route path="invoices" element={<Invoices />} />
+          <Route path="invoices/new" element={<InvoiceCreate />} />
+          <Route path="invoices/new/sell" element={<InvoiceCreateSell />} />
+          <Route path="invoices/new/purchase" element={<InvoiceCreatePurchase />} />
+          <Route path="invoices/:id/edit" element={<InvoiceEditPage />} />
+          <Route path="invoices/:id" element={<InvoiceView />} />
+          <Route path="quotations" element={<Quotations />} />
+          <Route path="quotations/new" element={<QuotationCreatePage />} />
+          <Route path="quotations/:id/edit" element={<QuotationEditPage />} />
+          <Route path="quotations/:id" element={<QuotationView />} />
+        </Route>
+        <Route path="sales" element={<Navigate to="/app/dashboard/invoices" replace />} />
         <Route path="contacts" element={<Contacts />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="customers" element={<CustomersLayout />}>

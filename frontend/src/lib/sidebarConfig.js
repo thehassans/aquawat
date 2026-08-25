@@ -240,8 +240,18 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
       excludeBusinessTypes: ['khayyat', 'gym'],
       items: [
         { path: '/app/dashboard', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', end: true, excludeBusinessTypes: ['khayyat', 'gym'] },
-        { path: '/app/dashboard/invoices', icon: FileText, label: safeT('invoices'), perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['khayyat'] },
-        { path: '/app/dashboard/quotations', icon: FileSignature, label: language === 'ar' ? 'عروض الأسعار' : 'Quotations', perm: { module: 'sales', action: 'read' }, excludeBusinessTypes: ['bakala'] },
+        {
+          path: '/app/dashboard/invoices',
+          icon: FileText,
+          label: language === 'ar' ? 'المبيعات' : 'Sales',
+          perm: { module: 'invoicing', action: 'read' },
+          excludeBusinessTypes: ['khayyat'],
+          activePrefixes: ['/app/dashboard/invoices', '/app/dashboard/quotations'],
+          children: [
+            { path: '/app/dashboard/invoices', label: language === 'ar' ? 'الفواتير' : 'Invoices', perm: { module: 'invoicing', action: 'read' } },
+            { path: '/app/dashboard/quotations', label: language === 'ar' ? 'عروض الأسعار' : 'Quotations', perm: { module: 'sales', action: 'read' }, excludeBusinessTypes: ['bakala'] },
+          ],
+        },
         { path: '/app/dashboard/letterhead', icon: FileText, label: language === 'ar' ? 'منشئ الخطابات' : 'Letterhead', perm: { module: 'invoicing', action: 'read' } },
         {
           path: '/app/dashboard/customers',

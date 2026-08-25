@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, X, PanelLeftClose } from 'lucide-react'
@@ -11,6 +11,7 @@ import { getGovChildren } from '../../lib/saudiTenant'
 
 export default function Sidebar() {
   const dispatch = useDispatch()
+  const location = useLocation()
   const { sidebarCollapsed, mobileMenuOpen, language, hiddenMenuItems } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
@@ -151,9 +152,13 @@ export default function Sidebar() {
                       to={item.path}
                       end={item.end}
                       onClick={() => dispatch(setMobileMenuOpen(false))}
-                      className={({ isActive }) =>
-                        `sidebar-link ${isActive ? 'active' : ''} ${sidebarCollapsed ? 'justify-center px-3' : ''}`
-                      }
+                      className={({ isActive }) => {
+                        const prefixActive = Array.isArray(item.activePrefixes)
+                          && item.activePrefixes.some((p) => (
+                            location.pathname === p || location.pathname.startsWith(`${p}/`)
+                          ))
+                        return `sidebar-link ${isActive || prefixActive ? 'active' : ''} ${sidebarCollapsed ? 'justify-center px-3' : ''}`
+                      }}
                     >
                       <item.icon className="w-5 h-5 flex-shrink-0" />
                       {!sidebarCollapsed && (
