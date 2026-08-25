@@ -31,3 +31,4 @@ export { default as StockValuationLayer } from './StockValuationLayer.js';
 export { default as StockLandedCost } from './StockLandedCost.js';
 export { default as StockBarcodeNomenclature } from './StockBarcodeNomenclature.js';
 export { default as StockPickingBatch } from './StockPickingBatch.js';
+export { default as StockMessage } from './StockMessage.js';

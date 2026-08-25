@@ -243,6 +243,32 @@ test('batch state: mix done and open → in_progress', async () => {
   assert.equal(computeBatchState([{ state: 'draft' }, { state: 'draft' }]), 'draft');
 });
 
+test('picking PDF builds a non-empty buffer', async () => {
+  const { buildPickingPdfBuffer } = await import('../services/stock/pickingPdf.js');
+  const buf = await buildPickingPdfBuffer({
+    picking: {
+      name: 'WH/OUT/00001',
+      state: 'done',
+      operationTypeId: { name: 'Delivery' },
+      locationId: { completeName: 'WH/Stock' },
+      locationDestId: { completeName: 'Customers' },
+    },
+    moves: [{
+      _id: 'm1',
+      productId: { templateId: { name: 'Widget' }, defaultCode: 'W1' },
+      productUomQty: '2',
+      quantity: '2',
+      state: 'done',
+    }],
+    moveLines: [],
+    printedAt: '2026-08-25T00:00:00.000Z',
+    showLots: false,
+  });
+  assert.ok(Buffer.isBuffer(buf));
+  assert.ok(buf.length > 100);
+  assert.equal(buf.slice(0, 4).toString(), '%PDF');
+});
+
 test('valuation journal receipt: Dr Inventory Cr Stock Input', () => {
   const inventory = { _id: 'inv', code: '1300' };
   const stockInput = { _id: 'in', code: '1310' };

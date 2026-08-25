@@ -74,6 +74,7 @@ import {
   setBatchPickings,
   runBatchAction,
 } from '../services/stock/batchService.js';
+import { listMessages, postMessage, logSystemMessage } from '../services/stock/messageService.js';
 import { StockValidationError } from '../services/stock/errors.js';
 import { D, decStr } from '../utils/decimal.js';
 
@@ -732,6 +733,7 @@ router.post('/pickings', checkPermission('inventory', 'create'), async (req, res
       userId: req.user._id,
       ...req.body,
     });
+    await logSystemMessage(req.user.tenantId, picking._id, `Transfer ${picking.name} created`, req.user._id);
     res.status(201).json(picking);
   } catch (err) {
     handleError(res, err);
@@ -741,6 +743,7 @@ router.post('/pickings', checkPermission('inventory', 'create'), async (req, res
 router.post('/pickings/:id/confirm', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     const picking = await confirmPicking(req.params.id, req.user.tenantId);
+    await logSystemMessage(req.user.tenantId, picking._id, 'Transfer confirmed', req.user._id);
     res.json(picking);
   } catch (err) {
     handleError(res, err);
@@ -750,6 +753,7 @@ router.post('/pickings/:id/confirm', checkPermission('inventory', 'update'), asy
 router.post('/pickings/:id/check-availability', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     const picking = await checkAvailability(req.params.id, req.user.tenantId);
+    await logSystemMessage(req.user.tenantId, picking._id, 'Availability checked', req.user._id);
     res.json(picking);
   } catch (err) {
     handleError(res, err);
@@ -759,6 +763,7 @@ router.post('/pickings/:id/check-availability', checkPermission('inventory', 'up
 router.post('/pickings/:id/unreserve', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     const picking = await unreservePicking(req.params.id, req.user.tenantId);
+    await logSystemMessage(req.user.tenantId, picking._id, 'Reservation released', req.user._id);
     res.json(picking);
   } catch (err) {
     handleError(res, err);
@@ -769,6 +774,7 @@ router.post('/pickings/:id/validate', checkPermission('inventory', 'update'), as
   try {
     const { createBackorder } = req.body || {};
     const picking = await validatePicking(req.params.id, req.user.tenantId, { createBackorder });
+    await logSystemMessage(req.user.tenantId, picking._id, 'Transfer validated', req.user._id);
     res.json(picking);
   } catch (err) {
     handleError(res, err);
@@ -778,6 +784,7 @@ router.post('/pickings/:id/validate', checkPermission('inventory', 'update'), as
 router.post('/pickings/:id/cancel', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     const picking = await cancelPicking(req.params.id, req.user.tenantId);
+    await logSystemMessage(req.user.tenantId, picking._id, 'Transfer cancelled', req.user._id);
     res.json(picking);
   } catch (err) {
     handleError(res, err);
@@ -1559,7 +1566,40 @@ router.get('/pickings/:id/print', checkPermission('inventory', 'read'), async (r
       res.type('html').send(buildPickingPrintHtml(payload));
       return;
     }
+    if (String(req.query.format || '').toLowerCase() === 'pdf') {
+      const { buildPickingPdfBuffer } = await import('../services/stock/pickingPdf.js');
+      const buf = await buildPickingPdfBuffer(payload);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${picking.name || 'transfer'}.pdf"`);
+      res.send(buf);
+      return;
+    }
     res.json(payload);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// ─── Chatter / messages ─────────────────────────────────────────────────────
+
+router.get('/messages', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const resModel = req.query.resModel || 'StockPicking';
+    const resId = req.query.resId;
+    if (!resId) return res.status(400).json({ error: 'resId required' });
+    res.json(await listMessages(req.user.tenantId, resModel, resId));
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.post('/messages', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    if (!req.body.resId || !String(req.body.body || '').trim()) {
+      return res.status(400).json({ error: 'resId and body required' });
+    }
+    const doc = await postMessage(req.user.tenantId, req.user, req.body);
+    res.status(201).json(doc);
   } catch (err) {
     handleError(res, err);
   }

@@ -144,6 +144,11 @@
 - Product Variants list; packagings panel on product form
 - Print slip: locations, scheduled date, signature lines, optional lots
 
+## Phase 18 — Chatter + PDF
+
+- `StockMessage` chatter on pickings (comments, notes, system notifications on confirm/validate/…)
+- PDF download via jsPDF (`?format=pdf`) alongside HTML print
+
 ## Deferred / polish
 
 _(none — concurrent reserve covered by optimistic versioning + optional Mongo integration test)_

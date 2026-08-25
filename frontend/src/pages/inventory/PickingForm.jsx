@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { ArrowLeft, Check, X, RefreshCw, Printer, RotateCcw } from 'lucide-react'
 import api from '../../lib/api'
 import { ghostBtn, primaryBtn, fieldControlClass, PICKING_STATUS_PILL, pickingStatusLabel, stockProductLabel, stockLocationLabel, INVENTORY_PATH } from './inventoryUi'
+import PickingChatter from './PickingChatter'
 
 export default function PickingForm() {
   const { id } = useParams()
@@ -129,6 +130,19 @@ export default function PickingForm() {
     }
   }
 
+  const downloadPdf = async () => {
+    try {
+      const res = await api.get(`/stock/pickings/${id}/print?format=pdf`, { responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'application/pdf' })
+      const objectUrl = URL.createObjectURL(blob)
+      window.open(objectUrl, '_blank')
+      toast.success(isAr ? 'تم فتح PDF' : 'PDF opened')
+      invalidate()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'PDF failed')
+    }
+  }
+
   const productOptions = (variants || []).map((v) => ({
     id: v._id,
     name: v.templateId?.name || v.defaultCode || String(v._id),
@@ -174,6 +188,9 @@ export default function PickingForm() {
             <button type="button" className={ghostBtn} onClick={printPicking}>
               <Printer className="w-4 h-4" />
               {isAr ? 'طباعة' : 'Print'}
+            </button>
+            <button type="button" className={ghostBtn} onClick={downloadPdf}>
+              PDF
             </button>
             {picking?.state === 'done' && (
               <button type="button" className={ghostBtn} onClick={openReturn}>
@@ -411,6 +428,8 @@ export default function PickingForm() {
               </div>
             </div>
           )}
+
+          <PickingChatter pickingId={id} />
         </div>
       )}
     </div>
