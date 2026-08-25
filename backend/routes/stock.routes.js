@@ -494,6 +494,7 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
   try {
     const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('operationTypeId')
+      .populate('carrierId', 'name nameAr carrierType fixedPrice providerCode installed')
       .lean();
     if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
     await assertTransferWarehouseAccess(req, transfer);
@@ -533,6 +534,7 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
         emailConfirmationOnDelivery: !!settings.emailConfirmationOnDelivery,
         stockSmsConfirmation: !!settings.stockSmsConfirmation,
         variantsEnabled: !!settings.groupProductVariant,
+        deliveryMethods: !!settings.groupDeliveryMethods,
       },
     });
   } catch (err) {
@@ -594,6 +596,14 @@ router.patch('/transfers/:id', checkPermission('inventory', 'update'), async (re
       transfer.signedOn = new Date();
     }
     if (req.body.responsibleId !== undefined) transfer.responsibleId = req.body.responsibleId || null;
+    if (req.body.carrierId !== undefined) transfer.carrierId = req.body.carrierId || null;
+    if (req.body.trackingReference !== undefined) transfer.trackingReference = req.body.trackingReference;
+    if (req.body.shippingWeight !== undefined) transfer.shippingWeight = req.body.shippingWeight;
+    if (req.body.shippingCost !== undefined) {
+      transfer.shippingCost = req.body.shippingCost === null || req.body.shippingCost === ''
+        ? undefined
+        : String(req.body.shippingCost);
+    }
 
     transfer.updatedBy = req.user._id;
     await transfer.save();
@@ -1285,11 +1295,35 @@ router.post('/delivery-carriers', checkPermission('inventory', 'create'), async 
       carrierType: req.body.carrierType || 'fixed',
       providerCode: req.body.providerCode || 'none',
       fixedPrice: req.body.fixedPrice != null ? String(req.body.fixedPrice) : '0',
+      freeAbove: req.body.freeAbove != null && req.body.freeAbove !== ''
+        ? String(req.body.freeAbove)
+        : null,
+      marginPercent: Number(req.body.marginPercent) || 0,
       installed: false,
       active: req.body.active !== false,
       createdBy: req.user._id,
     });
     res.status(201).json(doc);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/delivery-carriers/:id', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { updateDeliveryCarrier } = await import('../services/inventory/carriers.js');
+    res.json(await updateDeliveryCarrier(req.user.tenantId, req.params.id, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/delivery-carriers/:id/rate', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { rateDeliveryCarrier } = await import('../services/inventory/carriers.js');
+    res.json(await rateDeliveryCarrier(req.user.tenantId, req.params.id, {
+      orderTotal: req.body.orderTotal ?? req.query.orderTotal,
+    }));
   } catch (err) {
     handleInventoryError(res, err);
   }

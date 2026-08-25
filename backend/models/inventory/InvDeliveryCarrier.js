@@ -32,10 +32,10 @@ schema.index({ tenantId: 1, name: 1 }, { unique: true });
 
 export default mongoose.models.InvDeliveryCarrier || mongoose.model('InvDeliveryCarrier', schema);
 
-/** Interface placeholder for a future provider adapter */
+/** Interface placeholder for a future provider adapter — fixed rates use rateDeliveryCarrier */
 export const CarrierProvider = {
   async rate() {
-    throw new Error('Carrier provider not installed');
+    throw new Error('Carrier provider not installed — use fixed carriers via /delivery-carriers/:id/rate');
   },
   async ship() {
     throw new Error('Carrier provider not installed');

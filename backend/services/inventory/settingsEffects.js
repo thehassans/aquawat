@@ -33,7 +33,7 @@ export const SETTINGS_EFFECTS = {
   groupStockPackaging: 'packages_enforced_on_moves',
   groupProductionLot: 'lots_enforced_on_moves',
   groupLandedCosts: 'landed_costs_menu_and_post',
-  groupDeliveryMethods: 'delivery_methods_menu',
+  groupDeliveryMethods: 'delivery_methods_menu_and_fixed_rate',
   groupStockBarcode: 'picking_barcode_scan',
   menuPos: 'pos_menu_card',
   menuManufacturing: 'manufacturing_menu_card',

@@ -320,3 +320,13 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | APIs | `POST /stock/import/products` + `/locations` accept `xlsxBase64` (or CSV text) |
 | Ledger | Unchanged — opening qty still posts adjustment transfers |
 | UI | Import & Export: file picker (.csv/.xlsx), target products\|locations |
+
+## Fixed-price carrier rating
+
+| Topic | Decision |
+|---|---|
+| Rate API | `POST /stock/delivery-carriers/:id/rate` — local only (`fixed` / freeAbove / margin) |
+| Live providers | Still stub — `CARRIER_NOT_INSTALLED` / `CARRIER_LIVE_DISABLED` |
+| Transfer | `carrierId`, `shippingCost`, `trackingReference` on create/patch; outgoing UI when `groupDeliveryMethods` |
+| Ledger | Shipping cost is metadata — never writes quants |
+

@@ -82,6 +82,10 @@ export default function TransferForm() {
   const [logNote, setLogNote] = useState('')
   const [signedBy, setSignedBy] = useState('')
   const [barcodeBuf, setBarcodeBuf] = useState('')
+  const [carrierId, setCarrierId] = useState('')
+  const [trackingReference, setTrackingReference] = useState('')
+  const [shippingCost, setShippingCost] = useState('')
+  const [ratePreview, setRatePreview] = useState(null)
 
   const hints = transfer?.settingsHints || {
     multiLocations: settings?.groupStockMultiLocations !== false,
@@ -92,7 +96,22 @@ export default function TransferForm() {
     lotsEnabled: !!(settings?.groupProductionLot || settings?.groupStockTrackingLot),
     showLotsOnDeliverySlips: !!(settings?.showLotsOnDeliverySlips || settings?.groupLotOnDeliverySlip),
     variantsEnabled: !!settings?.groupProductVariant,
+    deliveryMethods: !!settings?.groupDeliveryMethods,
   }
+
+  const { data: carriersData } = useQuery({
+    queryKey: ['delivery-carriers'],
+    queryFn: () => api.get('/stock/delivery-carriers').then((r) => r.data),
+    enabled: code === 'outgoing' && !!(hints.deliveryMethods || settings?.groupDeliveryMethods),
+  })
+  const carriers = carriersData?.items || []
+
+  useEffect(() => {
+    if (!transfer) return
+    setCarrierId(transfer.carrierId?._id || transfer.carrierId || '')
+    setTrackingReference(transfer.trackingReference || '')
+    setShippingCost(transfer.shippingCost != null ? String(transfer.shippingCost) : '')
+  }, [transfer?._id])
 
   const activeOpType = useMemo(
     () => opTypes.find((o) => o._id === (form.operationTypeId || transfer?.operationTypeId?._id || transfer?.operationTypeId)) || opTypes[0],
@@ -180,12 +199,31 @@ export default function TransferForm() {
       origin: form.origin,
       note: form.note,
       priority: form.priority,
+      carrierId: carrierId || undefined,
+      trackingReference: trackingReference || undefined,
+      shippingCost: shippingCost || undefined,
       lines: lines.map((l) => ({
         productId: l.productId,
         demandQty: l.demandQty,
         variantId: l.variantId || undefined,
       })),
     })
+  }
+
+  const quoteCarrier = async (id) => {
+    if (!id) {
+      setRatePreview(null)
+      setShippingCost('')
+      return
+    }
+    try {
+      const rate = await api.post(`/stock/delivery-carriers/${id}/rate`, {}).then((r) => r.data)
+      setRatePreview(rate)
+      setShippingCost(rate.price)
+    } catch (e) {
+      setRatePreview(null)
+      toast.error(e.response?.data?.error || e.message)
+    }
   }
 
   const pickProduct = async (product) => {
@@ -505,6 +543,42 @@ export default function TransferForm() {
             </label>
           </div>
 
+          {code === 'outgoing' && hints.deliveryMethods && (
+            <div className="grid gap-3 rounded-xl border border-slate-200/80 p-3 sm:grid-cols-3 dark:border-dark-600">
+              <label className="block text-sm sm:col-span-1">
+                <span className="label">{ar ? 'طريقة التسليم' : 'Delivery method'}</span>
+                <select
+                  className="select mt-1 w-full"
+                  value={carrierId}
+                  onChange={(e) => {
+                    const id = e.target.value
+                    setCarrierId(id)
+                    quoteCarrier(id)
+                  }}
+                >
+                  <option value="">{ar ? '— بدون —' : '— None —'}</option>
+                  {carriers.map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {(ar && c.nameAr) || c.name}
+                      {c.carrierType === 'fixed' ? ` (${c.fixedPrice})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="label">{ar ? 'تكلفة الشحن' : 'Shipping cost'}</span>
+                <input className="input mt-1 w-full" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} />
+                {ratePreview ? (
+                  <span className="text-xs text-slate-400">{ratePreview.source}: {ratePreview.price} {ratePreview.currency}</span>
+                ) : null}
+              </label>
+              <label className="block text-sm">
+                <span className="label">{ar ? 'رقم التتبع' : 'Tracking'}</span>
+                <input className="input mt-1 w-full" value={trackingReference} onChange={(e) => setTrackingReference(e.target.value)} />
+              </label>
+            </div>
+          )}
+
           {hints.barcode && (
             <div className="flex gap-2">
               <input
@@ -710,6 +784,59 @@ export default function TransferForm() {
                     <div className="font-medium">{transfer?.backorderOfId ? String(transfer.backorderOfId) : '—'}</div>
                   </div>
                 </div>
+                {code === 'outgoing' && hints.deliveryMethods && (
+                  <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-dark-600">
+                    <div className="text-xs font-medium text-slate-600">{ar ? 'الشحن' : 'Shipping'}</div>
+                    {readOnly ? (
+                      <div className="grid gap-2 text-sm sm:grid-cols-3">
+                        <div>
+                          <div className="text-xs text-slate-500">{ar ? 'الناقل' : 'Carrier'}</div>
+                          <div className="font-medium">
+                            {transfer?.carrierId?.name || (transfer?.carrierId ? String(transfer.carrierId) : '—')}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500">{ar ? 'التكلفة' : 'Cost'}</div>
+                          <div className="font-medium tabular-nums">{transfer?.shippingCost ?? '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500">{ar ? 'التتبع' : 'Tracking'}</div>
+                          <div className="font-medium">{transfer?.trackingReference || '—'}</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <select
+                          className="select select-sm"
+                          value={carrierId}
+                          onChange={(e) => {
+                            const id = e.target.value
+                            setCarrierId(id)
+                            quoteCarrier(id)
+                          }}
+                        >
+                          <option value="">{ar ? '— بدون —' : '— None —'}</option>
+                          {carriers.map((c) => (
+                            <option key={c._id} value={c._id}>{(ar && c.nameAr) || c.name}</option>
+                          ))}
+                        </select>
+                        <input className="input input-sm" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} placeholder={ar ? 'التكلفة' : 'Cost'} />
+                        <input className="input input-sm" value={trackingReference} onChange={(e) => setTrackingReference(e.target.value)} placeholder={ar ? 'التتبع' : 'Tracking'} />
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm sm:col-span-3"
+                          onClick={() => patchMut.mutate({
+                            carrierId: carrierId || null,
+                            shippingCost: shippingCost || null,
+                            trackingReference: trackingReference || '',
+                          })}
+                        >
+                          {ar ? 'حفظ الشحن' : 'Save shipping'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {hints.signatureRequired && code === 'outgoing' && !readOnly && (
                   <div className="rounded-xl border border-slate-200 p-3 dark:border-dark-600">
                     <div className="mb-2 text-xs font-medium text-slate-600">{ar ? 'توقيع التسليم' : 'Delivery signature'}</div>

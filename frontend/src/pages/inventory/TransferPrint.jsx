@@ -169,6 +169,9 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
     <div>
       <div>Origin: ${escapeHtml(transfer?.origin || '—')}</div>
       <div>Signature: ${transfer?.signature ? '✓' : '____________'}</div>
+      ${transfer?.carrierId || transfer?.shippingCost || transfer?.trackingReference
+        ? `<div class="linked">Carrier: ${escapeHtml(transfer?.carrierId?.name || '—')} · Ship: ${escapeHtml(String(transfer?.shippingCost ?? '—'))} · Track: ${escapeHtml(transfer?.trackingReference || '—')}</div>`
+        : ''}
       ${linkedBits.length ? `<div class="linked">${escapeHtml(linkedBits.join(' · '))}</div>` : ''}
     </div>
     ${qrHtml}

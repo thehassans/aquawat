@@ -21,9 +21,11 @@ const schema = new mongoose.Schema({
   procurementGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProcurementGroup', default: null },
   ownerId: { type: mongoose.Schema.Types.ObjectId, default: null },
   responsibleId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-  carrierId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  carrierId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvDeliveryCarrier', default: null },
   trackingReference: { type: String },
   shippingWeight: { type: String },
+  /** Quoted shipping amount from fixed-rate carrier (string decimal) — not a ledger write */
+  shippingCost: { type: String, default: undefined },
   signature: { type: String },
   signedBy: { type: String },
   signedOn: { type: Date },

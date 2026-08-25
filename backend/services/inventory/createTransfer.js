@@ -79,6 +79,10 @@ export async function createTransfer(tenantId, payload, userId = null) {
       responsibleId: payload.responsibleId || userId,
       sourceModel: payload.sourceModel,
       sourceDocId: payload.sourceDocId,
+      carrierId: payload.carrierId || null,
+      trackingReference: payload.trackingReference,
+      shippingWeight: payload.shippingWeight,
+      shippingCost: payload.shippingCost != null ? String(payload.shippingCost) : undefined,
       state: 'draft',
       createdBy: userId,
     }], { session });

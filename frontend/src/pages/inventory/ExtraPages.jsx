@@ -258,6 +258,9 @@ export function DeliveryMethodsPage() {
   const qc = useQueryClient()
   const [name, setName] = useState('')
   const [price, setPrice] = useState('0')
+  const [freeAbove, setFreeAbove] = useState('')
+  const [rateOrderTotal, setRateOrderTotal] = useState('100')
+  const [lastRate, setLastRate] = useState(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['delivery-carriers'],
@@ -270,11 +273,23 @@ export function DeliveryMethodsPage() {
       name,
       carrierType: 'fixed',
       fixedPrice: price,
+      freeAbove: freeAbove || undefined,
     }),
     onSuccess: () => {
       toast.success(ar ? 'تم' : 'Created')
       setName('')
       qc.invalidateQueries({ queryKey: ['delivery-carriers'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message),
+  })
+
+  const rateMut = useMutation({
+    mutationFn: (id) => api.post(`/stock/delivery-carriers/${id}/rate`, {
+      orderTotal: rateOrderTotal || undefined,
+    }).then((r) => r.data),
+    onSuccess: (res) => {
+      setLastRate(res)
+      toast.success(`${res.price} ${res.currency} (${res.source})`)
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
@@ -286,7 +301,9 @@ export function DeliveryMethodsPage() {
           {ar ? 'طرق التسليم' : 'Delivery methods'}
         </h2>
         <p className="text-sm text-slate-500">
-          {ar ? 'أسعار ثابتة — موصلات الشحن الحية غير مفعّلة' : 'Fixed-price carriers — live connectors are not installed'}
+          {ar
+            ? 'تسعير ثابت محليًا — الموصلات الحية تبقى غير مثبتة'
+            : 'Local fixed-price rating — live connectors stay not installed'}
         </p>
       </div>
 
@@ -302,10 +319,26 @@ export function DeliveryMethodsPage() {
           <label className="label text-xs">{ar ? 'السعر' : 'Fixed price'}</label>
           <input className="input input-sm w-28" value={price} onChange={(e) => setPrice(e.target.value)} />
         </div>
+        <div>
+          <label className="label text-xs">{ar ? 'مجاني فوق' : 'Free above'}</label>
+          <input className="input input-sm w-28" value={freeAbove} onChange={(e) => setFreeAbove(e.target.value)} placeholder="—" />
+        </div>
         <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>
           <Plus className="h-4 w-4" /> {ar ? 'إضافة' : 'Add'}
         </button>
       </form>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="label text-xs">{ar ? 'إجمالي الطلب لاختبار السعر' : 'Order total for rate test'}</label>
+          <input className="input input-sm w-32" value={rateOrderTotal} onChange={(e) => setRateOrderTotal(e.target.value)} />
+        </div>
+        {lastRate ? (
+          <p className="text-sm text-slate-600">
+            {lastRate.name}: <strong>{lastRate.price}</strong> {lastRate.currency} · {lastRate.source}
+          </p>
+        ) : null}
+      </div>
 
       {isLoading ? <div className="text-sm text-slate-500">…</div> : !items.length ? (
         <EmptyState title={ar ? 'لا طرق بعد' : 'No delivery methods'} />
@@ -315,18 +348,32 @@ export function DeliveryMethodsPage() {
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
                 <th className="px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
-                <th className="px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
+                <th className="px-3 py-2">{ar ? 'السعر' : 'Fixed'}</th>
+                <th className="px-3 py-2">{ar ? 'مجاني فوق' : 'Free above'}</th>
                 <th className="px-3 py-2">{ar ? 'موصل' : 'Provider'}</th>
-                <th className="px-3 py-2">{ar ? 'مثبّت' : 'Installed'}</th>
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
               {items.map((c) => (
                 <tr key={c._id}>
                   <td className="px-3 py-2.5 font-medium">{ar && c.nameAr ? c.nameAr : c.name}</td>
-                  <td className="px-3 py-2.5">{c.carrierType}</td>
-                  <td className="px-3 py-2.5">{c.providerCode}</td>
-                  <td className="px-3 py-2.5">{c.installed ? (ar ? 'نعم' : 'Yes') : (ar ? 'لا (وهمي)' : 'No (stub)')}</td>
+                  <td className="px-3 py-2.5 tabular-nums">{c.fixedPrice}</td>
+                  <td className="px-3 py-2.5 tabular-nums">{c.freeAbove ?? '—'}</td>
+                  <td className="px-3 py-2.5">
+                    {c.providerCode}
+                    {c.installed ? '' : (ar ? ' (وهمي)' : ' (stub)')}
+                  </td>
+                  <td className="px-3 py-2.5 text-end">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={rateMut.isPending}
+                      onClick={() => rateMut.mutate(c._id)}
+                    >
+                      {ar ? 'سعّر' : 'Rate'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
