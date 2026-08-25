@@ -100,7 +100,6 @@ import grnRoutes from './routes/grn.routes.js';
 import purchaseReturnsRoutes from './routes/purchaseReturns.routes.js';
 import inventoryAdjustmentsRoutes from './routes/inventoryAdjustments.routes.js';
 import stockTransferRoutes from './routes/stockTransfer.routes.js';
-import stockRoutes from './routes/stock.routes.js';
 import voucherRoutes from './routes/voucher.routes.js';
 import backupRoutes from './routes/backup.routes.js';
 import syncRoutes from './routes/syncRoutes.js';
@@ -170,7 +169,6 @@ import { ensureAtlasSearchIndex } from './utils/invoiceSearch.js';
 import { backfillMissingTrackTokens } from './models/khayyat/KhayyatStitching.js';
 import { sloSnapshot } from './utils/sloMetrics.js';
 import { evaluateSloAndAlert } from './jobs/sloAlertJob.js';
-import { startStockSchedulerCron } from './jobs/stockScheduler.js';
 
 dotenv.config();
 applySecretFiles();
@@ -292,7 +290,6 @@ const startJobs = async () => {
 
   jobsStarted = true;
   logger.info(`[server] Worker ${WORKER_ID} — starting cron jobs`);
-  startStockSchedulerCron();
 
   cron.schedule('0 8 * * *', () => {
     logger.info('Running Iqama expiry check...');
@@ -771,7 +768,6 @@ app.use('/api/hr', ensureDatabaseReady, hrRoutes);
 app.use('/api/invoices', ensureDatabaseReady, invoiceRoutes);
 app.use('/api/quotations', ensureDatabaseReady, quotationRoutes);
 app.use('/api/products', ensureDatabaseReady, productRoutes);
-app.use('/api/stock', ensureDatabaseReady, stockRoutes);
 app.use('/api/warehouses', ensureDatabaseReady, warehouseRoutes);
 app.use('/api/suppliers', ensureDatabaseReady, supplierRoutes);
 app.use('/api/purchase-orders', ensureDatabaseReady, purchaseOrderRoutes);

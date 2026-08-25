@@ -123,24 +123,6 @@ async function postSellInvoiceLedgers(invoice, req, tenant) {
   }
 }
 
-/** Purchase / vendor bill: clear Stock Interim → AP (when stock engine accounting is on). */
-async function postPurchaseInvoiceLedgers(invoice, req, tenant) {
-  if (invoice.flow !== 'purchase' || ['draft', 'cancelled'].includes(invoice.status)) {
-    return;
-  }
-  try {
-    const { postPurchaseInvoiceJournal } = await import('../services/stock/stockAccounting.js');
-    await postPurchaseInvoiceJournal({
-      tenantId: invoice.tenantId,
-      userId: req.user?._id,
-      invoice,
-      currency: invoice.currency || tenant?.settings?.currency || 'SAR',
-    });
-  } catch (glError) {
-    console.warn('[accounting] purchase invoice / stock interim clearing failed:', glError.message);
-  }
-}
-
 function cleanObjectId(val) {
   if (!val || val === '' || val === 'null' || val === 'undefined') return undefined;
   if (typeof val === 'string' && mongoose.Types.ObjectId.isValid(val)) return val;
@@ -1392,7 +1374,6 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
     }
 
     await postSellInvoiceLedgers(invoice, req, tenant);
-    await postPurchaseInvoiceLedgers(invoice, req, tenant);
     afterInvoiceWrite(invoice, { userId: req.user._id, created: true, previousPaymentStatus: 'pending' });
 
     let emailDelivery = { sent: false, reason: 'disabled' };
@@ -1657,7 +1638,6 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
     }
 
     await postSellInvoiceLedgers(invoice, req, tenant);
-    await postPurchaseInvoiceLedgers(invoice, req, tenant);
     afterInvoiceWrite(invoice, { userId: req.user._id, created: true, previousPaymentStatus: 'pending' });
 
     const invoiceCustomer = invoice.customerId
@@ -1858,11 +1838,9 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
 
     if (businessContext === 'trading') {
       const posted = await postInventoryForInvoice(invoice, req.tenantFilter);
-      await postPurchaseInvoiceLedgers(posted, req, tenant);
       return res.status(201).json(posted);
     }
 
-    await postPurchaseInvoiceLedgers(invoice, req, tenant);
     res.status(201).json(invoice);
   } catch (error) {
     res.status(500).json({ error: error.message });

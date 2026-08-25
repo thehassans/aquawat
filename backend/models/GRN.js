@@ -37,7 +37,6 @@ const grnSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   notes: { type: String },
   stockPostedAt: { type: Date },
-  stockPickingId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockPicking' },
   completedAt: { type: Date },
   cancelledAt: { type: Date },
   lines: { type: [grnLineSchema], default: [] }

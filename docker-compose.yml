@@ -192,7 +192,6 @@ services:
       AUTH_RATE_LIMIT_MAX: "40"
       PUBLIC_RATE_LIMIT_MAX: "1000"
       CLUSTER_WORKERS: "2"
-      STOCK_SCHEDULER_CRON: "1"
       ALLOW_LOCAL_UPLOADS: "true"
       LOG_CONSOLE: "true"              # Forward logs to Docker log driver
     depends_on:

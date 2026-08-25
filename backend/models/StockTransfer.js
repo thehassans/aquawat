@@ -19,9 +19,7 @@ const stockTransferSchema = new mongoose.Schema({
   shippedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   receivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   notes: { type: String },
-  lines: [transferLineSchema],
-  stockPickingId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockPicking' },
-  stockPostedAt: { type: Date },
+  lines: [transferLineSchema]
 }, { timestamps: true });
 
 stockTransferSchema.index({ tenantId: 1, transferNumber: 1 }, { unique: true });

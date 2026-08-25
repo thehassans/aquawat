@@ -3,7 +3,6 @@ import Product from '../models/Product.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { isStockTrackedProductType, normalizeProductType } from '../utils/productType.js';
-import { blockLegacyStockIfEngineEnabled } from '../middleware/stockEngineGuard.js';
 
 const router = express.Router();
 
@@ -241,7 +240,7 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
   }
 });
 
-router.post('/:id/stock/set', checkPermission('inventory', 'update'), blockLegacyStockIfEngineEnabled, async (req, res) => {
+router.post('/:id/stock/set', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     const { warehouseId, quantity, reorderPoint } = req.body;
 
@@ -283,7 +282,7 @@ router.post('/:id/stock/set', checkPermission('inventory', 'update'), blockLegac
 });
 
 // @route   POST /api/products/:id/stock
-router.post('/:id/stock', checkPermission('inventory', 'update'), blockLegacyStockIfEngineEnabled, async (req, res) => {
+router.post('/:id/stock', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     const { warehouseId, quantity, type = 'add' } = req.body;
 
@@ -334,7 +333,7 @@ router.post('/:id/landed-cost', checkPermission('inventory', 'update'), async (r
 });
 
 // @route   POST /api/products/:id/transfer
-router.post('/:id/transfer', checkPermission('inventory', 'update'), blockLegacyStockIfEngineEnabled, async (req, res) => {
+router.post('/:id/transfer', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     const { fromWarehouseId, toWarehouseId, quantity } = req.body;
     

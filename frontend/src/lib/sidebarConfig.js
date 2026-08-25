@@ -83,7 +83,6 @@ import {
   Lock
 } from 'lucide-react'
 import { getGovSectionTitle } from './saudiTenant'
-import { STOCK_BUSINESS_TYPES } from './stockBusinessTypes'
 
 /**
  * Build the full sidebar navigation sections for the current tenant context.
@@ -360,7 +359,7 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
     {
       title: language === 'ar' ? 'المخزون' : 'Inventory',
       items: [
-        { path: '/app/dashboard/inventory', icon: Package, label: language === 'ar' ? 'المخزون' : 'Inventory', perm: { module: 'inventory', action: 'read' }, businessTypes: STOCK_BUSINESS_TYPES },
+        { path: '/app/dashboard/products', icon: Package, label: language === 'ar' ? 'المخزون' : 'Inventory', perm: { module: 'inventory', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
         {
           path: '/app/dashboard/projects',
           icon: FolderKanban,

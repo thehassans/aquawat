@@ -9,8 +9,6 @@ import { isNavItemAppVisible } from './lib/appStorePartners'
 import { showArabicUi } from './lib/saudiTenant'
 import { ErrorBoundary } from './lib/errorBoundary'
 import { initSocket, disconnectSocket } from './lib/socket'
-import { STOCK_BUSINESS_TYPES } from './lib/stockBusinessTypes'
-
 import MainLayout from './layouts/MainLayout'
 import AuthLayout from './layouts/AuthLayout'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -72,50 +70,7 @@ const Leaves = lazy(() => import('./pages/hr/Leaves'))
 const Performance = lazy(() => import('./pages/hr/Performance'))
 const HRReports = lazy(() => import('./pages/hr/HRReports'))
 const ExpenseClaims = lazy(() => import('./pages/hr/ExpenseClaims'))
-const InventoryLayout = lazy(() => import('./pages/inventory/InventoryLayout'))
-const InventoryOverview = lazy(() => import('./pages/inventory/Overview'))
-const ReceiptsList = lazy(() => import('./pages/inventory/ReceiptsList'))
-const DeliveriesList = lazy(() => import('./pages/inventory/DeliveriesList'))
-const InternalTransfersList = lazy(() => import('./pages/inventory/InternalTransfersList'))
-const PickingForm = lazy(() => import('./pages/inventory/PickingForm'))
-const ProductsHub = lazy(() => import('./pages/inventory/ProductsHub'))
-const StockProducts = lazy(() => import('./pages/inventory/StockProducts'))
-const StockProductForm = lazy(() => import('./pages/inventory/StockProductForm'))
-const StockReport = lazy(() => import('./pages/inventory/StockReport'))
-const InventoryConfig = lazy(() => import('./pages/inventory/InventoryConfig'))
-const StockSettingsPage = lazy(() => import('./pages/inventory/StockSettingsPage'))
-const StockWarehousesList = lazy(() => import('./pages/inventory/StockWarehousesList'))
-const OperationsHub = lazy(() => import('./pages/inventory/OperationsHub'))
-const PhysicalInventory = lazy(() => import('./pages/inventory/PhysicalInventory'))
-const ScrapList = lazy(() => import('./pages/inventory/ScrapList'))
-const LotsList = lazy(() => import('./pages/inventory/LotsList'))
-const LotTraceability = lazy(() => import('./pages/inventory/LotTraceability'))
-const PackagesList = lazy(() => import('./pages/inventory/PackagesList'))
-const MovesHistory = lazy(() => import('./pages/inventory/MovesHistory'))
-const Replenishment = lazy(() => import('./pages/inventory/Replenishment'))
-const ProcurementGroupsList = lazy(() => import('./pages/inventory/ProcurementGroupsList'))
-const RoutesList = lazy(() => import('./pages/inventory/RoutesList'))
-const RulesList = lazy(() => import('./pages/inventory/RulesList'))
-const PutawayRulesList = lazy(() => import('./pages/inventory/PutawayRulesList'))
-const ReportingHub = lazy(() => import('./pages/inventory/ReportingHub'))
-const MovesAnalysis = lazy(() => import('./pages/inventory/MovesAnalysis'))
-const PerformanceReport = lazy(() => import('./pages/inventory/PerformanceReport'))
-const LandedCostsList = lazy(() => import('./pages/inventory/LandedCostsList'))
-const StockLandedCostForm = lazy(() => import('./pages/inventory/LandedCostForm'))
-const BarcodeNomenclatures = lazy(() => import('./pages/inventory/BarcodeNomenclatures'))
-const StorageCategoriesList = lazy(() => import('./pages/inventory/StorageCategoriesList'))
-const PackageTypesList = lazy(() => import('./pages/inventory/PackageTypesList'))
-const UomList = lazy(() => import('./pages/inventory/UomList'))
-const ProductCategoriesList = lazy(() => import('./pages/inventory/ProductCategoriesList'))
-const ProductAttributesList = lazy(() => import('./pages/inventory/ProductAttributesList'))
-const LocationsReport = lazy(() => import('./pages/inventory/LocationsReport'))
-const ForecastReport = lazy(() => import('./pages/inventory/ForecastReport'))
-const LocationsConfigList = lazy(() => import('./pages/inventory/LocationsConfigList'))
-const OperationTypesList = lazy(() => import('./pages/inventory/OperationTypesList'))
-const OrderpointsConfigList = lazy(() => import('./pages/inventory/OrderpointsConfigList'))
-const VariantsList = lazy(() => import('./pages/inventory/VariantsList'))
-const BatchesList = lazy(() => import('./pages/inventory/BatchesList'))
-const BatchForm = lazy(() => import('./pages/inventory/BatchesList').then((m) => ({ default: m.BatchForm })))
+const InventoryHub = lazy(() => import('./pages/inventory/InventoryHub'))
 const Products = lazy(() => import('./pages/inventory/Products'))
 const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
@@ -775,69 +730,15 @@ function App() {
         <Route path="crm/deals" element={<CRMDealsTab />} />
         <Route path="crm/activities" element={<CRMActivitiesTab />} />
         <Route path="crm/campaigns" element={<CRMCampaignsTab />} />
-        <Route path="inventory" element={<BusinessTypeRoute allowedTypes={STOCK_BUSINESS_TYPES}><InventoryLayout /></BusinessTypeRoute>}>
-          <Route index element={<Navigate to="overview" replace />} />
-          <Route path="overview" element={<InventoryOverview />} />
-          <Route path="operations" element={<OperationsHub />}>
-            <Route index element={<Navigate to="receipts" replace />} />
-            <Route path="receipts" element={<ReceiptsList />} />
-            <Route path="deliveries" element={<DeliveriesList />} />
-            <Route path="internal" element={<InternalTransfersList />} />
-            <Route path="physical-inventory" element={<PhysicalInventory />} />
-            <Route path="scrap" element={<ScrapList />} />
-            <Route path="replenishment" element={<Replenishment />} />
-            <Route path="procurement-groups" element={<ProcurementGroupsList />} />
-            <Route path="batches" element={<BatchesList />} />
-            <Route path="batches/:id" element={<BatchForm />} />
-            <Route path="landed-costs" element={<LandedCostsList />} />
-            <Route path="landed-costs/:id" element={<StockLandedCostForm />} />
-            <Route path="receipts/new" element={<PickingForm />} />
-            <Route path="deliveries/new" element={<PickingForm />} />
-            <Route path="internal/new" element={<PickingForm />} />
-          </Route>
-          <Route path="pickings/:id" element={<PickingForm />} />
-          <Route path="products" element={<ProductsHub />}>
-            <Route index element={<StockProducts />} />
-            <Route path="new" element={<StockProductForm />} />
-            <Route path="variants" element={<VariantsList />} />
-            <Route path="lots" element={<LotsList />} />
-            <Route path="lots/:id" element={<LotTraceability />} />
-            <Route path="packages" element={<PackagesList />} />
-            <Route path=":id" element={<StockProductForm />} />
-          </Route>
-          <Route path="reporting" element={<ReportingHub />}>
-            <Route index element={<Navigate to="stock" replace />} />
-            <Route path="stock" element={<StockReport />} />
-            <Route path="locations" element={<LocationsReport />} />
-            <Route path="forecast" element={<ForecastReport />} />
-            <Route path="moves-history" element={<MovesHistory />} />
-            <Route path="moves-analysis" element={<MovesAnalysis />} />
-            <Route path="performance" element={<PerformanceReport />} />
-          </Route>
-          <Route path="configuration" element={<InventoryConfig />}>
-            <Route index element={<StockSettingsPage />} />
-            <Route path="warehouses" element={<StockWarehousesList />} />
-            <Route path="locations" element={<LocationsConfigList />} />
-            <Route path="operation-types" element={<OperationTypesList />} />
-            <Route path="product-categories" element={<ProductCategoriesList />} />
-            <Route path="attributes" element={<ProductAttributesList />} />
-            <Route path="orderpoints" element={<OrderpointsConfigList />} />
-            <Route path="routes" element={<RoutesList />} />
-            <Route path="rules" element={<RulesList />} />
-            <Route path="putaway" element={<PutawayRulesList />} />
-            <Route path="storage-categories" element={<StorageCategoriesList />} />
-            <Route path="package-types" element={<PackageTypesList />} />
-            <Route path="uom" element={<UomList />} />
-            <Route path="barcodes" element={<BarcodeNomenclatures />} />
-          </Route>
-        </Route>
-        <Route path="products" element={<Navigate to="/app/dashboard/inventory/products" replace />} />
-        <Route path="products/new" element={<Navigate to="/app/dashboard/inventory/products/new" replace />} />
-        <Route path="products/:id" element={<Navigate to="/app/dashboard/inventory/products" replace />} />
+        <Route path="products" element={<BusinessTypeRoute allowedTypes={['trading']}><InventoryHub /></BusinessTypeRoute>} />
+        <Route path="products/new" element={<BusinessTypeRoute allowedTypes={['trading']}><ProductForm /></BusinessTypeRoute>} />
+        <Route path="products/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><ProductForm /></BusinessTypeRoute>} />
         <Route path="warehouses" element={<BusinessTypeRoute allowedTypes={['trading']}><Warehouses /></BusinessTypeRoute>} />
         <Route path="warehouses/new" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseForm /></BusinessTypeRoute>} />
         <Route path="warehouses/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseDashboard /></BusinessTypeRoute>} />
         <Route path="warehouses/:id/edit" element={<BusinessTypeRoute allowedTypes={['trading']}><WarehouseForm /></BusinessTypeRoute>} />
+        <Route path="inventory" element={<Navigate to="/app/dashboard/products" replace />} />
+        <Route path="inventory/*" element={<Navigate to="/app/dashboard/products" replace />} />
         <Route path="suppliers" element={<BusinessTypeRoute allowedTypes={['trading']}><Suppliers /></BusinessTypeRoute>} />
         <Route path="suppliers/new" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
         <Route path="suppliers/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierDashboard /></BusinessTypeRoute>} />
