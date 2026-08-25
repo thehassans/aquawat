@@ -1122,6 +1122,106 @@ router.post('/physical-inventory/request-count', checkPermission('inventory', 'u
   }
 });
 
+// ── Batch transfers ────────────────────────────────────────────────
+
+router.get('/batch-transfers', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listBatchTransfers } = await import('../services/inventory/batchTransfers.js');
+    res.json({
+      items: await listBatchTransfers(req.user.tenantId, {
+        state: req.query.state,
+        limit: req.query.limit,
+      }),
+    });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/batch-transfers', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { createBatchTransfer } = await import('../services/inventory/batchTransfers.js');
+    res.status(201).json(await createBatchTransfer(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/batch-transfers/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { getBatchTransfer } = await import('../services/inventory/batchTransfers.js');
+    res.json(await getBatchTransfer(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/batch-transfers/:id/add-pickings', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { addPickingsToBatch } = await import('../services/inventory/batchTransfers.js');
+    res.json(await addPickingsToBatch(
+      req.user.tenantId,
+      req.params.id,
+      req.user._id,
+      req.body.pickingIds || [],
+    ));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/batch-transfers/:id/remove-picking', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { removePickingFromBatch } = await import('../services/inventory/batchTransfers.js');
+    res.json(await removePickingFromBatch(
+      req.user.tenantId,
+      req.params.id,
+      req.user._id,
+      req.body.pickingId,
+    ));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/batch-transfers/:id/confirm', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { confirmBatchTransfer } = await import('../services/inventory/batchTransfers.js');
+    res.json(await confirmBatchTransfer(req.user.tenantId, req.params.id, req.user._id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/batch-transfers/:id/check-availability', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { checkBatchAvailability } = await import('../services/inventory/batchTransfers.js');
+    res.json(await checkBatchAvailability(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/batch-transfers/:id/validate', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { validateBatchTransfer } = await import('../services/inventory/batchTransfers.js');
+    res.json(await validateBatchTransfer(req.user.tenantId, req.params.id, req.user._id, {
+      createBackorder: req.body.createBackorder,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/batch-transfers/:id/cancel', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { cancelBatchTransfer } = await import('../services/inventory/batchTransfers.js');
+    res.json(await cancelBatchTransfer(req.user.tenantId, req.params.id, req.user._id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 // ── Scrap ──────────────────────────────────────────────────────────
 
 router.get('/scraps', checkPermission('inventory', 'read'), async (req, res) => {

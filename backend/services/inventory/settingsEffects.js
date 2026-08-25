@@ -37,7 +37,7 @@ export const SETTINGS_EFFECTS = {
   groupStockBarcode: 'picking_barcode_scan',
   menuPos: 'pos_menu_card',
   menuManufacturing: 'manufacturing_menu_card',
-  groupBatchTransfer: 'batch_transfer_model',
+  groupBatchTransfer: 'batch_transfers_api_menu_and_bulk_validate',
   groupStockWarning: 'partner_stockWarn_block',
   defaultPickingPolicy: 'check_availability_one_vs_direct',
   moduleQuality: 'quality_blocks_validate',

@@ -330,3 +330,13 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Transfer | `carrierId`, `shippingCost`, `trackingReference` on create/patch; outgoing UI when `groupDeliveryMethods` |
 | Ledger | Shipping cost is metadata — never writes quants |
 
+## Batch transfers
+
+| Topic | Decision |
+|---|---|
+| Flag | `groupBatchTransfer` gates menu + APIs |
+| Orchestration | Bulk confirm / check-availability / validate / cancel call existing transfer services per picking |
+| Ledger | Unchanged — each validate still goes through move → quant delta |
+| UI | `/inventory/batches` list + detail add/remove pickings |
+
+
