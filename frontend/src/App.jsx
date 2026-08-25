@@ -93,6 +93,7 @@ const ReportingHub = lazy(() => import('./pages/inventory/Phase6Pages'))
 const MovesAnalysisPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.MovesAnalysisPage })))
 const PerformancePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.PerformancePage })))
 const ForecastPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ForecastPage })))
+const ReceptionReportPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ReceptionReportPage })))
 const InventorySettingsPage = lazy(() => import('./pages/inventory/InventorySettingsPage'))
 const ImportExportPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ImportExportPage })))
 const BarcodeNomenclaturePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.BarcodeNomenclaturePage })))
@@ -814,6 +815,7 @@ function App() {
           <Route path="moves-analysis" element={<MovesAnalysisPage />} />
           <Route path="performance" element={<PerformancePage />} />
           <Route path="forecast" element={<ForecastPage />} />
+          <Route path="report/reception" element={<ReceptionReportPage />} />
           <Route path="settings" element={<InventorySettingsPage />} />
           <Route path="import-export" element={<ImportExportPage />} />
           <Route path="exceptions" element={<ExceptionsQueuePage />} />

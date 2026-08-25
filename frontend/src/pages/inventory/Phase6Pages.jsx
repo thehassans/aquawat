@@ -161,6 +161,90 @@ export function PerformancePage() {
   )
 }
 
+export function ReceptionReportPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  const { queryParams } = useReportFilters()
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['reception-report', queryParams],
+    queryFn: () => api.get('/stock/report/reception', { params: queryParams }).then((r) => r.data),
+    retry: false,
+  })
+
+  const items = data?.items || []
+  const totals = data?.totals || {}
+
+  return (
+    <ReportShell
+      activeId="reception"
+      title={ar ? 'تقرير الاستلام' : 'Reception report'}
+      subtitle={ar
+        ? 'إيصالات واردة مكتملة في الفترة — قراءة من دفتر الحركات فقط'
+        : 'Done incoming receipts in period — read from the move ledger only'}
+    >
+      {error ? (
+        <EmptyState
+          title={ar ? 'التقرير متوقف' : 'Report disabled'}
+          description={error.response?.data?.error || error.message}
+        />
+      ) : isLoading ? (
+        <div className="text-sm text-slate-500">…</div>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-300">
+            <span>{ar ? 'إيصالات' : 'Receipts'}: <strong className="tabular-nums">{totals.receipts ?? 0}</strong></span>
+            <span>{ar ? 'بنود' : 'Lines'}: <strong className="tabular-nums">{totals.lines ?? 0}</strong></span>
+            <span>{ar ? 'الكمية' : 'Qty'}: <strong className="tabular-nums">{totals.qty ?? '0'}</strong></span>
+            <span className={totals.late ? 'text-amber-600' : ''}>
+              {ar ? 'متأخر' : 'Late'}: <strong className="tabular-nums">{totals.late ?? 0}</strong>
+            </span>
+          </div>
+          {!items.length ? (
+            <EmptyState title={ar ? 'لا استلامات في الفترة' : 'No receipts in period'} />
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
+                  <tr>
+                    <th className="px-3 py-2 text-start">{ar ? 'الإيصال' : 'Receipt'}</th>
+                    <th className="px-3 py-2 text-start">{ar ? 'التاريخ' : 'Done'}</th>
+                    <th className="px-3 py-2 text-start">{ar ? 'الشريك' : 'Partner'}</th>
+                    <th className="px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                    <th className="px-3 py-2 text-right">{ar ? 'الكمية' : 'Qty'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+                  {items.map((row, i) => (
+                    <tr key={`${row.transferId}-${row.productId}-${i}`} className={row.late ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''}>
+                      <td className="px-3 py-2.5">
+                        <Link className="font-medium text-primary-600 hover:underline" to={`/app/dashboard/inventory/receipts/${row.transferId}`}>
+                          {row.transferName}
+                        </Link>
+                        {row.origin ? <div className="text-xs text-slate-400">{row.origin}</div> : null}
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums text-slate-500">
+                        {row.doneDate ? new Date(row.doneDate).toLocaleDateString() : '—'}
+                        {row.late ? <span className="ms-1 text-xs text-amber-600">{ar ? 'متأخر' : 'late'}</span> : null}
+                      </td>
+                      <td className="px-3 py-2.5">{(ar && row.partnerNameAr) || row.partnerName || '—'}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-medium">{(ar && row.productNameAr) || row.productName}</div>
+                        <div className="text-xs text-slate-400">{row.sku}</div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums font-medium">{row.qty}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </ReportShell>
+  )
+}
+
 export function ForecastPage() {
   const { language } = useSelector((s) => s.ui)
   const { queryParams } = useReportFilters()

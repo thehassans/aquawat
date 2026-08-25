@@ -11,6 +11,7 @@ export const REPORT_TABS = [
   { id: 'moves-analysis', path: '/app/dashboard/inventory/moves-analysis', en: 'Moves Analysis', ar: 'تحليل الحركات' },
   { id: 'performance', path: '/app/dashboard/inventory/performance', en: 'Performance', ar: 'الأداء' },
   { id: 'forecast', path: '/app/dashboard/inventory/forecast', en: 'Forecast', ar: 'التوقع' },
+  { id: 'reception', path: '/app/dashboard/inventory/report/reception', en: 'Reception', ar: 'الاستلام', flag: 'receptionReport' },
   { id: 'valuation', path: '/app/dashboard/inventory/valuation', en: 'Valuation', ar: 'التقييم', flag: 'valuation' },
   { id: 'reconcile', path: '/app/dashboard/inventory/report/reconcile', en: 'Reconcile', ar: 'المطابقة' },
 ]
@@ -73,6 +74,7 @@ export function ReportShell({ activeId, title, subtitle, children, extraFilters 
   const tabs = REPORT_TABS.filter((t) => {
     if (t.flag === 'multiLocations' && settings?.groupStockMultiLocations === false) return false
     if (t.flag === 'valuation' && !(settings?.stockAccountingEnabled || settings?.groupLandedCosts)) return false
+    if (t.flag === 'receptionReport' && !(settings?.receptionReportEnabled || settings?.groupReceptionReport)) return false
     return true
   })
 

@@ -536,6 +536,7 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
         variantsEnabled: !!settings.groupProductVariant,
         deliveryMethods: !!settings.groupDeliveryMethods,
         qualityEnabled: !!settings.moduleQuality,
+        ownerTracking: !!settings.groupStockTrackingOwner,
       },
     });
   } catch (err) {
@@ -579,6 +580,7 @@ router.patch('/transfers/:id', checkPermission('inventory', 'update'), async (re
       if (req.body.sourceLocationId) transfer.sourceLocationId = req.body.sourceLocationId;
       if (req.body.destLocationId) transfer.destLocationId = req.body.destLocationId;
       if (req.body.partnerId !== undefined) transfer.partnerId = req.body.partnerId || null;
+      if (req.body.ownerId !== undefined) transfer.ownerId = req.body.ownerId || null;
       if (req.body.scheduledDate) transfer.scheduledDate = new Date(req.body.scheduledDate);
       if (req.body.deadlineDate !== undefined) {
         transfer.deadlineDate = req.body.deadlineDate ? new Date(req.body.deadlineDate) : null;
@@ -2115,6 +2117,28 @@ router.get('/report/forecast', checkPermission('inventory', 'read'), async (req,
       limit: req.query.limit,
     });
     res.json({ items });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/report/reception', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const settings = await getInvSettings(req.user.tenantId);
+    if (!(settings.receptionReportEnabled || settings.groupReceptionReport)) {
+      return res.status(400).json({
+        error: 'Reception report is disabled in settings',
+        code: 'RECEPTION_REPORT_OFF',
+      });
+    }
+    const { receptionReport } = await import('../services/inventory/reporting.js');
+    res.json(await receptionReport(req.user.tenantId, {
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo,
+      warehouseId: req.query.warehouseId,
+      partnerId: req.query.partnerId,
+      limit: req.query.limit,
+    }));
   } catch (err) {
     handleInventoryError(res, err);
   }

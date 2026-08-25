@@ -349,5 +349,15 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | Ledger | Unchanged — quality is a gate before validate → quant delta |
 | UI | Quality Points config + Transfer **Quality** tab |
 
+## Reception report
+
+| Topic | Decision |
+|---|---|
+| Flag | `receptionReportEnabled` / `groupReceptionReport` gates API + menu |
+| Data | Done incoming transfers + move lines in period (ledger read) |
+| UI | `/inventory/report/reception` in report family |
+| Owner picker | When `groupStockTrackingOwner`, transfer form sets `ownerId` (partner) — still dimension on quants |
+
+
 
 

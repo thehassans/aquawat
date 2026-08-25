@@ -59,7 +59,7 @@ export default function TransferForm() {
   const { data: customers = [] } = useQuery({
     queryKey: ['customers-lite'],
     queryFn: () => api.get('/customers', { params: { limit: 200 } }).then((r) => r.data?.customers || r.data || []),
-    enabled: code !== 'internal',
+    enabled: code !== 'internal' || !!settings?.groupStockTrackingOwner,
   })
 
   const { data: transfer, isLoading } = useQuery({
@@ -87,6 +87,7 @@ export default function TransferForm() {
   const [trackingReference, setTrackingReference] = useState('')
   const [shippingCost, setShippingCost] = useState('')
   const [ratePreview, setRatePreview] = useState(null)
+  const [ownerId, setOwnerId] = useState('')
 
   const hints = transfer?.settingsHints || {
     multiLocations: settings?.groupStockMultiLocations !== false,
@@ -99,6 +100,7 @@ export default function TransferForm() {
     variantsEnabled: !!settings?.groupProductVariant,
     deliveryMethods: !!settings?.groupDeliveryMethods,
     qualityEnabled: !!settings?.moduleQuality,
+    ownerTracking: !!settings?.groupStockTrackingOwner,
   }
 
   const { data: carriersData } = useQuery({
@@ -113,6 +115,7 @@ export default function TransferForm() {
     setCarrierId(transfer.carrierId?._id || transfer.carrierId || '')
     setTrackingReference(transfer.trackingReference || '')
     setShippingCost(transfer.shippingCost != null ? String(transfer.shippingCost) : '')
+    setOwnerId(transfer.ownerId?._id || transfer.ownerId || '')
   }, [transfer?._id])
 
   const activeOpType = useMemo(
@@ -204,6 +207,7 @@ export default function TransferForm() {
       carrierId: carrierId || undefined,
       trackingReference: trackingReference || undefined,
       shippingCost: shippingCost || undefined,
+      ownerId: ownerId || undefined,
       lines: lines.map((l) => ({
         productId: l.productId,
         demandQty: l.demandQty,
@@ -501,6 +505,21 @@ export default function TransferForm() {
                 </select>
               </label>
             )}
+            {hints.ownerTracking && (
+              <label className="block text-sm">
+                <span className="label">{ar ? 'مالك المخزون' : 'Stock owner'}</span>
+                <select
+                  className="select mt-1 w-full"
+                  value={ownerId}
+                  onChange={(e) => setOwnerId(e.target.value)}
+                >
+                  <option value="">{ar ? '— الشركة —' : '— Company —'}</option>
+                  {customers.map((c) => (
+                    <option key={c._id} value={c._id}>{ar && c.nameAr ? c.nameAr : c.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             {hints.multiLocations && (
               <>
                 <label className="block text-sm">
@@ -790,6 +809,35 @@ export default function TransferForm() {
                     <div className="text-xs text-slate-500">{ar ? 'طلب متأخر من' : 'Backorder of'}</div>
                     <div className="font-medium">{transfer?.backorderOfId ? String(transfer.backorderOfId) : '—'}</div>
                   </div>
+                  {hints.ownerTracking && (
+                    <div className="sm:col-span-2">
+                      <div className="text-xs text-slate-500">{ar ? 'مالك المخزون' : 'Stock owner'}</div>
+                      {readOnly || transfer?.state !== 'draft' ? (
+                        <div className="font-medium">
+                          {transfer?.ownerId
+                            ? (customers.find((c) => String(c._id) === String(transfer.ownerId?._id || transfer.ownerId))?.name
+                              || String(transfer.ownerId?._id || transfer.ownerId))
+                            : (ar ? 'الشركة' : 'Company')}
+                        </div>
+                      ) : (
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          <select className="select select-sm" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
+                            <option value="">{ar ? '— الشركة —' : '— Company —'}</option>
+                            {customers.map((c) => (
+                              <option key={c._id} value={c._id}>{ar && c.nameAr ? c.nameAr : c.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => patchMut.mutate({ ownerId: ownerId || null })}
+                          >
+                            {ar ? 'حفظ المالك' : 'Save owner'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {code === 'outgoing' && hints.deliveryMethods && (
                   <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-dark-600">

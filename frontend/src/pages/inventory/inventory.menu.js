@@ -17,6 +17,7 @@ export const FLAG_MAP = {
   deliveryMethods: 'groupDeliveryMethods',
   batchTransfers: 'groupBatchTransfer',
   quality: 'moduleQuality',
+  receptionReport: (s) => Boolean(s.receptionReportEnabled || s.groupReceptionReport),
   valuation: (s) => s.stockAccountingEnabled || s.groupLandedCosts,
   landedCosts: 'groupLandedCosts',
   pos: 'menuPos',
@@ -225,6 +226,14 @@ export const INVENTORY_MENU_TREE = [
         label: 'Forecast',
         labelAr: 'التوقع',
         href: '/app/dashboard/inventory/forecast',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
+        id: 'report-reception',
+        label: 'Reception Report',
+        labelAr: 'تقرير الاستلام',
+        href: '/app/dashboard/inventory/report/reception',
+        flag: 'receptionReport',
         permission: { module: 'inventory', action: 'read' },
       },
       {

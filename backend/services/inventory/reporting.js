@@ -96,6 +96,121 @@ export async function movesAnalysis(tenantId, {
 }
 
 /**
+ * Reception report — done incoming receipts in a period (read-only ledger view).
+ * Gated in UI by receptionReportEnabled; API always readable when engine on.
+ */
+export async function receptionReport(tenantId, {
+  dateFrom,
+  dateTo,
+  warehouseId,
+  partnerId,
+  limit = 200,
+} = {}) {
+  const tid = toObjectId(tenantId);
+  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
+  const to = dateTo ? new Date(dateTo) : new Date();
+
+  const InvOperationType = (await import('../../models/inventory/InvOperationType.js')).default;
+  const otFilter = { tenantId: tid, code: 'incoming', active: true };
+  if (warehouseId) otFilter.warehouseId = toObjectId(warehouseId);
+  const opTypes = await InvOperationType.find(otFilter).select('_id').lean();
+  const otIds = opTypes.map((o) => o._id);
+  if (!otIds.length) {
+    return { period: { from, to }, items: [], totals: { receipts: 0, qty: '0', late: 0 } };
+  }
+
+  const transferFilter = {
+    tenantId: tid,
+    operationTypeId: { $in: otIds },
+    state: 'done',
+    doneDate: { $gte: from, $lte: to },
+  };
+  if (partnerId) transferFilter.partnerId = toObjectId(partnerId);
+
+  const transfers = await InvTransfer.find(transferFilter)
+    .sort({ doneDate: -1 })
+    .limit(Math.min(500, Number(limit) || 200))
+    .lean();
+
+  const transferIds = transfers.map((t) => t._id);
+  const moves = await InvMove.find({
+    tenantId: tid,
+    transferId: { $in: transferIds },
+    state: 'done',
+  })
+    .populate('productId', 'nameEn nameAr sku')
+    .lean();
+
+  const byTransfer = new Map(transfers.map((t) => [String(t._id), t]));
+  let qtyTotal = D(0);
+  let late = 0;
+  const items = [];
+
+  for (const t of transfers) {
+    if (t.deadlineDate && t.doneDate && new Date(t.doneDate) > new Date(t.deadlineDate)) late += 1;
+  }
+
+  for (const m of moves) {
+    const t = byTransfer.get(String(m.transferId));
+    if (!t) continue;
+    const qty = D(m.doneQty || m.demandQty || 0);
+    qtyTotal = qtyTotal.plus(qty);
+    const isLate = !!(t.deadlineDate && t.doneDate && new Date(t.doneDate) > new Date(t.deadlineDate));
+    items.push({
+      transferId: t._id,
+      transferName: t.name,
+      origin: t.origin || '',
+      partnerId: t.partnerId || null,
+      doneDate: t.doneDate,
+      scheduledDate: t.scheduledDate,
+      deadlineDate: t.deadlineDate || null,
+      late: isLate,
+      productId: m.productId?._id || m.productId,
+      productName: m.productId?.nameEn || m.productId?.sku || '—',
+      productNameAr: m.productId?.nameAr || '',
+      sku: m.productId?.sku || '',
+      qty: decStr(qty),
+      demandQty: m.demandQty,
+      doneQty: m.doneQty,
+      variantId: m.variantId || null,
+    });
+  }
+
+  // Prefer partner names when available
+  const partnerIds = [...new Set(items.map((i) => i.partnerId).filter(Boolean).map(String))];
+  let partnerMap = {};
+  if (partnerIds.length) {
+    try {
+      const Customer = (await import('../../models/Customer.js')).default;
+      const partners = await Customer.find({
+        tenantId: tid,
+        _id: { $in: partnerIds },
+      }).select('name nameAr').lean();
+      partnerMap = Object.fromEntries(partners.map((p) => [String(p._id), p]));
+    } catch {
+      partnerMap = {};
+    }
+  }
+
+  for (const row of items) {
+    const p = row.partnerId ? partnerMap[String(row.partnerId)] : null;
+    row.partnerName = p?.name || null;
+    row.partnerNameAr = p?.nameAr || null;
+  }
+
+  return {
+    period: { from, to },
+    items,
+    totals: {
+      receipts: transfers.length,
+      lines: items.length,
+      qty: decStr(qtyTotal),
+      late,
+    },
+  };
+}
+
+/**
  * Warehouse / ops performance KPIs over a period.
  */
 export async function performanceKpis(tenantId, {
