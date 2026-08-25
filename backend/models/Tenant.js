@@ -308,8 +308,6 @@ const invoiceTypographySchema = new mongoose.Schema({
   headingFontSize: { type: Number, min: 9, max: 40, default: 18 },
 }, { _id: false });
 
-}, { _id: false });
-
 const courierProviderSchema = new mongoose.Schema({
   enabled: { type: Boolean, default: false },
   accountNumber: { type: String, default: '' },
