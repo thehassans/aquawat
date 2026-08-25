@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import api from '../../lib/api'
-import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
+import InventoryDataTable from './InventoryDataTable'
 import { INVENTORY_PATH } from './inventoryUi'
 
 export default function LotsList() {
@@ -56,7 +56,7 @@ export default function LotsList() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <ResponsiveDataList columns={columns} data={data?.items || []} loading={isLoading} />
+      <InventoryDataTable columns={columns} data={data?.items || []} loading={isLoading} />
     </div>
   )
 }

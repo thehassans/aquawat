@@ -165,7 +165,6 @@ const TENANT_TYPE_META = {
   bakala: { Icon: Store, labelEn: 'Retail', labelAr: 'بقالة' },
   pharmacy: { Icon: Pill, labelEn: 'Pharmacy', labelAr: 'صيدلية' },
   manufacturing: { Icon: Factory, labelEn: 'Manufacturing', labelAr: 'تصنيع' },
-  ecommerce: { Icon: ShoppingBag, labelEn: 'eCommerce', labelAr: 'متجر' },
 }
 
 export default function AppLauncher() {

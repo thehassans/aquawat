@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
-import api from '../../lib/api'
 import { ChevronLeft, ChevronRight, X, PanelLeftClose } from 'lucide-react'
 import { toggleSidebarCollapse, setMobileMenuOpen, setHideSidebar } from '../../store/slices/uiSlice'
 import { useTranslation } from '../../lib/translations'
@@ -17,26 +15,11 @@ export default function Sidebar() {
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
 
-  const [pendingQuestions, setPendingQuestions] = useState(0)
-  const [pendingReviews, setPendingReviews] = useState(0)
-
   const govChildren = getGovChildren(tenant, language)
 
   const hiddenMenuSet = new Set((hiddenMenuItems || []).filter((p) => !['/app/dashboard/settings', '/app/dashboard/hidden-navbars'].includes(p)))
 
   const businessTypes = getTenantBusinessTypes(tenant)
-
-  useEffect(() => {
-    if (businessTypes.includes('ecommerce')) {
-      api.get('/ecommerce/products/questions/pending').then(res => setPendingQuestions(res.data?.questions?.length || 0)).catch(() => {})
-      api.get('/ecommerce/reviews?status=pending&limit=1').then(res => setPendingReviews(res.data?.total || 0)).catch(() => {})
-      const interval = setInterval(() => {
-        api.get('/ecommerce/products/questions/pending').then(res => setPendingQuestions(res.data?.questions?.length || 0)).catch(() => {})
-        api.get('/ecommerce/reviews?status=pending&limit=1').then(res => setPendingReviews(res.data?.total || 0)).catch(() => {})
-      }, 60000)
-      return () => clearInterval(interval)
-    }
-  }, [businessTypes])
 
   const hasAccess = (module, action) => {
     if (!user) return false
@@ -181,12 +164,6 @@ export default function Sidebar() {
                           className="flex-1 flex justify-between items-center"
                         >
                           <span>{item.label}</span>
-                          {item.path === '/app/dashboard/ecommerce/questions' && pendingQuestions > 0 && (
-                            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold">{pendingQuestions}</span>
-                          )}
-                          {item.path === '/app/dashboard/ecommerce/reviews' && pendingReviews > 0 && (
-                            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold">{pendingReviews}</span>
-                          )}
                         </motion.span>
                       )}
                     </NavLink>

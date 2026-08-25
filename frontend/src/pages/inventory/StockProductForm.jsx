@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
@@ -156,14 +156,27 @@ export default function StockProductForm() {
       </div>
 
       {isEdit && data?.onHand && (
-        <div className="flex flex-wrap gap-2">
-          <span className="btn btn-ghost text-sm">{isAr ? 'باليد' : 'On Hand'}: {data.onHand.onHand}</span>
-          <span className="btn btn-ghost text-sm">{isAr ? 'متاح' : 'Free'}: {data.onHand.freeToUse}</span>
-          {data.forecast && (
-            <span className="btn btn-ghost text-sm">{isAr ? 'متوقع' : 'Forecast'}: {data.forecast.forecasted}</span>
-          )}
+        <div className="sticky top-0 z-10 flex flex-wrap gap-2 rounded-xl border border-slate-200/80 bg-white/95 p-2 backdrop-blur dark:border-white/10 dark:bg-[#0c111a]/95">
+          <Link
+            to={`${INVENTORY_PATH.stockReport}?search=${encodeURIComponent(data.template?.name || '')}`}
+            className="inline-flex items-center rounded-xl border border-slate-200/80 px-3 py-2 text-sm font-medium hover:border-teal-300 hover:bg-teal-50 dark:border-white/10 dark:hover:bg-teal-500/10"
+          >
+            {isAr ? 'باليد' : 'On Hand'}: <span className="ms-1 font-semibold">{data.onHand.onHand}</span>
+          </Link>
+          <Link
+            to={`${INVENTORY_PATH.forecastReport}?productId=${variantId || ''}`}
+            className="inline-flex items-center rounded-xl border border-slate-200/80 px-3 py-2 text-sm font-medium hover:border-teal-300 hover:bg-teal-50 dark:border-white/10 dark:hover:bg-teal-500/10"
+          >
+            {isAr ? 'متوقع' : 'Forecast'}: <span className="ms-1 font-semibold">{data.forecast?.forecasted ?? '—'}</span>
+          </Link>
+          <Link
+            to={INVENTORY_PATH.movesHistory}
+            className="inline-flex items-center rounded-xl border border-slate-200/80 px-3 py-2 text-sm font-medium hover:border-teal-300 dark:border-white/10"
+          >
+            {isAr ? 'وارد' : 'Incoming'}: {data.forecast?.incoming ?? '—'} · {isAr ? 'صادر' : 'Outgoing'}: {data.forecast?.outgoing ?? '—'}
+          </Link>
           {valuation && (
-            <span className="btn btn-ghost text-sm">
+            <span className="inline-flex items-center rounded-xl border border-slate-200/80 px-3 py-2 text-sm dark:border-white/10">
               {isAr ? 'القيمة' : 'Value'}: {valuation.value} ({valuation.costMethod})
             </span>
           )}

@@ -137,7 +137,7 @@ const courierMeta = {
   imile_courier: {
     nameEn: 'iMile',
     nameAr: 'آي مايل',
-    taglineEn: 'Cross-border and local iMile fulfillment for ecommerce orders.',
+    taglineEn: 'Cross-border and local iMile fulfillment for wholesale and delivery orders.',
     taglineAr: 'تنفيذ شحنات آي مايل المحلية والعابرة للحدود.',
     icon: 'imile',
   },
@@ -249,7 +249,7 @@ export const LOGISTICS_PARTNER_APPS = Object.entries(courierMeta).map(([appId, m
   nameAr: meta.nameAr,
   taglineEn: meta.taglineEn,
   taglineAr: meta.taglineAr,
-  descriptionEn: `${meta.nameEn} prints shipping labels, books pickups, and tracks last-mile status from ecommerce and wholesale orders.`,
+  descriptionEn: `${meta.nameEn} prints shipping labels, books pickups, and tracks last-mile status from invoices, delivery notes, and wholesale orders.`,
   descriptionAr: `${meta.nameAr} يطبع بوالص الشحن ويحجز الالتقاط ويتتبع حالة التوصيل من طلبات المتجر والجملة.`,
   category: 'logistics',
   appType: 'automation_comm',
@@ -261,7 +261,7 @@ export const LOGISTICS_PARTNER_APPS = Object.entries(courierMeta).map(([appId, m
   reviewsCount: 74,
   pricingTier: 'free',
   badge: 'Logistics',
-  defaultRoute: `/app/dashboard/logistics?courier=${COURIER_APP_MAP[appId]}`,
+  defaultRoute: '/app/dashboard/app-store?category=logistics',
   featuresEn: [
     'Create shipment / AWB from an order',
     'Print or download shipping label',
@@ -311,8 +311,8 @@ export const BNPL_PARTNER_APPS = Object.entries(bnplMeta).map(([appId, meta]) =>
     nameAr: meta.nameAr,
     taglineEn: meta.taglineEn,
     taglineAr: meta.taglineAr,
-    descriptionEn: `${meta.nameEn} is buy-now-pay-later for your storefront and QR menu. Customers pay ${meta.nameEn} in installments; ${meta.nameEn} pays you. Use your own merchant account — not Maqder platform keys.`,
-    descriptionAr: `${meta.nameAr} للشراء الآن والدفع لاحقاً في المتجر وقائمة QR. العميل يدفع لـ ${meta.nameAr} بالتقسيط وأنت تستلم من ${meta.nameAr}. استخدم حساب التاجر الخاص بك وليس مفاتيح منصة ماقدر.`,
+    descriptionEn: `${meta.nameEn} is buy-now-pay-later for restaurant QR menu checkout. Customers pay ${meta.nameEn} in installments; ${meta.nameEn} pays you. Use your own merchant account — not Maqder platform keys.`,
+    descriptionAr: `${meta.nameAr} للشراء الآن والدفع لاحقاً في قائمة QR للمطاعم. العميل يدفع لـ ${meta.nameAr} بالتقسيط وأنت تستلم من ${meta.nameAr}. استخدم حساب التاجر الخاص بك وليس مفاتيح منصة ماقدر.`,
     category: 'finance_accounting',
     appType: 'premium_addon',
     icon: meta.icon,
@@ -323,16 +323,16 @@ export const BNPL_PARTNER_APPS = Object.entries(bnplMeta).map(([appId, meta]) =>
     reviewsCount: 112,
     pricingTier: 'free',
     badge: 'BNPL',
-    defaultRoute: '/app/dashboard/ecommerce/payments',
+    defaultRoute: '/app/dashboard/restaurant/qr-menu',
     featuresEn: [
-      `Checkout button on storefront when ${meta.nameEn} pre-score passes`,
+      `Pay-later button on restaurant QR menu when ${meta.nameEn} pre-score passes`,
       'QR menu / restaurant pay-later option',
       'Webhook marks the order paid after capture',
       'Refunds go back through the BNPL API',
       'Sandbox keys for testing before going live',
     ],
     featuresAr: [
-      `زر الدفع في المتجر بعد موافقة ${meta.nameAr}`,
+      `زر الدفع لاحقاً في قائمة QR بعد موافقة ${meta.nameAr}`,
       'خيار الدفع لاحقاً في قائمة QR',
       'الويب هوك يعلّم الطلب مدفوعاً بعد التحصيل',
       'الاسترداد عبر واجهة التقسيط',
@@ -369,7 +369,10 @@ export function tenantHasBnpl(tenant, provider) {
   const appId = provider === 'tamara' ? 'tamara_bnpl' : 'tabby_bnpl'
   const apps = tenant?.settings?.installedApps || {}
   const installed = isAppAccessValid(apps[appId])
-  const payEnabled = Boolean(tenant?.ecommerce?.payments?.[provider]?.enabled)
+  const qrMenu = tenant?.settings?.restaurant?.qrMenu || {}
+  const payEnabled = provider === 'tabby'
+    ? Boolean(qrMenu.tabbyApiKey && qrMenu.tabbyMerchantCode)
+    : Boolean(qrMenu.tamaraMerchantToken)
   return installed && payEnabled
 }
 

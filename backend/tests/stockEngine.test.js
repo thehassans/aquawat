@@ -383,3 +383,26 @@ test('overview week bars bucket scheduled pickings', async () => {
   assert.equal(bars[2].count, 1);
   assert.equal(bars[1].count, 0);
 });
+
+test('stock search escapes regex metacharacters', async () => {
+  const { escapeRegex, buildStockSearchFilters } = await import('../services/stock/search.js');
+  assert.equal(escapeRegex('a+b'), 'a\\+b');
+  assert.equal(escapeRegex('(test)'), '\\(test\\)');
+
+  const tenantA = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+  const filters = buildStockSearchFilters({ tenantId: tenantA }, 'ab');
+  assert.equal(String(filters.pickings.tenantId), tenantA);
+  assert.ok(filters.templates.$or);
+  assert.ok(filters.locations.$or);
+
+  const empty = buildStockSearchFilters({ tenantId: tenantA }, 'a');
+  assert.equal(empty.pickings, null);
+});
+
+test('stock quant query must include caller tenantId', async () => {
+  const { stockQueryIncludesTenant } = await import('../services/stock/search.js');
+  const tenantA = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+  const tenantB = 'bbbbbbbbbbbbbbbbbbbbbbbb';
+  assert.equal(stockQueryIncludesTenant({ tenantId: tenantA, productId: 'p1' }, tenantA), true);
+  assert.equal(stockQueryIncludesTenant({ tenantId: tenantA, productId: 'p1' }, tenantB), false);
+});

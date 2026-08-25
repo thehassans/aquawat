@@ -114,7 +114,7 @@ export const protect = async (req, res, next) => {
           tenantCache.set(tenantId, { tenant, timestamp: Date.now() });
         } else {
           // Fetch from MongoDB — only fields needed by protect / checkEmailAddon /
-          // requireBusinessType / dashboard installedApps. Avoid caching ecommerce
+          // requireBusinessType / dashboard installedApps.
           // newsletter lists, payment secrets, CSID private material, etc.
           const TENANT_AUTH_SELECT = [
             'isActive',

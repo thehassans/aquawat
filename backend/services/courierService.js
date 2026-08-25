@@ -1,5 +1,6 @@
 /**
- * Courier provider adapters for the ecommerce platform.
+/**
+ * Courier provider adapters for shipping labels and tracking.
  * Each adapter implements:
  *   - createShipment({ order, customer, items, config })
  *   - trackShipment(trackingNumber, config)

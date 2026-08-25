@@ -28,7 +28,6 @@ export const PREMIUM_APP_CATALOG = [
   { id: 'projects', labelEn: 'Projects', labelAr: 'المشاريع' },
   { id: 'reports', labelEn: 'Reports', labelAr: 'التقارير' },
   { id: 'pos', labelEn: 'Point of Sale', labelAr: 'نقاط البيع' },
-  { id: 'ecommerce', labelEn: 'eCommerce', labelAr: 'التجارة الإلكترونية' },
   { id: 'crm', labelEn: 'CRM', labelAr: 'CRM' },
   { id: 'whatsapp', labelEn: 'WhatsApp', labelAr: 'واتساب' },
   { id: 'payments', labelEn: 'Payments', labelAr: 'المدفوعات' },
@@ -148,16 +147,6 @@ function Glyph({ id }) {
           <circle cx="9" cy="18.4" r="0.9" fill={C.white} />
           <circle cx="12" cy="18.4" r="0.9" fill={C.white} />
           <circle cx="15" cy="18.4" r="0.9" fill={C.white} />
-        </g>
-      )
-    case 'ecommerce':
-      return (
-        <g>
-          <path d="M7.8 5h8.4c1 0 1.65.85 1.45 1.7l-1.5 8.6a2.15 2.15 0 0 1-2.15 1.7H9.95a2.15 2.15 0 0 1-2.15-1.8L6.4 6.7C6.25 5.8 6.95 5 7.8 5Z" fill={C.greenDeep} />
-          <path d="M9 5V4.1a3 3 0 0 1 6 0V5" stroke={C.teal} strokeWidth="1.7" fill="none" strokeLinecap="round" />
-          <circle cx="10.2" cy="19.6" r="1.6" fill={C.orange} />
-          <circle cx="15.4" cy="19.6" r="1.6" fill={C.orange} />
-          <path d="M9.6 10.2h5.6M9.6 13h4" stroke={C.white} strokeWidth="1.25" strokeLinecap="round" opacity="0.75" />
         </g>
       )
     case 'crm':

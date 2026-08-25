@@ -21,7 +21,6 @@ const appAddonSchema = new mongoose.Schema({
       'hardware_iot',
       'automation_comm',
       'ai_intelligence',
-      'ecommerce_payments',
       'finance_accounting',
       'hr_manpower',
       'logistics',

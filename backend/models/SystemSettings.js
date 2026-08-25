@@ -176,12 +176,6 @@ export const getDefaultPlansByBusinessType = (businessType) => {
         professional(499, 4990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Online catalog', 'Advanced reports'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'كتالوج اونلاين', 'تقارير متقدمة']),
         enterprise()
       ];
-    case 'ecommerce':
-      return [
-        starter(299, 2990, ['1 user', '50 invoices / month', '50 quotations / month', 'Online store', 'Custom domain', 'Payment gateways', 'Order management'], ['مستخدم واحد', '50 فاتورة / شهر', '50 عرض سعر / شهر', 'متجر اونلاين', 'نطاق مخصص', 'بوابات الدفع', 'إدارة الطلبات']),
-        professional(699, 6990, ['3 users', '100 invoices / month', '100 quotations / month', 'WhatsApp integration', 'Email notifications', 'HR & Payroll', 'Courier integrations', 'Theme editor'], ['3 مستخدمين', '100 فاتورة / شهر', '100 عرض سعر / شهر', 'تكامل واتساب', 'إشعارات البريد', 'الموارد البشرية والرواتب', 'تكاملات شركات الشحن', 'محرر القوالب']),
-        enterprise()
-      ];
     default:
       return getDefaultPlans();
   }

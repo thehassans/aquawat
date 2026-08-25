@@ -1,0 +1,1 @@
+import{j as e}from"./react-vendor-D70kzIZy.js";function s({items:s=[],renderCard:r,empty:a=null,className:d="",children:n}){const c=Array.isArray(s)?s:[],i=c.length>0;return e.jsxs("div",{className:d,children:[e.jsxs("div",{className:"md:hidden space-y-3",children:[!i&&a,i&&c.map((e,s)=>r(e,s))]}),e.jsx("div",{className:"hidden md:block",children:n})]})}export{s as R};

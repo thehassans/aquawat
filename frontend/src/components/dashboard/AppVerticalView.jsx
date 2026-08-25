@@ -314,38 +314,6 @@ export function AppVerticalView({
         })
       }
     },
-    ecommerce: {
-      nameEn: 'E-Commerce & Multi-Tenant Web Store',
-      nameAr: 'المتجر الإلكتروني والتجارة الرقمية',
-      category: 'Online Commerce',
-      icon: 'globe',
-      defaultRoute: '/app/dashboard/ecommerce',
-      color: 'from-violet-600 to-purple-800',
-      kpis: [
-        { label: isAr ? 'طلبات جديدة معلقة' : 'Pending Orders', value: data.totals?.[0]?.pending || 0, icon: ShoppingCart, alert: (data.totals?.[0]?.pending || 0) > 0 },
-        { label: isAr ? 'قيد التجهيز' : 'Processing', value: data.totals?.[0]?.processing || 0, icon: Clock },
-        { label: isAr ? 'تم الشحن والتوصيل' : 'Shipped & Delivered', value: (data.totals?.[0]?.shipped || 0) + (data.totals?.[0]?.delivered || 0), icon: Truck },
-        { label: isAr ? 'إجمالي المبيعات الرقمية' : 'Online Store Sales', value: data.totals?.[0]?.revenue || 0, isCurrency: true, icon: TrendingUp },
-      ],
-      quickActions: [
-        { label: isAr ? 'لوحة تحكم المتجر' : 'Store Insights', route: '/app/dashboard/ecommerce', icon: BarChart3, primary: true },
-        { label: isAr ? 'إدارة الطلبات والشحن' : 'Manage Orders', route: '/app/dashboard/ecommerce/orders', icon: ListOrderedIconWrapper },
-        { label: isAr ? 'إضافة منتج للمتجر' : 'Add Online Product', route: '/app/dashboard/ecommerce/products/new', icon: PlusCircle },
-        { label: isAr ? 'تخصيص القالب والتصميم' : 'Theme Editor', route: '/app/dashboard/ecommerce/theme', icon: Sparkles },
-        { label: isAr ? 'كوبونات الخصم' : 'Coupons & Promos', route: '/app/dashboard/ecommerce/coupons', icon: Tag },
-      ],
-      recentList: {
-        title: isAr ? 'أحدث طلبات المتجر الإلكتروني' : 'Recent Online Orders',
-        items: data.recent || [],
-        renderItem: (item) => ({
-          title: item.orderNumber ? `#${item.orderNumber}` : (isAr ? 'طلب متجر' : 'Online Order'),
-          subtitle: item.customer?.name || '',
-          badge: item.status,
-          amount: item.totalAmount,
-          date: item.createdAt
-        })
-      }
-    },
     manpower: {
       nameEn: 'Manpower Supply & Labor Contract Management',
       nameAr: 'إدارة العمالة وتوريد الكوادر والمشاريع',
@@ -693,10 +661,6 @@ export function AppVerticalView({
       )}
     </div>
   )
-}
-
-function ListOrderedIconWrapper(props) {
-  return <Receipt {...props} />
 }
 
 export default AppVerticalView

@@ -77,6 +77,8 @@ import {
 import { listMessages, postMessage, logSystemMessage } from '../services/stock/messageService.js';
 import { StockValidationError } from '../services/stock/errors.js';
 import { D, decStr } from '../utils/decimal.js';
+import { buildStockSearchFilters } from '../services/stock/search.js';
+import { STOCK_BUSINESS_TYPES } from '../constants/stockBusinessTypes.js';
 
 const VARIANT_POPULATE = {
   path: 'productId',
@@ -88,7 +90,7 @@ const router = express.Router();
 router.use(protect);
 router.use(tenantFilter);
 router.use(requireTenantFilter);
-router.use(requireBusinessType('trading', 'furniture_shop'));
+router.use(requireBusinessType(...STOCK_BUSINESS_TYPES));
 
 function handleError(res, err) {
   if (err instanceof StockValidationError) {
@@ -108,6 +110,57 @@ async function withBootstrap(req, res, next) {
 }
 
 router.use(withBootstrap);
+
+// ─── Global search (command palette) ────────────────────────────────────────
+
+router.get('/search', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const filters = buildStockSearchFilters(req.tenantFilter, q);
+    if (!filters.pickings) return res.json({ results: [] });
+
+    const [pickings, templates, locations] = await Promise.all([
+      StockPicking.find(filters.pickings)
+        .sort({ scheduledDate: -1 })
+        .limit(8)
+        .select('name state')
+        .lean(),
+      StockProductTemplate.find(filters.templates)
+        .limit(8)
+        .select('name defaultCode')
+        .lean(),
+      StockLocation.find(filters.locations)
+        .limit(8)
+        .select('name completeName usage')
+        .lean(),
+    ]);
+
+    res.json({
+      results: [
+        ...pickings.map((p) => ({
+          type: 'picking',
+          id: p._id,
+          label: p.name,
+          meta: p.state,
+        })),
+        ...templates.map((t) => ({
+          type: 'product',
+          id: t._id,
+          label: t.name,
+          meta: t.defaultCode || '',
+        })),
+        ...locations.map((l) => ({
+          type: 'location',
+          id: l._id,
+          label: l.completeName || l.name,
+          meta: l.usage || '',
+        })),
+      ],
+    });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
 
 // ─── Bootstrap / settings ───────────────────────────────────────────────────
 

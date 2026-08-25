@@ -890,11 +890,10 @@ export function App3DIcon({
   }
 
   // ═══════════════════════════════════════════════════════════════════════════════
-  // ─── 5. ORDERS / TICKETS & ORDER BELL (RESTAURANT, ECOMMERCE, LAUNDRY) ────────
+  // ─── 5. ORDERS / TICKETS & ORDER BELL (RESTAURANT, LAUNDRY) ───────────────────
   // ═══════════════════════════════════════════════════════════════════════════════
   if (
     last === 'orders' ||
-    last === 'ecommerce-orders' ||
     cleanLabel.includes('orders') ||
     cleanLabel.includes('الطلبات')
   ) {
@@ -3290,38 +3289,6 @@ export function App3DIcon({
         <path d="M16 22C22 20 28 22 32 24C36 22 42 20 48 22V44C42 42 36 44 32 46C28 44 22 42 16 44V22Z" fill="#FFFFFF" />
         <path d="M32 24V46" stroke="#D97706" strokeWidth="2" />
         <path d="M30 20V32L32 30L34 32V20H30Z" fill="#EF4444" />
-      </svg>
-    )
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════════
-  // ─── 67. APP STORE CATALOG: E-COMMERCE VERTICAL ROOT ──────────────────────────
-  // ═══════════════════════════════════════════════════════════════════════════════
-  if (
-    cleanAppId === 'ecommerce_store' ||
-    (last === 'ecommerce' && path === '/app/dashboard/ecommerce') ||
-    cleanLabel === 'e-commerce' ||
-    cleanLabel === 'المتجر الإلكتروني'
-  ) {
-    return (
-      <svg className={className} viewBox="0 0 64 64" fill="none">
-        <defs>
-          <linearGradient id={`ecm_cat_bg_${uid}`} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#4F46E5" />
-            <stop offset="100%" stopColor="#7C3AED" />
-          </linearGradient>
-          <filter id={`ecm_cat_flt_${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#4F46E5" floodOpacity="0.45" />
-          </filter>
-        </defs>
-
-        <rect x="7" y="7" width="50" height="50" rx="14" fill={`url(#ecm_cat_bg_${uid})`} filter={`url(#ecm_cat_flt_${uid})`} stroke="#C7D2FE" strokeWidth="1.2" strokeOpacity="0.5" />
-        
-        {/* Shopping Cart & Package */}
-        <path d="M16 18H21L26 36H42L47 22H24" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="28" cy="44" r="3.5" fill="#38BDF8" />
-        <circle cx="40" cy="44" r="3.5" fill="#38BDF8" />
-        <rect x="29" y="22" width="10" height="9" rx="2" fill="#FDE047" />
       </svg>
     )
   }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useOptimistic, useTransition } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -7,6 +7,7 @@ import { ArrowLeft, Check, X, RefreshCw, Printer, RotateCcw } from 'lucide-react
 import api from '../../lib/api'
 import { ghostBtn, primaryBtn, fieldControlClass, PICKING_STATUS_PILL, pickingStatusLabel, stockProductLabel, stockLocationLabel, INVENTORY_PATH } from './inventoryUi'
 import PickingChatter from './PickingChatter'
+import InventorySheet from './InventorySheet'
 
 export default function PickingForm() {
   const { id } = useParams()
@@ -27,6 +28,9 @@ export default function PickingForm() {
   const [backorderPrompt, setBackorderPrompt] = useState(false)
   const [returnOpen, setReturnOpen] = useState(false)
   const [returnLines, setReturnLines] = useState([])
+  const [editLine, setEditLine] = useState(null)
+  const [lineDraft, setLineDraft] = useState({ lotName: '', quantity: '' })
+  const [, startTransition] = useTransition()
 
   const { data: opTypes } = useQuery({
     queryKey: ['stock-op-types'],
@@ -54,6 +58,12 @@ export default function PickingForm() {
   const moves = detail?.moves || []
   const moveLines = detail?.moveLines || []
 
+  const [optimisticState, setOptimisticState] = useOptimistic(
+    picking?.state,
+    (_current, next) => next,
+  )
+  const displayState = optimisticState ?? picking?.state
+
   const invalidate = () => {
     queryClient.invalidateQueries(['stock-picking', id])
     queryClient.invalidateQueries(['stock-pickings'])
@@ -77,6 +87,7 @@ export default function PickingForm() {
       invalidate()
     },
     onError: (err) => {
+      startTransition(() => setOptimisticState(picking?.state))
       if (err.response?.data?.code === 'BACKORDER_REQUIRED') {
         setBackorderPrompt(true)
         return
@@ -84,6 +95,43 @@ export default function PickingForm() {
       toast.error(err.response?.data?.error || 'Error')
     },
   })
+
+  const runAction = (action, body) => {
+    if (action === 'validate') {
+      startTransition(() => setOptimisticState('done'))
+    } else if (action === 'cancel') {
+      startTransition(() => setOptimisticState('cancel'))
+    } else if (action === 'confirm') {
+      startTransition(() => setOptimisticState('confirmed'))
+    }
+    actionMutation.mutate({ action, body })
+  }
+
+  const openLineEditor = (line) => {
+    setEditLine(line)
+    setLineDraft({
+      lotName: line.lotName || '',
+      quantity: String(line.quantityProduct || line.quantity || ''),
+    })
+  }
+
+  const saveLineDraft = async () => {
+    if (!editLine) return
+    try {
+      await api.post('/stock/move-lines', {
+        id: editLine._id,
+        quantity: lineDraft.quantity,
+        locationId: editLine.locationId,
+        locationDestId: editLine.locationDestId,
+        lotName: lineDraft.lotName,
+      })
+      toast.success(isAr ? 'تم' : 'Saved')
+      setEditLine(null)
+      invalidate()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error')
+    }
+  }
 
   const openReturn = async () => {
     try {
@@ -178,8 +226,8 @@ export default function PickingForm() {
             {isNew ? (isAr ? 'عملية جديدة' : 'New transfer') : picking?.name}
           </h1>
           {!isNew && picking && (
-            <span className={`badge mt-1 ${PICKING_STATUS_PILL[picking.state] || 'badge-neutral'}`}>
-              {pickingStatusLabel(picking.state, language)}
+            <span className={`badge mt-1 ${PICKING_STATUS_PILL[displayState] || 'badge-neutral'}`}>
+              {pickingStatusLabel(displayState, language)}
             </span>
           )}
         </div>
@@ -198,25 +246,25 @@ export default function PickingForm() {
                 {isAr ? 'مرتجع' : 'Return'}
               </button>
             )}
-            {picking?.state !== 'done' && picking?.state !== 'cancel' && (
+            {displayState !== 'done' && displayState !== 'cancel' && (
               <>
-                {['draft', 'confirmed'].includes(picking?.state) && (
-                  <button type="button" className={ghostBtn} onClick={() => actionMutation.mutate({ action: 'confirm' })}>
+                {['draft', 'confirmed'].includes(displayState) && (
+                  <button type="button" className={ghostBtn} onClick={() => runAction('confirm')}>
                     {isAr ? 'تأكيد' : 'Confirm'}
                   </button>
                 )}
-                <button type="button" className={ghostBtn} onClick={() => actionMutation.mutate({ action: 'check-availability' })}>
+                <button type="button" className={ghostBtn} onClick={() => runAction('check-availability')}>
                   <RefreshCw className="w-4 h-4" />
                   {isAr ? 'فحص التوفر' : 'Check Availability'}
                 </button>
-                <button type="button" className={ghostBtn} onClick={() => actionMutation.mutate({ action: 'unreserve' })}>
+                <button type="button" className={ghostBtn} onClick={() => runAction('unreserve')}>
                   {isAr ? 'إلغاء الحجز' : 'Unreserve'}
                 </button>
-                <button type="button" className={primaryBtn} onClick={() => actionMutation.mutate({ action: 'validate' })}>
+                <button type="button" className={primaryBtn} onClick={() => runAction('validate')} disabled={actionMutation.isPending}>
                   <Check className="w-4 h-4" />
                   {isAr ? 'اعتماد' : 'Validate'}
                 </button>
-                <button type="button" className={`${ghostBtn} text-rose-600`} onClick={() => actionMutation.mutate({ action: 'cancel' })}>
+                <button type="button" className={`${ghostBtn} text-rose-600`} onClick={() => runAction('cancel')}>
                   <X className="w-4 h-4" />
                   {isAr ? 'إلغاء' : 'Cancel'}
                 </button>
@@ -230,10 +278,10 @@ export default function PickingForm() {
         <div className="card p-4 border-amber-200 bg-amber-50 dark:bg-amber-500/10">
           <p className="text-sm mb-3">{isAr ? 'إنشاء طلب متبقي؟' : 'Create backorder for remaining quantity?'}</p>
           <div className="flex gap-2">
-            <button type="button" className={primaryBtn} onClick={() => actionMutation.mutate({ action: 'validate', body: { createBackorder: true } })}>
+            <button type="button" className={primaryBtn} onClick={() => runAction('validate', { createBackorder: true })}>
               {isAr ? 'نعم' : 'Yes'}
             </button>
-            <button type="button" className={ghostBtn} onClick={() => actionMutation.mutate({ action: 'validate', body: { createBackorder: false } })}>
+            <button type="button" className={ghostBtn} onClick={() => runAction('validate', { createBackorder: false })}>
               {isAr ? 'لا' : 'No'}
             </button>
           </div>
@@ -392,42 +440,66 @@ export default function PickingForm() {
                   </thead>
                   <tbody>
                     {moveLines.map((l) => (
-                      <tr key={l._id}>
+                      <tr
+                        key={l._id}
+                        className={displayState !== 'done' && displayState !== 'cancel' ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03]' : ''}
+                        onClick={() => {
+                          if (displayState !== 'done' && displayState !== 'cancel') openLineEditor(l)
+                        }}
+                      >
                         <td className="text-xs">{stockLocationLabel(l.locationId)}</td>
                         <td className="text-xs">{stockLocationLabel(l.locationDestId)}</td>
-                        <td>
-                          {picking?.state !== 'done' && picking?.state !== 'cancel' ? (
-                            <input
-                              className={`${fieldControlClass} min-w-[120px]`}
-                              defaultValue={l.lotName || ''}
-                              placeholder={isAr ? 'اسم الدفعة' : 'Lot name'}
-                              onBlur={(e) => {
-                                const lotName = e.target.value
-                                if (lotName === (l.lotName || '')) return
-                                api.post('/stock/move-lines', {
-                                  id: l._id,
-                                  quantity: l.quantityProduct || l.quantity,
-                                  locationId: l.locationId,
-                                  locationDestId: l.locationDestId,
-                                  lotName,
-                                }).then(() => {
-                                  toast.success(isAr ? 'تم' : 'Saved')
-                                  invalidate()
-                                }).catch((err) => toast.error(err.response?.data?.error || 'Error'))
-                              }}
-                            />
-                          ) : (
-                            l.lotName || String(l.lotId || '—')
-                          )}
-                        </td>
+                        <td>{l.lotName || String(l.lotId || '—')}</td>
                         <td>{l.quantityProduct || l.quantity}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              {displayState !== 'done' && displayState !== 'cancel' && (
+                <p className="px-4 py-2 text-xs text-slate-400">{isAr ? 'انقر على سطر للتعديل' : 'Click a row to edit'}</p>
+              )}
             </div>
           )}
+
+          <InventorySheet
+            open={Boolean(editLine)}
+            onClose={() => setEditLine(null)}
+            title={isAr ? 'تعديل سطر الحركة' : 'Edit move line'}
+            footer={(
+              <div className="flex gap-2">
+                <button type="button" className={primaryBtn} onClick={saveLineDraft}>
+                  {isAr ? 'حفظ' : 'Save'}
+                </button>
+                <button type="button" className={ghostBtn} onClick={() => setEditLine(null)}>
+                  {isAr ? 'إلغاء' : 'Cancel'}
+                </button>
+              </div>
+            )}
+          >
+            <div className="space-y-4">
+              <div>
+                <label className="label">{isAr ? 'الدفعة / التسلسل' : 'Lot / Serial'}</label>
+                <input
+                  className={fieldControlClass}
+                  value={lineDraft.lotName}
+                  onChange={(e) => setLineDraft((d) => ({ ...d, lotName: e.target.value }))}
+                  placeholder={isAr ? 'اسم الدفعة' : 'Lot name'}
+                />
+              </div>
+              <div>
+                <label className="label">{isAr ? 'الكمية' : 'Quantity'}</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  className={fieldControlClass}
+                  value={lineDraft.quantity}
+                  onChange={(e) => setLineDraft((d) => ({ ...d, quantity: e.target.value }))}
+                />
+              </div>
+            </div>
+          </InventorySheet>
 
           <PickingChatter pickingId={id} />
         </div>

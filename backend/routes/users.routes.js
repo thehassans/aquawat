@@ -153,10 +153,6 @@ export const getTenantPermissibleModules = (tenant) => {
     modules.add('boutique');
   }
 
-  if (businessTypes.includes('ecommerce') || isAppOn('ecommerce_store') || isAppOn('ecommerce')) {
-    modules.add('ecommerce');
-  }
-
   if (businessTypes.includes('marquee') || isAppOn('marquee_management') || isAppOn('marquee')) {
     modules.add('marquee');
   }

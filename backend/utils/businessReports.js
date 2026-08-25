@@ -18,8 +18,6 @@ import BoutiqueProduct from '../models/BoutiqueProduct.js';
 import WorkshopJobCard from '../models/WorkshopJobCard.js';
 import BookStoreProduct from '../models/BookStoreProduct.js';
 import BookRental from '../models/BookRental.js';
-import EcommerceOrder from '../models/EcommerceOrder.js';
-import EcommerceProduct from '../models/EcommerceProduct.js';
 import FurnitureOrder from '../models/FurnitureOrder.js';
 import FurnitureProduct from '../models/FurnitureProduct.js';
 import { getTenantBusinessTypes } from './businessTypes.js';
@@ -62,8 +60,6 @@ const SECTION_LABELS = {
   workshop: { en: 'Car Workshop & Garage', ar: 'مركز صيانة السيارات' },
   bookstore: { en: 'Bookstore & Stationery', ar: 'المكتبة والقرطاسية' },
   bookstore_stationery: { en: 'Bookstore & Stationery', ar: 'المكتبة والقرطاسية' },
-  ecommerce: { en: 'E-Commerce Store', ar: 'المتجر الإلكتروني' },
-  ecommerce_store: { en: 'E-Commerce Store', ar: 'المتجر الإلكتروني' },
   furniture_shop: { en: 'Furniture Shop', ar: 'معرض الأثاث والمفروشات' },
   furniture: { en: 'Furniture Shop', ar: 'معرض الأثاث والمفروشات' },
 };
@@ -1242,95 +1238,6 @@ async function buildBookstore({ tenantFilter, startDate, endDate }) {
   };
 }
 
-// ─── E-Commerce Store ──────────────────────────────────────────────────────
-async function buildEcommerce({ tenantFilter, startDate, endDate }) {
-  const matchOrders = {
-    ...tenantFilter,
-    createdAt: { $gte: startDate, $lte: endDate },
-  };
-
-  const [orderStats, topProducts, byPayment] = await Promise.all([
-    safeAggregate(EcommerceOrder, [
-      { $match: matchOrders },
-      {
-        $group: {
-          _id: null,
-          totalOrders: { $sum: 1 },
-          paidOrders: { $sum: { $cond: [{ $eq: ['$payment.status', 'paid'] }, 1, 0] } },
-          totalSales: { $sum: { $ifNull: ['$totalAmount', 0] } },
-          totalVat: { $sum: { $ifNull: ['$taxAmount', 0] } },
-          totalShipping: { $sum: { $ifNull: ['$shippingAmount', 0] } },
-        },
-      },
-    ]),
-    safeAggregate(EcommerceOrder, [
-      { $match: matchOrders },
-      { $unwind: '$items' },
-      {
-        $group: {
-          _id: { $ifNull: ['$items.productTitle', 'Online Item'] },
-          qtySold: { $sum: { $ifNull: ['$items.quantity', 1] } },
-          revenue: { $sum: { $ifNull: ['$items.lineTotal', 0] } },
-        },
-      },
-      { $sort: { revenue: -1 } },
-      { $limit: 15 },
-    ]),
-    safeAggregate(EcommerceOrder, [
-      { $match: matchOrders },
-      { $group: { _id: { $ifNull: ['$payment.method', 'cod'] }, count: { $sum: 1 }, total: { $sum: { $ifNull: ['$totalAmount', 0] } } } },
-      { $sort: { total: -1 } },
-    ]),
-  ]);
-
-  const stats = first(orderStats);
-  const totalOrders = num(stats.totalOrders);
-  const totalSales = num(stats.totalSales);
-  const aov = totalOrders > 0 ? (totalSales / totalOrders).toFixed(2) : 0;
-
-  return {
-    key: 'ecommerce',
-    label: SECTION_LABELS.ecommerce,
-    kpis: [
-      { key: 'totalOrders', label: { en: 'Total Online Orders', ar: 'إجمالي الطلبات الإلكترونية' }, value: totalOrders, format: 'number' },
-      { key: 'totalSales', label: { en: 'Gross Online Sales (GMV)', ar: 'إجمالي مبيعات المتجر' }, value: totalSales, format: 'money' },
-      { key: 'aov', label: { en: 'Average Order Value (AOV)', ar: 'متوسط قيمة الطلب' }, value: Number(aov), format: 'money' },
-      { key: 'paidOrders', label: { en: 'Successfully Paid Orders', ar: 'الطلبات المسددة' }, value: num(stats.paidOrders), format: 'number' },
-      { key: 'shippingRevenue', label: { en: 'Shipping & Delivery Fees', ar: 'رسوم الشحن والتوصيل' }, value: num(stats.totalShipping), format: 'money' },
-    ],
-    tables: [
-      {
-        key: 'topProducts',
-        title: { en: 'Top Selling Online Products', ar: 'المنتجات الأكثر مبيعاً عبر المتجر' },
-        columns: [
-          { key: 'name', label: { en: 'Product Name', ar: 'اسم المنتج' }, format: 'text' },
-          { key: 'qty', label: { en: 'Units Sold', ar: 'الكمية المباعة' }, format: 'number' },
-          { key: 'revenue', label: { en: 'Sales Revenue', ar: 'الإيراد' }, format: 'money' },
-        ],
-        rows: (topProducts || []).map((row) => ({
-          name: row._id,
-          qty: num(row.qtySold),
-          revenue: num(row.revenue),
-        })),
-      },
-      {
-        key: 'paymentGateways',
-        title: { en: 'Sales by Payment Gateway', ar: 'المبيعات حسب بوابة الدفع الإلكتروني' },
-        columns: [
-          { key: 'gateway', label: { en: 'Gateway / Method', ar: 'البوابة / الطريقة' }, format: 'text' },
-          { key: 'count', label: { en: 'Transactions', ar: 'العمليات' }, format: 'number' },
-          { key: 'total', label: { en: 'Amount', ar: 'المبلغ' }, format: 'money' },
-        ],
-        rows: (byPayment || []).map((row) => ({
-          gateway: String(row._id).toUpperCase(),
-          count: num(row.count),
-          total: num(row.total),
-        })),
-      },
-    ],
-  };
-}
-
 // ─── Furniture Shop ────────────────────────────────────────────────────────
 async function buildFurniture({ tenantFilter, startDate, endDate }) {
   const matchOrders = {
@@ -1437,8 +1344,6 @@ const BUILDERS = {
   workshop: buildWorkshop,
   bookstore: buildBookstore,
   bookstore_stationery: buildBookstore,
-  ecommerce: buildEcommerce,
-  ecommerce_store: buildEcommerce,
   furniture_shop: buildFurniture,
   furniture: buildFurniture,
 };

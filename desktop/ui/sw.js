@@ -1,1 +1,27 @@
-if(!self.define){let e,s={};const n=(n,c)=>(n=new URL(n+".js",c).href,s[n]||new Promise(s=>{if("document"in self){const e=document.createElement("script");e.src=n,e.onload=s,document.head.appendChild(e)}else e=n,importScripts(n),s()}).then(()=>{let e=s[n];if(!e)throw new Error(`Module ${n} didn’t register its module`);return e}));self.define=(c,i)=>{const a=e||("document"in self?document.currentScript.src:"")||location.href;if(s[a])return;let t={};const o=e=>n(e,a),r={module:{uri:a},exports:t,require:o};s[a]=Promise.all(c.map(e=>r[e]||o(e))).then(e=>(i(...e),t))}}define(["./workbox-b80311bd"],function(e){"use strict";self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"ZATCA_Logo.svg",revision:"865f80874f7351bf0c26183de9285bbe"},{url:"zatca-sm-profile-05.png",revision:"5357f7629ef40f0bf82699b2ebbeb3ad"},{url:"tabby.png",revision:"f27d089970bb49abca67058854fa2518"},{url:"saudi_tech_mob_en.svg",revision:"49443c9ffdc7733ec5b4e36c387b7083"},{url:"saudi-tech.svg",revision:"27df823dce0b577e9ad75895abad197e"},{url:"MaqderFavicon.png",revision:"54bc3135c9834cf259fc130b6910f22c"},{url:"index.html",revision:"f15b53bcc9177a8f406c22f6ebac30dd"},{url:"favicon.svg",revision:"a570730b9ab0a78e38cb7d64ac6d0a0f"},{url:"assets/index-BAaPFlDV.css",revision:null},{url:"MaqderFavicon.png",revision:"54bc3135c9834cf259fc130b6910f22c"},{url:"manifest.webmanifest",revision:"1ee5cea547becf4030b2e773685cf84e"}],{}),e.cleanupOutdatedCaches(),e.registerRoute(new e.NavigationRoute(e.createHandlerBoundToURL("/index.html"))),e.registerRoute(({url:e})=>e.pathname.startsWith("/api"),new e.NetworkOnly,"GET"),e.registerRoute(/\.js$/i,new e.StaleWhileRevalidate({cacheName:"js-chunks-cache",plugins:[new e.ExpirationPlugin({maxEntries:200,maxAgeSeconds:604800}),new e.CacheableResponsePlugin({statuses:[0,200]})]}),"GET"),e.registerRoute(/^https:\/\/fonts\.googleapis\.com\/.*/i,new e.CacheFirst({cacheName:"google-fonts-cache",plugins:[new e.ExpirationPlugin({maxEntries:10,maxAgeSeconds:31536e3}),new e.CacheableResponsePlugin({statuses:[0,200]})]}),"GET"),e.registerRoute(/^https:\/\/fonts\.gstatic\.com\/.*/i,new e.CacheFirst({cacheName:"gstatic-fonts-cache",plugins:[new e.ExpirationPlugin({maxEntries:10,maxAgeSeconds:31536e3}),new e.CacheableResponsePlugin({statuses:[0,200]})]}),"GET"),e.registerRoute(/\/uploads\/.*\.(webp|png|jpg|jpeg|gif|svg)$/i,new e.CacheFirst({cacheName:"uploaded-images-cache",plugins:[new e.ExpirationPlugin({maxEntries:200,maxAgeSeconds:2592e3}),new e.CacheableResponsePlugin({statuses:[0,200]})]}),"GET"),e.registerRoute(/\.(?:png|jpg|jpeg|webp|gif|ttf)$/i,new e.CacheFirst({cacheName:"static-assets-cache",plugins:[new e.ExpirationPlugin({maxEntries:60,maxAgeSeconds:2592e3}),new e.CacheableResponsePlugin({statuses:[0,200]})]}),"GET")});
+// ─── Self-Destructing Service Worker Migration ────────────────────────────────
+// Automatically cleans up any previously registered service worker and caches
+// from older builds on user devices, ensuring 100% fresh assets on every deployment.
+
+self.addEventListener('install', (event) => {
+  self.skipWaiting()
+})
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const cacheNames = await caches.keys()
+        await Promise.all(cacheNames.map((name) => caches.delete(name)))
+        await self.registration.unregister()
+        await self.clients.claim()
+      } catch (err) {
+        console.warn('[SW Migration] Cleanup error:', err)
+      }
+    })()
+  )
+})
+
+// Direct pass-through for all requests — never intercept or stale-cache network traffic
+self.addEventListener('fetch', (event) => {
+  event.respondWith(fetch(event.request))
+})

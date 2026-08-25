@@ -1,0 +1,43 @@
+{
+  "name": "Maqder ERP",
+  "short_name": "Maqder",
+  "description": "Install the Maqder web-based ERP & POS application",
+  "theme_color": "#1a3d28",
+  "background_color": "#1a3d28",
+  "display": "standalone",
+  "orientation": "any",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/MaqderFavicon.png",
+      "sizes": "195x190",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maqder-pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maqder-pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maqder-pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/maqder-pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

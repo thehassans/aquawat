@@ -38,10 +38,10 @@ router.use(requireTenantFilter);
 function syncCourierFromApp(tenant, appId, config = {}, enabled = true) {
   const courierKey = COURIER_APP_MAP[appId];
   if (!courierKey) return false;
-  if (!tenant.ecommerce) tenant.ecommerce = {};
-  if (!tenant.ecommerce.couriers) tenant.ecommerce.couriers = {};
-  const current = tenant.ecommerce.couriers[courierKey] || {};
-  tenant.ecommerce.couriers[courierKey] = {
+  if (!tenant.settings) tenant.settings = {};
+  if (!tenant.settings.couriers) tenant.settings.couriers = {};
+  const current = tenant.settings.couriers[courierKey] || {};
+  tenant.settings.couriers[courierKey] = {
     ...current,
     enabled,
     environment: config.environment || current.environment || 'sandbox',
@@ -49,46 +49,35 @@ function syncCourierFromApp(tenant, appId, config = {}, enabled = true) {
     apiKey: config.apiKey || current.apiKey || '',
     apiSecret: config.apiSecret || current.apiSecret || '',
   };
-  tenant.markModified('ecommerce');
+  tenant.markModified('settings');
   return true;
 }
 
 function syncBnplFromApp(tenant, appId, config = {}, enabled = true) {
   const provider = BNPL_APP_MAP[appId];
   if (!provider) return false;
-  if (!tenant.ecommerce) tenant.ecommerce = {};
-  if (!tenant.ecommerce.payments) tenant.ecommerce.payments = {};
-  const current = tenant.ecommerce.payments[provider] || {};
-  const environment = config.environment === 'production' || config.environment === 'live' ? 'live' : (config.environment || current.environment || 'test');
-  tenant.ecommerce.payments[provider] = {
-    ...current,
-    enabled,
-    environment,
-    publishableKey: config.publicKey || config.publishableKey || current.publishableKey || '',
-    secretKey: config.secretKey || config.apiToken || current.secretKey || '',
-    merchantId: config.merchantCode || config.merchantId || current.merchantId || '',
-    webhookSecret: config.notificationToken || config.webhookSecret || current.webhookSecret || '',
-  };
-  tenant.markModified('ecommerce');
 
   if (!tenant.settings) tenant.settings = {};
   if (!tenant.settings.restaurant) tenant.settings.restaurant = {};
   if (!tenant.settings.restaurant.qrMenu) tenant.settings.restaurant.qrMenu = {};
   const qr = tenant.settings.restaurant.qrMenu;
   const accepted = new Set(qr.acceptedPayments || ['cash']);
+  const environment = config.environment === 'production' || config.environment === 'live' ? 'live' : (config.environment || 'test');
+
   if (provider === 'tabby') {
-    qr.tabbyMerchantCode = tenant.ecommerce.payments.tabby.merchantId || qr.tabbyMerchantCode || '';
-    qr.tabbyApiKey = tenant.ecommerce.payments.tabby.secretKey || qr.tabbyApiKey || '';
+    qr.tabbyMerchantCode = config.merchantCode || config.merchantId || qr.tabbyMerchantCode || '';
+    qr.tabbyApiKey = config.secretKey || config.apiToken || qr.tabbyApiKey || '';
     if (enabled) accepted.add('tabby');
     else accepted.delete('tabby');
   }
   if (provider === 'tamara') {
-    qr.tamaraMerchantToken = tenant.ecommerce.payments.tamara.secretKey || qr.tamaraMerchantToken || '';
-    qr.tamaraNotificationToken = tenant.ecommerce.payments.tamara.webhookSecret || qr.tamaraNotificationToken || '';
+    qr.tamaraMerchantToken = config.secretKey || config.apiToken || qr.tamaraMerchantToken || '';
+    qr.tamaraNotificationToken = config.notificationToken || config.webhookSecret || qr.tamaraNotificationToken || '';
     if (enabled) accepted.add('tamara');
     else accepted.delete('tamara');
   }
   qr.acceptedPayments = [...accepted];
+  qr[`${provider}Environment`] = environment;
   tenant.markModified('settings');
   tenant.markModified('settings.restaurant');
   return true;
@@ -1029,45 +1018,6 @@ export const DEFAULT_APP_CATALOG = [
     configSchema: []
   },
   {
-    appId: 'ecommerce_store',
-    nameEn: 'E-Commerce & Multi-Tenant Online Store',
-    nameAr: 'المتاجر الإلكترونية والبيع عبر الإنترنت',
-    taglineEn: 'No-code storefront, custom domains, payment gateways (Mada/Apple Pay), courier sync, and pixel tracking.',
-    taglineAr: 'متجر إلكتروني احترافي، ربط النطاقات، بوابات الدفع (مدى/Apple Pay)، بوالص الشحن، وبيكسل الإعلانات.',
-    descriptionEn: 'Launch your branded online store in minutes: customizable mobile-first storefront themes, custom domain mapping with free SSL, native Saudi payment gateway checkouts (Mada, Apple Pay, Tabby, Tamara), automated multi-courier shipping waybills, and abandoned cart recovery.',
-    descriptionAr: 'أطلق متجرك الإلكتروني بهويتك الخاصة: قوالب تصميم عصرية متوافقة مع الجوال، ربط نطاقك الخاص مع شهادة SSL مجانية، بوابات الدفع الإلكتروني المعتمدة (مدى، أبل باي، تابي، تمارا)، إصدار بوالص الشحن التلقائية، واستعادة السلات المتروكة.',
-    category: 'industry_verticals',
-    appType: 'core_vertical',
-    icon: 'shopping-bag',
-    version: '3.5.0',
-    downloadSize: '16.8 MB',
-    author: 'Maqder Core',
-    rating: 4.98,
-    reviewsCount: 620,
-    pricingTier: 'free',
-    badge: 'Online Store',
-    defaultRoute: '/app/dashboard/ecommerce',
-    businessTypeGrant: 'ecommerce',
-    featuresEn: [
-      'No-Code Storefront Theme Designer & Mobile Optimized',
-      'Custom Domain Support with Free Automated SSL',
-      'Payment Gateways (Mada, Apple Pay, Visa, Tabby, Tamara)',
-      'Automated Courier Waybill Generation (SMSA, Aramex, DHL)',
-      'Abandoned Cart WhatsApp Follow-ups & Tracking Pixels'
-    ],
-    featuresAr: [
-      'محرر مرئي لتخصيص تصميم وهوية المتجر متوافق مع كافة الشاشات',
-      'ربط النطاق الخاص (Custom Domain) مع شهادات الأمان SSL مجاناً',
-      'تكامل فوري مع بوابات الدفع (مدى، أبل باي، تابي، تمارا، فيزا)',
-      'إصدار بوالص الشحن التلقائية مع كبرى شركات الشحن (سمسا، أرامكس)',
-      'استعادة السلات المتروكة وبيكسلات التتبع (تيك توك، ميتا، جوجل)'
-    ],
-    configSchema: [
-      { key: 'enableCod', labelEn: 'Enable Cash on Delivery (COD)', labelAr: 'تفعيل خيار الدفع عند الاستلام', type: 'boolean', defaultValue: true },
-      { key: 'codFeeAmount', labelEn: 'COD Extra Fee (SAR)', labelAr: 'رسوم إضافية للدفع عند الاستلام (ريال)', type: 'number', defaultValue: 15 }
-    ]
-  },
-  {
     appId: 'furniture_shop',
     nameEn: 'Furniture Showroom & Custom Woodwork',
     nameAr: 'معارض الأثاث والمفروشات والتفصيل الخشبي',
@@ -1881,7 +1831,7 @@ export const DEFAULT_APP_CATALOG = [
     nameAr: 'المنيو والطلب عبر QR',
     taglineEn: 'Contactless QR menu with live stock and table ordering.',
     taglineAr: 'منيو باركود بدون تلامس مع المخزون اللحظي وطلب الطاولة.',
-    descriptionEn: 'Publish a branded QR digital menu with live availability, table ordering, and kitchen tickets — no extra storefront required.',
+    descriptionEn: 'Publish a branded QR digital menu with live availability, table ordering, and kitchen tickets — no separate website required.',
     descriptionAr: 'نشر منيو رقمي بالباركود مع التوفر اللحظي وطلب الطاولة وتذاكر المطبخ.',
     category: 'restaurant',
     appType: 'premium_addon',
@@ -1984,7 +1934,7 @@ export const DEFAULT_APP_CATALOG = [
     nameAr: 'بوابة الشحن والربط مع شركات النقل والتوصيل',
     taglineEn: 'One-click AWB shipping labels with SMSA, Aramex, SPL, FedEx, DHL, UPS, and TNT.',
     taglineAr: 'توليد بوالص الشحن التلقائية مع سمسا وأرامكس وسبل وفيديكس ودي إتش إل ويو بي إس وتي إن تي.',
-    descriptionEn: 'Integrated logistics engine connecting e-commerce, wholesale deliveries, and manufacturing fulfillment to leading Saudi couriers with live tracking webhook updates.',
+    descriptionEn: 'Integrated logistics engine connecting invoices, wholesale deliveries, and manufacturing fulfillment to leading Saudi couriers with live tracking webhook updates.',
     descriptionAr: 'ربط مباشر لطباعة بوالص الشحن وتتبع الشحنات مع كبرى شركات النقل في المملكة.',
     category: 'logistics',
     appType: 'automation_comm',
@@ -3353,9 +3303,9 @@ export const applyAppUninstall = async ({ tenant, appId }) => {
   }
 
   const courierKey = COURIER_APP_MAP[appId];
-  if (courierKey && tenant.ecommerce?.couriers?.[courierKey]) {
-    tenant.ecommerce.couriers[courierKey].enabled = false;
-    tenant.markModified('ecommerce');
+  if (courierKey && tenant.settings?.couriers?.[courierKey]) {
+    tenant.settings.couriers[courierKey].enabled = false;
+    tenant.markModified('settings');
   }
   syncBnplFromApp(tenant, appId, {}, false);
   await syncWhatsAppFromApp(tenant, appId, {}, false);

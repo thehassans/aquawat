@@ -1,5 +1,5 @@
 /**
- * Payment provider adapters for the ecommerce platform.
+ * Payment provider adapters (restaurant QR, invoices, app store).
  * Each adapter implements:
  *   - createCheckoutSession({ amount, currency, orderId, orderNumber, customer, successUrl, cancelUrl, metadata })
  *   - verifyWebhook({ headers, rawBody })
@@ -393,7 +393,7 @@ const tabbyAdapter = {
         success: successUrl,
         cancel: cancelUrl,
         failure: cancelUrl,
-        notification: origin ? `${origin}/api/ecommerce/fulfillment/webhook/tabby` : '',
+        notification: origin ? `${origin}/api/payments/tabby-webhook` : '',
       },
     };
     const res = await fetch('https://api.tabby.ai/api/v2/checkout', {
@@ -513,7 +513,7 @@ const tamaraAdapter = {
         success: successUrl,
         failure: cancelUrl,
         cancel: cancelUrl,
-        notification: origin ? `${origin}/api/ecommerce/fulfillment/webhook/tamara` : '',
+        notification: origin ? `${origin}/api/payments/tamara-webhook` : '',
       },
     };
     const res = await fetch(`${tamaraBase(config)}/checkout`, {
@@ -582,7 +582,7 @@ export function getPaymentAdapter(provider) {
  * Create a checkout session with the tenant's configured payment provider.
  * @param {string} provider - 'moyasar' | 'tap' | 'paytabs' | 'stripe' | 'tabby' | 'tamara'
  * @param {object} params - Checkout parameters
- * @param {object} config - Provider config from tenant.ecommerce.payments[provider]
+ * @param {object} config - Provider config (qrMenu, invoice payments, etc.)
  */
 export async function createCheckoutSession(provider, params, config) {
   const adapter = getPaymentAdapter(provider);

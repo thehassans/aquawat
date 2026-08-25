@@ -1,16 +1,25 @@
-import { Link } from 'react-router-dom'
-import { useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import api from '../../lib/api'
-import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
+import InventoryDataTable from './InventoryDataTable'
 import { INVENTORY_PATH } from './inventoryUi'
 
 export default function StockReport() {
   const { language } = useSelector((state) => state.ui)
   const isAr = language === 'ar'
-  const [search, setSearch] = useState('')
+  const [searchParams] = useSearchParams()
+  const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    const fromUrl = searchParams.get('search')
+    if (fromUrl != null) {
+      setSearch(fromUrl)
+      setPage(1)
+    }
+  }, [searchParams])
 
   const { data, isLoading } = useQuery({
     queryKey: ['stock-report', search, page],
@@ -54,7 +63,17 @@ export default function StockReport() {
         value={search}
         onChange={(e) => { setSearch(e.target.value); setPage(1) }}
       />
-      <ResponsiveDataList columns={columns} data={rows} loading={isLoading} />
+      <InventoryDataTable
+        columns={columns}
+        data={rows}
+        loading={isLoading}
+        pagination={{
+          page,
+          total: data?.total || rows.length,
+          limit: 80,
+          onPageChange: setPage,
+        }}
+      />
     </div>
   )
 }

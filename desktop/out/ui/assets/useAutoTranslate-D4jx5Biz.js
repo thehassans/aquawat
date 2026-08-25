@@ -1,0 +1,1 @@
+import{r}from"./react-vendor-D70kzIZy.js";import{a as t}from"./translator-vendor-fEgiBYJ-.js";function a(){const[a,n]=r.useState(!1);return{translate:r.useCallback((r,a,n)=>{if(!r||!r.trim())return"";try{return t(r.trim(),a,n)||""}catch(e){return""}},[]),isTranslating:a}}export{a as u};

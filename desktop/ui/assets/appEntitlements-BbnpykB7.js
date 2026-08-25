@@ -1,0 +1,1 @@
+import{i as n}from"./index-ClLkhX0p.js";function i(i,{appId:l,flag:o}={}){var t;return!(!o||!0!==(null==(t=null==i?void 0:i.subscription)?void 0:t[o]))||!!l&&function(i,l){var o,t;return n(null==(t=null==(o=null==i?void 0:i.settings)?void 0:o.installedApps)?void 0:t[l])}(i,l)}export{i as t};

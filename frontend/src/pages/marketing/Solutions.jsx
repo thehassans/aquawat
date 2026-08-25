@@ -105,7 +105,7 @@ const MODULES = [
     bgColor: '#05966918',
     titleEn: 'Payment Gateways & POS Terminals',
     titleAr: 'المدفوعات وأجهزة الشبكة',
-    descEn: 'Stripe, Mada, Moyasar and Tabby integrations for SaaS, ecommerce, and in-person card payments.',
+    descEn: 'Stripe, Mada, Moyasar and Tabby integrations for SaaS, invoicing, and in-person card payments.',
     descAr: 'تكاملات Stripe وMoyasar وTabby لمدفوعات SaaS ونقاط البيع.',
   },
   // HR
@@ -211,15 +211,15 @@ const MODULES = [
     descAr: 'كشوف حسابات العملاء وإرسال الفواتير عبر واتساب وتنبيهات الدفع.',
   },
   {
-    id: 'ecommerce',
+    id: 'inventory',
     cat: 'sales',
-    icon: Globe,
+    icon: Package,
     color: '#2563eb',
     bgColor: '#2563eb18',
-    titleEn: 'Integrated Online Storefront',
-    titleAr: 'المتجر الإلكتروني المتكامل',
-    descEn: 'White-label online catalog, customer checkout, coupon codes, and live inventory sync.',
-    descAr: 'متجر إلكتروني متكامل مع بوابات الدفع ومزامنة المخزون التلقائية.',
+    titleEn: 'Inventory & Warehouse Management',
+    titleAr: 'إدارة المخزون والمستودعات',
+    descEn: 'Multi-warehouse stock, pickings, lots/serials, valuation, and live availability across sales channels.',
+    descAr: 'مخزون متعدد المستودعات وعمليات التسليم والتقييم والتوفر المباشر عبر قنوات البيع.',
   },
   // Tech & AI
   {

@@ -6,7 +6,7 @@ import { useSelector } from 'react-redux';
 import api from '../../lib/api';
 import * as XLSX from 'xlsx';
 
-const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop'];
+const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'furniture_shop'];
 
 export default function LeadsGeneration() {
   const { language } = useSelector((state) => state.ui);

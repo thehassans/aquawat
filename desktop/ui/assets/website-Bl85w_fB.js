@@ -1,1 +1,0 @@
-import{b as e}from"./query-vendor-Cbrk62Q2.js";import{c as t}from"./index-BRd31DZw.js";function r(){return e({queryKey:["public-website-settings"],queryFn:()=>t.get("/public/website").then(e=>e.data),staleTime:3e5,retry:1})}export{r as u};

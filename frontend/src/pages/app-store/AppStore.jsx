@@ -139,7 +139,7 @@ function appMatchesCategory(app, categoryId) {
       app.category === 'industry_vertical' ||
       app.appType === 'core_vertical' ||
       app.appType === 'industry_vertical' ||
-      ['manufacturing', 'boutique', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'manpower', 'bakala', 'pharmacy', 'trading', 'gym'].some(
+      ['manufacturing', 'boutique', 'car_workshop', 'bookstore', 'furniture_shop', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'manpower', 'bakala', 'pharmacy', 'trading', 'gym'].some(
         (v) => app.appId.includes(v)
       )
     );
@@ -230,7 +230,10 @@ export default function AppStore() {
   );
 
   const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCategory, setActiveCategory] = useState(() => {
+    const cat = new URLSearchParams(window.location.search).get('category');
+    return cat && CATEGORIES.some((c) => c.id === cat) ? cat : 'all';
+  });
   const [showInstalledOnly, setShowInstalledOnly] = useState(false);
   const [sortBy, setSortBy] = useState('featured'); // 'featured', 'rating', 'name'
   const [selectedConfigAppId, setSelectedConfigAppId] = useState(null);

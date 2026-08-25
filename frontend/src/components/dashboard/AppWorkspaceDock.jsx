@@ -111,14 +111,6 @@ export function AppWorkspaceDock({
           { label: isAr ? 'الإيرادات' : 'Revenue', value: rev, isCurrency: true },
         ]
       }
-      case 'ecommerce': {
-        const pend = data.totals?.[0]?.pending || 0
-        const ship = data.totals?.[0]?.shipped || 0
-        return [
-          { label: isAr ? 'طلبات معلقة' : 'Pending', value: pend, alert: pend > 0 },
-          { label: isAr ? 'قيد الشحن' : 'Shipped', value: ship },
-        ]
-      }
       case 'boutique': {
         const active = data.totals?.[0]?.activeRentals || 0
         return [

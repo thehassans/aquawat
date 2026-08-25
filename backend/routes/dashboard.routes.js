@@ -24,8 +24,6 @@ import WorkshopJobCard from '../models/WorkshopJobCard.js';
 import WorkshopVehicle from '../models/WorkshopVehicle.js';
 import BookStoreProduct from '../models/BookStoreProduct.js';
 import BookRental from '../models/BookRental.js';
-import EcommerceOrder from '../models/EcommerceOrder.js';
-import EcommerceProduct from '../models/EcommerceProduct.js';
 import FurnitureOrder from '../models/FurnitureOrder.js';
 import FurnitureProduct from '../models/FurnitureProduct.js';
 import Project from '../models/Project.js';
@@ -115,7 +113,6 @@ async function buildDashboardPayload(req) {
       boutiqueStats,
       workshopStats,
       bookstoreStats,
-      ecommerceStats,
       furnitureStats,
       projectStats
     ] = await Promise.all([
@@ -588,33 +585,6 @@ async function buildDashboardPayload(req) {
         }
       ]) : skipAgg,
 
-      // 22. E-Commerce Store
-      hasBiz('ecommerce') ? safeAggregate(EcommerceOrder, [
-        { $match: { ...req.tenantFilter } },
-        {
-          $facet: {
-            totals: [
-              {
-                $group: {
-                  _id: null,
-                  total: { $sum: 1 },
-                  pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
-                  processing: { $sum: { $cond: [{ $in: ['$status', ['confirmed', 'processing']] }, 1, 0] } },
-                  shipped: { $sum: { $cond: [{ $in: ['$status', ['shipped', 'out_for_delivery']] }, 1, 0] } },
-                  delivered: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
-                  revenue: { $sum: '$totalAmount' }
-                }
-              }
-            ],
-            recent: [
-              { $sort: { createdAt: -1 } },
-              { $limit: 5 },
-              { $project: { orderNumber: 1, status: 1, totalAmount: 1, 'customer.name': 1, createdAt: 1 } }
-            ]
-          }
-        }
-      ]) : skipAgg,
-
       // 23. Furniture Showroom
       hasBiz('furniture_shop') ? safeAggregate(FurnitureOrder, [
         { $match: { ...req.tenantFilter } },
@@ -703,7 +673,6 @@ async function buildDashboardPayload(req) {
       boutique: boutiqueStats[0] || { totals: [{ total: 0, activeRentals: 0, completed: 0 }] },
       car_workshop: workshopStats[0] || { totals: [{ total: 0, openCards: 0, completed: 0, revenue: 0 }], recent: [] },
       bookstore: bookstoreStats[0] || { totals: [{ total: 0, lowStock: 0 }] },
-      ecommerce: ecommerceStats[0] || { totals: [{ total: 0, pending: 0, processing: 0, shipped: 0, delivered: 0, revenue: 0 }], recent: [] },
       furniture_shop: furnitureStats[0] || { totals: [{ total: 0, inProduction: 0, delivered: 0, revenue: 0 }] },
       construction: projectStats[0] || { totals: [{ total: 0, active: 0, completed: 0, avgProgress: 0, totalBudget: 0 }], recent: [] },
       saudi_compliance: {
@@ -885,28 +854,6 @@ async function buildRevenueChart(req, months) {
         }
       ]);
       restaurantRevenue.forEach(r => addRevenue(r._id.year, r._id.month, r.revenue, r.tax, r.count));
-    }
-
-    // 5. E-Commerce
-    if (businessTypes.includes('ecommerce')) {
-      const ecomRevenue = await safeAggregate(EcommerceOrder, [
-        {
-          $match: {
-            ...req.tenantFilter,
-            createdAt: { $gte: startDate },
-            status: { $nin: ['cancelled', 'refunded'] }
-          }
-        },
-        {
-          $group: {
-            _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
-            revenue: { $sum: { $ifNull: ['$totalAmount', 0] } },
-            tax: { $sum: 0 },
-            count: { $sum: 1 }
-          }
-        }
-      ]);
-      ecomRevenue.forEach(r => addRevenue(r._id.year, r._id.month, r.revenue, r.tax, r.count));
     }
 
     // 6. Car Workshop

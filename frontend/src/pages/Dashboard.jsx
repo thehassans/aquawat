@@ -44,7 +44,6 @@ import {
   Pill,
   Wrench,
   BookOpen,
-  Globe,
   MessageSquare,
   QrCode,
   CalendarDays
@@ -678,19 +677,6 @@ export default function Dashboard() {
         descAr: 'الكتب والقرطاسية والباركود',
         route: '/app/dashboard/bookstore',
         icon: BookOpen,
-      }
-    )
-
-    addIf(
-      businessTypes.includes('ecommerce') || isAppAccessValid(apps.ecommerce_store),
-      {
-        id: 'ecommerce_store',
-        nameEn: 'E-Commerce Store',
-        nameAr: 'المتجر الإلكتروني',
-        descEn: 'Online storefront',
-        descAr: 'المتجر الإلكتروني وبوابات الدفع',
-        route: '/app/dashboard/ecommerce',
-        icon: Globe,
       }
     )
 

@@ -15,7 +15,8 @@
 
 - **Parallel engine**: new `stock/*` models and services alongside legacy `Product.stocks[]`.
 - Legacy GRN / stock-transfer / adjustment flows will get **adapter layers** (Phase 1+: receipts via Picking engine).
-- Vertical catalogs (Bakala, Restaurant, Ecommerce, etc.) remain **out of scope** for all phases.
+- Vertical catalogs (Bakala, Restaurant, etc.) remain **out of scope** for all phases.
+- **E-commerce tenant removed (2026-08-25):** The standalone `ecommerce` business type, admin pages, and public storefront routes were deleted from the codebase.
 
 ## Product catalog
 
@@ -149,9 +150,46 @@
 - `StockMessage` chatter on pickings (comments, notes, system notifications on confirm/validate/…)
 - PDF download via jsPDF (`?format=pdf`) alongside HTML print
 
+## Phase 19 — Premium UI polish (Maqder stack)
+
+- **`InventoryDataTable`** — TanStack Table with sortable columns, sticky header, skeleton loading, mobile cards; fixes broken `ResponsiveDataList columns/data` usage across inventory lists
+- **`InventoryCommandPalette`** — cmdk + `GET /api/stock/search`; Ctrl+K / toolbar button in `InventoryLayout`
+- **`InventorySheet`** — Framer Motion slide-out for move-line edits on `PickingForm`
+- **Optimistic validate** — `useOptimistic` on picking state during confirm/validate/cancel
+- **Bulk actions** — floating bar on transfer lists (Confirm / Cancel selected)
+- **Smart buttons** — product form counters link to Stock Report, Forecast timeline, Moves History
+- Dependencies: `cmdk`, `@tanstack/react-table`
+
+## Phase 20 — Access + deep links + search hardening
+
+- **Business types** expanded to match warehouse routes: `trading`, `bakala`, `pharmacy`, `furniture_shop`, `construction`, `manufacturing` (shared `STOCK_BUSINESS_TYPES` constant)
+- **`buildStockSearchFilters`** service — regex escape + tenant-scoped filters for command palette
+- **Stock Report** reads `?search=` from URL (smart buttons from product form)
+- **Locations config** highlights row from command palette `?highlight=locationId`
+- Unit tests: search regex escape, tenant filter contract on stock queries
+
+## Phase 21 — E-commerce tenant removed (2026-08-25)
+
+- Removed business type `ecommerce` from signup/catalog everywhere
+- Deleted admin pages, storefront, `/api/ecommerce/*`, `/api/storefront`, models, middleware (`resolveTenantByHost`), abandoned-cart cron
+- Removed `Tenant.ecommerce` subdocument; courier app-store config now lives under `settings.couriers`
+- Restaurant QR Tabby/Tamara reads credentials from `settings.restaurant.qrMenu` only (no ecommerce bridge)
+- Inventory/stock engine unchanged; vertical-specific catalogs (restaurant, bakala, etc.) remain separate
+- Mongo cleanup script: `npm run cleanup:ecommerce` (add `--dry-run` to preview; deletes orphan `demo-store` tenant)
+- BNPL webhooks now point to `/api/payments/tabby-webhook` and `/api/payments/tamara-webhook`
+- Logistics sidebar → App Store (`?category=logistics`) instead of deleted courier admin page
+- Zero `ecommerce`/`storefront` references remain in application source
+
+## Phase 22 — Remaining follow-ups closed (2026-08-25)
+
+- **`STOCK_SCHEDULER_CRON=1`** documented in `.env.example`, `backend/.env.example`, and `docker-compose.yml` (runs on cron leader at 02:00)
+- **Desktop UI rebuilt** via `desktop/npm run copy-ui` — `desktop/ui` has no ecommerce chunks; `desktop/out/ui` synced
+- **Integration test** `stockConcurrentReserve.test.js` skips gracefully when Mongo is standalone (replica set required for real run)
+- **Mongo cleanup applied** locally: ecommerce collections dropped, demo-store tenant removed
+
 ## Deferred / polish
 
-_(none — concurrent reserve covered by optimistic versioning + optional Mongo integration test)_
+_(none)_
 
 ## Concurrency
 
@@ -162,4 +200,7 @@ _(none — concurrent reserve covered by optimistic versioning + optional Mongo 
 
 - `InventoryLayout.jsx` — 5-tab module nav (PurchasesLayout pattern)
 - `inventoryUi.js` — shared tokens (fieldControlClass, STATUS_PILL, paths)
+- `InventoryDataTable.jsx` — TanStack Table wrapper
+- `InventoryCommandPalette.jsx` — global search (Ctrl+K)
+- `InventorySheet.jsx` — slide-out drawer for inline edits
 - Status pills map picking states to existing badge tokens

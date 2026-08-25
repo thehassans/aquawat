@@ -83,6 +83,7 @@ import {
   Lock
 } from 'lucide-react'
 import { getGovSectionTitle } from './saudiTenant'
+import { STOCK_BUSINESS_TYPES } from './stockBusinessTypes'
 
 /**
  * Build the full sidebar navigation sections for the current tenant context.
@@ -164,35 +165,6 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
         { path: '/app/dashboard/bookstore/shift', icon: Wallet, label: language === 'ar' ? 'إدارة الوردية' : 'Shift Management' },
         { path: '/app/dashboard/khata', icon: Users, label: language === 'ar' ? 'العملاء (خاتا)' : 'Khata', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/bookstore/dashboard', icon: ShieldCheck, label: language === 'ar' ? 'لوحة التحكم' : 'Administration' },
-      ]
-    },
-    {
-      title: language === 'ar' ? 'المتجر الإلكتروني' : 'E-Commerce',
-      grantBusinessTypes: ['ecommerce'],
-      requireAnyApp: ['ecommerce_store', 'ecommerce'],
-      items: [
-        { path: '/app/dashboard/ecommerce', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Insights', end: true },
-        { path: '/app/dashboard/ecommerce/orders', icon: ListOrdered, label: language === 'ar' ? 'الطلبات' : 'Orders' },
-        { path: '/app/dashboard/ecommerce/products', icon: Package, label: language === 'ar' ? 'المنتجات' : 'Products' },
-        { path: '/app/dashboard/ecommerce/inventory', icon: Boxes, label: language === 'ar' ? 'المخزون' : 'Inventory' },
-        { path: '/app/dashboard/ecommerce/customers', icon: Users, label: language === 'ar' ? 'العملاء' : 'Customers' },
-        { path: '/app/dashboard/ecommerce/sales-report', icon: BarChart3, label: language === 'ar' ? 'تقرير المبيعات' : 'Sales Report' },
-        { path: '/app/dashboard/ecommerce/products/new', icon: PlusCircle, label: language === 'ar' ? 'إضافة منتج' : 'Add Product' },
-        { path: '/app/dashboard/ecommerce/theme', icon: Palette, label: language === 'ar' ? 'تصميم المتجر' : 'Theme Editor' },
-        { path: '/app/dashboard/ecommerce/domains', icon: Globe, label: language === 'ar' ? 'النطاقات' : 'Domains' },
-        { path: '/app/dashboard/ecommerce/payments', icon: CreditCard, label: language === 'ar' ? 'بوابات الدفع' : 'Payments' },
-        { path: '/app/dashboard/ecommerce/couriers', icon: Truck, label: language === 'ar' ? 'شركات الشحن' : 'Couriers' },
-        { path: '/app/dashboard/ecommerce/pixels', icon: BarChart3, label: language === 'ar' ? 'بيكسلات التتبع' : 'Tracking Pixels' },
-        { path: '/app/dashboard/ecommerce/coupons', icon: Tag, label: language === 'ar' ? 'كوبونات الخصم' : 'Coupons' },
-        { path: '/app/dashboard/ecommerce/bundles', icon: Package, label: language === 'ar' ? 'حزم المنتجات' : 'Bundles' },
-        { path: '/app/dashboard/ecommerce/reviews', icon: MessageSquare, label: language === 'ar' ? 'التقييمات' : 'Reviews' },
-        { path: '/app/dashboard/ecommerce/newsletter', icon: Mail, label: language === 'ar' ? 'النشرة البريدية' : 'Newsletter' },
-        { path: '/app/dashboard/ecommerce/abandoned-carts', icon: ShoppingCart, label: language === 'ar' ? 'سلات متروكة' : 'Abandoned Carts' },
-        { path: '/app/dashboard/ecommerce/returns', icon: RotateCcw, label: language === 'ar' ? 'المرتجعات' : 'Returns & Refunds' },
-        { path: '/app/dashboard/ecommerce/gift-cards', icon: Gift, label: language === 'ar' ? 'بطاقات الهدايا' : 'Gift Cards' },
-        { path: '/app/dashboard/ecommerce/questions', icon: HelpCircle, label: language === 'ar' ? 'أسئلة وأجوبة' : 'Product Q&A' },
-        { path: '/app/dashboard/ecommerce/wordpress', icon: Globe2, label: language === 'ar' ? 'ووردبريس' : 'WordPress' },
-        { path: '/app/dashboard/ecommerce/settings', icon: Settings, label: language === 'ar' ? 'الإعدادات' : 'Store Settings' },
       ]
     },
     {
@@ -388,7 +360,7 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
     {
       title: language === 'ar' ? 'المخزون' : 'Inventory',
       items: [
-        { path: '/app/dashboard/inventory', icon: Package, label: language === 'ar' ? 'المخزون' : 'Inventory', perm: { module: 'inventory', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
+        { path: '/app/dashboard/inventory', icon: Package, label: language === 'ar' ? 'المخزون' : 'Inventory', perm: { module: 'inventory', action: 'read' }, businessTypes: STOCK_BUSINESS_TYPES },
         {
           path: '/app/dashboard/projects',
           icon: FolderKanban,
@@ -494,7 +466,7 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
       title: language === 'ar' ? 'الشحن واللوجستيات' : 'Shipping & Logistics',
       requireAnyApp: ['multicourier_shipping', 'smsa_express', 'aramex_shipping', 'jnt_express', 'naqel_express', 'imile_courier', 'spl_saudi_post', 'fedex_shipping', 'dhl_express', 'ups_shipping', 'tnt_express'],
       items: [
-        { path: '/app/dashboard/logistics', icon: Truck, label: language === 'ar' ? 'شركات الشحن' : 'Couriers & Labels', perm: { module: 'settings', action: 'read' } },
+        { path: '/app/dashboard/app-store?category=logistics', icon: Truck, label: language === 'ar' ? 'شركات الشحن' : 'Couriers & Labels', perm: { module: 'settings', action: 'read' } },
       ]
     },
     ...(govChildrenResolved.length > 0

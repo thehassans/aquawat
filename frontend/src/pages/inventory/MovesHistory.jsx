@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import api from '../../lib/api'
-import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
+import InventoryDataTable from './InventoryDataTable'
 
 export default function MovesHistory() {
   const { language } = useSelector((state) => state.ui)
@@ -40,13 +40,17 @@ export default function MovesHistory() {
         </h1>
         <p className="text-gray-500 mt-1">{isAr ? 'سطور الحركات المنجزة' : 'Done move lines'}</p>
       </div>
-      <ResponsiveDataList columns={columns} data={data?.items || []} loading={isLoading} />
-      {(data?.total || 0) > 80 && (
-        <div className="flex gap-2">
-          <button type="button" className="btn btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
-          <button type="button" className="btn btn-secondary" onClick={() => setPage((p) => p + 1)}>Next</button>
-        </div>
-      )}
+      <InventoryDataTable
+        columns={columns}
+        data={data?.items || []}
+        loading={isLoading}
+        pagination={{
+          page,
+          total: data?.total || 0,
+          limit: 80,
+          onPageChange: setPage,
+        }}
+      />
     </div>
   )
 }

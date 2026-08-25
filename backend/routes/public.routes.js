@@ -576,7 +576,7 @@ router.post('/demo-signup', async (req, res) => {
 router.get('/tenant/:id/menu', async (req, res) => {
   try {
     const tenant = await withQueryTimeout(
-      Tenant.findById(req.params.id).select('name slug business branding settings isActive subscription.hasQrOrderingAddon ecommerce.payments')
+      Tenant.findById(req.params.id).select('name slug business branding settings isActive subscription.hasQrOrderingAddon')
     )
 
     if (!tenant || !tenant.isActive) {
@@ -589,8 +589,8 @@ router.get('/tenant/:id/menu', async (req, res) => {
 
     const qrMenu = { ...(tenant.settings?.restaurant?.qrMenu || { defaultLanguage: 'ar' }) }
     const accepted = new Set(qrMenu.acceptedPayments || ['cash'])
-    if (!tenant.ecommerce?.payments?.tabby?.enabled) accepted.delete('tabby')
-    if (!tenant.ecommerce?.payments?.tamara?.enabled) accepted.delete('tamara')
+    if (!qrMenu.tabbyApiKey || !qrMenu.tabbyMerchantCode) accepted.delete('tabby')
+    if (!qrMenu.tamaraMerchantToken) accepted.delete('tamara')
     qrMenu.acceptedPayments = [...accepted]
 
     res.json({
@@ -619,7 +619,7 @@ router.get('/tenant/:id/menu', async (req, res) => {
 router.post('/tenant/:id/order', async (req, res) => {
   try {
     const tenant = await withQueryTimeout(
-      Tenant.findById(req.params.id).select('name subscription settings isActive ecommerce.payments')
+      Tenant.findById(req.params.id).select('name subscription settings isActive')
     )
 
     if (!tenant || !tenant.isActive) {
@@ -731,7 +731,18 @@ router.post('/tenant/:id/order', async (req, res) => {
 
     let checkoutUrl = null
     if (paymentMethod === 'tabby' || paymentMethod === 'tamara') {
-      const config = tenant.ecommerce?.payments?.[paymentMethod]
+      const qrMenu = tenant.settings?.restaurant?.qrMenu || {}
+      const config = paymentMethod === 'tabby'
+        ? {
+          enabled: Boolean(qrMenu.tabbyApiKey && qrMenu.tabbyMerchantCode),
+          secretKey: qrMenu.tabbyApiKey,
+          merchantId: qrMenu.tabbyMerchantCode,
+        }
+        : {
+          enabled: Boolean(qrMenu.tamaraMerchantToken),
+          secretKey: qrMenu.tamaraMerchantToken,
+          webhookSecret: qrMenu.tamaraNotificationToken,
+        }
       if (!config?.enabled || !config?.secretKey) {
         return res.status(400).json({ error: `${paymentMethod} is not enabled for this restaurant` })
       }

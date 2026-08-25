@@ -308,176 +308,14 @@ const invoiceTypographySchema = new mongoose.Schema({
   headingFontSize: { type: Number, min: 9, max: 40, default: 18 },
 }, { _id: false });
 
-const ecommerceDomainSchema = new mongoose.Schema({
-  hostname: { type: String, required: true, lowercase: true, trim: true },
-  type: { type: String, enum: ['subdomain', 'custom'], default: 'custom' },
-  status: { type: String, enum: ['pending', 'verifying', 'verified', 'failed'], default: 'pending' },
-  isPrimary: { type: Boolean, default: false },
-  verificationToken: { type: String, default: '' },
-  sslStatus: { type: String, enum: ['none', 'pending', 'active', 'error'], default: 'none' },
-  verifiedAt: { type: Date },
-  // Cloudflare for SaaS custom hostname ID
-  cfHostnameId: { type: String, default: '' },
-  // DNS records the client needs to add (returned by CF SaaS API)
-  cfCnameTarget: { type: String, default: '' },
-  cfTxtName: { type: String, default: '' },
-  cfTxtValue: { type: String, default: '' },
-  // Cloudflare custom hostname status (pending, active, etc.)
-  cfStatus: { type: String, default: '' },
-  // Error message if Cloudflare provisioning failed
-  cfErrorMessage: { type: String, default: '' },
-}, { _id: true, timestamps: true });
-
-const ecommercePaymentProviderSchema = new mongoose.Schema({
-  enabled: { type: Boolean, default: false },
-  // Provider credentials are stored per tenant. Secrets should be masked in API responses.
-  publishableKey: { type: String, default: '' },
-  secretKey: { type: String, default: '' },
-  merchantId: { type: String, default: '' },
-  webhookSecret: { type: String, default: '' },
-  environment: { type: String, enum: ['test', 'live'], default: 'test' },
 }, { _id: false });
 
-const ecommerceCourierProviderSchema = new mongoose.Schema({
+const courierProviderSchema = new mongoose.Schema({
   enabled: { type: Boolean, default: false },
   accountNumber: { type: String, default: '' },
   apiKey: { type: String, default: '' },
   apiSecret: { type: String, default: '' },
   environment: { type: String, enum: ['sandbox', 'production'], default: 'sandbox' },
-}, { _id: false });
-
-const ecommerceSchema = new mongoose.Schema({
-  // Storefront availability
-  storeStatus: { type: String, enum: ['draft', 'live', 'paused'], default: 'draft' },
-  storeName: { type: String, default: '' },
-  storeNameAr: { type: String, default: '' },
-  // The free platform subdomain slug → {slug}.shop.maqder.com (defaults to tenant.slug)
-  subdomain: { type: String, default: '', lowercase: true, trim: true },
-  domains: { type: [ecommerceDomainSchema], default: [] },
-  // Commerce defaults
-  currency: { type: String, default: 'SAR' },
-  defaultTaxRate: { type: Number, default: 15 },
-  pricesIncludeTax: { type: Boolean, default: true },
-  weightUnit: { type: String, enum: ['g', 'kg'], default: 'g' },
-  // SEO defaults (per-product overrides live on the Product model)
-  seo: {
-    metaTitle: { type: String, default: '' },
-    metaTitleAr: { type: String, default: '' },
-    metaDescription: { type: String, default: '' },
-    metaDescriptionAr: { type: String, default: '' },
-    ogImage: { type: String, default: '' },
-    faviconUrl: { type: String, default: '' },
-    googleAnalyticsId: { type: String, default: '' },
-    metaPixelId: { type: String, default: '' },
-    robotsIndex: { type: Boolean, default: true },
-  },
-  // Tracking pixels — injected into storefront <head> and fired on events
-  pixels: {
-    googleAnalytics: {
-      enabled: { type: Boolean, default: false },
-      measurementId: { type: String, default: '' }, // e.g. G-XXXXXXXXXX
-    },
-    facebookPixel: {
-      enabled: { type: Boolean, default: false },
-      pixelId: { type: String, default: '' },
-    },
-    tiktokPixel: {
-      enabled: { type: Boolean, default: false },
-      pixelId: { type: String, default: '' },
-    },
-    snapchatPixel: {
-      enabled: { type: Boolean, default: false },
-      pixelId: { type: String, default: '' },
-    },
-    twitterPixel: {
-      enabled: { type: Boolean, default: false },
-      pixelId: { type: String, default: '' },
-    },
-    googleAds: {
-      enabled: { type: Boolean, default: false },
-      conversionId: { type: String, default: '' }, // e.g. AW-XXXXXXXXX
-      conversionLabel: { type: String, default: '' },
-    },
-    snapchatCapi: {
-      enabled: { type: Boolean, default: false },
-      pixelId: { type: String, default: '' },
-      token: { type: String, default: '' },
-    },
-    tiktokCapi: {
-      enabled: { type: Boolean, default: false },
-      pixelCode: { type: String, default: '' },
-      accessToken: { type: String, default: '' },
-    },
-  },
-  // Plug-and-play payment providers
-  payments: {
-    defaultProvider: { type: String, enum: ['', 'moyasar', 'tap', 'paytabs', 'stripe', 'tabby', 'tamara', 'cod'], default: '' },
-    codEnabled: { type: Boolean, default: true },
-    moyasar: { type: ecommercePaymentProviderSchema, default: () => ({}) },
-    tap: { type: ecommercePaymentProviderSchema, default: () => ({}) },
-    paytabs: { type: ecommercePaymentProviderSchema, default: () => ({}) },
-    stripe: { type: ecommercePaymentProviderSchema, default: () => ({}) },
-    tabby: { type: ecommercePaymentProviderSchema, default: () => ({}) },
-    tamara: { type: ecommercePaymentProviderSchema, default: () => ({}) },
-  },
-  // Courier integrations
-  couriers: {
-    smsa: { type: ecommerceCourierProviderSchema, default: () => ({}) },
-    aramex: { type: ecommerceCourierProviderSchema, default: () => ({}) },
-    naqel: { type: ecommerceCourierProviderSchema, default: () => ({}) },
-    imile: { type: ecommerceCourierProviderSchema, default: () => ({}) },
-    jnt: { type: ecommerceCourierProviderSchema, default: () => ({}) },
-    spl: { type: ecommerceCourierProviderSchema, default: () => ({}) },
-    fedex: { type: ecommerceCourierProviderSchema, default: () => ({}) },
-    dhl: { type: ecommerceCourierProviderSchema, default: () => ({}) },
-    ups: { type: ecommerceCourierProviderSchema, default: () => ({}) },
-    tnt: { type: ecommerceCourierProviderSchema, default: () => ({}) },
-    flatRate: {
-      enabled: { type: Boolean, default: true },
-      price: { type: Number, default: 25 },
-      freeShippingThreshold: { type: Number, default: 0 },
-    },
-  },
-  // Tenant-level Cloudflare credentials (optional) for Connect with Cloudflare
-  cloudflare: {
-    apiToken: { type: String, default: '' },
-    zoneId: { type: String, default: '' },
-    fallbackOrigin: { type: String, default: '' },
-    connectedAt: { type: Date },
-  },
-  // WordPress / WooCommerce integration
-  wordpress: {
-    enabled: { type: Boolean, default: false },
-    siteUrl: { type: String, default: '' },
-    consumerKey: { type: String, default: '' },
-    consumerSecret: { type: String, default: '' },
-    username: { type: String, default: '' },
-    appPassword: { type: String, default: '' },
-    syncDirection: { type: String, enum: ['push', 'pull', 'two-way'], default: 'push' },
-    lastSyncAt: { type: Date },
-    lastSyncStatus: { type: String, default: '' },
-    lastSyncError: { type: String, default: '' },
-    autoSync: { type: Boolean, default: false },
-  },
-  // Newsletter subscribers
-  newsletterSubscribers: [{
-    email: { type: String, required: true },
-    subscribedAt: { type: Date, default: Date.now },
-    isActive: { type: Boolean, default: true },
-    unsubscribedAt: { type: Date, default: null },
-    resubscribedAt: { type: Date, default: null },
-  }],
-  // Shopify-style JSON-driven theme customization
-  theme: {
-    // Currently published config (what the storefront renders)
-    published: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
-    // Draft config being edited in the theme editor
-    draft: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
-    // When the draft was last saved
-    draftUpdatedAt: { type: Date, default: null },
-    // When the theme was last published
-    publishedAt: { type: Date, default: null },
-  },
 }, { _id: false });
 
 const tenantSchema = new mongoose.Schema({
@@ -504,7 +342,6 @@ const tenantSchema = new mongoose.Schema({
   bahrainNbr: bahrainNbrConfigSchema,
   mofKuwait: mofKuwaitConfigSchema,
   gtaQatar: gtaQatarConfigSchema,
-  ecommerce: { type: ecommerceSchema, default: () => ({}) },
   settings: {
     installedApps: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
     language: { type: String, enum: ['en', 'ar'], default: 'ar' },
@@ -522,6 +359,18 @@ const tenantSchema = new mongoose.Schema({
     dateFormat: { type: String, default: 'DD/MM/YYYY' },
     useHijriDates: { type: Boolean, default: true },
     hiddenUoms: [{ type: String }],
+    couriers: {
+      smsa: { type: courierProviderSchema, default: () => ({}) },
+      aramex: { type: courierProviderSchema, default: () => ({}) },
+      naqel: { type: courierProviderSchema, default: () => ({}) },
+      imile: { type: courierProviderSchema, default: () => ({}) },
+      jnt: { type: courierProviderSchema, default: () => ({}) },
+      spl: { type: courierProviderSchema, default: () => ({}) },
+      fedex: { type: courierProviderSchema, default: () => ({}) },
+      dhl: { type: courierProviderSchema, default: () => ({}) },
+      ups: { type: courierProviderSchema, default: () => ({}) },
+      tnt: { type: courierProviderSchema, default: () => ({}) },
+    },
     inventory: {
       allowNegativeStock: { type: Boolean, default: false },
       lowStockThreshold: { type: Number, default: 10 }
@@ -920,8 +769,6 @@ tenantSchema.pre('validate', function(next) {
 tenantSchema.index({ isActive: 1 });
 tenantSchema.index({ businessType: 1 });
 tenantSchema.index({ businessTypes: 1 });
-tenantSchema.index({ 'ecommerce.subdomain': 1 });
-tenantSchema.index({ 'ecommerce.domains.hostname': 1, 'ecommerce.domains.status': 1 });
 
 const Tenant = mongoose.model('Tenant', tenantSchema);
 export default Tenant;

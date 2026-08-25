@@ -50,7 +50,6 @@ const ALL_MODULE_DEFINITIONS = [
   { key: 'car_rental', labelEn: 'Car Rental', labelAr: 'تأجير السيارات', Icon: Truck, group: 'vertical' },
   { key: 'laundry', labelEn: 'Laundry & Dry Clean', labelAr: 'المغسلة والتنظيف', Icon: Sparkles, group: 'vertical' },
   { key: 'boutique', labelEn: 'Boutique & Tailor', labelAr: 'البوتيك والخياطة', Icon: Sparkles, group: 'vertical' },
-  { key: 'ecommerce', labelEn: 'Online Storefront', labelAr: 'المتجر الإلكتروني', Icon: FileText, group: 'vertical' },
   { key: 'marquee', labelEn: 'Marquee & Event Halls', labelAr: 'قاعات الأفراح والمناسبات', Icon: Boxes, group: 'vertical' },
 
   // Installed Add-ons & Apps
@@ -187,10 +186,6 @@ export function getTenantActiveModules(tenant) {
     isAppOn('tailor_khayyat')
   ) {
     activeKeys.add('boutique')
-  }
-
-  if (businessTypes.includes('ecommerce') || isAppOn('ecommerce_store') || isAppOn('ecommerce')) {
-    activeKeys.add('ecommerce')
   }
 
   if (businessTypes.includes('marquee') || isAppOn('marquee_management') || isAppOn('marquee')) {

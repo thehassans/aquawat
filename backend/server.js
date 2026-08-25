@@ -81,19 +81,6 @@ import profitMarginRoutes from './routes/profitMargin.routes.js';
 import reorderRoutes from './routes/reorder.routes.js';
 import dailyPnlRoutes from './routes/dailyPnl.routes.js';
 import bookstoreRoutes from './routes/bookstore.routes.js';
-import ecommerceRoutes from './routes/ecommerce.routes.js';
-import ecommerceProductRoutes from './routes/ecommerceProduct.routes.js';
-import ecommerceOrderRoutes from './routes/ecommerceOrder.routes.js';
-import ecommerceThemeRoutes from './routes/ecommerceTheme.routes.js';
-import ecommerceFulfillmentRoutes from './routes/ecommerceFulfillment.routes.js';
-import storefrontRoutes from './routes/storefront.routes.js';
-import ecommerceReviewRoutes from './routes/ecommerceReview.routes.js';
-import ecommerceCouponRoutes from './routes/ecommerceCoupon.routes.js';
-import ecommerceBundleRoutes from './routes/ecommerceBundle.routes.js';
-import abandonedCartRoutes from './routes/abandonedCart.routes.js';
-import ecommerceReturnRoutes from './routes/ecommerceReturn.routes.js';
-import ecommerceGiftCardRoutes from './routes/ecommerceGiftCard.routes.js';
-import loyaltyPointsRoutes from './routes/loyaltyPoints.routes.js';
 import restaurantReservationRoutes from './routes/restaurantReservation.routes.js';
 import saloonAppointmentRoutes from './routes/saloonAppointment.routes.js';
 import laundryDeliveryRoutes from './routes/laundryDelivery.routes.js';
@@ -151,7 +138,6 @@ import calendarRoutes from './routes/calendar.routes.js';
 
 import { checkIqamaExpiry } from './jobs/iqamaChecker.js';
 import { processScheduledReports } from './jobs/reportScheduleJob.js';
-import { processAbandonedCarts } from './routes/abandonedCart.routes.js';
 import { syncZatcaInvoices } from './jobs/zatcaSync.js';
 import { fetchImapEmails } from './jobs/imapFetcher.js';
 import { startBoutiqueReminderJobs } from './jobs/boutiqueReminderJob.js';
@@ -336,11 +322,6 @@ const startJobs = async () => {
   cron.schedule('*/15 * * * *', async () => {
     logger.info('Running scheduled reports job...');
     await processScheduledReports();
-  });
-
-  cron.schedule('0 */2 * * *', async () => {
-    logger.info('Processing abandoned carts...');
-    await processAbandonedCarts();
   });
 
   cron.schedule('* * * * *', async () => {
@@ -620,7 +601,7 @@ const authLimiter = rateLimit({
   message: { error: 'Too many auth requests. Please wait and try again.' },
 });
 
-// 2. Public storefront endpoints — lenient (10 000 req / 15 min)
+// 2. Public endpoints — lenient (10 000 req / 15 min)
 const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 10000),
@@ -845,19 +826,6 @@ app.use('/api/bakala/promotions', ensureDatabaseReady, promotionRoutes);
 app.use('/api/bakala/margins', ensureDatabaseReady, profitMarginRoutes);
 app.use('/api/bakala/reorder', ensureDatabaseReady, reorderRoutes);
 app.use('/api/bookstore', ensureDatabaseReady, bookstoreRoutes);
-app.use('/api/ecommerce', ensureDatabaseReady, ecommerceRoutes);
-app.use('/api/ecommerce/products', ensureDatabaseReady, ecommerceProductRoutes);
-app.use('/api/ecommerce/orders', ensureDatabaseReady, ecommerceOrderRoutes);
-app.use('/api/ecommerce/theme', ensureDatabaseReady, ecommerceThemeRoutes);
-app.use('/api/ecommerce/fulfillment', ensureDatabaseReady, ecommerceFulfillmentRoutes);
-app.use('/api/storefront', ensureDatabaseReady, storefrontRoutes);
-app.use('/api/ecommerce/reviews', ensureDatabaseReady, ecommerceReviewRoutes);
-app.use('/api/ecommerce/coupons', ensureDatabaseReady, ecommerceCouponRoutes);
-app.use('/api/ecommerce/bundles', ensureDatabaseReady, ecommerceBundleRoutes);
-app.use('/api/ecommerce/abandoned-carts', ensureDatabaseReady, abandonedCartRoutes);
-app.use('/api/ecommerce/returns', ensureDatabaseReady, ecommerceReturnRoutes);
-app.use('/api/ecommerce/gift-cards', ensureDatabaseReady, ecommerceGiftCardRoutes);
-app.use('/api/ecommerce/loyalty', ensureDatabaseReady, loyaltyPointsRoutes);
 app.use('/api/bakala/pnl', ensureDatabaseReady, dailyPnlRoutes);
 app.use('/api/restaurant/reservations', ensureDatabaseReady, restaurantReservationRoutes);
 app.use('/api/saloon/appointments', ensureDatabaseReady, saloonAppointmentRoutes);

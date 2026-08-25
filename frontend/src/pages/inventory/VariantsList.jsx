@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Search } from 'lucide-react'
 import api from '../../lib/api'
-import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
+import InventoryDataTable from './InventoryDataTable'
 import { INVENTORY_PATH, stockProductLabel } from './inventoryUi'
 
 export default function VariantsList() {
@@ -59,7 +59,7 @@ export default function VariantsList() {
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
-      <ResponsiveDataList columns={columns} data={items} loading={isLoading} />
+      <InventoryDataTable columns={columns} data={items} loading={isLoading} />
     </div>
   )
 }

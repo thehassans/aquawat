@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
@@ -11,6 +12,9 @@ export default function LocationsConfigList() {
   const { language } = useSelector((state) => state.ui)
   const isAr = language === 'ar'
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
+  const highlightId = searchParams.get('highlight')
+  const highlightRef = useRef(null)
   const [name, setName] = useState('')
   const [usage, setUsage] = useState('internal')
   const [parentId, setParentId] = useState('')
@@ -44,6 +48,12 @@ export default function LocationsConfigList() {
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
+
+  useEffect(() => {
+    if (highlightId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [highlightId, items])
 
   return (
     <div className="space-y-6">
@@ -108,7 +118,11 @@ export default function LocationsConfigList() {
             <tbody>
               {isLoading && <tr><td colSpan={4} className="text-center py-6">…</td></tr>}
               {items.map((l) => (
-                <tr key={l._id}>
+                <tr
+                  key={l._id}
+                  ref={String(l._id) === highlightId ? highlightRef : undefined}
+                  className={String(l._id) === highlightId ? 'bg-teal-50/80 ring-2 ring-teal-500/30 dark:bg-teal-500/10' : undefined}
+                >
                   <td>{l.completeName}</td>
                   <td>{l.usage}</td>
                   <td>

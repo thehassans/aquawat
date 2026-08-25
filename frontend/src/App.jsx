@@ -9,6 +9,7 @@ import { isNavItemAppVisible } from './lib/appStorePartners'
 import { showArabicUi } from './lib/saudiTenant'
 import { ErrorBoundary } from './lib/errorBoundary'
 import { initSocket, disconnectSocket } from './lib/socket'
+import { STOCK_BUSINESS_TYPES } from './lib/stockBusinessTypes'
 
 import MainLayout from './layouts/MainLayout'
 import AuthLayout from './layouts/AuthLayout'
@@ -34,9 +35,6 @@ const CarRentalLayout = lazy(() => import('./layouts/CarRentalLayout'))
 const WorkshopLayout = lazy(() => import('./layouts/WorkshopLayout'))
 const LaundryLayout = lazy(() => import('./layouts/LaundryLayout'))
 const SaloonLayout = lazy(() => import('./layouts/SaloonLayout'))
-
-// Storefront shell (lazy — encapsulates layout + all providers)
-const StorefrontShell = lazy(() => import('./components/storefront/StorefrontShell'))
 
 // Lazy-load marketing pages (separate from app, only needed on public site)
 const MarketingHome = lazy(() => import('./pages/marketing/Home'))
@@ -74,7 +72,6 @@ const Leaves = lazy(() => import('./pages/hr/Leaves'))
 const Performance = lazy(() => import('./pages/hr/Performance'))
 const HRReports = lazy(() => import('./pages/hr/HRReports'))
 const ExpenseClaims = lazy(() => import('./pages/hr/ExpenseClaims'))
-const InventoryHub = lazy(() => import('./pages/inventory/InventoryHub'))
 const InventoryLayout = lazy(() => import('./pages/inventory/InventoryLayout'))
 const InventoryOverview = lazy(() => import('./pages/inventory/Overview'))
 const ReceiptsList = lazy(() => import('./pages/inventory/ReceiptsList'))
@@ -226,50 +223,6 @@ const BookStoreBuyBack = lazy(() => import('./pages/bookstore/BookStoreBuyBack')
 const BookStoreRentals = lazy(() => import('./pages/bookstore/BookStoreRentals'))
 const BookStoreCourseEnrollments = lazy(() => import('./pages/bookstore/BookStoreCourseEnrollments'))
 const BookStoreReports = lazy(() => import('./pages/bookstore/BookStoreReports'))
-const EcommerceDashboard = lazy(() => import('./pages/ecommerce/EcommerceDashboard'))
-const EcommerceOrders = lazy(() => import('./pages/ecommerce/EcommerceOrders'))
-const EcommerceProducts = lazy(() => import('./pages/ecommerce/EcommerceProducts'))
-const EcommerceAddProduct = lazy(() => import('./pages/ecommerce/EcommerceAddProduct'))
-const EcommerceThemeEditor = lazy(() => import('./pages/ecommerce/EcommerceThemeEditor'))
-const EcommerceDomains = lazy(() => import('./pages/ecommerce/EcommerceDomains'))
-const EcommerceStoreSettings = lazy(() => import('./pages/ecommerce/EcommerceStoreSettings'))
-const EcommerceProductDetail = lazy(() => import('./pages/ecommerce/EcommerceProductDetail'))
-const EcommerceOrderDetail = lazy(() => import('./pages/ecommerce/EcommerceOrderDetail'))
-const EcommercePayments = lazy(() => import('./pages/ecommerce/EcommercePayments'))
-const EcommerceCouriers = lazy(() => import('./pages/ecommerce/EcommerceCouriers'))
-const EcommercePixels = lazy(() => import('./pages/ecommerce/EcommercePixels'))
-const EcommerceReviews = lazy(() => import('./pages/ecommerce/EcommerceReviews'))
-const EcommerceNewsletter = lazy(() => import('./pages/ecommerce/EcommerceNewsletter'))
-const EcommerceWordPress = lazy(() => import('./pages/ecommerce/EcommerceWordPress'))
-const EcommerceAbandonedCarts = lazy(() => import('./pages/ecommerce/EcommerceAbandonedCarts'))
-const EcommerceReturns = lazy(() => import('./pages/ecommerce/EcommerceReturns'))
-const EcommerceGiftCards = lazy(() => import('./pages/ecommerce/EcommerceGiftCards'))
-const EcommerceQuestions = lazy(() => import('./pages/ecommerce/EcommerceQuestions'))
-const EcommerceInventory = lazy(() => import('./pages/ecommerce/EcommerceInventory'))
-const EcommerceCustomers = lazy(() => import('./pages/ecommerce/EcommerceCustomers'))
-const EcommerceSalesReport = lazy(() => import('./pages/ecommerce/EcommerceSalesReport'))
-const EcommerceCoupons = lazy(() => import('./pages/ecommerce/EcommerceCoupons'))
-const EcommerceBundles = lazy(() => import('./pages/ecommerce/EcommerceBundles'))
-
-// Lazy-load storefront pages for code-splitting
-const StorefrontHome = lazy(() => import('./pages/storefront/StorefrontHome'))
-const StorefrontProducts = lazy(() => import('./pages/storefront/StorefrontProducts'))
-const StorefrontProductDetail = lazy(() => import('./pages/storefront/StorefrontProductDetail'))
-const StorefrontCheckout = lazy(() => import('./pages/storefront/StorefrontCheckout'))
-const StorefrontCheckoutSuccess = lazy(() => import('./pages/storefront/StorefrontCheckoutSuccess'))
-const StorefrontCheckoutCancel = lazy(() => import('./pages/storefront/StorefrontCheckoutCancel'))
-const StorefrontWishlist = lazy(() => import('./pages/storefront/StorefrontWishlist'))
-const StorefrontOrderTracking = lazy(() => import('./pages/storefront/StorefrontOrderTracking'))
-const StorefrontReturnRequest = lazy(() => import('./pages/storefront/StorefrontReturnRequest'))
-const StorefrontCompare = lazy(() => import('./pages/storefront/StorefrontCompare'))
-const StorefrontAccount = lazy(() => import('./pages/storefront/StorefrontAccount'))
-const StorefrontContact = lazy(() => import('./pages/storefront/StorefrontContact'))
-const StorefrontFAQ = lazy(() => import('./pages/storefront/StorefrontFAQ'))
-const StorefrontAbout = lazy(() => import('./pages/storefront/StorefrontAbout'))
-const StorefrontShippingPolicy = lazy(() => import('./pages/storefront/StorefrontShippingPolicy'))
-const StorefrontPrivacy = lazy(() => import('./pages/storefront/StorefrontPrivacy'))
-const StorefrontTerms = lazy(() => import('./pages/storefront/StorefrontTerms'))
-const StorefrontCategory = lazy(() => import('./pages/storefront/StorefrontCategory'))
 const IoT = lazy(() => import('./pages/IoT'))
 const IoTDeviceForm = lazy(() => import('./pages/IoTDeviceForm'))
 const Khata = lazy(() => import('./pages/finance/Khata'))
@@ -821,7 +774,7 @@ function App() {
         <Route path="crm/deals" element={<CRMDealsTab />} />
         <Route path="crm/activities" element={<CRMActivitiesTab />} />
         <Route path="crm/campaigns" element={<CRMCampaignsTab />} />
-        <Route path="inventory" element={<BusinessTypeRoute allowedTypes={['trading', 'furniture_shop']}><InventoryLayout /></BusinessTypeRoute>}>
+        <Route path="inventory" element={<BusinessTypeRoute allowedTypes={STOCK_BUSINESS_TYPES}><InventoryLayout /></BusinessTypeRoute>}>
           <Route index element={<Navigate to="overview" replace />} />
           <Route path="overview" element={<InventoryOverview />} />
           <Route path="operations" element={<OperationsHub />}>
@@ -974,32 +927,6 @@ function App() {
         <Route path="bookstore/courses/:courseId/enrollments" element={<BusinessTypeRoute allowedTypes={['bookstore']}><BookStoreCourseEnrollments /></BusinessTypeRoute>} />
         <Route path="bookstore/reports" element={<BusinessTypeRoute allowedTypes={['bookstore']}><BookStoreReports /></BusinessTypeRoute>} />
 
-        {/* E-Commerce */}
-        <Route path="ecommerce" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceDashboard /></BusinessTypeRoute>} end />
-        <Route path="ecommerce/orders" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceOrders /></BusinessTypeRoute>} />
-        <Route path="ecommerce/orders/:id" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceOrderDetail /></BusinessTypeRoute>} />
-        <Route path="ecommerce/products" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceProducts /></BusinessTypeRoute>} />
-        <Route path="ecommerce/products/new" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceAddProduct /></BusinessTypeRoute>} />
-        <Route path="ecommerce/products/:id" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceProductDetail /></BusinessTypeRoute>} />
-        <Route path="ecommerce/theme" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceThemeEditor /></BusinessTypeRoute>} />
-        <Route path="ecommerce/domains" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceDomains /></BusinessTypeRoute>} />
-        <Route path="ecommerce/payments" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommercePayments /></BusinessTypeRoute>} />
-        <Route path="ecommerce/couriers" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceCouriers /></BusinessTypeRoute>} />
-        <Route path="ecommerce/pixels" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommercePixels /></BusinessTypeRoute>} />
-        <Route path="ecommerce/coupons" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceCoupons /></BusinessTypeRoute>} />
-        <Route path="ecommerce/bundles" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceBundles /></BusinessTypeRoute>} />
-        <Route path="ecommerce/reviews" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceReviews /></BusinessTypeRoute>} />
-        <Route path="ecommerce/newsletter" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceNewsletter /></BusinessTypeRoute>} />
-        <Route path="ecommerce/wordpress" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceWordPress /></BusinessTypeRoute>} />
-        <Route path="ecommerce/abandoned-carts" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceAbandonedCarts /></BusinessTypeRoute>} />
-        <Route path="ecommerce/returns" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceReturns /></BusinessTypeRoute>} />
-        <Route path="ecommerce/gift-cards" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceGiftCards /></BusinessTypeRoute>} />
-        <Route path="ecommerce/questions" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceQuestions /></BusinessTypeRoute>} />
-        <Route path="ecommerce/inventory" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceInventory /></BusinessTypeRoute>} />
-        <Route path="ecommerce/customers" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceCustomers /></BusinessTypeRoute>} />
-        <Route path="ecommerce/sales-report" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceSalesReport /></BusinessTypeRoute>} />
-        <Route path="ecommerce/settings" element={<BusinessTypeRoute allowedTypes={['ecommerce']}><EcommerceStoreSettings /></BusinessTypeRoute>} />
-
         <Route path="restaurant/reservations" element={<BusinessTypeRoute allowedTypes={['restaurant']}><RestaurantReservations /></BusinessTypeRoute>} />
         <Route path="saloon/appointments" element={<BusinessTypeRoute allowedTypes={['saloon']}><SaloonAppointments /></BusinessTypeRoute>} />
         <Route path="laundry/delivery" element={<BusinessTypeRoute allowedTypes={['laundry']}><LaundryDelivery /></BusinessTypeRoute>} />
@@ -1051,7 +978,6 @@ function App() {
         <Route path="manufacturing" element={<BusinessTypeRoute allowedTypes={['manufacturing', 'trading']}><Manufacturing /></BusinessTypeRoute>} />
         <Route path="app-store" element={<AppStore />} />
         <Route path="app-store/:appId" element={<AppStoreDetail />} />
-        <Route path="logistics" element={<EcommerceCouriers />} />
         <Route path="whatsapp" element={<WhatsApp />} />
         <Route path="reports" element={<Reports />} />
         <Route path="vat-returns" element={<VatReturns />} />
@@ -1162,26 +1088,6 @@ function App() {
         <Route path="qr" element={<QRServices />} />
         <Route path="queue" element={<SaloonQueue />} />
       </Route>
-
-      {/* ───── Public Storefront ───── */}
-      <Route path="/store" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontHome /></StorefrontShell></Suspense>} />
-      <Route path="/store/products" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontProducts /></StorefrontShell></Suspense>} />
-      <Route path="/store/category/:slug" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontCategory /></StorefrontShell></Suspense>} />
-      <Route path="/store/products/:id" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontProductDetail /></StorefrontShell></Suspense>} />
-      <Route path="/store/checkout" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontCheckout /></StorefrontShell></Suspense>} />
-      <Route path="/store/wishlist" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontWishlist /></StorefrontShell></Suspense>} />
-      <Route path="/store/compare" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontCompare /></StorefrontShell></Suspense>} />
-      <Route path="/store/account" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontAccount /></StorefrontShell></Suspense>} />
-      <Route path="/store/contact" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontContact /></StorefrontShell></Suspense>} />
-      <Route path="/store/faq" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontFAQ /></StorefrontShell></Suspense>} />
-      <Route path="/store/about" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontAbout /></StorefrontShell></Suspense>} />
-      <Route path="/store/shipping-policy" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontShippingPolicy /></StorefrontShell></Suspense>} />
-      <Route path="/store/track-order" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontOrderTracking /></StorefrontShell></Suspense>} />
-      <Route path="/store/returns" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontReturnRequest /></StorefrontShell></Suspense>} />
-      <Route path="/store/privacy" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontPrivacy /></StorefrontShell></Suspense>} />
-      <Route path="/store/terms" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontTerms /></StorefrontShell></Suspense>} />
-      <Route path="/checkout/success" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontCheckoutSuccess /></StorefrontShell></Suspense>} />
-      <Route path="/checkout/cancel" element={<Suspense fallback={<PageLoader />}><StorefrontShell><StorefrontCheckoutCancel /></StorefrontShell></Suspense>} />
 
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />

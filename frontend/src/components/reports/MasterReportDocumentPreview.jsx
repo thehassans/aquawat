@@ -356,27 +356,6 @@ const REPORT_TYPE_META = {
     badgeAr: 'المكتبة والقرطاسية',
     badgeColor: '#f59e0b',
   },
-  ecommerce: {
-    titleEn: 'E-Commerce Online Store Performance Report',
-    titleAr: 'تقرير أداء ومبيعات المتجر الإلكتروني',
-    badgeEn: 'E-Commerce GMV & Orders',
-    badgeAr: 'المتجر الإلكتروني',
-    badgeColor: '#6366f1',
-  },
-  'ops:ecommerce': {
-    titleEn: 'E-Commerce Online Store Performance Report',
-    titleAr: 'تقرير أداء ومبيعات المتجر الإلكتروني',
-    badgeEn: 'E-Commerce GMV & Orders',
-    badgeAr: 'المتجر الإلكتروني',
-    badgeColor: '#6366f1',
-  },
-  'ops:ecommerce_store': {
-    titleEn: 'E-Commerce Online Store Performance Report',
-    titleAr: 'تقرير أداء ومبيعات المتجر الإلكتروني',
-    badgeEn: 'E-Commerce GMV & Orders',
-    badgeAr: 'المتجر الإلكتروني',
-    badgeColor: '#6366f1',
-  },
   furniture_shop: {
     titleEn: 'Furniture Showroom & Custom Orders Report',
     titleAr: 'تقرير معرض ومبيعات الأثاث والمفروشات',

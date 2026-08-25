@@ -85,13 +85,6 @@ import WorkshopEstimate from '../models/WorkshopEstimate.js';
 import WorkshopInventoryItem from '../models/WorkshopInventoryItem.js';
 import WorkshopPurchaseOrder from '../models/WorkshopPurchaseOrder.js';
 import WorkshopServiceReminder from '../models/WorkshopServiceReminder.js';
-import EcommerceOrder from '../models/EcommerceOrder.js';
-import EcommerceProduct from '../models/EcommerceProduct.js';
-import EcommerceReturn from '../models/EcommerceReturn.js';
-import EcommerceReview from '../models/EcommerceReview.js';
-import EcommerceBundle from '../models/EcommerceBundle.js';
-import EcommerceCoupon from '../models/EcommerceCoupon.js';
-import EcommerceGiftCard from '../models/EcommerceGiftCard.js';
 import Contract from '../models/Contract.js';
 import ManpowerTimesheet from '../models/ManpowerTimesheet.js';
 import ManpowerWorker from '../models/ManpowerWorker.js';
@@ -1689,13 +1682,6 @@ router.post('/tenants/:id/reset', async (req, res) => {
       ['workshopInventoryItems', WorkshopInventoryItem],
       ['workshopPurchaseOrders', WorkshopPurchaseOrder],
       ['workshopServiceReminders', WorkshopServiceReminder],
-      ['ecommerceOrders', EcommerceOrder],
-      ['ecommerceProducts', EcommerceProduct],
-      ['ecommerceReturns', EcommerceReturn],
-      ['ecommerceReviews', EcommerceReview],
-      ['ecommerceBundles', EcommerceBundle],
-      ['ecommerceCoupons', EcommerceCoupon],
-      ['ecommerceGiftCards', EcommerceGiftCard],
       ['contracts', Contract],
       ['manpowerTimesheets', ManpowerTimesheet],
       ['manpowerWorkers', ManpowerWorker],
@@ -1853,13 +1839,6 @@ router.delete('/tenants/:id', async (req, res) => {
       ['workshopInventoryItems', WorkshopInventoryItem],
       ['workshopPurchaseOrders', WorkshopPurchaseOrder],
       ['workshopServiceReminders', WorkshopServiceReminder],
-      ['ecommerceOrders', EcommerceOrder],
-      ['ecommerceProducts', EcommerceProduct],
-      ['ecommerceReturns', EcommerceReturn],
-      ['ecommerceReviews', EcommerceReview],
-      ['ecommerceBundles', EcommerceBundle],
-      ['ecommerceCoupons', EcommerceCoupon],
-      ['ecommerceGiftCards', EcommerceGiftCard],
       ['contracts', Contract],
       ['manpowerTimesheets', ManpowerTimesheet],
       ['manpowerWorkers', ManpowerWorker],

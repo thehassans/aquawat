@@ -1,4 +1,4 @@
-export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'ecommerce', 'furniture_shop', 'manufacturing', 'gym', 'marquee']
+export const BUSINESS_TYPES = ['trading', 'construction', 'travel_agency', 'restaurant', 'car_rental', 'laundry', 'saloon', 'khayyat', 'boutique', 'manpower', 'bakala', 'pharmacy', 'car_workshop', 'bookstore', 'furniture_shop', 'manufacturing', 'gym', 'marquee']
 
 export const getBusinessTypeOptions = (language = 'en') => [
   {
@@ -85,11 +85,6 @@ export const getBusinessTypeOptions = (language = 'en') => [
     id: 'bookstore',
     label: language === 'ar' ? 'مكتبة' : 'Bookstore',
     description: language === 'ar' ? 'نقطة بيع للمكتبات، الكتب، والقرطاسية مع طابعة حرارية' : 'Bookstore POS with ISBN scanning, inventory, and thermal printer',
-  },
-  {
-    id: 'ecommerce',
-    label: language === 'ar' ? 'متجر إلكتروني' : 'E-Commerce',
-    description: language === 'ar' ? 'متجر إلكتروني متعدد المستأجرين مع نطاق مخصص وقوالب وبوابات دفع' : 'Online store with custom domain, themes, payments, and couriers',
   },
   {
     id: 'furniture_shop',

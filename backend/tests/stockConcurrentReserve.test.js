@@ -17,6 +17,39 @@ import { D, decStr } from '../utils/decimal.js';
 const uri = process.env.STOCK_TEST_MONGODB_URI || process.env.MONGODB_URI;
 const shouldRun = Boolean(uri) && process.env.STOCK_TEST_INTEGRATION !== '0';
 
+async function mongoSupportsTransactions() {
+  await mongoose.connect(uri);
+  try {
+    const db = mongoose.connection.db;
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await db.collection('_stock_test_txn_probe').insertOne({ probe: true }, { session });
+      });
+      await db.collection('_stock_test_txn_probe').deleteMany({ probe: true });
+      return true;
+    } catch (err) {
+      const msg = String(err?.message || err);
+      if (msg.includes('replica set') || msg.includes('mongos')) return false;
+      throw err;
+    } finally {
+      session.endSession();
+    }
+  } finally {
+    await mongoose.disconnect();
+  }
+}
+
+let skipReason = !shouldRun ? 'Set STOCK_TEST_MONGODB_URI to run' : null;
+if (shouldRun && !skipReason) {
+  try {
+    const ok = await mongoSupportsTransactions();
+    if (!ok) skipReason = 'MongoDB replica set required for transaction integration test';
+  } catch (err) {
+    skipReason = `Mongo unavailable: ${err.message}`;
+  }
+}
+
 async function reserveOneUnit(tenantId, productId, locationId) {
   const maxRetries = 8;
   let lastErr;
@@ -45,7 +78,7 @@ async function reserveOneUnit(tenantId, productId, locationId) {
 
 test(
   'integration: 20 concurrent reserves of 1 from qty 10 never oversell',
-  { skip: !shouldRun && 'Set STOCK_TEST_MONGODB_URI to run' },
+  { skip: skipReason || false },
   async () => {
     await mongoose.connect(uri);
     const tenantId = new mongoose.Types.ObjectId();

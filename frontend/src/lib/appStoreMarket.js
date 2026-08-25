@@ -60,7 +60,6 @@ export function getPreferredAppIds(tenant) {
       'sms_marketing',
       'thermal_printer_driver',
       'restaurant_cafe',
-      'ecommerce_store',
       'crm_sales_pipeline',
       'hr_payroll_pro',
       'gym_fitness_club',
@@ -77,7 +76,6 @@ export function getPreferredAppIds(tenant) {
       'thermal_printer_driver',
       'bakala_supermarket',
       'restaurant_cafe',
-      'ecommerce_store',
       'crm_sales_pipeline',
       'hr_payroll_pro',
     ];
@@ -149,7 +147,6 @@ export function getPreferredAppIds(tenant) {
       'restaurant_cafe',
       'crm_sales_pipeline',
       'hr_payroll_pro',
-      'ecommerce_store',
       'gym_fitness_club',
     ];
   }
@@ -165,7 +162,6 @@ export function getPreferredAppIds(tenant) {
       'sms_marketing',
       'thermal_printer_driver',
       'bakala_supermarket',
-      'ecommerce_store',
       'crm_sales_pipeline',
       'hr_payroll_pro',
       'gym_fitness_club',
@@ -182,7 +178,6 @@ export function getPreferredAppIds(tenant) {
     'sms_marketing',
     'thermal_printer_driver',
     'crm_sales_pipeline',
-    'ecommerce_store',
     'hr_payroll_pro',
     'gym_fitness_club',
   ];

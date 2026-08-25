@@ -92,7 +92,6 @@ const BUSINESS_TYPE_ICONS = {
   pharmacy: Pill,
   car_workshop: Wrench,
   bookstore: BookOpen,
-  ecommerce: ShoppingBag,
   furniture_shop: Store,
 }
 
