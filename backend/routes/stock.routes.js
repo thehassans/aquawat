@@ -799,7 +799,23 @@ router.post('/transfers/:id/cancel', checkPermission('inventory', 'update'), asy
     const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
     await assertTransferWarehouseAccess(req, transfer);
-    res.json(await cancelTransfer(req.user.tenantId, req.params.id, req.user._id));
+    const { cancelTransfer } = await import('../services/inventory/transferService.js');
+    res.json(await cancelTransfer(req.user.tenantId, req.params.id, req.user._id, {
+      reason: req.body?.reason || req.body?.cancelReason || null,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/transfers/:id/duplicate', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
+    await assertTransferWarehouseAccess(req, transfer);
+    const { duplicateTransfer } = await import('../services/inventory/transferService.js');
+    const doc = await duplicateTransfer(req.user.tenantId, req.params.id, req.user._id);
+    res.status(201).json(doc);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2667,6 +2683,18 @@ router.get('/report/count-accuracy', checkPermission('inventory', 'read'), async
   }
 });
 
+router.get('/report/inventory-turns', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { inventoryTurnsReport } = await import('../services/inventory/reporting.js');
+    res.json(await inventoryTurnsReport(req.user.tenantId, {
+      warehouseId: req.query.warehouseId,
+      windowDays: req.query.windowDays,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/period-close/checklist', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { periodCloseChecklist } = await import('../services/inventory/periodLock.js');
@@ -2723,7 +2751,12 @@ router.post('/count-plans/compute-abc', checkPermission('inventory', 'update'), 
 
 router.get('/replenishment/suggestions', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const { listDemandSuggestions } = await import('../services/inventory/demandReplenishment.js');
+    const { listDemandSuggestions, listDemandSuggestionsByVendor } = await import('../services/inventory/demandReplenishment.js');
+    if (req.query.groupBy === 'vendor') {
+      return res.json({ groups: await listDemandSuggestionsByVendor(req.user.tenantId, {
+        warehouseId: req.query.warehouseId,
+      }) });
+    }
     return sendList(res, await listDemandSuggestions(req.user.tenantId, {
       warehouseId: req.query.warehouseId,
     }));
@@ -2831,6 +2864,15 @@ router.post('/sales-channels', checkPermission('inventory', 'update'), async (re
       createdBy: req.user._id,
     }]);
     res.status(201).json(ch);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/sales-channels/:id/sync', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { syncSalesChannel } = await import('../services/inventory/salesChannelSync.js');
+    res.json(await syncSalesChannel(req.user.tenantId, req.params.id, { userId: req.user._id }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -3181,7 +3223,7 @@ router.post('/jobs/enqueue', checkPermission('inventory', 'update'), stockHeavyL
     const jobType = req.body?.jobType;
     const allowed = [
       'integrity', 'scheduler', 'cache_reconcile', 'reservation_retry',
-      'expiry_alerts', 'cyclic_count', 'delivery_notify',
+      'expiry_alerts', 'cyclic_count', 'count_plan_due', 'delivery_notify',
     ];
     if (!allowed.includes(jobType)) {
       return res.status(400).json({

@@ -70,6 +70,10 @@ export const SETTINGS_EFFECTS = {
   printFooterTerms: 'print_pdf_footer_terms',
   printWatermarkEnabled: 'print_pdf_watermark',
   printPaperSize: 'print_pdf_page_format',
+  blockExpiredShipping: 'outgoing_validate_blocks_expired_lots_from_internal',
+  demandWindowDays: 'replenishment_suggestions_demand_window',
+  replenishmentServiceLevel: 'replenishment_suggestions_service_level_z',
+  replenishmentReviewDays: 'replenishment_suggestions_review_horizon',
 };
 
 const CARRIER_FLAG_TO_PROVIDER = {

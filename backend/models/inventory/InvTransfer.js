@@ -15,6 +15,8 @@ const schema = new mongoose.Schema({
   doneDate: { type: Date },
   origin: { type: String },
   note: { type: String },
+  /** Set when transfer is cancelled (audit trail) */
+  cancelReason: { type: String },
   state: { type: String, enum: TRANSFER_STATES, default: 'draft', index: true },
   priority: { type: String, enum: ['normal', 'urgent'], default: 'normal' },
   backorderOfId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer', default: null },

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Plus } from 'lucide-react'
 import api from '../../lib/api'
@@ -151,12 +150,16 @@ export function DemandSuggestionsPage() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
   const qc = useQueryClient()
+  const [groupByVendor, setGroupByVendor] = useState(false)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['demand-suggestions'],
-    queryFn: () => api.get('/stock/replenishment/suggestions').then((r) => asInvList(r.data)),
+    queryKey: ['demand-suggestions', groupByVendor],
+    queryFn: () => groupByVendor
+      ? api.get('/stock/replenishment/suggestions', { params: { groupBy: 'vendor' } }).then((r) => r.data?.groups || [])
+      : api.get('/stock/replenishment/suggestions').then((r) => asInvList(r.data)),
   })
-  const rows = data || []
+  const rows = groupByVendor ? null : (data || [])
+  const groups = groupByVendor ? (data || []) : null
 
   const apply = useMutation({
     mutationFn: (ruleId) => api.post(`/stock/replenishment/suggestions/${ruleId}/apply`),
@@ -169,8 +172,42 @@ export function DemandSuggestionsPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">{ar ? 'اقتراحات التزويد' : 'Replenishment suggestions'}</h2>
-      {isLoading ? <div>…</div> : !rows.length ? (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{ar ? 'اقتراحات التزويد' : 'Replenishment suggestions'}</h2>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={groupByVendor} onChange={(e) => setGroupByVendor(e.target.checked)} />
+          {ar ? 'تجميع حسب المورد' : 'Group by vendor'}
+        </label>
+      </div>
+      {isLoading ? <div>…</div> : groupByVendor ? (
+        !groups?.length ? (
+          <EmptyState title={ar ? 'لا قواعد' : 'No reorder rules'} />
+        ) : (
+          groups.map((g) => (
+            <div key={g.vendorId || g.vendorName} className="rounded-xl border border-slate-200 p-3 dark:border-dark-600">
+              <h3 className="mb-2 font-medium">{g.vendorName}</h3>
+              <table className="min-w-full text-sm">
+                <thead className="text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="py-1 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                    <th className="py-1 text-end">{ar ? 'min/max' : 'min/max'}</th>
+                    <th className="py-1 text-end">{ar ? 'مقترح' : 'Suggested'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.lines.map((r) => (
+                    <tr key={r.ruleId} className="border-t border-slate-100">
+                      <td className="py-1">{r.productName}</td>
+                      <td className="py-1 text-end tabular-nums">{r.currentMin} / {r.currentMax}</td>
+                      <td className="py-1 text-end tabular-nums">{r.suggestedMin} / {r.suggestedMax}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))
+        )
+      ) : !rows.length ? (
         <EmptyState title={ar ? 'لا قواعد' : 'No reorder rules'} description={ar ? 'أضف قواعد إعادة الطلب أولاً' : 'Add reorder rules first'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
@@ -304,6 +341,72 @@ export function CountAccuracyPage() {
   )
 }
 
+export function InventoryTurnsPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  const { queryParams } = useReportFilters()
+  const { data, isLoading } = useQuery({
+    queryKey: ['inventory-turns', queryParams],
+    queryFn: () => api.get('/stock/report/inventory-turns', { params: queryParams }).then((r) => r.data),
+  })
+  const lines = data?.lines || []
+  const totals = data?.totals || {}
+  return (
+    <ReportShell
+      activeId="inventory-turns"
+      title={ar ? 'دوران المخزون' : 'Inventory turns & DSI'}
+      subtitle={ar ? 'COGS / متوسط قيمة المخزون · أيام المبيعات' : 'COGS / avg inventory value · days sales of inventory'}
+    >
+      {isLoading ? <div>…</div> : (
+        <>
+          <p className="mb-3 text-sm text-slate-600">
+            {ar ? 'إجمالي الدوران' : 'Portfolio turns'}: <strong>{totals.turns ?? '—'}</strong>
+            {' · '}
+            DSI: <strong>{totals.dsiDays ?? '—'}</strong> {ar ? 'يوم' : 'days'}
+          </p>
+          {!lines.length ? (
+            <EmptyState title={ar ? 'لا بيانات' : 'No data'} />
+          ) : (
+            <>
+              <button type="button" className="btn btn-secondary btn-sm mb-3" onClick={() => exportCsv(lines, 'inventory-turns.csv', [
+                { key: 'product', label: 'Product', get: (r) => r.productName },
+                { key: 'turns', label: 'Turns', get: (r) => r.turns },
+                { key: 'dsi', label: 'DSI', get: (r) => r.dsiDays },
+              ])}>CSV</button>
+              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
+                    <tr>
+                      <th className="px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                      <th className="px-3 py-2 text-end">{ar ? 'صرف' : 'Units out'}</th>
+                      <th className="px-3 py-2 text-end">COGS</th>
+                      <th className="px-3 py-2 text-end">{ar ? 'قيمة المخزون' : 'Inv. value'}</th>
+                      <th className="px-3 py-2 text-end">{ar ? 'الدوران' : 'Turns'}</th>
+                      <th className="px-3 py-2 text-end">DSI</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {lines.map((row) => (
+                      <tr key={row.productId}>
+                        <td className="px-3 py-2">{row.productName || row.sku}</td>
+                        <td className="px-3 py-2 text-end tabular-nums">{row.unitsOut}</td>
+                        <td className="px-3 py-2 text-end tabular-nums">{row.cogs}</td>
+                        <td className="px-3 py-2 text-end tabular-nums">{row.avgInventoryValue}</td>
+                        <td className="px-3 py-2 text-end tabular-nums">{row.turns}</td>
+                        <td className="px-3 py-2 text-end tabular-nums">{row.dsiDays ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </ReportShell>
+  )
+}
+
 export function MockRecallPage() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
@@ -343,10 +446,17 @@ export function ApiIntegrationsPage() {
   const qc = useQueryClient()
   const [keyName, setKeyName] = useState('')
   const [newSecret, setNewSecret] = useState(null)
+  const [chName, setChName] = useState('')
+  const [chPlatform, setChPlatform] = useState('salla')
 
   const { data: keys } = useQuery({
     queryKey: ['inv-api-keys'],
     queryFn: () => api.get('/stock/api-keys').then((r) => asInvList(r.data)),
+  })
+
+  const { data: channels, isLoading: channelsLoading } = useQuery({
+    queryKey: ['sales-channels'],
+    queryFn: () => api.get('/stock/sales-channels').then((r) => asInvList(r.data)),
   })
 
   const createKey = useMutation({
@@ -359,11 +469,40 @@ export function ApiIntegrationsPage() {
     onError: (e) => toast.error(formatInvError(e, language)),
   })
 
+  const createChannel = useMutation({
+    mutationFn: () => api.post('/stock/sales-channels', { name: chName, platform: chPlatform }),
+    onSuccess: () => {
+      toast.success(ar ? 'تم إنشاء القناة' : 'Channel created')
+      setChName('')
+      qc.invalidateQueries({ queryKey: ['sales-channels'] })
+    },
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
+  const syncChannel = useMutation({
+    mutationFn: (id) => api.post(`/stock/sales-channels/${id}/sync`),
+    onSuccess: (r) => {
+      const d = r.data
+      toast.success(
+        ar
+          ? `مزامنة: ${d.stockPushed || 0} SKU · ${d.message || ''}`
+          : `Sync: ${d.stockPushed || 0} SKUs · ${d.message || ''}`,
+      )
+      qc.invalidateQueries({ queryKey: ['sales-channels'] })
+    },
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold">{ar ? 'مفاتيح API' : 'API keys'}</h2>
-        <p className="text-sm text-slate-500">{ar ? 'REST على /api/v1/inventory' : 'REST at /api/v1/inventory'}</p>
+        <p className="text-sm text-slate-500">
+          {ar ? 'REST على /api/v1/inventory · ' : 'REST at /api/v1/inventory · '}
+          <a href="/api/v1/inventory/openapi.json" className="text-primary-600 hover:underline" target="_blank" rel="noreferrer">
+            OpenAPI
+          </a>
+        </p>
         <div className="mt-2 flex gap-2">
           <input className="input input-sm" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder={ar ? 'الاسم' : 'Name'} />
           <button type="button" className="btn btn-primary btn-sm" disabled={!keyName || createKey.isPending} onClick={() => createKey.mutate()}>{ar ? 'إنشاء' : 'Create'}</button>
@@ -379,8 +518,48 @@ export function ApiIntegrationsPage() {
       </div>
       <div>
         <h3 className="font-medium">{ar ? 'قنوات البيع' : 'Sales channels'}</h3>
-        <p className="text-xs text-slate-500">{ar ? 'إطار Salla / Shopify — موصلات قادمة' : 'Salla / Shopify framework — connectors pending'}</p>
-        <Link to="/app/dashboard/inventory/settings" className="text-sm text-primary-600">{ar ? 'الإعدادات' : 'Settings'}</Link>
+        <p className="text-xs text-slate-500">{ar ? 'Salla / Shopify / Zid — موصلات OAuth قادمة' : 'Salla / Shopify / Zid — OAuth connectors pending credentials'}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <input className="input input-sm" value={chName} onChange={(e) => setChName(e.target.value)} placeholder={ar ? 'اسم القناة' : 'Channel name'} />
+          <select className="input input-sm" value={chPlatform} onChange={(e) => setChPlatform(e.target.value)}>
+            <option value="salla">Salla</option>
+            <option value="shopify">Shopify</option>
+            <option value="zid">Zid</option>
+            <option value="woocommerce">WooCommerce</option>
+          </select>
+          <button type="button" className="btn btn-primary btn-sm" disabled={!chName.trim() || createChannel.isPending} onClick={() => createChannel.mutate()}>
+            {ar ? 'إضافة' : 'Add'}
+          </button>
+        </div>
+        {channelsLoading ? <div className="mt-2 text-sm text-slate-400">…</div> : (
+          <table className="mt-3 w-full text-sm">
+            <thead><tr className="text-xs uppercase text-slate-500">
+              <th className="py-2 text-start">{ar ? 'الاسم' : 'Name'}</th>
+              <th>{ar ? 'المنصة' : 'Platform'}</th>
+              <th>{ar ? 'الحالة' : 'Status'}</th>
+              <th>{ar ? 'آخر مزامنة' : 'Last sync'}</th>
+              <th />
+            </tr></thead>
+            <tbody>
+              {(channels || []).map((c) => (
+                <tr key={c._id} className="border-t border-slate-100">
+                  <td className="py-2">{c.name}</td>
+                  <td>{c.platform}</td>
+                  <td>{c.status}</td>
+                  <td className="tabular-nums">{c.lastSyncAt ? new Date(c.lastSyncAt).toLocaleString() : '—'}</td>
+                  <td className="text-end">
+                    <button type="button" className="btn btn-secondary btn-xs" disabled={syncChannel.isPending} onClick={() => syncChannel.mutate(c._id)}>
+                      {ar ? 'مزامنة' : 'Sync'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {!channelsLoading && !(channels || []).length && (
+          <EmptyState title={ar ? 'لا قنوات' : 'No channels'} className="mt-3" />
+        )}
       </div>
     </div>
   )

@@ -98,6 +98,7 @@ export async function listDemandSuggestions(tenantId, { warehouseId, limit = 200
   const settings = await getInvSettings(tenantId);
   const windowDays = Number(settings.demandWindowDays) || 90;
   const serviceLevel = Number(settings.replenishmentServiceLevel) || 95;
+  const reviewDays = Number(settings.replenishmentReviewDays) || 14;
 
   const filter = { tenantId: tid, active: true };
   if (warehouseId) filter.warehouseId = toObjectId(warehouseId);
@@ -120,6 +121,7 @@ export async function listDemandSuggestions(tenantId, { warehouseId, limit = 200
     const sug = await computeDemandSuggestion(tid, product._id, {
       warehouseId: rule.warehouseId?._id || rule.warehouseId,
       windowDays,
+      reviewDays,
       leadDays: rule.leadDays || settings.securityLeadTimePurchase || 0,
       serviceLevel,
       seasonalityMultiplier: mult,
@@ -150,10 +152,41 @@ export async function applyDemandSuggestion(tenantId, ruleId, userId, { fields =
   const sug = await computeDemandSuggestion(tid, rule.productId, {
     warehouseId: rule.warehouseId,
     leadDays: rule.leadDays,
+    reviewDays: Number((await getInvSettings(tenantId)).replenishmentReviewDays) || 14,
   });
   if (fields.includes('minQty')) rule.minQty = sug.suggestedMin;
   if (fields.includes('maxQty')) rule.maxQty = sug.suggestedMax;
   if (userId) rule.updatedBy = userId;
   await rule.save();
   return rule;
+}
+
+/** Group replenishment rows by preferred vendor for PO drafting */
+export async function listDemandSuggestionsByVendor(tenantId, opts = {}) {
+  const rows = await listDemandSuggestions(tenantId, opts);
+  const tid = toObjectId(tenantId);
+  const productIds = [...new Set(rows.map((r) => String(r.productId)))];
+  const products = await Product.find({ _id: { $in: productIds }, tenantId: tid })
+    .select('suppliers nameEn sku')
+    .populate('suppliers.supplierId', 'name nameEn nameAr')
+    .lean();
+  const productMap = new Map(products.map((p) => [String(p._id), p]));
+
+  const groups = new Map();
+  for (const row of rows) {
+    const product = productMap.get(String(row.productId));
+    const preferred = (product?.suppliers || []).find((s) => s.isPreferred) || product?.suppliers?.[0];
+    const vendor = preferred?.supplierId;
+    const vendorKey = vendor?._id ? String(vendor._id) : '__none__';
+    const vendorName = vendor?.nameEn || vendor?.name || vendor?.nameAr || 'No vendor';
+    if (!groups.has(vendorKey)) {
+      groups.set(vendorKey, { vendorId: vendor?._id || null, vendorName, lines: [] });
+    }
+    groups.get(vendorKey).lines.push({
+      ...row,
+      vendorSku: preferred?.supplierSku || null,
+      vendorCost: preferred?.cost ?? null,
+    });
+  }
+  return [...groups.values()].sort((a, b) => a.vendorName.localeCompare(b.vendorName));
 }

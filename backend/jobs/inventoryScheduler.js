@@ -66,7 +66,7 @@ export function startInventoryScheduler() {
           .select('tenantId')
           .lean();
         for (const s of settings) {
-          for (const jobType of ['expiry_alerts', 'cyclic_count', 'cache_reconcile', 'reservation_retry']) {
+          for (const jobType of ['expiry_alerts', 'cyclic_count', 'count_plan_due', 'cache_reconcile', 'reservation_retry']) {
             try {
               await enqueueInventoryJob({
                 jobType,

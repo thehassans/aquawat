@@ -1,0 +1,115 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Maqder Inventory Public API",
+    "version": "1.0.0",
+    "description": "Tenant-scoped inventory REST API. Authenticate with `Authorization: Bearer <api-key>`."
+  },
+  "servers": [{ "url": "/api/v1/inventory" }],
+  "security": [{ "ApiKeyAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Inventory API key issued from Settings → Integrations"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "messageAr": { "type": "string" }
+            }
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "productId": { "type": "string" },
+          "sku": { "type": "string" },
+          "nameEn": { "type": "string" },
+          "nameAr": { "type": "string" },
+          "costPrice": { "type": "number" },
+          "sellingPrice": { "type": "number" },
+          "trackInventory": { "type": "boolean" }
+        }
+      },
+      "Picking": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string" },
+          "state": { "type": "string" },
+          "origin": { "type": "string" },
+          "scheduledDate": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/products": {
+      "get": {
+        "summary": "List products",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 100, "maximum": 500 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/Product" } },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/stock-levels": {
+      "get": {
+        "summary": "On-hand quants",
+        "parameters": [
+          { "name": "productId", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 200, "maximum": 500 } }
+        ],
+        "responses": {
+          "200": { "description": "Quant rows with product and location" }
+        }
+      }
+    },
+    "/pickings/{id}": {
+      "get": {
+        "summary": "Get transfer / picking",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Picking document", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Picking" } } } },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/pickings/{id}/validate": {
+      "post": {
+        "summary": "Validate (complete) a picking",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Validated picking" },
+          "400": { "description": "Validation error" }
+        }
+      }
+    }
+  }
+}

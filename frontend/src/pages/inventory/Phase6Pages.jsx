@@ -245,6 +245,15 @@ export function ExpiryAtRiskPage() {
     onError: (e) => toast.error(formatInvError(e, language)),
   })
 
+  const writeOffMut = useMutation({
+    mutationFn: (quantId) => api.post(`/stock/quants/${quantId}/write-off-expired`),
+    onSuccess: () => {
+      toast.success(ar ? 'تم شطب الكمية المنتهية' : 'Expired qty written off')
+      qc.invalidateQueries({ queryKey: ['expiry-at-risk'] })
+    },
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
   const buckets = data?.buckets || []
   const lines = data?.lines || []
   const totals = data?.totals || {}
@@ -291,6 +300,7 @@ export function ExpiryAtRiskPage() {
                     <th className="px-3 py-2 text-right">{ar ? 'أيام' : 'Days'}</th>
                     <th className="px-3 py-2 text-right">{ar ? 'قيمة' : 'Value'}</th>
                     <th className="px-3 py-2 text-start">{ar ? 'الحالة' : 'Status'}</th>
+                    <th className="px-3 py-2 text-end">{ar ? 'إجراء' : 'Action'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -316,6 +326,20 @@ export function ExpiryAtRiskPage() {
                           </select>
                         ) : (
                           row.inventoryStatus
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-end">
+                        {row.quantId && row.daysToExpiry != null && row.daysToExpiry <= 0 ? (
+                          <button
+                            type="button"
+                            className="btn btn-danger btn-xs"
+                            disabled={writeOffMut.isPending}
+                            onClick={() => writeOffMut.mutate(row.quantId)}
+                          >
+                            {ar ? 'شطب' : 'Write off'}
+                          </button>
+                        ) : (
+                          '—'
                         )}
                       </td>
                     </tr>

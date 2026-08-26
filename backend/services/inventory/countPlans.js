@@ -138,3 +138,30 @@ export async function computeAbcClasses(tenantId, { windowDays = 365 } = {}) {
   if (updates.length) await Product.bulkWrite(updates.slice(0, 5000));
   return { updated: updates.length, windowDays };
 }
+
+/** Run all active plans whose nextRunAt is due (cron / manual). */
+export async function runDueCountPlans(tenantId, userId = null) {
+  const tid = toObjectId(tenantId);
+  const now = new Date();
+  const due = await InvCountPlan.find({
+    tenantId: tid,
+    active: { $ne: false },
+    nextRunAt: { $lte: now },
+  }).lean();
+
+  const results = [];
+  for (const plan of due) {
+    try {
+      const out = await runCountPlan(tid, plan._id, userId);
+      results.push({ planId: String(plan._id), name: plan.name, ok: true, scheduled: out.scheduled });
+    } catch (err) {
+      results.push({
+        planId: String(plan._id),
+        name: plan.name,
+        ok: false,
+        error: err?.message || String(err),
+      });
+    }
+  }
+  return { due: due.length, results };
+}

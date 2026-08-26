@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Link, Outlet, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -90,31 +90,57 @@ export function MobileReceive() {
   const [barcode, setBarcode] = useState('')
   const [qty, setQty] = useState('1')
   const [showCam, setShowCam] = useState(false)
-  const [lines, setLines] = useState([])
+  const [doneEdits, setDoneEdits] = useState({})
 
   const { data: transfers } = useQuery({
     queryKey: ['m-receipts'],
     queryFn: () => api.get('/stock/transfers', { params: { code: 'incoming', state: 'assigned', limit: 30 } }).then((r) => asInvList(r.data)),
   })
 
-  const addLine = useMutation({
+  const { data: transfer } = useQuery({
+    queryKey: ['m-transfer', transferId],
+    enabled: !!transferId,
+    queryFn: () => api.get(`/stock/transfers/${transferId}`).then((r) => r.data),
+  })
+
+  useEffect(() => {
+    if (!transfer?.moves) return
+    const next = {}
+    for (const m of transfer.moves) {
+      next[m._id] = String(m.doneQty || m.demandQty || '0')
+    }
+    setDoneEdits(next)
+  }, [transfer?._id, transfer?.moves?.length])
+
+  const scanAdd = useMutation({
     mutationFn: async () => {
       const product = await api.get('/products/lookup', { params: { barcode } }).then((r) => r.data)
       if (!product?._id) throw new Error(ar ? 'منتج غير موجود' : 'Product not found')
-      setLines((prev) => [...prev, { productId: product._id, name: product.nameEn || product.sku, qty: Number(qty) || 1 }])
+      const move = (transfer?.moves || []).find((m) => String(m.productId?._id || m.productId) === String(product._id))
+      if (!move) throw new Error(ar ? 'المنتج ليس في هذا الاستلام' : 'Product not on this receipt')
+      const add = Number(qty) || 1
+      const cur = Number(doneEdits[move._id] || 0)
+      setDoneEdits((prev) => ({ ...prev, [move._id]: String(cur + add) }))
       setBarcode('')
       setQty('1')
       if (navigator.vibrate) navigator.vibrate(30)
     },
-    onError: (e) => toast.error(formatInvError(e, language)),
+    onError: (e) => toast.error(e.message || formatInvError(e, language)),
   })
 
   const validate = useMutation({
-    mutationFn: () => api.post(`/stock/transfers/${transferId}/validate`, {}),
+    mutationFn: () => api.post(`/stock/transfers/${transferId}/validate`, {
+      immediate: true,
+      moveQuantities: (transfer?.moves || []).map((m) => ({
+        moveId: m._id,
+        quantity: doneEdits[m._id] ?? m.demandQty ?? '0',
+      })),
+    }),
     onSuccess: () => {
       toast.success(ar ? 'تم الاستلام' : 'Received')
       qc.invalidateQueries({ queryKey: ['m-receipts'] })
-      setLines([])
+      setTransferId('')
+      setDoneEdits({})
     },
     onError: (e) => toast.error(formatInvError(e, language)),
   })
@@ -123,7 +149,7 @@ export function MobileReceive() {
     <MobileShell title={ar ? 'استلام' : 'Receive'}>
       {showCam && (
         <BarcodeScanner
-          onDetected={(code) => { setBarcode(code); setShowCam(false); addLine.mutate() }}
+          onDetected={(code) => { setBarcode(code); setShowCam(false); scanAdd.mutate() }}
           onClose={() => setShowCam(false)}
         />
       )}
@@ -137,6 +163,21 @@ export function MobileReceive() {
             ))}
           </select>
         </div>
+        {transfer?.moves?.length > 0 && (
+          <ul className="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-dark-600 dark:bg-dark-800">
+            {transfer.moves.map((m) => (
+              <li key={m._id} className="flex items-center justify-between gap-2 border-b border-slate-50 py-2 last:border-0">
+                <span className="min-w-0 truncate">{m.productId?.nameEn || m.productId?.sku}</span>
+                <input
+                  type="number"
+                  className="input input-sm w-20 text-end"
+                  value={doneEdits[m._id] ?? ''}
+                  onChange={(e) => setDoneEdits((prev) => ({ ...prev, [m._id]: e.target.value }))}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
         <ScanField label={ar ? 'باركود المنتج' : 'Product barcode'} value={barcode} onChange={setBarcode} ar={ar} autoFocus />
         <div>
           <label className="label text-xs">{ar ? 'الكمية' : 'Qty'}</label>
@@ -144,17 +185,10 @@ export function MobileReceive() {
         </div>
         <div className="flex gap-2">
           <button type="button" className="btn btn-secondary flex-1" onClick={() => setShowCam(true)}>{ar ? 'كamera' : 'Camera'}</button>
-          <button type="button" className="btn btn-primary flex-1" disabled={!barcode || addLine.isPending} onClick={() => addLine.mutate()}>
-            {ar ? 'إضافة' : 'Add line'}
+          <button type="button" className="btn btn-primary flex-1" disabled={!barcode || !transferId || scanAdd.isPending} onClick={() => scanAdd.mutate()}>
+            {ar ? 'إضافة' : 'Add qty'}
           </button>
         </div>
-        {lines.length > 0 && (
-          <ul className="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-dark-600 dark:bg-dark-800">
-            {lines.map((l, i) => (
-              <li key={i} className="py-1">{l.name} × {l.qty}</li>
-            ))}
-          </ul>
-        )}
         <button type="button" className="btn btn-primary w-full py-4 text-lg" disabled={!transferId || validate.isPending} onClick={() => validate.mutate()}>
           {ar ? 'اعتماد الاستلام' : 'Validate receipt'}
         </button>
@@ -169,19 +203,34 @@ export function MobilePick() {
   const [transferId, setTransferId] = useState('')
   const [locationCode, setLocationCode] = useState('')
   const [barcode, setBarcode] = useState('')
+  const [doneEdits, setDoneEdits] = useState({})
 
   const { data: deliveries } = useQuery({
     queryKey: ['m-deliveries'],
     queryFn: () => api.get('/stock/transfers', { params: { code: 'outgoing', state: 'assigned', limit: 30 } }).then((r) => asInvList(r.data)),
   })
 
+  const { data: transfer } = useQuery({
+    queryKey: ['m-transfer-pick', transferId],
+    enabled: !!transferId,
+    queryFn: () => api.get(`/stock/transfers/${transferId}`).then((r) => r.data),
+  })
+
+  useEffect(() => {
+    if (!transfer?.moves) return
+    const next = {}
+    for (const m of transfer.moves) {
+      next[m._id] = String(m.doneQty || m.demandQty || '0')
+    }
+    setDoneEdits(next)
+  }, [transfer?._id, transfer?.moves?.length])
+
   const verify = useMutation({
     mutationFn: async () => {
       const product = await api.get('/products/lookup', { params: { barcode } }).then((r) => r.data)
       if (!product?._id) throw new Error(ar ? 'منتج غير موجود' : 'Product not found')
-      const moves = await api.get(`/stock/transfers/${transferId}`).then((r) => r.data?.moves || [])
-      const match = moves.some((m) => String(m.productId?._id || m.productId) === String(product._id))
-      if (!match) {
+      const move = (transfer?.moves || []).find((m) => String(m.productId?._id || m.productId) === String(product._id))
+      if (!move) {
         if (navigator.vibrate) navigator.vibrate([100, 50, 100])
         throw new Error(ar ? 'المنتج لا يطابق أمر التسليم!' : 'Wrong product for this delivery!')
       }
@@ -192,7 +241,13 @@ export function MobilePick() {
   })
 
   const validate = useMutation({
-    mutationFn: () => api.post(`/stock/transfers/${transferId}/validate`, {}),
+    mutationFn: () => api.post(`/stock/transfers/${transferId}/validate`, {
+      immediate: true,
+      moveQuantities: (transfer?.moves || []).map((m) => ({
+        moveId: m._id,
+        quantity: doneEdits[m._id] ?? m.demandQty ?? '0',
+      })),
+    }),
     onSuccess: () => toast.success(ar ? 'تم التسليم' : 'Delivered'),
     onError: (e) => toast.error(formatInvError(e, language)),
   })
@@ -209,6 +264,21 @@ export function MobilePick() {
             ))}
           </select>
         </div>
+        {transfer?.moves?.length > 0 && (
+          <ul className="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-dark-600 dark:bg-dark-800">
+            {transfer.moves.map((m) => (
+              <li key={m._id} className="flex items-center justify-between gap-2 border-b border-slate-50 py-2 last:border-0">
+                <span className="min-w-0 truncate">{m.productId?.nameEn || m.productId?.sku}</span>
+                <input
+                  type="number"
+                  className="input input-sm w-20 text-end"
+                  value={doneEdits[m._id] ?? ''}
+                  onChange={(e) => setDoneEdits((prev) => ({ ...prev, [m._id]: e.target.value }))}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
         <ScanField label={ar ? 'موقع' : 'Location'} value={locationCode} onChange={setLocationCode} ar={ar} />
         <ScanField label={ar ? 'باركود المنتج' : 'Product barcode'} value={barcode} onChange={setBarcode} ar={ar} onScan={() => verify.mutate()} />
         <button type="button" className="btn btn-primary w-full py-4 text-lg" disabled={!transferId || validate.isPending} onClick={() => validate.mutate()}>

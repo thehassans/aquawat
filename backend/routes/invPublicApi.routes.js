@@ -1,4 +1,7 @@
 import express from 'express';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import Product from '../models/Product.js';
 import InvQuant from '../models/inventory/InvQuant.js';
 import InvTransfer from '../models/inventory/InvTransfer.js';
@@ -13,6 +16,22 @@ function handleInventoryError(res, err) {
 }
 
 const router = express.Router();
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+let openApiDoc = null;
+function getOpenApiDoc() {
+  if (!openApiDoc) {
+    openApiDoc = JSON.parse(
+      readFileSync(join(__dirname, '../docs/inventory-public-api.openapi.json'), 'utf8'),
+    );
+  }
+  return openApiDoc;
+}
+
+router.get('/openapi.json', (_req, res) => {
+  res.json(getOpenApiDoc());
+});
+
 router.use(authenticateApiKey);
 
 router.get('/products', requireApiScope('read'), async (req, res) => {
@@ -56,12 +75,6 @@ router.post('/pickings/:id/validate', requireApiScope('write'), async (req, res)
   try {
     const { validateTransfer } = await import('../services/inventory/transferService.js');
     const transfer = await validateTransfer(req.apiKeyAuth.tenantId, req.params.id, { userId: null });
-    const { dispatchInventoryWebhook } = await import('../services/inventory/webhooks.js');
-    await dispatchInventoryWebhook(req.apiKeyAuth.tenantId, 'picking.validated', {
-      transferId: transfer._id,
-      name: transfer.name,
-      state: transfer.state,
-    });
     res.json(transfer);
   } catch (err) {
     handleInventoryError(res, err);

@@ -66,6 +66,9 @@ export async function processInventoryJob(data = {}) {
     case 'delivery_notify':
       return runDeliveryNotifyStub(tenantId, { trigger, userId, payload });
 
+    case 'count_plan_due':
+      return runDueCountPlansJob(tenantId, { trigger, userId });
+
     default:
       throw new Error(`Unknown inventory jobType: ${jobType}`);
   }
@@ -316,4 +319,31 @@ async function runDeliveryNotifyStub(tenantId, { trigger, userId, payload }) {
     },
   });
   return { skipped: true };
+}
+
+async function runDueCountPlansJob(tenantId, { trigger, userId }) {
+  const job = await startJobRun(tenantId, { jobType: 'count_plan_due', trigger, userId });
+  try {
+    const { runDueCountPlans } = await import('./countPlans.js');
+    const result = await runDueCountPlans(tenantId, userId);
+    const ok = result.results.filter((r) => r.ok).length;
+    const failed = result.results.filter((r) => !r.ok).length;
+    await finishJobRun(job, {
+      status: failed && !ok ? 'failed' : (failed ? 'partial' : 'ok'),
+      counts: { due: result.due, ok, failed },
+      result,
+      errors: result.results.filter((r) => !r.ok).map((r) => ({
+        code: 'COUNT_PLAN',
+        message: r.error || 'failed',
+        ref: r.planId,
+      })),
+    });
+    return result;
+  } catch (err) {
+    await finishJobRun(job, {
+      status: 'failed',
+      errors: [{ code: 'COUNT_PLAN', message: err.message }],
+    });
+    throw err;
+  }
 }

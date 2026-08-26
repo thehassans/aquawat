@@ -132,6 +132,29 @@ export default function ProductForm() {
         createVariantMode: l.createVariantMode || 'always',
       }))
 
+    const tags = Array.isArray(payload.tags)
+      ? payload.tags
+      : (tagInput ? tagInput.split(',').map((t) => t.trim()).filter(Boolean) : [])
+    payload.tags = tags
+
+    payload.suppliers = (Array.isArray(productSuppliers) ? productSuppliers : [])
+      .filter((s) => s?.supplierId)
+      .map((s) => ({
+        supplierId: s.supplierId,
+        supplierSku: s.supplierSku || undefined,
+        cost: Number.isFinite(Number(s.cost)) ? Number(s.cost) : undefined,
+        leadTimeDays: Number.isFinite(Number(s.leadTimeDays)) ? Number(s.leadTimeDays) : undefined,
+        isPreferred: !!s.isPreferred,
+      }))
+
+    payload.documents = (Array.isArray(productDocuments) ? productDocuments : [])
+      .filter((d) => d?.name?.trim() && d?.url?.trim())
+      .map((d) => ({
+        name: String(d.name).trim(),
+        url: String(d.url).trim(),
+        mimeType: d.mimeType || undefined,
+      }))
+
     if (isEdit) {
       delete payload.stocks
     } else {
@@ -224,6 +247,23 @@ export default function ProductForm() {
           createVariantMode: l.createVariantMode || 'always',
         })),
       )
+      setTagInput((normalized?.tags || []).join(', '))
+      setProductSuppliers(
+        (Array.isArray(normalized?.suppliers) ? normalized.suppliers : []).map((s) => ({
+          supplierId: String(s.supplierId?._id || s.supplierId || ''),
+          supplierSku: s.supplierSku || '',
+          cost: s.cost ?? '',
+          leadTimeDays: s.leadTimeDays ?? '',
+          isPreferred: !!s.isPreferred,
+        })),
+      )
+      setProductDocuments(
+        (Array.isArray(normalized?.documents) ? normalized.documents : []).map((d) => ({
+          name: d.name || '',
+          url: d.url || '',
+          mimeType: d.mimeType || '',
+        })),
+      )
     }
   }, [isEdit, rawProductData, reset])
 
@@ -279,6 +319,11 @@ export default function ProductForm() {
     queryFn: () => api.get('/stock/routes').then((r) => asInvList(r.data)),
     enabled: invSettings?.groupAdvLocation !== false,
   })
+  const { data: supplierOptions } = useQuery({
+    queryKey: ['suppliers-lite-product'],
+    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((r) => r.data?.suppliers || r.data || []),
+    enabled: canBePurchased,
+  })
   const { data: invRules } = useQuery({
     queryKey: ['inv-rules-all'],
     queryFn: () => api.get('/stock/rules').then((r) => asInvList(r.data)),
@@ -293,6 +338,9 @@ export default function ProductForm() {
   const [productTab, setProductTab] = useState('general')
   const [attributeLines, setAttributeLines] = useState([])
   const [generateWarning, setGenerateWarning] = useState(null)
+  const [tagInput, setTagInput] = useState('')
+  const [productSuppliers, setProductSuppliers] = useState([])
+  const [productDocuments, setProductDocuments] = useState([])
 
   const { data: attrsData } = useQuery({
     queryKey: ['inv-attributes'],
@@ -388,6 +436,7 @@ export default function ProductForm() {
     { id: 'expense', en: 'Expense', ar: 'المصروفات', hide: !canBeExpensed },
     { id: 'inventory', en: 'Inventory', ar: 'المخزون', hide: isService },
     { id: 'variants', en: 'Attributes & Variants', ar: 'السمات والمتغيرات', hide: invSettings?.groupProductVariant === false },
+    { id: 'documents', en: 'Documents', ar: 'المستندات' },
     { id: 'accounting', en: 'Accounting', ar: 'المحاسبة' },
   ].filter((t) => !t.hide)), [canBeSold, canBePurchased, canBeExpensed, isService, invSettings?.groupProductVariant])
 
@@ -704,6 +753,15 @@ export default function ProductForm() {
               <input type="hidden" {...register('category')} />
             </div>
             <div>
+              <label className="label">{language === 'ar' ? 'الوسوم' : 'Tags'}</label>
+              <input
+                className="input"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                placeholder={language === 'ar' ? 'مفصولة بفاصلة' : 'Comma-separated'}
+              />
+            </div>
+            <div>
               <label className="label">
                 <span className="inline-flex items-center gap-1.5">
                   {t('sellingPrice')}
@@ -896,6 +954,69 @@ export default function ProductForm() {
                 <div>
                   <label className="label">{language === 'ar' ? 'بلد المنشأ' : 'Country of origin'}</label>
                   <input {...register('countryOfOrigin')} className="input" />
+                </div>
+                <div className="md:col-span-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="label !mb-0">{language === 'ar' ? 'الموردون' : 'Vendors'}</label>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-xs"
+                      onClick={() => setProductSuppliers((rows) => [...rows, { supplierId: '', supplierSku: '', cost: '', leadTimeDays: '', isPreferred: false }])}
+                    >
+                      {language === 'ar' ? '+ مورد' : '+ Vendor'}
+                    </button>
+                  </div>
+                  {productSuppliers.length === 0 ? (
+                    <p className="text-xs text-slate-400">{language === 'ar' ? 'لا موردين' : 'No vendors linked'}</p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-dark-600">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
+                          <tr>
+                            <th className="px-2 py-2 text-start">{language === 'ar' ? 'المورد' : 'Supplier'}</th>
+                            <th className="px-2 py-2">{language === 'ar' ? 'SKU المورد' : 'Vendor SKU'}</th>
+                            <th className="px-2 py-2">{language === 'ar' ? 'التكلفة' : 'Cost'}</th>
+                            <th className="px-2 py-2">{language === 'ar' ? 'Lead time' : 'Lead (d)'}</th>
+                            <th className="px-2 py-2">{language === 'ar' ? 'مفضل' : 'Pref.'}</th>
+                            <th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {productSuppliers.map((row, idx) => (
+                            <tr key={idx} className="border-t border-slate-100">
+                              <td className="px-2 py-1">
+                                <select
+                                  className="select select-sm w-full min-w-[8rem]"
+                                  value={row.supplierId}
+                                  onChange={(e) => setProductSuppliers((rows) => rows.map((r, i) => (i === idx ? { ...r, supplierId: e.target.value } : r)))}
+                                >
+                                  <option value="">—</option>
+                                  {(supplierOptions || []).map((s) => (
+                                    <option key={s._id} value={s._id}>{s.nameEn || s.name || s.nameAr}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-2 py-1">
+                                <input className="input input-sm" value={row.supplierSku} onChange={(e) => setProductSuppliers((rows) => rows.map((r, i) => (i === idx ? { ...r, supplierSku: e.target.value } : r)))} />
+                              </td>
+                              <td className="px-2 py-1">
+                                <input type="number" className="input input-sm w-24" value={row.cost} onChange={(e) => setProductSuppliers((rows) => rows.map((r, i) => (i === idx ? { ...r, cost: e.target.value } : r)))} />
+                              </td>
+                              <td className="px-2 py-1">
+                                <input type="number" className="input input-sm w-20" value={row.leadTimeDays} onChange={(e) => setProductSuppliers((rows) => rows.map((r, i) => (i === idx ? { ...r, leadTimeDays: e.target.value } : r)))} />
+                              </td>
+                              <td className="px-2 py-1 text-center">
+                                <input type="checkbox" checked={!!row.isPreferred} onChange={(e) => setProductSuppliers((rows) => rows.map((r, i) => (i === idx ? { ...r, isPreferred: e.target.checked } : r)))} />
+                              </td>
+                              <td className="px-2 py-1">
+                                <button type="button" className="text-rose-600 text-xs" onClick={() => setProductSuppliers((rows) => rows.filter((_, i) => i !== idx))}>×</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -1313,6 +1434,46 @@ export default function ProductForm() {
                   {language === 'ar' ? 'المتغيرات المولّدة' : 'Generated variants'}
                 </h4>
                 <ProductVariantsGrid productId={id} language={language} />
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {productTab === 'documents' && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="card space-y-3 p-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">{language === 'ar' ? 'المستندات' : 'Documents'}</h3>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setProductDocuments((rows) => [...rows, { name: '', url: '', mimeType: '' }])}
+              >
+                {language === 'ar' ? '+ مستند' : '+ Document'}
+              </button>
+            </div>
+            {!productDocuments.length ? (
+              <p className="text-sm text-slate-400">{language === 'ar' ? 'لا مستندات' : 'No documents linked'}</p>
+            ) : (
+              <div className="space-y-2">
+                {productDocuments.map((doc, idx) => (
+                  <div key={idx} className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-3 dark:border-dark-600">
+                    <input
+                      className="input input-sm"
+                      placeholder={language === 'ar' ? 'الاسم' : 'Name'}
+                      value={doc.name}
+                      onChange={(e) => setProductDocuments((rows) => rows.map((r, i) => (i === idx ? { ...r, name: e.target.value } : r)))}
+                    />
+                    <input
+                      className="input input-sm sm:col-span-2"
+                      placeholder="URL"
+                      value={doc.url}
+                      onChange={(e) => setProductDocuments((rows) => rows.map((r, i) => (i === idx ? { ...r, url: e.target.value } : r)))}
+                    />
+                    <button type="button" className="text-xs text-rose-600 sm:col-span-3 text-start" onClick={() => setProductDocuments((rows) => rows.filter((_, i) => i !== idx))}>
+                      {language === 'ar' ? 'حذف' : 'Remove'}
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </motion.div>

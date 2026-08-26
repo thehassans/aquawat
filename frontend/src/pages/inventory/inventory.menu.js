@@ -294,6 +294,13 @@ export const INVENTORY_MENU_TREE = [
         permission: { module: 'inventory', action: 'read' },
       },
       {
+        id: 'inventory-turns',
+        label: 'Turns & DSI',
+        labelAr: 'دوران المخزون',
+        href: '/app/dashboard/inventory/inventory-turns',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
         id: 'count-accuracy',
         label: 'Count accuracy',
         labelAr: 'دقة العد',

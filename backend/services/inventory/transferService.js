@@ -366,11 +366,11 @@ export async function validateTransfer(tenantId, transferId, {
               line.lotId = lot?._id || null;
             } else if (line.lotId) {
               const lot = await resolveOrCreateLot(session, tid, product, line.lotId, null, userId);
-              if (isLotExpired(lot)) {
+              if (isLotExpired(lot) && settings.blockExpiredShipping && opType?.code === 'outgoing') {
                 const srcCheck = await InvLocation.findById(line.sourceLocationId).session(session);
                 if (srcCheck?.usage === 'internal') {
                   throw new InventoryValidationError(
-                    `Lot ${lot.name} is expired`,
+                    `Lot ${lot.name} is expired — shipping expired stock is blocked in settings`,
                     'LOT_EXPIRED',
                   );
                 }
@@ -624,11 +624,24 @@ export async function validateTransfer(tenantId, transferId, {
     try {
       const { sendDeliveryConfirmations } = await import('./deliveryConfirmations.js');
       await sendDeliveryConfirmations(tenantId, result.transfer);
-      // Reload note / any confirmation stamps for the HTTP response
-      const fresh = await InvTransfer.findById(result.transfer._id);
-      if (fresh) return fresh;
     } catch (err) {
       console.error('[inventory] delivery confirmation failed', err?.message || err);
+    }
+    try {
+      const { dispatchInventoryWebhook } = await import('./webhooks.js');
+      await dispatchInventoryWebhook(tenantId, 'picking.validated', {
+        transferId: result.transfer._id,
+        name: result.transfer.name,
+        state: result.transfer.state,
+      });
+    } catch (err) {
+      console.error('[inventory] webhook dispatch failed', err?.message || err);
+    }
+    try {
+      const fresh = await InvTransfer.findById(result.transfer._id);
+      if (fresh) return fresh;
+    } catch {
+      /* ignore reload errors */
     }
     return result.transfer;
   });
@@ -732,7 +745,7 @@ export async function unreserveTransfer(tenantId, transferId) {
   });
 }
 
-export async function cancelTransfer(tenantId, transferId, userId = null) {
+export async function cancelTransfer(tenantId, transferId, userId = null, { reason = null } = {}) {
   return runWithTransaction(async (session) => {
     const transfer = await InvTransfer.findOne({
       _id: toObjectId(transferId),
@@ -769,8 +782,43 @@ export async function cancelTransfer(tenantId, transferId, userId = null) {
     }
 
     transfer.state = 'cancelled';
+    if (reason?.trim()) {
+      transfer.cancelReason = String(reason).trim().slice(0, 500);
+      const stamp = `[cancelled ${new Date().toISOString()}] ${transfer.cancelReason}`;
+      transfer.note = transfer.note ? `${transfer.note}\n${stamp}` : stamp;
+    }
     if (userId) transfer.updatedBy = userId;
     await transfer.save({ session });
     return transfer;
   });
+}
+
+/** Duplicate a transfer (moves copied as draft lines). */
+export async function duplicateTransfer(tenantId, transferId, userId = null) {
+  const tid = toObjectId(tenantId);
+  const src = await InvTransfer.findOne({ _id: toObjectId(transferId), tenantId: tid }).lean();
+  if (!src) throw new InventoryValidationError('Transfer not found', 'NOT_FOUND');
+
+  const moves = await InvMove.find({ tenantId: tid, transferId: src._id }).lean();
+  const { createTransfer } = await import('./createTransfer.js');
+  return createTransfer(tenantId, {
+    operationTypeId: src.operationTypeId,
+    partnerId: src.partnerId,
+    sourceLocationId: src.sourceLocationId,
+    destLocationId: src.destLocationId,
+    origin: src.origin ? `${src.origin} (copy)` : undefined,
+    note: src.note,
+    priority: src.priority,
+    deadlineDate: src.deadlineDate,
+    ownerId: src.ownerId,
+    carrierId: src.carrierId,
+    lines: moves.map((m) => ({
+      productId: m.productId,
+      demandQty: m.demandQty,
+      variantId: m.variantId,
+      uomId: m.uomId,
+      productPackagingId: m.productPackagingId,
+      packagingQty: m.packagingQty,
+    })),
+  }, userId);
 }

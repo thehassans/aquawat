@@ -62,6 +62,14 @@ const productSchema = new mongoose.Schema({
   brand: { type: String },
   manufacturer: { type: String },
   tags: [{ type: String }],
+
+  /** Attached documents (datasheets, certs, …) */
+  documents: [{
+    name: { type: String, required: true },
+    url: { type: String, required: true },
+    mimeType: { type: String },
+    uploadedAt: { type: Date, default: Date.now },
+  }],
   
   // Pricing
   costPrice: { type: Number, default: 0 },

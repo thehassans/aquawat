@@ -451,6 +451,7 @@ export default function InventorySettingsPage() {
       <Section title={ar ? 'التتبع' : 'Traceability'} search={s} matchKeys={['lot', 'serial', 'expiry', 'consignment', 'owner']}>
         <Toggle search={s} label={ar ? 'الدفعات والأرقام التسلسلية' : 'Lots & serial numbers'} checked={current.groupProductionLot} onChange={() => toggle('groupProductionLot')} />
         <Toggle search={s} label={ar ? 'تواريخ الصلاحية' : 'Expiration dates'} checked={current.moduleProductExpiry} onChange={() => toggle('moduleProductExpiry')} />
+        <Toggle search={s} label={ar ? 'منع شحن المنتهي' : 'Block expired shipping'} hint={ar ? 'يمنع اعتماد التسليم لدفعات منتهية' : 'Blocks delivery validate for expired lots'} checked={current.blockExpiredShipping} onChange={() => toggle('blockExpiredShipping')} />
         <Toggle search={s} label={ar ? 'الدفعات على سند التسليم' : 'Lots on delivery slips'} checked={current.showLotsOnDeliverySlips ?? current.groupLotOnDeliverySlip} onChange={() => toggle('showLotsOnDeliverySlips')} />
         <Toggle search={s} label={ar ? 'الدفعات على الفواتير' : 'Lots on invoices'} checked={current.showLotsOnInvoices ?? current.groupLotOnInvoice} onChange={() => toggle('showLotsOnInvoices')} />
         <Toggle search={s} label={ar ? 'الأمانة (مالك المخزون)' : 'Consignment (owner)'} checked={current.groupStockTrackingOwner} onChange={() => toggle('groupStockTrackingOwner')} />
@@ -574,6 +575,21 @@ export default function InventorySettingsPage() {
           <input type="number" min={0} className="input input-sm" value={current.daysToPurchase ?? 0} onChange={(e) => setField('daysToPurchase', Number(e.target.value))} />
         </div>
         <Toggle search={s} label={ar ? 'تفعيل المجدول' : 'Scheduler enabled'} checked={current.schedulerEnabled} onChange={() => toggle('schedulerEnabled')} />
+      </Section>
+
+      <Section title={ar ? 'التزويد الذكي' : 'Demand replenishment'} search={s} matchKeys={['replenishment', 'demand', 'service', 'review']}>
+        <div>
+          <label className="label text-xs">{ar ? 'نافذة الطلب (أيام)' : 'Demand window (days)'}</label>
+          <input type="number" min={7} className="input input-sm" value={current.demandWindowDays ?? 90} onChange={(e) => setField('demandWindowDays', Number(e.target.value))} />
+        </div>
+        <div>
+          <label className="label text-xs">{ar ? 'مستوى الخدمة %' : 'Service level %'}</label>
+          <input type="number" min={80} max={99} className="input input-sm" value={current.replenishmentServiceLevel ?? 95} onChange={(e) => setField('replenishmentServiceLevel', Number(e.target.value))} />
+        </div>
+        <div>
+          <label className="label text-xs">{ar ? 'فترة المراجعة (أيام)' : 'Review period (days)'}</label>
+          <input type="number" min={1} className="input input-sm" value={current.replenishmentReviewDays ?? 14} onChange={(e) => setField('replenishmentReviewDays', Number(e.target.value))} />
+        </div>
       </Section>
 
       <Section title={ar ? 'القوائم' : 'Menu extras'} search={s} matchKeys={['pos', 'manufacturing', 'menu']}>

@@ -18,11 +18,18 @@ Last updated: 2026-08-26
 | B.5 replenishment | `demandReplenishment.js` — avg demand suggestions with apply; seasonality fields on Product |
 | B.6 batch picking | `GET /stock/batch-transfers/:id/pick-list` merged by product+location, pickSequence sort |
 | B.7 period close | `periodLock.js` on validate + checklist + lock API |
-| B.8 e-commerce | `InvSalesChannel` model + list/create routes (connectors pending) |
-| B.9 public API | `/api/v1/inventory/*` + tenant API keys + webhook subscriptions |
-| B.10 owner reports | stock ageing, dead stock, count accuracy, mock recall |
-| D07 list shell | `InvListShell.jsx` shared pagination/empty chrome |
-| D08 form UX | `useDirtyGuard.js` hook |
+| B.8 e-commerce | `InvSalesChannel` + create/sync routes + UI; `salesChannelSync.js` stub (OAuth pending) |
+| B.9 public API | `/api/v1/inventory/*` + API keys + webhooks; OpenAPI at `/api/v1/inventory/openapi.json`; webhooks fire from `transferService.validateTransfer` |
+| B.10 owner reports | stock ageing, dead stock, count accuracy, mock recall; expiry write-off button on report |
+| B.3 cron | `count_plan_due` job in maint cron + `runDueCountPlans()` |
+| D07 list shell | `InvListShell` wired on `TransfersList` with server pagination |
+| D08 form UX | `useDirtyGuard` on new `TransferForm` (beforeunload + router blocker) |
+| ProductForm v5 | Tags field + vendors table on Purchase tab + Documents tab |
+| TransferForm P1 | Duplicate, cancel+reason, fill-all-remaining, edit priority/deadline on draft |
+| B.10 turns/DSI | `inventoryTurnsReport` + `/inventory-turns` UI |
+| B.5 vendor view | `groupBy=vendor` on replenishment suggestions |
+| B.1 mobile lines | Receive/Pick show move lines + per-line done qty on validate |
+| blockExpiredShipping | Wired in `validateTransfer` when setting on + outgoing |
 | formatInvError | Adopted on all inventory list/form pages |
 
 ## v4.1 Data portability & document output (2026-08-26)

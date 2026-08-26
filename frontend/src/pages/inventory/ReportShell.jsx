@@ -17,6 +17,7 @@ export const REPORT_TABS = [
   { id: 'expiry-at-risk', path: '/app/dashboard/inventory/expiry-at-risk', en: 'Expiry at Risk', ar: 'انتهاء الصلاحية', flag: 'productExpiry' },
   { id: 'stock-ageing', path: '/app/dashboard/inventory/stock-ageing', en: 'Stock ageing', ar: 'تقادم المخزون' },
   { id: 'dead-stock', path: '/app/dashboard/inventory/dead-stock', en: 'Dead stock', ar: 'مخزون راكد' },
+  { id: 'inventory-turns', path: '/app/dashboard/inventory/inventory-turns', en: 'Turns & DSI', ar: 'دوران المخزون' },
   { id: 'count-accuracy', path: '/app/dashboard/inventory/count-accuracy', en: 'Count accuracy', ar: 'دقة العد' },
   { id: 'mock-recall', path: '/app/dashboard/inventory/mock-recall', en: 'Mock recall', ar: 'استدعاء تجريبي' },
   { id: 'reception', path: '/app/dashboard/inventory/report/reception', en: 'Reception', ar: 'الاستلام', flag: 'receptionReport' },

@@ -100,6 +100,7 @@ const PartBDemandSuggestions = lazy(() => import('./pages/inventory/PartBPages')
 const StockAgeingPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.StockAgeingPage })))
 const DeadStockPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.DeadStockPage })))
 const CountAccuracyPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.CountAccuracyPage })))
+const InventoryTurnsPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.InventoryTurnsPage })))
 const MockRecallPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.MockRecallPage })))
 const ApiIntegrationsPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.ApiIntegrationsPage })))
 const MobileHome = lazy(() => import('./pages/mobile/MobileWarehouse').then((m) => ({ default: m.MobileHome })))
@@ -862,6 +863,7 @@ function App() {
           <Route path="stock-ageing" element={<StockAgeingPage />} />
           <Route path="dead-stock" element={<DeadStockPage />} />
           <Route path="count-accuracy" element={<CountAccuracyPage />} />
+          <Route path="inventory-turns" element={<InventoryTurnsPage />} />
           <Route path="mock-recall" element={<MockRecallPage />} />
           <Route path="count-plans" element={<PartBCountPlans />} />
           <Route path="period-close" element={<PartBPeriodClose />} />

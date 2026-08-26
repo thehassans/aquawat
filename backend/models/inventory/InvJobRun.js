@@ -14,6 +14,7 @@ const schema = new mongoose.Schema({
       'expiry_alerts',
       'reservation_retry',
       'cyclic_count',
+      'count_plan_due',
       'delivery_notify',
       'other',
     ],

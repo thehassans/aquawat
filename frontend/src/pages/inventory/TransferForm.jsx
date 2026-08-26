@@ -11,6 +11,7 @@ import { StatusChip } from './inventoryUi'
 import { TransferPrintButton } from './TransferPrint'
 import { TransferQualityPanel } from './QualityPages'
 import { formatInvError } from '../../lib/invError'
+import { useDirtyGuard } from '../../lib/useDirtyGuard'
 
 const CODE_FROM_PATH = () => {
   const parts = window.location.pathname.split('/')
@@ -112,6 +113,17 @@ export default function TransferForm() {
   const [ownerId, setOwnerId] = useState('')
   const [doneEdits, setDoneEdits] = useState({})
 
+  const isNewDirty = useMemo(() => {
+    if (!isNew) return false
+    if (form.lines.length) return true
+    if (form.partnerId || form.origin || form.note) return true
+    if (form.scheduledDate || form.deadlineDate) return true
+    if (carrierId || trackingReference || shippingCost || ownerId) return true
+    return false
+  }, [isNew, form, carrierId, trackingReference, shippingCost, ownerId])
+
+  useDirtyGuard(isNewDirty, ar ? 'لديك تغييرات غير محفوظة' : 'You have unsaved changes')
+
   const hints = transfer?.settingsHints || {
     multiLocations: settings?.groupStockMultiLocations !== false,
     barcode: !!settings?.groupStockBarcode,
@@ -196,6 +208,40 @@ export default function TransferForm() {
     },
     onError: (e) => toast.error(formatInvError(e, language)),
   })
+
+  const duplicateMut = useMutation({
+    mutationFn: () => api.post(`/stock/transfers/${id}/duplicate`).then((r) => r.data),
+    onSuccess: (doc) => {
+      toast.success(ar ? 'تم النسخ' : 'Duplicated')
+      navigate(`${listPath}/${doc._id}`)
+    },
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
+  const [editPriority, setEditPriority] = useState('normal')
+  const [editDeadline, setEditDeadline] = useState('')
+
+  useEffect(() => {
+    if (!transfer) return
+    setEditPriority(transfer.priority || 'normal')
+    setEditDeadline(transfer.deadlineDate
+      ? new Date(transfer.deadlineDate).toISOString().slice(0, 16)
+      : '')
+  }, [transfer?._id, transfer?.priority, transfer?.deadlineDate])
+
+  const fillAllRemaining = () => {
+    const next = { ...doneEdits }
+    for (const m of transfer?.moves || []) {
+      next[m._id] = String(m.demandQty ?? '0')
+    }
+    setDoneEdits(next)
+  }
+
+  const onCancelTransfer = () => {
+    const reason = window.prompt(ar ? 'سبب الإلغاء (اختياري):' : 'Cancel reason (optional):')
+    if (reason === null) return
+    actionMut.mutate({ action: 'cancel', body: { reason: reason || undefined } })
+  }
 
   const applyOpType = (otId) => {
     const ot = opTypes.find((o) => String(o._id) === String(otId))
@@ -558,8 +604,13 @@ export default function TransferForm() {
               </button>
             )}
             {transfer?.state !== 'done' && transfer?.state !== 'cancelled' && (
-              <button type="button" className="btn btn-danger text-sm" onClick={() => actionMut.mutate({ action: 'cancel' })}>
+              <button type="button" className="btn btn-danger text-sm" onClick={onCancelTransfer}>
                 {ar ? 'إلغاء' : 'Cancel'}
+              </button>
+            )}
+            {!isNew && (
+              <button type="button" className="btn btn-secondary text-sm" disabled={duplicateMut.isPending} onClick={() => duplicateMut.mutate()}>
+                {ar ? 'نسخ' : 'Duplicate'}
               </button>
             )}
           </div>
@@ -900,6 +951,14 @@ export default function TransferForm() {
             </div>
 
             {tab === 'operations' && (
+              <div className="space-y-2">
+                {!readOnly && (transfer?.moves || []).length > 0 && (
+                  <div className="flex justify-end">
+                    <button type="button" className="btn btn-secondary btn-xs" onClick={fillAllRemaining}>
+                      {ar ? 'ملء كل المتبقي' : 'Fill all remaining'}
+                    </button>
+                  </div>
+                )}
               <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-dark-600">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50/90 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900/50">
@@ -961,6 +1020,7 @@ export default function TransferForm() {
                   </tbody>
                 </table>
               </div>
+              </div>
             )}
 
             {tab === 'detailed' && (
@@ -1001,12 +1061,58 @@ export default function TransferForm() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <div className="text-xs text-slate-500">{ar ? 'الأولوية' : 'Priority'}</div>
-                    <div className="font-medium">{transfer?.priority || 'normal'}</div>
+                    {transfer?.state === 'draft' && !readOnly ? (
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        <select className="select select-sm" value={editPriority} onChange={(e) => setEditPriority(e.target.value)}>
+                          <option value="normal">{ar ? 'عادي' : 'Normal'}</option>
+                          <option value="urgent">{ar ? 'عاجل' : 'Urgent'}</option>
+                        </select>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-xs"
+                          onClick={() => patchMut.mutate({ priority: editPriority })}
+                        >
+                          {ar ? 'حفظ' : 'Save'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="font-medium">{transfer?.priority || 'normal'}</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">{ar ? 'آخر موعد' : 'Deadline'}</div>
+                    {transfer?.state === 'draft' && !readOnly ? (
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        <input
+                          type="datetime-local"
+                          className="input input-sm"
+                          value={editDeadline}
+                          onChange={(e) => setEditDeadline(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-xs"
+                          onClick={() => patchMut.mutate({ deadlineDate: editDeadline || null })}
+                        >
+                          {ar ? 'حفظ' : 'Save'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="font-medium">
+                        {transfer?.deadlineDate ? new Date(transfer.deadlineDate).toLocaleString() : '—'}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <div className="text-xs text-slate-500">{ar ? 'طلب متأخر من' : 'Backorder of'}</div>
                     <div className="font-medium">{transfer?.backorderOfId ? String(transfer.backorderOfId) : '—'}</div>
                   </div>
+                  {transfer?.cancelReason && (
+                    <div className="sm:col-span-2">
+                      <div className="text-xs text-slate-500">{ar ? 'سبب الإلغاء' : 'Cancel reason'}</div>
+                      <div className="font-medium text-rose-700">{transfer.cancelReason}</div>
+                    </div>
+                  )}
                   {hints.ownerTracking && (
                     <div className="sm:col-span-2">
                       <div className="text-xs text-slate-500">{ar ? 'مالك المخزون' : 'Stock owner'}</div>

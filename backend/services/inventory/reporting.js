@@ -845,3 +845,95 @@ export async function countAccuracyReport(tenantId, { months = 6 } = {}) {
   })).sort((a, b) => Number(b.accuracyPct) - Number(a.accuracyPct));
   return { locations, months: Number(months) || 6 };
 }
+
+/** B.10 — inventory turns + days sales of inventory (DSI) */
+export async function inventoryTurnsReport(tenantId, { warehouseId, windowDays = 365 } = {}) {
+  const tid = toObjectId(tenantId);
+  const days = Math.max(30, Number(windowDays) || 365);
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  let locFilter = { tenantId: tid, usage: 'internal', active: true };
+  if (warehouseId) locFilter.warehouseId = warehouseId;
+  const locs = await InvLocation.find(locFilter).select('_id').lean();
+  const locIds = locs.map((l) => l._id);
+
+  const outbound = await InvMoveLine.find({
+    tenantId: tid,
+    state: 'done',
+    updatedAt: { $gte: since },
+    sourceLocationId: { $in: locIds },
+  }).select('productId quantityInProductUom quantity').lean();
+
+  const cogsByProduct = new Map();
+  for (const line of outbound) {
+    const pid = String(line.productId);
+    const qty = D(line.quantityInProductUom || line.quantity || 0);
+    cogsByProduct.set(pid, (cogsByProduct.get(pid) || D(0)).plus(qty));
+  }
+
+  const quants = await InvQuant.find({
+    tenantId: tid,
+    locationId: { $in: locIds },
+    quantity: { $ne: '0' },
+  }).select('productId quantity').lean();
+
+  const onHandByProduct = new Map();
+  for (const q of quants) {
+    const pid = String(q.productId);
+    onHandByProduct.set(pid, (onHandByProduct.get(pid) || D(0)).plus(D(q.quantity || 0)));
+  }
+
+  const allIds = [...new Set([...cogsByProduct.keys(), ...onHandByProduct.keys()])];
+  const products = await Product.find({ _id: { $in: allIds }, tenantId: tid })
+    .select('nameEn sku costPrice')
+    .lean();
+  const productMap = new Map(products.map((p) => [String(p._id), p]));
+
+  const lines = [];
+  let totalCogs = D(0);
+  let totalAvgInv = D(0);
+
+  for (const pid of allIds) {
+    const product = productMap.get(pid);
+    if (!product) continue;
+    const cost = D(product.costPrice || 0);
+    const unitsOut = cogsByProduct.get(pid) || D(0);
+    const cogs = unitsOut.mul(cost);
+    const onHand = onHandByProduct.get(pid) || D(0);
+    const avgInvValue = onHand.mul(cost);
+    const turns = avgInvValue.gt(0) ? cogs.div(avgInvValue) : D(0);
+    const dsi = turns.gt(0) ? D(days).div(turns) : null;
+
+    totalCogs = totalCogs.plus(cogs);
+    totalAvgInv = totalAvgInv.plus(avgInvValue);
+
+    if (cogs.lte(0) && onHand.lte(0)) continue;
+    lines.push({
+      productId: pid,
+      productName: product.nameEn || product.sku,
+      sku: product.sku,
+      unitsOut: decStr(unitsOut),
+      cogs: decStr(cogs),
+      onHand: decStr(onHand),
+      avgInventoryValue: decStr(avgInvValue),
+      turns: decStr(turns),
+      dsiDays: dsi != null ? decStr(dsi) : null,
+    });
+  }
+
+  lines.sort((a, b) => Number(b.cogs) - Number(a.cogs));
+  const portfolioTurns = totalAvgInv.gt(0) ? totalCogs.div(totalAvgInv) : D(0);
+  const portfolioDsi = portfolioTurns.gt(0) ? D(days).div(portfolioTurns) : null;
+
+  return {
+    windowDays: days,
+    totals: {
+      cogs: decStr(totalCogs),
+      avgInventoryValue: decStr(totalAvgInv),
+      turns: decStr(portfolioTurns),
+      dsiDays: portfolioDsi != null ? decStr(portfolioDsi) : null,
+    },
+    lines,
+  };
+}
