@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
+import { formatInvError } from '../../lib/invError'
 
 /**
  * Searchable hierarchical category combobox.
@@ -19,10 +21,11 @@ export default function CategoryCombobox({
   const [q, setQ] = useState('')
   const rootRef = useRef(null)
 
-  const { data: categories = [] } = useQuery({
+  const { data: categories = [], isError: catsError, error: catsErr } = useQuery({
     queryKey: ['product-categories'],
     queryFn: () => api.get('/stock/product-categories').then((r) => asInvList(r.data)),
     staleTime: 5 * 60 * 1000,
+    retry: 1,
   })
 
   const { data: popular = [] } = useQuery({
@@ -48,19 +51,35 @@ export default function CategoryCombobox({
     return rows.slice(0, 40)
   }, [categories, q])
 
+  const popularUnique = useMemo(() => {
+    const seen = new Set()
+    return popular.filter((c) => {
+      const id = String(c._id)
+      if (seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
+  }, [popular])
+
   const depthOf = (c) => Math.max(0, String(c.completePath || '').split('/').length - 1)
 
   const createMut = useMutation({
     mutationFn: (name) => api.post('/stock/product-categories', {
       name,
+      // Manual until user opts into Full accounting + fills stock accounts
+      valuationMode: 'manual',
+      costingMethod: 'average',
       parentId: selected?._id || undefined,
     }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['product-categories'] })
-      onChange?.(res.data._id, res.data)
+      qc.invalidateQueries({ queryKey: ['inv-product-categories'] })
+      onChange?.(res.data._id || res.data?.data?._id, res.data?.data || res.data)
       setQ('')
       setOpen(false)
+      toast.success(ar ? 'تم إنشاء الفئة' : 'Category created')
     },
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   useEffect(() => {
@@ -71,7 +90,7 @@ export default function CategoryCombobox({
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
-  const showHints = !q.trim() && popular.length > 0
+  const showHints = !q.trim() && popularUnique.length > 0
   const showCreate = q.trim() && !filtered.some(
     (c) => String(c.name || '').toLowerCase() === q.trim().toLowerCase(),
   )
@@ -99,6 +118,11 @@ export default function CategoryCombobox({
           {(ar ? 'التقييم' : 'Valuation')}: {selected.valuationMode || 'automated'}
         </p>
       )}
+      {catsError && (
+        <p className="mt-1 text-[11px] text-rose-600">
+          {formatInvError(catsErr, language)}
+        </p>
+      )}
 
       {open && (
         <div className="absolute z-40 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800">
@@ -124,7 +148,7 @@ export default function CategoryCombobox({
                 {ar ? 'الأكثر استخداماً' : 'Most used'}
               </li>
             )}
-            {(showHints ? popular : []).map((c) => (
+            {(showHints ? popularUnique : []).map((c) => (
               <li key={`pop-${c._id}`}>
                 <button
                   type="button"
@@ -160,6 +184,11 @@ export default function CategoryCombobox({
                   {ar ? `إنشاء «${q.trim()}»` : `Create "${q.trim()}"`}
                   {selected ? (ar ? ` تحت ${selected.name}` : ` under ${selected.name}`) : ''}
                 </button>
+              </li>
+            )}
+            {!filtered.length && !showCreate && !showHints && (
+              <li className="px-3 py-2 text-slate-400">
+                {ar ? 'لا فئات' : 'No categories'}
               </li>
             )}
           </ul>

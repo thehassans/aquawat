@@ -72,9 +72,14 @@ export async function applyQuantDelta(
   }
 
   if (newQty.lt(0) && !dims.allowNegative) {
+    const available = decStr(quant.quantity);
     throw new InventoryValidationError(
-      'Insufficient stock — negative quantities are not allowed',
+      `Insufficient stock — only ${available} available in inventory`,
       'INSUFFICIENT_STOCK',
+      {
+        messageAr: `المخزون غير كافٍ — المتاح في المخزون ${available} فقط`,
+        details: { available, onHand: available },
+      },
     );
   }
   if (newReserved.lt(0)) {

@@ -11,8 +11,8 @@ export const INV_ERROR_CODES = Object.freeze({
   },
   INSUFFICIENT_STOCK: {
     status: 409,
-    message: 'Not enough free stock for this reservation. Reduce quantity, wait for incoming, or force-assign if allowed.',
-    messageAr: 'المخزون الحر غير كافٍ للحجز. قلّل الكمية أو انتظر الوارد أو عيّن قسرياً إن كان مسموحاً.',
+    message: 'Insufficient stock — not enough quantity available in inventory.',
+    messageAr: 'المخزون غير كافٍ — الكمية المتاحة في المخزون أقل من المطلوب.',
   },
   NEGATIVE_STOCK_BLOCKED: {
     status: 409,

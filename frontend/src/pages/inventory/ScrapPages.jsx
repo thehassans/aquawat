@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { Plus, ArrowLeft, Trash2, Search } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
+import { formatInvError } from '../../lib/invError'
 import ProductChooser from '../../components/inventory/ProductChooser'
 import { StatusChip } from './inventoryUi'
 import EmptyState from '../../components/ui/EmptyState'
@@ -51,7 +52,7 @@ export function ScrapList() {
       qc.invalidateQueries({ queryKey: ['products'] })
       qc.invalidateQueries({ queryKey: ['physical-inventory'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   return (
@@ -227,7 +228,7 @@ export function ScrapForm() {
         navigate('/app/dashboard/inventory/scrap')
       }
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const validate = useMutation({
@@ -240,7 +241,7 @@ export function ScrapForm() {
       qc.invalidateQueries({ queryKey: ['products'] })
       qc.invalidateQueries({ queryKey: ['physical-inventory'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const pickProduct = async (product, targetIdx = null) => {

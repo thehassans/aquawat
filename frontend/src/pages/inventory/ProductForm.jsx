@@ -18,7 +18,7 @@ import { normalizeProductType } from '../../lib/productType'
 import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
 import CategoryCombobox from '../../components/inventory/CategoryCombobox'
 import ProductImageGallery from '../../components/inventory/ProductImageGallery'
-import { isFullInventoryAccounting } from '../../lib/inventoryAccountingMode'
+import { formatInvError } from '../../lib/invError'
 
 function AttributeValuesMulti({ attributeId, valueIds, onChange, language }) {
   const ar = language === 'ar'
@@ -342,7 +342,7 @@ export default function ProductForm() {
       }
       return res.data
     } catch (e) {
-      toast.error(e.response?.data?.error || e.message)
+      toast.error(formatInvError(e, language))
       return null
     }
   }
@@ -428,7 +428,7 @@ export default function ProductForm() {
       queryClient.invalidateQueries(['products-stats'])
       navigate('/app/dashboard/inventory/products')
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error saving product')
+    onError: (err) => toast.error(formatInvError(err, language) || 'Error saving product')
   })
 
   const saveStock = async () => {
@@ -697,6 +697,65 @@ export default function ProductForm() {
               />
               <input type="hidden" {...register('categoryId')} />
               <input type="hidden" {...register('category')} />
+            </div>
+            <div>
+              <label className="label">
+                <span className="inline-flex items-center gap-1.5">
+                  {t('sellingPrice')}
+                  <CurrencySymbol currency={currency} />
+                </span>
+              </label>
+              <input type="number" step="0.01" {...register('sellingPrice', { valueAsNumber: true })} className="input" />
+            </div>
+            <div>
+              <label className="label">
+                <span className="inline-flex items-center gap-1.5">
+                  {t('costPrice')}
+                  <CurrencySymbol currency={currency} />
+                </span>
+              </label>
+              <input type="number" step="0.01" {...register('costPrice', { valueAsNumber: true })} className="input" />
+            </div>
+            <div>
+              <label className="label">{language === 'ar' ? 'وحدة القياس' : 'Unit of Measure'}</label>
+              {invSettings?.groupUom !== false && Array.isArray(invUoms) && invUoms.length > 0 ? (
+                <select {...register('uomId')} className="select">
+                  <option value="">—</option>
+                  {invUoms.map((u) => (
+                    <option key={u._id} value={u._id}>{u.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <Select
+                  inputId="unitOfMeasure-general"
+                  options={[
+                    { value: '', label: language === 'ar' ? 'بدون وحدة' : 'None' },
+                    ...uomOptions.map((u) => ({ value: u.code, label: language === 'ar' ? u.labelAr : u.labelEn })),
+                  ]}
+                  value={watch('unitOfMeasure')
+                    ? (uomOptions.find((u) => u.code === watch('unitOfMeasure'))
+                      ? {
+                        value: watch('unitOfMeasure'),
+                        label: language === 'ar'
+                          ? uomOptions.find((u) => u.code === watch('unitOfMeasure'))?.labelAr
+                          : uomOptions.find((u) => u.code === watch('unitOfMeasure'))?.labelEn,
+                      }
+                      : { value: watch('unitOfMeasure'), label: watch('unitOfMeasure') })
+                    : { value: '', label: language === 'ar' ? 'بدون وحدة' : 'None' }}
+                  onChange={(selected) => setValue('unitOfMeasure', selected?.value || '', { shouldDirty: true })}
+                  isClearable
+                  isSearchable
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      borderRadius: '0.75rem',
+                      borderColor: '#e5e7eb',
+                      padding: '0.125rem',
+                      minHeight: '42px',
+                    }),
+                  }}
+                />
+              )}
             </div>
             <div className="md:col-span-2 lg:col-span-3">
               <label className="label">{language === 'ar' ? 'الوصف (EN)' : 'Description (EN)'}</label>
@@ -1163,7 +1222,7 @@ export default function ProductForm() {
                       await runGenerate(false)
                     }
                   } catch (e) {
-                    toast.error(e.response?.data?.error || e.message)
+                    toast.error(formatInvError(e, language))
                   }
                 }}
               >
@@ -1206,44 +1265,6 @@ export default function ProductForm() {
                   ))}
                 </select>
               </div>
-              {isFullInventoryAccounting(invSettings || {}) && (
-                <>
-                  <div className="sm:col-span-2">
-                    <p className="text-xs text-slate-500">
-                      {language === 'ar'
-                        ? 'تجاوزات حسابات المخزون (اختياري) — الوضع الكامل مفعّل في إعدادات المخزون.'
-                        : 'Optional stock account overrides — Full inventory accounting is enabled in settings.'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="label">{language === 'ar' ? 'حساب تقييم المخزون (تجاوز)' : 'Stock Valuation Account (override)'}</label>
-                    <select {...register('stockValuationAccountId')} className="select">
-                      <option value="">{language === 'ar' ? '— من الفئة / الموقع —' : '— From category / location —'}</option>
-                      {activeAccounts.map((a) => (
-                        <option key={a._id} value={a._id}>{a.code ? `${a.code} · ${language === 'ar' ? (a.nameAr || a.name) : a.name}` : (language === 'ar' ? (a.nameAr || a.name) : a.name)}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">{language === 'ar' ? 'حساب إدخال المخزون (تجاوز)' : 'Stock Input Account (override)'}</label>
-                    <select {...register('stockInputAccountId')} className="select">
-                      <option value="">{language === 'ar' ? '— من الفئة / الموقع —' : '— From category / location —'}</option>
-                      {activeAccounts.map((a) => (
-                        <option key={a._id} value={a._id}>{a.code ? `${a.code} · ${language === 'ar' ? (a.nameAr || a.name) : a.name}` : (language === 'ar' ? (a.nameAr || a.name) : a.name)}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">{language === 'ar' ? 'حساب إخراج المخزون (تجاوز)' : 'Stock Output Account (override)'}</label>
-                    <select {...register('stockOutputAccountId')} className="select">
-                      <option value="">{language === 'ar' ? '— من الفئة / الموقع —' : '— From category / location —'}</option>
-                      {activeAccounts.map((a) => (
-                        <option key={a._id} value={a._id}>{a.code ? `${a.code} · ${language === 'ar' ? (a.nameAr || a.name) : a.name}` : (language === 'ar' ? (a.nameAr || a.name) : a.name)}</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
             </div>
             {(() => {
               const cat = (Array.isArray(invCategories) ? invCategories : []).find(
@@ -1256,12 +1277,6 @@ export default function ProductForm() {
                   <div><dt className="text-slate-400">{language === 'ar' ? 'التقييم' : 'Valuation'}</dt><dd>{cat.valuationMode}</dd></div>
                   <div><dt className="text-slate-400">{language === 'ar' ? 'حساب الإيراد الموروث' : 'Inherited Income Account'}</dt><dd>{cat.incomeAccountId?.code || cat.incomeAccountId?.name || '—'}</dd></div>
                   <div><dt className="text-slate-400">{language === 'ar' ? 'حساب المصروف الموروث' : 'Inherited Expense Account'}</dt><dd>{cat.expenseAccountId?.code || cat.expenseAccountId?.name || '—'}</dd></div>
-                  {isFullInventoryAccounting(invSettings || {}) && (
-                    <>
-                      <div><dt className="text-slate-400">{language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'}</dt><dd>{cat.stockValuationAccountId?.code || cat.stockValuationAccountId?.name || '—'}</dd></div>
-                      <div><dt className="text-slate-400">{language === 'ar' ? 'حساب الإدخال/الإخراج' : 'Stock Input / Output'}</dt><dd>{[cat.stockInputAccountId?.code || cat.stockInputAccountId?.name, cat.stockOutputAccountId?.code || cat.stockOutputAccountId?.name].filter(Boolean).join(' / ') || '—'}</dd></div>
-                    </>
-                  )}
                 </dl>
               ) : (
                 <p className="text-sm text-slate-400">{language === 'ar' ? 'لا فئة محددة' : 'No category selected'}</p>

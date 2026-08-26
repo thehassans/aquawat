@@ -14,6 +14,7 @@ import {
 } from '../models/inventory/index.js';
 import Warehouse from '../models/Warehouse.js';
 import Product from '../models/Product.js';
+import Journal from '../models/Journal.js';
 import { ensureInventoryBootstrap, enableEngine, bootstrapWarehouse } from '../services/inventory/bootstrap.js';
 import { createTransfer } from '../services/inventory/createTransfer.js';
 import {
@@ -410,6 +411,8 @@ router.patch('/operation-types/:id', checkPermission('inventory', 'update'), asy
 
 router.get('/product-categories', checkPermission('inventory', 'read'), async (req, res) => {
   try {
+    // Ensure Journal schema is registered for stockJournalId populate
+    void Journal;
     return sendList(
       res,
       await InvProductCategory.find({ ...req.tenantFilter })
@@ -417,13 +420,22 @@ router.get('/product-categories', checkPermission('inventory', 'read'), async (r
         .populate('expenseAccountId', 'code name nameAr')
         .populate('priceDifferenceAccountId', 'code name nameAr')
         .populate('stockValuationAccountId', 'code name nameAr')
-        .populate('stockJournalId', 'code name nameAr type')
+        .populate({ path: 'stockJournalId', select: 'code name nameAr type', options: { strictPopulate: false } })
         .populate('stockInputAccountId', 'code name nameAr')
         .populate('stockOutputAccountId', 'code name nameAr')
-        .sort({ completePath: 1 }),
+        .sort({ completePath: 1 })
+        .lean(),
     );
   } catch (err) {
-    handleInventoryError(res, err);
+    // Fallback without journal populate if COA/journal refs are broken
+    try {
+      return sendList(
+        res,
+        await InvProductCategory.find({ ...req.tenantFilter }).sort({ completePath: 1 }).lean(),
+      );
+    } catch (err2) {
+      handleInventoryError(res, err2);
+    }
   }
 });
 
@@ -437,7 +449,14 @@ router.get('/product-categories/popular', checkPermission('inventory', 'read'), 
       { $sort: { n: -1 } },
       { $limit: 8 },
     ]);
-    const ids = rows.map((r) => r._id);
+    const ids = [];
+    const seen = new Set();
+    for (const r of rows) {
+      const key = String(r._id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      ids.push(r._id);
+    }
     const cats = await InvProductCategory.find({ ...req.tenantFilter, _id: { $in: ids } }).lean();
     const byId = new Map(cats.map((c) => [String(c._id), c]));
     return sendList(res, ids.map((id) => byId.get(String(id))).filter(Boolean));

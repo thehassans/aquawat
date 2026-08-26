@@ -253,7 +253,14 @@ router.post('/', checkTrialLimits('products'), checkPermission('inventory', 'cre
     res.status(201).json(computeTotalStock(product));
   } catch (error) {
     const status = error?.status || (error?.code === 'PRODUCT_ACCOUNTS_REQUIRED' ? 400 : 500);
-    res.status(status).json({ error: error.message, code: error.code, details: error.details });
+    res.status(status).json({
+      error: {
+        code: error?.code || 'INTERNAL',
+        message: error?.message || 'Failed to create product',
+        messageAr: error?.messageAr || error?.message || 'فشل إنشاء المنتج',
+        details: error?.details,
+      },
+    });
   }
 });
 
@@ -308,7 +315,14 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
     res.json(computeTotalStock(product));
   } catch (error) {
     const status = error?.status || (error?.code === 'PRODUCT_ACCOUNTS_REQUIRED' ? 400 : 500);
-    res.status(status).json({ error: error.message, code: error.code, details: error.details });
+    res.status(status).json({
+      error: {
+        code: error?.code || 'INTERNAL',
+        message: error?.message || 'Failed to update product',
+        messageAr: error?.messageAr || error?.message || 'فشل تحديث المنتج',
+        details: error?.details,
+      },
+    });
   }
 });
 
