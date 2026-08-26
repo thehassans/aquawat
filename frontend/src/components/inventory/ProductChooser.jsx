@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, Search } from 'lucide-react'
-import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType } from '../../lib/productType'
+import { ChevronDown, Plus, Search } from 'lucide-react'
+import { isStockTrackedProductType, normalizeProductType } from '../../lib/productType'
 import api from '../../lib/api'
 
 export function normalizeCatalogProduct(p, source = 'bakala') {
@@ -93,14 +93,22 @@ function exactProduct(products, term) {
   )
 }
 
+function productCode(p) {
+  const sku = (p.sku || '').trim()
+  const barcode = (p.barcode || '').trim()
+  if (sku) return sku
+  if (barcode && barcode !== sku) return barcode
+  return ''
+}
+
 /**
  * @param {object} props
  * @param {Array} [props.products]
  * @param {boolean} [props.remote]
  * @param {(p: object) => void} props.onPick
- * @param {'search'|'inline'} [props.mode] — inline = dropdown cell like invoice product select
- * @param {string} [props.valueLabel] — selected product label (inline)
- * @param {string} [props.valueSub] — selected SKU line (inline)
+ * @param {'search'|'inline'} [props.mode]
+ * @param {string} [props.valueLabel]
+ * @param {string} [props.valueSub]
  */
 export default function ProductChooser({
   products: productsProp = [],
@@ -116,6 +124,7 @@ export default function ProductChooser({
   const inline = mode === 'inline'
   const rootRef = useRef(null)
   const triggerRef = useRef(null)
+  const inputRef = useRef(null)
   const panelRef = useRef(null)
   const [term, setTerm] = useState('')
   const [debouncedTerm, setDebouncedTerm] = useState('')
@@ -123,13 +132,15 @@ export default function ProductChooser({
   const [remoteProducts, setRemoteProducts] = useState([])
   const [loading, setLoading] = useState(false)
   const [panelStyle, setPanelStyle] = useState({ top: 0, left: 0, width: 320 })
-  const ring = accent === 'rose'
-    ? 'focus:border-rose-400 focus:ring-rose-500/15'
-    : 'focus:border-emerald-400 focus:ring-emerald-500/15'
-  const addTone = accent === 'rose' ? 'text-rose-700' : 'text-emerald-700'
+  const focusRing = accent === 'rose'
+    ? 'border-rose-500 shadow-[0_0_0_3px_rgba(244,63,94,0.12)]'
+    : 'border-teal-600 shadow-[0_0_0_3px_rgba(13,148,136,0.15)]'
+  const addTone = accent === 'rose'
+    ? 'text-rose-600 bg-rose-50'
+    : 'text-teal-700 bg-teal-50'
 
   useEffect(() => {
-    const handle = setTimeout(() => setDebouncedTerm(term), 280)
+    const handle = setTimeout(() => setDebouncedTerm(term), 220)
     return () => clearTimeout(handle)
   }, [term])
 
@@ -140,6 +151,7 @@ export default function ProductChooser({
       if (rootRef.current?.contains(t)) return
       if (panelRef.current?.contains(t)) return
       setOpen(false)
+      setTerm('')
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
@@ -168,8 +180,8 @@ export default function ProductChooser({
   const products = remote ? remoteProducts : productsProp
 
   const suggestions = useMemo(() => {
-    if (remote) return products.slice(0, 14)
-    return products.filter((p) => matchesProduct(p, term)).slice(0, 14)
+    if (remote) return products.slice(0, 12)
+    return products.filter((p) => matchesProduct(p, term)).slice(0, 12)
   }, [products, term, remote])
 
   useLayoutEffect(() => {
@@ -178,21 +190,22 @@ export default function ProductChooser({
       const el = triggerRef.current
       if (!el) return
       const rect = el.getBoundingClientRect()
-      const width = Math.min(Math.max(rect.width, 280), Math.min(360, window.innerWidth - 16))
-      const estimatedHeight = 280
+      const width = Math.min(Math.max(rect.width, 260), Math.min(340, window.innerWidth - 16))
+      const estimatedHeight = 260
       const spaceBelow = window.innerHeight - rect.bottom - 12
       const openUp = spaceBelow < estimatedHeight && rect.top > spaceBelow
       const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8)
       setPanelStyle({
         position: 'fixed',
-        top: openUp ? undefined : rect.bottom + 6,
-        bottom: openUp ? window.innerHeight - rect.top + 6 : undefined,
+        top: openUp ? undefined : rect.bottom + 4,
+        bottom: openUp ? window.innerHeight - rect.top + 4 : undefined,
         left,
         width,
         zIndex: 9999,
       })
     }
     place()
+    if (inputRef.current) inputRef.current.focus()
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
     return () => {
@@ -206,6 +219,11 @@ export default function ProductChooser({
     onPick(product)
     setTerm('')
     setOpen(false)
+  }
+
+  const openPicker = () => {
+    setOpen(true)
+    setTerm('')
   }
 
   const submit = (e) => {
@@ -227,51 +245,53 @@ export default function ProductChooser({
 
   if (inline) {
     const searchPlaceholder = placeholder.includes('Pick') || placeholder.includes('اختر')
-      ? (placeholder.includes('اختر') ? 'ابحث بالاسم أو الرمز…' : 'Search by name, SKU…')
-      : placeholder
+      ? (placeholder.includes('اختر') ? 'ابحث…' : 'Search…')
+      : 'Search…'
 
     const panel = open && typeof document !== 'undefined'
       ? createPortal(
         <div
           ref={panelRef}
           style={panelStyle}
-          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_-24px_rgba(15,23,42,0.55)] dark:border-dark-600 dark:bg-dark-800"
+          className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_20px_40px_-20px_rgba(15,23,42,0.35)] dark:border-dark-600 dark:bg-dark-800"
         >
-          <div className="border-b border-slate-100 p-2 dark:border-dark-600">
-            <input
-              autoFocus
-              type="text"
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-              placeholder={searchPlaceholder}
-              className={`w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-2 ring-transparent dark:border-dark-600 dark:bg-dark-900 ${ring}`}
-            />
-          </div>
-          <div className="max-h-64 overflow-y-auto overscroll-contain">
+          <div className="max-h-60 overflow-y-auto overscroll-contain py-1">
             {loading ? (
-              <p className="px-4 py-3 text-sm text-slate-400">…</p>
+              <p className="px-3.5 py-3 text-xs text-slate-400">…</p>
             ) : suggestions.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-slate-400">
-                {remote && !debouncedTerm.trim() ? 'Loading products…' : 'No matching products'}
+              <p className="px-3.5 py-3 text-xs text-slate-400">
+                {term.trim() ? 'No matches' : 'No products'}
               </p>
             ) : (
-              suggestions.map((p) => (
-                <button
-                  key={p._id}
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => pick(p)}
-                  className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-dark-700"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">{p.name}</span>
-                    <span className="block truncate text-[11px] text-slate-400">
-                      {[formatProductTypeLabel(p.productType), p.sku && `SKU ${p.sku}`, p.barcode].filter(Boolean).join(' · ')}
+              suggestions.map((p) => {
+                const code = productCode(p)
+                return (
+                  <button
+                    key={p._id}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pick(p)}
+                    className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-slate-50 dark:hover:bg-dark-700/80"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-medium tracking-tight text-slate-900 dark:text-white">
+                        {p.name}
+                      </span>
+                      {code ? (
+                        <span className="mt-0.5 block truncate font-mono text-[10px] tracking-wide text-slate-400">
+                          {code}
+                        </span>
+                      ) : null}
                     </span>
-                  </span>
-                  <span className={`shrink-0 text-[11px] font-semibold ${addTone}`}>+</span>
-                </button>
-              ))
+                    <span
+                      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg opacity-0 transition group-hover:opacity-100 ${addTone}`}
+                      aria-hidden
+                    >
+                      <Plus className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    </span>
+                  </button>
+                )
+              })
             )}
           </div>
         </div>,
@@ -281,31 +301,59 @@ export default function ProductChooser({
 
     return (
       <div ref={rootRef} className={`relative min-w-0 ${className}`}>
-        <button
-          ref={triggerRef}
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className={`flex w-full items-center gap-2 rounded-xl border bg-white px-3 py-2 text-start text-sm outline-none transition dark:bg-dark-900 ${
-            valueLabel
-              ? 'border-slate-200 text-slate-900 dark:border-dark-600 dark:text-white'
-              : 'border-dashed border-slate-300 text-slate-400 hover:border-emerald-400 hover:text-emerald-700 dark:border-dark-500'
-          }`}
-        >
-          <Search className="h-3.5 w-3.5 shrink-0 opacity-50" />
-          <span className="min-w-0 flex-1 truncate">
-            {valueLabel ? (
-              <>
-                <span className="block truncate font-medium">{valueLabel}</span>
-                {valueSub ? (
-                  <span className="mt-0.5 block truncate font-mono text-[10px] text-slate-400">{valueSub}</span>
-                ) : null}
-              </>
-            ) : (
-              placeholder
-            )}
-          </span>
-          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
-        </button>
+        {open ? (
+          <div
+            ref={triggerRef}
+            className={`flex w-full items-center gap-2 rounded-xl border bg-white px-3 py-2 dark:bg-dark-900 ${focusRing}`}
+          >
+            <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setOpen(false)
+                  setTerm('')
+                }
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (suggestions[0]) pick(suggestions[0])
+                }
+              }}
+              placeholder={searchPlaceholder}
+              className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-900 outline-none placeholder:text-slate-400 dark:text-white"
+            />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 rotate-180 text-slate-300" />
+          </div>
+        ) : (
+          <button
+            ref={triggerRef}
+            type="button"
+            onClick={openPicker}
+            className={`flex w-full items-center gap-2 rounded-xl border bg-white px-3 py-2 text-start text-[13px] outline-none transition hover:border-slate-300 dark:bg-dark-900 ${
+              valueLabel
+                ? 'border-slate-200/90 text-slate-900 dark:border-dark-600 dark:text-white'
+                : 'border-dashed border-slate-200 text-slate-400 hover:border-teal-500/60 hover:text-teal-700 dark:border-dark-500'
+            }`}
+          >
+            <Search className="h-3.5 w-3.5 shrink-0 opacity-40" />
+            <span className="min-w-0 flex-1 truncate">
+              {valueLabel ? (
+                <>
+                  <span className="block truncate font-medium tracking-tight">{valueLabel}</span>
+                  {valueSub ? (
+                    <span className="mt-0.5 block truncate font-mono text-[10px] text-slate-400">{valueSub}</span>
+                  ) : null}
+                </>
+              ) : (
+                <span className="tracking-tight">{placeholder}</span>
+              )}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+          </button>
+        )}
         {panel}
       </div>
     )
@@ -326,46 +374,46 @@ export default function ProductChooser({
           onBlur={() => setTimeout(() => setOpen(false), 180)}
           placeholder={placeholder}
           autoComplete="off"
-          className={`w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 outline-none ring-4 ring-transparent placeholder:text-slate-400 ${ring}`}
+          className={`w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 outline-none ring-4 ring-transparent placeholder:text-slate-400 focus:border-teal-600 focus:shadow-[0_0_0_3px_rgba(13,148,136,0.15)]`}
         />
       </form>
       {open && (
-        <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)]">
+        <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_20px_40px_-20px_rgba(15,23,42,0.35)]">
           {loading ? (
-            <p className="px-4 py-3 text-sm text-slate-400">Searching…</p>
+            <p className="px-4 py-3 text-xs text-slate-400">Searching…</p>
           ) : products.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-400">
+            <p className="px-4 py-3 text-xs text-slate-400">
               {remote && !debouncedTerm.trim()
                 ? 'Type to search the product catalog.'
                 : 'No products in catalog yet.'}
             </p>
           ) : suggestions.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-400">No matching products. Try a name, SKU, or barcode.</p>
+            <p className="px-4 py-3 text-xs text-slate-400">No matching products.</p>
           ) : (
-            <>
-              {!term.trim() && !remote && (
-                <p className="border-b border-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
-                  Choose a product
-                </p>
-              )}
-              {suggestions.map((p) => (
-                <button
-                  key={p._id}
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => pick(p)}
-                  className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-slate-50"
-                >
-                  <span>
-                    <span className="block text-sm font-semibold text-slate-900">{p.name}</span>
-                    <span className="block text-[11px] text-slate-400">
-                      {[formatProductTypeLabel(p.productType), p.sku && `SKU ${p.sku}`, p.barcode].filter(Boolean).join(' · ') || 'No barcode'}
+            <div className="py-1">
+              {suggestions.map((p) => {
+                const code = productCode(p)
+                return (
+                  <button
+                    key={p._id}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pick(p)}
+                    className="group flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-medium text-slate-900">{p.name}</span>
+                      {code ? (
+                        <span className="mt-0.5 block truncate font-mono text-[10px] text-slate-400">{code}</span>
+                      ) : null}
                     </span>
-                  </span>
-                  <span className={`text-[11px] font-semibold ${addTone}`}>Add</span>
-                </button>
-              ))}
-            </>
+                    <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg opacity-0 transition group-hover:opacity-100 ${addTone}`}>
+                      <Plus className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           )}
         </div>
       )}

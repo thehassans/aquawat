@@ -738,46 +738,46 @@ export default function TransferForm() {
                 <div className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">
                   {ar ? 'بنود العمليات' : 'Operations lines'}
                 </div>
-                <p className="text-xs text-slate-500">
-                  {ar ? 'منتج · متغير · كمية لكل سطر' : 'Product · variant · quantity per line'}
+                <p className="mt-0.5 text-xs text-slate-400">
+                  {ar ? 'منتج · متغير · كمية' : 'Product · variant · quantity'}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={addEmptyLine}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-sm transition hover:border-teal-600 hover:text-teal-700 dark:border-dark-500 dark:bg-dark-700 dark:text-slate-100"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-teal-600 hover:text-teal-700 dark:border-dark-500 dark:bg-dark-700 dark:text-slate-100"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-3.5 w-3.5" strokeWidth={2.25} />
                 {ar ? 'إضافة' : 'Add'}
               </button>
             </div>
             {form.lines.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center dark:border-dark-600 dark:bg-dark-900/40">
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  {ar ? 'لا توجد بنود بعد' : 'No operations lines yet'}
+              <div className="rounded-2xl border border-dashed border-slate-200/90 bg-slate-50/50 px-4 py-10 text-center dark:border-dark-600 dark:bg-dark-900/30">
+                <p className="text-sm font-medium tracking-tight text-slate-700 dark:text-slate-200">
+                  {ar ? 'لا توجد بنود بعد' : 'No lines yet'}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {ar ? 'أضف سطراً ثم اختر المنتج من القائمة.' : 'Add a line, then pick a product from the dropdown.'}
+                <p className="mt-1 text-xs text-slate-400">
+                  {ar ? 'أضف سطراً واختر المنتج.' : 'Add a line and pick a product.'}
                 </p>
                 <button
                   type="button"
                   onClick={addEmptyLine}
-                  className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white dark:bg-white dark:text-slate-900"
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white dark:bg-white dark:text-slate-900"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.25} />
                   {ar ? 'إضافة سطر' : 'Add line'}
                 </button>
               </div>
             ) : (
-              <div className="overflow-visible rounded-xl border border-slate-200/90 dark:border-dark-600">
-                <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(7rem,11rem)_minmax(6rem,9rem)_5.5rem_2.5rem] gap-2 border-b border-slate-100 bg-slate-50/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-dark-600 dark:bg-dark-900/50 sm:grid">
+              <div className="overflow-visible rounded-2xl border border-slate-200/80 dark:border-dark-600">
+                <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(6.5rem,10rem)_minmax(5.5rem,8rem)_4.75rem_2.25rem] gap-2 border-b border-slate-100 px-3.5 py-2 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400 dark:border-dark-600 sm:grid">
                   <span>{ar ? 'المنتج' : 'Product'}</span>
                   <span>{ar ? 'المتغير' : 'Variant'}</span>
                   <span>{ar ? 'التعبئة / الوحدة' : 'Pack / UoM'}</span>
                   <span>{ar ? 'الكمية' : 'Qty'}</span>
                   <span />
                 </div>
-                <div className="divide-y divide-slate-100 dark:divide-dark-600">
+                <div className="divide-y divide-slate-100/90 dark:divide-dark-600">
                   {form.lines.map((line, idx) => (
                     <TransferDraftLine
                       key={`line-${idx}`}
@@ -1187,13 +1187,13 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
   const productQty = selected ? packsCount * packQty : line.demandQty
   const variants = line.variants || []
   const valueSub = [
-    line.sku ? `SKU ${line.sku}` : '',
-    selected ? `→ ${productQty} ${ar ? 'وحدة' : 'units'}` : '',
+    line.sku || '',
+    selected ? `→ ${productQty}` : '',
     !selected && line.uomLabel ? line.uomLabel : '',
   ].filter(Boolean).join(' · ')
 
   return (
-    <div className="grid items-center gap-2 px-3 py-2.5 sm:grid-cols-[minmax(0,1.4fr)_minmax(7rem,11rem)_minmax(6rem,9rem)_5.5rem_2.5rem]">
+    <div className="grid items-center gap-2 px-3.5 py-2.5 sm:grid-cols-[minmax(0,1.5fr)_minmax(6.5rem,10rem)_minmax(5.5rem,8rem)_4.75rem_2.25rem]">
       <div className="min-w-0">
         <ProductChooser
           mode="inline"
@@ -1206,7 +1206,7 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
       </div>
       {variantsEnabled && variants.length > 0 ? (
         <select
-          className={`select select-sm ${line.needsVariant && !line.variantId ? 'border-amber-400' : ''}`}
+          className={`select select-sm border-slate-200/90 ${line.needsVariant && !line.variantId ? 'border-amber-400' : ''}`}
           value={line.variantId || ''}
           onChange={(e) => {
             const id = e.target.value
@@ -1225,11 +1225,11 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
           ))}
         </select>
       ) : (
-        <div className="text-xs text-slate-400">{line.variantName || '—'}</div>
+        <div className="text-xs text-slate-300">{line.variantName || '—'}</div>
       )}
       {packagingEnabled && packs.length > 0 ? (
         <select
-          className="select select-sm"
+          className="select select-sm border-slate-200/90"
           value={line.productPackagingId || ''}
           onChange={(e) => {
             const id = e.target.value
@@ -1249,7 +1249,7 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
         <div className="text-xs text-slate-400">{line.uomLabel || (ar ? 'وحدة' : 'UoM')}</div>
       )}
       <input
-        className="input input-sm text-end tabular-nums"
+        className="input input-sm border-slate-200/90 text-end tabular-nums"
         type="text"
         inputMode="decimal"
         title={selected ? (ar ? 'عدد العبوات' : 'Number of packs') : (ar ? 'الكمية' : 'Quantity')}
@@ -1262,10 +1262,11 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
       />
       <button
         type="button"
-        className="btn btn-ghost btn-icon text-slate-400 hover:text-rose-600"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-600"
         onClick={onRemove}
+        aria-label={ar ? 'حذف' : 'Remove'}
       >
-        <Trash2 className="h-4 w-4" />
+        <Trash2 className="h-3.5 w-3.5" />
       </button>
     </div>
   )
