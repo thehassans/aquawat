@@ -2294,6 +2294,11 @@ router.post('/accounting/ensure-accounts', checkPermission('inventory', 'update'
     // Seed only the system interim COA codes + default Stock journal book — never invent category account links
     await ensureStockAccountingAccounts(req.user.tenantId, req.user._id);
     const stockJournal = await ensureDefaultStockJournal(req.user.tenantId, req.user._id);
+    const InvSettings = (await import('../models/inventory/InvSettings.js')).default;
+    await InvSettings.updateOne(
+      { tenantId: req.user.tenantId, $or: [{ stockJournalId: null }, { stockJournalId: { $exists: false } }] },
+      { $set: { stockJournalId: stockJournal._id } },
+    );
     const validation = await validateAutomatedCategoryAccounts(req.user.tenantId);
     const accounts = await resolveStockAccounts(req.user.tenantId);
     res.json({

@@ -165,6 +165,19 @@ export async function updateInvSettings(tenantId, userId, body) {
     if (normalized[k] !== undefined) $set[k] = normalized[k];
   }
 
+  for (const k of [
+    'propertyStockValuationAccountId',
+    'propertyStockInputAccountId',
+    'propertyStockOutputAccountId',
+    'propertyLandedCostAccountId',
+    'stockJournalId',
+    'barcodeNomenclatureId',
+  ]) {
+    if ($set[k] === '' || $set[k] === undefined) {
+      if (normalized[k] !== undefined) $set[k] = null;
+    }
+  }
+
   // Multi-step routes force multi-locations
   if ($set.groupAdvLocation === true) {
     $set.groupStockMultiLocations = true;

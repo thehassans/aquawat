@@ -272,7 +272,7 @@ export async function resolveValuationAccounts(tenantId, {
       locationId: location?._id || null,
       direction,
       valuationMode: category?.valuationMode || 'automated',
-      stockJournalId: category?.stockJournalId || null,
+      stockJournalId: category?.stockJournalId || settings?.stockJournalId || null,
     },
   };
 }
@@ -588,6 +588,12 @@ export async function postValuationLayerJournal({
   });
   if (lines.length < 2) return null;
 
+  let journalId = accounts.sources?.stockJournalId || null;
+  if (!journalId) {
+    const book = await ensureDefaultStockJournal(tid, userId);
+    journalId = book?._id || null;
+  }
+
   const entry = await createJournalEntry({
     tenantId: tid,
     userId,
@@ -601,7 +607,7 @@ export async function postValuationLayerJournal({
     sourceId: layer._id,
     sourceNumber: layer.description || '',
     status: 'posted',
-    journalId: accounts.sources?.stockJournalId || null,
+    journalId,
   });
 
   layer.journalEntryId = entry._id;

@@ -57,6 +57,29 @@ function Toggle({ label, hint, checked, onChange, disabled, notImplemented, sear
   )
 }
 
+function AccountSelect({ label, hint, value, onChange, options, search, emptyLabel = '—' }) {
+  const q = (search || '').trim().toLowerCase()
+  const blob = `${label} ${hint || ''}`.toLowerCase()
+  if (q && !blob.includes(q)) return null
+  const selected = value && typeof value === 'object' ? (value._id || '') : (value || '')
+  return (
+    <div className="sm:col-span-2">
+      <label className="label text-xs">{label}</label>
+      {hint && <p className="mb-1 text-xs text-slate-500">{hint}</p>}
+      <select
+        className="input input-sm"
+        value={selected}
+        onChange={(e) => onChange(e.target.value || null)}
+      >
+        <option value="">{emptyLabel}</option>
+        {(options || []).map((o) => (
+          <option key={o._id} value={o._id}>{o.label}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 export default function InventorySettingsPage() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
@@ -65,6 +88,34 @@ export default function InventorySettingsPage() {
     queryKey: ['stock-settings'],
     queryFn: () => api.get('/stock/settings').then((r) => r.data),
   })
+  const { data: accounts } = useQuery({
+    queryKey: ['accounting-accounts'],
+    queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
+    staleTime: 60_000,
+  })
+  const { data: journalBooks } = useQuery({
+    queryKey: ['stock-journal-books', 'stock'],
+    queryFn: () => api.get('/stock/journal-books', { params: { type: 'stock' } }).then((r) => r.data || []),
+    staleTime: 60_000,
+  })
+
+  const accountOptions = useMemo(() => {
+    const list = Array.isArray(accounts) ? accounts.filter((a) => a?.isActive !== false) : []
+    return list.map((a) => ({
+      _id: a._id,
+      label: a.code
+        ? `${a.code} · ${ar ? (a.nameAr || a.name) : a.name}`
+        : (ar ? (a.nameAr || a.name) : a.name),
+    }))
+  }, [accounts, ar])
+
+  const journalOptions = useMemo(() => {
+    const list = Array.isArray(journalBooks) ? journalBooks.filter((j) => j?.active !== false) : []
+    return list.map((j) => ({
+      _id: j._id,
+      label: j.code ? `${j.code} · ${ar ? (j.nameAr || j.name) : j.name}` : (ar ? (j.nameAr || j.name) : j.name),
+    }))
+  }, [journalBooks, ar])
 
   const [draft, setDraft] = useState(null)
   const [accountGaps, setAccountGaps] = useState(null)
@@ -106,6 +157,8 @@ export default function InventorySettingsPage() {
     mutationFn: () => api.post('/stock/accounting/ensure-accounts'),
     onSuccess: (res) => {
       const data = res.data || {}
+      qc.invalidateQueries({ queryKey: ['stock-settings'] })
+      qc.invalidateQueries({ queryKey: ['stock-journal-books'] })
       if (data.ok) {
         toast.success(ar ? 'كل فئات التقييم الآلي مكتملة' : 'All automated categories have accounts')
         setAccountGaps(null)
@@ -286,7 +339,7 @@ export default function InventorySettingsPage() {
         <Toggle search={s} label={ar ? 'الأمانة (مالك المخزون)' : 'Consignment (owner)'} checked={current.groupStockTrackingOwner} onChange={() => toggle('groupStockTrackingOwner')} />
       </Section>
 
-      <Section title={ar ? 'التقييم' : 'Valuation'} search={s} matchKeys={['valuation', 'evaluation', 'average', 'costing', 'accounting', 'landed', 'engine', 'avco']}>
+      <Section title={ar ? 'التقييم' : 'Valuation'} search={s} matchKeys={['valuation', 'evaluation', 'average', 'costing', 'accounting', 'landed', 'engine', 'avco', 'journal', 'account', 'interim', 'cogs']}>
         <Toggle search={s} label={ar ? 'محرك المخزون' : 'Inventory engine'} checked={current.engineEnabled} onChange={() => toggle('engineEnabled')} />
         <Toggle
           search={s}
@@ -297,6 +350,56 @@ export default function InventorySettingsPage() {
         />
         <Toggle search={s} label={ar ? 'قيود تقييم المخزون' : 'Stock accounting'} hint={ar ? 'قيود اليومية عند التقييم' : 'Journal entries when evaluation runs'} checked={current.stockAccountingEnabled} onChange={() => toggle('stockAccountingEnabled')} />
         <Toggle search={s} label={ar ? 'التكاليف الإضافية' : 'Landed costs'} checked={current.groupLandedCosts} onChange={() => toggle('groupLandedCosts')} />
+        {current.stockAccountingEnabled !== false && (
+          <>
+            <p className="sm:col-span-2 text-xs text-slate-500">
+              {ar
+                ? 'حسابات المستأجر الافتراضية — تُستخدم عند غياب تجاوز المنتج / الفئة / الموقع.'
+                : 'Tenant defaults — used when product / category / location overrides are empty.'}
+            </p>
+            <AccountSelect
+              search={s}
+              label={ar ? 'دفتر المخزون الافتراضي' : 'Default stock journal'}
+              hint={ar ? 'ترقيم قيود التقييم (مثل STJ)' : 'Valuation entry numbering (e.g. STJ)'}
+              value={current.stockJournalId}
+              onChange={(v) => setField('stockJournalId', v)}
+              options={journalOptions}
+              emptyLabel={ar ? '— دفتر النظام STJ —' : '— System STJ —'}
+            />
+            <AccountSelect
+              search={s}
+              label={ar ? 'حساب تقييم المخزون' : 'Stock valuation account'}
+              hint="1300"
+              value={current.propertyStockValuationAccountId}
+              onChange={(v) => setField('propertyStockValuationAccountId', v)}
+              options={accountOptions}
+            />
+            <AccountSelect
+              search={s}
+              label={ar ? 'حساب إدخال المخزون (وسيط)' : 'Stock input (interim)'}
+              hint="1310"
+              value={current.propertyStockInputAccountId}
+              onChange={(v) => setField('propertyStockInputAccountId', v)}
+              options={accountOptions}
+            />
+            <AccountSelect
+              search={s}
+              label={ar ? 'حساب إخراج المخزون' : 'Stock output account'}
+              hint="1320 / COGS"
+              value={current.propertyStockOutputAccountId}
+              onChange={(v) => setField('propertyStockOutputAccountId', v)}
+              options={accountOptions}
+            />
+            <AccountSelect
+              search={s}
+              label={ar ? 'حساب التكلفة الإضافية' : 'Landed cost credit account'}
+              hint="2200"
+              value={current.propertyLandedCostAccountId}
+              onChange={(v) => setField('propertyLandedCostAccountId', v)}
+              options={accountOptions}
+            />
+          </>
+        )}
       </Section>
 
       <Section title={ar ? 'المستودع' : 'Warehouse'} search={s} matchKeys={['location', 'route', 'storage', 'putaway', 'warehouse']}>
