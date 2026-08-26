@@ -2289,7 +2289,18 @@ router.post('/accounting/ensure-accounts', checkPermission('inventory', 'update'
       resolveStockAccounts,
       validateAutomatedCategoryAccounts,
       linkDefaultPropertyStockAccounts,
+      isStockAccountingEnabled,
     } = await import('../services/inventory/stockAccounting.js');
+    if (!(await isStockAccountingEnabled(req.user.tenantId))) {
+      return res.json({
+        ok: true,
+        skipped: true,
+        reason: 'full_accounting_disabled',
+        automatedCount: 0,
+        gapCount: 0,
+        gaps: [],
+      });
+    }
     // Seed interim COA + STJ and prefill empty tenant property accounts (never invent category links)
     const linked = await linkDefaultPropertyStockAccounts(req.user.tenantId, req.user._id);
     const validation = await validateAutomatedCategoryAccounts(req.user.tenantId);

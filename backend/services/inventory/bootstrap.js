@@ -20,7 +20,14 @@ export async function ensureInventoryBootstrap(tenantId, userId = null) {
 
   let settings = await InvSettings.findOne({ tenantId: tid });
   if (!settings) {
-    settings = await InvSettings.create({ tenantId: tid, createdBy, engineEnabled: false });
+    settings = await InvSettings.create({
+      tenantId: tid,
+      createdBy,
+      engineEnabled: false,
+      inventoryAccountingMode: 'ops_only',
+      inventoryEvaluationEnabled: false,
+      stockAccountingEnabled: false,
+    });
   }
 
   // Default UoM
@@ -58,7 +65,7 @@ export async function ensureInventoryBootstrap(tenantId, userId = null) {
       nameAr: 'الكل',
       completePath: 'All',
       costingMethod: 'average',
-      valuationMode: 'automated',
+      valuationMode: 'manual',
       createdBy,
     });
   }

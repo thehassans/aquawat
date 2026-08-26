@@ -16,7 +16,7 @@ export async function inventoryModuleHealth(tenantId) {
 
   const [settings, lastScheduler, waitingPastDeadline, openValidating, cacheRows] = await Promise.all([
     InvSettings.findOne({ tenantId: tid })
-      .select('engineEnabled stockAccountingEnabled schedulerEnabled groupStockMultiLocations')
+      .select('engineEnabled stockAccountingEnabled inventoryEvaluationEnabled inventoryAccountingMode schedulerEnabled groupStockMultiLocations')
       .lean(),
     InvSchedulerRun.findOne({ tenantId: tid }).sort({ startedAt: -1 }).select('startedAt status error counts').lean(),
     InvMove.countDocuments({
@@ -30,6 +30,11 @@ export async function inventoryModuleHealth(tenantId) {
     }),
     InvProductStockCache.countDocuments({ tenantId: tid }),
   ]);
+
+  const { resolveInventoryAccountingMode, isStockGlOn, isInventoryEvaluationOn } = await import('./accountingMode.js');
+  const accountingMode = resolveInventoryAccountingMode(settings || {});
+  const stockGlOn = isStockGlOn(settings || {});
+  const evaluationOn = isInventoryEvaluationOn(settings || {});
 
   const issues = [];
   if (!settings?.engineEnabled) issues.push({ code: 'ENGINE_OFF', severity: 'info', message: 'Inventory engine is disabled' });
@@ -67,7 +72,9 @@ export async function inventoryModuleHealth(tenantId) {
     engineVersion: ENGINE_VERSION,
     status,
     engineEnabled: Boolean(settings?.engineEnabled),
-    stockAccountingEnabled: Boolean(settings?.stockAccountingEnabled),
+    inventoryAccountingMode: accountingMode,
+    inventoryEvaluationEnabled: evaluationOn,
+    stockAccountingEnabled: stockGlOn,
     schedulerEnabled: Boolean(settings?.schedulerEnabled),
     lastSchedulerRun: lastScheduler
       ? {

@@ -1115,13 +1115,15 @@ export function ProductCategoryForm() {
             {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
           </select>
         </div>
-        <div>
-          <label className="label">{language === 'ar' ? 'حساب فرق السعر' : 'Price Difference Account'}</label>
-          <select className="select" value={form.priceDifferenceAccountId} onChange={(e) => setForm({ ...form, priceDifferenceAccountId: e.target.value })}>
-            <option value="">—</option>
-            {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
-          </select>
-        </div>
+        {fullAccounting && (
+          <div>
+            <label className="label">{language === 'ar' ? 'حساب فرق السعر' : 'Price Difference Account'}</label>
+            <select className="select" value={form.priceDifferenceAccountId} onChange={(e) => setForm({ ...form, priceDifferenceAccountId: e.target.value })}>
+              <option value="">—</option>
+              {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {isEdit && form.costingMethod !== existing?.costingMethod && (

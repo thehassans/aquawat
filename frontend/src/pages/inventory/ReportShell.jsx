@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import api from '../../lib/api'
+import { isInventoryEvaluationOn } from '../../lib/inventoryAccountingMode'
 
 const SAVED_KEY = 'maqder-inv-report-filters'
 
@@ -121,7 +122,7 @@ export function ReportShell({ activeId, title, subtitle, children, extraFilters,
 
   const tabs = REPORT_TABS.filter((t) => {
     if (t.flag === 'multiLocations' && settings?.groupStockMultiLocations === false) return false
-    if (t.flag === 'valuation' && !(settings?.stockAccountingEnabled || settings?.groupLandedCosts)) return false
+    if (t.flag === 'valuation' && !(isInventoryEvaluationOn(settings || {}) || settings?.groupLandedCosts)) return false
     if (t.flag === 'receptionReport' && !(settings?.receptionReportEnabled || settings?.groupReceptionReport)) return false
     return true
   })

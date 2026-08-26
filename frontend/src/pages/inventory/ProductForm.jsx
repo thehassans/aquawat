@@ -1256,8 +1256,12 @@ export default function ProductForm() {
                   <div><dt className="text-slate-400">{language === 'ar' ? 'التقييم' : 'Valuation'}</dt><dd>{cat.valuationMode}</dd></div>
                   <div><dt className="text-slate-400">{language === 'ar' ? 'حساب الإيراد الموروث' : 'Inherited Income Account'}</dt><dd>{cat.incomeAccountId?.code || cat.incomeAccountId?.name || '—'}</dd></div>
                   <div><dt className="text-slate-400">{language === 'ar' ? 'حساب المصروف الموروث' : 'Inherited Expense Account'}</dt><dd>{cat.expenseAccountId?.code || cat.expenseAccountId?.name || '—'}</dd></div>
-                  <div><dt className="text-slate-400">{language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'}</dt><dd>{cat.stockValuationAccountId?.code || cat.stockValuationAccountId?.name || '—'}</dd></div>
-                  <div><dt className="text-slate-400">{language === 'ar' ? 'حساب الإدخال/الإخراج' : 'Stock Input / Output'}</dt><dd>{[cat.stockInputAccountId?.code || cat.stockInputAccountId?.name, cat.stockOutputAccountId?.code || cat.stockOutputAccountId?.name].filter(Boolean).join(' / ') || '—'}</dd></div>
+                  {isFullInventoryAccounting(invSettings || {}) && (
+                    <>
+                      <div><dt className="text-slate-400">{language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'}</dt><dd>{cat.stockValuationAccountId?.code || cat.stockValuationAccountId?.name || '—'}</dd></div>
+                      <div><dt className="text-slate-400">{language === 'ar' ? 'حساب الإدخال/الإخراج' : 'Stock Input / Output'}</dt><dd>{[cat.stockInputAccountId?.code || cat.stockInputAccountId?.name, cat.stockOutputAccountId?.code || cat.stockOutputAccountId?.name].filter(Boolean).join(' / ') || '—'}</dd></div>
+                    </>
+                  )}
                 </dl>
               ) : (
                 <p className="text-sm text-slate-400">{language === 'ar' ? 'لا فئة محددة' : 'No category selected'}</p>

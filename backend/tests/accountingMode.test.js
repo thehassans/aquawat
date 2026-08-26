@@ -68,3 +68,12 @@ test('missing mode derives full_accounting from legacy defaults (both on)', () =
     stockAccountingEnabled: false,
   }), 'ops_only');
 });
+
+test('valuation menu flag respects accounting mode', async () => {
+  const { FLAG_MAP } = await import('../services/inventory/menu.js');
+  const valuation = FLAG_MAP.valuation;
+  assert.equal(valuation({ inventoryAccountingMode: 'ops_only', groupLandedCosts: false }), false);
+  assert.equal(valuation({ inventoryAccountingMode: 'ops_only', groupLandedCosts: true }), true);
+  assert.equal(valuation({ inventoryAccountingMode: 'costing' }), true);
+  assert.equal(valuation({ inventoryAccountingMode: 'full_accounting' }), true);
+});

@@ -20,6 +20,10 @@ export function isInventoryEvaluationOn(settings) {
   return mode === 'costing' || mode === 'full_accounting'
 }
 
+export function isStockGlOn(settings) {
+  return resolveInventoryAccountingMode(settings) === 'full_accounting'
+}
+
 export const ACCOUNTING_MODE_OPTIONS = [
   {
     id: 'ops_only',

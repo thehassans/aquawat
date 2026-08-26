@@ -3,6 +3,8 @@
  * Keep in sync with backend/services/inventory/menu.js
  */
 
+import { resolveInventoryAccountingMode } from '../../lib/inventoryAccountingMode'
+
 export const FLAG_MAP = {
   multiLocations: 'groupStockMultiLocations',
   multiStepRoutes: 'groupAdvLocation',
@@ -18,7 +20,12 @@ export const FLAG_MAP = {
   batchTransfers: 'groupBatchTransfer',
   quality: 'moduleQuality',
   receptionReport: (s) => Boolean(s.receptionReportEnabled || s.groupReceptionReport),
-  valuation: (s) => s.stockAccountingEnabled || s.groupLandedCosts,
+  valuation: (s) => {
+    const mode = resolveInventoryAccountingMode(s || {})
+    if (mode === 'ops_only') return Boolean(s?.groupLandedCosts)
+    if (mode === 'costing' || mode === 'full_accounting') return true
+    return Boolean(s?.groupLandedCosts)
+  },
   landedCosts: 'groupLandedCosts',
   pos: 'menuPos',
   manufacturing: 'menuManufacturing',
@@ -441,7 +448,6 @@ export function isMenuFlagOn(settings, flagKey) {
     'groupPutawayRules',
     'groupUom',
     'groupLandedCosts',
-    'stockAccountingEnabled',
     'menuPos',
     'menuManufacturing',
   ]);
