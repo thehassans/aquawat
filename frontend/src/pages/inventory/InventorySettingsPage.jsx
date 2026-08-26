@@ -159,7 +159,12 @@ export default function InventorySettingsPage() {
       const data = res.data || {}
       qc.invalidateQueries({ queryKey: ['stock-settings'] })
       qc.invalidateQueries({ queryKey: ['stock-journal-books'] })
-      if (data.ok) {
+      if (data.skipped) {
+        toast.success(ar
+          ? 'محاسبة المخزون الكاملة غير مفعّلة — لا فجوات للتحقق'
+          : 'Full inventory accounting is off — nothing to validate')
+        setAccountGaps(null)
+      } else if (data.ok) {
         toast.success(ar ? 'كل فئات التقييم الآلي مكتملة' : 'All automated categories have accounts')
         setAccountGaps(null)
       } else {
@@ -339,23 +344,74 @@ export default function InventorySettingsPage() {
         <Toggle search={s} label={ar ? 'الأمانة (مالك المخزون)' : 'Consignment (owner)'} checked={current.groupStockTrackingOwner} onChange={() => toggle('groupStockTrackingOwner')} />
       </Section>
 
-      <Section title={ar ? 'التقييم' : 'Valuation'} search={s} matchKeys={['valuation', 'evaluation', 'average', 'costing', 'accounting', 'landed', 'engine', 'avco', 'journal', 'account', 'interim', 'cogs']}>
+      <Section title={ar ? 'التقييم والمحاسبة' : 'Valuation & accounting'} search={s} matchKeys={['valuation', 'evaluation', 'average', 'costing', 'accounting', 'landed', 'engine', 'avco', 'journal', 'account', 'interim', 'cogs', 'anglo', 'ops']}>
         <Toggle search={s} label={ar ? 'محرك المخزون' : 'Inventory engine'} checked={current.engineEnabled} onChange={() => toggle('engineEnabled')} />
-        <Toggle
-          search={s}
-          label={ar ? 'تقييم المخزون (متوسط التكلفة)' : 'Inventory evaluation (AVCO / FIFO)'}
-          hint={ar ? 'يحدّث متوسط التكلفة عند الاستلام ويكتب طبقات التقييم' : 'Updates average cost on receipt and writes valuation layers'}
-          checked={current.inventoryEvaluationEnabled !== false}
-          onChange={() => setField('inventoryEvaluationEnabled', !(current.inventoryEvaluationEnabled !== false))}
-        />
-        <Toggle search={s} label={ar ? 'قيود تقييم المخزون' : 'Stock accounting'} hint={ar ? 'قيود اليومية عند التقييم' : 'Journal entries when evaluation runs'} checked={current.stockAccountingEnabled} onChange={() => toggle('stockAccountingEnabled')} />
+        <div className="sm:col-span-2 space-y-2">
+          <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+            {ar ? 'وضع محاسبة المخزون' : 'Inventory accounting mode'}
+          </p>
+          <p className="text-xs text-slate-500">
+            {ar
+              ? 'اختياري — فعّل المحاسبة الكاملة فقط إذا أردت ظهور المخزون في دفتر الأستاذ.'
+              : 'Opt-in — enable full accounting only if inventory should hit the general ledger.'}
+          </p>
+          <div className="grid gap-2">
+            {[
+              {
+                id: 'ops_only',
+                label: ar ? 'عمليات المخزون فقط' : 'Stock operations only',
+                hint: ar ? 'كميات وتحويلات. بلا طبقات تكلفة وبلا قيود مخزون.' : 'Quantities and transfers. No cost layers, no inventory journals.',
+              },
+              {
+                id: 'costing',
+                label: ar ? 'تكلفة بدون قيود محاسبية' : 'Costing without GL',
+                hint: ar ? 'طبقات AVCO/FIFO للتقارير فقط.' : 'AVCO/FIFO layers for reports only — no stock journals.',
+              },
+              {
+                id: 'full_accounting',
+                label: ar ? 'محاسبة مخزون كاملة (أنجلو ساكسون)' : 'Full inventory accounting (Anglo-Saxon)',
+                hint: ar ? 'قيود عند الاستلام/الصرف: تقييم ↔ وسيط / تكلفة البضاعة.' : 'Journals on receipt/delivery: valuation ↔ interim / COGS.',
+              },
+            ].map((opt) => {
+              const selected = (current.inventoryAccountingMode
+                || (current.inventoryEvaluationEnabled !== false && current.stockAccountingEnabled !== false
+                  ? 'full_accounting'
+                  : current.inventoryEvaluationEnabled !== false
+                    ? 'costing'
+                    : 'ops_only')) === opt.id
+              return (
+                <label
+                  key={opt.id}
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-sm ${
+                    selected
+                      ? 'border-primary-500 bg-primary-50/60 dark:border-primary-400 dark:bg-primary-950/30'
+                      : 'border-slate-200 dark:border-dark-600'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    className="mt-1"
+                    name="inventoryAccountingMode"
+                    checked={selected}
+                    onChange={() => setField('inventoryAccountingMode', opt.id)}
+                  />
+                  <span>
+                    <span className="block font-medium text-slate-800 dark:text-slate-100">{opt.label}</span>
+                    <span className="block text-xs text-slate-500">{opt.hint}</span>
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
         <Toggle search={s} label={ar ? 'التكاليف الإضافية' : 'Landed costs'} checked={current.groupLandedCosts} onChange={() => toggle('groupLandedCosts')} />
-        {current.stockAccountingEnabled !== false && (
+        {(current.inventoryAccountingMode === 'full_accounting'
+          || (current.inventoryAccountingMode == null && current.stockAccountingEnabled !== false && current.inventoryEvaluationEnabled !== false)) && (
           <>
             <p className="sm:col-span-2 text-xs text-slate-500">
               {ar
-                ? 'حسابات المستأجر الافتراضية — تُستخدم عند غياب تجاوز المنتج / الفئة / الموقع.'
-                : 'Tenant defaults — used when product / category / location overrides are empty.'}
+                ? 'افتراضات المستأجر عند غياب تجاوز الفئة/المنتج/الموقع. إن تُركت فارغة يُستخدم رمز الحساب الافتراضي.'
+                : 'Tenant defaults when category/product/location overrides are empty. Empty = use fallback COA code.'}
             </p>
             <AccountSelect
               search={s}
@@ -369,7 +425,7 @@ export default function InventorySettingsPage() {
             <AccountSelect
               search={s}
               label={ar ? 'حساب تقييم المخزون' : 'Stock valuation account'}
-              hint="1300"
+              hint={ar ? 'رمز احتياطي إن فُرغ: 1300' : 'Fallback if empty: 1300'}
               value={current.propertyStockValuationAccountId}
               onChange={(v) => setField('propertyStockValuationAccountId', v)}
               options={accountOptions}
@@ -377,15 +433,15 @@ export default function InventorySettingsPage() {
             <AccountSelect
               search={s}
               label={ar ? 'حساب إدخال المخزون (وسيط)' : 'Stock input (interim)'}
-              hint="1310"
+              hint={ar ? 'رمز احتياطي إن فُرغ: 1310' : 'Fallback if empty: 1310'}
               value={current.propertyStockInputAccountId}
               onChange={(v) => setField('propertyStockInputAccountId', v)}
               options={accountOptions}
             />
             <AccountSelect
               search={s}
-              label={ar ? 'حساب إخراج المخزون' : 'Stock output account'}
-              hint="1320 / COGS"
+              label={ar ? 'حساب إخراج المخزون / تكلفة البضاعة' : 'Stock output / COGS'}
+              hint={ar ? 'رمز احتياطي إن فُرغ: 1320 ثم 5000' : 'Fallback if empty: 1320, then 5000'}
               value={current.propertyStockOutputAccountId}
               onChange={(v) => setField('propertyStockOutputAccountId', v)}
               options={accountOptions}
@@ -393,7 +449,7 @@ export default function InventorySettingsPage() {
             <AccountSelect
               search={s}
               label={ar ? 'حساب التكلفة الإضافية' : 'Landed cost credit account'}
-              hint="2200"
+              hint={ar ? 'رمز احتياطي إن فُرغ: 2200' : 'Fallback if empty: 2200'}
               value={current.propertyLandedCostAccountId}
               onChange={(v) => setField('propertyLandedCostAccountId', v)}
               options={accountOptions}

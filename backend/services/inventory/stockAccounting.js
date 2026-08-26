@@ -124,9 +124,10 @@ export async function listJournalBooks(tenantId, { type = null, activeOnly = tru
 /**
  * Throws when automated category is missing required accounts.
  */
-export function assertAutomatedCategoryAccounts(bodyOrDoc) {
+export function assertAutomatedCategoryAccounts(bodyOrDoc, { requireStockAccounts = true } = {}) {
   const mode = bodyOrDoc?.valuationMode || 'automated';
   if (mode !== 'automated') return;
+  if (!requireStockAccounts) return;
   const missing = AUTOMATED_CATEGORY_ACCOUNT_KEYS.filter((k) => !bodyOrDoc?.[k]);
   if (!missing.length) return;
   throw new InventoryValidationError(
@@ -303,12 +304,32 @@ export async function resolveValuationAccounts(tenantId, {
   };
 }
 
+export async function isStockAccountingEnabled(tenantId) {
+  const settings = await InvSettings.findOne({ tenantId: toObjectId(tenantId) }).lean();
+  const { isStockGlOn } = await import('./accountingMode.js');
+  return isStockGlOn(settings || {});
+}
+
 /**
  * Validate automated categories have all five accounts set.
+ * Skipped when tenant is not on full inventory accounting (Anglo-Saxon GL).
  * Does **not** create or invent accounts — only reports gaps.
  */
 export async function validateAutomatedCategoryAccounts(tenantId) {
   const tid = toObjectId(tenantId);
+  const settings = await InvSettings.findOne({ tenantId: tid }).lean();
+  const { isStockGlOn } = await import('./accountingMode.js');
+  if (!isStockGlOn(settings || {})) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: 'full_accounting_disabled',
+      automatedCount: 0,
+      gapCount: 0,
+      gaps: [],
+      requiredKeys: AUTOMATED_CATEGORY_ACCOUNT_KEYS,
+    };
+  }
   const InvProductCategory = (await import('../../models/inventory/InvProductCategory.js')).default;
   const cats = await InvProductCategory.find({
     tenantId: tid,
@@ -335,12 +356,6 @@ export async function validateAutomatedCategoryAccounts(tenantId) {
     gaps,
     requiredKeys: AUTOMATED_CATEGORY_ACCOUNT_KEYS,
   };
-}
-
-export async function isStockAccountingEnabled(tenantId) {
-  const settings = await InvSettings.findOne({ tenantId: toObjectId(tenantId) }).lean();
-  if (!settings?.engineEnabled) return false;
-  return settings.stockAccountingEnabled !== false;
 }
 
 export function buildValuationJournalLines({

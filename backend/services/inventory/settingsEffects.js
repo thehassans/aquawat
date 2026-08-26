@@ -17,6 +17,7 @@ export const SETTINGS_EFFECTS = {
   schedulerEnabled: 'cron_and_manual_scheduler',
   stockAccountingEnabled: 'valuation_journals_and_menu',
   inventoryEvaluationEnabled: 'valuation_layers_and_avco_on_validate',
+  inventoryAccountingMode: 'valuation_mode_ops_costing_or_full_gl',
   allowNegativeStock: 'global_negative_stock_on_validate',
   propertyStockValuationAccountId: 'stock_journal_account_ref',
   propertyStockInputAccountId: 'stock_journal_account_ref',

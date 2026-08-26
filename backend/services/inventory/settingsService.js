@@ -5,6 +5,12 @@ import Tenant from '../../models/Tenant.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { InventoryValidationError } from './errors.js';
 
+import {
+  flagsForInventoryAccountingMode,
+  resolveInventoryAccountingMode,
+  INVENTORY_ACCOUNTING_MODES,
+} from './accountingMode.js';
+
 export const SETTINGS_ALLOWED = [
   'engineEnabled',
   'groupUom',
@@ -18,6 +24,7 @@ export const SETTINGS_ALLOWED = [
   'daysToPurchase',
   'enforceWarehouseRestriction',
   'schedulerEnabled',
+  'inventoryAccountingMode',
   'stockAccountingEnabled',
   'inventoryEvaluationEnabled',
   'allowNegativeStock',
@@ -90,8 +97,31 @@ export async function getInvSettings(tenantId) {
   const tid = toObjectId(tenantId);
   let settings = await InvSettings.findOne({ tenantId: tid });
   if (!settings) {
-    settings = await InvSettings.create({ tenantId: tid });
+    settings = await InvSettings.create({
+      tenantId: tid,
+      inventoryAccountingMode: 'ops_only',
+      inventoryEvaluationEnabled: false,
+      stockAccountingEnabled: false,
+    });
+    return settings;
   }
+
+  const mode = resolveInventoryAccountingMode(settings);
+  const flags = flagsForInventoryAccountingMode(mode);
+  let dirty = false;
+  if (settings.inventoryAccountingMode !== mode) {
+    settings.inventoryAccountingMode = mode;
+    dirty = true;
+  }
+  if (settings.inventoryEvaluationEnabled !== flags.inventoryEvaluationEnabled) {
+    settings.inventoryEvaluationEnabled = flags.inventoryEvaluationEnabled;
+    dirty = true;
+  }
+  if (settings.stockAccountingEnabled !== flags.stockAccountingEnabled) {
+    settings.stockAccountingEnabled = flags.stockAccountingEnabled;
+    dirty = true;
+  }
+  if (dirty) await settings.save();
   return settings;
 }
 
@@ -178,6 +208,32 @@ export async function updateInvSettings(tenantId, userId, body) {
     }
   }
 
+  // Mode is source of truth when provided; otherwise derive from booleans
+  if ($set.inventoryAccountingMode != null) {
+    if (!INVENTORY_ACCOUNTING_MODES.includes($set.inventoryAccountingMode)) {
+      throw new InventoryValidationError(
+        'inventoryAccountingMode must be ops_only, costing, or full_accounting',
+        'BAD_ACCOUNTING_MODE',
+      );
+    }
+    const flags = flagsForInventoryAccountingMode($set.inventoryAccountingMode);
+    $set.inventoryEvaluationEnabled = flags.inventoryEvaluationEnabled;
+    $set.stockAccountingEnabled = flags.stockAccountingEnabled;
+  } else if (
+    $set.inventoryEvaluationEnabled !== undefined
+    || $set.stockAccountingEnabled !== undefined
+  ) {
+    const merged = {
+      inventoryEvaluationEnabled: $set.inventoryEvaluationEnabled !== undefined
+        ? $set.inventoryEvaluationEnabled
+        : current.inventoryEvaluationEnabled,
+      stockAccountingEnabled: $set.stockAccountingEnabled !== undefined
+        ? $set.stockAccountingEnabled
+        : current.stockAccountingEnabled,
+    };
+    $set.inventoryAccountingMode = resolveInventoryAccountingMode(merged);
+  }
+
   // Multi-step routes force multi-locations
   if ($set.groupAdvLocation === true) {
     $set.groupStockMultiLocations = true;
@@ -230,6 +286,27 @@ export async function updateInvSettings(tenantId, userId, body) {
     { $set },
     { new: true, upsert: true },
   );
+
+  // Opting into full Anglo-Saxon accounting: seed STJ + interim COA (never invent category links)
+  if (
+    updated.inventoryAccountingMode === 'full_accounting'
+    && prior.inventoryAccountingMode !== 'full_accounting'
+  ) {
+    try {
+      const {
+        ensureStockAccountingAccounts,
+        ensureDefaultStockJournal,
+      } = await import('./stockAccounting.js');
+      await ensureStockAccountingAccounts(tid, userId);
+      const book = await ensureDefaultStockJournal(tid, userId);
+      if (book?._id && !updated.stockJournalId) {
+        updated.stockJournalId = book._id;
+        await updated.save();
+      }
+    } catch (err) {
+      console.error('[inventory] seed full accounting defaults', err?.message || err);
+    }
+  }
 
   try {
     const { syncCarrierStubs, syncGs1Nomenclature } = await import('./settingsEffects.js');

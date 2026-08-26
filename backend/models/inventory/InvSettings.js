@@ -16,9 +16,20 @@ const schema = new mongoose.Schema({
   daysToPurchase: { type: Number, default: 0 },
   enforceWarehouseRestriction: { type: Boolean, default: true },
   schedulerEnabled: { type: Boolean, default: false },
-  stockAccountingEnabled: { type: Boolean, default: true },
-  /** When true, receipt/delivery validation writes valuation layers and updates AVCO / FIFO */
-  inventoryEvaluationEnabled: { type: Boolean, default: true },
+  /**
+   * ops_only | costing | full_accounting
+   * Synced with inventoryEvaluationEnabled + stockAccountingEnabled.
+   * Default ops_only for new tenants (valuation / GL opt-in).
+   */
+  inventoryAccountingMode: {
+    type: String,
+    enum: ['ops_only', 'costing', 'full_accounting'],
+    default: 'ops_only',
+  },
+  /** When true, post Anglo-Saxon stock journals (requires evaluation). Prefer inventoryAccountingMode. */
+  stockAccountingEnabled: { type: Boolean, default: false },
+  /** When true, receipt/delivery writes valuation layers / AVCO. Prefer inventoryAccountingMode. */
+  inventoryEvaluationEnabled: { type: Boolean, default: false },
   /** Global override — allow all products to go negative on validate */
   allowNegativeStock: { type: Boolean, default: false },
   propertyStockValuationAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },

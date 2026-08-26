@@ -8,6 +8,7 @@ import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import ImportExportDialog, { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
+import { isFullInventoryAccounting } from '../../lib/inventoryAccountingMode'
 
 const USAGE_OPTIONS = [
   { value: 'vendor', en: 'Vendor Location', ar: 'موقع المورد' },
@@ -189,7 +190,7 @@ export function LocationForm() {
     queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
     staleTime: 60_000,
   })
-  const accountingEnabled = settings?.inventoryEvaluationEnabled !== false
+  const accountingEnabled = isFullInventoryAccounting(settings || {})
   const activeAccounts = Array.isArray(accounts) ? accounts.filter((a) => a?.isActive !== false) : []
 
   useEffect(() => {
@@ -852,6 +853,12 @@ export function ProductCategoryForm() {
     queryFn: () => api.get('/stock/journal-books', { params: { type: 'stock' } }).then((r) => r.data || []),
     staleTime: 60_000,
   })
+  const { data: invSettings } = useQuery({
+    queryKey: ['stock-settings'],
+    queryFn: () => api.get('/stock/settings').then((r) => r.data),
+    staleTime: 60_000,
+  })
+  const fullAccounting = isFullInventoryAccounting(invSettings || {})
   const activeAccounts = Array.isArray(accounts) ? accounts.filter((a) => a?.isActive !== false) : []
   const journalOptions = Array.isArray(journals) ? journals.filter((j) => j?.active !== false) : []
 
@@ -925,7 +932,7 @@ export function ProductCategoryForm() {
       pending={mut.isPending}
       onSubmit={(e) => {
         e.preventDefault()
-        if (form.valuationMode === 'automated') {
+        if (form.valuationMode === 'automated' && fullAccounting) {
           const required = [
             ['stockValuationAccountId', language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'],
             ['stockJournalId', language === 'ar' ? 'دفتر المخزون' : 'Stock Journal'],
@@ -937,11 +944,14 @@ export function ProductCategoryForm() {
           if (missing.length) {
             toast.error(
               language === 'ar'
-                ? `التقييم الآلي يتطلب: ${missing.join('، ')}`
-                : `Automated valuation requires: ${missing.join(', ')}`,
+                ? `محاسبة المخزون الكاملة تتطلب: ${missing.join('، ')}`
+                : `Full inventory accounting requires: ${missing.join(', ')}`,
             )
             return
           }
+        }
+        if (form.valuationMode === 'automated' && !fullAccounting && !form.expenseAccountId) {
+          // Expense still recommended for purchased goods even without stock GL
         }
         if (costingPreview && Number(costingPreview.delta) !== 0) {
           const ok = window.confirm(
@@ -1019,42 +1029,55 @@ export function ProductCategoryForm() {
         </div>
       </div>
 
-      {form.valuationMode === 'automated' && (
+      {form.valuationMode === 'automated' && fullAccounting && (
         <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 md:grid-cols-2 dark:border-dark-600">
           <div className="md:col-span-2">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
               {language === 'ar' ? 'خصائص حسابات المخزون' : 'Account Stock Properties'}
             </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {language === 'ar'
+                ? 'مطلوبة لأن وضع المستأجر = محاسبة مخزون كاملة (أنجلو ساكسون).'
+                : 'Required because tenant mode is Full inventory accounting (Anglo-Saxon).'}
+            </p>
           </div>
           <div>
             <label className="label">{language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'} *</label>
-            <select className="select" required={form.valuationMode === 'automated'} value={form.stockValuationAccountId} onChange={(e) => setForm({ ...form, stockValuationAccountId: e.target.value })}>
+            <select className="select" required value={form.stockValuationAccountId} onChange={(e) => setForm({ ...form, stockValuationAccountId: e.target.value })}>
               <option value="">—</option>
               {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
             </select>
           </div>
           <div>
             <label className="label">{language === 'ar' ? 'دفتر المخزون' : 'Stock Journal'} *</label>
-            <select className="select" required={form.valuationMode === 'automated'} value={form.stockJournalId} onChange={(e) => setForm({ ...form, stockJournalId: e.target.value })}>
+            <select className="select" required value={form.stockJournalId} onChange={(e) => setForm({ ...form, stockJournalId: e.target.value })}>
               <option value="">—</option>
               {journalOptions.map((j) => <option key={j._id} value={j._id}>{journalLabel(j)}</option>)}
             </select>
           </div>
           <div>
             <label className="label">{language === 'ar' ? 'حساب الإدخال' : 'Stock Input Account'} *</label>
-            <select className="select" required={form.valuationMode === 'automated'} value={form.stockInputAccountId} onChange={(e) => setForm({ ...form, stockInputAccountId: e.target.value })}>
+            <select className="select" required value={form.stockInputAccountId} onChange={(e) => setForm({ ...form, stockInputAccountId: e.target.value })}>
               <option value="">—</option>
               {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
             </select>
           </div>
           <div>
             <label className="label">{language === 'ar' ? 'حساب الإخراج' : 'Stock Output Account'} *</label>
-            <select className="select" required={form.valuationMode === 'automated'} value={form.stockOutputAccountId} onChange={(e) => setForm({ ...form, stockOutputAccountId: e.target.value })}>
+            <select className="select" required value={form.stockOutputAccountId} onChange={(e) => setForm({ ...form, stockOutputAccountId: e.target.value })}>
               <option value="">—</option>
               {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
             </select>
           </div>
         </div>
+      )}
+
+      {form.valuationMode === 'automated' && !fullAccounting && (
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-300">
+          {language === 'ar'
+            ? 'خصائص حسابات المخزون مخفية — فعّل «محاسبة مخزون كاملة» من إعدادات المخزون لترحيل قيود التقييم.'
+            : 'Stock account properties are hidden — enable Full inventory accounting in Inventory Settings to post valuation journals.'}
+        </p>
       )}
 
       <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 md:grid-cols-2 dark:border-dark-600">
@@ -1073,13 +1096,14 @@ export function ProductCategoryForm() {
         <div>
           <label className="label">
             {language === 'ar' ? 'حساب المصروف' : 'Expense Account'}
-            {form.valuationMode === 'automated' ? ' *' : ''}
+            {form.valuationMode === 'automated' && fullAccounting ? ' *' : ''}
           </label>
-          <select className="select" required={form.valuationMode === 'automated'} value={form.expenseAccountId} onChange={(e) => setForm({ ...form, expenseAccountId: e.target.value })}>
+          <select className="select" required={form.valuationMode === 'automated' && fullAccounting} value={form.expenseAccountId} onChange={(e) => setForm({ ...form, expenseAccountId: e.target.value })}>
             <option value="">—</option>
             {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
           </select>
-        </div>        <div>
+        </div>
+        <div>
           <label className="label">{language === 'ar' ? 'حساب فرق السعر' : 'Price Difference Account'}</label>
           <select className="select" value={form.priceDifferenceAccountId} onChange={(e) => setForm({ ...form, priceDifferenceAccountId: e.target.value })}>
             <option value="">—</option>

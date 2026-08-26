@@ -253,8 +253,9 @@ export async function createProductCategory(tenantId, userId, body) {
     stockOutputAccountId: body.stockOutputAccountId || null,
     createdBy: userId,
   };
-  const { assertAutomatedCategoryAccounts } = await import('./stockAccounting.js');
-  assertAutomatedCategoryAccounts(payload);
+  const { assertAutomatedCategoryAccounts, isStockAccountingEnabled } = await import('./stockAccounting.js');
+  const requireStockAccounts = await isStockAccountingEnabled(tid);
+  assertAutomatedCategoryAccounts(payload, { requireStockAccounts });
 
   return InvProductCategory.create(payload);
 }
@@ -298,8 +299,9 @@ export async function updateProductCategory(tenantId, userId, id, body) {
   cat.updatedBy = userId;
   cat.completePath = await buildCategoryPath(tid, cat.parentId, cat.name);
 
-  const { assertAutomatedCategoryAccounts } = await import('./stockAccounting.js');
-  assertAutomatedCategoryAccounts(cat);
+  const { assertAutomatedCategoryAccounts, isStockAccountingEnabled } = await import('./stockAccounting.js');
+  const requireStockAccounts = await isStockAccountingEnabled(tid);
+  assertAutomatedCategoryAccounts(cat, { requireStockAccounts });
 
   await cat.save();
   await cascadeCategoryPaths(tid, cat, oldPath);

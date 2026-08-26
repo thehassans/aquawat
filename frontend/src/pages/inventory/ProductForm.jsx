@@ -18,6 +18,7 @@ import { normalizeProductType } from '../../lib/productType'
 import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
 import CategoryCombobox from '../../components/inventory/CategoryCombobox'
 import ProductImageGallery from '../../components/inventory/ProductImageGallery'
+import { isFullInventoryAccounting } from '../../lib/inventoryAccountingMode'
 
 function AttributeValuesMulti({ attributeId, valueIds, onChange, language }) {
   const ar = language === 'ar'
@@ -1205,8 +1206,15 @@ export default function ProductForm() {
                   ))}
                 </select>
               </div>
-              {invSettings?.inventoryEvaluationEnabled !== false && (
+              {isFullInventoryAccounting(invSettings || {}) && (
                 <>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-slate-500">
+                      {language === 'ar'
+                        ? 'تجاوزات حسابات المخزون (اختياري) — الوضع الكامل مفعّل في إعدادات المخزون.'
+                        : 'Optional stock account overrides — Full inventory accounting is enabled in settings.'}
+                    </p>
+                  </div>
                   <div>
                     <label className="label">{language === 'ar' ? 'حساب تقييم المخزون (تجاوز)' : 'Stock Valuation Account (override)'}</label>
                     <select {...register('stockValuationAccountId')} className="select">
