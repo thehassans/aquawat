@@ -2,6 +2,16 @@
 
 Last updated: 2026-08-26
 
+## Verification phase (2026-08-26)
+
+| Topic | Decision |
+|---|---|
+| Audit artifact | `INVENTORY-AUDIT.md` produced from static + production evidence; **no PASS claimed without live seed tenant** |
+| v4 Part B | **Blocked** until §11 exit criteria in the verification spec are met |
+| Path prefix | Canonical UI is `/app/dashboard/inventory/…` (not bare `/inventory`) |
+| Spec path slugs | Several §2 expected slugs differ from Maqder (`pos` vs `pos-orders`, reports not under `/reports/`); resolve via redirects **or** amend verification doc — ask before rewriting routes |
+| Returns model | Still `origin: "Return of …"`; proper `isReturn` / `returnOfTransferId` is a completion item (S2) |
+
 ## Inventory accounting modes (2026-08-26)
 
 | Topic | Decision |
