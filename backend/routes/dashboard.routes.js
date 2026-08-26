@@ -39,7 +39,7 @@ import { statsRead } from '../utils/mongoReadPreference.js';
 // cached for a short window per-tenant (cache-aside via Redis, gracefully
 // falling back to a live computation when Redis is unavailable) to absorb
 // repeated navigation/refresh hits without serving meaningfully stale data.
-const DASHBOARD_CACHE_TTL_SECONDS = 60;
+const DASHBOARD_CACHE_TTL_SECONDS = 120;
 
 const router = express.Router();
 

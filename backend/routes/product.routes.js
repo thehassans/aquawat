@@ -77,20 +77,6 @@ const normalizeProductForClient = (product) => {
 // @route   GET /api/products
 router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    // Ensure legacy rows get P00001 codes (idempotent; no-op when complete)
-    try {
-      const missing = await Product.exists({
-        ...req.tenantFilter,
-        $or: [{ productId: { $exists: false } }, { productId: null }, { productId: '' }],
-      });
-      if (missing) {
-        const { backfillProductIds } = await import('../services/inventory/productIdentity.js');
-        await backfillProductIds(req.user.tenantId);
-      }
-    } catch {
-      // ignore backfill errors — list still returns
-    }
-
     const { page = 1, limit = 50, category, categoryId, status, search, lowStock, allowNegativeStock, stockHealth, productType } = req.query;
 
     const query = { ...req.tenantFilter };
@@ -123,22 +109,36 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
 
+    if (!healthFilter) {
+      const [total, found] = await Promise.all([
+        Product.countDocuments(query),
+        Product.find(query)
+          .select('-landedCostHistory')
+          .sort({ createdAt: -1 })
+          .skip((pageNum - 1) * limitNum)
+          .limit(limitNum)
+          .lean(),
+      ]);
+      const products = found.map((p) => enrichInventory(normalizeProductForClient(p)));
+      return res.json({
+        products,
+        pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) || 0 },
+      });
+    }
+
     const found = await Product.find(query)
       .select('-landedCostHistory')
       .sort({ createdAt: -1 })
       .lean();
-
-    let filteredProducts = found.map((p) => enrichInventory(normalizeProductForClient(p)));
-    if (healthFilter) {
-      filteredProducts = filteredProducts.filter((p) => p.inventory?.health === healthFilter);
-    }
-
+    const filteredProducts = found
+      .map((p) => enrichInventory(normalizeProductForClient(p)))
+      .filter((p) => p.inventory?.health === healthFilter);
     const total = filteredProducts.length;
     const paged = filteredProducts.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
     res.json({
       products: paged,
-      pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) }
+      pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) || 0 },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

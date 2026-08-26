@@ -1,10 +1,9 @@
 import { Outlet, useLocation } from 'react-router-dom'
-import { Suspense, useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import Sidebar from '../components/layout/Sidebar'
 import Header from '../components/layout/Header'
 import DemoWelcome from '../components/layout/DemoWelcome'
-import AppLauncher from '../components/layout/AppLauncher'
 import OfflineBanner from '../components/ui/OfflineBanner'
 import PageLoader from '../components/ui/PageLoader'
 import TerminationBanner, { TerminationBlocker, InactiveBlocker, isTenantTerminated, isTenantInactive } from '../components/ui/TerminationBanner'
@@ -13,6 +12,8 @@ import { setHideSidebar } from '../store/slices/uiSlice'
 import { PanelLeft } from 'lucide-react'
 import { useOfflineSync } from '../hooks/useOfflineSync'
 import { preloadCriticalRoutes } from '../lib/routePreloader'
+
+const AppLauncher = lazy(() => import('../components/layout/AppLauncher'))
 
 export default function MainLayout() {
   useOfflineSync()
@@ -23,8 +24,8 @@ export default function MainLayout() {
 
   // Preload common route chunks in idle background for instant subsequent transitions
   useEffect(() => {
-    preloadCriticalRoutes()
-  }, [])
+    preloadCriticalRoutes(tenant)
+  }, [tenant?._id])
 
   const businessTypes = getTenantBusinessTypes(tenant)
 
@@ -44,7 +45,9 @@ export default function MainLayout() {
       <DemoWelcome />
       <div className="print:hidden">
         <OfflineBanner />
-        <AppLauncher />
+        <Suspense fallback={null}>
+          <AppLauncher />
+        </Suspense>
       </div>
       <div className="flex flex-1 w-full max-w-full">
         {isSidebarVisible && (

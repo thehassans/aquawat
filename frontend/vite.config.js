@@ -84,6 +84,8 @@ export default defineConfig(({ mode }) => {
             if (id.includes('@radix-ui')) return 'radix-vendor';
             // ── IndexedDB / idb ─────────────────────────────────────────────
             if (id.includes('/idb/')) return 'idb-vendor';
+            if (id.includes('socket.io-client')) return 'socket-vendor';
+            if (id.includes('react-select')) return 'select-vendor';
             // ── Virtual scrolling ───────────────────────────────────────────────
             if (id.includes('react-window')) return 'ui-vendor';
             // ── Built-in translator ─────────────────────────────────────

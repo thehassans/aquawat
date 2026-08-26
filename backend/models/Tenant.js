@@ -767,6 +767,10 @@ tenantSchema.pre('validate', function(next) {
 tenantSchema.index({ isActive: 1 });
 tenantSchema.index({ businessType: 1 });
 tenantSchema.index({ businessTypes: 1 });
+tenantSchema.index(
+  { businessTypes: 1, isActive: 1, 'settings.restaurant.autoStatusUpdate': 1 },
+  { partialFilterExpression: { 'settings.restaurant.autoStatusUpdate': true } }
+);
 
 const Tenant = mongoose.model('Tenant', tenantSchema);
 export default Tenant;

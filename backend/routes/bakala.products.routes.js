@@ -120,60 +120,74 @@ router.get('/inventory-alerts', protect, async (req, res) => {
     if (!tenantId) return res.status(400).json({ error: 'No tenant found.' });
 
     const expiryWindowDays = Math.max(1, parseInt(req.query.expiryWindowDays, 10) || 30);
+    const alertLimit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 100));
     const now = new Date();
     const expiryThreshold = new Date(now.getTime() + expiryWindowDays * 24 * 60 * 60 * 1000);
+    const select = 'name nameAr primaryBarcode category brand unit stockQuantity minimumStockAlertLevel costPrice retailPrice expiryDate batchNumber genericName sfdaRegisterNumber dosageForm strength manufacturer requiresPrescription isControlled';
+    const base = { tenantId, isActive: { $ne: false } };
 
-    const products = await BakalaProduct.find({ tenantId, isActive: { $ne: false } })
-      .select('name nameAr primaryBarcode category brand unit stockQuantity minimumStockAlertLevel costPrice retailPrice expiryDate batchNumber genericName sfdaRegisterNumber dosageForm strength manufacturer requiresPrescription isControlled')
-      .lean();
+    const [
+      totalProducts,
+      outOfStockCount,
+      lowStockCount,
+      expiredCount,
+      expiringSoonCount,
+      outOfStock,
+      lowStock,
+      expired,
+      expiringSoon,
+      stockValueAgg,
+    ] = await Promise.all([
+      BakalaProduct.countDocuments(base),
+      BakalaProduct.countDocuments({ ...base, stockQuantity: { $lte: 0 } }),
+      BakalaProduct.countDocuments({
+        ...base,
+        stockQuantity: { $gt: 0 },
+        $expr: { $lte: ['$stockQuantity', { $ifNull: ['$minimumStockAlertLevel', 10] }] },
+      }),
+      BakalaProduct.countDocuments({ ...base, expiryDate: { $lte: now, $ne: null } }),
+      BakalaProduct.countDocuments({ ...base, expiryDate: { $gt: now, $lte: expiryThreshold } }),
+      BakalaProduct.find({ ...base, stockQuantity: { $lte: 0 } }).select(select).sort({ stockQuantity: 1 }).limit(alertLimit).lean(),
+      BakalaProduct.find({
+        ...base,
+        stockQuantity: { $gt: 0 },
+        $expr: { $lte: ['$stockQuantity', { $ifNull: ['$minimumStockAlertLevel', 10] }] },
+      }).select(select).sort({ stockQuantity: 1 }).limit(alertLimit).lean(),
+      BakalaProduct.find({ ...base, expiryDate: { $lte: now, $ne: null } }).select(select).sort({ expiryDate: 1 }).limit(alertLimit).lean(),
+      BakalaProduct.find({ ...base, expiryDate: { $gt: now, $lte: expiryThreshold } }).select(select).sort({ expiryDate: 1 }).limit(alertLimit).lean(),
+      BakalaProduct.aggregate([
+        { $match: { ...base, stockQuantity: { $gt: 0 } } },
+        {
+          $addFields: {
+            alertLevel: { $ifNull: ['$minimumStockAlertLevel', 10] },
+          },
+        },
+        { $match: { $expr: { $lte: ['$stockQuantity', '$alertLevel'] } } },
+        {
+          $group: {
+            _id: null,
+            value: {
+              $sum: {
+                $multiply: ['$stockQuantity', { $ifNull: ['$costPrice', 0] }],
+              },
+            },
+          },
+        },
+      ]),
+    ]);
 
-    const lowStock = [];
-    const outOfStock = [];
-    const expired = [];
-    const expiringSoon = [];
-    let stockValueAtRisk = 0;
-
-    for (const p of products) {
-      const stock = Number(p.stockQuantity) || 0;
-      const alertLevel = p.minimumStockAlertLevel != null ? Number(p.minimumStockAlertLevel) : 10;
-      const cost = Number(p.costPrice) || 0;
-
-      if (stock <= 0) {
-        outOfStock.push(p);
-      } else if (stock <= alertLevel) {
-        lowStock.push(p);
-        stockValueAtRisk += stock * cost;
-      }
-
-      if (p.expiryDate) {
-        const exp = new Date(p.expiryDate);
-        if (exp <= now) {
-          expired.push(p);
-          stockValueAtRisk += stock * cost;
-        } else if (exp <= expiryThreshold) {
-          expiringSoon.push(p);
-        }
-      }
-    }
-
-    const byStockAsc = (a, b) => (Number(a.stockQuantity) || 0) - (Number(b.stockQuantity) || 0);
-    const byExpiryAsc = (a, b) => new Date(a.expiryDate) - new Date(b.expiryDate);
-
-    lowStock.sort(byStockAsc);
-    outOfStock.sort(byStockAsc);
-    expired.sort(byExpiryAsc);
-    expiringSoon.sort(byExpiryAsc);
+    const stockValueAtRisk = Math.round((stockValueAgg[0]?.value || 0) * 100) / 100;
 
     res.json({
       generatedAt: now.toISOString(),
       expiryWindowDays,
       summary: {
-        totalProducts: products.length,
-        lowStock: lowStock.length,
-        outOfStock: outOfStock.length,
-        expired: expired.length,
-        expiringSoon: expiringSoon.length,
-        stockValueAtRisk: Math.round(stockValueAtRisk * 100) / 100,
+        totalProducts,
+        lowStock: lowStockCount,
+        outOfStock: outOfStockCount,
+        expired: expiredCount,
+        expiringSoon: expiringSoonCount,
+        stockValueAtRisk,
       },
       lowStock,
       outOfStock,

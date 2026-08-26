@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Search, PackageCheck, Clock3, Anchor } from 'lucide-react'
 import api from '../../lib/api'
+import { normalizeGrnList } from '../../lib/grnApi'
 import Money from '../../components/ui/Money'
 import {
   PURCHASES_PATH,
@@ -57,7 +58,7 @@ export default function GrnList() {
         search: debounced,
         status: activeFilter.status || undefined,
       },
-    }).then((res) => res.data),
+    }).then((res) => normalizeGrnList(res.data)),
     enabled: activeFilter.kind === 'grn',
   })
 
@@ -70,7 +71,7 @@ export default function GrnList() {
     return items.filter((row) => row.kind === 'po')
   }, [upcomingQuery.data, activeFilter.bucket])
 
-  const grnRows = Array.isArray(listQuery.data) ? listQuery.data : []
+  const grnRows = normalizeGrnList(listQuery.data)
   const isPoView = activeFilter.kind === 'po'
   const isLoading = isPoView ? upcomingQuery.isLoading : listQuery.isLoading
   const rows = isPoView ? poRows : grnRows

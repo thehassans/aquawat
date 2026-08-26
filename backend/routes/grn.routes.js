@@ -126,7 +126,7 @@ async function attachLandedCosts(tenantId, grns) {
 
 router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const { status, supplierId, warehouseId, purchaseOrderId, search } = req.query;
+    const { status, supplierId, warehouseId, purchaseOrderId, search, page, limit } = req.query;
     const query = { tenantId: req.user.tenantId };
     if (status) query.status = status;
     if (supplierId) query.supplierId = supplierId;
@@ -139,12 +139,29 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
         { notes: { $regex: search, $options: 'i' } },
       ];
     }
-    const grns = await GRN.find(query)
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 100));
+    const listQuery = GRN.find(query)
+      .select('grnNumber status referenceNumber notes createdAt updatedAt receivedDate totalAmount supplierId purchaseOrderId warehouseId')
       .populate('supplierId', 'nameEn nameAr')
       .populate('purchaseOrderId', 'poNumber status warehouseId expectedDate')
       .populate('warehouseId', 'code nameEn nameAr')
-      .sort('-createdAt');
-    res.json(await attachLandedCosts(req.user.tenantId, grns));
+      .sort('-createdAt')
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .lean();
+
+    const [total, grns] = await Promise.all([
+      GRN.countDocuments(query),
+      listQuery,
+    ]);
+
+    const enriched = await attachLandedCosts(req.user.tenantId, grns);
+    res.json({
+      grns: enriched,
+      pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) || 0 },
+    });
   } catch (error) {
     handlePurchasesError(res, error);
   }

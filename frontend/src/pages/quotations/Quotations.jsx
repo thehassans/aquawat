@@ -22,7 +22,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
-import { downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoicePdf'
+import { downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoicePdfActions'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 

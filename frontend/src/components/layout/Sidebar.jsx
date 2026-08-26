@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -9,7 +10,7 @@ import { getNavSections } from '../../lib/sidebarConfig'
 import { isNavItemAppVisible } from '../../lib/appStorePartners'
 import { getGovChildren } from '../../lib/saudiTenant'
 
-export default function Sidebar() {
+function Sidebar() {
   const dispatch = useDispatch()
   const location = useLocation()
   const { sidebarCollapsed, mobileMenuOpen, language, hiddenMenuItems } = useSelector((state) => state.ui)
@@ -36,7 +37,10 @@ export default function Sidebar() {
       ? 'bg-white/70 dark:bg-dark-800/70 backdrop-blur-xl'
       : 'bg-white dark:bg-dark-800'
 
-  const navSections = getNavSections({ language, t, tenant, businessTypes, govChildren })
+  const navSections = useMemo(
+    () => getNavSections({ language, t, tenant, businessTypes, govChildren }),
+    [language, t, tenant, businessTypes, govChildren]
+  )
 
   const visibleNavSections = navSections
     .map((section) => {
@@ -266,3 +270,4 @@ export default function Sidebar() {
   )
 }
 
+export default memo(Sidebar)

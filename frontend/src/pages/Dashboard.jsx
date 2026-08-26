@@ -2,6 +2,7 @@ import { useMemo, lazy, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
+import { usePageVisible } from '../hooks/usePageVisible'
 import { 
   TrendingUp, 
   FileText, 
@@ -60,6 +61,11 @@ const DashboardCharts = lazy(() => import('../components/dashboard/DashboardChar
 const DASHBOARD_REFRESH_MS = 60 * 1000 // 60s
 const DASHBOARD_CHART_REFRESH_MS = 120 * 1000 // 2m
 
+function useDashboardPollInterval(ms) {
+  const pageVisible = usePageVisible()
+  return pageVisible ? ms : false
+}
+
 export default function Dashboard() {
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
@@ -81,11 +87,14 @@ export default function Dashboard() {
   const mrpApp = tenant?.settings?.installedApps?.manufacturing_mes
   const isMrpInstalled = Boolean(mrpApp?.isInstalled && mrpApp?.isEnabled !== false)
 
+  const dashboardPollMs = useDashboardPollInterval(DASHBOARD_REFRESH_MS)
+  const chartPollMs = useDashboardPollInterval(DASHBOARD_CHART_REFRESH_MS)
+
   // Fetch Dashboard Aggregated Data
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => api.get('/dashboard').then(res => res.data),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_REFRESH_MS,
   })
@@ -94,7 +103,7 @@ export default function Dashboard() {
   const { data: revenueData } = useQuery({
     queryKey: ['dashboard-revenue'],
     queryFn: () => api.get('/dashboard/charts/revenue').then(res => res.data),
-    refetchInterval: DASHBOARD_CHART_REFRESH_MS,
+    refetchInterval: chartPollMs,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
   })
@@ -102,7 +111,7 @@ export default function Dashboard() {
   const { data: expensesData } = useQuery({
     queryKey: ['dashboard-expenses'],
     queryFn: () => api.get('/dashboard/charts/expenses').then(res => res.data),
-    refetchInterval: DASHBOARD_CHART_REFRESH_MS,
+    refetchInterval: chartPollMs,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
   })
@@ -111,7 +120,7 @@ export default function Dashboard() {
   const { data: poStats } = useQuery({
     queryKey: ['dashboard-po-stats'],
     queryFn: () => api.get('/purchase-orders/stats').then(res => res.data),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_REFRESH_MS,
     retry: false,
@@ -121,7 +130,7 @@ export default function Dashboard() {
   const { data: shipmentStats } = useQuery({
     queryKey: ['dashboard-shipment-stats'],
     queryFn: () => api.get('/shipments/stats').then(res => res.data),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_REFRESH_MS,
     retry: false,
@@ -131,7 +140,7 @@ export default function Dashboard() {
   const { data: taskStats } = useQuery({
     queryKey: ['dashboard-task-stats'],
     queryFn: () => api.get('/tasks/stats').then(res => res.data),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_REFRESH_MS,
     retry: false,
@@ -141,7 +150,7 @@ export default function Dashboard() {
   const { data: mrpStats } = useQuery({
     queryKey: ['dashboard-mrp-stats'],
     queryFn: () => api.get('/mrp/stats?multiplier=2').then(res => res.data),
-    refetchInterval: DASHBOARD_CHART_REFRESH_MS,
+    refetchInterval: chartPollMs,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
     retry: false,
@@ -151,7 +160,7 @@ export default function Dashboard() {
   const { data: mrpTop } = useQuery({
     queryKey: ['dashboard-mrp-top'],
     queryFn: () => api.get('/mrp/suggestions?limit=5&page=1&multiplier=2').then(res => res.data),
-    refetchInterval: DASHBOARD_CHART_REFRESH_MS,
+    refetchInterval: chartPollMs,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
     retry: false,
@@ -162,7 +171,7 @@ export default function Dashboard() {
   const { data: restaurantStats } = useQuery({
     queryKey: ['dashboard-restaurant-stats'],
     queryFn: () => api.get('/restaurant/orders/stats').then(res => res.data),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     retry: false,
     enabled: isRestaurant
   })
@@ -170,7 +179,7 @@ export default function Dashboard() {
   const { data: carRentalStats } = useQuery({
     queryKey: ['dashboard-car-rental-stats'],
     queryFn: () => api.get('/rental-contracts/stats').then(res => res.data),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     retry: false,
     enabled: isCarRental
   })
@@ -178,7 +187,7 @@ export default function Dashboard() {
   const { data: travelStats } = useQuery({
     queryKey: ['dashboard-travel-stats'],
     queryFn: () => api.get('/travel-bookings/stats').then(res => res.data),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     retry: false,
     enabled: isTravel
   })
@@ -186,7 +195,7 @@ export default function Dashboard() {
   const { data: projectStats } = useQuery({
     queryKey: ['dashboard-project-stats'],
     queryFn: () => api.get('/projects/stats').then(res => res.data),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     retry: false,
     enabled: isConstruction
   })
@@ -195,7 +204,7 @@ export default function Dashboard() {
   const { data: marqueeStats } = useQuery({
     queryKey: ['dashboard-marquee-stats'],
     queryFn: () => api.get('/marquee/stats').then(res => res.data),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     retry: false,
     enabled: isMarquee
   })
@@ -203,7 +212,7 @@ export default function Dashboard() {
   const { data: marqueeAppointments = [] } = useQuery({
     queryKey: ['dashboard-marquee-appointments'],
     queryFn: () => api.get('/marquee/appointments').then(res => Array.isArray(res.data) ? res.data : []),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     retry: false,
     enabled: isMarquee
   })
@@ -211,7 +220,7 @@ export default function Dashboard() {
   const { data: marqueePackages = [] } = useQuery({
     queryKey: ['dashboard-marquee-packages'],
     queryFn: () => api.get('/marquee/packages').then(res => Array.isArray(res.data) ? res.data : []),
-    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchInterval: dashboardPollMs,
     retry: false,
     enabled: isMarquee
   })

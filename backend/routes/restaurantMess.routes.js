@@ -400,14 +400,18 @@ router.post('/billing/generate', checkPermission('restaurant', 'create'), async 
     let generated = 0;
     let skipped = 0;
 
+    const subscriberIds = subscribers.map((sub) => sub._id);
+    const existingBillings = subscriberIds.length
+      ? await MessBilling.find({
+          ...getTenantFilter(req),
+          subscriberId: { $in: subscriberIds },
+          periodStart,
+        }).select('subscriberId').lean()
+      : [];
+    const billedSubscriberIds = new Set(existingBillings.map((row) => String(row.subscriberId)));
+
     for (const sub of subscribers) {
-      // Check if billing already exists for this period
-      const existing = await MessBilling.findOne({
-        ...getTenantFilter(req),
-        subscriberId: sub._id,
-        periodStart,
-      });
-      if (existing) { skipped++; continue; }
+      if (billedSubscriberIds.has(String(sub._id))) { skipped++; continue; }
 
       const plan = sub.planId;
       const counts = attMap.get(String(sub._id)) || {};

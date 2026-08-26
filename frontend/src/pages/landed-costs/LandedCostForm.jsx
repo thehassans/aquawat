@@ -14,6 +14,7 @@ import {
   FileText,
 } from 'lucide-react'
 import api from '../../lib/api'
+import { normalizeGrnList } from '../../lib/grnApi'
 import Money from '../../components/ui/Money'
 
 const COST_TYPES = ['customs_duty', 'freight', 'insurance', 'port_handling', 'clearance_fees', 'other']
@@ -167,7 +168,7 @@ export default function LandedCostForm() {
         if (cancelled) return
         setShipments(shipRes.data?.shipments || [])
         setPurchaseOrders(poRes.data?.purchaseOrders || [])
-        setGrns(Array.isArray(grnRes.data) ? grnRes.data : [])
+        setGrns(normalizeGrnList(grnRes.data))
       } catch (_) { /* lookups optional */ }
     }
     loadLookups()

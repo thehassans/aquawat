@@ -10,6 +10,8 @@ import crypto from 'crypto';
  * If client sends If-None-Match header matching ETag, returns 304.
  * Reduces bandwidth by 80%+ for unchanged data.
  */
+const ETAG_MAX_BYTES = 64 * 1024;
+
 export function etag() {
   return (req, res, next) => {
     if (req.method !== 'GET') return next();
@@ -17,11 +19,14 @@ export function etag() {
     res.json = (body) => {
       try {
         const str = JSON.stringify(body);
-        const hash = `"${crypto.createHash('md5').update(str).digest('hex').slice(0, 16)}"`;
-        res.setHeader('ETag', hash);
-        if (req.headers['if-none-match'] === hash) {
-          res.removeHeader('Content-Type');
-          return res.status(304).end();
+        // Skip ETag for large payloads — double serialization was costly on list endpoints.
+        if (str.length <= ETAG_MAX_BYTES) {
+          const hash = `"${crypto.createHash('md5').update(str).digest('hex').slice(0, 16)}"`;
+          res.setHeader('ETag', hash);
+          if (req.headers['if-none-match'] === hash) {
+            res.removeHeader('Content-Type');
+            return res.status(304).end();
+          }
         }
       } catch (_) {}
       return originalJson(body);

@@ -25,7 +25,7 @@ import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import ExportMenu from '../components/ui/ExportMenu'
-import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdf'
+import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdfActions'
 import RecordPoPaymentModal from '../components/purchases/RecordPoPaymentModal'
 import toast from 'react-hot-toast'
 

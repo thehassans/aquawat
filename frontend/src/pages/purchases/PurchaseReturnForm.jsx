@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux'
 import { ArrowLeft, CheckCircle2, Loader2, Save, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { normalizeGrnList } from '../../lib/grnApi'
 import {
   PURCHASES_PATH,
   fieldControlClass,
@@ -48,7 +49,7 @@ export default function PurchaseReturnForm() {
 
   const { data: grns } = useQuery({
     queryKey: ['grn-list'],
-    queryFn: () => api.get('/grn').then((res) => (Array.isArray(res.data) ? res.data : [])),
+    queryFn: () => api.get('/grn').then((res) => normalizeGrnList(res.data)),
   })
 
   const { data: warehouses } = useQuery({

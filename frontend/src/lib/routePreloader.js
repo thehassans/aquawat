@@ -1,10 +1,12 @@
 /**
  * Background Idle Route Prefetcher.
- * Preloads the most frequently used dashboard and module chunks in the idle background,
- * making subsequent route navigation virtually instant (0ms delay).
+ * Preloads frequently used dashboard and module chunks during idle time,
+ * scoped to the tenant's installed business types.
  */
 
-const PREFETCH_MAP = {
+import { getTenantBusinessTypes } from './businessTypes'
+
+const ROUTE_IMPORTS = {
   dashboard: () => import('../pages/Dashboard'),
   invoices: () => import('../pages/invoices/Invoices'),
   invoiceSell: () => import('../pages/invoices/InvoiceCreateSellPage'),
@@ -16,16 +18,35 @@ const PREFETCH_MAP = {
   profile: () => import('../pages/Profile'),
 }
 
-export function preloadCriticalRoutes() {
+function resolvePrefetchKeys(tenant) {
+  const types = getTenantBusinessTypes(tenant)
+  const keys = ['dashboard', 'invoices', 'settings', 'profile']
+
+  if (types.some((t) => ['trading', 'bakala', 'pharmacy', 'grocery'].includes(t))) {
+    keys.push('invoiceSell', 'quotations', 'reports')
+  }
+  if (types.some((t) => ['bakala', 'pharmacy', 'grocery'].includes(t))) {
+    keys.push('pos')
+  }
+  if (types.includes('trading')) {
+    keys.push('users')
+  }
+
+  return [...new Set(keys)]
+}
+
+export function preloadCriticalRoutes(tenant) {
   if (typeof window === 'undefined') return
 
+  const keys = resolvePrefetchKeys(tenant)
+
   const prefetch = () => {
-    const keys = Object.keys(PREFETCH_MAP)
     keys.forEach((key, index) => {
-      // Stagger imports slightly to never block the main thread
+      const loader = ROUTE_IMPORTS[key]
+      if (!loader) return
       setTimeout(() => {
         try {
-          PREFETCH_MAP[key]()
+          loader()
         } catch {
           // Ignore prefetch failures safely
         }

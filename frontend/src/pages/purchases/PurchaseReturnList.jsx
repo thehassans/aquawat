@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Search, PackageMinus } from 'lucide-react'
 import api from '../../lib/api'
+import { normalizeGrnList } from '../../lib/grnApi'
 import {
   PURCHASES_PATH,
   shell,
@@ -35,7 +36,7 @@ export default function PurchaseReturnList() {
   })
   const { data: grns = [] } = useQuery({
     queryKey: ['grn-list', 'returnable'],
-    queryFn: () => api.get('/grn').then((res) => (Array.isArray(res.data) ? res.data : [])),
+    queryFn: () => api.get('/grn').then((res) => normalizeGrnList(res.data)),
   })
 
   const rows = Array.isArray(data) ? data : []

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PackageOpen, Plus, Check, Save, ArrowLeft, Calendar, Trash2 } from 'lucide-react';
 import api from '../../lib/api';
+import { normalizeGrnList } from '../../lib/grnApi';
 import toast from 'react-hot-toast';
 import ProductChooser, { loadInventoryProducts } from '../../components/inventory/ProductChooser';
 import { useSelector } from 'react-redux';
@@ -36,7 +37,7 @@ export default function GoodsReceiptNote() {
         api.get('/grn'),
         api.get('/contacts?types=supplier')
       ]);
-      setGrns(Array.isArray(grnRes.data) ? grnRes.data : []);
+      setGrns(normalizeGrnList(grnRes.data));
       setSuppliers(suppRes.data?.contacts || []);
 
       try {

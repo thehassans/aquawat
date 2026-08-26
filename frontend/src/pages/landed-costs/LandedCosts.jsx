@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react'
 import api from '../../lib/api'
+import { normalizeGrnList } from '../../lib/grnApi'
 import Money from '../../components/ui/Money'
 
 const STATUS_PILL = {
@@ -99,7 +100,7 @@ export default function LandedCosts() {
   useEffect(() => {
     let cancelled = false
     api.get('/grn').then((res) => {
-      if (!cancelled) setGrns(Array.isArray(res.data) ? res.data : [])
+      if (!cancelled) setGrns(normalizeGrnList(res.data))
     }).catch(() => {})
     return () => { cancelled = true }
   }, [])

@@ -273,12 +273,9 @@ const shouldRenderBilingualInvoice = (invoice, documentType = 'invoice', tenant 
   return resolveInvoiceBilingual(tenant, contextBilingual)
 }
 
-export const isThermalInvoice = (invoice) => {
-  if (invoice?.printFormat === 'thermal') return true
-  if (invoice?.printFormat === 'a4') return false
-  return ['restaurant', 'bakala', 'saloon', 'laundry', 'khayyat'].includes(invoice?.businessContext)
-}
+import { isThermalInvoice } from './invoiceFormat'
 
+export { isThermalInvoice }
 const isPosInvoice = isThermalInvoice
 
 const captureElementSnapshotCanvas = async (sourceElement) => {

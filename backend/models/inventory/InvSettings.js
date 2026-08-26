@@ -96,5 +96,6 @@ const schema = new mongoose.Schema({
 }, { timestamps: true });
 
 schema.index({ tenantId: 1 }, { unique: true });
+schema.index({ schedulerEnabled: 1, engineEnabled: 1 });
 
 export default mongoose.models.InvSettings || mongoose.model('InvSettings', schema);
