@@ -232,7 +232,7 @@ export async function createProductCategory(tenantId, userId, body) {
   const existing = await InvProductCategory.findOne({ tenantId: tid, completePath });
   if (existing) throw new InventoryValidationError('Category path already exists', 'CAT_DUP');
 
-  return InvProductCategory.create({
+  const payload = {
     tenantId: tid,
     name,
     nameAr: body.nameAr,
@@ -252,7 +252,11 @@ export async function createProductCategory(tenantId, userId, body) {
     stockInputAccountId: body.stockInputAccountId || null,
     stockOutputAccountId: body.stockOutputAccountId || null,
     createdBy: userId,
-  });
+  };
+  const { assertAutomatedCategoryAccounts } = await import('./stockAccounting.js');
+  assertAutomatedCategoryAccounts(payload);
+
+  return InvProductCategory.create(payload);
 }
 
 export async function updateProductCategory(tenantId, userId, id, body) {
@@ -293,6 +297,10 @@ export async function updateProductCategory(tenantId, userId, id, body) {
   }
   cat.updatedBy = userId;
   cat.completePath = await buildCategoryPath(tid, cat.parentId, cat.name);
+
+  const { assertAutomatedCategoryAccounts } = await import('./stockAccounting.js');
+  assertAutomatedCategoryAccounts(cat);
+
   await cat.save();
   await cascadeCategoryPaths(tid, cat, oldPath);
 

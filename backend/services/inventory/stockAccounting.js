@@ -10,8 +10,18 @@ import {
 } from '../accountingService.js';
 import { D, decIsZero } from '../../utils/decimal.js';
 import { toObjectId } from '../../models/inventory/common.js';
+import { InventoryValidationError } from './errors.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+/** Five accounts required on each Automated-valuation product category. */
+export const AUTOMATED_CATEGORY_ACCOUNT_KEYS = [
+  'stockValuationAccountId',
+  'stockInputAccountId',
+  'stockOutputAccountId',
+  'stockJournalId',
+  'expenseAccountId',
+];
 
 export const STOCK_ACCOUNT_DEFS = [
   {
@@ -46,6 +56,58 @@ export async function ensureStockAccountingAccounts(tenantId, userId = null) {
       });
     }
   }
+  await ensureDefaultStockJournal(tenantId, userId);
+}
+
+/**
+ * Ensure a system Stock journal book exists (not a JournalEntry).
+ */
+export async function ensureDefaultStockJournal(tenantId, userId = null) {
+  const tid = toObjectId(tenantId);
+  const Journal = (await import('../../models/Journal.js')).default;
+  let book = await Journal.findOne({ tenantId: tid, code: 'STJ' });
+  if (!book) {
+    book = await Journal.findOne({ tenantId: tid, type: 'stock', isSystem: true });
+  }
+  if (!book) {
+    book = await Journal.create({
+      tenantId: tid,
+      code: 'STJ',
+      name: 'Stock Journal',
+      nameAr: 'دفتر المخزون',
+      type: 'stock',
+      sequencePrefix: 'STJ',
+      active: true,
+      isSystem: true,
+      createdBy: userId || undefined,
+    });
+  }
+  return book;
+}
+
+export async function listJournalBooks(tenantId, { type = null, activeOnly = true } = {}) {
+  const tid = toObjectId(tenantId);
+  await ensureDefaultStockJournal(tid);
+  const Journal = (await import('../../models/Journal.js')).default;
+  const filter = { tenantId: tid };
+  if (type) filter.type = type;
+  if (activeOnly) filter.active = { $ne: false };
+  return Journal.find(filter).sort({ type: 1, code: 1 }).lean();
+}
+
+/**
+ * Throws when automated category is missing required accounts.
+ */
+export function assertAutomatedCategoryAccounts(bodyOrDoc) {
+  const mode = bodyOrDoc?.valuationMode || 'automated';
+  if (mode !== 'automated') return;
+  const missing = AUTOMATED_CATEGORY_ACCOUNT_KEYS.filter((k) => !bodyOrDoc?.[k]);
+  if (!missing.length) return;
+  throw new InventoryValidationError(
+    `Automated valuation requires: ${missing.join(', ')}`,
+    'CAT_ACCOUNTS_REQUIRED',
+    { details: { missing } },
+  );
 }
 
 async function loadActiveAccount(tenantId, id) {
@@ -172,7 +234,7 @@ export async function resolveValuationAccounts(tenantId, {
     if (product?.categoryId) {
       const InvProductCategory = (await import('../../models/inventory/InvProductCategory.js')).default;
       category = await InvProductCategory.findOne({ _id: product.categoryId, tenantId: tid })
-        .select('stockValuationAccountId stockInputAccountId stockOutputAccountId expenseAccountId incomeAccountId valuationMode')
+        .select('stockValuationAccountId stockInputAccountId stockOutputAccountId expenseAccountId incomeAccountId valuationMode stockJournalId')
         .lean();
     }
   }
@@ -210,18 +272,10 @@ export async function resolveValuationAccounts(tenantId, {
       locationId: location?._id || null,
       direction,
       valuationMode: category?.valuationMode || 'automated',
+      stockJournalId: category?.stockJournalId || null,
     },
   };
 }
-
-/** Five accounts required on each Automated-valuation product category. */
-export const AUTOMATED_CATEGORY_ACCOUNT_KEYS = [
-  'stockValuationAccountId',
-  'stockInputAccountId',
-  'stockOutputAccountId',
-  'stockJournalId',
-  'expenseAccountId',
-];
 
 /**
  * Validate automated categories have all five accounts set.
@@ -547,6 +601,7 @@ export async function postValuationLayerJournal({
     sourceId: layer._id,
     sourceNumber: layer.description || '',
     status: 'posted',
+    journalId: accounts.sources?.stockJournalId || null,
   });
 
   layer.journalEntryId = entry._id;

@@ -417,6 +417,7 @@ router.get('/product-categories', checkPermission('inventory', 'read'), async (r
         .populate('expenseAccountId', 'code name nameAr')
         .populate('priceDifferenceAccountId', 'code name nameAr')
         .populate('stockValuationAccountId', 'code name nameAr')
+        .populate('stockJournalId', 'code name nameAr type')
         .populate('stockInputAccountId', 'code name nameAr')
         .populate('stockOutputAccountId', 'code name nameAr')
         .sort({ completePath: 1 }),
@@ -452,6 +453,7 @@ router.get('/product-categories/:id', checkPermission('inventory', 'read'), asyn
       .populate('expenseAccountId', 'code name nameAr')
       .populate('priceDifferenceAccountId', 'code name nameAr')
       .populate('stockValuationAccountId', 'code name nameAr')
+      .populate('stockJournalId', 'code name nameAr type')
       .populate('stockInputAccountId', 'code name nameAr')
       .populate('stockOutputAccountId', 'code name nameAr')
       .lean();
@@ -2287,19 +2289,35 @@ router.post('/accounting/ensure-accounts', checkPermission('inventory', 'update'
       ensureStockAccountingAccounts,
       resolveStockAccounts,
       validateAutomatedCategoryAccounts,
+      ensureDefaultStockJournal,
     } = await import('../services/inventory/stockAccounting.js');
-    // Seed only the system interim COA codes — never invent category account links
+    // Seed only the system interim COA codes + default Stock journal book — never invent category account links
     await ensureStockAccountingAccounts(req.user.tenantId, req.user._id);
+    const stockJournal = await ensureDefaultStockJournal(req.user.tenantId, req.user._id);
     const validation = await validateAutomatedCategoryAccounts(req.user.tenantId);
     const accounts = await resolveStockAccounts(req.user.tenantId);
     res.json({
       ...validation,
+      defaultStockJournalId: stockJournal?._id,
       accounts: {
         inventory: accounts.inventory?._id,
         stockInput: accounts.stockInput?._id,
         stockOutput: accounts.stockOutput?._id,
       },
     });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+/** Journal books for category stock journal picker (inventory permission). */
+router.get('/journal-books', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listJournalBooks } = await import('../services/inventory/stockAccounting.js');
+    res.json(await listJournalBooks(req.user.tenantId, {
+      type: req.query.type || 'stock',
+      activeOnly: req.query.active !== 'false',
+    }));
   } catch (err) {
     handleInventoryError(res, err);
   }

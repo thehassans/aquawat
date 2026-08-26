@@ -848,12 +848,12 @@ export function ProductCategoryForm() {
     staleTime: 60_000,
   })
   const { data: journals } = useQuery({
-    queryKey: ['accounting-journals-select'],
-    queryFn: () => api.get('/accounting/journals', { params: { limit: 200 } }).then((r) => r.data?.journals || r.data || []),
+    queryKey: ['stock-journal-books', 'stock'],
+    queryFn: () => api.get('/stock/journal-books', { params: { type: 'stock' } }).then((r) => r.data || []),
     staleTime: 60_000,
   })
   const activeAccounts = Array.isArray(accounts) ? accounts.filter((a) => a?.isActive !== false) : []
-  const journalOptions = Array.isArray(journals) ? journals.filter((j) => j?.status !== 'void') : []
+  const journalOptions = Array.isArray(journals) ? journals.filter((j) => j?.active !== false) : []
 
   useEffect(() => {
     if (!existing) return
@@ -874,6 +874,15 @@ export function ProductCategoryForm() {
       priceDifferenceAccountId: existing.priceDifferenceAccountId?._id || existing.priceDifferenceAccountId || '',
     })
   }, [existing])
+
+  // Prefer default Stock journal when creating automated categories
+  useEffect(() => {
+    if (isEdit || form.stockJournalId) return
+    const list = Array.isArray(journals) ? journals.filter((j) => j?.active !== false) : []
+    if (!list.length) return
+    const stj = list.find((j) => j.code === 'STJ') || list[0]
+    if (stj?._id) setForm((f) => (f.stockJournalId ? f : { ...f, stockJournalId: stj._id }))
+  }, [isEdit, form.stockJournalId, journals])
 
   useEffect(() => {
     if (!isEdit || !form.costingMethod || form.costingMethod === existing?.costingMethod) {
@@ -916,6 +925,24 @@ export function ProductCategoryForm() {
       pending={mut.isPending}
       onSubmit={(e) => {
         e.preventDefault()
+        if (form.valuationMode === 'automated') {
+          const required = [
+            ['stockValuationAccountId', language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'],
+            ['stockJournalId', language === 'ar' ? 'دفتر المخزون' : 'Stock Journal'],
+            ['stockInputAccountId', language === 'ar' ? 'حساب الإدخال' : 'Stock Input Account'],
+            ['stockOutputAccountId', language === 'ar' ? 'حساب الإخراج' : 'Stock Output Account'],
+            ['expenseAccountId', language === 'ar' ? 'حساب المصروف' : 'Expense Account'],
+          ]
+          const missing = required.filter(([k]) => !form[k]).map(([, label]) => label)
+          if (missing.length) {
+            toast.error(
+              language === 'ar'
+                ? `التقييم الآلي يتطلب: ${missing.join('، ')}`
+                : `Automated valuation requires: ${missing.join(', ')}`,
+            )
+            return
+          }
+        }
         if (costingPreview && Number(costingPreview.delta) !== 0) {
           const ok = window.confirm(
             language === 'ar'
@@ -1000,29 +1027,29 @@ export function ProductCategoryForm() {
             </h3>
           </div>
           <div>
-            <label className="label">{language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'}</label>
-            <select className="select" value={form.stockValuationAccountId} onChange={(e) => setForm({ ...form, stockValuationAccountId: e.target.value })}>
+            <label className="label">{language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'} *</label>
+            <select className="select" required={form.valuationMode === 'automated'} value={form.stockValuationAccountId} onChange={(e) => setForm({ ...form, stockValuationAccountId: e.target.value })}>
               <option value="">—</option>
               {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
             </select>
           </div>
           <div>
-            <label className="label">{language === 'ar' ? 'دفتر المخزون' : 'Stock Journal'}</label>
-            <select className="select" value={form.stockJournalId} onChange={(e) => setForm({ ...form, stockJournalId: e.target.value })}>
+            <label className="label">{language === 'ar' ? 'دفتر المخزون' : 'Stock Journal'} *</label>
+            <select className="select" required={form.valuationMode === 'automated'} value={form.stockJournalId} onChange={(e) => setForm({ ...form, stockJournalId: e.target.value })}>
               <option value="">—</option>
               {journalOptions.map((j) => <option key={j._id} value={j._id}>{journalLabel(j)}</option>)}
             </select>
           </div>
           <div>
-            <label className="label">{language === 'ar' ? 'حساب الإدخال' : 'Stock Input Account'}</label>
-            <select className="select" value={form.stockInputAccountId} onChange={(e) => setForm({ ...form, stockInputAccountId: e.target.value })}>
+            <label className="label">{language === 'ar' ? 'حساب الإدخال' : 'Stock Input Account'} *</label>
+            <select className="select" required={form.valuationMode === 'automated'} value={form.stockInputAccountId} onChange={(e) => setForm({ ...form, stockInputAccountId: e.target.value })}>
               <option value="">—</option>
               {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
             </select>
           </div>
           <div>
-            <label className="label">{language === 'ar' ? 'حساب الإخراج' : 'Stock Output Account'}</label>
-            <select className="select" value={form.stockOutputAccountId} onChange={(e) => setForm({ ...form, stockOutputAccountId: e.target.value })}>
+            <label className="label">{language === 'ar' ? 'حساب الإخراج' : 'Stock Output Account'} *</label>
+            <select className="select" required={form.valuationMode === 'automated'} value={form.stockOutputAccountId} onChange={(e) => setForm({ ...form, stockOutputAccountId: e.target.value })}>
               <option value="">—</option>
               {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
             </select>
@@ -1044,13 +1071,15 @@ export function ProductCategoryForm() {
           </select>
         </div>
         <div>
-          <label className="label">{language === 'ar' ? 'حساب المصروف' : 'Expense Account'}</label>
-          <select className="select" value={form.expenseAccountId} onChange={(e) => setForm({ ...form, expenseAccountId: e.target.value })}>
+          <label className="label">
+            {language === 'ar' ? 'حساب المصروف' : 'Expense Account'}
+            {form.valuationMode === 'automated' ? ' *' : ''}
+          </label>
+          <select className="select" required={form.valuationMode === 'automated'} value={form.expenseAccountId} onChange={(e) => setForm({ ...form, expenseAccountId: e.target.value })}>
             <option value="">—</option>
             {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
           </select>
-        </div>
-        <div>
+        </div>        <div>
           <label className="label">{language === 'ar' ? 'حساب فرق السعر' : 'Price Difference Account'}</label>
           <select className="select" value={form.priceDifferenceAccountId} onChange={(e) => setForm({ ...form, priceDifferenceAccountId: e.target.value })}>
             <option value="">—</option>

@@ -36,6 +36,8 @@ const journalEntrySchema = new mongoose.Schema({
   sourceModel: { type: String, default: '' },
   sourceId: { type: mongoose.Schema.Types.ObjectId, index: true },
   sourceNumber: { type: String, default: '' },
+  /** Optional journal book (series) this entry belongs to */
+  journalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Journal', default: null, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   postedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   voidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

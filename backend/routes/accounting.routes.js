@@ -122,6 +122,45 @@ router.put('/accounts/:id', checkPermission('finance', 'update'), async (req, re
   }
 });
 
+// ─── Journal books (series) — not posted entries ─────────────────────────────
+router.get('/journal-books', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listJournalBooks } = await import('../services/inventory/stockAccounting.js');
+    const rows = await listJournalBooks(tenantIdOf(req), {
+      type: req.query.type || null,
+      activeOnly: req.query.active !== 'false',
+    });
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/journal-books', checkPermission('finance', 'create'), async (req, res) => {
+  try {
+    const Journal = (await import('../models/Journal.js')).default;
+    const tenantId = tenantIdOf(req);
+    const code = String(req.body.code || '').trim().toUpperCase();
+    const name = String(req.body.name || '').trim();
+    if (!code || !name) return res.status(400).json({ error: 'code and name required' });
+    const existing = await Journal.findOne({ tenantId, code });
+    if (existing) return res.status(409).json({ error: 'Journal code already exists' });
+    const book = await Journal.create({
+      tenantId,
+      code,
+      name,
+      nameAr: req.body.nameAr || '',
+      type: req.body.type || 'miscellaneous',
+      sequencePrefix: String(req.body.sequencePrefix || code).trim().toUpperCase(),
+      active: req.body.active !== false,
+      createdBy: req.user._id,
+    });
+    res.status(201).json(book);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // ─── Journal Entries ─────────────────────────────────────────────────────────
 router.get('/journals', checkPermission('finance', 'read'), async (req, res) => {
   try {

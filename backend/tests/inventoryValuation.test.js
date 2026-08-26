@@ -181,3 +181,20 @@ test('purchase bill clearing with per-product goods debits', () => {
   assert.equal(credit, 115);
   assert.equal(lines.filter((l) => l.debit > 0 && l.accountCode !== '1400').length, 2);
 });
+
+test('assertAutomatedCategoryAccounts requires five fields when automated', async () => {
+  const { assertAutomatedCategoryAccounts } = await import('../services/inventory/stockAccounting.js');
+  assert.throws(
+    () => assertAutomatedCategoryAccounts({ valuationMode: 'automated' }),
+    (err) => err?.code === 'CAT_ACCOUNTS_REQUIRED',
+  );
+  assert.doesNotThrow(() => assertAutomatedCategoryAccounts({
+    valuationMode: 'automated',
+    stockValuationAccountId: 'a',
+    stockInputAccountId: 'b',
+    stockOutputAccountId: 'c',
+    stockJournalId: 'd',
+    expenseAccountId: 'e',
+  }));
+  assert.doesNotThrow(() => assertAutomatedCategoryAccounts({ valuationMode: 'manual' }));
+});

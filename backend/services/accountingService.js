@@ -125,9 +125,10 @@ export async function getAccountMap(tenantId) {
   return { byCode, bySubtype, rows };
 }
 
-async function nextEntryNumber(tenantId) {
+async function nextEntryNumber(tenantId, sequencePrefix = null) {
   const year = new Date().getFullYear();
-  const prefix = `JE-${year}-`;
+  const base = String(sequencePrefix || 'JE').replace(/[^A-Za-z0-9]/g, '').toUpperCase() || 'JE';
+  const prefix = `${base}-${year}-`;
   const last = await JournalEntry.findOne({ tenantId, entryNumber: new RegExp(`^${prefix}`) })
     .sort({ entryNumber: -1 })
     .select('entryNumber')
@@ -168,6 +169,7 @@ export async function createJournalEntry({
   sourceNumber = '',
   status = 'draft',
   entryNumber = null,
+  journalId = null,
 }) {
   const normalised = normaliseLines(lines);
   assertBalanced(normalised);
@@ -186,7 +188,18 @@ export async function createJournalEntry({
   }
 
   const { debit, credit } = assertBalanced(enriched);
-  const number = entryNumber || await nextEntryNumber(tenantId);
+
+  let resolvedJournalId = journalId || null;
+  let sequencePrefix = null;
+  if (resolvedJournalId) {
+    const Journal = (await import('../models/Journal.js')).default;
+    const book = await Journal.findOne({ _id: resolvedJournalId, tenantId, active: { $ne: false } }).lean();
+    if (!book) throw new Error('Journal book not found');
+    sequencePrefix = book.sequencePrefix || book.code || null;
+    resolvedJournalId = book._id;
+  }
+
+  const number = entryNumber || await nextEntryNumber(tenantId, sequencePrefix);
 
   const entry = await JournalEntry.create({
     tenantId,
@@ -204,6 +217,7 @@ export async function createJournalEntry({
     sourceModel,
     sourceId: sourceId || undefined,
     sourceNumber,
+    journalId: resolvedJournalId || undefined,
     createdBy: userId || undefined,
   });
 
