@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import InvApiKey from '../../models/inventory/InvApiKey.js';
+import InvApiKey from '../models/inventory/InvApiKey.js';
 
 export function hashApiKey(raw) {
   return crypto.createHash('sha256').update(String(raw)).digest('hex');
