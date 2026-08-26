@@ -3,6 +3,8 @@
  * Flags map to InvSettings columns — see FLAG_MAP.
  */
 
+import { resolveInventoryAccountingMode } from './accountingMode.js';
+
 export const FLAG_MAP = {
   multiLocations: 'groupStockMultiLocations',
   multiStepRoutes: 'groupAdvLocation',
@@ -19,13 +21,10 @@ export const FLAG_MAP = {
   quality: 'moduleQuality',
   receptionReport: (s) => Boolean(s.receptionReportEnabled || s.groupReceptionReport),
   valuation: (s) => {
-    const mode = s.inventoryAccountingMode;
-    if (mode === 'ops_only') return Boolean(s.groupLandedCosts);
+    const mode = resolveInventoryAccountingMode(s || {});
+    if (mode === 'ops_only') return Boolean(s?.groupLandedCosts);
     if (mode === 'costing' || mode === 'full_accounting') return true;
-    // Legacy: missing mode — show when evaluation/stock GL on or landed costs
-    return s.inventoryEvaluationEnabled !== false
-      || Boolean(s.stockAccountingEnabled)
-      || Boolean(s.groupLandedCosts);
+    return Boolean(s?.groupLandedCosts);
   },
   landedCosts: 'groupLandedCosts',
   pos: 'menuPos',

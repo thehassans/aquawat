@@ -76,4 +76,12 @@ test('valuation menu flag respects accounting mode', async () => {
   assert.equal(valuation({ inventoryAccountingMode: 'ops_only', groupLandedCosts: true }), true);
   assert.equal(valuation({ inventoryAccountingMode: 'costing' }), true);
   assert.equal(valuation({ inventoryAccountingMode: 'full_accounting' }), true);
+  // Missing mode + evaluation off → ops_only via derive → hide unless landed costs
+  assert.equal(valuation({
+    inventoryEvaluationEnabled: false,
+    stockAccountingEnabled: false,
+    groupLandedCosts: false,
+  }), false);
+  // Missing mode + both legacy flags on → full_accounting
+  assert.equal(valuation({}), true);
 });
