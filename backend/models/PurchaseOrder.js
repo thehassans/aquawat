@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const purchaseOrderLineItemSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: false },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', required: false },
   manualName: { type: String, default: '' },
   uom: { type: String, default: '' },
   description: { type: String },
@@ -28,6 +29,7 @@ const receivingEventSchema = new mongoose.Schema({
   receivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [{
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+    variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
     quantity: { type: Number, required: true, min: 0 }
   }]
 }, { _id: false });

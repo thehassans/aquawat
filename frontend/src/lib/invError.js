@@ -2,6 +2,19 @@
  * Normalize inventory (and general API) error payloads for toast / UI.
  * Inventory APIs return `{ error: { code, message, messageAr } }` — never pass that object to React.
  */
+export function pickApiErrorPayload(raw, language = 'en') {
+  if (raw == null) return null
+  if (typeof raw === 'string') return raw
+  if (typeof raw === 'object') {
+    const ar = language === 'ar' || language === 'ar-SA'
+    const msg = ar
+      ? (raw.messageAr || raw.message || raw.code)
+      : (raw.message || raw.messageAr || raw.code)
+    return msg ? String(msg) : null
+  }
+  return String(raw)
+}
+
 export function formatInvError(err, language = 'en') {
   const ar = language === 'ar' || language === 'ar-SA'
   const data = err?.response?.data

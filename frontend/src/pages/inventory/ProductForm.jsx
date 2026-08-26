@@ -20,6 +20,8 @@ import CategoryCombobox from '../../components/inventory/CategoryCombobox'
 import ProductImageGallery from '../../components/inventory/ProductImageGallery'
 import ProductRelationsEditor from '../../components/inventory/ProductRelationsEditor'
 import AttributeExclusionsEditor from '../../components/inventory/AttributeExclusionsEditor'
+import TemplatePriceExtrasEditor from '../../components/inventory/TemplatePriceExtrasEditor'
+import ProductVariantsGrid from '../../components/inventory/ProductVariantsGrid'
 import { formatInvError } from '../../lib/invError'
 
 function AttributeValuesMulti({ attributeId, valueIds, onChange, language }) {
@@ -480,7 +482,7 @@ export default function ProductForm() {
   }
 
   if (isEdit && productError) {
-    const msg = productError?.response?.data?.error || (language === 'ar' ? 'فشل تحميل المنتج' : 'Failed to load product')
+    const msg = formatInvError(productError, language)
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -527,6 +529,7 @@ export default function ProductForm() {
             { label: language === 'ar' ? 'الدفعات' : 'Lots', value: smartButtons.lots, to: '/app/dashboard/inventory/lots', hide: !(invSettings?.groupProductionLot || invSettings?.groupStockTrackingLot) },
             { label: language === 'ar' ? 'الحركات' : 'Moves', value: smartButtons.moves, to: `/app/dashboard/inventory/moves?productId=${id}` },
             { label: language === 'ar' ? 'التخزين' : 'Putaway', value: smartButtons.putawayRules, to: '/app/dashboard/inventory/putaway', hide: invSettings?.groupPutawayRules === false },
+            { label: language === 'ar' ? 'المتغيرات' : 'Variants', value: smartButtons.variants, to: `/app/dashboard/inventory/variants?productId=${id}`, hide: invSettings?.groupProductVariant === false },
           ].filter((b) => !b.hide).map((b) => (
             <button
               key={b.label}
@@ -770,6 +773,10 @@ export default function ProductForm() {
               </div>
             )}
             <div className="md:col-span-2 lg:col-span-3">
+              <label className="label">{language === 'ar' ? 'ملاحظات داخلية' : 'Internal notes'}</label>
+              <textarea {...register('internalNotes')} className="input min-h-[3rem]" rows={2} />
+            </div>
+            <div className="md:col-span-2 lg:col-span-3">
               <label className="label mb-2 block">{language === 'ar' ? 'الصور' : 'Images'}</label>
               <ProductImageGallery
                 productId={isEdit ? id : null}
@@ -809,6 +816,25 @@ export default function ProductForm() {
                 ))}
               </select>
             </div>
+            <div className="md:col-span-3">
+              <label className="label">{language === 'ar' ? 'وصف المبيعات' : 'Sales description'}</label>
+              <textarea {...register('salesDescription')} className="input min-h-[4rem]" rows={2} />
+            </div>
+            <div>
+              <label className="label">{language === 'ar' ? 'الحد الأدنى للبيع' : 'Min sale qty'}</label>
+              <input type="number" step="0.01" {...register('minSaleQty', { valueAsNumber: true })} className="input" />
+            </div>
+            <div>
+              <label className="label">{language === 'ar' ? 'مضاعف البيع' : 'Sale multiple'}</label>
+              <input type="number" step="1" {...register('saleMultiple', { valueAsNumber: true })} className="input" />
+            </div>
+            <div>
+              <label className="label">{language === 'ar' ? 'سياسة الفوترة' : 'Invoicing policy'}</label>
+              <select {...register('invoicingPolicy')} className="select">
+                <option value="ordered">{language === 'ar' ? 'عند الطلب' : 'On ordered qty'}</option>
+                <option value="delivered">{language === 'ar' ? 'عند التسليم' : 'On delivered qty'}</option>
+              </select>
+            </div>
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-4 py-3 text-sm text-slate-600 dark:border-dark-600 dark:bg-dark-800/60 dark:text-slate-300">
               <div className="font-medium text-slate-900 dark:text-white">{language === 'ar' ? 'نقطة البيع' : 'Point of Sale'}</div>
               <div className="mt-1 text-xs">
@@ -846,6 +872,33 @@ export default function ProductForm() {
                 <input type="number" step="0.01" {...register('costPrice', { valueAsNumber: true })} className="input" />
               </div>
             )}
+            {productTab === 'purchase' && (
+              <>
+                <div className="md:col-span-3">
+                  <label className="label">{language === 'ar' ? 'وصف الشراء' : 'Purchase description'}</label>
+                  <textarea {...register('purchaseDescription')} className="input min-h-[4rem]" rows={2} />
+                </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'سياسة التحكم' : 'Control policy'}</label>
+                  <select {...register('controlPolicy')} className="select">
+                    <option value="ordered">{language === 'ar' ? 'عند الطلب' : 'Bill on ordered'}</option>
+                    <option value="received">{language === 'ar' ? 'عند الاستلام' : 'Bill on received'}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'أيام للشراء' : 'Days to purchase'}</label>
+                  <input type="number" {...register('daysToPurchase', { valueAsNumber: true })} className="input" />
+                </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'رمز HS' : 'HS code'}</label>
+                  <input {...register('hsCode')} className="input" />
+                </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'بلد المنشأ' : 'Country of origin'}</label>
+                  <input {...register('countryOfOrigin')} className="input" />
+                </div>
+              </>
+            )}
             {!isService && productTab === 'inventory' && (
               <>
                 <div className="md:col-span-3 flex flex-wrap gap-4">
@@ -882,6 +935,14 @@ export default function ProductForm() {
                     </div>
                   </>
                 )}
+                <div>
+                  <label className="label">{language === 'ar' ? 'الوزن (كغ)' : 'Weight (kg)'}</label>
+                  <input type="number" step="0.001" {...register('weight', { valueAsNumber: true })} className="input" />
+                </div>
+                <div>
+                  <label className="label">{language === 'ar' ? 'الحجم' : 'Volume'}</label>
+                  <input type="number" step="0.001" {...register('volume', { valueAsNumber: true })} className="input" />
+                </div>
                 {invSettings?.groupAdvLocation !== false && (
                   <div className="md:col-span-3 space-y-3">
                     <div>
@@ -1238,6 +1299,21 @@ export default function ProductForm() {
                 attributeLines={attributeLines}
                 language={language}
               />
+            )}
+            {isEdit && (
+              <TemplatePriceExtrasEditor
+                productId={id}
+                attributeLines={attributeLines}
+                language={language}
+              />
+            )}
+            {isEdit && (
+              <div className="space-y-2 pt-2">
+                <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  {language === 'ar' ? 'المتغيرات المولّدة' : 'Generated variants'}
+                </h4>
+                <ProductVariantsGrid productId={id} language={language} />
+              </div>
             )}
           </motion.div>
         )}

@@ -217,14 +217,21 @@ export async function syncPurchaseOrderFromGrn({ tenantFilter, purchaseOrderId, 
     receiveLines
   );
   for (const line of order.lineItems || []) {
-    const updated = result.lines.find((row) => String(row.productId || '') === String(line.productId || ''));
+    const updated = result.lines.find(
+      (row) => String(row.productId || '') === String(line.productId || '')
+        && String(row.variantId || '') === String(line.variantId || ''),
+    );
     if (updated) line.quantityReceived = updated.quantityReceived;
   }
   if (result.status) order.status = result.status;
 
   const receivingItems = result.applied
     .filter((item) => item.productId)
-    .map((item) => ({ productId: item.productId, quantity: item.quantity }));
+    .map((item) => ({
+      productId: item.productId,
+      variantId: item.variantId || undefined,
+      quantity: item.quantity,
+    }));
   if (warehouseId && receivingItems.length) {
     order.receiving.push({
       receivedAt: new Date(),
@@ -292,12 +299,14 @@ export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }
           const unitCost = line.costPrice != null && line.costPrice !== ''
             ? String(line.costPrice)
             : (line.unitCost != null ? String(line.unitCost) : undefined);
-          const move = await InvMove.findOne({
+          const moveFilter = {
             tenantId: user.tenantId,
             transferId: linked._id,
             productId: line.productId,
             state: { $nin: ['done', 'cancelled'] },
-          });
+          };
+          if (line.variantId) moveFilter.variantId = line.variantId;
+          const move = await InvMove.findOne(moveFilter);
           if (move) {
             if (unitCost != null) move.unitCost = unitCost;
             move.demandQty = String(qty);

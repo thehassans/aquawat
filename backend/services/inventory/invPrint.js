@@ -281,7 +281,26 @@ async function qrDataUrl(text) {
   }
 }
 
-/** GS1 DataMatrix payload (AI 01 GTIN, 10 lot, 17 expiry YYMMDD) — rendered as QR until DataMatrix font available. */
+/** GS1 DataMatrix PNG data URL — falls back to QR when encoder unavailable. */
+async function gs1MatrixDataUrl(text) {
+  const payload = String(text || '');
+  if (!payload) return '';
+  try {
+    const bwipjs = (await import('bwip-js')).default;
+    const png = await bwipjs.toBuffer({
+      bcid: 'datamatrix',
+      text: payload,
+      scale: 3,
+      height: 10,
+      includetext: false,
+    });
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch {
+    return qrDataUrl(payload);
+  }
+}
+
+/** GS1 DataMatrix payload (AI 01 GTIN, 10 lot, 17 expiry YYMMDD). */
 function gs1Payload({ gtin, lot, expiry }) {
   const parts = [];
   if (gtin) parts.push(`01${String(gtin).padStart(14, '0').slice(-14)}`);
@@ -413,7 +432,7 @@ async function lotLabelsHtml(tenantId, { lotIds, lang }) {
       lot: lot.name,
       expiry: lot.expirationDate,
     });
-    const qr = await qrDataUrl(gs1 || lot.name);
+    const qr = gs1 ? await gs1MatrixDataUrl(gs1) : await qrDataUrl(lot.name);
     pages.push(`<div class="label-page" style="width:70mm;height:40mm;page-break-after:always;padding:3mm">
       ${companyHeader(tenant, { title: lang === 'ar' ? 'ملصق دفعة' : 'Lot Label', lang })}
       <div><strong>${esc(p.nameEn || p.nameAr)}</strong></div>

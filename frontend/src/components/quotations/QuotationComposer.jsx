@@ -25,6 +25,8 @@ import RichTextNoteField from '../invoices/RichTextNoteField'
 import MarqueeEventFields from '../marquee/MarqueeEventFields'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { LineRelationSuggestions } from '../inventory/ProductRelationSuggestions'
+import VariantLineSelect from '../inventory/VariantLineSelect'
+import { formatInvError } from '../../lib/invError'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -43,6 +45,7 @@ const getEmptyLine = (tenant) => {
 
   return {
     productId: '',
+    variantId: '',
     productName: '',
     productNameAr: '',
     productType: 'goods',
@@ -122,6 +125,7 @@ const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext })
           ...empty,
           ...line,
           productId: line?.productId?._id || line?.productId || '',
+          variantId: line?.variantId?._id || line?.variantId || '',
           productName: line?.productName || '',
           productNameAr: line?.productNameAr || '',
           productType: normalizeProductType(line?.productType),
@@ -412,7 +416,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       }
     },
     onError: (error) => {
-      toast.error(error?.response?.data?.error || error?.message || (language === 'ar' ? 'تعذر حفظ عرض السعر' : 'Failed to save quotation'))
+      toast.error(formatInvError(error, language) || (language === 'ar' ? 'تعذر حفظ عرض السعر' : 'Failed to save quotation'))
     },
   })
 
@@ -420,6 +424,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     const product = (products || []).find((item) => String(item._id) === String(productId))
     if (!product) return
     setValue(`lineItems.${index}.productId`, product._id)
+    setValue(`lineItems.${index}.variantId`, '')
     setValue(`lineItems.${index}.productName`, product.nameEn || '')
     setValue(`lineItems.${index}.productNameAr`, product.nameAr || product.nameEn || '')
     setValue(`lineItems.${index}.description`, product.descriptionEn || '')
@@ -506,6 +511,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
           ...line,
           lineNumber: index + 1,
           productId: isTradingContext ? (line.productId || undefined) : undefined,
+          variantId: isTradingContext && line.variantId ? line.variantId : undefined,
           productName: line.productName || line.productNameAr || (language === 'ar' ? 'بند' : 'Item'),
           productNameAr: line.productNameAr || line.productName || undefined,
           productType: normalizeProductType(line.productType),
@@ -978,6 +984,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                   >
                     <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
                     <input type="hidden" {...register(`lineItems.${index}.productType`)} />
+                    <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
                     <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12" dir="ltr">
                       <div className={showArabicFields ? 'md:col-span-6' : 'md:col-span-12'}>
                         <div className="mb-1.5 flex items-center gap-2" dir="ltr">
@@ -1017,6 +1024,24 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                               isSearchable
                             />
                           </div>
+                          {watch(`lineItems.${index}.productId`) ? (
+                            <div className="mb-2">
+                              <VariantLineSelect
+                                productId={watch(`lineItems.${index}.productId`)}
+                                value={watch(`lineItems.${index}.variantId`)}
+                                language={language}
+                                onChange={(variantId, variant) => {
+                                  setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
+                                  if (variant?.name) {
+                                    setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
+                                  }
+                                  if (variant?.price != null && Number(variant.price) > 0) {
+                                    setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : null}
                         ) : null}
                         <input {...register(`lineItems.${index}.productName`)} className="input" placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
                       </div>

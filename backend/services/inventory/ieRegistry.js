@@ -413,7 +413,7 @@ export const IE_MODELS = {
   product_variants: {
     label: 'Product Variants',
     importable: true,
-    defaultExport: ['product_sku', 'sku', 'barcode', 'active', 'onHand'],
+    defaultExport: ['product_sku', 'sku', 'name', 'barcode', 'priceExtra', 'cost', 'salesPrice', 'onHand', 'active'],
     fields: [
       { key: 'id', label: 'id', group: 'Identity', importable: true },
       { key: 'variantId', label: 'Variant ID', group: 'Identity', importable: false },

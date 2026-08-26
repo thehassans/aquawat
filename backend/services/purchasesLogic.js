@@ -185,7 +185,14 @@ export function matchPoLine(poLines, receiveLine, index) {
     return lines[receiveLine.poLineIndex];
   }
   const productId = receiveLine?.productId ? String(receiveLine.productId) : '';
+  const variantId = receiveLine?.variantId ? String(receiveLine.variantId) : '';
   if (productId) {
+    if (variantId) {
+      const variantMatch = lines.find(
+        (line) => String(line.productId || '') === productId && String(line.variantId || '') === variantId,
+      );
+      if (variantMatch) return variantMatch;
+    }
     const match = lines.find((line) => String(line.productId || '') === productId);
     if (match) return match;
   }
@@ -214,6 +221,7 @@ export function applyGrnReceiveToPoLines(poLines, receiveLines) {
     target.quantityReceived = round2(toNumber(target.quantityReceived) + qty);
     applied.push({
       productId: receiveLine.productId || target.productId,
+      variantId: receiveLine.variantId || target.variantId,
       productType: normalizeProductType(receiveLine.productType || target.productType),
       quantity: qty,
       unitCost: toNumber(receiveLine.costPrice ?? receiveLine.unitCost ?? target.unitCost),

@@ -213,6 +213,12 @@ function sanitizeInvoicePayload(payload = {}) {
       } else {
         delete cleanItem.sourcePoItemId;
       }
+      const variantId = cleanObjectId(cleanItem.variantId);
+      if (variantId) {
+        cleanItem.variantId = variantId;
+      } else {
+        delete cleanItem.variantId;
+      }
       return cleanItem;
     });
   }
@@ -612,6 +618,7 @@ async function postInventoryForInvoice(invoice, tenantFilterValue) {
       direction: 'out',
       lines: (invoice.lineItems || []).map((li) => ({
         productId: li.productId,
+        variantId: li.variantId || undefined,
         quantity: li.quantity,
         productType: li.productType,
       })),
@@ -641,6 +648,7 @@ async function postInventoryForInvoice(invoice, tenantFilterValue) {
       direction: 'in',
       lines: (invoice.lineItems || []).map((li) => ({
         productId: li.productId,
+        variantId: li.variantId || undefined,
         quantity: li.quantity,
         productType: li.productType,
         costPrice: li.unitPrice,

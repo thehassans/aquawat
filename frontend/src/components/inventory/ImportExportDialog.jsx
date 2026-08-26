@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { formatInvError, pickApiErrorPayload } from '../../lib/invError'
 
 async function fileToBase64(file) {
   const bytes = new Uint8Array(await file.arrayBuffer())
@@ -132,7 +133,7 @@ export default function ImportExportDialog({
       toast.success(ar ? 'تم حفظ القالب' : 'Template saved')
       qc.invalidateQueries({ queryKey: ['ie-templates', model] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
   })
 
   const deleteTpl = useMutation({
@@ -174,7 +175,7 @@ export default function ImportExportDialog({
       toast.success(ar ? `تم التصدير (${result.rowCount} صف)` : `Exported (${result.rowCount} rows)`)
       onClose?.()
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
   })
 
   const { data: job } = useQuery({
@@ -200,7 +201,7 @@ export default function ImportExportDialog({
         setJobId(null)
         onClose?.()
       } catch (e) {
-        toast.error(e.response?.data?.error || e.message)
+        toast.error(formatInvError(e, ar ? 'ar' : 'en'))
       }
     })()
   }, [job?.status, jobId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -225,7 +226,7 @@ export default function ImportExportDialog({
         onClose?.()
       }
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
   })
 
   const onFile = async (e) => {
@@ -410,7 +411,7 @@ export default function ImportExportDialog({
                 <p className="text-sm text-amber-700">
                   {ar ? 'جاري التصدير في الخلفية…' : 'Background export running…'}{' '}
                   {job?.status || 'pending'}
-                  {job?.error ? ` — ${job.error}` : ''}
+                  {job?.error ? ` — ${pickApiErrorPayload(job.error, ar ? 'ar' : 'en') || ''}` : ''}
                 </p>
               )}
             </>
@@ -491,6 +492,12 @@ export default function ImportExportDialog({
                         <span>{ar ? 'تحديث' : 'Update'}: {report.wouldUpdate ?? report.updated ?? 0}</span>
                         {report.costChanges != null && (
                           <span>{ar ? 'تغيير تكلفة' : 'Cost changes'}: {report.costChanges}</span>
+                        )}
+                        {report.variantCreates != null && (
+                          <span>{ar ? 'متغيرات جديدة' : 'Variant creates'}: {report.variantCreates}</span>
+                        )}
+                        {report.variantUpdates != null && (
+                          <span>{ar ? 'تحديث متغيرات' : 'Variant updates'}: {report.variantUpdates}</span>
                         )}
                         <span className="text-rose-600">{ar ? 'أخطاء' : 'Errors'}: {(report.errors || []).length}</span>
                       </div>

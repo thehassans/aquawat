@@ -54,6 +54,8 @@ import PurchaseReceivingLedger from './purchases/PurchaseReceivingLedger'
 import RecordPoPaymentModal from '../components/purchases/RecordPoPaymentModal'
 import PurchasePaymentsLedger from '../components/purchases/PurchasePaymentsLedger'
 import { showArabicFields as isArabicTenantMarket } from '../lib/saudiTenant'
+import VariantLineSelect from '../components/inventory/VariantLineSelect'
+import { formatInvError, pickApiErrorPayload } from '../lib/invError'
 
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
@@ -299,7 +301,7 @@ export default function PurchaseOrderForm() {
       initialPaidAmount: '',
       initialPaymentMethod: 'transfer',
       initialPaymentReference: '',
-      lineItems: [{ productId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, quantityReturned: 0, unitCost: 0, taxRate: 15 }],
+      lineItems: [{ productId: '', variantId: '', manualName: '', uom: 'PCE', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, quantityReturned: 0, unitCost: 0, taxRate: 15 }],
     },
   })
 
@@ -382,7 +384,7 @@ export default function PurchaseOrderForm() {
       setValue('supplierId', res.data._id, { shouldValidate: true })
       setSupplierForm({ code: '', nameEn: '', nameAr: '', contactPerson: '', phone: '', email: '', type: 'company' })
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
 
   const addWarehouseMutation = useMutation({
@@ -394,7 +396,7 @@ export default function PurchaseOrderForm() {
       setValue('warehouseId', res.data._id, { shouldValidate: true })
       setWarehouseForm({ code: '', nameEn: '', nameAr: '', type: 'main', isPrimary: false })
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
 
   const submitInlineSupplier = () => {
@@ -505,7 +507,7 @@ export default function PurchaseOrderForm() {
         taxRate: 15,
       })
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Failed to create product'),
+    onError: (err) => toast.error(formatInvError(err, language) || 'Failed to create product'),
   })
 
   const submitInlineProduct = () => {
@@ -559,6 +561,7 @@ export default function PurchaseOrderForm() {
     const product = (products || []).find((row) => String(row._id) === String(productId))
     if (!product) return
     setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType), { shouldDirty: true })
+    setValue(`lineItems.${index}.variantId`, '', { shouldDirty: true })
     setValue(`lineItems.${index}.uom`, product.unitOfMeasure || product.unitCode || getDefaultUom(tenant) || '', { shouldDirty: true })
     if (product.costPrice != null && product.costPrice !== '') {
       setValue(`lineItems.${index}.unitCost`, Number(product.costPrice) || 0, { shouldDirty: true })
@@ -589,6 +592,7 @@ export default function PurchaseOrderForm() {
         items.length > 0
           ? items.map((li) => ({
               productId: li?.productId?._id || li?.productId || '',
+              variantId: li?.variantId?._id || li?.variantId || '',
               manualName: li?.manualName || '',
               uom: li?.uom !== undefined ? (li.uom || '') : (li?.productId?.unitOfMeasure || getDefaultUom(tenant) || ''),
               description: li?.description || '',
@@ -599,7 +603,7 @@ export default function PurchaseOrderForm() {
               unitCost: li?.unitCost ?? 0,
               taxRate: li?.taxRate ?? 15,
             }))
-          : [{ productId: '', manualName: '', uom: getDefaultUom(tenant) || '', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, quantityReturned: 0, unitCost: 0, taxRate: 15 }],
+          : [{ productId: '', variantId: '', manualName: '', uom: getDefaultUom(tenant) || '', description: '', productType: 'goods', quantityOrdered: 1, quantityReceived: 0, quantityReturned: 0, unitCost: 0, taxRate: 15 }],
     })
     setManualModes(items.map((li) => Boolean(li?.manualName && !li?.productId)))
     const existingLc = (order.related?.landedCosts || []).find((lc) => (lc.costLines || []).length) || order.related?.landedCosts?.[0]
@@ -633,7 +637,7 @@ export default function PurchaseOrderForm() {
           }
           setPendingBills([])
         } catch (err) {
-          toast.error(err.response?.data?.error || (language === 'ar' ? 'تم الحفظ وتعذر رفع الفاتورة' : 'Saved, but bill upload failed'))
+          toast.error(formatInvError(err, language) || (language === 'ar' ? 'تم الحفظ وتعذر رفع الفاتورة' : 'Saved, but bill upload failed'))
         }
       }
       toast.success(
@@ -660,7 +664,7 @@ export default function PurchaseOrderForm() {
         setIsViewMode(true)
       }
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
 
   const approveMutation = useMutation({
@@ -703,7 +707,7 @@ export default function PurchaseOrderForm() {
         setCreatedOrderForPreview((prev) => (prev ? { ...prev, status: 'approved', draftGrn: draft || null } : null))
       }
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
 
   const sendMutation = useMutation({
@@ -713,7 +717,7 @@ export default function PurchaseOrderForm() {
       queryClient.invalidateQueries(['purchase-orders'])
       queryClient.invalidateQueries(['purchase-order', id])
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
 
   const cancelMutation = useMutation({
@@ -727,7 +731,7 @@ export default function PurchaseOrderForm() {
         setCreatedOrderForPreview((prev) => (prev ? { ...prev, status: 'cancelled' } : null))
       }
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
 
   const recordPaymentMutation = useMutation({
@@ -740,7 +744,7 @@ export default function PurchaseOrderForm() {
       queryClient.invalidateQueries(['purchase-orders'])
       queryClient.invalidateQueries(['purchase-orders-stats'])
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
 
   const receiveMutation = useMutation({
@@ -754,7 +758,7 @@ export default function PurchaseOrderForm() {
       queryClient.invalidateQueries(['purchase-orders-stats'])
       queryClient.invalidateQueries(['purchase-order', id])
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error'),
+    onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
 
   useEffect(() => {
@@ -769,6 +773,7 @@ export default function PurchaseOrderForm() {
       ...data,
       lineItems: (data.lineItems || []).map((li, index) => ({
         productId: manualModes[index] ? undefined : (li.productId || undefined),
+        variantId: manualModes[index] ? undefined : (li.variantId || undefined),
         manualName: manualModes[index] ? (li.manualName || '') : '',
         uom: li.uom || 'PCE',
         description: li.description,
@@ -798,6 +803,7 @@ export default function PurchaseOrderForm() {
       const action = lineRemainingActions[key] || (productId ? lineRemainingActions[String(productId)] : undefined) || 'backorder'
       return {
         productId: productId || undefined,
+        variantId: li?.variantId?._id || li?.variantId || undefined,
         lineIndex: idx,
         quantity: Math.max(0, qty),
         remainingAction: action,
@@ -1042,10 +1048,10 @@ export default function PurchaseOrderForm() {
       if (data instanceof Blob) {
         try {
           const parsed = JSON.parse(await data.text())
-          if (parsed?.error) message = parsed.error
+          if (parsed?.error) message = pickApiErrorPayload(parsed.error, language) || message
         } catch { /* keep fallback */ }
       } else if (err.response?.data?.error || err.message) {
-        message = err.response?.data?.error || err.message
+        message = formatInvError(err, language) || err.message
       }
       toast.error(message, { id: toastId })
     }
@@ -1864,7 +1870,7 @@ export default function PurchaseOrderForm() {
                           toast.success(language === 'ar' ? 'تم رفع المرفق' : 'Attachment uploaded')
                           queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
                         })
-                        .catch((err) => toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل الرفع' : 'Upload failed')))
+                        .catch((err) => toast.error(formatInvError(err, language) || (language === 'ar' ? 'فشل الرفع' : 'Upload failed')))
                     } else {
                       setPendingBills((prev) => [...prev, file])
                     }
@@ -2066,6 +2072,22 @@ export default function PurchaseOrderForm() {
                             }}
                           />
                         )}
+                        {!manualModes[index] && watch(`lineItems.${index}.productId`) ? (
+                          <div className="mt-2">
+                            <VariantLineSelect
+                              productId={watch(`lineItems.${index}.productId`)}
+                              value={watch(`lineItems.${index}.variantId`)}
+                              language={language}
+                              onChange={(variantId, variant) => {
+                                setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
+                                if (variant?.cost != null && Number(variant.cost) > 0) {
+                                  setValue(`lineItems.${index}.unitCost`, Number(variant.cost), { shouldDirty: true })
+                                }
+                              }}
+                            />
+                            <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="lg:col-span-2">

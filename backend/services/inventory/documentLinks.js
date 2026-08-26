@@ -58,6 +58,7 @@ export async function linkDraftReceiptToGrn({
     .filter((l) => l.productId && Number(l.quantityReceived || l.quantityOrdered || 0) > 0)
     .map((l) => ({
       productId: l.productId,
+      variantId: l.variantId || undefined,
       demandQty: String(l.quantityReceived || l.quantityOrdered || 0),
       uomId: defaultUom?._id,
       unitCost: l.costPrice != null && l.costPrice !== ''
@@ -179,6 +180,7 @@ export async function ensureDraftDeliveryForSellOrder({
           sourceDocId: dn._id,
           lines: dn.lineItems.map((l) => ({
             productId: l.productId,
+            variantId: l.variantId || undefined,
             demandQty: String(l.quantityDelivered),
             uomId: defaultUom?._id,
           })),

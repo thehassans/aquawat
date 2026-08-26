@@ -40,6 +40,7 @@ const travelDetailsSchema = new mongoose.Schema({
 const quotationLineSchema = new mongoose.Schema({
   lineNumber: { type: Number, required: true },
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant' },
   productName: { type: String, required: true },
   productNameAr: { type: String },
   productType: { type: String, enum: ['goods', 'service'], default: 'goods' },

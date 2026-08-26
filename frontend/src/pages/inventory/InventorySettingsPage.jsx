@@ -23,6 +23,44 @@ const CARRIERS = [
   { key: 'moduleCarrierSendcloud', label: 'Sendcloud', note: 'Connector not installed — contact admin' },
 ]
 
+function PrintJobsPanel({ ar }) {
+  const { data } = useQuery({
+    queryKey: ['inv-print-jobs'],
+    queryFn: () => api.get('/stock/print/jobs', { params: { limit: 12 } }).then((r) => r.data?.jobs || []),
+    refetchInterval: 30000,
+  })
+  const jobs = data || []
+  if (!jobs.length) {
+    return (
+      <div className="sm:col-span-2 text-xs text-slate-500">
+        {ar ? 'لا توجد مهام طباعة حديثة.' : 'No recent print jobs.'}
+      </div>
+    )
+  }
+  return (
+    <div className="sm:col-span-2 overflow-x-auto rounded-lg border border-slate-200 dark:border-dark-600">
+      <table className="min-w-full text-xs">
+        <thead className="bg-slate-50 text-left uppercase text-slate-500 dark:bg-dark-800">
+          <tr>
+            <th className="px-2 py-1.5">{ar ? 'التخطيط' : 'Layout'}</th>
+            <th className="px-2 py-1.5">{ar ? 'الحالة' : 'Status'}</th>
+            <th className="px-2 py-1.5">{ar ? 'التاريخ' : 'Date'}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+          {jobs.map((j) => (
+            <tr key={j._id}>
+              <td className="px-2 py-1.5 font-mono">{j.layout}</td>
+              <td className="px-2 py-1.5">{j.status}</td>
+              <td className="px-2 py-1.5">{j.createdAt ? new Date(j.createdAt).toLocaleString() : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function Section({ title, children, search, matchKeys = [] }) {
   const q = (search || '').trim().toLowerCase()
   const visible = !q || matchKeys.some((k) => String(k).toLowerCase().includes(q))
@@ -387,9 +425,8 @@ export default function InventorySettingsPage() {
             onChange={(e) => setField('printFooterTerms', e.target.value)}
           />
         </div>
+        <PrintJobsPanel ar={ar} />
       </Section>
-
-      <Section title={ar ? 'الباركود' : 'Barcode'} search={s} matchKeys={['barcode', 'gs1', 'scanner']}>
         <Toggle search={s} label={ar ? 'ماسح الباركود' : 'Barcode scanner'} checked={current.groupStockBarcode} onChange={() => toggle('groupStockBarcode')} />
         <Toggle search={s} label={ar ? 'تسمية GS1' : 'GS1 nomenclature'} checked={current.groupGs1Nomenclature} onChange={() => toggle('groupGs1Nomenclature')} />
       </Section>

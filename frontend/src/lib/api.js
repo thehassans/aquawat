@@ -25,10 +25,10 @@ export const getImageUrl = (url) => {
 
 const getApiErrorMessage = (error) => {
   const raw = error.response?.data?.error
-  const responseMessage = typeof raw === 'string' ? raw : raw?.message
-
-  if (responseMessage) {
-    return responseMessage
+  if (typeof raw === 'string' && raw) return raw
+  if (raw && typeof raw === 'object') {
+    const msg = raw.message || raw.messageAr || raw.code
+    if (msg) return String(msg)
   }
 
   if (error.response?.status === 429) {

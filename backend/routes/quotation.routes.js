@@ -394,6 +394,7 @@ async function resolveQuotationPayload(req, existingQuotation = null) {
     lineNumber: line.lineNumber || index + 1,
     taxCategory: line.taxCategory || 'S',
     productType: normalizeProductType(line.productType),
+    variantId: line.variantId || undefined,
   }));
 
   const productIds = lineItems

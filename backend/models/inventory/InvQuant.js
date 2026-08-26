@@ -4,7 +4,7 @@ import { tenantFields, decimalField, decimal128Field, setDecimalPair } from './c
 const schema = new mongoose.Schema({
   ...tenantFields,
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-  variantId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   locationId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvLocation', required: true },
   lotId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvLot', default: null },
   packageId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvPackage', default: null },

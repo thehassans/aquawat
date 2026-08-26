@@ -66,6 +66,7 @@ const cleanObjectId = (v) => {
 const invoiceLineSchema = new mongoose.Schema({
   lineNumber: { type: Number, required: true },
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', set: cleanObjectId },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', set: cleanObjectId },
   productName: { type: String, required: true },
   productNameAr: { type: String },
   productType: { type: String, enum: ['goods', 'service'], default: 'goods' },

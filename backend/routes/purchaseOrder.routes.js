@@ -63,6 +63,7 @@ function normalizeLineItems(lineItems = []) {
     const computed = totals.lines[index] || { lineSubtotal: 0, lineTax: 0, lineTotal: 0 };
     return {
       productId: li.productId || undefined,
+      variantId: li.variantId || undefined,
       manualName: li.manualName || '',
       uom: li.uom || '',
       description: li.description,
@@ -764,12 +765,21 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const productId = item.productId;
+      const variantId = item.variantId;
       const lineIndex = item.lineIndex !== undefined ? item.lineIndex : i;
       const qty = toNumber(item.quantity ?? item.qty, 0);
       if (qty <= 0) continue;
       let line = null;
       if (productId) {
-        line = order.lineItems.find((li) => li.productId?.toString() === productId.toString());
+        if (variantId) {
+          line = order.lineItems.find(
+            (li) => li.productId?.toString() === productId.toString()
+              && String(li.variantId || '') === String(variantId),
+          );
+        }
+        if (!line) {
+          line = order.lineItems.find((li) => li.productId?.toString() === productId.toString());
+        }
       }
       if (!line && order.lineItems[lineIndex]) {
         line = order.lineItems[lineIndex];
@@ -779,6 +789,7 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
       }
       lines.push({
         productId: line.productId || undefined,
+        variantId: line.variantId || variantId || undefined,
         productName: line.manualName || (line.productId?.nameEn || line.productId?.nameAr) || '',
         productType: line.productType || 'goods',
         uom: line.uom || '',

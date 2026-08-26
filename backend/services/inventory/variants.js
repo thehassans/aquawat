@@ -30,6 +30,23 @@ function comboViolatesExclusion(comboIds, exclusions) {
   return false;
 }
 
+/** Sum template-level + global attribute value price extras for a combination. */
+async function computeComboExtraPrice(tenantId, productId, values) {
+  const tid = toObjectId(tenantId);
+  const templateExtras = await InvTemplateAttributeValue.find({
+    tenantId: tid,
+    templateId: toObjectId(productId),
+    active: true,
+  }).lean();
+  const extraByValueId = new Map(
+    templateExtras.map((t) => [String(t.attributeValueId), Number(t.priceExtra) || 0]),
+  );
+  return values.reduce((s, v) => {
+    const tidExtra = extraByValueId.get(String(v._id));
+    return s + (tidExtra != null ? tidExtra : (Number(v.extraPrice) || 0));
+  }, 0);
+}
+
 async function assertVariantsEnabled(tenantId) {
   const settings = await getInvSettings(tenantId);
   if (!settings.groupProductVariant) {
@@ -434,10 +451,7 @@ export async function generateVariants(tenantId, userId, {
       created += 1;
       continue;
     }
-    const extraPrice = combo.reduce((s, v) => {
-      const tidExtra = extraByValueId.get(String(v._id));
-      return s + (tidExtra != null ? tidExtra : (Number(v.extraPrice) || 0));
-    }, 0);
+    const extraPrice = await computeComboExtraPrice(tid, product._id, combo);
     const doc = await InvProductVariant.create({
       tenantId: tid,
       productId: product._id,
@@ -635,6 +649,7 @@ export async function getOrCreateVariant(tenantId, userId, { productId, attribut
   }
 
   try {
+    const extraPrice = await computeComboExtraPrice(tid, productId, values);
     return await InvProductVariant.create({
       tenantId: tid,
       productId: toObjectId(productId),
@@ -642,7 +657,7 @@ export async function getOrCreateVariant(tenantId, userId, { productId, attribut
       nameAr: values.map((v) => v.nameAr || v.name).join(' / '),
       attributeValueIds: values.map((v) => v._id),
       combinationKey: key,
-      extraPrice: values.reduce((s, v) => s + (Number(v.extraPrice) || 0), 0),
+      extraPrice,
       active: true,
       createdBy: userId,
     });

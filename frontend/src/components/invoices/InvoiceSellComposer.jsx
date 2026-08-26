@@ -31,6 +31,8 @@ import MarqueeEventFields from '../marquee/MarqueeEventFields'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
 import { LineRelationSuggestions } from '../inventory/ProductRelationSuggestions'
+import VariantLineSelect from '../inventory/VariantLineSelect'
+import { formatInvError } from '../../lib/invError'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -49,6 +51,7 @@ const getEmptyLine = (tenant) => {
 
   return {
     productId: '',
+    variantId: '',
     productName: '',
     productNameAr: '',
     productType: 'goods',
@@ -87,6 +90,7 @@ const mapSellLineItems = (invoice, tenant) => {
       ...empty,
       ...plain,
       productId: idOf(plain?.productId),
+      variantId: idOf(plain?.variantId),
       productName: plain?.productName || plain?.name || plain?.description || '',
       productNameAr: plain?.productNameAr || plain?.nameAr || '',
       unitCode: plain?.unitCode !== undefined ? (plain.unitCode || '') : empty.unitCode,
@@ -663,7 +667,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       setValue('travelDetails.passengers', Array.isArray(data?.passengers) ? data.passengers : [])
       toast.success(language === 'ar' ? 'تم استيراد الحجز' : 'Booking imported')
     },
-    onError: (error) => toast.error(error?.response?.data?.error || error.message || 'Failed'),
+    onError: (error) => toast.error(formatInvError(error, language) || 'Failed'),
   })
 
   const latestValues = useRef(values)
@@ -728,13 +732,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         navigate(`/app/dashboard/invoices/${res.data?._id || invoiceId}`)
       }
     },
-    onError: (error) => toast.error(error?.response?.data?.error || error?.userMessage || error?.message || (isEdit ? 'Failed to update invoice' : 'Failed to create invoice')),
+    onError: (error) => toast.error(formatInvError(error, language) || (isEdit ? 'Failed to update invoice' : 'Failed to create invoice')),
   })
 
   const onSelectProduct = (index, productId) => {
     const product = (products || []).find((item) => item._id === productId)
     if (!product) return
     setValue(`lineItems.${index}.productId`, product._id)
+    setValue(`lineItems.${index}.variantId`, '')
     setValue(`lineItems.${index}.productName`, product.nameEn)
     setValue(`lineItems.${index}.productNameAr`, product.nameAr || product.nameEn)
     setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE')
@@ -862,6 +867,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           lineNumber: index + 1,
           taxCategory: 'S',
           productId: isTradingContext ? line.productId || undefined : undefined,
+          variantId: isTradingContext && line.variantId ? line.variantId : undefined,
           productName: line.productName,
           productNameAr: line.productNameAr || '',
           productType: normalizeProductType(line.productType),
@@ -1554,6 +1560,25 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                           />
                           <input {...register(`lineItems.${index}.productName`)} className={`mt-2 ${fieldControlClass}`} readOnly={Boolean(lineItems?.[index]?.productId)} placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
                           <input type="hidden" {...register(`lineItems.${index}.productId`)} />
+                          <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
+                          {isTradingContext && watch(`lineItems.${index}.productId`) ? (
+                            <div className="mt-2">
+                              <VariantLineSelect
+                                productId={watch(`lineItems.${index}.productId`)}
+                                value={watch(`lineItems.${index}.variantId`)}
+                                language={language}
+                                onChange={(variantId, variant) => {
+                                  setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
+                                  if (variant?.name) {
+                                    setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
+                                  }
+                                  if (variant?.price != null && Number(variant.price) > 0) {
+                                    setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : null}
                         </div>
                       ) : (
                         <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className={`mt-1.5 ${fieldControlClass}`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />

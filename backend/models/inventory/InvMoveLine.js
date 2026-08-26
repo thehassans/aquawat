@@ -7,7 +7,7 @@ const schema = new mongoose.Schema({
   moveId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvMove', required: true, index: true },
   transferId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer', index: true },
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-  variantId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   uomId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvUom', required: true },
   quantity: { ...decimalField, default: '0' },
   quantityNum: { ...decimal128Field },

@@ -9,6 +9,7 @@ import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import Money from '../../components/ui/Money'
+import { formatInvError } from '../../lib/invError'
 
 export function AttributesPage() {
   const { language } = useSelector((s) => s.ui)
@@ -48,7 +49,7 @@ export function AttributesPage() {
       setSelectedId(res.data._id)
       qc.invalidateQueries({ queryKey: ['inv-attributes'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
   })
 
   const createVal = useMutation({
@@ -64,7 +65,7 @@ export function AttributesPage() {
       setExtraPrice('0')
       qc.invalidateQueries({ queryKey: ['inv-attribute-values', selectedId] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
   })
 
   return (
@@ -228,7 +229,7 @@ export function VariantsPage() {
         : `Created ${res.data.created} · skipped ${res.data.skipped} · archived ${res.data.archived || 0}`)
       qc.invalidateQueries({ queryKey: ['inv-variants'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
   })
 
   const createMut = useMutation({
@@ -238,7 +239,7 @@ export function VariantsPage() {
       setManualName('')
       qc.invalidateQueries({ queryKey: ['inv-variants'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
   })
 
   const patchMut = useMutation({
@@ -247,7 +248,7 @@ export function VariantsPage() {
       toast.success(ar ? 'تم الحفظ' : 'Saved')
       qc.invalidateQueries({ queryKey: ['inv-variants'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
   })
 
   const selectedAttrsLabel = useMemo(() => {

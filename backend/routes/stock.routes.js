@@ -11,6 +11,7 @@ import {
   InvMoveLine,
   InvQuant,
   InvProductCategory,
+  InvProductVariant,
 } from '../models/inventory/index.js';
 import Warehouse from '../models/Warehouse.js';
 import Product from '../models/Product.js';
@@ -918,13 +919,14 @@ router.get('/products/:productId/smart-buttons', checkPermission('inventory', 'r
   try {
     const productId = req.params.productId;
     const tid = req.user.tenantId;
-    const [onHand, forecast, reorderCount, lotCount, moveCount, putawayCount] = await Promise.all([
+    const [onHand, forecast, reorderCount, lotCount, moveCount, putawayCount, variantCount] = await Promise.all([
       computeOnHand(tid, productId),
       computeForecast(tid, productId),
       InvReorderRule.countDocuments({ tenantId: tid, productId }),
       InvLot.countDocuments({ tenantId: tid, productId }),
       InvMove.countDocuments({ tenantId: tid, productId, state: { $ne: 'cancelled' } }),
       InvPutawayRule.countDocuments({ tenantId: tid, productId }),
+      InvProductVariant.countDocuments({ tenantId: tid, productId, active: true }),
     ]);
     res.json({
       onHand: onHand.onHand,
@@ -935,6 +937,7 @@ router.get('/products/:productId/smart-buttons', checkPermission('inventory', 'r
       lots: lotCount,
       moves: moveCount,
       putawayRules: putawayCount,
+      variants: variantCount,
     });
   } catch (err) {
     handleInventoryError(res, err);

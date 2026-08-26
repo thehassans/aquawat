@@ -132,6 +132,7 @@ export async function postLinesViaEngine({
 
     engineLines.push({
       productId: line.productId,
+      variantId: line.variantId || undefined,
       demandQty: decStr(qty),
       uomId: kind.product.uomId || defaultUom?._id,
       sourceLineId: line._id ? String(line._id) : line.sourceLineId,

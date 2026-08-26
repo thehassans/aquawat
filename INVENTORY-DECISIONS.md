@@ -17,7 +17,7 @@ Last updated: 2026-08-26
 | Blank import template | `GET /stock/ie/import-template/:model` |
 | Import errors | Dry-run returns `errorFileCsv` (original failed rows + `_error` column) |
 | Vendors pricelist | Export flattens `Product.suppliers[]` |
-| Print engine | `invPrint.js` — all 18 layout keys implemented (transfer docs, batch pick, count sheets/variance, stock report, product/lot/package/shipping/location labels, putaway, reorder); GS1 lot payload via QR until DataMatrix font ships |
+| Print engine | `invPrint.js` — all 18 layout keys; GS1 lot payload via **DataMatrix** (`bwip-js`, QR fallback) |
 | Print settings | `InvSettings`: `printDefaultLang`, `printShowPricesOnDelivery`, `printWatermarkEnabled`, `printFooterTerms`, `printPaperSize` |
 | Arabic PDF | Relies on Chromium shaping; if production fonts fail, install Noto Naskh Arabic in the backend image |
 | Physical inventory | Totals · reason codes · accounting date · UoM · lot/package · Apply Selected · blind · stale · grouping/columns · variance approval (`varianceApprovalThreshold`) · period lock (`inventoryPeriodLockDate`) · count sheet print |
@@ -43,7 +43,9 @@ Last updated: 2026-08-26
 | Seed fixture | `AUD-TEE-01` Colour(Red/Blue/Silk)×Size(S/M/L/XXL) − Silk×XXL → **11** variants; accessory→AUD-SIM-01; upsell→AUD-SIM-02; kit `AUD-KIT-01`; `groupProductVariant=true` |
 | APIs | `/stock/exclusions`, `/stock/relations` (+ list preload), `/stock/products/:id/relations`, `/suggestions`, `/bundle`, `/kit-availability`, `/variants/get-or-create`, template-attribute-values |
 | Form / sales UI (shipped) | ProductForm Sales: relations CRUD + “Suggested by”; Variants: attribute exclusions editor; Quotation + sell invoice: cross-sell / accessories / upsell swap (+ optional on quotation); Bakala POS strip when `BakalaProduct.productId` links to trading Product (catalogue preload via `GET /stock/relations`) |
-| Still open | Valuation/lot/putaway/cache **per variant**; Invoice/PO/Quotation `line.variantId`; import dry-run variant counts; full form field completion; history-based “frequently bought” proposals (manual curation only for now); POS strip on verticals without trading `productId` link |
+| Still open | Per-variant valuation layers in reports; history-based proposals; POS strip without trading productId link; IE enrich columns (salesQty30d, stockByWarehouse); ProductForm tags/documents/vendors/combo |
+| Shipped (2026-08-26 cont.) | `variantId` on Invoice/Quotation/PO lines + engine post; `getOrCreateVariant` template price extras; PI count accepts variantId; expanded `product_variants` IE; ProductForm fields + template price extras UI; GS1 DataMatrix via `bwip-js`; print jobs panel in settings |
+| Shipped (2026-08-26 cont.2) | React #31 fix (`formatInvError` / `pickApiErrorPayload`); **ProductVariantsGrid** on product form; **VariantLineSelect** on sell invoice / quotation / PO lines; GRN receive + PO sync match by `variantId`; quotation route preserves `variantId` |
 
 ## Verification phase (2026-08-26)
 

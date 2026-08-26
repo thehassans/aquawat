@@ -14,7 +14,9 @@ import {
   InvMoveLine,
   InvValuationLayer,
   InvProductVariant,
+  InvQuant,
 } from '../../models/inventory/index.js';
+import InvProductAttribute from '../../models/inventory/InvProductAttribute.js';
 import InvIeTemplate from '../../models/inventory/InvIeTemplate.js';
 import InvExportJob from '../../models/inventory/InvExportJob.js';
 import { toObjectId } from '../../models/inventory/common.js';
@@ -195,7 +197,18 @@ async function loadExportRows(tenantId, model, filters = {}) {
         .populate('suppliers.supplierId', 'name code')
         .limit(limit)
         .lean();
-      return rows.map((p) => mapProductExportRow(p));
+      const productIds = rows.map((p) => p._id);
+      const variantAgg = productIds.length
+        ? await InvProductVariant.aggregate([
+          { $match: { tenantId: tid, productId: { $in: productIds } } },
+          { $group: { _id: '$productId', count: { $sum: 1 } } },
+        ])
+        : [];
+      const variantCountByProduct = new Map(variantAgg.map((v) => [String(v._id), v.count]));
+      return rows.map((p) => ({
+        ...mapProductExportRow(p),
+        variantCount: variantCountByProduct.get(String(p._id)) ?? 0,
+      }));
     }
     case 'warehouses': {
       const rows = await Warehouse.find({ tenantId: tid }).limit(limit).lean();
@@ -472,17 +485,43 @@ async function loadExportRows(tenantId, model, filters = {}) {
       }));
     }
     case 'product_variants': {
+      const attrs = await InvProductAttribute.find({ tenantId: tid }).select('name').lean();
+      const attrNameById = new Map(attrs.map((a) => [String(a._id), a.name]));
       const rows = await InvProductVariant.find({ tenantId: tid })
-        .populate('productId', 'sku')
+        .populate('productId', 'sku sellingPrice costPrice')
+        .populate({ path: 'attributeValueIds', select: 'name attributeId' })
         .limit(limit)
         .lean();
-      return rows.map((v) => ({
-        id: String(v._id),
-        product_sku: v.productId?.sku || '',
-        sku: v.sku || '',
-        barcode: v.barcode || '',
-        active: v.active !== false,
-      }));
+      const variantIds = rows.map((v) => v._id);
+      const onHandAgg = variantIds.length
+        ? await InvQuant.aggregate([
+          { $match: { tenantId: tid, variantId: { $in: variantIds } } },
+          { $group: { _id: '$variantId', qty: { $sum: { $toDouble: { $ifNull: ['$quantityNum', 0] } } } } },
+        ])
+        : [];
+      const onHandMap = new Map(onHandAgg.map((x) => [String(x._id), x.qty]));
+      return rows.map((v) => {
+        const base = {
+          id: String(v._id),
+          variantId: v.variantCode || '',
+          product_sku: v.productId?.sku || '',
+          sku: v.sku || '',
+          name: v.name || '',
+          barcode: v.barcode || '',
+          priceExtra: v.extraPrice ?? 0,
+          cost: v.standardPrice ?? v.productId?.costPrice ?? '',
+          salesPrice: Number(v.productId?.sellingPrice || 0) + Number(v.extraPrice || 0),
+          onHand: onHandMap.get(String(v._id)) ?? 0,
+          active: v.active !== false,
+        };
+        for (const av of v.attributeValueIds || []) {
+          if (av && typeof av === 'object' && av.name) {
+            const attrLabel = attrNameById.get(String(av.attributeId)) || 'Attribute';
+            base[`Attribute: ${attrLabel}`] = av.name;
+          }
+        }
+        return base;
+      });
     }
     case 'vendors_pricelist': {
       const products = await Product.find({ tenantId: tid })
@@ -898,6 +937,8 @@ async function genericMasterImport(tenantId, userId, model, records, dryRun) {
     updated: dryRun ? preview.filter((p) => p.action === 'update').length : updated,
     wouldCreate: preview.filter((p) => p.action === 'create').length,
     wouldUpdate: preview.filter((p) => p.action === 'update').length,
+    variantCreates: model === 'product_variants' ? preview.filter((p) => p.action === 'create').length : undefined,
+    variantUpdates: model === 'product_variants' ? preview.filter((p) => p.action === 'update').length : undefined,
     errors,
     preview: preview.slice(0, 50),
   };
@@ -1006,11 +1047,21 @@ async function importOneMaster(tid, userId, model, row, dryRun) {
     let doc = await InvProductVariant.findOne({ tenantId: tid, sku });
     const product = templateSku
       ? await Product.findOne({ tenantId: tid, sku: templateSku }).select('_id').lean()
-      : null;
-    if (dryRun) return { action: doc ? 'update' : 'create', sku };
+      : (doc ? await Product.findById(doc.productId).select('_id sku').lean() : null);
+    if (dryRun) {
+      return {
+        action: doc ? 'update' : 'create',
+        sku,
+        wouldCreateVariant: !doc,
+        wouldUpdateVariant: !!doc,
+      };
+    }
     if (doc) {
       if (row.barcode != null) doc.barcode = row.barcode;
       if (row.active != null) doc.active = String(row.active).toLowerCase() !== 'false';
+      if (row.priceExtra != null && row.priceExtra !== '') doc.extraPrice = Number(row.priceExtra) || 0;
+      if (row.cost != null && row.cost !== '') doc.standardPrice = Number(row.cost) || 0;
+      if (row.name) doc.name = row.name;
       await doc.save();
       return { action: 'update', id: String(doc._id) };
     }
@@ -1026,6 +1077,8 @@ async function importOneMaster(tid, userId, model, row, dryRun) {
       sku,
       barcode: row.barcode || undefined,
       combinationKey: row.combinationKey || `ie:${sku}`,
+      extraPrice: row.priceExtra != null && row.priceExtra !== '' ? Number(row.priceExtra) || 0 : 0,
+      standardPrice: row.cost != null && row.cost !== '' ? Number(row.cost) || 0 : undefined,
       active: String(row.active || 'true').toLowerCase() !== 'false',
       createdBy: userId,
     });
