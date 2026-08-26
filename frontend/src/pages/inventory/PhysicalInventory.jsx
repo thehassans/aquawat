@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect, Fragment } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
@@ -46,6 +46,18 @@ export default function PhysicalInventory() {
   const [reason, setReason] = useState('Physical inventory')
   const [reasonCode, setReasonCode] = useState('data_entry_error')
   const [blindMode, setBlindMode] = useState(false)
+  const [groupBy, setGroupBy] = useState('') // '' | location | product | category
+  const [colOptsOpen, setColOptsOpen] = useState(false)
+  const [visibleCols, setVisibleCols] = useState({
+    lot: true,
+    package: true,
+    onHand: true,
+    uom: true,
+    diff: true,
+    scheduled: true,
+    user: true,
+    lastCount: true,
+  })
 
   const REASON_CODES = [
     { code: 'damage', en: 'Damage', ar: 'تلف' },
@@ -173,11 +185,11 @@ export default function PhysicalInventory() {
   const apply = useMutation({
     mutationFn: (body) => api.post('/stock/physical-inventory/apply', body),
     onSuccess: (res) => {
-      const { applied = 0, failed = 0 } = res.data || {}
+      const { applied = 0, failed = 0, needsApproval = 0 } = res.data || {}
       toast.success(
         ar
-          ? `تم تطبيق ${applied}${failed ? `، فشل ${failed}` : ''}`
-          : `${applied} applied${failed ? `, ${failed} failed` : ''}`,
+          ? `تم تطبيق ${applied}${failed ? `، فشل ${failed}` : ''}${needsApproval ? ` (يحتاج اعتماد: ${needsApproval})` : ''}`
+          : `${applied} applied${failed ? `, ${failed} failed` : ''}${needsApproval ? ` (${needsApproval} need approval)` : ''}`,
       )
       setApplyOpen(false)
       setSelected(new Set())
@@ -186,6 +198,25 @@ export default function PhysicalInventory() {
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
+
+  const approveVariance = useMutation({
+    mutationFn: (ids) => api.post('/stock/physical-inventory/approve-variance', { ids }),
+    onSuccess: (res) => {
+      toast.success(ar ? `تم اعتماد ${res.data?.approved || 0}` : `Approved ${res.data?.approved || 0}`)
+      invalidate()
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message),
+  })
+
+  const { data: invSettings } = useQuery({
+    queryKey: ['inv-settings-pi'],
+    queryFn: () => api.get('/stock/settings').then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  })
+
+  useEffect(() => {
+    if (invSettings?.blindCountMode != null) setBlindMode(!!invSettings.blindCountMode)
+  }, [invSettings?.blindCountMode])
 
   const requestCountMut = useMutation({
     mutationFn: (body) => api.post('/stock/physical-inventory/request-count', body),
@@ -202,6 +233,28 @@ export default function PhysicalInventory() {
     },
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
+
+  const groupedList = useMemo(() => {
+    if (!groupBy) return [{ key: '', label: null, rows: list }]
+    const map = new Map()
+    for (const row of list) {
+      let key = '—'
+      let label = '—'
+      if (groupBy === 'location') {
+        key = String(row.locationId?._id || row.locationId || '—')
+        label = row.locationId?.completePath || row.locationId?.name || '—'
+      } else if (groupBy === 'product') {
+        key = String(row.productId?._id || row.productId || '—')
+        label = (ar && row.productId?.nameAr ? row.productId.nameAr : row.productId?.nameEn) || row.productId?.sku || '—'
+      } else if (groupBy === 'category') {
+        key = String(row.productId?.categoryId || row.productId?.category || '—')
+        label = row.productId?.category || '—'
+      }
+      if (!map.has(key)) map.set(key, { key, label, rows: [] })
+      map.get(key).rows.push(row)
+    }
+    return [...map.values()]
+  }, [list, groupBy, ar])
 
   const whList = Array.isArray(warehouses) ? warehouses : []
   const locList = Array.isArray(locations) ? locations : []
@@ -421,7 +474,7 @@ export default function PhysicalInventory() {
               setSearch(e.target.value)
               setPage(1)
             }}
-            placeholder={ar ? 'بحث منتج / SKU…' : 'Search product / SKU…'}
+            placeholder={ar ? 'بحث منتج / SKU / باركود…' : 'Search product / SKU / barcode…'}
           />
         </div>
         <ProductChooser
@@ -454,6 +507,29 @@ export default function PhysicalInventory() {
               {ar ? f.ar : f.en}
             </button>
           ))}
+          <select
+            className="select text-sm"
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value)}
+          >
+            <option value="">{ar ? 'بدون تجميع' : 'No grouping'}</option>
+            <option value="location">{ar ? 'تجميع بالموقع' : 'Group by location'}</option>
+            <option value="product">{ar ? 'تجميع بالمنتج' : 'Group by product'}</option>
+            <option value="category">{ar ? 'تجميع بالفئة' : 'Group by category'}</option>
+          </select>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setColOptsOpen((v) => !v)}>
+            {ar ? 'أعمدة' : 'Columns'}
+          </button>
+          {selected.size > 0 && list.some((r) => selected.has(r._id) && r.varianceApprovalRequired && !r.varianceApprovedAt) && (
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={approveVariance.isPending}
+              onClick={() => approveVariance.mutate([...selected])}
+            >
+              {ar ? 'اعتماد فروقات' : 'Approve variance'}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <span>{from}-{to} / {meta.total || 0}</span>
@@ -461,6 +537,21 @@ export default function PhysicalInventory() {
           <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
         </div>
       </div>
+
+      {colOptsOpen && (
+        <div className="flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-dark-600 dark:bg-dark-800">
+          {Object.entries(visibleCols).map(([k, on]) => (
+            <label key={k} className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={(e) => setVisibleCols((c) => ({ ...c, [k]: e.target.checked }))}
+              />
+              {k}
+            </label>
+          ))}
+        </div>
+      )}
 
       {selected.size > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -477,25 +568,25 @@ export default function PhysicalInventory() {
               <th className="px-3 py-3 w-10" />
               <th className="px-3 py-3 text-start">{ar ? 'الموقع' : 'Location'}</th>
               <th className="px-3 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
-              <th className="px-3 py-3 text-start">{ar ? 'دفعة' : 'Lot/Serial'}</th>
-              <th className="px-3 py-3 text-start">{ar ? 'عبوة' : 'Package'}</th>
-              {!blindMode && <th className="px-3 py-3 text-start">{ar ? 'المتاح' : 'On Hand'}</th>}
-              <th className="px-3 py-3 text-start">{ar ? 'وحدة' : 'UoM'}</th>
+              {visibleCols.lot && <th className="px-3 py-3 text-start">{ar ? 'دفعة' : 'Lot/Serial'}</th>}
+              {visibleCols.package && <th className="px-3 py-3 text-start">{ar ? 'عبوة' : 'Package'}</th>}
+              {!blindMode && visibleCols.onHand && <th className="px-3 py-3 text-start">{ar ? 'المتاح' : 'On Hand'}</th>}
+              {visibleCols.uom && <th className="px-3 py-3 text-start">{ar ? 'وحدة' : 'UoM'}</th>}
               <th className="px-3 py-3 text-start">{ar ? 'العد' : 'Counted'}</th>
-              {!blindMode && <th className="px-3 py-3 text-start">{ar ? 'الفرق' : 'Diff'}</th>}
-              <th className="px-3 py-3 text-start">{ar ? 'مجدول' : 'Scheduled'}</th>
-              <th className="px-3 py-3 text-start">{ar ? 'المستخدم' : 'User'}</th>
-              <th className="px-3 py-3 text-start">{ar ? 'آخر جرد' : 'Last count'}</th>
+              {!blindMode && visibleCols.diff && <th className="px-3 py-3 text-start">{ar ? 'الفرق' : 'Diff'}</th>}
+              {visibleCols.scheduled && <th className="px-3 py-3 text-start">{ar ? 'مجدول' : 'Scheduled'}</th>}
+              {visibleCols.user && <th className="px-3 py-3 text-start">{ar ? 'المستخدم' : 'User'}</th>}
+              {visibleCols.lastCount && <th className="px-3 py-3 text-start">{ar ? 'آخر جرد' : 'Last count'}</th>}
               <th className="px-3 py-3 text-start">{ar ? 'إجراءات' : 'Actions'}</th>
             </tr>
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={13} className="px-4 py-8 text-center text-slate-400">…</td></tr>
+              <tr><td colSpan={14} className="px-4 py-8 text-center text-slate-400">…</td></tr>
             )}
             {!isLoading && list.length === 0 && (
               <tr>
-                <td colSpan={13} className="p-8">
+                <td colSpan={14} className="p-8">
                   <EmptyState
                     title={ar ? 'لا أسطر جرد' : 'No count lines'}
                     description={
@@ -507,7 +598,20 @@ export default function PhysicalInventory() {
                 </td>
               </tr>
             )}
-            {list.map((row) => {
+            {groupedList.map((group) => (
+              <Fragment key={group.key || 'all'}>
+                {group.label && (
+                  <tr className="bg-slate-100/80 dark:bg-dark-900/60">
+                    <td colSpan={14} className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      {group.label}
+                      <span className="ms-2 font-normal text-slate-400">
+                        ({group.rows.length})
+                        {!blindMode && ` · Δ ${group.rows.reduce((s, r) => s + Number(r.countDifference || 0), 0).toFixed(2)}`}
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                {group.rows.map((row) => {
               const counted = edits[row._id] ?? row.countedQuantity ?? ''
               const liveDiff = counted !== '' && counted != null
                 ? (Number(counted || 0) - Number(row.quantity || 0)).toFixed(2)
@@ -516,7 +620,7 @@ export default function PhysicalInventory() {
               const lid = row.locationId?._id || row.locationId
               const pname = ar && row.productId?.nameAr ? row.productId.nameAr : row.productId?.nameEn
               return (
-                <tr key={row._id} className={`border-b border-slate-50 dark:border-dark-700 ${row.isStale ? 'bg-amber-50/80 dark:bg-amber-950/20' : ''}`}>
+                <tr key={row._id} className={`border-b border-slate-50 dark:border-dark-700 ${row.isStale ? 'bg-amber-50/80 dark:bg-amber-950/20' : ''} ${row.varianceApprovalRequired && !row.varianceApprovedAt ? 'ring-1 ring-inset ring-amber-300' : ''}`}>
                   <td className="px-3 py-2">
                     <input
                       type="checkbox"
@@ -538,11 +642,17 @@ export default function PhysicalInventory() {
                     {row.isStale && (
                       <div className="text-xs font-medium text-amber-700">{ar ? 'رصيد تغيّر — أعد العد' : 'Stale — recount required'}</div>
                     )}
+                    {row.varianceApprovalRequired && !row.varianceApprovedAt && (
+                      <div className="text-xs font-medium text-amber-800">{ar ? 'يحتاج اعتماد فرق' : 'Needs variance approval'}</div>
+                    )}
+                    {row.varianceApprovedAt && (
+                      <div className="text-xs text-emerald-600">{ar ? 'معتمد' : 'Approved'}</div>
+                    )}
                   </td>
-                  <td className="px-3 py-2 tabular-nums">{row.lotId?.name || '—'}</td>
-                  <td className="px-3 py-2">{row.packageId?.name || '—'}</td>
-                  {!blindMode && <td className="px-3 py-2 tabular-nums">{row.quantity}</td>}
-                  <td className="px-3 py-2 text-xs text-slate-500">{row.uom || row.productId?.unitOfMeasure || 'PCE'}</td>
+                  {visibleCols.lot && <td className="px-3 py-2 tabular-nums">{row.lotId?.name || '—'}</td>}
+                  {visibleCols.package && <td className="px-3 py-2">{row.packageId?.name || '—'}</td>}
+                  {!blindMode && visibleCols.onHand && <td className="px-3 py-2 tabular-nums">{row.quantity}</td>}
+                  {visibleCols.uom && <td className="px-3 py-2 text-xs text-slate-500">{row.uom || row.productId?.unitOfMeasure || 'PCE'}</td>}
                   <td className="px-3 py-2">
                     <input
                       className="input w-24"
@@ -560,7 +670,8 @@ export default function PhysicalInventory() {
                       }}
                     />
                   </td>
-                  {!blindMode && <td className={`px-3 py-2 tabular-nums ${diffColor(liveDiff)}`}>{liveDiff}</td>}
+                  {!blindMode && visibleCols.diff && <td className={`px-3 py-2 tabular-nums ${diffColor(liveDiff)}`}>{liveDiff}</td>}
+                  {visibleCols.scheduled && (
                   <td className="px-3 py-2">
                     <input
                       type="date"
@@ -569,6 +680,8 @@ export default function PhysicalInventory() {
                       onChange={(e) => persistRow(row, { countScheduledDate: e.target.value || null })}
                     />
                   </td>
+                  )}
+                  {visibleCols.user && (
                   <td className="px-3 py-2">
                     <select
                       className="select text-xs max-w-[9rem]"
@@ -581,7 +694,8 @@ export default function PhysicalInventory() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{fmtDate(row.lastCountDate) || '—'}</td>
+                  )}
+                  {visibleCols.lastCount && <td className="px-3 py-2 text-xs text-slate-500">{fmtDate(row.lastCountDate) || '—'}</td>}
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
                       <button
@@ -613,7 +727,9 @@ export default function PhysicalInventory() {
                   </td>
                 </tr>
               )
-            })}
+                })}
+              </Fragment>
+            ))}
           </tbody>
         </table>
       </div>

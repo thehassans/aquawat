@@ -310,6 +310,85 @@ export default function InventorySettingsPage() {
         </div>
       </Section>
 
+      <Section title={ar ? 'الجرد الفعلي' : 'Physical inventory'} search={s} matchKeys={['blind', 'count', 'variance', 'period', 'lock', 'inventory']}>
+        <Toggle
+          label={ar ? 'عد أعمى (افتراضي)' : 'Blind count (default)'}
+          hint={ar ? 'إخفاء المتاح والفرق أثناء العد' : 'Hide on-hand and difference while counting'}
+          checked={!!current.blindCountMode}
+          onChange={(e) => setField('blindCountMode', e.target.checked)}
+          search={s}
+        />
+        <div>
+          <label className="label text-xs">{ar ? 'حد اعتماد الفروقات (قيمة)' : 'Variance approval threshold (value)'}</label>
+          <input
+            type="number"
+            min={0}
+            className="input input-sm"
+            value={current.varianceApprovalThreshold ?? 0}
+            onChange={(e) => setField('varianceApprovalThreshold', Number(e.target.value))}
+          />
+          <p className="mt-0.5 text-xs text-slate-500">{ar ? '0 = معطّل' : '0 = off'}</p>
+        </div>
+        <div>
+          <label className="label text-xs">{ar ? 'تاريخ قفل الفترة' : 'Period lock date'}</label>
+          <input
+            type="date"
+            className="input input-sm"
+            value={current.inventoryPeriodLockDate ? String(current.inventoryPeriodLockDate).slice(0, 10) : ''}
+            onChange={(e) => setField('inventoryPeriodLockDate', e.target.value || null)}
+          />
+          <p className="mt-0.5 text-xs text-slate-500">
+            {ar ? 'لا يمكن تطبيق جرد بتاريخ محاسبة في أو قبل هذا اليوم' : 'Blocks apply with accounting date on/before this day'}
+          </p>
+        </div>
+      </Section>
+
+      <Section title={ar ? 'الطباعة والمستندات' : 'Print & Documents'} search={s} matchKeys={['print', 'pdf', 'delivery', 'watermark', 'footer', 'paper', 'document']}>
+        <div>
+          <label className="label text-xs">{ar ? 'لغة المستند الافتراضية' : 'Default document language'}</label>
+          <select
+            className="input input-sm"
+            value={current.printDefaultLang || 'ar'}
+            onChange={(e) => setField('printDefaultLang', e.target.value)}
+          >
+            <option value="ar">العربية</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        <div>
+          <label className="label text-xs">{ar ? 'حجم الورق' : 'Paper size'}</label>
+          <select
+            className="input input-sm"
+            value={current.printPaperSize || 'A4'}
+            onChange={(e) => setField('printPaperSize', e.target.value)}
+          >
+            <option value="A4">A4</option>
+            <option value="Letter">Letter</option>
+          </select>
+        </div>
+        <Toggle
+          label={ar ? 'أسعار على إذن التسليم' : 'Prices on delivery notes'}
+          hint={ar ? 'معطّل افتراضياً' : 'Off by default'}
+          checked={!!current.printShowPricesOnDelivery}
+          onChange={(e) => setField('printShowPricesOnDelivery', e.target.checked)}
+          search={s}
+        />
+        <Toggle
+          label={ar ? 'علامة مائية DRAFT/CANCELLED' : 'DRAFT/CANCELLED watermark'}
+          checked={current.printWatermarkEnabled !== false}
+          onChange={(e) => setField('printWatermarkEnabled', e.target.checked)}
+          search={s}
+        />
+        <div className="sm:col-span-2">
+          <label className="label text-xs">{ar ? 'نص تذييل / شروط' : 'Footer / terms text'}</label>
+          <textarea
+            className="input input-sm min-h-[4rem]"
+            value={current.printFooterTerms || ''}
+            onChange={(e) => setField('printFooterTerms', e.target.value)}
+          />
+        </div>
+      </Section>
+
       <Section title={ar ? 'الباركود' : 'Barcode'} search={s} matchKeys={['barcode', 'gs1', 'scanner']}>
         <Toggle search={s} label={ar ? 'ماسح الباركود' : 'Barcode scanner'} checked={current.groupStockBarcode} onChange={() => toggle('groupStockBarcode')} />
         <Toggle search={s} label={ar ? 'تسمية GS1' : 'GS1 nomenclature'} checked={current.groupGs1Nomenclature} onChange={() => toggle('groupGs1Nomenclature')} />

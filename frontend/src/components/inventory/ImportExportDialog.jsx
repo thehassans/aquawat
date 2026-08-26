@@ -257,9 +257,13 @@ export default function ImportExportDialog({
   }
 
   const downloadErrors = () => {
+    if (report?.errorFileCsv) {
+      downloadBlob(new Blob([report.errorFileCsv], { type: 'text/csv;charset=utf-8' }), report.errorFileName || `${model}-import-errors.csv`)
+      return
+    }
     const errs = report?.errors || []
     const lines = ['row,field,reason', ...errs.map((e) => `${e.row},"${e.field || ''}","${(e.reason || e.message || '').replace(/"/g, '""')}"`)]
-    downloadBlob(new Blob([lines.join('\n')], { type: 'text/csv' }), `${model}-import-errors.csv`)
+    downloadBlob(new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' }), `${model}-import-errors.csv`)
   }
 
   const title = mode === 'export'

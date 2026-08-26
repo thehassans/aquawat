@@ -46,6 +46,7 @@ import {
   setCountedQuantity,
   clearCountedQuantity,
   applyInventoryCounts,
+  approveVarianceCounts,
   requestCount,
   previewApplyCounts,
   countLineHistory,
@@ -1360,6 +1361,22 @@ router.post('/physical-inventory/apply', checkPermission('inventory', 'update'),
       accountingDate: req.validatedBody.accountingDate,
       reason: req.validatedBody.reason,
       reasonCode: req.validatedBody.reasonCode,
+      forceApprove: !!req.validatedBody.forceApprove
+        && (req.user.role === 'admin' || req.user.role === 'owner'),
+      userId: req.user._id,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/physical-inventory/approve-variance', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'owner') {
+      return res.status(403).json({ error: 'Variance approval requires admin' });
+    }
+    res.json(await approveVarianceCounts(req.user.tenantId, {
+      ids: req.body.ids || [],
       userId: req.user._id,
     }));
   } catch (err) {
@@ -3049,6 +3066,11 @@ router.post('/print', checkPermission('inventory', 'read'), stockHeavyLimiter, a
       transferId: req.body.transferId,
       transferIds: req.body.transferIds,
       locationIds: req.body.locationIds,
+      productIds: req.body.productIds,
+      lotIds: req.body.lotIds,
+      packageIds: req.body.packageIds,
+      copies: req.body.copies,
+      labelPreset: req.body.labelPreset,
       filters: req.body.filters || {},
       lang: req.body.lang || 'ar',
       showPrices: !!req.body.showPrices,

@@ -68,6 +68,14 @@ const schema = new mongoose.Schema({
   blindCountMode: { type: Boolean, default: false },
   /** Absolute |diff| × unit cost above this requires approval before apply (0 = off) */
   varianceApprovalThreshold: { type: Number, default: 0 },
+  /** Block apply / postings with accounting date on or before this day (YYYY-MM-DD or Date) */
+  inventoryPeriodLockDate: { type: Date, default: null },
+  /** Print & Documents */
+  printDefaultLang: { type: String, enum: ['ar', 'en'], default: 'ar' },
+  printShowPricesOnDelivery: { type: Boolean, default: false },
+  printFooterTerms: { type: String, default: '' },
+  printWatermarkEnabled: { type: Boolean, default: true },
+  printPaperSize: { type: String, enum: ['A4', 'Letter'], default: 'A4' },
   /** Carrier connector flags — no live API; UI shows “not installed” */
   moduleCarrierUps: { type: Boolean, default: false },
   moduleCarrierDhl: { type: Boolean, default: false },

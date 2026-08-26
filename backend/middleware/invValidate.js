@@ -43,6 +43,7 @@ export const applyCountsBody = z.object({
     'supplier_shortage',
     'data_entry_error',
   ]),
+  forceApprove: z.boolean().optional(),
 }).passthrough();
 
 export const integrityRunBody = z.object({

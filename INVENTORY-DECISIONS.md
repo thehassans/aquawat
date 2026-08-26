@@ -15,10 +15,13 @@ Last updated: 2026-08-26
 | Cost gating | Fields with `permission: 'inventory.cost'` stripped when `allowCost` false (operator without accounting/cost) |
 | Templates | `InvIeTemplate` gained format / updateMode / isShared / isDefault / isSystem; system templates merged in `listTemplates` |
 | Blank import template | `GET /stock/ie/import-template/:model` |
-| Print engine | `invPrint.js` — Puppeteer A4 PDF; layouts registered; transfer docs + count sheets + location labels implemented; others scaffolded; ZPL helper for labels |
+| Import errors | Dry-run returns `errorFileCsv` (original failed rows + `_error` column) |
+| Vendors pricelist | Export flattens `Product.suppliers[]` |
+| Print engine | `invPrint.js` — all 18 layout keys implemented (transfer docs, batch pick, count sheets/variance, stock report, product/lot/package/shipping/location labels, putaway, reorder); GS1 lot payload via QR until DataMatrix font ships |
+| Print settings | `InvSettings`: `printDefaultLang`, `printShowPricesOnDelivery`, `printWatermarkEnabled`, `printFooterTerms`, `printPaperSize` |
 | Arabic PDF | Relies on Chromium shaping; if production fonts fail, install Noto Naskh Arabic in the backend image |
-| Physical inventory | Totals bar; required `reasonCode`; accounting date; UoM from `uomId`/`unitOfMeasure`; lot/package populated; Apply Selected; blind toggle; stale via `countSnapshotQty`; count sheet print; import fills Counted only |
-| Variance approval | Settings `varianceApprovalThreshold` + `blindCountMode` added; full approval workflow still open |
+| Physical inventory | Totals · reason codes · accounting date · UoM · lot/package · Apply Selected · blind · stale · grouping/columns · variance approval (`varianceApprovalThreshold`) · period lock (`inventoryPeriodLockDate`) · count sheet print |
+| Variance approval | Lines over threshold set `varianceApprovalRequired`; admin `POST …/approve-variance` (or `forceApprove` on apply for admin) |
 
 ## v5 Product master / variants — schema gate (2026-08-26)
 

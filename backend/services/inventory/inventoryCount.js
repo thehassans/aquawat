@@ -4,6 +4,7 @@ import InvLocation from '../../models/inventory/InvLocation.js';
 import InvMove from '../../models/inventory/InvMove.js';
 import InvMoveLine from '../../models/inventory/InvMoveLine.js';
 import Product from '../../models/Product.js';
+import InvSettings from '../../models/inventory/InvSettings.js';
 import { toObjectId, setDecimalPair } from '../../models/inventory/common.js';
 import { applyQuantDelta } from './quantDelta.js';
 import { runWithTransaction } from './reserve.js';
@@ -252,6 +253,26 @@ export async function setCountedQuantity(tenantId, {
 
   if (reason) quant.countReason = reason;
   if (reasonCode) quant.reasonCode = reasonCode;
+
+  // Variance approval flag when |diff| × cost exceeds tenant threshold
+  if (quant.isCountSet) {
+    const settings = await InvSettings.findOne({ tenantId: tid }).select('varianceApprovalThreshold').lean();
+    const threshold = Number(settings?.varianceApprovalThreshold) || 0;
+    if (threshold > 0) {
+      const product = await Product.findById(quant.productId).select('costPrice').lean();
+      const impact = D(quant.countDifference || 0).abs().times(D(product?.costPrice || 0));
+      if (impact.gt(threshold)) {
+        quant.varianceApprovalRequired = true;
+        quant.varianceApprovedAt = null;
+        quant.varianceApprovedBy = null;
+      } else {
+        quant.varianceApprovalRequired = false;
+      }
+    } else {
+      quant.varianceApprovalRequired = false;
+    }
+  }
+
   await quant.save();
   return quant;
 }
@@ -414,6 +435,9 @@ async function applyOneCount(session, tid, quant, invAdj, defaultUom, now, reaso
   quant.countedQuantity = null;
   quant.countDifference = '0';
   quant.countSnapshotQty = null;
+  quant.varianceApprovalRequired = false;
+  quant.varianceApprovedAt = null;
+  quant.varianceApprovedBy = null;
   quant.lastCountDate = now;
   if (reason) quant.countReason = reason;
   if (reasonCode) quant.reasonCode = reasonCode;
@@ -432,6 +456,7 @@ export async function applyInventoryCounts(tenantId, {
   reason,
   reasonCode,
   userId,
+  forceApprove = false,
 }) {
   if (!ids?.length) throw new InventoryValidationError('No quant ids provided', 'NO_IDS');
   if (!reasonCode) {
@@ -439,6 +464,21 @@ export async function applyInventoryCounts(tenantId, {
   }
 
   const tid = toObjectId(tenantId);
+  const settings = await InvSettings.findOne({ tenantId: tid })
+    .select('inventoryPeriodLockDate varianceApprovalThreshold')
+    .lean();
+  const now = accountingDate ? new Date(accountingDate) : new Date();
+  if (settings?.inventoryPeriodLockDate) {
+    const lock = new Date(settings.inventoryPeriodLockDate);
+    lock.setHours(23, 59, 59, 999);
+    if (now <= lock) {
+      throw new InventoryValidationError(
+        `Accounting date is locked (period lock ${lock.toISOString().slice(0, 10)})`,
+        'PERIOD_LOCKED',
+      );
+    }
+  }
+
   const invAdj = await InvLocation.findOne({ tenantId: tid, usage: 'inventoryLoss' });
   if (!invAdj) {
     throw new InventoryValidationError(
@@ -447,13 +487,13 @@ export async function applyInventoryCounts(tenantId, {
     );
   }
   const defaultUom = await getDefaultUom(tid);
-  const now = accountingDate ? new Date(accountingDate) : new Date();
   const preview = await previewApplyCounts(tid, ids);
 
   const results = [];
   let applied = 0;
   let failed = 0;
   let skipped = 0;
+  let needsApproval = 0;
 
   for (const id of ids) {
     try {
@@ -467,10 +507,23 @@ export async function applyInventoryCounts(tenantId, {
         if (!quant) {
           return { quantId: id, error: 'Not found or not set', failed: true };
         }
+        if (quant.varianceApprovalRequired && !quant.varianceApprovedAt && !forceApprove) {
+          return {
+            quantId: id,
+            error: 'Variance over threshold — approval required',
+            failed: true,
+            needsApproval: true,
+            code: 'VARIANCE_APPROVAL',
+          };
+        }
         if (reasonCode) quant.reasonCode = reasonCode;
         return applyOneCount(session, tid, quant, invAdj, defaultUom, now, reason, userId, reasonCode);
       });
-      if (row?.failed) {
+      if (row?.needsApproval) {
+        needsApproval += 1;
+        failed += 1;
+        results.push(row);
+      } else if (row?.failed) {
         failed += 1;
         results.push(row);
       } else if (row?.skipped) {
@@ -491,9 +544,26 @@ export async function applyInventoryCounts(tenantId, {
     applied,
     failed,
     skipped,
+    needsApproval,
     results,
     preview,
   };
+}
+
+/** Manager approval for over-threshold variance lines. */
+export async function approveVarianceCounts(tenantId, { ids, userId }) {
+  if (!ids?.length) throw new InventoryValidationError('No quant ids provided', 'NO_IDS');
+  const tid = toObjectId(tenantId);
+  const res = await InvQuant.updateMany(
+    { _id: { $in: ids }, tenantId: tid, isCountSet: true, varianceApprovalRequired: true },
+    {
+      $set: {
+        varianceApprovedAt: new Date(),
+        varianceApprovedBy: userId,
+      },
+    },
+  );
+  return { approved: res.modifiedCount || 0 };
 }
 
 /**

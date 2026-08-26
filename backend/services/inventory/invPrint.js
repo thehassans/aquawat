@@ -271,6 +271,327 @@ async function locationLabelsHtml(tenantId, { locationIds, lang }) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>${pages}</body></html>`;
 }
 
+async function qrDataUrl(text) {
+  try {
+    const QRCode = (await import('qrcode')).default;
+    return await QRCode.toDataURL(String(text || ''), { margin: 1, width: 120 });
+  } catch {
+    return '';
+  }
+}
+
+/** GS1 DataMatrix payload (AI 01 GTIN, 10 lot, 17 expiry YYMMDD) — rendered as QR until DataMatrix font available. */
+function gs1Payload({ gtin, lot, expiry }) {
+  const parts = [];
+  if (gtin) parts.push(`01${String(gtin).padStart(14, '0').slice(-14)}`);
+  if (lot) parts.push(`10${lot}`);
+  if (expiry) {
+    const d = new Date(expiry);
+    if (!Number.isNaN(d.getTime())) {
+      const yy = String(d.getFullYear()).slice(-2);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      parts.push(`17${yy}${mm}${dd}`);
+    }
+  }
+  return parts.join('');
+}
+
+async function countVarianceHtml(tenantId, { filters, lang }) {
+  const tenant = await loadTenant(tenantId);
+  const { data } = await listInventoryQuants(tenantId, {
+    ...filters,
+    filter: filters?.filter || 'toApply',
+    limit: 2000,
+    page: 1,
+  });
+  let pos = 0;
+  let neg = 0;
+  let net = 0;
+  const rows = data.filter((r) => r.isCountSet).map((r) => {
+    const diff = Number(r.countDifference || 0);
+    const cost = Number(r.productId?.costPrice || 0);
+    const impact = diff * cost;
+    if (impact > 0) pos += impact;
+    if (impact < 0) neg += impact;
+    net += impact;
+    const p = r.productId || {};
+    return `<tr>
+      <td>${esc(r.locationId?.completePath || '')}</td>
+      <td>${esc(lang === 'ar' && p.nameAr ? p.nameAr : p.nameEn)}</td>
+      <td>${esc(r.quantity)}</td>
+      <td>${esc(r.countedQuantity)}</td>
+      <td>${esc(r.countDifference)}</td>
+      <td>${esc(cost.toFixed(2))}</td>
+      <td>${esc(impact.toFixed(2))}</td>
+      <td>${esc(r.reasonCode || '')}</td>
+    </tr>`;
+  }).join('');
+  const title = lang === 'ar' ? 'تقرير فروقات الجرد' : 'Count Variance Report';
+  return `<!DOCTYPE html><html lang="${lang}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>
+  ${companyHeader(tenant, { title, date: new Date().toISOString().slice(0, 10), lang })}
+  <table><thead><tr>
+    <th>${lang === 'ar' ? 'الموقع' : 'Location'}</th>
+    <th>${lang === 'ar' ? 'المنتج' : 'Product'}</th>
+    <th>${lang === 'ar' ? 'النظام' : 'System'}</th>
+    <th>${lang === 'ar' ? 'العد' : 'Counted'}</th>
+    <th>${lang === 'ar' ? 'الفرق' : 'Diff'}</th>
+    <th>${lang === 'ar' ? 'تكلفة' : 'Unit cost'}</th>
+    <th>${lang === 'ar' ? 'الأثر' : 'Value'}</th>
+    <th>${lang === 'ar' ? 'السبب' : 'Reason'}</th>
+  </tr></thead><tbody>${rows}</tbody></table>
+  <p><strong>${lang === 'ar' ? 'موجب' : 'Positive'}:</strong> ${pos.toFixed(2)}
+     · <strong>${lang === 'ar' ? 'سالب' : 'Negative'}:</strong> ${neg.toFixed(2)}
+     · <strong>${lang === 'ar' ? 'صافي' : 'Net'}:</strong> ${net.toFixed(2)} SAR</p>
+  <div class="sigs"><div class="sig">${lang === 'ar' ? 'اعتماد الإدارة' : 'Management approval'}</div></div>
+  </body></html>`;
+}
+
+async function stockReportHtml(tenantId, { filters, lang }) {
+  const tenant = await loadTenant(tenantId);
+  const { stockExportRows } = await import('./reporting.js');
+  const rows = await stockExportRows(toObjectId(tenantId), { warehouseId: filters?.warehouseId });
+  const title = lang === 'ar' ? 'تقرير المخزون / التقييم' : 'Stock / Valuation Report';
+  const filterDesc = JSON.stringify(filters || {});
+  const body = (rows || []).slice(0, 2000).map((r) => `<tr>
+    <td>${esc(r.product || r.nameEn || '')}</td>
+    <td>${esc(r.sku || r.product_sku || '')}</td>
+    <td>${esc(r.warehouse || '')}</td>
+    <td>${esc(r.location || r.completePath || '')}</td>
+    <td>${esc(r.quantity ?? r.onHand ?? '')}</td>
+    <td>${esc(r.unitCost ?? '')}</td>
+    <td>${esc(r.totalValue ?? r.value ?? '')}</td>
+  </tr>`).join('');
+  return `<!DOCTYPE html><html lang="${lang}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>
+  ${companyHeader(tenant, { title, date: new Date().toISOString().slice(0, 10), lang })}
+  <p style="font-size:10px;color:#64748b">${lang === 'ar' ? 'الفلاتر' : 'Filters'}: ${esc(filterDesc)}</p>
+  <table><thead><tr>
+    <th>${lang === 'ar' ? 'المنتج' : 'Product'}</th><th>SKU</th>
+    <th>${lang === 'ar' ? 'مستودع' : 'WH'}</th><th>${lang === 'ar' ? 'موقع' : 'Location'}</th>
+    <th>${lang === 'ar' ? 'رصيد' : 'On Hand'}</th><th>${lang === 'ar' ? 'تكلفة' : 'Cost'}</th>
+    <th>${lang === 'ar' ? 'قيمة' : 'Value'}</th>
+  </tr></thead><tbody>${body}</tbody></table>
+  </body></html>`;
+}
+
+async function productLabelsHtml(tenantId, { productIds, copies = 1, lang, preset = '50x25' }) {
+  const tenant = await loadTenant(tenantId);
+  const tid = toObjectId(tenantId);
+  const q = { tenantId: tid };
+  if (productIds?.length) q._id = { $in: productIds };
+  const products = await Product.find(q).limit(100).lean();
+  const size = preset === '100x50' ? 'width:100mm;height:50mm' : preset === '40x30' ? 'width:40mm;height:30mm' : 'width:50mm;height:25mm';
+  const pages = [];
+  for (const p of products) {
+    const qr = await qrDataUrl(p.barcode || p.sku || String(p._id));
+    for (let i = 0; i < Math.max(1, Number(copies) || 1); i += 1) {
+      pages.push(`<div class="label-page" style="${size};page-break-after:always;padding:3mm">
+        <div style="font-weight:700;font-size:12px">${esc(lang === 'ar' && p.nameAr ? p.nameAr : p.nameEn)}</div>
+        <div style="font-size:10px;color:#475569">${esc(lang === 'ar' ? p.nameEn : p.nameAr || '')}</div>
+        <div>SKU: ${esc(p.sku)}</div>
+        <div class="barcode">${esc(p.barcode || p.sku)}</div>
+        <div>${esc(p.sellingPrice ?? p.salePrice ?? '')} SAR</div>
+        ${qr ? `<img src="${qr}" width="64" height="64" alt="qr"/>` : ''}
+      </div>`);
+    }
+  }
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>${pages.join('')}</body></html>`;
+}
+
+async function lotLabelsHtml(tenantId, { lotIds, lang }) {
+  const tenant = await loadTenant(tenantId);
+  const tid = toObjectId(tenantId);
+  const q = { tenantId: tid };
+  if (lotIds?.length) q._id = { $in: lotIds };
+  const lots = await InvLot.find(q).populate('productId', 'nameEn nameAr sku barcode').limit(100).lean();
+  const pages = [];
+  for (const lot of lots) {
+    const p = lot.productId || {};
+    const gs1 = gs1Payload({
+      gtin: p.barcode,
+      lot: lot.name,
+      expiry: lot.expirationDate,
+    });
+    const qr = await qrDataUrl(gs1 || lot.name);
+    pages.push(`<div class="label-page" style="width:70mm;height:40mm;page-break-after:always;padding:3mm">
+      ${companyHeader(tenant, { title: lang === 'ar' ? 'ملصق دفعة' : 'Lot Label', lang })}
+      <div><strong>${esc(p.nameEn || p.nameAr)}</strong></div>
+      <div>${lang === 'ar' ? 'دفعة' : 'Lot'}: ${esc(lot.name)}</div>
+      <div>${lang === 'ar' ? 'إنتاج' : 'Prod'}: ${esc(lot.productionDate || '')}</div>
+      <div>${lang === 'ar' ? 'انتهاء' : 'Expiry'}: ${esc(lot.expirationDate || '')}</div>
+      <div style="font-size:9px;word-break:break-all">GS1: ${esc(gs1)}</div>
+      ${qr ? `<img src="${qr}" width="80" height="80" alt="gs1"/>` : ''}
+    </div>`);
+  }
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>${pages.join('')}</body></html>`;
+}
+
+async function packageLabelsHtml(tenantId, { packageIds, lang }) {
+  const { InvPackage } = await import('../../models/inventory/index.js');
+  const tenant = await loadTenant(tenantId);
+  const tid = toObjectId(tenantId);
+  const q = { tenantId: tid };
+  if (packageIds?.length) q._id = { $in: packageIds };
+  const pkgs = await InvPackage.find(q)
+    .populate('locationId', 'completePath')
+    .populate('packageTypeId', 'name')
+    .limit(100)
+    .lean();
+  const pages = [];
+  for (const [idx, pkg] of pkgs.entries()) {
+    const qr = await qrDataUrl(pkg.name || String(pkg._id));
+    pages.push(`<div class="label-page" style="width:100mm;height:60mm;page-break-after:always;padding:4mm">
+      ${companyHeader(tenant, { title: lang === 'ar' ? 'ملصق عبوة' : 'Package Label', lang })}
+      <div class="big">${esc(pkg.name)}</div>
+      <div>${esc(pkg.packageTypeId?.name || '')}</div>
+      <div>${esc(pkg.locationId?.completePath || '')}</div>
+      <div>${lang === 'ar' ? 'صندوق' : 'Box'} ${idx + 1} / ${pkgs.length}</div>
+      <div class="barcode">${esc(pkg.name)}</div>
+      ${qr ? `<img src="${qr}" width="72" height="72"/>` : ''}
+    </div>`);
+  }
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>${pages.join('')}</body></html>`;
+}
+
+async function shippingLabelHtml(tenantId, { transferId, lang }) {
+  const tenant = await loadTenant(tenantId);
+  const { transfer } = await loadTransferBundle(tenantId, transferId);
+  const partner = transfer.partnerId || {};
+  const qr = await qrDataUrl(transfer.name);
+  return `<!DOCTYPE html><html lang="${lang}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>
+  ${companyHeader(tenant, { title: lang === 'ar' ? 'ملصق شحن' : 'Shipping Label', docNo: transfer.name, lang })}
+  <div style="display:flex;gap:24px;margin-top:16px">
+    <div style="flex:1;border:1px solid #cbd5e1;padding:12px">
+      <div style="font-size:10px;text-transform:uppercase;color:#64748b">${lang === 'ar' ? 'المرسل' : 'From'}</div>
+      <div>${esc(tenant?.nameAr || tenant?.name)}</div>
+      <div>${esc(tenant?.address || '')}</div>
+    </div>
+    <div style="flex:1;border:2px solid #0f172a;padding:12px">
+      <div style="font-size:10px;text-transform:uppercase;color:#64748b">${lang === 'ar' ? 'المستلم' : 'To'}</div>
+      <div style="font-size:16px;font-weight:700">${esc(partner.nameAr || partner.name || '')}</div>
+      <div>${esc(partner.phone || '')}</div>
+      <div>${esc(partner.address || partner.city || '')}</div>
+    </div>
+  </div>
+  <p>${lang === 'ar' ? 'مرجع' : 'Ref'}: ${esc(transfer.origin || transfer.name)}</p>
+  ${qr ? `<img src="${qr}" width="100" height="100"/>` : ''}
+  <div class="barcode">${esc(transfer.name)}</div>
+  </body></html>`;
+}
+
+async function putawaySlipHtml(tenantId, { transferId, lang }) {
+  const tenant = await loadTenant(tenantId);
+  const { transfer, lines } = await loadTransferBundle(tenantId, transferId);
+  const title = lang === 'ar' ? 'قسيمة تخزين' : 'Putaway Slip';
+  const rows = lines.map((ln) => {
+    const p = ln.productId || {};
+    return `<tr>
+      <td>${esc(lang === 'ar' && p.nameAr ? p.nameAr : p.nameEn)}</td>
+      <td>${esc(p.sku)}</td>
+      <td>${esc(ln.qtyDone || ln.productQty || '')}</td>
+      <td>${esc(ln.locationDestId?.completePath || transfer.locationDestId?.completePath || '')}</td>
+      <td>${esc(ln.lotId?.name || '')}</td>
+    </tr>`;
+  }).join('');
+  return `<!DOCTYPE html><html lang="${lang}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>
+  ${companyHeader(tenant, { title, docNo: transfer.name, lang })}
+  <table><thead><tr>
+    <th>${lang === 'ar' ? 'المنتج' : 'Product'}</th><th>SKU</th>
+    <th>${lang === 'ar' ? 'كمية' : 'Qty'}</th>
+    <th>${lang === 'ar' ? 'موقع مقترح' : 'Suggested location'}</th>
+    <th>${lang === 'ar' ? 'دفعة' : 'Lot'}</th>
+  </tr></thead><tbody>${rows}</tbody></table>
+  <div class="sigs"><div class="sig">${lang === 'ar' ? 'نفّذ التخزين' : 'Putaway by'}</div></div>
+  </body></html>`;
+}
+
+async function reorderSheetHtml(tenantId, { lang }) {
+  const tenant = await loadTenant(tenantId);
+  const { InvReorderRule } = await import('../../models/inventory/index.js');
+  const rules = await InvReorderRule.find({ tenantId: toObjectId(tenantId), active: { $ne: false } })
+    .populate('productId', 'nameEn nameAr sku costPrice suppliers')
+    .populate('locationId', 'completePath')
+    .limit(500)
+    .lean();
+  const byVendor = {};
+  for (const r of rules) {
+    const pref = (r.productId?.suppliers || []).find((s) => s.isPreferred) || (r.productId?.suppliers || [])[0];
+    const key = pref?.supplierId ? String(pref.supplierId) : (lang === 'ar' ? 'بدون مورد' : 'No vendor');
+    if (!byVendor[key]) byVendor[key] = [];
+    byVendor[key].push(r);
+  }
+  const title = lang === 'ar' ? 'اقتراحات إعادة الطلب' : 'Reorder / Purchase Suggestion Sheet';
+  const sections = Object.entries(byVendor).map(([vendor, list]) => {
+    const rows = list.map((r) => {
+      const p = r.productId || {};
+      const toOrder = Math.max(0, Number(r.maxQty || 0) - Number(r.minQty || 0));
+      return `<tr>
+        <td>${esc(p.nameEn || p.nameAr)}</td><td>${esc(p.sku)}</td>
+        <td>${esc(r.locationId?.completePath || '')}</td>
+        <td>${esc(r.minQty)}</td><td>${esc(r.maxQty)}</td>
+        <td>${esc(toOrder)}</td><td>${esc(p.costPrice ?? '')}</td>
+      </tr>`;
+    }).join('');
+    return `<h3>${esc(vendor)}</h3><table><thead><tr>
+      <th>${lang === 'ar' ? 'منتج' : 'Product'}</th><th>SKU</th><th>${lang === 'ar' ? 'موقع' : 'Loc'}</th>
+      <th>Min</th><th>Max</th><th>${lang === 'ar' ? 'للطلب' : 'To order'}</th>
+      <th>${lang === 'ar' ? 'آخر سعر' : 'Last price'}</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  }).join('');
+  return `<!DOCTYPE html><html lang="${lang}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>
+  ${companyHeader(tenant, { title, date: new Date().toISOString().slice(0, 10), lang })}
+  ${sections || `<p>${lang === 'ar' ? 'لا قواعد إعادة طلب' : 'No reorder rules'}</p>`}
+  </body></html>`;
+}
+
+async function batchPickingHtml(tenantId, { transferIds, lang }) {
+  const tenant = await loadTenant(tenantId);
+  const ids = transferIds || [];
+  if (!ids.length) throw new InventoryValidationError('transferIds required', 'MISSING_FIELDS');
+  const bundles = [];
+  for (const id of ids) {
+    // eslint-disable-next-line no-await-in-loop
+    bundles.push(await loadTransferBundle(tenantId, id));
+  }
+  const byProduct = new Map();
+  for (const { transfer, lines } of bundles) {
+    for (const ln of lines) {
+      const pid = String(ln.productId?._id || ln.productId || '');
+      if (!byProduct.has(pid)) {
+        byProduct.set(pid, {
+          product: ln.productId,
+          total: 0,
+          perOrder: {},
+        });
+      }
+      const entry = byProduct.get(pid);
+      const qty = Number(ln.qtyDone || ln.productQty || ln.quantity || 0);
+      entry.total += qty;
+      entry.perOrder[transfer.name] = (entry.perOrder[transfer.name] || 0) + qty;
+    }
+  }
+  const orderNames = bundles.map((b) => b.transfer.name);
+  const headerOrders = orderNames.map((n) => `<th>${esc(n)}</th>`).join('');
+  const rows = [...byProduct.values()].map((e) => {
+    const p = e.product || {};
+    const cells = orderNames.map((n) => `<td>${esc(e.perOrder[n] || 0)}</td>`).join('');
+    return `<tr>
+      <td>${esc(lang === 'ar' && p.nameAr ? p.nameAr : p.nameEn)}</td>
+      <td>${esc(p.sku)}</td>
+      <td>${esc(e.total)}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+  const title = lang === 'ar' ? 'تجهيز دفعي' : 'Batch Picking List';
+  return `<!DOCTYPE html><html lang="${lang}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>
+  ${companyHeader(tenant, { title, date: new Date().toISOString().slice(0, 10), lang })}
+  <table><thead><tr>
+    <th>${lang === 'ar' ? 'منتج' : 'Product'}</th><th>SKU</th>
+    <th>${lang === 'ar' ? 'إجمالي' : 'Total'}</th>${headerOrders}
+  </tr></thead><tbody>${rows}</tbody></table>
+  </body></html>`;
+}
+
 /**
  * Render a print layout to PDF buffer.
  */
@@ -279,12 +600,29 @@ export async function renderInventoryPdf(tenantId, {
   transferId,
   transferIds,
   locationIds,
+  productIds,
+  lotIds,
+  packageIds,
+  copies,
+  labelPreset,
   filters,
   lang = 'ar',
   showPrices = false,
 }) {
   if (!PRINT_LAYOUTS.includes(layout)) {
     throw new InventoryValidationError(`Unknown layout: ${layout}`, 'PRINT_LAYOUT');
+  }
+
+  let settings = null;
+  try {
+    const InvSettings = (await import('../../models/inventory/InvSettings.js')).default;
+    settings = await InvSettings.findOne({ tenantId: toObjectId(tenantId) })
+      .select('printDefaultLang printShowPricesOnDelivery printWatermarkEnabled printFooterTerms')
+      .lean();
+    if (!lang && settings?.printDefaultLang) lang = settings.printDefaultLang;
+    if (showPrices == null && settings?.printShowPricesOnDelivery) showPrices = true;
+  } catch {
+    /* ignore */
   }
 
   if (['goods_receipt', 'delivery_note', 'delivery_note_priced', 'picking_list', 'internal_transfer', 'return_note', 'scrap_note'].includes(layout)) {
@@ -295,44 +633,74 @@ export async function renderInventoryPdf(tenantId, {
     for (const id of ids) {
       // eslint-disable-next-line no-await-in-loop
       const { transfer, lines } = await loadTransferBundle(tenantId, id);
-      const priced = layout === 'delivery_note_priced' || (layout === 'delivery_note' && showPrices);
-      const effective = layout === 'delivery_note' && priced ? 'delivery_note_priced' : layout;
-      chunks.push(transferDocHtml({
+      const priced = layout === 'delivery_note_priced' || (layout === 'delivery_note' && (showPrices || settings?.printShowPricesOnDelivery));
+      let html = transferDocHtml({
         tenant,
         transfer,
         lines,
-        layout: effective === 'delivery_note_priced' ? 'delivery_note' : effective,
+        layout: layout === 'delivery_note_priced' ? 'delivery_note' : layout,
         lang,
         showPrices: priced,
-      }));
-      // bump printedCount
+      });
+      if (layout === 'delivery_note' || layout === 'delivery_note_priced') {
+        const qr = await qrDataUrl(transfer.name);
+        if (qr) html = html.replace('</body>', `<img src="${qr}" width="90" height="90" alt="verify"/><div style="font-size:9px">${esc(transfer.name)}</div></body>`);
+      }
+      if (settings?.printFooterTerms) {
+        html = html.replace('</body>', `<p style="font-size:9px;margin-top:12px">${esc(settings.printFooterTerms)}</p></body>`);
+      }
+      chunks.push(html);
       // eslint-disable-next-line no-await-in-loop
       await InvTransfer.updateOne(
         { _id: id, tenantId: toObjectId(tenantId) },
         { $inc: { printedCount: 1 }, $set: { lastPrintedAt: new Date() } },
       ).catch(() => {});
     }
-    // Merge: concatenate HTML bodies into one PDF by joining pages
     const merged = chunks.map((h) => h.replace(/<\/?html[^>]*>/gi, '').replace(/<\/?body[^>]*>/gi, '').replace(/<head[\s\S]*?<\/head>/gi, '')).join('<div style="page-break-before:always"></div>');
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>${merged}</body></html>`;
     return htmlToPdf(html);
   }
 
+  if (layout === 'batch_picking') {
+    return htmlToPdf(await batchPickingHtml(tenantId, { transferIds, lang }));
+  }
   if (layout === 'count_sheet_blind' || layout === 'count_sheet_open') {
-    const html = await countSheetHtml(tenantId, { blind: layout === 'count_sheet_blind', filters, lang });
-    return htmlToPdf(html);
+    return htmlToPdf(await countSheetHtml(tenantId, { blind: layout === 'count_sheet_blind', filters, lang }));
   }
-
+  if (layout === 'count_variance') {
+    return htmlToPdf(await countVarianceHtml(tenantId, { filters, lang }));
+  }
+  if (layout === 'stock_report') {
+    return htmlToPdf(await stockReportHtml(tenantId, { filters, lang }));
+  }
   if (layout === 'location_label') {
-    const html = await locationLabelsHtml(tenantId, { locationIds, lang });
-    return htmlToPdf(html);
+    return htmlToPdf(await locationLabelsHtml(tenantId, { locationIds, lang }));
+  }
+  if (layout === 'product_label') {
+    return htmlToPdf(await productLabelsHtml(tenantId, { productIds, copies, lang, preset: labelPreset }));
+  }
+  if (layout === 'lot_label') {
+    return htmlToPdf(await lotLabelsHtml(tenantId, { lotIds, lang }));
+  }
+  if (layout === 'package_label') {
+    return htmlToPdf(await packageLabelsHtml(tenantId, { packageIds, lang }));
+  }
+  if (layout === 'shipping_label') {
+    if (!transferId) throw new InventoryValidationError('transferId required', 'MISSING_FIELDS');
+    return htmlToPdf(await shippingLabelHtml(tenantId, { transferId, lang }));
+  }
+  if (layout === 'putaway_slip') {
+    if (!transferId) throw new InventoryValidationError('transferId required', 'MISSING_FIELDS');
+    return htmlToPdf(await putawaySlipHtml(tenantId, { transferId, lang }));
+  }
+  if (layout === 'reorder_sheet') {
+    return htmlToPdf(await reorderSheetHtml(tenantId, { lang }));
   }
 
-  // Stub remaining layouts with a titled placeholder until full data wiring
   const tenant = await loadTenant(tenantId);
   const html = `<!DOCTYPE html><html lang="${lang}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>
     ${companyHeader(tenant, { title: layout, date: new Date().toISOString().slice(0, 10), lang })}
-    <p>${lang === 'ar' ? 'تخطيط قيد الإكمال — المحرك جاهز.' : 'Layout scaffold — print engine ready.'}</p>
+    <p>${lang === 'ar' ? 'تخطيط قيد الإكمال' : 'Layout scaffold'}</p>
   </body></html>`;
   return htmlToPdf(html);
 }

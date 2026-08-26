@@ -443,6 +443,33 @@ async function loadExportRows(tenantId, model, filters = {}) {
         active: v.active !== false,
       }));
     }
+    case 'vendors_pricelist': {
+      const products = await Product.find({ tenantId: tid })
+        .populate('suppliers.supplierId', 'name code')
+        .select('sku nameEn suppliers currency')
+        .limit(Math.min(limit, 5000))
+        .lean();
+      const out = [];
+      for (const p of products) {
+        for (const s of p.suppliers || []) {
+          out.push({
+            product: p.nameEn || '',
+            product_sku: p.sku || '',
+            vendor: s.supplierId?.name || '',
+            vendorProductCode: s.supplierSku || '',
+            minQty: s.minQty ?? '',
+            price: s.cost ?? '',
+            currency: p.currency || 'SAR',
+            leadDays: s.leadTimeDays ?? '',
+            validFrom: s.validFrom || '',
+            validTo: s.validTo || '',
+          });
+          if (out.length >= limit) break;
+        }
+        if (out.length >= limit) break;
+      }
+      return out;
+    }
     default:
       throw new InventoryValidationError(`Unknown IE model: ${model}`, 'IE_UNKNOWN');
   }
@@ -673,25 +700,63 @@ export async function universalImport(tenantId, userId, {
   });
 
   if (model === 'products') {
-    return importProducts(tenantId, userId, {
-      csvText: rowsToCsv(records),
+    const result = await importProducts(tenantId, userId, {
+      csvText: rowsToCsv(records, undefined, { bom: false }),
       dryRun,
       warehouseId,
     });
+    return attachImportErrorFile(result, records);
   }
   if (model === 'locations') {
-    return importLocations(tenantId, userId, {
-      csvText: rowsToCsv(records),
+    const result = await importLocations(tenantId, userId, {
+      csvText: rowsToCsv(records, undefined, { bom: false }),
       dryRun,
       warehouseId,
     });
+    return attachImportErrorFile(result, records);
   }
   if (model === 'physical_inventory') {
-    return importCountedQuantities(tenantId, records, { dryRun, userId });
+    const result = await importCountedQuantities(tenantId, records, { dryRun, userId });
+    return attachImportErrorFile(result, records);
   }
 
   // Generic create/update for simple masters
-  return genericMasterImport(tenantId, userId, model, records, dryRun);
+  const result = await genericMasterImport(tenantId, userId, model, records, dryRun);
+  return attachImportErrorFile(result, records);
+}
+
+/** Build downloadable CSV of failed rows with original columns + `_error`. */
+function attachImportErrorFile(result, records) {
+  const errors = result?.errors || [];
+  if (!errors.length) {
+    return {
+      ...result,
+      unchanged: result.unchanged
+        ?? Math.max(0, (result.totalRows || records.length) - (result.created || result.wouldCreate || 0) - (result.updated || result.wouldUpdate || 0) - errors.length),
+    };
+  }
+  const byRow = new Map();
+  for (const e of errors) {
+    const msg = e.reason || e.message || 'error';
+    const prev = byRow.get(e.row) || [];
+    prev.push(`${e.field ? `${e.field}: ` : ''}${msg}`);
+    byRow.set(e.row, prev);
+  }
+  const failRows = [];
+  for (const [rowNum, msgs] of byRow) {
+    const idx = Number(rowNum) - 2;
+    const original = records[idx] || {};
+    failRows.push({ ...original, _error: msgs.join('; ') });
+  }
+  const cols = [...new Set(failRows.flatMap((r) => Object.keys(r)))];
+  const errorFileCsv = rowsToCsv(failRows, cols, { bom: true });
+  return {
+    ...result,
+    unchanged: result.unchanged
+      ?? Math.max(0, (result.totalRows || records.length) - (result.created || result.wouldCreate || 0) - (result.updated || result.wouldUpdate || 0) - errors.length),
+    errorFileCsv,
+    errorFileName: 'import-errors.csv',
+  };
 }
 
 async function genericMasterImport(tenantId, userId, model, records, dryRun) {

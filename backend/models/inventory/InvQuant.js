@@ -25,6 +25,10 @@ const schema = new mongoose.Schema({
   countReason: { type: String },
   /** Damage | Theft/Loss | Expiry | Found | Supplier shortage | Data entry error */
   reasonCode: { type: String },
+  /** Over threshold — waiting for manager approval before apply */
+  varianceApprovalRequired: { type: Boolean, default: false },
+  varianceApprovedAt: { type: Date },
+  varianceApprovedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   value: { ...decimalField, default: '0' },
   valueNum: { ...decimal128Field },
   version: { type: Number, default: 0 },
