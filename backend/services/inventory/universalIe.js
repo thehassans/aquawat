@@ -23,6 +23,10 @@ import {
   getIeModel,
   listIeModels,
   flattenIeFields,
+  costGatedFieldKeys,
+  PRODUCT_SYSTEM_TEMPLATES,
+  IE_MODELS,
+  assertProductRegistryComplete,
 } from './ieRegistry.js';
 import {
   rowsToCsv,
@@ -38,6 +42,100 @@ import { withTenant } from '../../utils/tenantScope.js';
 
 const SYNC_ROW_LIMIT = 5000;
 const HARD_ROW_CAP = 50000;
+
+/** Map Product document → registry field keys (§1.1). */
+function mapProductExportRow(p) {
+  const preferred = (p.suppliers || []).find((s) => s.isPreferred) || (p.suppliers || [])[0];
+  const primaryImg = (p.images || []).find((i) => i.isPrimary) || (p.images || [])[0];
+  const uom = p.uomId?.name || p.unitOfMeasure || 'PCE';
+  const cat = p.categoryId;
+  return {
+    id: String(p._id),
+    productId: p.productId || '',
+    external_ref: p.externalId || '',
+    sku: p.sku,
+    barcode: p.barcode || '',
+    active: p.isActive !== false && p.active !== false,
+    createdAt: p.createdAt || '',
+    updatedAt: p.updatedAt || '',
+    createdBy: p.createdBy ? String(p.createdBy) : '',
+    name_en: p.nameEn,
+    name_ar: p.nameAr || '',
+    nameEn: p.nameEn,
+    nameAr: p.nameAr || '',
+    description_en: p.descriptionEn || '',
+    description_ar: p.descriptionAr || '',
+    internalNotes: p.internalNotes || '',
+    productType: p.productType || 'goods',
+    trackInventory: p.trackInventory !== false,
+    category: cat?.name || p.category || '',
+    category_id: cat?._id ? String(cat._id) : '',
+    'category.completeName': cat?.completePath || '',
+    'category/name': cat?.name || p.category || '',
+    tags: Array.isArray(p.tags) ? p.tags.join(',') : '',
+    imageUrl: primaryImg?.url || '',
+    imageCount: Array.isArray(p.images) ? p.images.length : 0,
+    canBeSold: p.canBeSold !== false,
+    canBePurchased: p.canBePurchased !== false,
+    canBeExpensed: p.canBeExpensed === true,
+    availableInPos: p.canBeSoldOnPos !== false,
+    salesPrice: p.salePrice ?? p.sellingPrice ?? '',
+    salePrice: p.salePrice ?? p.sellingPrice ?? '',
+    taxRate: p.taxRate ?? '',
+    salesDescription: p.salesDescription || '',
+    minSaleQty: p.minSaleQty ?? '',
+    saleMultiple: p.saleMultiple ?? '',
+    invoicePolicy: p.invoicingPolicy || 'ordered',
+    accessories: '',
+    upsells: '',
+    crossSells: '',
+    optionals: '',
+    substitutes: '',
+    cost: p.costPrice ?? '',
+    costPrice: p.costPrice ?? '',
+    purchaseUom: p.purchaseUomId?.name || '',
+    purchaseDescription: p.purchaseDescription || '',
+    controlPolicy: p.controlPolicy || 'received',
+    daysToPurchase: p.daysToPurchase ?? '',
+    hsCode: p.hsCode || '',
+    countryOfOrigin: p.countryOfOrigin || '',
+    'vendor.primary.name': preferred?.supplierId?.name || '',
+    'vendor.primary.code': preferred?.supplierId?.code || preferred?.supplierSku || '',
+    'vendor.primary.price': preferred?.cost ?? '',
+    'vendor.primary.minQty': preferred?.minQty ?? '',
+    'vendor.primary.leadDays': preferred?.leadTimeDays ?? '',
+    vendorCount: Array.isArray(p.suppliers) ? p.suppliers.length : 0,
+    uom,
+    unitOfMeasure: uom,
+    tracking: p.tracking || 'none',
+    useExpiration: p.useExpirationDate === true,
+    shelfLifeDays: p.expirationDays ?? '',
+    alertDays: p.alertDays ?? '',
+    removalDays: p.removalDays ?? '',
+    useByDays: p.useByDays ?? '',
+    weight: p.weight ?? '',
+    volume: p.volume ?? '',
+    negativeStockAllowed: p.allowNegativeStock === true,
+    incomeAccount: p.incomeAccountId ? String(p.incomeAccountId) : '',
+    expenseAccount: p.expenseAccountId ? String(p.expenseAccountId) : '',
+    valuationAccount: p.stockValuationAccountId ? String(p.stockValuationAccountId) : '',
+    costingMethod: cat?.propertyCostMethod || '',
+    valuationMode: cat?.propertyValuation || '',
+    onHand: p.totalStock ?? '',
+    freeToUse: '',
+    reserved: '',
+    forecasted: '',
+    inventoryValue: '',
+    avgCost: p.averageLandedCost ?? p.costPrice ?? '',
+    variantCount: Array.isArray(p.attributeLines) ? p.attributeLines.length : 0,
+  };
+}
+
+function filterFieldsByPermission(model, fieldKeys, { allowCost = true } = {}) {
+  if (allowCost) return fieldKeys;
+  const gated = costGatedFieldKeys(model);
+  return fieldKeys.filter((k) => !gated.has(k));
+}
 
 function dig(obj, path) {
   if (!path) return undefined;
@@ -77,25 +175,14 @@ async function loadExportRows(tenantId, model, filters = {}) {
           { barcode: new RegExp(search, 'i') },
         ];
       }
-      const rows = await Product.find(q).limit(limit).lean();
-      return rows.map((p) => ({
-        id: String(p._id),
-        productId: p.productId || '',
-        external_ref: p.externalId || '',
-        sku: p.sku,
-        barcode: p.barcode || '',
-        nameEn: p.nameEn,
-        nameAr: p.nameAr || '',
-        costPrice: p.costPrice ?? '',
-        salePrice: p.salePrice ?? p.sellingPrice ?? '',
-        tracking: p.tracking || 'none',
-        unitOfMeasure: p.unitOfMeasure || 'PCE',
-        canBeSold: p.canBeSold !== false,
-        canBePurchased: p.canBePurchased !== false,
-        canBeExpensed: p.canBeExpensed === true,
-        category: p.category || '',
-        'category/name': p.category || '',
-      }));
+      const rows = await Product.find(q)
+        .populate('categoryId', 'name completePath propertyCostMethod propertyValuation')
+        .populate('uomId', 'name')
+        .populate('purchaseUomId', 'name')
+        .populate('suppliers.supplierId', 'name code')
+        .limit(limit)
+        .lean();
+      return rows.map((p) => mapProductExportRow(p));
     }
     case 'warehouses': {
       const rows = await Warehouse.find({ tenantId: tid }).limit(limit).lean();
@@ -377,6 +464,8 @@ async function buildExportPayload(tenantId, {
   importCompatible = false,
   format = 'csv',
   filters = {},
+  allowCost = true,
+  meta = {},
 }) {
   const def = getIeModel(model);
   if (!def) throw new InventoryValidationError(`Unknown model: ${model}`, 'IE_UNKNOWN');
@@ -391,13 +480,24 @@ async function buildExportPayload(tenantId, {
     if (!fieldKeys.includes('id')) fieldKeys = ['id', ...fieldKeys];
   }
 
+  fieldKeys = filterFieldsByPermission(model, fieldKeys, { allowCost });
+
   const raw = await loadExportRows(tenantId, model, filters);
   const projected = projectRows(raw, fieldKeys);
-  const csv = rowsToCsv(projected, fieldKeys);
+  const csv = rowsToCsv(projected, fieldKeys, { bom: true });
   const filename = `${model}-export.${format === 'xlsx' ? 'xlsx' : 'csv'}`;
 
   if (format === 'xlsx') {
-    const buf = await csvTextToXlsxBuffer(csv, model);
+    const buf = await csvTextToXlsxBuffer(csv, model, {
+      info: {
+        model,
+        exportDate: new Date().toISOString(),
+        user: meta.userId || '',
+        rowCount: projected.length,
+        fields: fieldKeys.join(', '),
+        filter: JSON.stringify(filters || {}),
+      },
+    });
     return {
       filename,
       format: 'xlsx',
@@ -421,7 +521,7 @@ async function buildExportPayload(tenantId, {
  * Export — sync under 5k rows; otherwise create a background job.
  */
 export async function universalExport(tenantId, userId, opts) {
-  const { model, fields, importCompatible, format, filters, forceAsync } = opts;
+  const { model, fields, importCompatible, format, filters, forceAsync, allowCost = true } = opts;
   const def = getIeModel(model);
   if (!def) throw new InventoryValidationError(`Unknown model: ${model}`, 'IE_UNKNOWN');
 
@@ -441,6 +541,8 @@ export async function universalExport(tenantId, userId, opts) {
       importCompatible,
       format,
       filters,
+      allowCost,
+      meta: { userId },
     });
     return { async: false, ...built };
   }
@@ -454,7 +556,7 @@ export async function universalExport(tenantId, userId, opts) {
   });
 
   // Persist opts on job via filename placeholder fields — store in error? Better: attach to enqueue payload
-  const exportOpts = { model, fields, importCompatible, format, filters };
+  const exportOpts = { model, fields, importCompatible, format, filters, allowCost };
 
   try {
     const { enqueueInventoryJob } = await import('./inventoryQueue.js');
@@ -813,20 +915,74 @@ async function importOneMaster(tid, userId, model, row, dryRun) {
 }
 
 export async function listTemplates(tenantId, userId, model) {
-  return InvIeTemplate.find({
-    tenantId: toObjectId(tenantId),
-    userId,
+  const tid = toObjectId(tenantId);
+  const q = {
+    tenantId: tid,
     ...(model ? { model } : {}),
-  }).sort({ name: 1 }).lean();
+    $or: [
+      { userId },
+      { isShared: true },
+      { isSystem: true },
+    ],
+  };
+  const userTemplates = await InvIeTemplate.find(q).sort({ isDefault: -1, name: 1 }).lean();
+
+  // Merge system templates from registry (not necessarily persisted)
+  const system = [];
+  const models = model ? { [model]: IE_MODELS[model] } : IE_MODELS;
+  for (const [key, def] of Object.entries(models)) {
+    if (!def?.systemTemplates) continue;
+    for (const tpl of def.systemTemplates) {
+      const exists = userTemplates.some(
+        (t) => t.isSystem && t.model === key && t.name === tpl.name,
+      );
+      if (!exists) {
+        system.push({
+          _id: `system:${key}:${tpl.name}`,
+          model: key,
+          name: tpl.name,
+          nameAr: tpl.nameAr,
+          fields: tpl.fields,
+          format: tpl.format || 'xlsx',
+          importCompatible: !!tpl.updateMode,
+          updateMode: !!tpl.updateMode,
+          isSystem: true,
+          isShared: true,
+          isDefault: false,
+          readOnly: true,
+        });
+      }
+    }
+  }
+  return [...system, ...userTemplates];
 }
 
-export async function saveTemplate(tenantId, userId, { model, name, fields, importCompatible }) {
+export async function saveTemplate(tenantId, userId, {
+  model,
+  name,
+  fields,
+  importCompatible,
+  format,
+  updateMode,
+  isShared,
+  isDefault,
+}) {
   if (!model || !name) {
     throw new InventoryValidationError('model and name required', 'MISSING_FIELDS');
   }
+  if (String(name).startsWith('system:')) {
+    throw new InventoryValidationError('Cannot overwrite system template id', 'SYSTEM_TEMPLATE');
+  }
+  const tid = toObjectId(tenantId);
+  if (isDefault) {
+    await InvIeTemplate.updateMany(
+      { tenantId: tid, userId, model, isDefault: true },
+      { $set: { isDefault: false } },
+    );
+  }
   return InvIeTemplate.findOneAndUpdate(
     {
-      tenantId: toObjectId(tenantId),
+      tenantId: tid,
       userId,
       model,
       name: String(name).trim(),
@@ -834,14 +990,27 @@ export async function saveTemplate(tenantId, userId, { model, name, fields, impo
     {
       $set: {
         fields: Array.isArray(fields) ? fields : [],
-        importCompatible: !!importCompatible,
+        importCompatible: !!(importCompatible || updateMode),
+        updateMode: !!updateMode,
+        format: format === 'csv' ? 'csv' : 'xlsx',
+        isShared: !!isShared,
+        isDefault: !!isDefault,
+        isSystem: false,
       },
+      $setOnInsert: { createdBy: userId },
     },
     { upsert: true, new: true },
-  );
+  ).lean();
 }
 
 export async function deleteTemplate(tenantId, userId, templateId) {
+  const doc = await InvIeTemplate.findOne({
+    _id: templateId,
+    tenantId: toObjectId(tenantId),
+  });
+  if (doc?.isSystem) {
+    throw new InventoryValidationError('Cannot delete system template', 'SYSTEM_TEMPLATE');
+  }
   await InvIeTemplate.deleteOne({
     _id: templateId,
     tenantId: toObjectId(tenantId),
@@ -850,4 +1019,4 @@ export async function deleteTemplate(tenantId, userId, templateId) {
   return { ok: true };
 }
 
-export { listIeModels, flattenIeFields, getIeModel, SYNC_ROW_LIMIT };
+export { listIeModels, flattenIeFields, getIeModel, SYNC_ROW_LIMIT, assertProductRegistryComplete };

@@ -1313,6 +1313,7 @@ router.get('/physical-inventory', checkPermission('inventory', 'read'), async (r
       total: result.total ?? result._meta?.total ?? items.length,
       page: result.page ?? result._meta?.page,
       pageSize: result.limit ?? result._meta?.pageSize,
+      totals: result._meta?.totals,
       appliedFilters: {
         warehouseId: req.query.warehouseId || null,
         locationId: req.query.locationId || null,
@@ -1358,6 +1359,7 @@ router.post('/physical-inventory/apply', checkPermission('inventory', 'update'),
       ids: req.validatedBody.ids,
       accountingDate: req.validatedBody.accountingDate,
       reason: req.validatedBody.reason,
+      reasonCode: req.validatedBody.reasonCode,
       userId: req.user._id,
     }));
   } catch (err) {
@@ -2681,6 +2683,11 @@ router.post('/ie/export', checkPermission('inventory', 'read'), stockHeavyLimite
       format: req.body.format || 'csv',
       filters: req.body.filters || {},
       forceAsync: !!req.body.forceAsync,
+      // Operators without accounting/cost permission do not get cost columns
+      allowCost: req.user.role === 'admin'
+        || req.user.role === 'owner'
+        || !!req.user.permissions?.accounting
+        || !!req.user.permissions?.inventory?.cost,
     });
     if (result.async) return res.status(202).json(result);
     if (req.body.download === false) return res.json(result);
@@ -3008,6 +3015,83 @@ router.post('/barcode-nomenclatures/:id/test', checkPermission('inventory', 'rea
     const nom = await InvBarcodeNomenclature.findOne({ _id: req.params.id, tenantId: req.user.tenantId }).lean();
     if (!nom) return res.status(404).json({ error: 'Not found' });
     res.json(matchBarcode(nom, req.body.barcode || ''));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+// ── Print / PDF (v4.1 P2) ─────────────────────────────────────────
+
+router.get('/print/layouts', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { PRINT_LAYOUTS } = await import('../services/inventory/invPrint.js');
+    res.json({ layouts: PRINT_LAYOUTS });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/print', checkPermission('inventory', 'read'), stockHeavyLimiter, async (req, res) => {
+  try {
+    const { renderInventoryPdf, renderZplLabel } = await import('../services/inventory/invPrint.js');
+    if (req.body.format === 'zpl') {
+      const zpl = renderZplLabel({
+        title: req.body.title,
+        barcode: req.body.barcode,
+        line2: req.body.line2,
+      });
+      res.setHeader('Content-Type', 'application/zpl');
+      res.setHeader('Content-Disposition', 'attachment; filename="label.zpl"');
+      return res.send(zpl);
+    }
+    const buf = await renderInventoryPdf(req.user.tenantId, {
+      layout: req.body.layout,
+      transferId: req.body.transferId,
+      transferIds: req.body.transferIds,
+      locationIds: req.body.locationIds,
+      filters: req.body.filters || {},
+      lang: req.body.lang || 'ar',
+      showPrices: !!req.body.showPrices,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${req.body.layout || 'document'}.pdf"`);
+    return res.send(buf);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/ie/import-template/:model', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { flattenIeFields, getIeModel } = await import('../services/inventory/ieRegistry.js');
+    const { rowsToCsv, csvTextToXlsxBuffer } = await import('../services/inventory/importExport.js');
+    const model = req.params.model;
+    const def = getIeModel(model);
+    if (!def || def.importable === false) return res.status(404).json({ error: 'Unknown or non-importable model' });
+    const fields = flattenIeFields(model, { importCompatible: true });
+    const headers = fields.map((f) => f.path);
+    const example = {};
+    for (const f of fields) {
+      example[f.path] = f.example || (f.required ? `(required)` : '');
+    }
+    const csv = rowsToCsv([example], headers, { bom: true });
+    const notes = fields.map((f) => ({
+      field: f.path,
+      required: f.required ? 'yes' : '',
+      type: f.type || '',
+      enum: (f.enumValues || []).join('|'),
+      help: f.help || '',
+    }));
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+    const dataSheet = XLSX.utils.aoa_to_sheet([headers, headers.map((h) => example[h] || '')]);
+    XLSX.utils.book_append_sheet(wb, dataSheet, 'Template');
+    const notesSheet = XLSX.utils.json_to_sheet(notes);
+    XLSX.utils.book_append_sheet(wb, notesSheet, 'Info');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${model}-import-template.xlsx"`);
+    return res.send(buf);
   } catch (err) {
     handleInventoryError(res, err);
   }

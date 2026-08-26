@@ -12,6 +12,15 @@ import { InventoryValidationError } from './errors.js';
 import { withTenant } from '../../utils/tenantScope.js';
 import { computeMoveDoneChecksum, computeMoveLineDoneChecksum } from './doneChecksum.js';
 
+export const COUNT_REASON_CODES = [
+  { code: 'damage', label: 'Damage', labelAr: 'تلف' },
+  { code: 'theft_loss', label: 'Theft/Loss', labelAr: 'سرقة/فقدان' },
+  { code: 'expiry', label: 'Expiry', labelAr: 'انتهاء صلاحية' },
+  { code: 'found', label: 'Found', labelAr: 'عثر عليه' },
+  { code: 'supplier_shortage', label: 'Supplier shortage', labelAr: 'نقص مورد' },
+  { code: 'data_entry_error', label: 'Data entry error', labelAr: 'خطأ إدخال' },
+];
+
 /**
  * List quants for physical inventory (editable count fields).
  */
@@ -38,6 +47,7 @@ export async function listInventoryQuants(tenantId, {
         total: 0,
         page: 1,
         pageSize: limit,
+        totals: emptyCountTotals(),
         appliedFilters: { filter: filterName || null },
       },
     };
@@ -73,6 +83,7 @@ export async function listInventoryQuants(tenantId, {
         { nameEn: new RegExp(search.trim(), 'i') },
         { nameAr: new RegExp(search.trim(), 'i') },
         { sku: new RegExp(search.trim(), 'i') },
+        { barcode: new RegExp(search.trim(), 'i') },
       ],
     }).select('_id').limit(200).lean();
     filter.productId = { $in: products.map((p) => p._id) };
@@ -82,12 +93,16 @@ export async function listInventoryQuants(tenantId, {
   const pageSize = Math.min(500, Math.max(1, Number(limit) || 100));
   const skip = (pageN - 1) * pageSize;
 
-  const [rows, total] = await Promise.all([
+  const [rows, total, totals] = await Promise.all([
     InvQuant.find(filter)
-      .populate('productId', 'nameEn nameAr sku unitOfMeasure uomId tracking costPrice')
+      .populate({
+        path: 'productId',
+        select: 'nameEn nameAr sku barcode unitOfMeasure uomId tracking costPrice',
+        populate: { path: 'uomId', select: 'name' },
+      })
       .populate({
         path: 'locationId',
-        select: 'name completePath usage warehouseId',
+        select: 'name completePath usage warehouseId barcode',
         populate: { path: 'warehouseId', select: 'nameEn nameAr code' },
       })
       .populate('lotId', 'name expirationDate removalDate')
@@ -98,14 +113,29 @@ export async function listInventoryQuants(tenantId, {
       .limit(pageSize)
       .lean(),
     InvQuant.countDocuments(filter),
+    computeListTotals(tid, filter),
   ]);
 
+  const data = rows.map((q) => {
+    const snapshot = q.countSnapshotQty != null ? D(q.countSnapshotQty) : null;
+    const onHand = D(q.quantity);
+    const isStale = q.isCountSet && snapshot != null && !snapshot.eq(onHand);
+    const uom = q.productId?.uomId?.name || q.productId?.unitOfMeasure || 'PCE';
+    return {
+      ...q,
+      uom,
+      isStale,
+      differenceValue: decStr(D(q.countDifference || 0).times(D(q.productId?.costPrice || 0))),
+    };
+  });
+
   return {
-    data: rows,
+    data,
     _meta: {
       total,
       page: pageN,
       pageSize,
+      totals,
       appliedFilters: {
         warehouseId: warehouseId || null,
         locationId: locationId || null,
@@ -113,6 +143,43 @@ export async function listInventoryQuants(tenantId, {
         search: search || null,
       },
     },
+  };
+}
+
+function emptyCountTotals() {
+  return {
+    linesToCount: 0,
+    linesCounted: 0,
+    positiveDiff: '0',
+    negativeDiff: '0',
+    netValueImpact: '0',
+  };
+}
+
+async function computeListTotals(tid, filter) {
+  const countedFilter = { ...filter, isCountSet: true };
+  const [linesToCount, countedRows] = await Promise.all([
+    InvQuant.countDocuments(filter),
+    InvQuant.find(countedFilter)
+      .populate('productId', 'costPrice')
+      .select('countDifference productId isCountSet')
+      .lean(),
+  ]);
+  let positiveDiff = D(0);
+  let negativeDiff = D(0);
+  let netValue = D(0);
+  for (const q of countedRows) {
+    const diff = D(q.countDifference || 0);
+    if (diff.gt(0)) positiveDiff = positiveDiff.plus(diff);
+    if (diff.lt(0)) negativeDiff = negativeDiff.plus(diff);
+    netValue = netValue.plus(diff.times(D(q.productId?.costPrice || 0)));
+  }
+  return {
+    linesToCount,
+    linesCounted: countedRows.length,
+    positiveDiff: decStr(positiveDiff),
+    negativeDiff: decStr(negativeDiff),
+    netValueImpact: decStr(netValue),
   };
 }
 
@@ -130,6 +197,7 @@ export async function setCountedQuantity(tenantId, {
   countUserId,
   userId,
   reason,
+  reasonCode,
 }) {
   const tid = toObjectId(tenantId);
 
@@ -167,6 +235,7 @@ export async function setCountedQuantity(tenantId, {
     quant.countedQuantity = counted;
     quant.isCountSet = true;
     quant.countDifference = decStr(D(counted).minus(onHand));
+    quant.countSnapshotQty = decStr(onHand);
   }
 
   if (countScheduledDate != null) {
@@ -182,6 +251,7 @@ export async function setCountedQuantity(tenantId, {
   }
 
   if (reason) quant.countReason = reason;
+  if (reasonCode) quant.reasonCode = reasonCode;
   await quant.save();
   return quant;
 }
@@ -192,6 +262,7 @@ export async function clearCountedQuantity(tenantId, quantId) {
   quant.countedQuantity = null;
   quant.isCountSet = false;
   quant.countDifference = '0';
+  quant.countSnapshotQty = null;
   await quant.save();
   return quant;
 }
@@ -224,12 +295,20 @@ export async function previewApplyCounts(tenantId, ids) {
   };
 }
 
-async function applyOneCount(session, tid, quant, invAdj, defaultUom, now, reason, userId) {
+async function applyOneCount(session, tid, quant, invAdj, defaultUom, now, reason, userId, reasonCode) {
+  if (quant.countSnapshotQty != null && !D(quant.countSnapshotQty).eq(D(quant.quantity))) {
+    throw new InventoryValidationError(
+      'Stock changed since count — recount required',
+      'STALE_COUNT',
+    );
+  }
+
   const diff = D(quant.countDifference || 0);
   if (decIsZero(diff)) {
     quant.isCountSet = false;
     quant.countedQuantity = null;
     quant.countDifference = '0';
+    quant.countSnapshotQty = null;
     quant.lastCountDate = now;
     await quant.save({ session });
     return { quantId: quant._id, skipped: true };
@@ -245,7 +324,11 @@ async function applyOneCount(session, tid, quant, invAdj, defaultUom, now, reaso
   const isGain = diff.gt(0);
   const sourceLocationId = isGain ? invAdj._id : quant.locationId;
   const destLocationId = isGain ? quant.locationId : invAdj._id;
-  const ref = reason || quant.countReason || `INV/${now.toISOString().slice(0, 10)}`;
+  const codeLabel = COUNT_REASON_CODES.find((c) => c.code === (reasonCode || quant.reasonCode))?.label;
+  const ref = [
+    reason || quant.countReason || `INV/${now.toISOString().slice(0, 10)}`,
+    codeLabel || reasonCode || quant.reasonCode,
+  ].filter(Boolean).join(' · ');
 
   const [move] = await InvMove.create([{
     tenantId: tid,
@@ -330,8 +413,10 @@ async function applyOneCount(session, tid, quant, invAdj, defaultUom, now, reaso
   quant.isCountSet = false;
   quant.countedQuantity = null;
   quant.countDifference = '0';
+  quant.countSnapshotQty = null;
   quant.lastCountDate = now;
   if (reason) quant.countReason = reason;
+  if (reasonCode) quant.reasonCode = reasonCode;
   await quant.save({ session });
 
   return { quantId: quant._id, moveId: move._id, diff: absDiff, isGain };
@@ -345,9 +430,13 @@ export async function applyInventoryCounts(tenantId, {
   ids,
   accountingDate,
   reason,
+  reasonCode,
   userId,
 }) {
   if (!ids?.length) throw new InventoryValidationError('No quant ids provided', 'NO_IDS');
+  if (!reasonCode) {
+    throw new InventoryValidationError('reasonCode is required', 'REASON_REQUIRED');
+  }
 
   const tid = toObjectId(tenantId);
   const invAdj = await InvLocation.findOne({ tenantId: tid, usage: 'inventoryLoss' });
@@ -378,7 +467,8 @@ export async function applyInventoryCounts(tenantId, {
         if (!quant) {
           return { quantId: id, error: 'Not found or not set', failed: true };
         }
-        return applyOneCount(session, tid, quant, invAdj, defaultUom, now, reason, userId);
+        if (reasonCode) quant.reasonCode = reasonCode;
+        return applyOneCount(session, tid, quant, invAdj, defaultUom, now, reason, userId, reasonCode);
       });
       if (row?.failed) {
         failed += 1;
@@ -393,7 +483,7 @@ export async function applyInventoryCounts(tenantId, {
       }
     } catch (err) {
       failed += 1;
-      results.push({ quantId: id, error: err.message || String(err), failed: true });
+      results.push({ quantId: id, error: err.message || String(err), failed: true, code: err.code });
     }
   }
 

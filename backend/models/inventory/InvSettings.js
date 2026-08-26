@@ -64,6 +64,10 @@ const schema = new mongoose.Schema({
   groupStockTrackingOwner: { type: Boolean, default: false },
   groupLotOnDeliverySlip: { type: Boolean, default: true },
   groupLotOnInvoice: { type: Boolean, default: false },
+  /** Physical inventory — hide on-hand / difference while counting */
+  blindCountMode: { type: Boolean, default: false },
+  /** Absolute |diff| × unit cost above this requires approval before apply (0 = off) */
+  varianceApprovalThreshold: { type: Number, default: 0 },
   /** Carrier connector flags — no live API; UI shows “not installed” */
   moduleCarrierUps: { type: Boolean, default: false },
   moduleCarrierDhl: { type: Boolean, default: false },

@@ -19,13 +19,15 @@ export function csvEscape(v) {
   return s;
 }
 
-export function rowsToCsv(rows, columns) {
+export function rowsToCsv(rows, columns, { bom = true } = {}) {
   const cols = columns || (rows[0] ? Object.keys(rows[0]) : []);
   const lines = [cols.join(',')];
   for (const row of rows) {
     lines.push(cols.map((c) => csvEscape(row[c])).join(','));
   }
-  return `${lines.join('\n')}\n`;
+  const body = `${lines.join('\n')}\n`;
+  // UTF-8 BOM so Excel opens Arabic correctly
+  return bom ? `\uFEFF${body}` : body;
 }
 
 /**
@@ -116,9 +118,10 @@ export async function resolveImportCsvText({ csvText, csv, xlsxBase64 } = {}) {
 }
 
 /** CSV text → .xlsx buffer (single sheet) for download. */
-export async function csvTextToXlsxBuffer(csvText, sheetName = 'Export') {
+export async function csvTextToXlsxBuffer(csvText, sheetName = 'Export', { info } = {}) {
   const XLSX = await import('xlsx');
-  const wb = XLSX.read(String(csvText || ''), { type: 'string' });
+  const text = String(csvText || '').replace(/^\uFEFF/, '');
+  const wb = XLSX.read(text, { type: 'string', cellDates: true });
   if (sheetName && wb.SheetNames[0]) {
     const old = wb.SheetNames[0];
     const next = String(sheetName).slice(0, 31);
@@ -127,6 +130,15 @@ export async function csvTextToXlsxBuffer(csvText, sheetName = 'Export') {
       delete wb.Sheets[old];
       wb.SheetNames[0] = next;
     }
+  }
+  const dataSheet = wb.Sheets[wb.SheetNames[0]];
+  if (dataSheet?.['!ref']) {
+    dataSheet['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
+  }
+  if (info && typeof info === 'object') {
+    const infoRows = Object.entries(info).map(([k, v]) => ({ Key: k, Value: String(v ?? '') }));
+    const infoSheet = XLSX.utils.json_to_sheet(infoRows.length ? infoRows : [{ Key: 'note', Value: 'export' }]);
+    XLSX.utils.book_append_sheet(wb, infoSheet, 'Info');
   }
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
@@ -253,11 +265,26 @@ export async function importProducts(tenantId, userId, {
   }
 
   for (let idx = 0; idx < records.length; idx += 1) {
-    const row = records[idx];
+    const raw = records[idx];
+    const row = {
+      ...raw,
+      nameEn: raw.nameEn || raw.name_en || raw.name || '',
+      nameAr: raw.nameAr || raw.name_ar || '',
+      descriptionEn: raw.descriptionEn || raw.description_en || '',
+      descriptionAr: raw.descriptionAr || raw.description_ar || '',
+      costPrice: raw.costPrice ?? raw.cost,
+      sellingPrice: raw.sellingPrice ?? raw.salePrice ?? raw.salesPrice,
+      unitOfMeasure: raw.unitOfMeasure || raw.uom || 'PCE',
+      externalId: raw.externalId || raw.external_ref || raw.id,
+      invoicingPolicy: raw.invoicingPolicy || raw.invoicePolicy,
+      canBeSoldOnPos: raw.canBeSoldOnPos ?? raw.availableInPos,
+      useExpirationDate: raw.useExpirationDate ?? raw.useExpiration,
+      expirationDays: raw.expirationDays ?? raw.shelfLifeDays,
+    };
     const rowNum = idx + 2;
     const sku = String(row.sku || '').trim();
-    const nameEn = String(row.nameEn || row.name || '').trim();
-    const externalId = String(row.externalId || row.external_ref || row.id || '').trim();
+    const nameEn = String(row.nameEn || '').trim();
+    const externalId = String(row.externalId || '').trim();
     const barcode = String(row.barcode || '').trim();
     const productCode = String(row.productId || row.product_id || '').trim().toUpperCase();
 

@@ -17,10 +17,14 @@ const schema = new mongoose.Schema({
   countedQuantity: { type: String, default: null },
   isCountSet: { type: Boolean, default: false },
   countDifference: { ...decimalField, default: '0' },
+  /** On-hand qty at the moment counted was set — used for stale-line detection */
+  countSnapshotQty: { type: String, default: null },
   countScheduledDate: { type: Date },
   lastCountDate: { type: Date },
   countUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   countReason: { type: String },
+  /** Damage | Theft/Loss | Expiry | Found | Supplier shortage | Data entry error */
+  reasonCode: { type: String },
   value: { ...decimalField, default: '0' },
   valueNum: { ...decimal128Field },
   version: { type: Number, default: 0 },

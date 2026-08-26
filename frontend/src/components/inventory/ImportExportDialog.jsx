@@ -362,6 +362,7 @@ export default function ImportExportDialog({
                   <ul className="max-h-56 space-y-1 overflow-y-auto text-sm">
                     {filteredAvailable.map((f) => {
                       const key = f.path || f.key
+                      const locked = f.locked || f.importable === false
                       return (
                         <li key={key}>
                           <button
@@ -369,6 +370,10 @@ export default function ImportExportDialog({
                             className="w-full rounded-lg px-2 py-1.5 text-start hover:bg-slate-50 dark:hover:bg-dark-700"
                             onClick={() => addField(key)}
                           >
+                            {f.group && (
+                              <span className="me-1 text-[10px] uppercase text-slate-400">{f.group}</span>
+                            )}
+                            {locked && <span className="me-1 text-slate-400" title="Export only">🔒</span>}
                             {f.label}
                             <span className="ms-2 text-xs text-slate-400">{key}</span>
                           </button>

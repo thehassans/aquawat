@@ -2,6 +2,24 @@
 
 Last updated: 2026-08-26
 
+## v4.1 Data portability & document output (2026-08-26)
+
+| Topic | Decision |
+|---|---|
+| Field registry | `ieProductsRegistry.js` + `ieRegistry.js` — ExportField descriptors colocated; CI via `assertProductRegistryComplete` / `tests/ieRegistry.test.js` |
+| Missing §1.1 fields | Listed in `PRODUCT_EXCLUDED_FROM_EXPORT` with reasons (multi-barcode, company, picking descriptions, aggregation jobs, etc.) — **not invented** |
+| Product schema adds | `internalNotes`, `salesDescription`, `purchaseDescription`, `minSaleQty`, `saleMultiple`, `controlPolicy`, `daysToPurchase`, `hsCode`, `countryOfOrigin`, `volume`, `allowNegativeStock`, `isActive` |
+| Export keys | Registry uses `name_en` / `salesPrice` / `cost` / `uom`; mapper emits aliases for legacy `nameEn` / `costPrice` |
+| CSV | UTF-8 **BOM** always (`rowsToCsv({ bom: true })`) |
+| XLSX | Typed read + frozen header + **Info** sheet (date, user, model, filter, fields) |
+| Cost gating | Fields with `permission: 'inventory.cost'` stripped when `allowCost` false (operator without accounting/cost) |
+| Templates | `InvIeTemplate` gained format / updateMode / isShared / isDefault / isSystem; system templates merged in `listTemplates` |
+| Blank import template | `GET /stock/ie/import-template/:model` |
+| Print engine | `invPrint.js` — Puppeteer A4 PDF; layouts registered; transfer docs + count sheets + location labels implemented; others scaffolded; ZPL helper for labels |
+| Arabic PDF | Relies on Chromium shaping; if production fonts fail, install Noto Naskh Arabic in the backend image |
+| Physical inventory | Totals bar; required `reasonCode`; accounting date; UoM from `uomId`/`unitOfMeasure`; lot/package populated; Apply Selected; blind toggle; stale via `countSnapshotQty`; count sheet print; import fills Counted only |
+| Variance approval | Settings `varianceApprovalThreshold` + `blindCountMode` added; full approval workflow still open |
+
 ## v5 Product master / variants — schema gate (2026-08-26)
 
 | Topic | Decision |

@@ -44,6 +44,17 @@ export default function PhysicalInventory() {
   const [applyPreview, setApplyPreview] = useState(null)
   const [accountingDate, setAccountingDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [reason, setReason] = useState('Physical inventory')
+  const [reasonCode, setReasonCode] = useState('data_entry_error')
+  const [blindMode, setBlindMode] = useState(false)
+
+  const REASON_CODES = [
+    { code: 'damage', en: 'Damage', ar: 'تلف' },
+    { code: 'theft_loss', en: 'Theft/Loss', ar: 'سرقة/فقدان' },
+    { code: 'expiry', en: 'Expiry', ar: 'انتهاء صلاحية' },
+    { code: 'found', en: 'Found', ar: 'عثر عليه' },
+    { code: 'supplier_shortage', en: 'Supplier shortage', ar: 'نقص مورد' },
+    { code: 'data_entry_error', en: 'Data entry error', ar: 'خطأ إدخال' },
+  ]
 
   const [requestOpen, setRequestOpen] = useState(false)
   const [reqWh, setReqWh] = useState('')
@@ -121,6 +132,7 @@ export default function PhysicalInventory() {
     return Array.isArray(payload?.data) ? payload.data : []
   }, [payload])
   const meta = payload?._meta || { total: list.length, page: 1, pageSize }
+  const totals = meta.totals || {}
   const totalPages = Math.max(1, Math.ceil((meta.total || 0) / (meta.pageSize || pageSize)))
 
   const { data: historyPayload, isLoading: historyLoading } = useQuery({
@@ -294,6 +306,49 @@ export default function PhysicalInventory() {
           >
             {ar ? 'تطبيق الكل' : 'Apply All'}
           </button>
+          <button
+            type="button"
+            className="btn btn-secondary text-sm"
+            disabled={!selected.size}
+            onClick={() => openApply([...selected])}
+          >
+            {ar ? `تطبيق المحدد (${selected.size})` : `Apply Selected (${selected.size})`}
+          </button>
+          <button
+            type="button"
+            className={`btn text-sm ${blindMode ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setBlindMode((v) => !v)}
+          >
+            {ar ? (blindMode ? 'عد أعمى: تشغيل' : 'عد أعمى') : (blindMode ? 'Blind: ON' : 'Blind count')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary text-sm"
+            onClick={async () => {
+              try {
+                const res = await api.post('/stock/print', {
+                  layout: blindMode ? 'count_sheet_blind' : 'count_sheet_open',
+                  lang: ar ? 'ar' : 'en',
+                  filters: {
+                    warehouseId: warehouseId || undefined,
+                    locationId: locationId || undefined,
+                    filter: filter || undefined,
+                    search: search || undefined,
+                  },
+                }, { responseType: 'blob' })
+                const url = URL.createObjectURL(res.data)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'count-sheet.pdf'
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch (e) {
+                toast.error(e.response?.data?.error || e.message)
+              }
+            }}
+          >
+            {ar ? 'طباعة ورقة الجرد' : 'Print count sheet'}
+          </button>
           <button type="button" className="btn btn-secondary text-sm" onClick={() => setRequestOpen(true)}>
             {ar ? 'طلب جرد' : 'Request a Count'}
           </button>
@@ -320,7 +375,7 @@ export default function PhysicalInventory() {
             {ar ? 'إضافة منتج للجرد' : 'Add product to count'}
           </div>
           <Link to="/app/dashboard/inventory/products" className="text-xs font-medium text-primary-600 hover:underline">
-            {ar ? 'إدارة المنتجات' : 'Manage products'}
+            {ar ? 'فتح كتالوج المنتجات' : 'Open product catalog'}
           </Link>
         </div>
         <div className="mb-3 flex flex-wrap gap-2">
@@ -376,6 +431,14 @@ export default function PhysicalInventory() {
         />
       </div>
 
+      <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm sm:grid-cols-5 dark:border-dark-600 dark:bg-dark-900/40">
+        <div><div className="text-xs text-slate-500">{ar ? 'أسطر للعد' : 'Lines to count'}</div><div className="tabular-nums font-semibold">{totals.linesToCount ?? meta.total ?? 0}</div></div>
+        <div><div className="text-xs text-slate-500">{ar ? 'تم العد' : 'Lines counted'}</div><div className="tabular-nums font-semibold">{totals.linesCounted ?? 0}</div></div>
+        <div><div className="text-xs text-slate-500">{ar ? 'فرق +' : 'Positive Δ'}</div><div className="tabular-nums font-semibold text-emerald-600">{totals.positiveDiff ?? '0'}</div></div>
+        <div><div className="text-xs text-slate-500">{ar ? 'فرق −' : 'Negative Δ'}</div><div className="tabular-nums font-semibold text-rose-600">{totals.negativeDiff ?? '0'}</div></div>
+        <div><div className="text-xs text-slate-500">{ar ? 'صافي القيمة (ر.س)' : 'Net value (SAR)'}</div><div className="tabular-nums font-semibold">{totals.netValueImpact ?? '0'}</div></div>
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
           {chips.map((f) => (
@@ -416,10 +479,10 @@ export default function PhysicalInventory() {
               <th className="px-3 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
               <th className="px-3 py-3 text-start">{ar ? 'دفعة' : 'Lot/Serial'}</th>
               <th className="px-3 py-3 text-start">{ar ? 'عبوة' : 'Package'}</th>
-              <th className="px-3 py-3 text-start">{ar ? 'المتاح' : 'On Hand'}</th>
+              {!blindMode && <th className="px-3 py-3 text-start">{ar ? 'المتاح' : 'On Hand'}</th>}
               <th className="px-3 py-3 text-start">{ar ? 'وحدة' : 'UoM'}</th>
               <th className="px-3 py-3 text-start">{ar ? 'العد' : 'Counted'}</th>
-              <th className="px-3 py-3 text-start">{ar ? 'الفرق' : 'Diff'}</th>
+              {!blindMode && <th className="px-3 py-3 text-start">{ar ? 'الفرق' : 'Diff'}</th>}
               <th className="px-3 py-3 text-start">{ar ? 'مجدول' : 'Scheduled'}</th>
               <th className="px-3 py-3 text-start">{ar ? 'المستخدم' : 'User'}</th>
               <th className="px-3 py-3 text-start">{ar ? 'آخر جرد' : 'Last count'}</th>
@@ -453,12 +516,12 @@ export default function PhysicalInventory() {
               const lid = row.locationId?._id || row.locationId
               const pname = ar && row.productId?.nameAr ? row.productId.nameAr : row.productId?.nameEn
               return (
-                <tr key={row._id} className="border-b border-slate-50 dark:border-dark-700">
+                <tr key={row._id} className={`border-b border-slate-50 dark:border-dark-700 ${row.isStale ? 'bg-amber-50/80 dark:bg-amber-950/20' : ''}`}>
                   <td className="px-3 py-2">
                     <input
                       type="checkbox"
                       checked={selected.has(row._id)}
-                      disabled={!row.isCountSet}
+                      disabled={!row.isCountSet || row.isStale}
                       onChange={() => toggle(row._id)}
                     />
                   </td>
@@ -472,11 +535,14 @@ export default function PhysicalInventory() {
                       ) : pname}
                     </div>
                     <div className="text-xs text-slate-400">{row.productId?.sku}</div>
+                    {row.isStale && (
+                      <div className="text-xs font-medium text-amber-700">{ar ? 'رصيد تغيّر — أعد العد' : 'Stale — recount required'}</div>
+                    )}
                   </td>
                   <td className="px-3 py-2 tabular-nums">{row.lotId?.name || '—'}</td>
                   <td className="px-3 py-2">{row.packageId?.name || '—'}</td>
-                  <td className="px-3 py-2 tabular-nums">{row.quantity}</td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{row.productId?.unitOfMeasure || '—'}</td>
+                  {!blindMode && <td className="px-3 py-2 tabular-nums">{row.quantity}</td>}
+                  <td className="px-3 py-2 text-xs text-slate-500">{row.uom || row.productId?.unitOfMeasure || 'PCE'}</td>
                   <td className="px-3 py-2">
                     <input
                       className="input w-24"
@@ -494,7 +560,7 @@ export default function PhysicalInventory() {
                       }}
                     />
                   </td>
-                  <td className={`px-3 py-2 tabular-nums ${diffColor(liveDiff)}`}>{liveDiff}</td>
+                  {!blindMode && <td className={`px-3 py-2 tabular-nums ${diffColor(liveDiff)}`}>{liveDiff}</td>}
                   <td className="px-3 py-2">
                     <input
                       type="date"
@@ -567,20 +633,26 @@ export default function PhysicalInventory() {
             </dl>
             <label className="mt-4 block text-xs font-medium text-slate-500">{ar ? 'تاريخ المحاسبة' : 'Accounting date'}</label>
             <input type="date" className="input mt-1 w-full" value={accountingDate} onChange={(e) => setAccountingDate(e.target.value)} />
-            <label className="mt-3 block text-xs font-medium text-slate-500">{ar ? 'السبب' : 'Reason'}</label>
+            <label className="mt-3 block text-xs font-medium text-slate-500">{ar ? 'سبب الفرق *' : 'Reason code *'}</label>
+            <select className="select mt-1 w-full" value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
+              {REASON_CODES.map((c) => (
+                <option key={c.code} value={c.code}>{ar ? c.ar : c.en}</option>
+              ))}
+            </select>
+            <label className="mt-3 block text-xs font-medium text-slate-500">{ar ? 'ملاحظة' : 'Note'}</label>
             <input className="input mt-1 w-full" value={reason} onChange={(e) => setReason(e.target.value)} />
             <p className="mt-2 text-xs text-slate-400">
               {ar
-                ? 'يُنشئ حركات تسوية عبر موقع التعديل الافتراضي — لا يكتب الكمية مباشرة.'
-                : 'Creates adjustment moves via Inventory Loss — never writes on-hand directly.'}
+                ? 'الاستيراد يملأ العد فقط — التطبيق خطوة منفصلة. يُنشئ حركات تسوية عبر موقع التعديل.'
+                : 'Import fills Counted only — apply stays a deliberate action. Creates adjustment moves via Inventory Loss.'}
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="btn btn-secondary" onClick={() => setApplyOpen(false)}>{ar ? 'إلغاء' : 'Cancel'}</button>
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={apply.isPending}
-                onClick={() => apply.mutate({ ids: applyIds, accountingDate, reason })}
+                disabled={apply.isPending || !reasonCode}
+                onClick={() => apply.mutate({ ids: applyIds, accountingDate, reason, reasonCode })}
               >
                 {ar ? 'تطبيق' : 'Apply'}
               </button>

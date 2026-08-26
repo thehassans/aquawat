@@ -35,6 +35,14 @@ export const applyCountsBody = z.object({
   ids: z.array(objectId).min(1),
   accountingDate: z.union([z.string(), z.coerce.date()]).optional().nullable(),
   reason: z.string().max(500).optional().nullable(),
+  reasonCode: z.enum([
+    'damage',
+    'theft_loss',
+    'expiry',
+    'found',
+    'supplier_shortage',
+    'data_entry_error',
+  ]),
 }).passthrough();
 
 export const integrityRunBody = z.object({
