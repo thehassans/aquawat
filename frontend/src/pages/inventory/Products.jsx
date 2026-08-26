@@ -13,6 +13,7 @@ import { InventoryIeButtons } from '../../components/inventory/ImportExportDialo
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import { getUomLabel } from '../../lib/uomOptions'
 import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType, productTypeBadgeClass } from '../../lib/productType'
+import { formatInvError } from '../../lib/invError'
 
 const healthMeta = {
   in_stock: { en: 'In stock', ar: 'متوفر', className: 'bg-emerald-50 text-emerald-800' },
@@ -225,7 +226,7 @@ export default function Products() {
                 a.click()
                 URL.revokeObjectURL(url)
               } catch (e) {
-                toast.error(e.response?.data?.error || e.message)
+                toast.error(formatInvError(e, language))
               }
             }}
           >

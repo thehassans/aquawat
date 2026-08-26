@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { filterInventoryMenu } from './inventory.menu'
 import { PortalDropdown } from './PortalDropdown'
+import { formatInvError } from '../../lib/invError'
 
 function labelOf(item, language) {
   return language === 'ar' ? item.labelAr || item.label : item.label
@@ -160,7 +161,7 @@ export default function InventoryLayout() {
       )
       qc.invalidateQueries({ queryKey: ['replenishment'] })
     } catch (e) {
-      toast.error(e.response?.data?.error || e.message)
+      toast.error(formatInvError(e, language))
     }
   }
 

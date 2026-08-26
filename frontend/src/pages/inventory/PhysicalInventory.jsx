@@ -8,6 +8,7 @@ import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import ProductChooser from '../../components/inventory/ProductChooser'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
+import { formatInvError } from '../../lib/invError'
 
 function fmtDate(d) {
   if (!d) return ''
@@ -173,13 +174,13 @@ export default function PhysicalInventory() {
       setDirty(false)
       invalidate()
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const clear = useMutation({
     mutationFn: (quantId) => api.post('/stock/physical-inventory/clear', { quantId }),
     onSuccess: () => invalidate(),
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const apply = useMutation({
@@ -196,7 +197,7 @@ export default function PhysicalInventory() {
       setApplyPreview(null)
       invalidate()
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const approveVariance = useMutation({
@@ -205,7 +206,7 @@ export default function PhysicalInventory() {
       toast.success(ar ? `تم اعتماد ${res.data?.approved || 0}` : `Approved ${res.data?.approved || 0}`)
       invalidate()
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const { data: invSettings } = useQuery({
@@ -231,7 +232,7 @@ export default function PhysicalInventory() {
       setFilter('toCount')
       invalidate()
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const groupedList = useMemo(() => {
@@ -279,7 +280,7 @@ export default function PhysicalInventory() {
       setApplyIds(ids)
       setApplyOpen(true)
     } catch (e) {
-      toast.error(e.response?.data?.error || e.message)
+      toast.error(formatInvError(e, language))
     }
   }
 
@@ -396,7 +397,7 @@ export default function PhysicalInventory() {
                 a.click()
                 URL.revokeObjectURL(url)
               } catch (e) {
-                toast.error(e.response?.data?.error || e.message)
+                toast.error(formatInvError(e, language))
               }
             }}
           >

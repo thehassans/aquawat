@@ -65,3 +65,17 @@ export async function nextDailyDocNumber(tenantId, docPrefix, { padding = 3, ses
   const num = (seq?.nextNumber || 2) - 1;
   return `${code}-${String(num).padStart(padding, '0')}`;
 }
+
+/** Atomic padded doc number e.g. WO-00001 (uses InvSequence $inc). */
+export async function nextDocNumber(tenantId, code, { padding = 5, session = null } = {}) {
+  const tid = toObjectId(tenantId);
+  await ensureSequence(tid, code, code, session);
+  const opts = session ? { session, new: true } : { new: true };
+  const seq = await InvSequence.findOneAndUpdate(
+    { tenantId: tid, code },
+    { $inc: { nextNumber: 1 } },
+    opts,
+  );
+  const num = (seq?.nextNumber || 2) - 1;
+  return `${code}-${String(num).padStart(padding, '0')}`;
+}

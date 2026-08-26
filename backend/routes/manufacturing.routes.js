@@ -13,6 +13,7 @@ import {
 import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
 import Invoice from '../models/Invoice.js';
+import { nextDocNumber } from '../services/inventory/sequence.js';
 
 const router = express.Router();
 router.use(protect);
@@ -679,10 +680,8 @@ router.post('/work-orders', protect, async (req, res) => {
     const bom = await ManufacturingBOM.findOne({ _id: bomId, tenantId: req.user.tenantId }).populate('components.productId');
     if (!bom) return res.status(404).json({ error: 'BOM not found' });
 
-    // Generate Work Order Number: WO-XXXX
-    const count = await ManufacturingWorkOrder.countDocuments({ tenantId: req.user.tenantId });
-    const orderNumber = `WO-${String(count + 1).padStart(5, '0')}`;
-    const lotNumber = `LOT-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
+    const orderNumber = await nextDocNumber(req.user.tenantId, 'WO', { padding: 5 });
+    const lotNumber = `LOT-${new Date().getFullYear()}-${orderNumber.slice(-4)}`;
 
     const effectiveRoutingId = routingId || bom.routingId;
     const routing = effectiveRoutingId

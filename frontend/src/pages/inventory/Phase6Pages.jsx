@@ -548,7 +548,7 @@ export function BarcodeNomenclaturePage() {
       toast.success(language === 'ar' ? 'تم الإنشاء' : 'Created')
       qc.invalidateQueries({ queryKey: ['barcode-noms'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const items = data?.items || []

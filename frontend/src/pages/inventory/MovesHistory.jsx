@@ -8,6 +8,7 @@ import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
+import { formatInvError } from '../../lib/invError'
 
 export default function MovesHistory() {
   const { language } = useSelector((s) => s.ui)
@@ -46,7 +47,7 @@ export default function MovesHistory() {
       ])
       toast.success(ar ? `تم تصدير ${rows.length} سطر` : `Exported ${rows.length} rows`)
     } catch (e) {
-      toast.error(e.response?.data?.error || e.message)
+      toast.error(formatInvError(e, language))
     } finally {
       setExporting(false)
     }
