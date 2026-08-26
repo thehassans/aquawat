@@ -574,7 +574,35 @@ export default function ProductForm() {
         ))}
       </div>
 
-      <form onSubmit={handleSubmit((data) => mutation.mutate(buildPayload(data)))} className="space-y-6">
+      <form
+        onSubmit={handleSubmit((data) => {
+          const payload = buildPayload(data)
+          const warnings = []
+          const cat = (Array.isArray(invCategories) ? invCategories : []).find(
+            (c) => String(c._id) === String(payload.categoryId || ''),
+          )
+          const hasIncome = !!(payload.incomeAccountId || cat?.incomeAccountId)
+          const hasExpense = !!(payload.expenseAccountId || cat?.expenseAccountId)
+          if (payload.canBeSold !== false && !hasIncome) {
+            warnings.push(language === 'ar'
+              ? 'المنتج قابل للبيع بلا حساب إيراد (سيُستخدم الحساب الافتراضي أو الفئة)'
+              : 'Sold product has no income account (will use category / default sales)')
+          }
+          if ((payload.canBePurchased || payload.canBeExpensed) && !hasExpense) {
+            warnings.push(language === 'ar'
+              ? 'المنتج قابل للشراء/المصروف بلا حساب مصروف'
+              : 'Purchased/expensed product has no expense account (will use category / defaults)')
+          }
+          if (warnings.length) {
+            const ok = window.confirm(
+              `${warnings.join('\n')}\n\n${language === 'ar' ? 'المتابعة؟' : 'Continue anyway?'}`,
+            )
+            if (!ok) return
+          }
+          mutation.mutate(payload)
+        })}
+        className="space-y-6"
+      >
         {(productTab === 'general') && (
         <>
         {/* Basic Info */}
@@ -1156,18 +1184,24 @@ export default function ProductForm() {
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="label">{language === 'ar' ? 'حساب الإيراد' : 'Income Account'}</label>
+                <label className="label">
+                  {language === 'ar' ? 'حساب الإيراد' : 'Income Account'}
+                  {canBeSold ? ` (${language === 'ar' ? 'مستحسن للبيع' : 'recommended for sales'})` : ''}
+                </label>
                 <select {...register('incomeAccountId')} className="select">
-                  <option value="">—</option>
+                  <option value="">{language === 'ar' ? '— من الفئة / افتراضي —' : '— From category / default —'}</option>
                   {activeAccounts.map((a) => (
                     <option key={a._id} value={a._id}>{a.code ? `${a.code} · ${language === 'ar' ? (a.nameAr || a.name) : a.name}` : (language === 'ar' ? (a.nameAr || a.name) : a.name)}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="label">{language === 'ar' ? 'حساب المصروف' : 'Expense Account'}</label>
+                <label className="label">
+                  {language === 'ar' ? 'حساب المصروف' : 'Expense Account'}
+                  {(canBePurchased || canBeExpensed) ? ` (${language === 'ar' ? 'مستحسن' : 'recommended'})` : ''}
+                </label>
                 <select {...register('expenseAccountId')} className="select">
-                  <option value="">—</option>
+                  <option value="">{language === 'ar' ? '— من الفئة / افتراضي —' : '— From category / default —'}</option>
                   {activeAccounts.map((a) => (
                     <option key={a._id} value={a._id}>{a.code ? `${a.code} · ${language === 'ar' ? (a.nameAr || a.name) : a.name}` : (language === 'ar' ? (a.nameAr || a.name) : a.name)}</option>
                   ))}

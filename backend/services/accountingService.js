@@ -278,8 +278,122 @@ function paymentAccountCode(method = 'bank_transfer') {
 }
 
 /**
+ * Sales invoice journal lines: AR Dr, revenue Cr (optionally split), VAT Cr.
+ * @param {{ account: {_id, code}, amount: number }[]} [revenueCredits]
+ */
+export function buildSalesInvoiceJournalLines({
+  netAmount,
+  taxAmount = 0,
+  ar,
+  vatOut = null,
+  defaultSales = null,
+  revenueCredits = null,
+  description = '',
+}) {
+  const net = round2(Math.abs(Number(netAmount) || 0));
+  const tax = round2(Math.max(0, Number(taxAmount) || 0));
+  const gross = round2(net + tax);
+  if (gross <= 0 || !ar) return [];
+
+  const lines = [
+    {
+      accountId: ar._id,
+      accountCode: ar.code,
+      debit: gross,
+      credit: 0,
+      description: description || 'Accounts receivable',
+    },
+  ];
+
+  if (Array.isArray(revenueCredits) && revenueCredits.length) {
+    const byAcct = new Map();
+    for (const r of revenueCredits) {
+      const amt = round2(Math.abs(Number(r.amount) || 0));
+      if (amt <= 0 || !r.account?._id) continue;
+      const key = String(r.account._id);
+      const prev = byAcct.get(key);
+      if (prev) prev.credit = round2(prev.credit + amt);
+      else {
+        byAcct.set(key, {
+          accountId: r.account._id,
+          accountCode: r.account.code,
+          debit: 0,
+          credit: amt,
+          description: description || 'Sales revenue',
+        });
+      }
+    }
+    lines.push(...byAcct.values());
+  } else if (defaultSales) {
+    lines.push({
+      accountId: defaultSales._id,
+      accountCode: defaultSales.code,
+      debit: 0,
+      credit: net,
+      description: description || 'Sales revenue',
+    });
+  } else {
+    return [];
+  }
+
+  if (tax > 0 && vatOut) {
+    lines.push({
+      accountId: vatOut._id,
+      accountCode: vatOut.code,
+      debit: 0,
+      credit: tax,
+      description: description || 'VAT output',
+    });
+  } else if (tax > 0 && lines.length > 1) {
+    // Fold tax into first revenue credit when no VAT account
+    const rev = lines.find((l) => l.credit > 0);
+    if (rev) rev.credit = round2(rev.credit + tax);
+  }
+
+  return lines;
+}
+
+async function loadActiveCoa(tenantId, id) {
+  if (!id) return null;
+  return ChartOfAccount.findOne({ _id: id, tenantId, isActive: true });
+}
+
+/**
+ * Income account for a sold product: product override → category → default sales COA.
+ */
+export async function resolveSalesIncomeAccount(tenantId, productId, fallbackSales = null) {
+  if (!productId) return fallbackSales;
+  const Product = (await import('../models/Product.js')).default;
+  const product = await Product.findOne({ _id: productId, tenantId })
+    .select('incomeAccountId categoryId productType')
+    .lean();
+  if (!product) return fallbackSales;
+
+  const fromProduct = await loadActiveCoa(tenantId, product.incomeAccountId);
+  if (fromProduct) return fromProduct;
+
+  if (product.categoryId) {
+    const InvProductCategory = (await import('../models/inventory/InvProductCategory.js')).default;
+    const cat = await InvProductCategory.findOne({ _id: product.categoryId, tenantId })
+      .select('incomeAccountId')
+      .lean();
+    const fromCat = await loadActiveCoa(tenantId, cat?.incomeAccountId);
+    if (fromCat) return fromCat;
+  }
+
+  // Services prefer 4100 when no override
+  if (product.productType === 'service') {
+    const services = await getAccountByCode(tenantId, ACCOUNT_CODE_MAP.services);
+    if (services) return services;
+  }
+
+  return fallbackSales;
+}
+
+/**
  * Sales invoice issued (AR + VAT output + Revenue).
  * Amounts: net (ex-VAT), tax, gross.
+ * Revenue credits resolve per line: product → category → Sales/Service COA.
  */
 export async function postSalesInvoiceJournal({
   tenantId,
@@ -305,19 +419,51 @@ export async function postSalesInvoiceJournal({
   }
   if (gross <= 0) return null;
 
-  const lines = [
-    { accountId: ar._id, accountCode: ar.code, debit: gross, credit: 0, description: `AR ${invoice.invoiceNumber}` },
-    { accountId: sales._id, accountCode: sales.code, debit: 0, credit: net, description: `Sales ${invoice.invoiceNumber}` },
-  ];
-  if (tax > 0 && vatOut) {
-    lines.push({
-      accountId: vatOut._id,
-      accountCode: vatOut.code,
-      debit: 0,
-      credit: tax,
-      description: `VAT output ${invoice.invoiceNumber}`,
-    });
+  const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+  let revenueCredits = null;
+  if (lineItems.length) {
+    const lineNets = lineItems.map((li) => round2(Math.abs(Number(li.lineTotal) || 0)));
+    const sumLines = round2(lineNets.reduce((s, n) => s + n, 0));
+    revenueCredits = [];
+    for (let i = 0; i < lineItems.length; i += 1) {
+      let share = lineNets[i];
+      if (sumLines > 0 && sumLines !== net) {
+        share = round2((lineNets[i] / sumLines) * net);
+      }
+      if (share <= 0) continue;
+      const account = await resolveSalesIncomeAccount(
+        tenantId,
+        lineItems[i].productId,
+        lineItems[i].productType === 'service'
+          ? (byCode[ACCOUNT_CODE_MAP.services] || sales)
+          : sales,
+      );
+      if (!account) continue;
+      revenueCredits.push({ account, amount: share });
+    }
+    if (revenueCredits.length) {
+      const allocated = round2(revenueCredits.reduce((s, g) => s + g.amount, 0));
+      const delta = round2(net - allocated);
+      if (delta !== 0) {
+        revenueCredits[revenueCredits.length - 1].amount = round2(
+          revenueCredits[revenueCredits.length - 1].amount + delta,
+        );
+      }
+    } else {
+      revenueCredits = null;
+    }
   }
+
+  const lines = buildSalesInvoiceJournalLines({
+    netAmount: net,
+    taxAmount: tax,
+    ar,
+    vatOut,
+    defaultSales: sales,
+    revenueCredits,
+    description: `Invoice ${invoice.invoiceNumber || ''}`,
+  });
+  if (lines.length < 2) return null;
 
   return createJournalEntry({
     tenantId,
