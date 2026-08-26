@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import ProductChooser from '../../components/inventory/ProductChooser'
@@ -275,7 +275,7 @@ export default function TransferForm() {
     }
   }
 
-  const pickProduct = async (product) => {
+  const buildLineFromProduct = async (product) => {
     let variantId = null
     let variantName = ''
     let variants = []
@@ -296,36 +296,67 @@ export default function TransferForm() {
         /* variants optional */
       }
     }
+    return {
+      productId: product._id,
+      productName: ar && product.nameAr ? product.nameAr : (product.nameEn || product.name),
+      sku: product.sku,
+      demandQty: '1',
+      variantId,
+      variantName,
+      variants,
+      needsVariant,
+      uomId: product.uomId || undefined,
+      uomLabel: product.unitOfMeasure || '',
+    }
+  }
 
+  const pickProduct = async (product, targetIdx = null) => {
+    const nextLine = await buildLineFromProduct(product)
     setForm((f) => {
+      if (targetIdx != null && targetIdx >= 0) {
+        const lines = [...f.lines]
+        const prev = lines[targetIdx] || {}
+        lines[targetIdx] = {
+          ...nextLine,
+          demandQty: prev.demandQty && Number(prev.demandQty) > 0 ? prev.demandQty : nextLine.demandQty,
+        }
+        return { ...f, lines }
+      }
       const lineKey = (l) => `${l.productId}:${l.variantId || ''}`
-      const nextKey = `${product._id}:${variantId || ''}`
-      const existing = f.lines.findIndex((l) => lineKey(l) === nextKey && !needsVariant)
-      if (existing >= 0 && !needsVariant) {
+      const nextKey = `${nextLine.productId}:${nextLine.variantId || ''}`
+      const blankIdx = f.lines.findIndex((l) => !l.productId)
+      if (blankIdx >= 0) {
+        const lines = [...f.lines]
+        lines[blankIdx] = nextLine
+        return { ...f, lines }
+      }
+      const existing = f.lines.findIndex((l) => lineKey(l) === nextKey && !nextLine.needsVariant)
+      if (existing >= 0 && !nextLine.needsVariant) {
         const lines = [...f.lines]
         const nextQty = String(Number(lines[existing].demandQty || 0) + 1)
         lines[existing] = { ...lines[existing], demandQty: nextQty }
         return { ...f, lines }
       }
-      return {
-        ...f,
-        lines: [
-          ...f.lines,
-          {
-            productId: product._id,
-            productName: ar && product.nameAr ? product.nameAr : (product.nameEn || product.name),
-            sku: product.sku,
-            demandQty: '1',
-            variantId,
-            variantName,
-            variants,
-            needsVariant,
-            uomId: product.uomId || undefined,
-            uomLabel: product.unitOfMeasure || '',
-          },
-        ],
-      }
+      return { ...f, lines: [...f.lines, nextLine] }
     })
+  }
+
+  const addEmptyLine = () => {
+    setForm((f) => ({
+      ...f,
+      lines: [...f.lines, {
+        productId: '',
+        productName: '',
+        sku: '',
+        demandQty: '1',
+        variantId: null,
+        variantName: '',
+        variants: [],
+        needsVariant: false,
+        uomId: undefined,
+        uomLabel: '',
+      }],
+    }))
   }
 
   const scanBarcode = async () => {
@@ -711,19 +742,32 @@ export default function TransferForm() {
                   {ar ? 'منتج · متغير · كمية لكل سطر' : 'Product · variant · quantity per line'}
                 </p>
               </div>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium tabular-nums text-slate-600 dark:bg-dark-700 dark:text-slate-300">
-                {form.lines.length} {ar ? 'سطر' : 'line(s)'}
-              </span>
+              <button
+                type="button"
+                onClick={addEmptyLine}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-sm transition hover:border-teal-600 hover:text-teal-700 dark:border-dark-500 dark:bg-dark-700 dark:text-slate-100"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {ar ? 'إضافة' : 'Add'}
+              </button>
             </div>
-            <ProductChooser
-              remote
-              onPick={pickProduct}
-              placeholder={ar ? 'ابحث بالاسم أو الرمز أو الباركود…' : 'Search products by name, SKU, or barcode…'}
-            />
             {form.lines.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400 dark:border-dark-600">
-                {ar ? 'اختر منتجاً من الكتالوج أعلاه' : 'Pick a product from the catalog above'}
-              </p>
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center dark:border-dark-600 dark:bg-dark-900/40">
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  {ar ? 'لا توجد بنود بعد' : 'No operations lines yet'}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {ar ? 'أضف سطراً ثم اختر المنتج من القائمة.' : 'Add a line, then pick a product from the dropdown.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={addEmptyLine}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white dark:bg-white dark:text-slate-900"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {ar ? 'إضافة سطر' : 'Add line'}
+                </button>
+              </div>
             ) : (
               <div className="overflow-hidden rounded-xl border border-slate-200/90 dark:border-dark-600">
                 <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(7rem,11rem)_minmax(6rem,9rem)_5.5rem_2.5rem] gap-2 border-b border-slate-100 bg-slate-50/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-dark-600 dark:bg-dark-900/50 sm:grid">
@@ -736,12 +780,12 @@ export default function TransferForm() {
                 <div className="divide-y divide-slate-100 dark:divide-dark-600">
                   {form.lines.map((line, idx) => (
                     <TransferDraftLine
-                      key={`${line.productId}:${line.variantId || ''}:${idx}`}
+                      key={`line-${idx}`}
                       line={line}
-                      idx={idx}
                       ar={ar}
                       variantsEnabled={!!(hints.variantsEnabled || settings?.groupProductVariant)}
                       packagingEnabled={!!(hints.packagingEnabled || settings?.groupStockPackaging)}
+                      onPickProduct={(p) => pickProduct(p, idx)}
                       onChange={(next) => {
                         const lines = [...form.lines]
                         lines[idx] = next
@@ -1127,7 +1171,7 @@ export default function TransferForm() {
   )
 }
 
-function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onChange, onRemove }) {
+function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPickProduct, onChange, onRemove }) {
   const { data: packsPayload } = useQuery({
     queryKey: ['inv-product-packagings-line', line.productId],
     queryFn: () => api.get('/stock/product-packagings', {
@@ -1142,16 +1186,23 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onChan
   const packsCount = Number(line.packagingQty || line.demandQty || 0)
   const productQty = selected ? packsCount * packQty : line.demandQty
   const variants = line.variants || []
+  const valueSub = [
+    line.sku ? `SKU ${line.sku}` : '',
+    selected ? `→ ${productQty} ${ar ? 'وحدة' : 'units'}` : '',
+    !selected && line.uomLabel ? line.uomLabel : '',
+  ].filter(Boolean).join(' · ')
 
   return (
     <div className="grid items-center gap-2 px-3 py-2.5 sm:grid-cols-[minmax(0,1.4fr)_minmax(7rem,11rem)_minmax(6rem,9rem)_5.5rem_2.5rem]">
       <div className="min-w-0">
-        <div className="truncate font-medium text-slate-900 dark:text-white">{line.productName}</div>
-        <div className="truncate text-[11px] text-slate-400">
-          {line.sku ? `SKU ${line.sku}` : ''}
-          {selected ? `${line.sku ? ' · ' : ''}→ ${productQty} ${ar ? 'وحدة' : 'units'}` : ''}
-          {line.uomLabel ? `${line.sku || selected ? ' · ' : ''}${line.uomLabel}` : ''}
-        </div>
+        <ProductChooser
+          mode="inline"
+          remote
+          valueLabel={line.productName || ''}
+          valueSub={valueSub}
+          onPick={onPickProduct}
+          placeholder={ar ? '— اختر من البحث —' : '— Pick from search —'}
+        />
       </div>
       {variantsEnabled && variants.length > 0 ? (
         <select

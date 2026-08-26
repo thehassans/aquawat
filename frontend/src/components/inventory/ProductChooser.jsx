@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, Search } from 'lucide-react'
 import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType } from '../../lib/productType'
 import api from '../../lib/api'
 
@@ -15,6 +15,7 @@ export function normalizeCatalogProduct(p, source = 'bakala') {
     sku: String(p.sku || ''),
     productType: normalizeProductType(p.productType),
     unitOfMeasure: p.unitOfMeasure || p.uom || 'EA',
+    uomId: p.uomId || undefined,
     costPrice: Number(p.costPrice || 0),
     source,
     raw: p,
@@ -93,9 +94,12 @@ function exactProduct(products, term) {
 
 /**
  * @param {object} props
- * @param {Array} [props.products] — local catalog (ignored when remote)
- * @param {boolean} [props.remote] — fetch trading products on demand (debounced)
+ * @param {Array} [props.products]
+ * @param {boolean} [props.remote]
  * @param {(p: object) => void} props.onPick
+ * @param {'search'|'inline'} [props.mode] — inline = dropdown cell like invoice product select
+ * @param {string} [props.valueLabel] — selected product label (inline)
+ * @param {string} [props.valueSub] — selected SKU line (inline)
  */
 export default function ProductChooser({
   products: productsProp = [],
@@ -103,7 +107,13 @@ export default function ProductChooser({
   onPick,
   accent = 'emerald',
   placeholder = 'Search by name, SKU, or scan barcode…',
+  mode = 'search',
+  valueLabel = '',
+  valueSub = '',
+  className = '',
 }) {
+  const inline = mode === 'inline'
+  const rootRef = useRef(null)
   const [term, setTerm] = useState('')
   const [debouncedTerm, setDebouncedTerm] = useState('')
   const [open, setOpen] = useState(false)
@@ -120,7 +130,17 @@ export default function ProductChooser({
   }, [term])
 
   useEffect(() => {
+    if (!open) return undefined
+    const onDoc = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  useEffect(() => {
     if (!remote) return undefined
+    if (inline && !open) return undefined
     let cancelled = false
     setLoading(true)
     loadTradingProducts(api, { search: debouncedTerm, limit: 40 })
@@ -136,7 +156,7 @@ export default function ProductChooser({
     return () => {
       cancelled = true
     }
-  }, [remote, debouncedTerm])
+  }, [remote, debouncedTerm, inline, open])
 
   const products = remote ? remoteProducts : productsProp
 
@@ -169,8 +189,82 @@ export default function ProductChooser({
     setOpen(true)
   }
 
+  if (inline) {
+    return (
+      <div ref={rootRef} className={`relative min-w-0 ${className}`}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className={`flex w-full items-center gap-2 rounded-xl border bg-white px-3 py-2 text-start text-sm outline-none transition dark:bg-dark-900 ${
+            valueLabel
+              ? 'border-slate-200 text-slate-900 dark:border-dark-600 dark:text-white'
+              : 'border-dashed border-slate-300 text-slate-400 hover:border-emerald-400 hover:text-emerald-700 dark:border-dark-500'
+          }`}
+        >
+          <Search className="h-3.5 w-3.5 shrink-0 opacity-50" />
+          <span className="min-w-0 flex-1 truncate">
+            {valueLabel ? (
+              <>
+                <span className="block truncate font-medium">{valueLabel}</span>
+                {valueSub ? (
+                  <span className="mt-0.5 block truncate font-mono text-[10px] text-slate-400">{valueSub}</span>
+                ) : null}
+              </>
+            ) : (
+              placeholder
+            )}
+          </span>
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {open && (
+          <div className="absolute start-0 z-40 mt-1.5 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)] dark:border-dark-600 dark:bg-dark-800">
+            <div className="border-b border-slate-100 p-2 dark:border-dark-600">
+              <input
+                autoFocus
+                type="text"
+                value={term}
+                onChange={(e) => setTerm(e.target.value)}
+                placeholder={placeholder.includes('Pick') || placeholder.includes('اختر')
+                  ? (placeholder.includes('اختر') ? 'ابحث بالاسم أو الرمز…' : 'Search by name, SKU…')
+                  : placeholder}
+                className={`w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-2 ring-transparent dark:border-dark-600 dark:bg-dark-900 ${ring}`}
+              />
+            </div>
+            <div className="max-h-56 overflow-y-auto">
+              {loading ? (
+                <p className="px-4 py-3 text-sm text-slate-400">…</p>
+              ) : suggestions.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-slate-400">
+                  {remote && !debouncedTerm.trim() ? 'Type to search…' : 'No matching products'}
+                </p>
+              ) : (
+                suggestions.map((p) => (
+                  <button
+                    key={p._id}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pick(p)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-dark-700"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">{p.name}</span>
+                      <span className="block truncate text-[11px] text-slate-400">
+                        {[formatProductTypeLabel(p.productType), p.sku && `SKU ${p.sku}`, p.barcode].filter(Boolean).join(' · ')}
+                      </span>
+                    </span>
+                    <span className={`shrink-0 text-[11px] font-semibold ${addTone}`}>+</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="relative max-w-xl">
+    <div className={`relative max-w-xl ${className}`}>
       <form onSubmit={submit}>
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input

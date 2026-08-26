@@ -243,7 +243,7 @@ export function ScrapForm() {
     onError: (e) => toast.error(e.response?.data?.error || e.message),
   })
 
-  const pickProduct = async (product) => {
+  const pickProduct = async (product, targetIdx = null) => {
     let variants = []
     let variantId = ''
     let variantName = ''
@@ -273,6 +273,15 @@ export function ScrapForm() {
       variants,
     }
     setLines((prev) => {
+      if (targetIdx != null && targetIdx >= 0) {
+        const copy = [...prev]
+        const prevQty = copy[targetIdx]?.quantity
+        copy[targetIdx] = {
+          ...next,
+          quantity: prevQty && Number(prevQty) > 0 ? prevQty : next.quantity,
+        }
+        return copy
+      }
       const blankIdx = prev.findIndex((l) => !l.productId)
       if (blankIdx >= 0) {
         const copy = [...prev]
@@ -411,19 +420,13 @@ export function ScrapForm() {
               </div>
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
                 onClick={() => setLines((l) => [...l, emptyLine()])}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-sm transition hover:border-teal-600 hover:text-teal-700 dark:border-dark-500 dark:bg-dark-700 dark:text-slate-100"
               >
-                <Plus className="h-4 w-4" />
-                {ar ? 'سطر' : 'Line'}
+                <Plus className="h-3.5 w-3.5" />
+                {ar ? 'إضافة' : 'Add'}
               </button>
             </div>
-
-            <ProductChooser
-              remote
-              onPick={pickProduct}
-              placeholder={ar ? 'ابحث لإضافة منتج…' : 'Search to add a product…'}
-            />
 
             <div className="overflow-hidden rounded-xl border border-slate-200/90 dark:border-dark-600">
               <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(7rem,10rem)_minmax(5rem,8rem)_5.5rem_2.5rem] gap-2 border-b border-slate-100 bg-slate-50/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-dark-600 dark:bg-dark-900/50 sm:grid">
@@ -440,10 +443,14 @@ export function ScrapForm() {
                     className="grid items-center gap-2 px-3 py-2.5 sm:grid-cols-[minmax(0,1.5fr)_minmax(7rem,10rem)_minmax(5rem,8rem)_5.5rem_2.5rem]"
                   >
                     <div className="min-w-0">
-                      <div className="truncate font-medium text-slate-900 dark:text-white">
-                        {line.productName || (ar ? '— اختر من البحث —' : '— Pick from search —')}
-                      </div>
-                      {line.sku ? <div className="font-mono text-[11px] text-slate-400">{line.sku}</div> : null}
+                      <ProductChooser
+                        mode="inline"
+                        remote
+                        valueLabel={line.productName || ''}
+                        valueSub={line.sku ? `SKU ${line.sku}` : ''}
+                        onPick={(p) => pickProduct(p, idx)}
+                        placeholder={ar ? '— اختر من البحث —' : '— Pick from search —'}
+                      />
                     </div>
                     {(line.variants || []).length > 0 ? (
                       <select
