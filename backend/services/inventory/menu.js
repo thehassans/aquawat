@@ -18,7 +18,7 @@ export const FLAG_MAP = {
   batchTransfers: 'groupBatchTransfer',
   quality: 'moduleQuality',
   receptionReport: (s) => Boolean(s.receptionReportEnabled || s.groupReceptionReport),
-  valuation: (s) => s.stockAccountingEnabled || s.groupLandedCosts,
+  valuation: (s) => s.inventoryEvaluationEnabled !== false || s.stockAccountingEnabled || s.groupLandedCosts,
   landedCosts: 'groupLandedCosts',
   pos: 'menuPos',
   manufacturing: 'menuManufacturing',
@@ -441,6 +441,7 @@ export function isMenuFlagOn(settings, flagKey) {
     'groupUom',
     'groupLandedCosts',
     'stockAccountingEnabled',
+    'inventoryEvaluationEnabled',
     'menuPos',
     'menuManufacturing',
   ]);

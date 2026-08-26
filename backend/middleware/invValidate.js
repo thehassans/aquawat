@@ -9,6 +9,10 @@ export const validateTransferBody = z.object({
     z.boolean(),
   ]).optional().nullable(),
   immediate: z.boolean().optional(),
+  moveQuantities: z.array(z.object({
+    moveId: objectId,
+    quantity: z.union([z.number(), z.string()]),
+  })).optional(),
 }).passthrough();
 
 export const posConsumeBody = z.object({

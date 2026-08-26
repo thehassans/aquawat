@@ -102,12 +102,94 @@ export async function confirmTransfer(tenantId, transferId, userId = null) {
 }
 
 /**
+ * Upsert open move lines so validate processes the given quantities (partial in/out).
+ */
+async function applyMoveQuantities(session, tid, transfer, moveQuantities, userId) {
+  for (const row of moveQuantities) {
+    if (!row?.moveId) continue;
+    const qty = decStr(row.quantity ?? 0);
+    if (D(qty).lt(0)) {
+      throw new InventoryValidationError('Done quantity cannot be negative', 'BAD_QTY');
+    }
+    const move = await InvMove.findOne({
+      _id: toObjectId(row.moveId),
+      tenantId: tid,
+      transferId: transfer._id,
+      state: { $nin: ['done', 'cancelled'] },
+    }).session(session);
+    if (!move) continue;
+
+    if (D(qty).gt(D(move.demandQty))) {
+      throw new InventoryValidationError(
+        `Done qty exceeds demand for ${move.reference || move._id}`,
+        'QTY_EXCEEDS_DEMAND',
+      );
+    }
+
+    const openLines = await InvMoveLine.find({
+      tenantId: tid,
+      moveId: move._id,
+      state: { $nin: ['done', 'cancelled'] },
+    }).session(session);
+
+    if (!openLines.length) {
+      if (!decIsPositive(qty)) continue;
+      await InvMoveLine.create([{
+        tenantId: tid,
+        moveId: move._id,
+        transferId: transfer._id,
+        productId: move.productId,
+        variantId: move.variantId || null,
+        uomId: move.uomId,
+        quantity: qty,
+        quantityInProductUom: qty,
+        sourceLocationId: move.sourceLocationId,
+        destLocationId: move.destLocationId,
+        state: 'assigned',
+        reference: move.reference,
+        createdBy: userId,
+      }], { session });
+      continue;
+    }
+
+    // Collapse to a single open line with the intended qty; cancel extras
+    const [primary, ...rest] = openLines;
+    primary.quantity = qty;
+    primary.quantityInProductUom = qty;
+    if (userId) primary.updatedBy = userId;
+    await primary.save({ session });
+    for (const extra of rest) {
+      extra.state = 'cancelled';
+      await extra.save({ session });
+    }
+  }
+}
+
+/**
+ * Public helper — set done quantities on open moves without validating.
+ */
+export async function setTransferMoveQuantities(tenantId, transferId, moveQuantities, userId = null) {
+  return runWithTransaction(async (session) => {
+    const tid = toObjectId(tenantId);
+    const transfer = await InvTransfer.findOne({
+      _id: toObjectId(transferId),
+      tenantId: tid,
+      state: { $nin: ['done', 'cancelled'] },
+    }).session(session);
+    if (!transfer) throw new InventoryValidationError('Transfer not found', 'NOT_FOUND');
+    await applyMoveQuantities(session, tid, transfer, moveQuantities || [], userId);
+    return InvTransfer.findById(transfer._id).session(session);
+  });
+}
+
+/**
  * Validate (complete) a transfer — atomic, idempotent.
  */
 export async function validateTransfer(tenantId, transferId, {
   userId = null,
   createBackorder = null,
   immediate = false,
+  moveQuantities = null,
 } = {}) {
   return runWithTransaction(async (session) => {
     const tid = toObjectId(tenantId);
@@ -167,6 +249,11 @@ export async function validateTransfer(tenantId, transferId, {
         }
       }
 
+      // Apply explicit done quantities before processing (partial receipt/delivery)
+      if (Array.isArray(moveQuantities) && moveQuantities.length) {
+        await applyMoveQuantities(session, tid, transfer, moveQuantities, userId);
+      }
+
       const moves = await InvMove.find({
         tenantId: tid,
         transferId: transfer._id,
@@ -188,12 +275,16 @@ export async function validateTransfer(tenantId, transferId, {
         }).session(session);
 
         // Immediate transfer with no lines: create a single line for full demand at stock locations
-        if (!lines.length && immediate && decIsPositive(move.demandQty)) {
+        // Skip auto-create when caller already supplied moveQuantities for this move (incl. qty 0)
+        const hadExplicitQty = Array.isArray(moveQuantities)
+          && moveQuantities.some((q) => String(q.moveId) === String(move._id));
+        if (!lines.length && immediate && decIsPositive(move.demandQty) && !hadExplicitQty) {
           await InvMoveLine.create([{
             tenantId: tid,
             moveId: move._id,
             transferId: transfer._id,
             productId: move.productId,
+            variantId: move.variantId || null,
             uomId: move.uomId,
             quantity: move.demandQty,
             quantityInProductUom: move.demandQty,
@@ -219,13 +310,17 @@ export async function validateTransfer(tenantId, transferId, {
           const product = await Product.findById(line.productId).session(session);
           const tracking = product?.tracking || 'none';
 
-          let allowNegative = false;
-          if (product?.categoryId) {
+          let allowNegative = !!settings.allowNegativeStock;
+          if (!allowNegative && product?.categoryId) {
             const { default: InvProductCategory } = await import('../../models/inventory/InvProductCategory.js');
             const cat = await InvProductCategory.findById(product.categoryId).session(session).lean();
             allowNegative = !!cat?.allowNegativeStock;
-          } else if (product?.allowNegativeStock) {
+          } else if (!allowNegative && product?.allowNegativeStock) {
             allowNegative = true;
+          }
+
+          if (!line.variantId && move.variantId) {
+            line.variantId = move.variantId;
           }
 
           if ((line.lotId || line.lotName) && !lotsEnabled(settings)) {
@@ -380,10 +475,10 @@ export async function validateTransfer(tenantId, transferId, {
             );
           }
 
-          // Valuation when crossing internal boundary
+          // Valuation when crossing internal boundary (only if inventory evaluation is enabled)
           const srcInternal = srcLoc?.usage === 'internal';
           const destInternal = destLoc?.usage === 'internal';
-          if (srcInternal !== destInternal) {
+          if (srcInternal !== destInternal && settings.inventoryEvaluationEnabled !== false) {
             try {
               const { createValuationForMove } = await import('./valuation.js');
               const direction = destInternal && !srcInternal ? 'in' : 'out';
@@ -398,6 +493,7 @@ export async function validateTransfer(tenantId, transferId, {
                 direction,
                 unitCostOverride: direction === 'in' ? unitCost : undefined,
                 description: `${transfer.name || ''} ${direction}`,
+                evaluationEnabled: settings.inventoryEvaluationEnabled !== false,
               });
               if (val?.layer) {
                 valuationJobs.push({

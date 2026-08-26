@@ -110,8 +110,11 @@ export async function listTransfers(tenantId, query = {}, warehouseScope = null)
     InvTransfer.countDocuments(filter),
   ]);
 
+  const { attachPartnersToTransfers } = await import('./partnerResolve.js');
+  const data = await attachPartnersToTransfers(tenantId, rows);
+
   return {
-    data: rows,
+    data,
     _meta: {
       total,
       page,

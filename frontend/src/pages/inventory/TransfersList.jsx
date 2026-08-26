@@ -42,11 +42,17 @@ export default function TransfersList() {
     const list = data?.data || []
     if (!q.trim()) return list
     const needle = q.toLowerCase()
-    return list.filter(
-      (t) =>
+    return list.filter((t) => {
+      const partnerName = [t.partner?.name, t.partner?.nameEn, t.partner?.nameAr]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return (
         t.name?.toLowerCase().includes(needle) ||
-        t.origin?.toLowerCase().includes(needle),
-    )
+        t.origin?.toLowerCase().includes(needle) ||
+        partnerName.includes(needle)
+      )
+    })
   }, [data, q])
 
   const meta = data?._meta
@@ -56,6 +62,11 @@ export default function TransfersList() {
     setQ('')
   }
 
+  const showPartner = code === 'outgoing' || code === 'incoming'
+  const partnerCol = code === 'outgoing'
+    ? (ar ? 'العميل' : 'Customer')
+    : (ar ? 'المورد / الشريك' : 'Partner')
+
   const basePath = `/app/dashboard/inventory/${
     code === 'incoming' ? 'receipts'
       : code === 'outgoing' ? 'deliveries'
@@ -63,6 +74,8 @@ export default function TransfersList() {
           : code === 'manufacturing' ? 'manufacturing'
             : 'internal'
   }`
+
+  const colSpan = showPartner ? 5 : 4
 
   return (
     <div className="space-y-4">
@@ -122,6 +135,7 @@ export default function TransfersList() {
           <thead className="border-b border-slate-100 bg-slate-50/80 text-start text-xs uppercase tracking-wide text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
             <tr>
               <th className="px-4 py-3 font-medium">{ar ? 'المرجع' : 'Reference'}</th>
+              {showPartner && <th className="px-4 py-3 font-medium">{partnerCol}</th>}
               <th className="px-4 py-3 font-medium">{ar ? 'المصدر' : 'Origin'}</th>
               <th className="px-4 py-3 font-medium">{ar ? 'الموعد' : 'Scheduled'}</th>
               <th className="px-4 py-3 font-medium">{ar ? 'الحالة' : 'Status'}</th>
@@ -130,12 +144,12 @@ export default function TransfersList() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">…</td>
+                <td colSpan={colSpan} className="px-4 py-8 text-center text-slate-400">…</td>
               </tr>
             )}
             {!isLoading && rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="p-8">
+                <td colSpan={colSpan} className="p-8">
                   <EmptyState
                     title={ar ? 'لا توجد تحويلات' : 'No transfers'}
                     description={
@@ -160,22 +174,30 @@ export default function TransfersList() {
                 </td>
               </tr>
             )}
-            {rows.map((t) => (
-              <tr key={t._id} className="border-b border-slate-50 transition hover:bg-slate-50/80 dark:border-dark-700 dark:hover:bg-dark-700/40">
-                <td className="px-4 py-3">
-                  <Link to={`${basePath}/${t._id}`} className="font-medium text-primary-700 hover:underline dark:text-primary-300">
-                    {t.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-slate-500">{t.origin || '—'}</td>
-                <td className="px-4 py-3 tabular-nums text-slate-500">
-                  {t.scheduledDate ? new Date(t.scheduledDate).toLocaleDateString() : '—'}
-                </td>
-                <td className="px-4 py-3">
-                  <StatusChip status={t.state} language={language} />
-                </td>
-              </tr>
-            ))}
+            {rows.map((t) => {
+              const partnerLabel = t.partner
+                ? (ar && t.partner.nameAr ? t.partner.nameAr : (t.partner.name || t.partner.nameEn))
+                : '—'
+              return (
+                <tr key={t._id} className="border-b border-slate-50 transition hover:bg-slate-50/80 dark:border-dark-700 dark:hover:bg-dark-700/40">
+                  <td className="px-4 py-3">
+                    <Link to={`${basePath}/${t._id}`} className="font-medium text-primary-700 hover:underline dark:text-primary-300">
+                      {t.name}
+                    </Link>
+                  </td>
+                  {showPartner && (
+                    <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">{partnerLabel}</td>
+                  )}
+                  <td className="px-4 py-3 text-slate-500">{t.origin || '—'}</td>
+                  <td className="px-4 py-3 tabular-nums text-slate-500">
+                    {t.scheduledDate ? new Date(t.scheduledDate).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusChip status={t.state} language={language} />
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

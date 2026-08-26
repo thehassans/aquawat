@@ -599,7 +599,7 @@ router.post('/:id/approve', checkPermission('supply_chain', 'approve'), async (r
     try {
       const populated = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter })
         .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType costPrice')
-        .populate('customerId', 'nameEn nameAr')
+        .populate('customerId', 'name nameAr')
         .populate('supplierId', 'nameEn nameAr');
 
       if ((order.flow || 'purchase') === 'purchase') {

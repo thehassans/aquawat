@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { D, decStr } from '../utils/decimal.js';
-import { consumeFifoLayers } from '../services/inventory/valuation.js';
+import { consumeFifoLayers, computeAverageCost } from '../services/inventory/valuation.js';
 import { splitLandedCostAmounts } from '../services/inventory/landedCost.js';
 import {
   buildValuationJournalLines,
@@ -26,6 +26,35 @@ test('FIFO fallback uses standard when layers exhausted', () => {
   ];
   const { totalCost } = consumeFifoLayers(layers, '5', '8');
   assert.equal(decStr(totalCost), '44'); // 20 + 3*8
+});
+
+test('AVCO: buy 10@10 then 10@13 averages to 11.5', () => {
+  const afterFirst = computeAverageCost({
+    qtyBefore: 0,
+    oldAvg: 0,
+    incomingQty: 10,
+    unitCost: 10,
+  });
+  assert.equal(decStr(afterFirst), '10');
+
+  const afterSecond = computeAverageCost({
+    qtyBefore: 10,
+    oldAvg: 10,
+    incomingQty: 10,
+    unitCost: 13,
+  });
+  assert.equal(decStr(afterSecond), '11.5');
+});
+
+test('AVCO after partial consume uses remaining on-hand', () => {
+  // Had 20 @ 11.5, sold 5 → 15 left; buy 5 @ 20 → (15*11.5 + 5*20) / 20 = 13.625
+  const avg = computeAverageCost({
+    qtyBefore: 15,
+    oldAvg: '11.5',
+    incomingQty: 5,
+    unitCost: 20,
+  });
+  assert.equal(decStr(avg), '13.625');
 });
 
 test('landed cost split by quantity', () => {

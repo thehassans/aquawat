@@ -326,12 +326,20 @@ async function loadExportRows(tenantId, model, filters = {}) {
       });
       return (res.data || []).map((q) => ({
         location: q.locationId?.completePath || q.locationId?.name || '',
+        warehouse: q.locationId?.warehouseId?.nameEn
+          || q.locationId?.warehouseId?.nameAr
+          || q.locationId?.warehouseId?.code
+          || filters.warehouseId
+          || '',
         product_sku: q.productId?.sku || '',
+        product_name: q.productId?.nameEn || q.productId?.nameAr || '',
+        uom: q.productId?.unitOfMeasure || q.uomId?.name || '',
         lot: q.lotId?.name || '',
         on_hand: q.quantity,
         counted_qty: q.countedQuantity ?? '',
         difference: q.countDifference ?? '',
         scheduled_date: q.countScheduledDate || '',
+        filter: filters.filter || '',
       }));
     }
     case 'product_variants': {

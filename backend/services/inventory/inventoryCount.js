@@ -85,7 +85,11 @@ export async function listInventoryQuants(tenantId, {
   const [rows, total] = await Promise.all([
     InvQuant.find(filter)
       .populate('productId', 'nameEn nameAr sku unitOfMeasure uomId tracking costPrice')
-      .populate('locationId', 'name completePath usage warehouseId')
+      .populate({
+        path: 'locationId',
+        select: 'name completePath usage warehouseId',
+        populate: { path: 'warehouseId', select: 'nameEn nameAr code' },
+      })
       .populate('lotId', 'name expirationDate removalDate')
       .populate('packageId', 'name')
       .populate('countUserId', 'name email')

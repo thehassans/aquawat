@@ -70,6 +70,14 @@ test('zod rejects empty pos lines', () => {
 test('zod accepts validate transfer body', () => {
   assert.equal(validateTransferBody.safeParse({ immediate: true }).success, true);
   assert.equal(validateTransferBody.safeParse({ createBackorder: false }).success, true);
+  assert.equal(validateTransferBody.safeParse({
+    immediate: true,
+    createBackorder: true,
+    moveQuantities: [{ moveId: '507f1f77bcf86cd799439011', quantity: '2' }],
+  }).success, true);
+  assert.equal(validateTransferBody.safeParse({
+    moveQuantities: [{ moveId: 'bad', quantity: 1 }],
+  }).success, false);
 });
 
 test('write-conflict retry succeeds on second attempt', async () => {

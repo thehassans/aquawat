@@ -272,19 +272,65 @@ export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }
   const whId = warehouseId || grn.warehouseId;
 
   if (await isInvEngineEnabled(user.tenantId)) {
-    const { transfer } = await postLinesViaEngine({
-      tenantId: user.tenantId,
-      userId: user._id,
-      warehouseId: whId,
-      direction: 'in',
-      lines: grn.lines,
-      origin: grn.grnNumber,
-      note: grn.notes,
-      partnerId: grn.supplierId,
-      sourceModel: 'grn',
-      sourceDocId: grn._id,
-      idempotencyKey: `GRN ${grn.grnNumber}`,
-    });
+    let transfer = null;
+    // Prefer validating the draft receipt linked on PO approve (avoids double stock)
+    if (grn.inventoryTransferId) {
+      const InvTransfer = (await import('../models/inventory/InvTransfer.js')).default;
+      const InvMove = (await import('../models/inventory/InvMove.js')).default;
+      const linked = await InvTransfer.findOne({
+        _id: grn.inventoryTransferId,
+        tenantId: user.tenantId,
+      });
+      if (linked?.state === 'done') {
+        transfer = linked;
+      } else if (linked && linked.state !== 'cancelled') {
+        // Sync unit costs / qty from GRN lines onto draft moves
+        for (const line of grn.lines || []) {
+          if (!line.productId || line.isDelayed) continue;
+          const qty = toNumber(line.quantityReceived ?? line.quantityOrdered, 0);
+          if (qty <= 0) continue;
+          const unitCost = line.costPrice != null && line.costPrice !== ''
+            ? String(line.costPrice)
+            : (line.unitCost != null ? String(line.unitCost) : undefined);
+          const move = await InvMove.findOne({
+            tenantId: user.tenantId,
+            transferId: linked._id,
+            productId: line.productId,
+            state: { $nin: ['done', 'cancelled'] },
+          });
+          if (move) {
+            if (unitCost != null) move.unitCost = unitCost;
+            move.demandQty = String(qty);
+            await move.save();
+          }
+        }
+        const { confirmTransfer, validateTransfer } = await import('./inventory/transferService.js');
+        if (linked.state === 'draft') {
+          await confirmTransfer(user.tenantId, linked._id, user._id);
+        }
+        transfer = await validateTransfer(user.tenantId, linked._id, {
+          userId: user._id,
+          immediate: true,
+          createBackorder: false,
+        });
+      }
+    }
+    if (!transfer) {
+      const posted = await postLinesViaEngine({
+        tenantId: user.tenantId,
+        userId: user._id,
+        warehouseId: whId,
+        direction: 'in',
+        lines: grn.lines,
+        origin: grn.grnNumber,
+        note: grn.notes,
+        partnerId: grn.supplierId,
+        sourceModel: 'grn',
+        sourceDocId: grn._id,
+        idempotencyKey: `GRN ${grn.grnNumber}`,
+      });
+      transfer = posted.transfer;
+    }
     if (transfer) grn.inventoryTransferId = transfer._id;
   } else {
     await postGrnStock({

@@ -66,8 +66,21 @@ export default function TransferForm() {
   const { data: customers = [] } = useQuery({
     queryKey: ['customers-lite'],
     queryFn: () => api.get('/customers', { params: { limit: 200 } }).then((r) => r.data?.customers || r.data || []),
-    enabled: code !== 'internal' || !!settings?.groupStockTrackingOwner,
+    enabled: code === 'outgoing' || code === 'pos' || !!settings?.groupStockTrackingOwner,
   })
+
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers-lite'],
+    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((r) => r.data?.suppliers || r.data || []),
+    enabled: code === 'incoming',
+  })
+
+  const partners = code === 'incoming' ? suppliers : customers
+  const partnerOptionLabel = (p) => {
+    if (!p) return '—'
+    if (code === 'incoming') return (ar && p.nameAr ? p.nameAr : (p.nameEn || p.name)) || '—'
+    return (ar && p.nameAr ? p.nameAr : p.name) || '—'
+  }
 
   const { data: transfer, isLoading } = useQuery({
     queryKey: ['stock-transfer', id],
@@ -95,6 +108,7 @@ export default function TransferForm() {
   const [shippingCost, setShippingCost] = useState('')
   const [ratePreview, setRatePreview] = useState(null)
   const [ownerId, setOwnerId] = useState('')
+  const [doneEdits, setDoneEdits] = useState({})
 
   const hints = transfer?.settingsHints || {
     multiLocations: settings?.groupStockMultiLocations !== false,
@@ -125,7 +139,14 @@ export default function TransferForm() {
     setTrackingReference(transfer.trackingReference || '')
     setShippingCost(transfer.shippingCost != null ? String(transfer.shippingCost) : '')
     setOwnerId(transfer.ownerId?._id || transfer.ownerId || '')
-  }, [transfer?._id])
+    const next = {}
+    for (const m of transfer.moves || []) {
+      // Prefer explicit done; otherwise default editable qty to demand for full validate
+      const done = Number(m.doneQty || 0)
+      next[m._id] = done > 0 ? String(m.doneQty) : String(m.demandQty ?? '0')
+    }
+    setDoneEdits(next)
+  }, [transfer?._id, transfer?.state, transfer?.moves?.length])
 
   const activeOpType = useMemo(
     () => opTypes.find((o) => o._id === (form.operationTypeId || transfer?.operationTypeId?._id || transfer?.operationTypeId)) || opTypes[0],
@@ -191,12 +212,22 @@ export default function TransferForm() {
       toast.error(ar ? 'اختر نوع العملية' : 'Select operation type')
       return
     }
+    if (code === 'outgoing' && !form.partnerId) {
+      toast.error(ar ? 'اسم العميل مطلوب للتسليم' : 'Customer name is required for deliveries')
+      return
+    }
     const lines = form.lines.filter((l) => l.productId && l.demandQty)
     if (!lines.length) {
       toast.error(ar ? 'أضف منتجاً واحداً على الأقل' : 'Add at least one product')
       return
     }
-    const partner = customers.find((c) => String(c._id) === String(form.partnerId))
+    for (const l of lines) {
+      if (l.needsVariant && !l.variantId) {
+        toast.error(ar ? 'اختر المتغير لكل منتج متعدد المتغيرات' : 'Select a variant for each multi-variant product')
+        return
+      }
+    }
+    const partner = partners.find((c) => String(c._id) === String(form.partnerId))
     if (hints.partnerWarnings && partner?.stockWarn === 'block') {
       toast.error(partner.stockWarnMsg || (ar ? 'الشريك محظور' : 'Partner blocked'))
       return
@@ -221,6 +252,7 @@ export default function TransferForm() {
         productId: l.productId,
         demandQty: l.demandQty,
         variantId: l.variantId || undefined,
+        uomId: l.uomId || undefined,
         productPackagingId: l.productPackagingId || undefined,
         packagingQty: l.productPackagingId ? (l.packagingQty || l.demandQty) : undefined,
       })),
@@ -246,25 +278,19 @@ export default function TransferForm() {
   const pickProduct = async (product) => {
     let variantId = null
     let variantName = ''
+    let variants = []
+    let needsVariant = false
     if (hints.variantsEnabled || settings?.groupProductVariant) {
       try {
         const { items = [] } = await api.get('/stock/variants', {
           params: { productId: product._id, limit: 50 },
         }).then((r) => r.data)
+        variants = items
         if (items.length === 1) {
           variantId = items[0]._id
           variantName = items[0].name
         } else if (items.length > 1) {
-          const labels = items.map((v, i) => `${i + 1}. ${v.name}`).join('\n')
-          const choice = window.prompt(
-            (ar ? 'اختر متغيرًا (رقم):\n' : 'Pick a variant (number):\n') + labels,
-            '1',
-          )
-          const idx = Math.max(0, (Number(choice) || 1) - 1)
-          if (items[idx]) {
-            variantId = items[idx]._id
-            variantName = items[idx].name
-          }
+          needsVariant = true
         }
       } catch {
         /* variants optional */
@@ -274,8 +300,8 @@ export default function TransferForm() {
     setForm((f) => {
       const lineKey = (l) => `${l.productId}:${l.variantId || ''}`
       const nextKey = `${product._id}:${variantId || ''}`
-      const existing = f.lines.findIndex((l) => lineKey(l) === nextKey)
-      if (existing >= 0) {
+      const existing = f.lines.findIndex((l) => lineKey(l) === nextKey && !needsVariant)
+      if (existing >= 0 && !needsVariant) {
         const lines = [...f.lines]
         const nextQty = String(Number(lines[existing].demandQty || 0) + 1)
         lines[existing] = { ...lines[existing], demandQty: nextQty }
@@ -287,11 +313,15 @@ export default function TransferForm() {
           ...f.lines,
           {
             productId: product._id,
-            productName: ar && product.nameAr ? product.nameAr : product.name,
+            productName: ar && product.nameAr ? product.nameAr : (product.nameEn || product.name),
             sku: product.sku,
             demandQty: '1',
             variantId,
             variantName,
+            variants,
+            needsVariant,
+            uomId: product.uomId || undefined,
+            uomLabel: product.unitOfMeasure || '',
           },
         ],
       }
@@ -415,13 +445,46 @@ export default function TransferForm() {
                       setTab('info')
                       return
                     }
+                    const moves = transfer?.moves || []
+                    const moveQuantities = moves.map((m) => ({
+                      moveId: m._id,
+                      quantity: doneEdits[m._id] != null ? doneEdits[m._id] : (m.demandQty || '0'),
+                    }))
+                    const diffs = moves.filter((m) => {
+                      const demand = Number(m.demandQty || 0)
+                      const done = Number(doneEdits[m._id] != null ? doneEdits[m._id] : m.demandQty || 0)
+                      return Math.abs(demand - done) > 1e-9
+                    })
+                    if (diffs.length) {
+                      const summary = diffs
+                        .slice(0, 8)
+                        .map((m) => {
+                          const name = m.productId?.nameEn || m.productId?.sku || '—'
+                          const done = doneEdits[m._id] != null ? doneEdits[m._id] : m.demandQty
+                          return `${name}: ${ar ? 'طلب' : 'demand'} ${m.demandQty} → ${ar ? 'منجز' : 'done'} ${done}`
+                        })
+                        .join('\n')
+                      const ok = window.confirm(
+                        (ar
+                          ? 'هناك فرق بين الكمية المطلوبة والمنجزة:\n'
+                          : 'There is a difference between demand and done qty:\n')
+                          + summary
+                          + (ar ? '\n\nالمتابعة؟' : '\n\nContinue?'),
+                      )
+                      if (!ok) return
+                    }
                     const policy = transfer?.operationTypeId?.createBackorder
                       || activeOpType?.createBackorder
                       || 'ask'
                     let createBackorder = false
+                    const hasPartial = diffs.some((m) => {
+                      const demand = Number(m.demandQty || 0)
+                      const done = Number(doneEdits[m._id] != null ? doneEdits[m._id] : 0)
+                      return done > 0 && done < demand
+                    })
                     if (policy === 'always') {
                       createBackorder = true
-                    } else if (policy === 'ask') {
+                    } else if (policy === 'ask' && hasPartial) {
                       const ok = window.confirm(
                         ar
                           ? 'كمية جزئية — إنشاء أمر متبقٍ (backorder)؟\nموافق = نعم · إلغاء = إسقاط المتبقي'
@@ -429,7 +492,10 @@ export default function TransferForm() {
                       )
                       createBackorder = ok
                     }
-                    actionMut.mutate({ action: 'validate', body: { immediate: true, createBackorder } })
+                    actionMut.mutate({
+                      action: 'validate',
+                      body: { immediate: true, createBackorder, moveQuantities },
+                    })
                   }}
                 >
                   {ar ? 'اعتماد' : 'Validate'}
@@ -503,15 +569,25 @@ export default function TransferForm() {
             </label>
             {code !== 'internal' && (
               <label className="block text-sm">
-                <span className="label">{partnerLabel}</span>
+                <span className="label">
+                  {partnerLabel}
+                  {code === 'outgoing' ? <span className="text-rose-500"> *</span> : null}
+                </span>
                 <select
                   className="select mt-1 w-full"
+                  required={code === 'outgoing'}
                   value={form.partnerId}
                   onChange={(e) => setForm((f) => ({ ...f, partnerId: e.target.value }))}
                 >
-                  <option value="">—</option>
-                  {customers.map((c) => (
-                    <option key={c._id} value={c._id}>{ar && c.nameAr ? c.nameAr : c.name}</option>
+                  <option value="">
+                    {code === 'outgoing'
+                      ? (ar ? '— اختر العميل —' : '— Select customer —')
+                      : code === 'incoming'
+                        ? (ar ? '— اختر المورد —' : '— Select supplier —')
+                        : '—'}
+                  </option>
+                  {partners.map((c) => (
+                    <option key={c._id} value={c._id}>{partnerOptionLabel(c)}</option>
                   ))}
                 </select>
               </label>
@@ -626,33 +702,55 @@ export default function TransferForm() {
           )}
 
           <div className="space-y-3">
-            <div className="text-sm font-medium">{ar ? 'العمليات' : 'Operations'}</div>
+            <div className="flex items-end justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">
+                  {ar ? 'بنود العمليات' : 'Operations lines'}
+                </div>
+                <p className="text-xs text-slate-500">
+                  {ar ? 'منتج · متغير · كمية لكل سطر' : 'Product · variant · quantity per line'}
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium tabular-nums text-slate-600 dark:bg-dark-700 dark:text-slate-300">
+                {form.lines.length} {ar ? 'سطر' : 'line(s)'}
+              </span>
+            </div>
             <ProductChooser
               remote
               onPick={pickProduct}
               placeholder={ar ? 'ابحث بالاسم أو الرمز أو الباركود…' : 'Search products by name, SKU, or barcode…'}
             />
             {form.lines.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400 dark:border-dark-600">
+              <p className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400 dark:border-dark-600">
                 {ar ? 'اختر منتجاً من الكتالوج أعلاه' : 'Pick a product from the catalog above'}
               </p>
             ) : (
-              <div className="space-y-2">
-                {form.lines.map((line, idx) => (
-                  <TransferDraftLine
-                    key={`${line.productId}:${line.variantId || ''}:${idx}`}
-                    line={line}
-                    idx={idx}
-                    ar={ar}
-                    packagingEnabled={!!(hints.packagingEnabled || settings?.groupStockPackaging)}
-                    onChange={(next) => {
-                      const lines = [...form.lines]
-                      lines[idx] = next
-                      setForm((f) => ({ ...f, lines }))
-                    }}
-                    onRemove={() => setForm((f) => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }))}
-                  />
-                ))}
+              <div className="overflow-hidden rounded-xl border border-slate-200/90 dark:border-dark-600">
+                <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(7rem,11rem)_minmax(6rem,9rem)_5.5rem_2.5rem] gap-2 border-b border-slate-100 bg-slate-50/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-dark-600 dark:bg-dark-900/50 sm:grid">
+                  <span>{ar ? 'المنتج' : 'Product'}</span>
+                  <span>{ar ? 'المتغير' : 'Variant'}</span>
+                  <span>{ar ? 'التعبئة / الوحدة' : 'Pack / UoM'}</span>
+                  <span>{ar ? 'الكمية' : 'Qty'}</span>
+                  <span />
+                </div>
+                <div className="divide-y divide-slate-100 dark:divide-dark-600">
+                  {form.lines.map((line, idx) => (
+                    <TransferDraftLine
+                      key={`${line.productId}:${line.variantId || ''}:${idx}`}
+                      line={line}
+                      idx={idx}
+                      ar={ar}
+                      variantsEnabled={!!(hints.variantsEnabled || settings?.groupProductVariant)}
+                      packagingEnabled={!!(hints.packagingEnabled || settings?.groupStockPackaging)}
+                      onChange={(next) => {
+                        const lines = [...form.lines]
+                        lines[idx] = next
+                        setForm((f) => ({ ...f, lines }))
+                      }}
+                      onRemove={() => setForm((f) => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }))}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -678,7 +776,9 @@ export default function TransferForm() {
                 <div className="text-xs text-slate-500">{partnerLabel}</div>
                 <div className="font-medium">
                   {transfer?.partner
-                    ? (ar && transfer.partner.nameAr ? transfer.partner.nameAr : transfer.partner.name)
+                    ? (ar && transfer.partner.nameAr
+                      ? transfer.partner.nameAr
+                      : (transfer.partner.name || transfer.partner.nameEn))
                     : '—'}
                 </div>
                 {hints.partnerWarnings && transfer?.partner?.stockWarn === 'warning' && (
@@ -699,11 +799,19 @@ export default function TransferForm() {
                 <>
                   <div>
                     <div className="text-xs text-slate-500">{ar ? 'المصدر' : 'Source'}</div>
-                    <div className="font-medium text-xs">{String(transfer?.sourceLocationId || '—')}</div>
+                    <div className="font-medium text-xs">
+                      {transfer?.sourceLocationId?.completePath
+                        || transfer?.sourceLocationId?.name
+                        || '—'}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500">{ar ? 'الوجهة' : 'Destination'}</div>
-                    <div className="font-medium text-xs">{String(transfer?.destLocationId || '—')}</div>
+                    <div className="font-medium text-xs">
+                      {transfer?.destLocationId?.completePath
+                        || transfer?.destLocationId?.name
+                        || '—'}
+                    </div>
                   </div>
                 </>
               )}
@@ -725,41 +833,67 @@ export default function TransferForm() {
             </div>
 
             {tab === 'operations' && (
-              <table className="w-full text-sm">
-                <thead className="text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
-                    <th className="py-2 text-start">{ar ? 'الطلب' : 'Demand'}</th>
-                    <th className="py-2 text-start">{ar ? 'المنجز' : 'Done'}</th>
-                    <th className="py-2 text-start">{ar ? 'الحالة' : 'State'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(transfer?.moves || []).map((m) => {
-                    const pid = m.productId?._id || m.productId
-                    const label = ar && m.productId?.nameAr
-                      ? m.productId.nameAr
-                      : m.productId?.nameEn || m.productId?.sku || '—'
-                    return (
-                      <tr key={m._id} className="border-t border-slate-100 dark:border-dark-600">
-                        <td className="py-2">
-                          {pid ? (
-                            <Link className="font-medium text-primary-700 hover:underline dark:text-primary-300" to={`/app/dashboard/inventory/products/${pid}`}>
-                              {label}
-                            </Link>
-                          ) : label}
-                          {m.variantId?.name ? (
-                            <div className="text-xs text-slate-400">{m.variantId.name}</div>
-                          ) : null}
-                        </td>
-                        <td className="py-2 tabular-nums">{m.demandQty}</td>
-                        <td className="py-2 tabular-nums">{m.doneQty}</td>
-                        <td className="py-2"><StatusChip status={m.state} language={language} /></td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+              <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-dark-600">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50/90 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900/50">
+                    <tr>
+                      <th className="px-3 py-2.5 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                      <th className="px-3 py-2.5 text-start">{ar ? 'المتغير' : 'Variant'}</th>
+                      <th className="px-3 py-2.5 text-start">{ar ? 'الوحدة' : 'UoM'}</th>
+                      <th className="px-3 py-2.5 text-start">{ar ? 'الطلب' : 'Demand'}</th>
+                      <th className="px-3 py-2.5 text-start">{ar ? 'المنجز' : 'Done'}</th>
+                      <th className="px-3 py-2.5 text-start">{ar ? 'الحالة' : 'State'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-dark-600">
+                    {(transfer?.moves || []).map((m) => {
+                      const pid = m.productId?._id || m.productId
+                      const label = ar && m.productId?.nameAr
+                        ? m.productId.nameAr
+                        : m.productId?.nameEn || m.productId?.sku || '—'
+                      const demand = Number(m.demandQty || 0)
+                      const doneVal = doneEdits[m._id] != null ? doneEdits[m._id] : String(m.doneQty || m.demandQty || '0')
+                      const done = Number(doneVal || 0)
+                      const diff = Math.abs(demand - done) > 1e-9
+                      const canEdit = !readOnly && !['done', 'cancelled'].includes(transfer?.state)
+                      const uomLabel = (ar && m.uomId?.nameAr)
+                        ? m.uomId.nameAr
+                        : (m.uomId?.name || m.productId?.unitOfMeasure || '—')
+                      return (
+                        <tr key={m._id} className={diff ? 'bg-amber-50/50 dark:bg-amber-950/20' : ''}>
+                          <td className="px-3 py-2.5">
+                            {pid ? (
+                              <Link className="font-medium text-primary-700 hover:underline dark:text-primary-300" to={`/app/dashboard/inventory/products/${pid}`}>
+                                {label}
+                              </Link>
+                            ) : label}
+                            {m.productId?.sku ? <div className="font-mono text-[11px] text-slate-400">{m.productId.sku}</div> : null}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-slate-500">{m.variantId?.name || '—'}</td>
+                          <td className="px-3 py-2.5 text-xs text-slate-500">{uomLabel}</td>
+                          <td className="px-3 py-2.5 tabular-nums">{m.demandQty}</td>
+                          <td className="px-3 py-2.5">
+                            {canEdit ? (
+                              <input
+                                className={`input input-sm w-24 text-end tabular-nums ${diff ? 'border-amber-400' : ''}`}
+                                inputMode="decimal"
+                                value={doneVal}
+                                onChange={(e) => setDoneEdits((prev) => ({ ...prev, [m._id]: e.target.value }))}
+                              />
+                            ) : (
+                              <span className="tabular-nums">
+                                {m.doneQty}
+                                {diff ? <span className="ms-1 text-[10px] font-semibold text-amber-700">Δ</span> : null}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5"><StatusChip status={m.state} language={language} /></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             {tab === 'detailed' && (
@@ -993,7 +1127,7 @@ export default function TransferForm() {
   )
 }
 
-function TransferDraftLine({ line, ar, packagingEnabled, onChange, onRemove }) {
+function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onChange, onRemove }) {
   const { data: packsPayload } = useQuery({
     queryKey: ['inv-product-packagings-line', line.productId],
     queryFn: () => api.get('/stock/product-packagings', {
@@ -1007,17 +1141,41 @@ function TransferDraftLine({ line, ar, packagingEnabled, onChange, onRemove }) {
   const packQty = Number(selected?.qty || 1)
   const packsCount = Number(line.packagingQty || line.demandQty || 0)
   const productQty = selected ? packsCount * packQty : line.demandQty
+  const variants = line.variants || []
 
   return (
-    <div className="grid items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2 sm:grid-cols-[1fr_minmax(8rem,12rem)_100px_40px] dark:border-dark-600 dark:bg-dark-900/40">
-      <div>
-        <div className="font-medium text-slate-900 dark:text-white">{line.productName}</div>
-        <div className="text-xs text-slate-400">
+    <div className="grid items-center gap-2 px-3 py-2.5 sm:grid-cols-[minmax(0,1.4fr)_minmax(7rem,11rem)_minmax(6rem,9rem)_5.5rem_2.5rem]">
+      <div className="min-w-0">
+        <div className="truncate font-medium text-slate-900 dark:text-white">{line.productName}</div>
+        <div className="truncate text-[11px] text-slate-400">
           {line.sku ? `SKU ${line.sku}` : ''}
-          {line.variantName ? `${line.sku ? ' · ' : ''}${line.variantName}` : ''}
-          {selected ? ` · → ${productQty} ${ar ? 'وحدة' : 'units'}` : ''}
+          {selected ? `${line.sku ? ' · ' : ''}→ ${productQty} ${ar ? 'وحدة' : 'units'}` : ''}
+          {line.uomLabel ? `${line.sku || selected ? ' · ' : ''}${line.uomLabel}` : ''}
         </div>
       </div>
+      {variantsEnabled && variants.length > 0 ? (
+        <select
+          className={`select select-sm ${line.needsVariant && !line.variantId ? 'border-amber-400' : ''}`}
+          value={line.variantId || ''}
+          onChange={(e) => {
+            const id = e.target.value
+            const v = variants.find((x) => String(x._id) === String(id))
+            onChange({
+              ...line,
+              variantId: id || null,
+              variantName: v?.name || '',
+              needsVariant: variants.length > 1 && !id,
+            })
+          }}
+        >
+          <option value="">{ar ? '— متغير —' : '— Variant —'}</option>
+          {variants.map((v) => (
+            <option key={v._id} value={v._id}>{v.name}</option>
+          ))}
+        </select>
+      ) : (
+        <div className="text-xs text-slate-400">{line.variantName || '—'}</div>
+      )}
       {packagingEnabled && packs.length > 0 ? (
         <select
           className="select select-sm"
@@ -1037,10 +1195,10 @@ function TransferDraftLine({ line, ar, packagingEnabled, onChange, onRemove }) {
           ))}
         </select>
       ) : (
-        <div />
+        <div className="text-xs text-slate-400">{line.uomLabel || (ar ? 'وحدة' : 'UoM')}</div>
       )}
       <input
-        className="input"
+        className="input input-sm text-end tabular-nums"
         type="text"
         inputMode="decimal"
         title={selected ? (ar ? 'عدد العبوات' : 'Number of packs') : (ar ? 'الكمية' : 'Quantity')}

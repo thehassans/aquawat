@@ -63,11 +63,17 @@ export async function applyQuantDelta(
   }
 
   const newQty = D(quant.quantity).plus(D(qtyDelta));
-  const newReserved = D(quant.reservedQuantity).plus(D(reservedDelta));
+  // Clamp reserved reductions so immediate validate (no prior reservation) does not underflow
+  let reservedApplied = D(reservedDelta || 0);
+  let newReserved = D(quant.reservedQuantity).plus(reservedApplied);
+  if (newReserved.lt(0) && reservedApplied.lt(0)) {
+    reservedApplied = D(quant.reservedQuantity).neg();
+    newReserved = D(0);
+  }
 
   if (newQty.lt(0) && !dims.allowNegative) {
     throw new InventoryValidationError(
-      'Insufficient stock — negative quantities are not allowed for this product category',
+      'Insufficient stock — negative quantities are not allowed',
       'INSUFFICIENT_STOCK',
     );
   }

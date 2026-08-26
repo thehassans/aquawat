@@ -50,7 +50,7 @@ import {
   countLineHistory,
   importCountedQuantities,
 } from '../services/inventory/inventoryCount.js';
-import { createScrap, validateScrap, listScraps } from '../services/inventory/scrapService.js';
+import { createScrap, validateScrap, validateScrapsBulk, listScraps } from '../services/inventory/scrapService.js';
 import { getReturnWizard, createReturnTransfer } from '../services/inventory/returns.js';
 import { movesHistory, lotTraceability, productMoveHistory } from '../services/inventory/traceability.js';
 import InvScrap from '../models/inventory/InvScrap.js';
@@ -535,12 +535,17 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
     const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('operationTypeId')
       .populate('carrierId', 'name nameAr carrierType fixedPrice providerCode installed')
+      .populate('sourceLocationId', 'name completePath usage warehouseId')
+      .populate('destLocationId', 'name completePath usage warehouseId')
       .lean();
     if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
     await assertTransferWarehouseAccess(req, transfer);
     const moves = await InvMove.find({ tenantId: req.user.tenantId, transferId: transfer._id })
-      .populate('productId', 'nameEn nameAr sku barcode unitOfMeasure tracking')
+      .populate('productId', 'nameEn nameAr sku barcode unitOfMeasure tracking uomId')
       .populate('variantId', 'name nameAr sku barcode')
+      .populate('uomId', 'name nameAr')
+      .populate('sourceLocationId', 'name completePath')
+      .populate('destLocationId', 'name completePath')
       .lean();
     const moveLines = await InvMoveLine.find({
       tenantId: req.user.tenantId,
@@ -549,13 +554,12 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
       .populate('lotId', 'name')
       .populate('packageId', 'name')
       .lean();
-    let partner = null;
-    if (transfer.partnerId) {
-      const Customer = (await import('../models/Customer.js')).default;
-      partner = await Customer.findOne({ _id: transfer.partnerId, tenantId: req.user.tenantId })
-        .select('name nameAr stockWarn stockWarnMsg')
-        .lean();
-    }
+    const { resolveTransferPartner } = await import('../services/inventory/partnerResolve.js');
+    const partner = await resolveTransferPartner(
+      req.user.tenantId,
+      transfer.partnerId,
+      transfer.operationTypeId?.code,
+    );
     const settings = await getInvSettings(req.user.tenantId);
     res.json({
       ...transfer,
@@ -732,6 +736,9 @@ router.post('/transfers/:id/validate', checkPermission('inventory', 'update'), v
         ? (req.validatedBody.createBackorder ? 'always' : 'never')
         : req.validatedBody.createBackorder,
       immediate: req.validatedBody.immediate === true,
+      moveQuantities: Array.isArray(req.validatedBody.moveQuantities)
+        ? req.validatedBody.moveQuantities
+        : undefined,
     }));
   } catch (err) {
     handleInventoryError(res, err);
@@ -1406,10 +1413,22 @@ router.post('/scraps', checkPermission('inventory', 'create'), async (req, res) 
   }
 });
 
+router.post('/scraps/validate-bulk', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    if (!ids.length) return res.status(400).json({ error: 'ids required' });
+    res.json(await validateScrapsBulk(req.user.tenantId, ids));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/scraps/:id', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const scrap = await InvScrap.findOne({ _id: req.params.id, ...req.tenantFilter })
-      .populate('productId', 'nameEn nameAr sku')
+      .populate('productId', 'nameEn nameAr sku unitOfMeasure uomId')
+      .populate('uomId', 'name nameAr')
+      .populate('variantId', 'name sku')
       .populate('sourceLocationId', 'name completePath')
       .populate('scrapLocationId', 'name completePath')
       .lean();

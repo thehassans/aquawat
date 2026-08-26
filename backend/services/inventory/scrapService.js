@@ -11,26 +11,32 @@ import { runWithTransaction } from './reserve.js';
 import { getDefaultUom } from './bootstrap.js';
 import { InventoryValidationError } from './errors.js';
 import { computeMoveDoneChecksum, computeMoveLineDoneChecksum } from './doneChecksum.js';
+import { getInvSettings } from './settingsService.js';
 
-export async function createScrap(tenantId, userId, body) {
-  const tid = toObjectId(tenantId);
-  await ensureSequence(tid, 'SCR', 'SCR');
-
-  let scrapLocationId = body.scrapLocationId;
-  if (!scrapLocationId) {
-    const scrapLoc = await InvLocation.findOne({
+async function resolveScrapLocation(tid, scrapLocationId) {
+  if (scrapLocationId) {
+    const loc = await InvLocation.findOne({
+      _id: scrapLocationId,
       tenantId: tid,
-      $or: [{ isScrapLocation: true }, { usage: 'scrap' }],
       active: true,
+      $or: [{ isScrapLocation: true }, { usage: 'scrap' }],
     });
-    if (!scrapLoc) throw new InventoryValidationError('Scrap location not found', 'NO_SCRAP_LOC');
-    scrapLocationId = scrapLoc._id;
+    if (!loc) throw new InventoryValidationError('Invalid scrap location', 'BAD_SCRAP_LOC');
+    return loc._id;
   }
+  const scrapLoc = await InvLocation.findOne({
+    tenantId: tid,
+    $or: [{ isScrapLocation: true }, { usage: 'scrap' }],
+    active: true,
+  });
+  if (!scrapLoc) throw new InventoryValidationError('Scrap location not found', 'NO_SCRAP_LOC');
+  return scrapLoc._id;
+}
 
+async function buildScrapDoc(tid, userId, body, scrapLocationId, defaultUom) {
   const product = await Product.findOne({ _id: body.productId, tenantId: tid });
   if (!product) throw new InventoryValidationError('Product not found', 'PRODUCT_NOT_FOUND');
 
-  const defaultUom = await getDefaultUom(tid);
   const uomId = body.uomId || product.uomId || defaultUom?._id;
   if (!uomId) throw new InventoryValidationError('UoM required', 'NO_UOM');
   if (!body.sourceLocationId && !body.locationId) {
@@ -40,11 +46,23 @@ export async function createScrap(tenantId, userId, body) {
     throw new InventoryValidationError('quantity must be positive', 'BAD_QTY');
   }
 
+  if (body.variantId) {
+    const { default: InvProductVariant } = await import('../../models/inventory/InvProductVariant.js');
+    const variant = await InvProductVariant.findOne({
+      _id: body.variantId,
+      tenantId: tid,
+      productId: product._id,
+      active: true,
+    }).lean();
+    if (!variant) throw new InventoryValidationError('Variant not found', 'VARIANT_NOT_FOUND');
+  }
+
   const name = await nextSequenceName(tid, 'SCR');
-  return InvScrap.create({
+  return {
     tenantId: tid,
     name,
     productId: product._id,
+    variantId: body.variantId || null,
     uomId,
     quantity: decStr(body.quantity),
     lotId: body.lotId || null,
@@ -54,11 +72,66 @@ export async function createScrap(tenantId, userId, body) {
     transferId: body.transferId || null,
     reasonTag: body.reasonTag || body.scrapReasonTag,
     note: body.note,
-    date: body.date || new Date(),
+    date: body.date ? new Date(body.date) : new Date(),
     responsibleId: body.responsibleId || userId,
     state: 'draft',
     createdBy: userId,
-  });
+  };
+}
+
+export async function createScrap(tenantId, userId, body) {
+  const tid = toObjectId(tenantId);
+  await ensureSequence(tid, 'SCR', 'SCR');
+
+  const scrapLocationId = await resolveScrapLocation(tid, body.scrapLocationId);
+  const defaultUom = await getDefaultUom(tid);
+
+  // Multi-line: create one scrap document per line sharing header fields
+  const lineBodies = Array.isArray(body.lines) && body.lines.length
+    ? body.lines.map((line) => ({
+      ...line,
+      sourceLocationId: line.sourceLocationId || body.sourceLocationId || body.locationId,
+      scrapLocationId,
+      date: line.date || body.date,
+      reasonTag: line.reasonTag || body.reasonTag || body.scrapReasonTag,
+      note: line.note || body.note,
+      transferId: body.transferId,
+      responsibleId: body.responsibleId,
+    }))
+    : [body];
+
+  const docs = [];
+  for (const line of lineBodies) {
+    docs.push(await buildScrapDoc(tid, userId, line, scrapLocationId, defaultUom));
+  }
+
+  const created = await InvScrap.create(docs);
+  if (Array.isArray(body.lines) && body.lines.length) {
+    return { items: created, count: created.length };
+  }
+  return created[0];
+}
+
+export async function validateScrapsBulk(tenantId, ids = []) {
+  const results = [];
+  for (const id of ids) {
+    try {
+      const scrap = await validateScrap(id, tenantId);
+      results.push({ id, ok: true, scrap });
+    } catch (err) {
+      results.push({
+        id,
+        ok: false,
+        error: err?.message || String(err),
+        code: err?.code,
+      });
+    }
+  }
+  return {
+    results,
+    okCount: results.filter((r) => r.ok).length,
+    failCount: results.filter((r) => !r.ok).length,
+  };
 }
 
 /**
@@ -71,15 +144,32 @@ export async function validateScrap(scrapId, tenantId) {
     if (!scrap) throw new InventoryValidationError('Scrap not found', 'SCRAP_NOT_FOUND');
     if (scrap.state === 'done') return scrap;
 
+    const settings = await getInvSettings(tid);
     const product = await Product.findById(scrap.productId).session(session);
+    if (!product) throw new InventoryValidationError('Product not found', 'PRODUCT_NOT_FOUND');
+
     const qty = decStr(scrap.quantity);
+    if (!decIsPositive(qty)) {
+      throw new InventoryValidationError('quantity must be positive', 'BAD_QTY');
+    }
+
     const now = scrap.date || new Date();
+
+    let allowNegative = !!settings.allowNegativeStock;
+    if (!allowNegative && product.categoryId) {
+      const { default: InvProductCategory } = await import('../../models/inventory/InvProductCategory.js');
+      const cat = await InvProductCategory.findById(product.categoryId).session(session).lean();
+      allowNegative = !!cat?.allowNegativeStock;
+    } else if (!allowNegative && product.allowNegativeStock) {
+      allowNegative = true;
+    }
 
     const [move] = await InvMove.create([{
       tenantId: tid,
       reference: scrap.name,
       origin: scrap.name,
       productId: scrap.productId,
+      variantId: scrap.variantId || null,
       uomId: scrap.uomId,
       demandQty: qty,
       doneQty: qty,
@@ -107,6 +197,7 @@ export async function validateScrap(scrapId, tenantId) {
       moveId: move._id,
       transferId: scrap.transferId || null,
       productId: scrap.productId,
+      variantId: scrap.variantId || null,
       uomId: scrap.uomId,
       quantity: qty,
       quantityInProductUom: qty,
@@ -131,10 +222,12 @@ export async function validateScrap(scrapId, tenantId) {
     }], { session });
 
     const dims = {
+      variantId: scrap.variantId || null,
       lotId: scrap.lotId || null,
       packageId: scrap.packageId || null,
       ownerId: null,
       tracking: product?.tracking,
+      allowNegative,
     };
 
     await applyQuantDelta(
@@ -142,15 +235,42 @@ export async function validateScrap(scrapId, tenantId) {
       tid,
       scrap.productId,
       scrap.sourceLocationId,
-      decStr(D(0).minus(D(qty))),
+      decStr(D(qty).neg()),
       '0',
       now,
       dims,
     );
 
+    // Inventory evaluation on scrap (out) when enabled
+    if (settings.inventoryEvaluationEnabled !== false) {
+      try {
+        const { createValuationForMove } = await import('./valuation.js');
+        await createValuationForMove(session, {
+          tenantId: tid,
+          productId: scrap.productId,
+          quantity: qty,
+          moveId: move._id,
+          direction: 'out',
+          description: `Scrap ${scrap.name}`,
+          evaluationEnabled: true,
+        });
+      } catch (err) {
+        console.error('[inventory] scrap valuation failed', err?.message || err);
+      }
+    }
+
     scrap.state = 'done';
     scrap.moveId = move._id;
     await scrap.save({ session });
+    return scrap;
+  }).then(async (scrap) => {
+    if (!scrap?.productId) return scrap;
+    try {
+      const { syncProductsStockCache } = await import('./syncProductCache.js');
+      await syncProductsStockCache(tenantId, [scrap.productId]);
+    } catch (err) {
+      console.error('[inventory] scrap product cache sync failed', err?.message || err);
+    }
     return scrap;
   });
 }
@@ -161,7 +281,8 @@ export async function listScraps(tenantId, { state, page = 1, limit = 40 } = {})
   const skip = (Number(page) - 1) * Number(limit);
   const [items, total] = await Promise.all([
     InvScrap.find(filter)
-      .populate('productId', 'nameEn nameAr sku')
+      .populate('productId', 'nameEn nameAr sku unitOfMeasure')
+      .populate('uomId', 'name nameAr')
       .populate('sourceLocationId', 'name completePath')
       .populate('scrapLocationId', 'name completePath')
       .sort({ createdAt: -1 })

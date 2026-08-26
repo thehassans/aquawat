@@ -69,10 +69,26 @@ export async function getTransferPrintContext(tenantId, transferId) {
     }
   }
 
+  const { resolveTransferPartner } = await import('./partnerResolve.js');
+  const partner = await resolveTransferPartner(
+    tid,
+    transfer.partnerId,
+    transfer.operationTypeId?.code,
+  );
+
   return {
     transferId: transfer._id,
     transferName: transfer.name,
     operationCode: transfer.operationTypeId?.code || null,
+    partner: partner
+      ? {
+        _id: partner._id,
+        name: partner.name || partner.nameEn || null,
+        nameEn: partner.nameEn || partner.name || null,
+        nameAr: partner.nameAr || null,
+        kind: partner.kind || null,
+      }
+      : null,
     linked: {
       invoice: invoice
         ? {

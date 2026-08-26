@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
+import { Search } from 'lucide-react'
 import api from '../../lib/api'
 
 const CARRIERS = [
@@ -17,16 +18,23 @@ const CARRIERS = [
   { key: 'moduleCarrierSendcloud', label: 'Sendcloud', note: 'Connector not installed — contact admin' },
 ]
 
-function Section({ title, children }) {
+function Section({ title, children, search, matchKeys = [] }) {
+  const q = (search || '').trim().toLowerCase()
+  const visible = !q || matchKeys.some((k) => String(k).toLowerCase().includes(q))
+    || String(title).toLowerCase().includes(q)
+  if (!visible) return null
   return (
-    <section className="space-y-3 rounded-xl border border-slate-200/80 p-4 dark:border-dark-600">
+    <section className="space-y-3 rounded-xl border border-slate-200/80 p-4 dark:border-dark-600" data-section={title}>
       <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
       <div className="grid gap-2 sm:grid-cols-2">{children}</div>
     </section>
   )
 }
 
-function Toggle({ label, hint, checked, onChange, disabled, notImplemented }) {
+function Toggle({ label, hint, checked, onChange, disabled, notImplemented, search }) {
+  const q = (search || '').trim().toLowerCase()
+  const blob = `${label} ${hint || ''}`.toLowerCase()
+  if (q && !blob.includes(q)) return null
   return (
     <label className={`flex items-start gap-3 text-sm ${disabled || notImplemented ? 'opacity-50' : ''}`}>
       <input
@@ -60,6 +68,7 @@ export default function InventorySettingsPage() {
 
   const [draft, setDraft] = useState(null)
   const [accountGaps, setAccountGaps] = useState(null)
+  const [search, setSearch] = useState('')
   const current = draft || settings || {}
   const dirty = draft != null
 
@@ -116,40 +125,53 @@ export default function InventorySettingsPage() {
 
   const stickyBar = useMemo(
     () => (
-      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 bg-white/95 px-1 py-3 backdrop-blur dark:border-dark-600 dark:bg-dark-900/95">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-            {ar ? 'إعدادات المخزون' : 'Inventory Settings'}
-          </h2>
-          <p className="text-xs text-slate-500">
-            {ar ? 'كل مفتاح يتحكم بالقائمة والسلوك' : 'Each flag gates menu and engine behaviour'}
-            {dirty ? (ar ? ' · تغييرات غير محفوظة' : ' · Unsaved changes') : ''}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => ensureAcc.mutate()}>
-            {ar ? 'التحقق من الحسابات' : 'Ensure accounts'}
-          </button>
-          {dirty && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDraft(null)}>
-              {ar ? 'تجاهل' : 'Discard'}
+      <div className="sticky top-0 z-10 -mx-1 space-y-3 border-b border-slate-200/80 bg-white/95 px-1 py-3 backdrop-blur dark:border-dark-600 dark:bg-dark-900/95">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+              {ar ? 'إعدادات المخزون' : 'Inventory Settings'}
+            </h2>
+            <p className="text-xs text-slate-500">
+              {ar ? 'كل مفتاح يتحكم بالقائمة والسلوك' : 'Each flag gates menu and engine behaviour'}
+              {dirty ? (ar ? ' · تغييرات غير محفوظة' : ' · Unsaved changes') : ''}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => ensureAcc.mutate()}>
+              {ar ? 'التحقق من الحسابات' : 'Ensure accounts'}
             </button>
-          )}
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            disabled={saveMut.isPending || !dirty}
-            onClick={() => saveMut.mutate(draft)}
-          >
-            {ar ? 'حفظ' : 'Save'}
-          </button>
+            {dirty && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDraft(null)}>
+                {ar ? 'تجاهل' : 'Discard'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={saveMut.isPending || !dirty}
+              onClick={() => saveMut.mutate(draft)}
+            >
+              {ar ? 'حفظ' : 'Save'}
+            </button>
+          </div>
+        </div>
+        <div className="relative max-w-md">
+          <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            className="input w-full ps-9"
+            placeholder={ar ? 'بحث في الإعدادات…' : 'Search settings…'}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       </div>
     ),
-    [ar, dirty, draft, ensureAcc, saveMut],
+    [ar, dirty, draft, ensureAcc, saveMut, search],
   )
 
   if (isLoading && !settings) return <div className="text-sm text-slate-500">…</div>
+
+  const s = search
 
   return (
     <div className="space-y-5 pb-16">
@@ -188,42 +210,24 @@ export default function InventorySettingsPage() {
         </div>
       )}
 
-      <Section title={ar ? 'العمليات' : 'Operations'}>
+      <Section title={ar ? 'العمليات' : 'Operations'} search={s} matchKeys={['packages', 'batch', 'warning', 'quality', 'reception', 'picking', 'annual', 'negative']}>
+        <Toggle search={s} label={ar ? 'الطرود' : 'Packages'} hint={ar ? 'تتبع الطرود ووضع في طرد' : 'Put in pack + package tracking'} checked={current.groupStockTrackingLot} onChange={() => toggle('groupStockTrackingLot')} />
+        <Toggle search={s} label={ar ? 'تحويلات دفعية' : 'Batch Transfers'} checked={current.groupBatchTransfer} onChange={() => toggle('groupBatchTransfer')} />
+        <Toggle search={s} label={ar ? 'تحذير الشريك' : 'Partner warnings'} checked={current.groupStockWarning} onChange={() => toggle('groupStockWarning')} />
+        <Toggle search={s} label={ar ? 'الجودة' : 'Quality'} checked={current.moduleQuality} onChange={() => toggle('moduleQuality')} />
+        <Toggle search={s} label={ar ? 'تقرير الاستلام' : 'Reception report'} checked={current.receptionReportEnabled ?? current.groupReceptionReport} onChange={() => toggle('receptionReportEnabled')} />
         <Toggle
-          label={ar ? 'الطرود' : 'Packages'}
-          hint={ar ? 'تتبع الطرود ووضع في طرد' : 'Put in pack + package tracking'}
-          checked={current.groupStockTrackingLot}
-          onChange={() => toggle('groupStockTrackingLot')}
-        />
-        <Toggle
-          label={ar ? 'تحويلات دفعية' : 'Batch Transfers'}
-          checked={current.groupBatchTransfer}
-          onChange={() => toggle('groupBatchTransfer')}
-        />
-        <Toggle
-          label={ar ? 'تحذيرات الشركاء' : 'Partner warnings'}
-          checked={current.groupStockWarning}
-          onChange={() => toggle('groupStockWarning')}
-        />
-        <Toggle
-          label={ar ? 'الجودة' : 'Quality checks'}
-          checked={current.moduleQuality}
-          onChange={() => toggle('moduleQuality')}
-        />
-        <Toggle
-          label={ar ? 'تقرير الاستلام' : 'Reception report'}
-          checked={current.receptionReportEnabled || current.groupReceptionReport}
-          onChange={() => toggle('receptionReportEnabled')}
+          search={s}
+          label={ar ? 'السماح بالمخزون السالب للكل' : 'Allow all negative stock'}
+          hint={ar ? 'تجاوز فئة المنتج — يسمح بالكميات السالبة عند الاعتماد' : 'Overrides product category — allows negative qty on validate'}
+          checked={current.allowNegativeStock}
+          onChange={() => toggle('allowNegativeStock')}
         />
         <div className="sm:col-span-2">
-          <label className="label text-xs">{ar ? 'سياسة الانتقاء' : 'Picking policy'}</label>
-          <select
-            className="select select-sm max-w-xs"
-            value={current.defaultPickingPolicy || 'direct'}
-            onChange={(e) => setField('defaultPickingPolicy', e.target.value)}
-          >
-            <option value="direct">{ar ? 'مباشر (مع طلبات متأخرة)' : 'Direct (ship as available)'}</option>
-            <option value="one">{ar ? 'شحنة واحدة (كل البنود)' : 'One (all moves available)'}</option>
+          <label className="label text-xs">{ar ? 'سياسة الجني' : 'Picking policy'}</label>
+          <select className="select select-sm mt-1" value={current.defaultPickingPolicy || 'direct'} onChange={(e) => setField('defaultPickingPolicy', e.target.value)}>
+            <option value="direct">{ar ? 'مباشر' : 'Direct'}</option>
+            <option value="one">{ar ? 'كامل' : 'All at once'}</option>
           </select>
         </div>
         <div>
@@ -236,66 +240,25 @@ export default function InventorySettingsPage() {
         </div>
       </Section>
 
-      <Section title={ar ? 'الباركود' : 'Barcode'}>
-        <Toggle
-          label={ar ? 'ماسح الباركود' : 'Barcode scanner'}
-          checked={current.groupStockBarcode}
-          onChange={() => toggle('groupStockBarcode')}
-        />
-        <Toggle
-          label={ar ? 'GS1 للدفعات' : 'GS1 barcodes for lots'}
-          checked={current.groupGs1Nomenclature}
-          onChange={() => toggle('groupGs1Nomenclature')}
-        />
-        <p className="sm:col-span-2 text-xs text-slate-500">
-          <Link to="/app/dashboard/inventory/barcode" className="text-primary-600 hover:underline">
-            {ar ? 'تسمية الباركود' : 'Barcode nomenclature'}
-          </Link>
-          {' · '}
-          <a href="/barcode-commands.pdf" className="text-primary-600 hover:underline" target="_blank" rel="noreferrer">
-            {ar ? 'ورقة أوامر الطباعة' : 'Print command sheet'}
-          </a>
-        </p>
+      <Section title={ar ? 'الباركود' : 'Barcode'} search={s} matchKeys={['barcode', 'gs1', 'scanner']}>
+        <Toggle search={s} label={ar ? 'ماسح الباركود' : 'Barcode scanner'} checked={current.groupStockBarcode} onChange={() => toggle('groupStockBarcode')} />
+        <Toggle search={s} label={ar ? 'تسمية GS1' : 'GS1 nomenclature'} checked={current.groupGs1Nomenclature} onChange={() => toggle('groupGs1Nomenclature')} />
       </Section>
 
-      <Section title={ar ? 'الشحن' : 'Shipping'}>
-        <Toggle
-          label={ar ? 'تأكيد بالبريد' : 'Email confirmation'}
-          hint={ar ? 'يُرسل للعميل عند تحقق التسليم الصادر' : 'Sends to partner on outgoing validate'}
-          checked={current.emailConfirmationOnDelivery}
-          onChange={() => toggle('emailConfirmationOnDelivery')}
-        />
-        <Toggle
-          label={ar ? 'تأكيد بالرسائل' : 'SMS confirmation'}
-          hint={smsOk
-            ? (ar ? 'يُرسل للعميل عند تحقق التسليم الصادر' : 'Sends to partner on outgoing validate')
-            : (ar ? 'لا يوجد مزود رسائل مُعدّ' : 'No SMS provider configured')}
-          checked={current.stockSmsConfirmation}
-          disabled={!smsOk && !current.stockSmsConfirmation}
-          onChange={() => toggle('stockSmsConfirmation')}
-        />
-        <Toggle
-          label={ar ? 'توقيع عند التسليم' : 'Signature on delivery'}
-          checked={current.signatureOnDelivery || current.groupStockSignDelivery}
-          onChange={() => toggle('signatureOnDelivery')}
-        />
-        <Toggle
-          label={ar ? 'طرق التسليم' : 'Delivery methods'}
-          checked={current.groupDeliveryMethods}
-          onChange={() => toggle('groupDeliveryMethods')}
-        />
-        <div className="sm:col-span-2 space-y-2 rounded-lg bg-slate-50 p-3 dark:bg-dark-800/60">
-          <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
-            {ar
-              ? 'موصلات الشحن — واجهة/صف وهمي فقط (لا API حي)'
-              : 'Shipping connectors — stub UI only (no live API)'}
-          </p>
+      <Section title={ar ? 'الشحن' : 'Shipping'} search={s} matchKeys={['email', 'sms', 'signature', 'delivery', 'carrier', 'shipping']}>
+        <Toggle search={s} label={ar ? 'تأكيد بالبريد' : 'Email confirmation'} checked={current.emailConfirmationOnDelivery} onChange={() => toggle('emailConfirmationOnDelivery')} />
+        <Toggle search={s} label={ar ? 'تأكيد SMS' : 'SMS confirmation'} checked={current.stockSmsConfirmation} onChange={() => toggle('stockSmsConfirmation')} disabled={!smsOk} hint={!smsOk ? (ar ? 'فعّل مزود SMS أولاً' : 'Configure SMS provider first') : undefined} />
+        <Toggle search={s} label={ar ? 'توقيع التسليم' : 'Signature on delivery'} checked={current.signatureOnDelivery ?? current.groupStockSignDelivery} onChange={() => toggle('signatureOnDelivery')} />
+        <Toggle search={s} label={ar ? 'طرق التسليم' : 'Delivery methods'} checked={current.groupDeliveryMethods} onChange={() => toggle('groupDeliveryMethods')} />
+        <div className="sm:col-span-2 space-y-2 rounded-lg border border-dashed border-slate-200 p-3 dark:border-dark-600">
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-300">{ar ? 'الناقلون' : 'Carriers'}</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {CARRIERS.map((c) => (
               <Toggle
                 key={c.key}
+                search={s}
                 label={c.label}
-                hint={`${c.note} · stub row on enable`}
+                hint={c.note}
                 checked={current[c.key]}
                 onChange={() => toggle(c.key)}
               />
@@ -304,64 +267,47 @@ export default function InventorySettingsPage() {
         </div>
       </Section>
 
-      <Section title={ar ? 'المنتجات' : 'Products'}>
-        <Toggle label={ar ? 'المتغيرات' : 'Variants'} checked={current.groupProductVariant} onChange={() => toggle('groupProductVariant')} />
-        <Toggle
-          label={ar ? 'وحدات القياس' : 'Units of measure'}
-          hint={ar ? 'قائمة الوحدات + تحويل في المحرك' : 'UoM list + engine conversion'}
-          checked={current.groupUom}
-          onChange={() => toggle('groupUom')}
-        />
-        <Toggle
-          label={ar ? 'تعبئة المنتجات' : 'Product packagings'}
-          hint={ar ? 'كمية لكل عبوة · اختيار على أسطر النقل' : 'Qty per pack · selector on transfer lines'}
-          checked={current.groupStockPackaging}
-          onChange={() => toggle('groupStockPackaging')}
-        />
+      <Section title={ar ? 'المنتجات' : 'Products'} search={s} matchKeys={['variant', 'uom', 'packaging', 'product']}>
+        <Toggle search={s} label={ar ? 'المتغيرات' : 'Variants'} checked={current.groupProductVariant} onChange={() => toggle('groupProductVariant')} />
+        <Toggle search={s} label={ar ? 'وحدات القياس' : 'Units of measure'} hint={ar ? 'قائمة الوحدات + تحويل في المحرك' : 'UoM list + engine conversion'} checked={current.groupUom} onChange={() => toggle('groupUom')} />
+        <Toggle search={s} label={ar ? 'تعبئة المنتجات' : 'Product packagings'} hint={ar ? 'كمية لكل عبوة · اختيار على أسطر النقل' : 'Qty per pack · selector on transfer lines'} checked={current.groupStockPackaging} onChange={() => toggle('groupStockPackaging')} />
         <p className="sm:col-span-2 text-xs text-slate-500">
-          <Link to="/app/dashboard/inventory/uom" className="text-primary-600 hover:underline">
-            {ar ? 'وحدات القياس' : 'Units of measure'}
-          </Link>
+          <Link to="/app/dashboard/inventory/uom" className="text-primary-600 hover:underline">{ar ? 'وحدات القياس' : 'Units of measure'}</Link>
           {' · '}
-          <Link to="/app/dashboard/inventory/product-packagings" className="text-primary-600 hover:underline">
-            {ar ? 'تعبئة المنتجات' : 'Product packagings'}
-          </Link>
+          <Link to="/app/dashboard/inventory/product-packagings" className="text-primary-600 hover:underline">{ar ? 'تعبئة المنتجات' : 'Product packagings'}</Link>
         </p>
       </Section>
 
-      <Section title={ar ? 'التتبع' : 'Traceability'}>
-        <Toggle label={ar ? 'الدفعات والأرقام التسلسلية' : 'Lots & serial numbers'} checked={current.groupProductionLot} onChange={() => toggle('groupProductionLot')} />
-        <Toggle label={ar ? 'تواريخ الصلاحية' : 'Expiration dates'} checked={current.moduleProductExpiry} onChange={() => toggle('moduleProductExpiry')} />
-        <Toggle label={ar ? 'الدفعات على سند التسليم' : 'Lots on delivery slips'} checked={current.showLotsOnDeliverySlips ?? current.groupLotOnDeliverySlip} onChange={() => toggle('showLotsOnDeliverySlips')} />
-        <Toggle label={ar ? 'الدفعات على الفواتير' : 'Lots on invoices'} checked={current.showLotsOnInvoices ?? current.groupLotOnInvoice} onChange={() => toggle('showLotsOnInvoices')} />
-        <Toggle label={ar ? 'الأمانة (مالك المخزون)' : 'Consignment (owner)'} checked={current.groupStockTrackingOwner} onChange={() => toggle('groupStockTrackingOwner')} />
+      <Section title={ar ? 'التتبع' : 'Traceability'} search={s} matchKeys={['lot', 'serial', 'expiry', 'consignment', 'owner']}>
+        <Toggle search={s} label={ar ? 'الدفعات والأرقام التسلسلية' : 'Lots & serial numbers'} checked={current.groupProductionLot} onChange={() => toggle('groupProductionLot')} />
+        <Toggle search={s} label={ar ? 'تواريخ الصلاحية' : 'Expiration dates'} checked={current.moduleProductExpiry} onChange={() => toggle('moduleProductExpiry')} />
+        <Toggle search={s} label={ar ? 'الدفعات على سند التسليم' : 'Lots on delivery slips'} checked={current.showLotsOnDeliverySlips ?? current.groupLotOnDeliverySlip} onChange={() => toggle('showLotsOnDeliverySlips')} />
+        <Toggle search={s} label={ar ? 'الدفعات على الفواتير' : 'Lots on invoices'} checked={current.showLotsOnInvoices ?? current.groupLotOnInvoice} onChange={() => toggle('showLotsOnInvoices')} />
+        <Toggle search={s} label={ar ? 'الأمانة (مالك المخزون)' : 'Consignment (owner)'} checked={current.groupStockTrackingOwner} onChange={() => toggle('groupStockTrackingOwner')} />
       </Section>
 
-      <Section title={ar ? 'التقييم' : 'Valuation'}>
-        <Toggle label={ar ? 'محرك المخزون' : 'Inventory engine'} checked={current.engineEnabled} onChange={() => toggle('engineEnabled')} />
-        <Toggle label={ar ? 'قيود تقييم المخزون' : 'Stock accounting'} checked={current.stockAccountingEnabled} onChange={() => toggle('stockAccountingEnabled')} />
-        <Toggle label={ar ? 'التكاليف الإضافية' : 'Landed costs'} checked={current.groupLandedCosts} onChange={() => toggle('groupLandedCosts')} />
-      </Section>
-
-      <Section title={ar ? 'المستودع' : 'Warehouse'}>
+      <Section title={ar ? 'التقييم' : 'Valuation'} search={s} matchKeys={['valuation', 'evaluation', 'average', 'costing', 'accounting', 'landed', 'engine', 'avco']}>
+        <Toggle search={s} label={ar ? 'محرك المخزون' : 'Inventory engine'} checked={current.engineEnabled} onChange={() => toggle('engineEnabled')} />
         <Toggle
-          label={ar ? 'مواقع التخزين' : 'Storage locations'}
-          hint={ar ? 'إيقافه مرفوض إن وُجد مخزون في مواقع متعددة' : 'Cannot turn off while stock sits in multiple locations'}
-          checked={current.groupStockMultiLocations}
-          onChange={() => toggle('groupStockMultiLocations')}
+          search={s}
+          label={ar ? 'تقييم المخزون (متوسط التكلفة)' : 'Inventory evaluation (AVCO / FIFO)'}
+          hint={ar ? 'يحدّث متوسط التكلفة عند الاستلام ويكتب طبقات التقييم' : 'Updates average cost on receipt and writes valuation layers'}
+          checked={current.inventoryEvaluationEnabled !== false}
+          onChange={() => setField('inventoryEvaluationEnabled', !(current.inventoryEvaluationEnabled !== false))}
         />
-        <Toggle
-          label={ar ? 'مسارات متعددة الخطوات' : 'Multi-step routes'}
-          hint={ar ? 'يفعّل مواقع التخزين تلقائياً' : 'Force-enables storage locations'}
-          checked={current.groupAdvLocation}
-          onChange={() => toggle('groupAdvLocation')}
-        />
-        <Toggle label={ar ? 'فئات التخزين' : 'Storage categories'} checked={current.groupStockStorageCategories} onChange={() => toggle('groupStockStorageCategories')} />
-        <Toggle label={ar ? 'قواعد التخزين' : 'Putaway rules'} checked={current.groupPutawayRules} onChange={() => toggle('groupPutawayRules')} />
-        <Toggle label={ar ? 'تقييد المستودع' : 'Enforce warehouse restriction'} checked={current.enforceWarehouseRestriction} onChange={() => toggle('enforceWarehouseRestriction')} />
+        <Toggle search={s} label={ar ? 'قيود تقييم المخزون' : 'Stock accounting'} hint={ar ? 'قيود اليومية عند التقييم' : 'Journal entries when evaluation runs'} checked={current.stockAccountingEnabled} onChange={() => toggle('stockAccountingEnabled')} />
+        <Toggle search={s} label={ar ? 'التكاليف الإضافية' : 'Landed costs'} checked={current.groupLandedCosts} onChange={() => toggle('groupLandedCosts')} />
       </Section>
 
-      <Section title={ar ? 'الجدولة المتقدمة' : 'Advanced scheduling'}>
+      <Section title={ar ? 'المستودع' : 'Warehouse'} search={s} matchKeys={['location', 'route', 'storage', 'putaway', 'warehouse']}>
+        <Toggle search={s} label={ar ? 'مواقع التخزين' : 'Storage locations'} hint={ar ? 'إيقافه مرفوض إن وُجد مخزون في مواقع متعددة' : 'Cannot turn off while stock sits in multiple locations'} checked={current.groupStockMultiLocations} onChange={() => toggle('groupStockMultiLocations')} />
+        <Toggle search={s} label={ar ? 'مسارات متعددة الخطوات' : 'Multi-step routes'} hint={ar ? 'يفعّل مواقع التخزين تلقائياً' : 'Force-enables storage locations'} checked={current.groupAdvLocation} onChange={() => toggle('groupAdvLocation')} />
+        <Toggle search={s} label={ar ? 'فئات التخزين' : 'Storage categories'} checked={current.groupStockStorageCategories} onChange={() => toggle('groupStockStorageCategories')} />
+        <Toggle search={s} label={ar ? 'قواعد التخزين' : 'Putaway rules'} checked={current.groupPutawayRules} onChange={() => toggle('groupPutawayRules')} />
+        <Toggle search={s} label={ar ? 'تقييد المستودع' : 'Enforce warehouse restriction'} checked={current.enforceWarehouseRestriction} onChange={() => toggle('enforceWarehouseRestriction')} />
+      </Section>
+
+      <Section title={ar ? 'الجدولة المتقدمة' : 'Advanced scheduling'} search={s} matchKeys={['lead', 'scheduler', 'purchase', 'days']}>
         <div>
           <label className="label text-xs">{ar ? 'مهلة أمان المبيعات (أيام)' : 'Security lead — sales (days)'}</label>
           <input type="number" min={0} className="input input-sm" value={current.securityLeadTimeSales ?? 0} onChange={(e) => setField('securityLeadTimeSales', Number(e.target.value))} />
@@ -374,12 +320,12 @@ export default function InventorySettingsPage() {
           <label className="label text-xs">{ar ? 'أيام حتى الشراء' : 'Days to purchase'}</label>
           <input type="number" min={0} className="input input-sm" value={current.daysToPurchase ?? 0} onChange={(e) => setField('daysToPurchase', Number(e.target.value))} />
         </div>
-        <Toggle label={ar ? 'تفعيل المجدول' : 'Scheduler enabled'} checked={current.schedulerEnabled} onChange={() => toggle('schedulerEnabled')} />
+        <Toggle search={s} label={ar ? 'تفعيل المجدول' : 'Scheduler enabled'} checked={current.schedulerEnabled} onChange={() => toggle('schedulerEnabled')} />
       </Section>
 
-      <Section title={ar ? 'القوائم' : 'Menu extras'}>
-        <Toggle label={ar ? 'قائمة نقطة البيع' : 'PoS Orders menu'} checked={current.menuPos} onChange={() => toggle('menuPos')} />
-        <Toggle label={ar ? 'قائمة التصنيع' : 'Manufacturing menu'} checked={current.menuManufacturing} onChange={() => toggle('menuManufacturing')} />
+      <Section title={ar ? 'القوائم' : 'Menu extras'} search={s} matchKeys={['pos', 'manufacturing', 'menu']}>
+        <Toggle search={s} label={ar ? 'قائمة نقطة البيع' : 'PoS Orders menu'} checked={current.menuPos} onChange={() => toggle('menuPos')} />
+        <Toggle search={s} label={ar ? 'قائمة التصنيع' : 'Manufacturing menu'} checked={current.menuManufacturing} onChange={() => toggle('menuManufacturing')} />
       </Section>
 
       <p className="text-xs text-slate-500">

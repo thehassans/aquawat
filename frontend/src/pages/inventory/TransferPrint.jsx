@@ -107,6 +107,19 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
       const displayVat = printCtx?.seller?.vatNumber || vat
       const displayCoEn = printCtx?.seller?.nameEn || companyEn
       const displayCoAr = printCtx?.seller?.nameAr || companyAr
+      const partnerName = printCtx?.partner?.name
+        || printCtx?.partner?.nameEn
+        || printCtx?.linked?.deliveryNote?.customerName
+        || transfer?.partner?.name
+        || transfer?.partner?.nameEn
+        || transfer?.partner?.nameAr
+        || transfer?.partnerName
+        || ''
+      const partnerLabel = code === 'incoming'
+        ? (ar ? 'المورد' : 'Supplier')
+        : code === 'outgoing'
+          ? (ar ? 'العميل' : 'Customer')
+          : (ar ? 'الشريك' : 'Partner')
 
       const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
       if (!w) return
@@ -146,7 +159,7 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
       <div dir="rtl">${title.ar}</div>
       <div style="margin-top:8px">${escapeHtml(transfer?.name || '')}</div>
       <div>${transfer?.scheduledDate ? new Date(transfer.scheduledDate).toLocaleDateString() : new Date().toLocaleDateString()}</div>
-      <div>${escapeHtml(transfer?.partnerId?.name || transfer?.partner?.name || transfer?.partnerName || '')}</div>
+      <div>${partnerName ? `${escapeHtml(partnerLabel)}: ${escapeHtml(partnerName)}` : ''}</div>
     </div>
   </div>
   <table>

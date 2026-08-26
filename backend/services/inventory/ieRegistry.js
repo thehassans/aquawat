@@ -246,16 +246,20 @@ export const IE_MODELS = {
     label: 'Physical Inventory',
     importable: true,
     defaultExport: [
-      'location', 'product_sku', 'lot', 'on_hand', 'counted_qty', 'difference', 'scheduled_date',
+      'location', 'product_sku', 'product_name', 'uom', 'lot', 'on_hand', 'counted_qty', 'difference', 'scheduled_date', 'warehouse',
     ],
     fields: [
       { key: 'location', label: 'Location', importable: true },
+      { key: 'warehouse', label: 'Warehouse', importable: false },
       { key: 'product_sku', label: 'Product SKU', importable: true },
+      { key: 'product_name', label: 'Product Name', importable: false },
+      { key: 'uom', label: 'UoM', importable: false },
       { key: 'lot', label: 'Lot', importable: true },
       { key: 'on_hand', label: 'On Hand', importable: false },
       { key: 'counted_qty', label: 'Counted Quantity', importable: true },
       { key: 'difference', label: 'Difference', importable: false },
       { key: 'scheduled_date', label: 'Scheduled Date', importable: false },
+      { key: 'filter', label: 'Filter Tag', importable: false },
     ],
   },
   product_variants: {

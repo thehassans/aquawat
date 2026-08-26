@@ -45,6 +45,10 @@ export async function createTransfer(tenantId, payload, userId = null) {
       throw new InventoryValidationError('Source and destination locations required', 'LOCATIONS_REQUIRED');
     }
 
+    if (opType.code === 'outgoing' && !payload.partnerId) {
+      throw new InventoryValidationError('Customer is required for deliveries', 'PARTNER_REQUIRED');
+    }
+
     if (!settings.groupStockMultiLocations && String(sourceLocationId) !== String(destLocationId)
       && opType.code === 'internal') {
       throw new InventoryValidationError(

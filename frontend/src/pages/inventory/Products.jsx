@@ -336,7 +336,11 @@ export default function Products() {
                 <div key={product._id} className="rounded-2xl border border-slate-100 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-slate-900">{isAr ? product.nameAr || product.nameEn : product.nameEn}</p>
+                      <p className="font-semibold text-slate-900">
+                        <Link to={`/app/dashboard/inventory/products/${product._id}`} className="hover:text-emerald-800 hover:underline">
+                          {isAr ? product.nameAr || product.nameEn : product.nameEn}
+                        </Link>
+                      </p>
                       <p className="font-mono text-xs text-emerald-700">{product.productId || '—'}</p>
                       <p className="font-mono text-xs text-slate-400">{product.sku}</p>
                     </div>
@@ -392,7 +396,11 @@ export default function Products() {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <p className="truncate font-semibold text-slate-900">{isAr ? product.nameAr || product.nameEn : product.nameEn}</p>
+                              <p className="truncate font-semibold text-slate-900">
+                                <Link to={`/app/dashboard/inventory/products/${product._id}`} className="hover:text-emerald-800 hover:underline">
+                                  {isAr ? product.nameAr || product.nameEn : product.nameEn}
+                                </Link>
+                              </p>
                               {product.barcode && (
                                 <p className="flex items-center gap-1 font-mono text-[11px] text-slate-400">
                                   <QrCode className="h-3 w-3" />{product.barcode}

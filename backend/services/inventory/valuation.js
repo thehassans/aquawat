@@ -62,6 +62,20 @@ export async function loadCostContext(productId, session = null) {
   };
 }
 
+/**
+ * Pure AVCO: (qtyBefore * oldAvg + incomingQty * unitCost) / qtyAfter
+ * Example: 10 @ 10 then 10 @ 13 → 11.5
+ */
+export function computeAverageCost({ qtyBefore, oldAvg, incomingQty, unitCost }) {
+  const before = D(qtyBefore);
+  const incoming = D(incomingQty);
+  const after = before.plus(incoming);
+  const cost = D(unitCost);
+  if (!after.gt(0)) return cost;
+  if (!before.gt(0)) return cost;
+  return before.mul(D(oldAvg)).plus(incoming.mul(cost)).div(after);
+}
+
 async function currentInternalQty(tenantId, productId, session) {
   const internalLocs = await InvLocation.find({
     tenantId,
@@ -82,6 +96,8 @@ async function currentInternalQty(tenantId, productId, session) {
 
 /**
  * Create valuation layers when a move crosses the internal boundary.
+ * Average costing (AVCO): weighted average of on-hand value + incoming receipt.
+ * Skipped when inventoryEvaluationEnabled is false on InvSettings.
  * @param {'in'|'out'} direction
  */
 export async function createValuationForMove(session, {
@@ -92,7 +108,10 @@ export async function createValuationForMove(session, {
   direction,
   unitCostOverride,
   description,
+  evaluationEnabled = true,
 }) {
+  if (evaluationEnabled === false) return null;
+
   const tid = toObjectId(tenantId);
   const ctx = await loadCostContext(productId, session);
 
@@ -120,25 +139,16 @@ export async function createValuationForMove(session, {
     }], { session });
 
     if (ctx.costMethod === 'average') {
-      const layers = await InvValuationLayer.find({
-        tenantId: tid,
-        productId,
-      }).session(session).lean();
-
-      let totalQty = D(0);
-      let totalValue = D(0);
-      for (const l of layers) {
-        if (D(l.quantity).gt(0)) {
-          totalQty = totalQty.plus(D(l.quantity));
-          totalValue = totalValue.plus(D(l.value));
-        }
-      }
-      if (!layers.find((l) => String(l._id) === String(layer._id))) {
-        totalQty = totalQty.plus(qty);
-        totalValue = totalValue.plus(value);
-      }
-
-      const newAvg = totalQty.gt(0) ? totalValue.div(totalQty) : unitCost;
+      // AVCO: (qty_before * avg + incoming_qty * unit_cost) / qty_after
+      // Quant delta already applied, so currentInternalQty includes this receipt.
+      const qtyAfter = await currentInternalQty(tid, productId, session);
+      const qtyBefore = qtyAfter.minus(qty);
+      const newAvg = computeAverageCost({
+        qtyBefore,
+        oldAvg: ctx.standardPrice,
+        incomingQty: qty,
+        unitCost,
+      });
       ctx.product.costPrice = Number(decStr(newAvg));
       if (Number.isFinite(ctx.product.costPrice)) {
         await ctx.product.save({ session });

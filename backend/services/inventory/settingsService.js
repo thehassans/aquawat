@@ -19,6 +19,8 @@ export const SETTINGS_ALLOWED = [
   'enforceWarehouseRestriction',
   'schedulerEnabled',
   'stockAccountingEnabled',
+  'inventoryEvaluationEnabled',
+  'allowNegativeStock',
   'propertyStockValuationAccountId',
   'propertyStockInputAccountId',
   'propertyStockOutputAccountId',

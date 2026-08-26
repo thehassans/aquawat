@@ -17,6 +17,10 @@ const schema = new mongoose.Schema({
   enforceWarehouseRestriction: { type: Boolean, default: true },
   schedulerEnabled: { type: Boolean, default: false },
   stockAccountingEnabled: { type: Boolean, default: true },
+  /** When true, receipt/delivery validation writes valuation layers and updates AVCO / FIFO */
+  inventoryEvaluationEnabled: { type: Boolean, default: true },
+  /** Global override — allow all products to go negative on validate */
+  allowNegativeStock: { type: Boolean, default: false },
   propertyStockValuationAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   propertyStockInputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   propertyStockOutputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },

@@ -60,6 +60,9 @@ export async function linkDraftReceiptToGrn({
       productId: l.productId,
       demandQty: String(l.quantityReceived || l.quantityOrdered || 0),
       uomId: defaultUom?._id,
+      unitCost: l.costPrice != null && l.costPrice !== ''
+        ? String(l.costPrice)
+        : (l.unitCost != null ? String(l.unitCost) : undefined),
     }));
   if (!lines.length) return { transfer: null };
 
@@ -125,7 +128,10 @@ export async function ensureDraftDeliveryForSellOrder({
     tenantId: tenantId || order.tenantId,
     dnNumber,
     customerId: order.customerId?._id || order.customerId,
-    customerName: order.customerId?.nameEn || order.customerId?.nameAr || '',
+    customerName: order.customerId?.name
+      || order.customerId?.nameEn
+      || order.customerId?.nameAr
+      || '',
     purchaseOrderId: order._id,
     sourceDocType: 'purchase_order',
     status: 'pending_invoice',

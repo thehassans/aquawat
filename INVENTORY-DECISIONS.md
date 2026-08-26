@@ -1,6 +1,18 @@
 # Inventory Module — Decision Log
 
-Last updated: 2026-08-25
+Last updated: 2026-08-26
+
+## Hardening — costing / operations / scrap (2026-08-26)
+
+| Topic | Decision |
+|---|---|
+| AVCO | `computeAverageCost` — on-hand × old avg + receipt × unit cost; PO/GRN `unitCost` on moves |
+| Inventory evaluation | `InvSettings.inventoryEvaluationEnabled` gates valuation layers (journals still `stockAccountingEnabled`) |
+| Negative stock | Global `allowNegativeStock` OR category/product; reserved underflow clamped on immediate validate |
+| Partners | Outgoing → Customer; incoming → Supplier (`partnerResolve.js`); print-context includes partner |
+| Ops UX | Editable Done + demand/done confirm + `moveQuantities`; variants select; deliveries list customer column |
+| Scrap | Multi-line create, UoM/source/scrap loc/date, validate + cache sync, bulk validate |
+| Physical export | UoM + product name + nested warehouse + list filters |
 
 ## Locked answers (Section 16 + discovery)
 
@@ -243,7 +255,8 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | RTL / Arabic | Inherited app `dir`; print layouts + exception queue bilingual; inventory screens keep `labelAr` / `language === 'ar'` |
 | ZATCA print | `TransferPrint` — company VAT, bilingual headers, QR from linked invoice (stored or Phase-1 TLV) |
 
-| Negative stock | `InvProductCategory.allowNegativeStock` default **false**; validate → `applyQuantDelta` blocks below-zero unless flag (product flag as fallback) |
+| Negative stock | Default **blocked**. Override via `InvSettings.allowNegativeStock` (global) **or** `InvProductCategory.allowNegativeStock` / product flag. Validate + scrap → `applyQuantDelta` |
+| Inventory evaluation | `InvSettings.inventoryEvaluationEnabled` (default true) gates valuation layers + AVCO updates on receipt/delivery/scrap; journals still require `stockAccountingEnabled` |
 | ProductStockCache | New `InvProductStockCache` upserted in `syncProductStockCache` (same session when provided); reports still read ledger; scheduler asserts cache == ledger |
 | Exception queue | `GET /stock/exceptions` + Operations menu — late waits, scheduler errors / NO_RULE, negative forecast, expired lots on hand |
 | Bulk import | Dry-run first; opening qty → **adjustment transfer** (not direct write); `POST /stock/import/locations` added |
