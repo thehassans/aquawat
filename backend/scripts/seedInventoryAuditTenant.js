@@ -39,6 +39,7 @@ import {
 import { recomputeWarehouseRoutes } from '../services/inventory/warehouseSteps.js';
 import { createLocation, createProductCategory } from '../services/inventory/configMasters.js';
 import { nextProductId } from '../services/inventory/productIdentity.js';
+import { applyQuantDelta } from '../services/inventory/quantDelta.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -143,50 +144,56 @@ async function ensureChildLocation(tid, userId, parent, name, nameAr, usage, war
 }
 
 /**
- * Prefer recomputeWarehouseRoutes (replica set). Fall back when local Mongo is standalone.
+ * Always align warehouse input/output pointers to reception/delivery steps.
+ * recomputeWarehouseRoutes can leave pointers on Stock when OT/vendor wiring skips.
+ */
+async function syncWarehouseIoPointers(tid, userId, whDoc) {
+  const wh = await Warehouse.findById(whDoc._id);
+  const view = await InvLocation.findById(wh.viewLocationId);
+  const stock = await InvLocation.findById(wh.stockLocationId);
+  if (!view || !stock) throw new Error(`Warehouse ${wh.code} missing view/stock`);
+
+  const input = await ensureChildLocation(tid, userId, view, 'Input', 'المدخل', 'internal', wh._id);
+  const output = await ensureChildLocation(tid, userId, view, 'Output', 'المخرج', 'internal', wh._id);
+
+  const reception = wh.receptionSteps || 'one';
+  const delivery = wh.deliverySteps || 'ship';
+  wh.inputLocationId = reception === 'one' ? stock._id : input._id;
+  wh.outputLocationId = delivery === 'ship' ? stock._id : output._id;
+  await wh.save();
+
+  const InvOperationType = (await import('../models/inventory/InvOperationType.js')).default;
+  const receiptOt = await InvOperationType.findOne({ tenantId: tid, warehouseId: wh._id, code: 'incoming' });
+  const deliveryOt = await InvOperationType.findOne({ tenantId: tid, warehouseId: wh._id, code: 'outgoing' });
+  const vendor = await InvLocation.findOne({ tenantId: tid, usage: 'vendor' });
+  const customer = await InvLocation.findOne({ tenantId: tid, usage: 'customer' });
+  if (receiptOt && vendor) {
+    receiptOt.defaultSourceLocationId = vendor._id;
+    receiptOt.defaultDestLocationId = reception === 'one' ? stock._id : input._id;
+    await receiptOt.save();
+  }
+  if (deliveryOt && customer) {
+    deliveryOt.defaultSourceLocationId = delivery === 'ship' ? stock._id : output._id;
+    deliveryOt.defaultDestLocationId = customer._id;
+    await deliveryOt.save();
+  }
+  return Warehouse.findById(wh._id);
+}
+
+/**
+ * Prefer recomputeWarehouseRoutes (replica set). Always sync IO pointers afterwards.
  */
 async function applyWarehouseSteps(tid, userId, whDoc) {
   try {
     await recomputeWarehouseRoutes(whDoc._id, tid, userId);
-    return Warehouse.findById(whDoc._id);
   } catch (err) {
     const msg = String(err?.message || err);
     if (!msg.includes('replica set') && err?.code !== 20 && !msg.includes('Transaction numbers')) {
       throw err;
     }
-    log(`recomputeWarehouseRoutes unavailable (${msg.slice(0, 60)}…) — manual Input/Output`);
-    const wh = await Warehouse.findById(whDoc._id);
-    const view = await InvLocation.findById(wh.viewLocationId);
-    const stock = await InvLocation.findById(wh.stockLocationId);
-    if (!view || !stock) throw new Error(`Warehouse ${wh.code} missing view/stock`);
-
-    const input = await ensureChildLocation(tid, userId, view, 'Input', 'المدخل', 'internal', wh._id);
-    const output = await ensureChildLocation(tid, userId, view, 'Output', 'المخرج', 'internal', wh._id);
-
-    const reception = wh.receptionSteps || 'one';
-    const delivery = wh.deliverySteps || 'ship';
-    wh.inputLocationId = reception === 'one' ? stock._id : input._id;
-    wh.outputLocationId = delivery === 'ship' ? stock._id : output._id;
-    await wh.save();
-
-    // Wire default OT locations when possible (best-effort without txn)
-    const InvOperationType = (await import('../models/inventory/InvOperationType.js')).default;
-    const receiptOt = await InvOperationType.findOne({ tenantId: tid, warehouseId: wh._id, code: 'incoming' });
-    const deliveryOt = await InvOperationType.findOne({ tenantId: tid, warehouseId: wh._id, code: 'outgoing' });
-    const vendor = await InvLocation.findOne({ tenantId: tid, usage: 'vendor' });
-    const customer = await InvLocation.findOne({ tenantId: tid, usage: 'customer' });
-    if (receiptOt && vendor) {
-      receiptOt.defaultSourceLocationId = vendor._id;
-      receiptOt.defaultDestLocationId = reception === 'one' ? stock._id : input._id;
-      await receiptOt.save();
-    }
-    if (deliveryOt && customer) {
-      deliveryOt.defaultSourceLocationId = delivery === 'ship' ? stock._id : output._id;
-      deliveryOt.defaultDestLocationId = customer._id;
-      await deliveryOt.save();
-    }
-    return Warehouse.findById(wh._id);
+    log(`recomputeWarehouseRoutes unavailable (${msg.slice(0, 60)}…) — pointer sync only`);
   }
+  return syncWarehouseIoPointers(tid, userId, whDoc);
 }
 
 async function ensureWarehouse(tid, userId, {
@@ -295,6 +302,47 @@ async function ensureProduct(tid, uomId, def) {
   });
 }
 
+async function seedOpeningStock(tid, stockLocationId, products) {
+  const simples = products.filter((p) => p.tracking === 'none');
+  if (!simples.length || !stockLocationId) return 0;
+
+  const InvQuant = (await import('../models/inventory/InvQuant.js')).default;
+  let seeded = 0;
+  for (const p of simples) {
+    // eslint-disable-next-line no-await-in-loop
+    const existing = await InvQuant.findOne({
+      tenantId: tid,
+      productId: p._id,
+      locationId: stockLocationId,
+    });
+    if (existing) continue;
+
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+      await applyQuantDelta(session, tid, p._id, stockLocationId, '100', '0', new Date(), {
+        tracking: 'none',
+      });
+      await session.commitTransaction();
+      seeded += 1;
+    } catch (err) {
+      try { await session.abortTransaction(); } catch { /* */ }
+      try {
+        await applyQuantDelta(null, tid, p._id, stockLocationId, '100', '0', new Date(), {
+          tracking: 'none',
+        });
+        seeded += 1;
+      } catch (inner) {
+        log(`skip opening stock ${p.sku}: ${String(inner?.message || inner).slice(0, 60)}`);
+      }
+    } finally {
+      session.endSession();
+    }
+  }
+  log(`opening stock seeded for ${seeded} simple SKUs @ MAIN/Stock qty=100`);
+  return seeded;
+}
+
 async function wipeAuditTenant(slug) {
   const tenant = await Tenant.findOne({ slug });
   if (!tenant) return;
@@ -353,10 +401,21 @@ async function seedPrimaryTenant(password) {
     password,
     firstName: 'Audit',
     lastName: 'Admin',
-    role: 'inventory_manager',
+    role: 'admin',
     permissions: adminPerms,
     warehouseIds: [],
   });
+
+  // Ensure trial limits don't hide multi-WH / second user
+  tenant.subscription = tenant.subscription || {};
+  tenant.subscription.status = 'active';
+  tenant.subscription.maxUsers = Math.max(Number(tenant.subscription.maxUsers) || 0, 5);
+  tenant.subscription.features = Array.from(new Set([
+    ...(tenant.subscription.features || []),
+    'invoicing', 'inventory', 'multi_warehouse', 'advanced_reports', 'api_access',
+  ]));
+  tenant.markModified('subscription');
+  await tenant.save();
 
   const uom = await getDefaultUom(tid);
   if (!uom) throw new Error('Default UoM missing after bootstrap');
@@ -424,6 +483,8 @@ async function seedPrimaryTenant(password) {
     products.push(await ensureProduct(tid, uom._id, def));
   }
   log(`products ready: ${products.length}`);
+
+  await seedOpeningStock(tid, main.stockLocationId, products);
 
   for (const [code, nameEn] of [['VEND-01', 'Audit Vendor One'], ['VEND-02', 'Audit Vendor Two']]) {
     // eslint-disable-next-line no-await-in-loop
