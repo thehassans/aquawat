@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Search } from 'lucide-react'
 import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType } from '../../lib/productType'
 import api from '../../lib/api'
@@ -114,11 +115,14 @@ export default function ProductChooser({
 }) {
   const inline = mode === 'inline'
   const rootRef = useRef(null)
+  const triggerRef = useRef(null)
+  const panelRef = useRef(null)
   const [term, setTerm] = useState('')
   const [debouncedTerm, setDebouncedTerm] = useState('')
   const [open, setOpen] = useState(false)
   const [remoteProducts, setRemoteProducts] = useState([])
   const [loading, setLoading] = useState(false)
+  const [panelStyle, setPanelStyle] = useState({ top: 0, left: 0, width: 320 })
   const ring = accent === 'rose'
     ? 'focus:border-rose-400 focus:ring-rose-500/15'
     : 'focus:border-emerald-400 focus:ring-emerald-500/15'
@@ -132,7 +136,10 @@ export default function ProductChooser({
   useEffect(() => {
     if (!open) return undefined
     const onDoc = (e) => {
-      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false)
+      const t = e.target
+      if (rootRef.current?.contains(t)) return
+      if (panelRef.current?.contains(t)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
@@ -165,6 +172,35 @@ export default function ProductChooser({
     return products.filter((p) => matchesProduct(p, term)).slice(0, 14)
   }, [products, term, remote])
 
+  useLayoutEffect(() => {
+    if (!open || !inline) return undefined
+    const place = () => {
+      const el = triggerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const width = Math.min(Math.max(rect.width, 280), Math.min(360, window.innerWidth - 16))
+      const estimatedHeight = 280
+      const spaceBelow = window.innerHeight - rect.bottom - 12
+      const openUp = spaceBelow < estimatedHeight && rect.top > spaceBelow
+      const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8)
+      setPanelStyle({
+        position: 'fixed',
+        top: openUp ? undefined : rect.bottom + 6,
+        bottom: openUp ? window.innerHeight - rect.top + 6 : undefined,
+        left,
+        width,
+        zIndex: 9999,
+      })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open, inline, suggestions.length, loading])
+
   const pick = (product) => {
     if (!product) return
     onPick(product)
@@ -190,9 +226,63 @@ export default function ProductChooser({
   }
 
   if (inline) {
+    const searchPlaceholder = placeholder.includes('Pick') || placeholder.includes('اختر')
+      ? (placeholder.includes('اختر') ? 'ابحث بالاسم أو الرمز…' : 'Search by name, SKU…')
+      : placeholder
+
+    const panel = open && typeof document !== 'undefined'
+      ? createPortal(
+        <div
+          ref={panelRef}
+          style={panelStyle}
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_-24px_rgba(15,23,42,0.55)] dark:border-dark-600 dark:bg-dark-800"
+        >
+          <div className="border-b border-slate-100 p-2 dark:border-dark-600">
+            <input
+              autoFocus
+              type="text"
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              placeholder={searchPlaceholder}
+              className={`w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-2 ring-transparent dark:border-dark-600 dark:bg-dark-900 ${ring}`}
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto overscroll-contain">
+            {loading ? (
+              <p className="px-4 py-3 text-sm text-slate-400">…</p>
+            ) : suggestions.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-slate-400">
+                {remote && !debouncedTerm.trim() ? 'Loading products…' : 'No matching products'}
+              </p>
+            ) : (
+              suggestions.map((p) => (
+                <button
+                  key={p._id}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pick(p)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-dark-700"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">{p.name}</span>
+                    <span className="block truncate text-[11px] text-slate-400">
+                      {[formatProductTypeLabel(p.productType), p.sku && `SKU ${p.sku}`, p.barcode].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                  <span className={`shrink-0 text-[11px] font-semibold ${addTone}`}>+</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>,
+        document.body,
+      )
+      : null
+
     return (
       <div ref={rootRef} className={`relative min-w-0 ${className}`}>
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setOpen((v) => !v)}
           className={`flex w-full items-center gap-2 rounded-xl border bg-white px-3 py-2 text-start text-sm outline-none transition dark:bg-dark-900 ${
@@ -216,49 +306,7 @@ export default function ProductChooser({
           </span>
           <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
         </button>
-        {open && (
-          <div className="absolute start-0 z-40 mt-1.5 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)] dark:border-dark-600 dark:bg-dark-800">
-            <div className="border-b border-slate-100 p-2 dark:border-dark-600">
-              <input
-                autoFocus
-                type="text"
-                value={term}
-                onChange={(e) => setTerm(e.target.value)}
-                placeholder={placeholder.includes('Pick') || placeholder.includes('اختر')
-                  ? (placeholder.includes('اختر') ? 'ابحث بالاسم أو الرمز…' : 'Search by name, SKU…')
-                  : placeholder}
-                className={`w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-2 ring-transparent dark:border-dark-600 dark:bg-dark-900 ${ring}`}
-              />
-            </div>
-            <div className="max-h-56 overflow-y-auto">
-              {loading ? (
-                <p className="px-4 py-3 text-sm text-slate-400">…</p>
-              ) : suggestions.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-slate-400">
-                  {remote && !debouncedTerm.trim() ? 'Type to search…' : 'No matching products'}
-                </p>
-              ) : (
-                suggestions.map((p) => (
-                  <button
-                    key={p._id}
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => pick(p)}
-                    className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-dark-700"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">{p.name}</span>
-                      <span className="block truncate text-[11px] text-slate-400">
-                        {[formatProductTypeLabel(p.productType), p.sku && `SKU ${p.sku}`, p.barcode].filter(Boolean).join(' · ')}
-                      </span>
-                    </span>
-                    <span className={`shrink-0 text-[11px] font-semibold ${addTone}`}>+</span>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        )}
+        {panel}
       </div>
     )
   }

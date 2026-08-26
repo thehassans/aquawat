@@ -769,7 +769,7 @@ export default function TransferForm() {
                 </button>
               </div>
             ) : (
-              <div className="overflow-hidden rounded-xl border border-slate-200/90 dark:border-dark-600">
+              <div className="overflow-visible rounded-xl border border-slate-200/90 dark:border-dark-600">
                 <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(7rem,11rem)_minmax(6rem,9rem)_5.5rem_2.5rem] gap-2 border-b border-slate-100 bg-slate-50/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-dark-600 dark:bg-dark-900/50 sm:grid">
                   <span>{ar ? 'المنتج' : 'Product'}</span>
                   <span>{ar ? 'المتغير' : 'Variant'}</span>
