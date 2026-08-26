@@ -20,10 +20,19 @@ const schema = new mongoose.Schema({
   attributeValueIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'InvAttributeValue' }],
   /** Sorted value ObjectIds joined — unique per product combination */
   combinationKey: { type: String, required: true },
-  /** Extra price override (else sum of value extraPrice) */
+  /** Human sequence code e.g. P00007-001 */
+  variantCode: { type: String, trim: true },
+  /** Extra price override (else sum of template/global value extras) */
   extraPrice: { type: Number, default: 0 },
+  standardPrice: { type: Number },
+  weight: { type: Number },
+  volume: { type: Number },
   imageUrl: { type: String },
   imageThumbUrl: { type: String },
+  /** Set when this is the single default variant for a non-attributed product */
+  isDefault: { type: Boolean, default: false },
+  /** Legacy Product._id if this variant was backfilled from a flat product */
+  legacyProductId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
   active: { type: Boolean, default: true },
 }, { timestamps: true });
 

@@ -2,15 +2,32 @@ import Product from '../../models/Product.js';
 import InvProductAttribute from '../../models/inventory/InvProductAttribute.js';
 import InvAttributeValue from '../../models/inventory/InvAttributeValue.js';
 import InvProductVariant from '../../models/inventory/InvProductVariant.js';
+import InvAttributeExclusion from '../../models/inventory/InvAttributeExclusion.js';
+import InvTemplateAttributeValue from '../../models/inventory/InvTemplateAttributeValue.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { InventoryValidationError } from './errors.js';
 import { getInvSettings } from './settingsService.js';
+
+export const MAX_VARIANTS_PER_TEMPLATE = 1000;
 
 function combinationKeyFromIds(valueIds) {
   return [...valueIds]
     .map((id) => String(id))
     .sort()
     .join('|');
+}
+
+function comboViolatesExclusion(comboIds, exclusions) {
+  const set = new Set(comboIds.map(String));
+  for (const ex of exclusions) {
+    if (!ex.active) continue;
+    const trigger = String(ex.attributeValueId);
+    if (!set.has(trigger)) continue;
+    for (const excluded of ex.excludedValueIds || []) {
+      if (set.has(String(excluded))) return true;
+    }
+  }
+  return false;
 }
 
 async function assertVariantsEnabled(tenantId) {
@@ -39,6 +56,9 @@ export async function createAttribute(tenantId, userId, body) {
     nameAr: body.nameAr ? String(body.nameAr).trim() : undefined,
     createVariant: mode !== 'never',
     createVariantMode: mode,
+    displayType: ['radio', 'select', 'color', 'pill', 'image'].includes(body.displayType)
+      ? body.displayType
+      : 'select',
     sequence: Number(body.sequence) || 10,
     active: body.active !== false,
     createdBy: userId,
@@ -49,14 +69,39 @@ export async function updateAttribute(tenantId, id, userId, body) {
   await assertVariantsEnabled(tenantId);
   const doc = await InvProductAttribute.findOne({ _id: id, tenantId: toObjectId(tenantId) });
   if (!doc) throw new InventoryValidationError('Attribute not found', 'ATTR_NOT_FOUND');
+
+  const nextMode = body.createVariantMode != null && ['always', 'dynamic', 'never'].includes(body.createVariantMode)
+    ? body.createVariantMode
+    : (body.createVariant != null
+      ? (body.createVariant ? 'always' : 'never')
+      : null);
+
+  if (nextMode && nextMode !== doc.createVariantMode) {
+    const inUse = await InvProductVariant.exists({
+      tenantId: toObjectId(tenantId),
+      attributeValueIds: {
+        $in: await InvAttributeValue.find({
+          tenantId: toObjectId(tenantId),
+          attributeId: doc._id,
+        }).distinct('_id'),
+      },
+    });
+    if (inUse) {
+      throw new InventoryValidationError(
+        'Cannot change create-variant mode while this attribute is used by existing variants — archive values instead',
+        'ATTR_MODE_LOCKED',
+      );
+    }
+  }
+
   if (body.name != null) doc.name = String(body.name).trim();
   if (body.nameAr != null) doc.nameAr = String(body.nameAr).trim();
-  if (body.createVariantMode != null && ['always', 'dynamic', 'never'].includes(body.createVariantMode)) {
-    doc.createVariantMode = body.createVariantMode;
-    doc.createVariant = body.createVariantMode !== 'never';
-  } else if (body.createVariant != null) {
-    doc.createVariant = !!body.createVariant;
-    doc.createVariantMode = body.createVariant ? 'always' : 'never';
+  if (body.displayType != null && ['radio', 'select', 'color', 'pill', 'image'].includes(body.displayType)) {
+    doc.displayType = body.displayType;
+  }
+  if (nextMode) {
+    doc.createVariantMode = nextMode;
+    doc.createVariant = nextMode !== 'never';
   }
   if (body.sequence != null) doc.sequence = Number(body.sequence) || 10;
   if (body.active != null) doc.active = !!body.active;
@@ -87,6 +132,9 @@ export async function createAttributeValue(tenantId, userId, attributeId, body) 
     name,
     nameAr: body.nameAr ? String(body.nameAr).trim() : undefined,
     extraPrice: Number(body.extraPrice) || 0,
+    htmlColor: body.htmlColor ? String(body.htmlColor).trim() : undefined,
+    imageUrl: body.imageUrl || undefined,
+    isCustom: !!body.isCustom,
     sequence: Number(body.sequence) || 10,
     active: body.active !== false,
     createdBy: userId,
@@ -100,6 +148,9 @@ export async function updateAttributeValue(tenantId, id, userId, body) {
   if (body.name != null) doc.name = String(body.name).trim();
   if (body.nameAr != null) doc.nameAr = String(body.nameAr).trim();
   if (body.extraPrice != null) doc.extraPrice = Number(body.extraPrice) || 0;
+  if (body.htmlColor != null) doc.htmlColor = String(body.htmlColor).trim() || undefined;
+  if (body.imageUrl != null) doc.imageUrl = body.imageUrl || undefined;
+  if (body.isCustom != null) doc.isCustom = !!body.isCustom;
   if (body.sequence != null) doc.sequence = Number(body.sequence) || 10;
   if (body.active != null) doc.active = !!body.active;
   doc.updatedBy = userId;
@@ -238,7 +289,7 @@ export async function updateVariant(tenantId, id, userId, body) {
   return doc;
 }
 
-/** Cartesian product of Always attribute lines (or createVariant=true attrs). Archives obsolete combos without moves. */
+/** Cartesian product of Always attribute lines. Applies exclusions; archives obsolete combos. */
 export async function generateVariants(tenantId, userId, {
   productId,
   attributeIds,
@@ -250,7 +301,6 @@ export async function generateVariants(tenantId, userId, {
   const product = await Product.findOne({ _id: productId, tenantId: tid });
   if (!product) throw new InventoryValidationError('Product not found', 'PRODUCT_NOT_FOUND');
 
-  // Prefer explicit lines from request or product.attributeLines
   const lines = Array.isArray(attributeLines) && attributeLines.length
     ? attributeLines
     : (product.attributeLines || []).map((l) => ({
@@ -314,6 +364,34 @@ export async function generateVariants(tenantId, userId, {
     combos = next;
   }
 
+  const rawCount = combos.length;
+  if (rawCount > MAX_VARIANTS_PER_TEMPLATE) {
+    throw new InventoryValidationError(
+      `Refusing to generate ${rawCount} variants (max ${MAX_VARIANTS_PER_TEMPLATE}). Reduce attributes or values.`,
+      'VARIANT_LIMIT',
+      { count: rawCount, max: MAX_VARIANTS_PER_TEMPLATE },
+    );
+  }
+
+  const exclusions = await InvAttributeExclusion.find({
+    tenantId: tid,
+    templateId: product._id,
+    active: true,
+  }).lean();
+
+  const beforeExclusion = combos.length;
+  combos = combos.filter((c) => !comboViolatesExclusion(c.map((v) => v._id), exclusions));
+  const excludedCount = beforeExclusion - combos.length;
+
+  const templateExtras = await InvTemplateAttributeValue.find({
+    tenantId: tid,
+    templateId: product._id,
+    active: true,
+  }).lean();
+  const extraByValueId = new Map(
+    templateExtras.map((t) => [String(t.attributeValueId), Number(t.priceExtra) || 0]),
+  );
+
   const wantedKeys = new Set(combos.map((c) => combinationKeyFromIds(c.map((v) => v._id))));
   const existingAll = await InvProductVariant.find({
     tenantId: tid,
@@ -321,10 +399,12 @@ export async function generateVariants(tenantId, userId, {
   }).lean();
 
   const InvMove = (await import('../../models/inventory/InvMove.js')).default;
+  const InvQuant = (await import('../../models/inventory/InvQuant.js')).default;
   let created = 0;
+  let reactivated = 0;
   let skipped = 0;
   let archived = 0;
-  let blockedArchive = 0;
+  let deleted = 0;
   const preview = [];
   const warnings = [];
 
@@ -334,10 +414,18 @@ export async function generateVariants(tenantId, userId, {
     const nameAr = combo.map((v) => v.nameAr || v.name).join(' / ');
     const existing = existingAll.find((e) => e.combinationKey === key);
     if (existing) {
-      skipped += 1;
-      preview.push({ name, action: existing.active ? 'skip' : 'reactivate', id: existing._id });
-      if (!dryRun && !existing.active) {
-        await InvProductVariant.updateOne({ _id: existing._id }, { $set: { active: true, updatedBy: userId } });
+      if (existing.active) {
+        skipped += 1;
+        preview.push({ name, action: 'skip', id: existing._id });
+      } else {
+        reactivated += 1;
+        preview.push({ name, action: 'reactivate', id: existing._id });
+        if (!dryRun) {
+          await InvProductVariant.updateOne(
+            { _id: existing._id },
+            { $set: { active: true, updatedBy: userId } },
+          );
+        }
       }
       continue;
     }
@@ -346,7 +434,10 @@ export async function generateVariants(tenantId, userId, {
       created += 1;
       continue;
     }
-    const extraPrice = combo.reduce((s, v) => s + (Number(v.extraPrice) || 0), 0);
+    const extraPrice = combo.reduce((s, v) => {
+      const tidExtra = extraByValueId.get(String(v._id));
+      return s + (tidExtra != null ? tidExtra : (Number(v.extraPrice) || 0));
+    }, 0);
     const doc = await InvProductVariant.create({
       tenantId: tid,
       productId: product._id,
@@ -364,34 +455,45 @@ export async function generateVariants(tenantId, userId, {
 
   for (const old of existingAll) {
     if (wantedKeys.has(old.combinationKey)) continue;
-    if (!old.active) continue;
+    if (!old.active && dryRun) continue;
+
     const hasMove = await InvMove.exists({
       tenantId: tid,
       productId: product._id,
       variantId: old._id,
     });
-    if (hasMove) {
-      blockedArchive += 1;
+    const hasQuant = await InvQuant.exists({
+      tenantId: tid,
+      productId: product._id,
+      variantId: old._id,
+    });
+
+    if (hasMove || hasQuant) {
       warnings.push({
         variantId: old._id,
         name: old.name,
-        reason: 'Has stock moves — archived not deleted; leaving active until manual review',
+        reason: 'Has stock history — will be archived, not deleted',
       });
-      // Still archive (active=false) per brief — "Archive, never delete"
-      if (!dryRun) {
+      preview.push({ name: old.name, action: 'archive', id: old._id });
+      if (!dryRun && old.active) {
         await InvProductVariant.updateOne({ _id: old._id }, { $set: { active: false, updatedBy: userId } });
+        archived += 1;
+      } else if (dryRun && old.active) {
         archived += 1;
       }
       continue;
     }
-    preview.push({ name: old.name, action: 'archive', id: old._id });
-    if (!dryRun) {
-      await InvProductVariant.updateOne({ _id: old._id }, { $set: { active: false, updatedBy: userId } });
-      archived += 1;
+
+    if (dryRun) {
+      preview.push({ name: old.name, action: 'delete', id: old._id });
+      deleted += 1;
+      continue;
     }
+    await InvProductVariant.deleteOne({ _id: old._id });
+    deleted += 1;
+    preview.push({ name: old.name, action: 'delete', id: old._id });
   }
 
-  // Persist attribute lines on product when provided
   if (!dryRun && Array.isArray(attributeLines)) {
     product.attributeLines = attributeLines.map((l) => ({
       attributeId: toObjectId(l.attributeId),
@@ -406,13 +508,16 @@ export async function generateVariants(tenantId, userId, {
   return {
     productId: product._id,
     combinationCount: combos.length,
+    rawCombinationCount: rawCount,
+    excludedCount,
     created,
+    reactivated,
     skipped,
     archived,
-    blockedArchive,
+    deleted,
     dryRun: !!dryRun,
     warnings,
-    preview: preview.slice(0, 100),
+    preview: preview.slice(0, 200),
   };
 }
 
@@ -444,4 +549,196 @@ export async function findVariantByBarcodeOrSku(tenantId, code) {
   })
     .populate('productId', 'nameEn nameAr sku barcode trackInventory')
     .lean();
+}
+
+/** Ensure every template has ≥1 default variant when it has no attribute lines. */
+export async function ensureDefaultVariant(tenantId, userId, productId) {
+  const tid = toObjectId(tenantId);
+  const product = await Product.findOne({ _id: productId, tenantId: tid });
+  if (!product) throw new InventoryValidationError('Product not found', 'PRODUCT_NOT_FOUND');
+
+  const existing = await InvProductVariant.findOne({
+    tenantId: tid,
+    productId: product._id,
+    $or: [{ isDefault: true }, { combinationKey: 'default' }],
+  });
+  if (existing) {
+    if (!existing.active) {
+      existing.active = true;
+      existing.updatedBy = userId;
+      await existing.save();
+    }
+    return existing;
+  }
+
+  const any = await InvProductVariant.findOne({ tenantId: tid, productId: product._id, active: true });
+  if (any) return any;
+
+  return InvProductVariant.create({
+    tenantId: tid,
+    productId: product._id,
+    name: product.nameEn || product.sku || 'Default',
+    nameAr: product.nameAr,
+    sku: product.sku,
+    barcode: product.barcode,
+    attributeValueIds: [],
+    combinationKey: 'default',
+    isDefault: true,
+    legacyProductId: product._id,
+    active: true,
+    createdBy: userId,
+  });
+}
+
+/**
+ * Dynamic mode: get or create a variant for a combination inside the caller's txn when possible.
+ */
+export async function getOrCreateVariant(tenantId, userId, { productId, attributeValueIds }) {
+  await assertVariantsEnabled(tenantId);
+  const tid = toObjectId(tenantId);
+  const valueIds = [...new Set((attributeValueIds || []).map(String))];
+  if (!valueIds.length) {
+    return ensureDefaultVariant(tenantId, userId, productId);
+  }
+
+  const key = combinationKeyFromIds(valueIds);
+  const existing = await InvProductVariant.findOne({
+    tenantId: tid,
+    productId: toObjectId(productId),
+    combinationKey: key,
+  });
+  if (existing) {
+    if (!existing.active) {
+      existing.active = true;
+      existing.updatedBy = userId;
+      await existing.save();
+    }
+    return existing;
+  }
+
+  const values = await InvAttributeValue.find({
+    tenantId: tid,
+    _id: { $in: valueIds.map(toObjectId) },
+    active: true,
+  }).lean();
+  if (values.length !== valueIds.length) {
+    throw new InventoryValidationError('Invalid attribute values', 'VALUE_INVALID');
+  }
+
+  const exclusions = await InvAttributeExclusion.find({
+    tenantId: tid,
+    templateId: toObjectId(productId),
+    active: true,
+  }).lean();
+  if (comboViolatesExclusion(valueIds, exclusions)) {
+    throw new InventoryValidationError('Combination is excluded for this product', 'COMBO_EXCLUDED');
+  }
+
+  try {
+    return await InvProductVariant.create({
+      tenantId: tid,
+      productId: toObjectId(productId),
+      name: values.map((v) => v.name).join(' / '),
+      nameAr: values.map((v) => v.nameAr || v.name).join(' / '),
+      attributeValueIds: values.map((v) => v._id),
+      combinationKey: key,
+      extraPrice: values.reduce((s, v) => s + (Number(v.extraPrice) || 0), 0),
+      active: true,
+      createdBy: userId,
+    });
+  } catch (err) {
+    if (err?.code === 11000) {
+      return InvProductVariant.findOne({
+        tenantId: tid,
+        productId: toObjectId(productId),
+        combinationKey: key,
+      });
+    }
+    throw err;
+  }
+}
+
+export async function listExclusions(tenantId, templateId) {
+  return InvAttributeExclusion.find({
+    tenantId: toObjectId(tenantId),
+    templateId: toObjectId(templateId),
+  })
+    .populate('attributeValueId', 'name nameAr')
+    .populate('excludedValueIds', 'name nameAr')
+    .lean();
+}
+
+export async function upsertExclusion(tenantId, userId, body) {
+  await assertVariantsEnabled(tenantId);
+  const tid = toObjectId(tenantId);
+  const templateId = toObjectId(body.templateId);
+  const attributeValueId = toObjectId(body.attributeValueId);
+  const excludedValueIds = [...new Set((body.excludedValueIds || []).map((id) => String(id)))]
+    .map(toObjectId);
+
+  if (String(attributeValueId) && excludedValueIds.some((id) => String(id) === String(attributeValueId))) {
+    throw new InventoryValidationError('A value cannot exclude itself', 'EXCLUSION_SELF');
+  }
+
+  return InvAttributeExclusion.findOneAndUpdate(
+    { tenantId: tid, templateId, attributeValueId },
+    {
+      $set: {
+        excludedValueIds,
+        active: body.active !== false,
+        updatedBy: userId,
+      },
+      $setOnInsert: {
+        tenantId: tid,
+        templateId,
+        attributeValueId,
+        createdBy: userId,
+      },
+    },
+    { upsert: true, new: true },
+  );
+}
+
+export async function deleteExclusion(tenantId, id) {
+  const doc = await InvAttributeExclusion.findOneAndDelete({
+    _id: id,
+    tenantId: toObjectId(tenantId),
+  });
+  if (!doc) throw new InventoryValidationError('Exclusion not found', 'EXCLUSION_NOT_FOUND');
+  return { deleted: true };
+}
+
+export async function upsertTemplateAttributeValue(tenantId, userId, body) {
+  await assertVariantsEnabled(tenantId);
+  const tid = toObjectId(tenantId);
+  return InvTemplateAttributeValue.findOneAndUpdate(
+    {
+      tenantId: tid,
+      templateId: toObjectId(body.templateId),
+      attributeValueId: toObjectId(body.attributeValueId),
+    },
+    {
+      $set: {
+        attributeId: toObjectId(body.attributeId),
+        priceExtra: Number(body.priceExtra) || 0,
+        active: body.active !== false,
+        updatedBy: userId,
+      },
+      $setOnInsert: {
+        tenantId: tid,
+        templateId: toObjectId(body.templateId),
+        attributeValueId: toObjectId(body.attributeValueId),
+        createdBy: userId,
+      },
+    },
+    { upsert: true, new: true },
+  );
+}
+
+export async function listTemplateAttributeValues(tenantId, templateId) {
+  return InvTemplateAttributeValue.find({
+    tenantId: toObjectId(tenantId),
+    templateId: toObjectId(templateId),
+    active: true,
+  }).lean();
 }

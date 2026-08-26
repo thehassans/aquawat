@@ -29,6 +29,14 @@ import Customer from '../models/Customer.js';
 import InvSettings from '../models/inventory/InvSettings.js';
 import InvProductCategory from '../models/inventory/InvProductCategory.js';
 import InvLocation from '../models/inventory/InvLocation.js';
+import InvProductAttribute from '../models/inventory/InvProductAttribute.js';
+import InvAttributeValue from '../models/inventory/InvAttributeValue.js';
+import InvProductVariant from '../models/inventory/InvProductVariant.js';
+import InvAttributeExclusion from '../models/inventory/InvAttributeExclusion.js';
+import InvProductRelation from '../models/inventory/InvProductRelation.js';
+import InvProductBundle from '../models/inventory/InvProductBundle.js';
+import InvTemplateAttributeValue from '../models/inventory/InvTemplateAttributeValue.js';
+import InvQuant from '../models/inventory/InvQuant.js';
 
 import {
   ensureInventoryBootstrap,
@@ -40,6 +48,14 @@ import { recomputeWarehouseRoutes } from '../services/inventory/warehouseSteps.j
 import { createLocation, createProductCategory } from '../services/inventory/configMasters.js';
 import { nextProductId } from '../services/inventory/productIdentity.js';
 import { applyQuantDelta } from '../services/inventory/quantDelta.js';
+import {
+  generateVariants,
+  upsertExclusion,
+  upsertTemplateAttributeValue,
+  ensureDefaultVariant,
+} from '../services/inventory/variants.js';
+import { upsertRelation } from '../services/inventory/productRelations.js';
+import { upsertBundle } from '../services/inventory/productBundles.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -343,6 +359,199 @@ async function seedOpeningStock(tid, stockLocationId, products) {
   return seeded;
 }
 
+async function ensureAttr(tid, userId, { name, nameAr, displayType, createVariantMode }) {
+  let attr = await InvProductAttribute.findOne({ tenantId: tid, name });
+  if (attr) {
+    attr.displayType = displayType || attr.displayType;
+    attr.createVariantMode = createVariantMode || attr.createVariantMode;
+    attr.createVariant = (createVariantMode || attr.createVariantMode) !== 'never';
+    attr.active = true;
+    await attr.save();
+    return attr;
+  }
+  return InvProductAttribute.create({
+    tenantId: tid,
+    name,
+    nameAr,
+    displayType: displayType || 'select',
+    createVariantMode: createVariantMode || 'always',
+    createVariant: (createVariantMode || 'always') !== 'never',
+    sequence: 10,
+    active: true,
+    createdBy: userId,
+  });
+}
+
+async function ensureAttrValue(tid, userId, attributeId, { name, nameAr, extraPrice, htmlColor, sequence }) {
+  let val = await InvAttributeValue.findOne({ tenantId: tid, attributeId, name });
+  if (val) {
+    val.extraPrice = extraPrice ?? val.extraPrice;
+    val.htmlColor = htmlColor || val.htmlColor;
+    val.sequence = sequence ?? val.sequence;
+    val.active = true;
+    await val.save();
+    return val;
+  }
+  return InvAttributeValue.create({
+    tenantId: tid,
+    attributeId,
+    name,
+    nameAr,
+    extraPrice: extraPrice || 0,
+    htmlColor,
+    sequence: sequence || 10,
+    active: true,
+    createdBy: userId,
+  });
+}
+
+/**
+ * v5 fixture: Colour(Red/Blue/Silk) × Size(S/M/L/XXL) = 12, exclude Silk+XXL → 11.
+ * + accessory, upsell, kit bundle (AUD-KIT-01).
+ */
+async function seedVariantFixture(tid, userId, { catStd, uomId, simpleProducts }) {
+  const colour = await ensureAttr(tid, userId, {
+    name: 'Colour',
+    nameAr: 'اللون',
+    displayType: 'color',
+    createVariantMode: 'always',
+  });
+  const size = await ensureAttr(tid, userId, {
+    name: 'Size',
+    nameAr: 'المقاس',
+    displayType: 'pill',
+    createVariantMode: 'always',
+  });
+
+  const red = await ensureAttrValue(tid, userId, colour._id, { name: 'Red', nameAr: 'أحمر', htmlColor: '#DC2626', sequence: 10 });
+  const blue = await ensureAttrValue(tid, userId, colour._id, { name: 'Blue', nameAr: 'أزرق', htmlColor: '#2563EB', sequence: 20 });
+  const silk = await ensureAttrValue(tid, userId, colour._id, {
+    name: 'Silk',
+    nameAr: 'حرير',
+    htmlColor: '#F5F0E6',
+    extraPrice: 15,
+    sequence: 30,
+  });
+  const sizeS = await ensureAttrValue(tid, userId, size._id, { name: 'S', nameAr: 'S', sequence: 10 });
+  const sizeM = await ensureAttrValue(tid, userId, size._id, { name: 'M', nameAr: 'M', extraPrice: 5, sequence: 20 });
+  const sizeL = await ensureAttrValue(tid, userId, size._id, { name: 'L', nameAr: 'L', extraPrice: 8, sequence: 30 });
+  const sizeXxl = await ensureAttrValue(tid, userId, size._id, { name: 'XXL', nameAr: 'XXL', extraPrice: 12, sequence: 40 });
+
+  const tee = await ensureProduct(tid, uomId, {
+    sku: 'AUD-TEE-01',
+    nameEn: 'Audit Tee',
+    nameAr: 'تيشيرت تدقيق',
+    tracking: 'none',
+    categoryId: catStd._id,
+    sellingPrice: 50,
+    costPrice: 20,
+  });
+
+  tee.attributeLines = [
+    {
+      attributeId: colour._id,
+      valueIds: [red._id, blue._id, silk._id],
+      createVariantMode: 'always',
+    },
+    {
+      attributeId: size._id,
+      valueIds: [sizeS._id, sizeM._id, sizeL._id, sizeXxl._id],
+      createVariantMode: 'always',
+    },
+  ];
+  await tee.save();
+
+  // Per-template extra: Silk +15 on this tee (also set globally above)
+  await upsertTemplateAttributeValue(tid, userId, {
+    templateId: tee._id,
+    attributeId: colour._id,
+    attributeValueId: silk._id,
+    priceExtra: 15,
+  });
+  await upsertTemplateAttributeValue(tid, userId, {
+    templateId: tee._id,
+    attributeId: size._id,
+    attributeValueId: sizeM._id,
+    priceExtra: 5,
+  });
+
+  await upsertExclusion(tid, userId, {
+    templateId: tee._id,
+    attributeValueId: silk._id,
+    excludedValueIds: [sizeXxl._id],
+  });
+
+  const gen = await generateVariants(tid, userId, {
+    productId: tee._id,
+    attributeLines: tee.attributeLines,
+    dryRun: false,
+  });
+  log(`variant tee: combinations=${gen.combinationCount} created=${gen.created} excluded=${gen.excludedCount}`);
+
+  const accessoryTarget = simpleProducts.find((p) => p.sku === 'AUD-SIM-01') || simpleProducts[0];
+  const upsellTarget = simpleProducts.find((p) => p.sku === 'AUD-SIM-02') || simpleProducts[1];
+
+  await upsertRelation(tid, userId, {
+    sourceProductId: tee._id,
+    relatedProductId: accessoryTarget._id,
+    type: 'accessory',
+    note: 'Phone case style add-on for demo',
+  });
+  await upsertRelation(tid, userId, {
+    sourceProductId: tee._id,
+    relatedProductId: upsellTarget._id,
+    type: 'upsell',
+    note: 'Upgrade suggestion',
+  });
+
+  const kit = await ensureProduct(tid, uomId, {
+    sku: 'AUD-KIT-01',
+    nameEn: 'Audit Starter Kit',
+    nameAr: 'طقم تدقيق',
+    tracking: 'none',
+    categoryId: catStd._id,
+    sellingPrice: 80,
+    costPrice: 0,
+    trackInventory: false,
+  });
+  await upsertBundle(tid, userId, {
+    productId: kit._id,
+    type: 'kit',
+    lines: [
+      { componentProductId: accessoryTarget._id, qty: '1', sequence: 10 },
+      { componentProductId: upsellTarget._id, qty: '2', sequence: 20 },
+    ],
+  });
+
+  // Default variants for simple seeded products (stock remains on productId + null variant for now)
+  for (const p of simpleProducts) {
+    // eslint-disable-next-line no-await-in-loop
+    await ensureDefaultVariant(tid, userId, p._id);
+  }
+
+  const variantCount = await InvProductVariant.countDocuments({
+    tenantId: tid,
+    productId: tee._id,
+    active: true,
+  });
+
+  return {
+    templateSku: 'AUD-TEE-01',
+    templateId: String(tee._id),
+    variantCount,
+    expectedVariants: 11,
+    exclusion: 'Silk × XXL',
+    kitSku: 'AUD-KIT-01',
+    accessorySku: accessoryTarget.sku,
+    upsellSku: upsellTarget.sku,
+    generate: {
+      combinationCount: gen.combinationCount,
+      created: gen.created,
+      excludedCount: gen.excludedCount,
+    },
+  };
+}
+
 async function wipeAuditTenant(slug) {
   const tenant = await Tenant.findOne({ slug });
   if (!tenant) return;
@@ -357,6 +566,14 @@ async function wipeAuditTenant(slug) {
     InvProductCategory.deleteMany({ tenantId: tid }),
     InvLocation.deleteMany({ tenantId: tid }),
     InvSettings.deleteMany({ tenantId: tid }),
+    InvProductAttribute.deleteMany({ tenantId: tid }),
+    InvAttributeValue.deleteMany({ tenantId: tid }),
+    InvProductVariant.deleteMany({ tenantId: tid }),
+    InvAttributeExclusion.deleteMany({ tenantId: tid }),
+    InvProductRelation.deleteMany({ tenantId: tid }),
+    InvProductBundle.deleteMany({ tenantId: tid }),
+    InvTemplateAttributeValue.deleteMany({ tenantId: tid }),
+    InvQuant.deleteMany({ tenantId: tid }),
   ]);
   // Leave tenant doc; recreate children
 }
@@ -379,6 +596,7 @@ async function seedPrimaryTenant(password) {
         groupAdvLocation: true,
         groupProductionLot: true,
         moduleProductExpiry: true,
+        groupProductVariant: true,
         engineEnabled: true,
       },
     },
@@ -533,6 +751,12 @@ async function seedPrimaryTenant(password) {
     warehouseIds: [main._id],
   });
 
+  const variantFixture = await seedVariantFixture(tid, admin._id, {
+    catStd,
+    uomId: uom._id,
+    simpleProducts: products.filter((p) => p.tracking === 'none'),
+  });
+
   return {
     tenant,
     admin,
@@ -540,6 +764,7 @@ async function seedPrimaryTenant(password) {
     warehouses: { MAIN: main, WH2: wh2 },
     categories: { standard: catStd, fifo: catFifo, average: catAvg },
     products: products.map((p) => ({ sku: p.sku, productId: p.productId, tracking: p.tracking })),
+    variantFixture,
   };
 }
 
@@ -635,7 +860,8 @@ async function main() {
       },
       productCount: primary.products.length,
       products: primary.products,
-      note: 'enforceWarehouseRestriction=true; operator scoped to MAIN only',
+      variantFixture: primary.variantFixture,
+      note: 'enforceWarehouseRestriction=true; groupProductVariant=true; operator scoped to MAIN only',
     },
     isolation: {
       slug: SLUG_B,

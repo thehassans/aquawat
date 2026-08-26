@@ -17,6 +17,11 @@ const schema = new mongoose.Schema({
     enum: ['always', 'dynamic', 'never'],
     default: 'always',
   },
+  displayType: {
+    type: String,
+    enum: ['radio', 'select', 'color', 'pill', 'image'],
+    default: 'select',
+  },
   sequence: { type: Number, default: 10 },
   active: { type: Boolean, default: true },
 }, { timestamps: true });

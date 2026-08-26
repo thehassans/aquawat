@@ -2,6 +2,21 @@
 
 Last updated: 2026-08-26
 
+## v5 Product master / variants — schema gate (2026-08-26)
+
+| Topic | Decision |
+|---|---|
+| Impact artifact | Canvas `inventory-v5-schema-impact.canvas.tsx` + this section |
+| Path | **Evolve confirmed** — keep `productId` (Product template) + `variantId` (`InvProductVariant`). No Quant.productId→variant migration |
+| Additive models | `InvAttributeExclusion`, `InvTemplateAttributeValue` (per-template priceExtra), `InvProductRelation`, `InvProductBundle` (kit\|set, one level) |
+| Attribute UX fields | `displayType`, value `htmlColor` / `imageUrl` / `isCustom` |
+| Generation | Exclusions applied; max 1000 combos; reactivate archived; archive-with-history / delete unused; mode change blocked when in use |
+| Seed fixture | `AUD-TEE-01` Colour(Red/Blue/Silk)×Size(S/M/L/XXL) − Silk×XXL → **11** variants; accessory→AUD-SIM-01; upsell→AUD-SIM-02; kit `AUD-KIT-01`; `groupProductVariant=true` |
+| APIs | `/stock/exclusions`, `/stock/relations`, `/stock/products/:id/bundle`, `/kit-availability`, `/variants/get-or-create`, template-attribute-values |
+| Still open (later steps) | Valuation/lot/putaway/cache per variant; Invoice/PO `line.variantId`; sales/POS relationship UI; import dry-run; full form field completion |
+
+## Verification phase (2026-08-26)
+
 ## Verification phase (2026-08-26)
 
 | Topic | Decision |

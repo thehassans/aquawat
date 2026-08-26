@@ -1150,6 +1150,136 @@ router.patch('/variants/:id', checkPermission('inventory', 'update'), async (req
   }
 });
 
+router.post('/variants/get-or-create', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { getOrCreateVariant } = await import('../services/inventory/variants.js');
+    res.json(await getOrCreateVariant(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/products/:productId/exclusions', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listExclusions } = await import('../services/inventory/variants.js');
+    return sendList(res, await listExclusions(req.user.tenantId, req.params.productId));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/exclusions', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { upsertExclusion } = await import('../services/inventory/variants.js');
+    res.status(201).json(await upsertExclusion(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.delete('/exclusions/:id', checkPermission('inventory', 'delete'), async (req, res) => {
+  try {
+    const { deleteExclusion } = await import('../services/inventory/variants.js');
+    res.json(await deleteExclusion(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/products/:productId/template-attribute-values', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listTemplateAttributeValues } = await import('../services/inventory/variants.js');
+    return sendList(res, await listTemplateAttributeValues(req.user.tenantId, req.params.productId));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/template-attribute-values', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { upsertTemplateAttributeValue } = await import('../services/inventory/variants.js');
+    res.json(await upsertTemplateAttributeValue(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/products/:productId/relations', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listRelations } = await import('../services/inventory/productRelations.js');
+    return sendList(res, await listRelations(req.user.tenantId, {
+      productId: req.params.productId,
+      type: req.query.type,
+      direction: req.query.direction || 'outgoing',
+      activeOnly: req.query.active !== 'false',
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/relations', checkPermission('inventory', 'create'), async (req, res) => {
+  try {
+    const { upsertRelation } = await import('../services/inventory/productRelations.js');
+    res.status(201).json(await upsertRelation(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.delete('/relations/:id', checkPermission('inventory', 'delete'), async (req, res) => {
+  try {
+    const { deleteRelation } = await import('../services/inventory/productRelations.js');
+    res.json(await deleteRelation(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/products/:productId/suggestions', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { suggestionsForProduct } = await import('../services/inventory/productRelations.js');
+    const types = req.query.types ? String(req.query.types).split(',') : undefined;
+    return sendList(res, await suggestionsForProduct(req.user.tenantId, req.params.productId, { types }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/products/:productId/bundle', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { getBundle } = await import('../services/inventory/productBundles.js');
+    const doc = await getBundle(req.user.tenantId, req.params.productId);
+    if (!doc) return res.status(404).json({ error: 'Bundle not found' });
+    res.json(doc);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.put('/products/:productId/bundle', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { upsertBundle } = await import('../services/inventory/productBundles.js');
+    res.json(await upsertBundle(req.user.tenantId, req.user._id, {
+      ...req.body,
+      productId: req.params.productId,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/products/:productId/kit-availability', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { kitAvailability } = await import('../services/inventory/productBundles.js');
+    res.json(await kitAvailability(req.user.tenantId, req.params.productId, {
+      warehouseId: req.query.warehouseId,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 // ── Physical inventory ─────────────────────────────────────────────
 
 router.get('/physical-inventory', checkPermission('inventory', 'read'), async (req, res) => {
