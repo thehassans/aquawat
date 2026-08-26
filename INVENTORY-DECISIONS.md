@@ -2,12 +2,29 @@
 
 Last updated: 2026-08-26
 
+## Inventory accounting modes (2026-08-26)
+
+| Topic | Decision |
+|---|---|
+| Maturity model | **Three modes**, not dual toggles. UI: Inventory Settings → Valuation & accounting → **Inventory accounting mode** |
+| `ops_only` | Qty / transfers only. No valuation layers, no stock journals. **Default for new tenants** (bootstrap + create) |
+| `costing` | AVCO/FIFO layers for reports; **no** stock GL journals |
+| `full_accounting` | Layers + Anglo-Saxon stock journals. This **is** the Anglo-Saxon path — no separate checkbox |
+| Synced flags | `inventoryAccountingMode` is source of truth; `inventoryEvaluationEnabled` / `stockAccountingEnabled` are derived aliases for older code |
+| Legacy tenants | Missing mode → derive from flags (`!== false` legacy = full). Existing full tenants are not wiped |
+| Stock accounts | Required only when mode = **full** **and** category `valuationMode` = **automated** (valuation / input / output / journal / expense) |
+| Income / expense | Always commercial GL (sales / purchase / expense). Not replaced by stock valuation accounts |
+| Product form | Income/expense primary; stock fields = optional overrides, shown only in Full mode |
+| Settings COA | Tenant fallbacks (1300 / 1310 / 1320 / 2200, STJ). Prefill empty property accounts when enabling Full or Ensure accounts |
+| Posting | Receipt: Dr valuation / Cr input. Delivery/scrap: Dr output / Cr valuation. Sales: Dr AR / Cr income. Bill clears interim ± price difference |
+| Progressive disclosure | Hide category stock properties, product stock overrides, Settings COA pickers, Ensure accounts when mode ≠ full |
+
 ## Hardening — costing / operations / scrap (2026-08-26)
 
 | Topic | Decision |
 |---|---|
 | AVCO | `computeAverageCost` — on-hand × old avg + receipt × unit cost; PO/GRN `unitCost` on moves |
-| Inventory evaluation | `InvSettings.inventoryEvaluationEnabled` gates valuation layers (journals still `stockAccountingEnabled`) |
+| Inventory evaluation | Driven by mode (`costing` \| `full_accounting`) via `isInventoryEvaluationOn`; journals via `isStockGlOn` / Full mode |
 | Negative stock | Global `allowNegativeStock` OR category/product; reserved underflow clamped on immediate validate |
 | Partners | Outgoing → Customer; incoming → Supplier (`partnerResolve.js`); print-context includes partner |
 | Ops UX | Editable Done + demand/done confirm + `moveQuantities`; variants select; deliveries list customer column |
@@ -123,10 +140,10 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 
 ## Phase 5 delivered (2026-08-25)
 
-- `InvValuationLayer` + `InvLandedCost` (engine); layers on transfer validate when crossing internal boundary
+- Layers on transfer validate when mode is `costing` or `full_accounting` (`isInventoryEvaluationOn`)
 - Costing from `InvProductCategory.costingMethod` (`standard` / `average` / `fifo`); AVCO updates `Product.costPrice`
-- `stockAccountingEnabled` + interim accounts `1310`/`1320`; journals type `stock` (idempotent on layer)
-- Category `valuationMode: manual` writes layers but skips journals
+- Full mode (`inventoryAccountingMode: full_accounting`) posts Anglo-Saxon stock journals; interim COA `1310`/`1320`; journals book `STJ`
+- Category `valuationMode: manual` writes layers but skips journals; automated stock accounts required only in Full mode
 - Engine landed cost: create → compute → validate (FIFO remainingValue / AVCO bump + journal)
 - Legacy `LandedCost` post bridges into engine layers when engine enabled
 - Move `unitCost` from GRN `costPrice` via `legacyAdapter`
@@ -256,7 +273,7 @@ Legacy `LandedCost` (purchases) remains and bridges into engine layers on post.
 | ZATCA print | `TransferPrint` — company VAT, bilingual headers, QR from linked invoice (stored or Phase-1 TLV) |
 
 | Negative stock | Default **blocked**. Override via `InvSettings.allowNegativeStock` (global) **or** `InvProductCategory.allowNegativeStock` / product flag. Validate + scrap → `applyQuantDelta` |
-| Inventory evaluation | `InvSettings.inventoryEvaluationEnabled` (default true) gates valuation layers + AVCO updates on receipt/delivery/scrap; journals still require `stockAccountingEnabled` |
+| Inventory accounting | Prefer `inventoryAccountingMode` (`ops_only` \| `costing` \| `full_accounting`). Evaluation/layers = costing\|full; stock journals = full only. New tenants default `ops_only` |
 | ProductStockCache | New `InvProductStockCache` upserted in `syncProductStockCache` (same session when provided); reports still read ledger; scheduler asserts cache == ledger |
 | Exception queue | `GET /stock/exceptions` + Operations menu — late waits, scheduler errors / NO_RULE, negative forecast, expired lots on hand |
 | Bulk import | Dry-run first; opening qty → **adjustment transfer** (not direct write); `POST /stock/import/locations` added |

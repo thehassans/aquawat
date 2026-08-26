@@ -957,8 +957,21 @@ export function ProductCategoryForm() {
             return
           }
         }
-        if (form.valuationMode === 'automated' && !fullAccounting && !form.expenseAccountId) {
-          // Expense still recommended for purchased goods even without stock GL
+        if (!form.incomeAccountId) {
+          toast(
+            language === 'ar'
+              ? 'مستحسن: عيّن حساب إيراد على الفئة للمنتجات المباعة'
+              : 'Recommended: set an income account on the category for sold products',
+            { icon: '💡' },
+          )
+        }
+        if (!form.expenseAccountId && !(form.valuationMode === 'automated' && fullAccounting)) {
+          toast(
+            language === 'ar'
+              ? 'مستحسن: عيّن حساب مصروف على الفئة للمشتريات'
+              : 'Recommended: set an expense account on the category for purchases',
+            { icon: '💡' },
+          )
         }
         if (costingPreview && Number(costingPreview.delta) !== 0) {
           const ok = window.confirm(
@@ -1097,7 +1110,7 @@ export function ProductCategoryForm() {
           <label className="label">
             {language === 'ar' ? 'حساب الإيراد' : 'Income Account'}
             <span className="ms-1 font-normal text-slate-400">
-              {language === 'ar' ? '(للمنتجات المباعة)' : '(for sold products)'}
+              {language === 'ar' ? '(مستحسن للمنتجات المباعة)' : '(recommended for sold products)'}
             </span>
           </label>
           <select className="select" value={form.incomeAccountId} onChange={(e) => setForm({ ...form, incomeAccountId: e.target.value })}>

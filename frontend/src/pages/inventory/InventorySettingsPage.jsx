@@ -364,8 +364,8 @@ export default function InventorySettingsPage() {
           </p>
           <p className="text-xs text-slate-500">
             {ar
-              ? 'اختياري — فعّل المحاسبة الكاملة فقط إذا أردت ظهور المخزون في دفتر الأستاذ.'
-              : 'Opt-in — enable full accounting only if inventory should hit the general ledger.'}
+              ? 'هل ترحّل المخزون إلى دفتر الأستاذ؟ اختر «عمليات فقط» إن احتجت الكميات فقط، أو «محاسبة كاملة (أنجلو ساكسون)» لقيود التقييم.'
+              : 'Do you post inventory to the general ledger? Choose Stock ops only for quantities; Full inventory accounting (Anglo-Saxon) when stock should hit the books.'}
           </p>
           <div className="grid gap-2">
             {ACCOUNTING_MODE_OPTIONS.map((opt) => {
