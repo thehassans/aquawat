@@ -467,7 +467,7 @@ export default function ProductForm() {
       queryClient.invalidateQueries(['products-stats'])
       toast.success(language === 'ar' ? 'تم تحديث المخزون' : 'Stock updated')
     } catch (e) {
-      toast.error(e?.response?.data?.error || (language === 'ar' ? 'فشل تحديث المخزون' : 'Failed to update stock'))
+      toast.error(formatInvError(e, language) || (language === 'ar' ? 'فشل تحديث المخزون' : 'Failed to update stock'))
     } finally {
       setSavingStock(false)
     }
