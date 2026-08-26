@@ -7,6 +7,7 @@ import InvProductCategory from '../../models/inventory/InvProductCategory.js';
 import Product from '../../models/Product.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { getInternalLocationIds, sortQuantsForRemoval, resolveRemovalStrategy } from './locationHelpers.js';
+import { isQuantReservable } from './quantStatus.js';
 import { atomicReserveQuant, applyQuantDelta } from './quantDelta.js';
 import InvLot from '../../models/inventory/InvLot.js';
 import { isLotExpired } from './lotService.js';
@@ -158,8 +159,8 @@ export async function reserveMove(move, session) {
     };
   }));
 
-  // Exclude expired lots from reservation (FEFO / food-safety)
-  const eligible = quantsWithLoc.filter((q) => !q.expired);
+  // Exclude expired lots and non-available inventory status (B.4)
+  const eligible = quantsWithLoc.filter((q) => !q.expired && isQuantReservable(q.inventoryStatus));
   const sorted = sortQuantsForRemoval(eligible, strategy);
   let reservedAny = false;
   /** @type {{ quantId: import('mongoose').Types.ObjectId, locationId: import('mongoose').Types.ObjectId, productId: import('mongoose').Types.ObjectId, take: string, dims: object }[]} */

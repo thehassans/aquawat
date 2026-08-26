@@ -93,6 +93,7 @@ const InvLandedCostsPage = lazy(() => import('./pages/inventory/ValuationPages')
 const ReportingHub = lazy(() => import('./pages/inventory/Phase6Pages'))
 const MovesAnalysisPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.MovesAnalysisPage })))
 const PerformancePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.PerformancePage })))
+const ExpiryAtRiskPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ExpiryAtRiskPage })))
 const ForecastPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ForecastPage })))
 const ReceptionReportPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ReceptionReportPage })))
 const InventorySettingsPage = lazy(() => import('./pages/inventory/InventorySettingsPage'))
@@ -830,6 +831,8 @@ function App() {
           <Route path="reports/analysis" element={<Navigate to="/app/dashboard/inventory/moves-analysis" replace />} />
           <Route path="performance" element={<PerformancePage />} />
           <Route path="reports/performance" element={<Navigate to="/app/dashboard/inventory/performance" replace />} />
+          <Route path="expiry-at-risk" element={<ExpiryAtRiskPage />} />
+          <Route path="reports/expiry-at-risk" element={<Navigate to="/app/dashboard/inventory/expiry-at-risk" replace />} />
           <Route path="forecast" element={<ForecastPage />} />
           <Route path="report/reception" element={<ReceptionReportPage />} />
           <Route path="settings" element={<InventorySettingsPage />} />

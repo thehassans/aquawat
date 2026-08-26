@@ -1,4 +1,5 @@
 import InvLot from '../../models/inventory/InvLot.js';
+import InvQuant from '../../models/inventory/InvQuant.js';
 import InvMove from '../../models/inventory/InvMove.js';
 import InvLocation from '../../models/inventory/InvLocation.js';
 import InvOperationType from '../../models/inventory/InvOperationType.js';
@@ -165,7 +166,6 @@ async function runExpiryAlerts(tenantId, { trigger, userId, withinDays = 30 }) {
       expirationDate: { $gte: now, $lte: until },
     }).limit(500).select('name productId expirationDate').lean();
 
-    // Surface as JobRun errors/warnings for Exceptions merge (informational)
     const alerts = lots.map((l) => ({
       code: 'LOT_EXPIRING',
       message: `Lot ${l.name} expires ${l.expirationDate?.toISOString?.()?.slice(0, 10)}`,
@@ -174,13 +174,55 @@ async function runExpiryAlerts(tenantId, { trigger, userId, withinDays = 30 }) {
       at: l.expirationDate,
     }));
 
+    let expiredMarked = 0;
+    let expiredSkipped = 0;
+    try {
+      const { updateQuantInventoryStatus } = await import('./quantStatus.js');
+      const expiredLots = await InvLot.find({
+        tenantId: tid,
+        expirationDate: { $lt: now },
+      }).select('_id name').limit(500).lean();
+      if (expiredLots.length) {
+        const expiredLotIds = expiredLots.map((l) => l._id);
+        const quants = await InvQuant.find({
+          tenantId: tid,
+          lotId: { $in: expiredLotIds },
+          quantity: { $ne: '0' },
+          inventoryStatus: { $nin: ['expired'] },
+        }).select('_id inventoryStatus reservedQuantity').limit(500).lean();
+        for (const q of quants) {
+          try {
+            await updateQuantInventoryStatus(tid, q._id, {
+              status: 'expired',
+              reason: 'Auto-marked by expiry_alerts job',
+              userId,
+            });
+            expiredMarked += 1;
+          } catch {
+            expiredSkipped += 1;
+          }
+        }
+      }
+    } catch (err) {
+      alerts.push({
+        code: 'EXPIRED_MARK',
+        message: err.message,
+        at: new Date(),
+      });
+    }
+
     await finishJobRun(job, {
       status: 'ok',
-      counts: { expiringLots: lots.length, withinDays: Number(withinDays) || 30 },
+      counts: {
+        expiringLots: lots.length,
+        withinDays: Number(withinDays) || 30,
+        expiredMarked,
+        expiredSkipped,
+      },
       errors: alerts.slice(0, 100),
       result: { kind: 'expiry_alerts' },
     });
-    return { count: lots.length };
+    return { count: lots.length, expiredMarked, expiredSkipped };
   } catch (err) {
     await finishJobRun(job, {
       status: 'failed',

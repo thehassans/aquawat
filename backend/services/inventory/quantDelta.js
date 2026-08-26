@@ -36,6 +36,7 @@ export async function applyQuantDelta(
       throw new InventoryValidationError('Serial-tracked quant cannot exceed quantity 1', 'SERIAL_QTY_EXCEEDED');
     }
     const doc = { ...filter, inDate, version: 0 };
+    if (dims.inventoryStatus) doc.inventoryStatus = dims.inventoryStatus;
     setDecimalPair(doc, 'quantity', qtyDelta);
     setDecimalPair(doc, 'reservedQuantity', reservedDelta);
     setDecimalPair(doc, 'value', '0');

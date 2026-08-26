@@ -3,6 +3,8 @@ import InvMove from '../../models/inventory/InvMove.js';
 import InvMoveLine from '../../models/inventory/InvMoveLine.js';
 import InvTransfer from '../../models/inventory/InvTransfer.js';
 import InvLocation from '../../models/inventory/InvLocation.js';
+import InvLot from '../../models/inventory/InvLot.js';
+import InvQuant from '../../models/inventory/InvQuant.js';
 import Product from '../../models/Product.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { computeForecast } from './forecast.js';
@@ -563,4 +565,104 @@ export async function stockReportLive(tenantId, { warehouseId, locIds } = {}) {
   }
 
   return { data: rows, total: rows.length, valueTotal: decStr(valueTotal) };
+}
+
+/**
+ * B.2 — expiry at risk: lots with on-hand qty grouped by days-to-expiry buckets.
+ */
+export async function expiryAtRiskReport(tenantId, {
+  warehouseId,
+  buckets = [7, 30, 60, 90],
+} = {}) {
+  const tid = toObjectId(tenantId);
+  const now = new Date();
+  const maxDays = Math.max(...buckets.map(Number), 90);
+  const horizon = new Date(now);
+  horizon.setDate(horizon.getDate() + maxDays);
+
+  let locFilter = { tenantId: tid, usage: 'internal', active: true };
+  if (warehouseId) locFilter.warehouseId = warehouseId;
+  const locs = await InvLocation.find(locFilter).select('_id').lean();
+  const locIds = locs.map((l) => l._id);
+  if (!locIds.length) {
+    return { buckets: [], lines: [], totals: { qty: '0', valueAtRisk: '0' } };
+  }
+
+  const lots = await InvLot.find({
+    tenantId: tid,
+    expirationDate: { $gte: now, $lte: horizon },
+  }).select('name productId expirationDate removalDate').lean();
+
+  const lotIds = lots.map((l) => l._id);
+  if (!lotIds.length) {
+    return { buckets: [], lines: [], totals: { qty: '0', valueAtRisk: '0' } };
+  }
+
+  const quants = await InvQuant.find({
+    tenantId: tid,
+    locationId: { $in: locIds },
+    lotId: { $in: lotIds },
+    quantity: { $ne: '0' },
+  }).lean();
+
+  const productIds = [...new Set(quants.map((q) => String(q.productId)))];
+  const products = await Product.find({ _id: { $in: productIds } }).select('nameEn sku costPrice').lean();
+  const productMap = new Map(products.map((p) => [String(p._id), p]));
+  const lotMap = new Map(lots.map((l) => [String(l._id), l]));
+
+  const bucketDefs = buckets.map(Number).sort((a, b) => a - b);
+  const bucketTotals = Object.fromEntries(bucketDefs.map((d) => [String(d), { qty: D(0), value: D(0), lines: 0 }]));
+  const lines = [];
+
+  for (const q of quants) {
+    const qty = D(q.quantity || 0);
+    if (qty.lte(0)) continue;
+    const lot = lotMap.get(String(q.lotId));
+    if (!lot?.expirationDate) continue;
+    const days = Math.ceil((new Date(lot.expirationDate) - now) / 86400000);
+    const bucket = bucketDefs.find((b) => days <= b) ?? bucketDefs[bucketDefs.length - 1];
+    const product = productMap.get(String(q.productId));
+    const cost = D(product?.costPrice || 0);
+    const value = qty.mul(cost);
+    bucketTotals[String(bucket)].qty = bucketTotals[String(bucket)].qty.plus(qty);
+    bucketTotals[String(bucket)].value = bucketTotals[String(bucket)].value.plus(value);
+    bucketTotals[String(bucket)].lines += 1;
+    lines.push({
+      lotId: lot._id,
+      lotName: lot.name,
+      productId: q.productId,
+      productName: product?.nameEn || product?.sku,
+      sku: product?.sku,
+      locationId: q.locationId,
+      qty: decStr(qty),
+      expirationDate: lot.expirationDate,
+      daysToExpiry: days,
+      bucketDays: bucket,
+      valueAtRisk: decStr(value),
+      inventoryStatus: q.inventoryStatus || 'available',
+      quantId: q._id,
+    });
+  }
+
+  lines.sort((a, b) => a.daysToExpiry - b.daysToExpiry);
+
+  let totalQty = D(0);
+  let totalValue = D(0);
+  const bucketRows = bucketDefs.map((d) => {
+    const row = bucketTotals[String(d)];
+    totalQty = totalQty.plus(row.qty);
+    totalValue = totalValue.plus(row.value);
+    return {
+      withinDays: d,
+      lineCount: row.lines,
+      qty: decStr(row.qty),
+      valueAtRisk: decStr(row.value),
+    };
+  });
+
+  return {
+    buckets: bucketRows,
+    lines,
+    totals: { qty: decStr(totalQty), valueAtRisk: decStr(totalValue) },
+  };
 }

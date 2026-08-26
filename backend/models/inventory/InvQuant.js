@@ -31,6 +31,15 @@ const schema = new mongoose.Schema({
   varianceApprovedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   value: { ...decimalField, default: '0' },
   valueNum: { ...decimal128Field },
+  /** B.4 — only `available` (default) is reservable */
+  inventoryStatus: {
+    type: String,
+    enum: ['available', 'quarantine', 'damaged', 'on_hold', 'expired'],
+    default: 'available',
+  },
+  statusReason: { type: String },
+  statusChangedAt: { type: Date },
+  statusChangedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   version: { type: Number, default: 0 },
 }, { timestamps: true });
 
@@ -51,6 +60,7 @@ schema.index({ tenantId: 1, locationId: 1, productId: 1 });
 schema.index({ tenantId: 1, productId: 1, inDate: 1 });
 schema.index({ tenantId: 1, locationId: 1 });
 schema.index({ tenantId: 1, isCountSet: 1 });
+schema.index({ tenantId: 1, inventoryStatus: 1 });
 
 schema.pre('validate', function syncMirrors(next) {
   setDecimalPair(this, 'quantity', this.quantity ?? '0');

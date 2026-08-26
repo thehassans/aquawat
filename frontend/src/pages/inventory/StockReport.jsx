@@ -7,6 +7,7 @@ import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
 import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
+import { formatInvError } from '../../lib/invError'
 
 function toDatetimeLocalValue(isoOrEmpty) {
   if (!isoOrEmpty) return ''
@@ -56,7 +57,7 @@ export default function StockReport() {
       setEditing(null)
       qc.invalidateQueries({ queryKey: ['stock-report'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const rows = data?.data || []

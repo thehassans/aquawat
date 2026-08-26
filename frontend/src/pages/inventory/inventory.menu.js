@@ -251,6 +251,14 @@ export const INVENTORY_MENU_TREE = [
         permission: { module: 'inventory', action: 'read' },
       },
       {
+        id: 'expiry-at-risk',
+        label: 'Expiry at Risk',
+        labelAr: 'انتهاء الصلاحية',
+        href: '/app/dashboard/inventory/expiry-at-risk',
+        flag: 'productExpiry',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
         id: 'report-reception',
         label: 'Reception Report',
         labelAr: 'تقرير الاستلام',

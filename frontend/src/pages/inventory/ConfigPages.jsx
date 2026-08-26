@@ -9,6 +9,7 @@ import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import ImportExportDialog, { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { isFullInventoryAccounting } from '../../lib/inventoryAccountingMode'
+import { formatInvError } from '../../lib/invError'
 
 const USAGE_OPTIONS = [
   { value: 'vendor', en: 'Vendor Location', ar: 'موقع المورد' },
@@ -117,7 +118,7 @@ export function LocationsPage() {
                 a.click()
                 URL.revokeObjectURL(url)
               } catch (e) {
-                toast.error(e.response?.data?.error || e.message)
+                toast.error(formatInvError(e, language))
               }
             }}
           >
@@ -245,7 +246,7 @@ export function LocationForm() {
       qc.invalidateQueries({ queryKey: ['inv-locations'] })
       navigate('/app/dashboard/inventory/locations')
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const parentOpts = useMemo(
@@ -496,7 +497,7 @@ export function OperationTypeForm() {
       qc.invalidateQueries({ queryKey: ['inv-operation-types'] })
       navigate('/app/dashboard/inventory/operation-types')
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const locs = Array.isArray(locations) ? locations : []
@@ -662,7 +663,7 @@ export function ProductCategoriesPage() {
       qc.invalidateQueries({ queryKey: ['inv-product-categories'] })
       navigate(`/app/dashboard/inventory/product-categories/${res.data._id}/edit`)
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const delMut = useMutation({
@@ -681,7 +682,7 @@ export function ProductCategoriesPage() {
           meta: data.meta || {},
         })
       } else {
-        toast.error(data?.error || e.message)
+        toast.error(formatInvError(e, language))
       }
     },
   })
@@ -950,7 +951,7 @@ export function ProductCategoryForm() {
       qc.invalidateQueries({ queryKey: ['inv-product-categories'] })
       navigate('/app/dashboard/inventory/product-categories')
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const parents = (Array.isArray(cats) ? cats : []).filter((c) => !isEdit || String(c._id) !== String(id))
@@ -1205,7 +1206,7 @@ export function StorageCategoriesPage() {
       setName('')
       qc.invalidateQueries({ queryKey: ['inv-storage-categories'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   return (
@@ -1275,7 +1276,7 @@ export function ReorderingRulesPage() {
       qc.invalidateQueries({ queryKey: ['inv-reorder-rules'] })
       setForm((f) => ({ ...f, productId: '', minQty: '0', maxQty: '0' }))
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   return (
@@ -1382,7 +1383,7 @@ export function InventoryUomPage() {
       setCatForm({ name: '', nameAr: '' })
       qc.invalidateQueries({ queryKey: ['inv-uom-categories'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const mut = useMutation({
@@ -1392,7 +1393,7 @@ export function InventoryUomPage() {
       setForm((f) => ({ ...f, name: '', factor: '1', rounding: '0.01' }))
       qc.invalidateQueries({ queryKey: ['inv-uoms'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   return (

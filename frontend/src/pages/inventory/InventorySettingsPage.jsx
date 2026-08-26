@@ -10,6 +10,7 @@ import {
   isFullInventoryAccounting,
   resolveInventoryAccountingMode,
 } from '../../lib/inventoryAccountingMode'
+import { formatInvError } from '../../lib/invError'
 
 function PrintJobsPanel({ ar }) {
   const { data } = useQuery({
@@ -181,7 +182,7 @@ export default function InventorySettingsPage() {
       qc.invalidateQueries({ queryKey: ['inventory-menu'] })
       setDraft(null)
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const ensureAcc = useMutation({
@@ -210,7 +211,7 @@ export default function InventorySettingsPage() {
         })
       }
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const smsOk = !!current.smsProviderConfigured
@@ -604,7 +605,7 @@ function MaintenanceSection({ language }) {
       qc.invalidateQueries({ queryKey: ['stock-'] })
       qc.invalidateQueries({ queryKey: ['inventory-menu'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const migrate = useMutation({
@@ -613,7 +614,7 @@ function MaintenanceSection({ language }) {
       toast.success(ar ? `ترحيل ${res.data.migrated} رصيد` : `Migrated ${res.data.migrated} balances`)
       qc.invalidateQueries({ queryKey: ['stock-'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const syncCache = useMutation({
@@ -621,7 +622,7 @@ function MaintenanceSection({ language }) {
     onSuccess: (res) => {
       toast.success(ar ? `مزامنة ${res.data.synced ?? 0} منتج` : `Synced ${res.data.synced ?? 0} products`)
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   if (!isAdmin) return null

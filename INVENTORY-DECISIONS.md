@@ -12,7 +12,9 @@ Last updated: 2026-08-26
 | A.3 regression matrix | **Complete scaffold** — `inventoryRegressionA3.test.js`: 4 unit proofs + 22 integration tests + #16 cross-ref to `inventoryConcurrentReserve.test.js`; all integration cases gated on `STOCK_TEST_MONGODB_URI` + replica set |
 | A.2 silent failures | Key paths log warnings (`settingsService`, `invPrint`, `quantDelta`, `bootstrap`, `jobRunner`, `invMetrics`) — not a full-repo empty-catch sweep |
 | IE on lists | `InventoryIeButtons` wired on Transfers (export-only) + Lots (import/export) |
-| Part B | **Unblocked for dev** once integration matrix runs green on rs0 Mongo + live W1–W24 audit PASS |
+| Part B | **Started** — B.2 expiry-at-risk report + B.4 quant inventory status (2026-08-26); B.1 mobile PWA still open |
+| B.4 inventory status | `inventoryStatus` on InvQuant; only `available` reservable; returns land as `quarantine`; PATCH `/stock/quants/:id/status` |
+| B.2 expiry dashboard | `GET /stock/report/expiry-at-risk` + `ExpiryAtRiskPage` (7/30/60/90 buckets, SAR value at risk); inline status change; `expiry_alerts` job auto-marks past-expiry quants |
 
 ## v4.1 Data portability & document output (2026-08-26)
 

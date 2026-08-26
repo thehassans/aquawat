@@ -10,6 +10,7 @@ import ProductChooser from '../../components/inventory/ProductChooser'
 import { StatusChip } from './inventoryUi'
 import { TransferPrintButton } from './TransferPrint'
 import { TransferQualityPanel } from './QualityPages'
+import { formatInvError } from '../../lib/invError'
 
 const CODE_FROM_PATH = () => {
   const parts = window.location.pathname.split('/')
@@ -94,6 +95,7 @@ export default function TransferForm() {
     sourceLocationId: '',
     destLocationId: '',
     scheduledDate: '',
+    deadlineDate: '',
     origin: '',
     note: '',
     priority: 'normal',
@@ -170,7 +172,7 @@ export default function TransferForm() {
       qc.invalidateQueries({ queryKey: ['stock-transfers'] })
       navigate(`${listPath}/${doc._id}`)
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const patchMut = useMutation({
@@ -179,7 +181,7 @@ export default function TransferForm() {
       toast.success(ar ? 'تم الحفظ' : 'Saved')
       qc.invalidateQueries({ queryKey: ['stock-transfer', id] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const actionMut = useMutation({
@@ -192,7 +194,7 @@ export default function TransferForm() {
       qc.invalidateQueries({ queryKey: ['stock-report'] })
       qc.invalidateQueries({ queryKey: ['products'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const applyOpType = (otId) => {
@@ -241,6 +243,7 @@ export default function TransferForm() {
       sourceLocationId: form.sourceLocationId || undefined,
       destLocationId: form.destLocationId || undefined,
       scheduledDate: form.scheduledDate || undefined,
+      deadlineDate: form.deadlineDate || undefined,
       origin: form.origin,
       note: form.note,
       priority: form.priority,
@@ -271,7 +274,7 @@ export default function TransferForm() {
       setShippingCost(rate.price)
     } catch (e) {
       setRatePreview(null)
-      toast.error(e.response?.data?.error || e.message)
+      toast.error(formatInvError(e, language))
     }
   }
 
@@ -547,7 +550,7 @@ export default function TransferForm() {
                     const path = retCode === 'incoming' ? 'receipts' : retCode === 'outgoing' ? 'deliveries' : 'internal'
                     navigate(`/app/dashboard/inventory/${path}/${ret._id}`)
                   } catch (e) {
-                    toast.error(e.response?.data?.error || e.message)
+                    toast.error(formatInvError(e, language))
                   }
                 }}
               >
@@ -676,6 +679,26 @@ export default function TransferForm() {
                 value={form.scheduledDate}
                 onChange={(e) => setForm((f) => ({ ...f, scheduledDate: e.target.value }))}
               />
+            </label>
+            <label className="block text-sm">
+              <span className="label">{ar ? 'آخر موعد' : 'Deadline'}</span>
+              <input
+                type="datetime-local"
+                className="input mt-1 w-full"
+                value={form.deadlineDate}
+                onChange={(e) => setForm((f) => ({ ...f, deadlineDate: e.target.value }))}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="label">{ar ? 'الأولوية' : 'Priority'}</span>
+              <select
+                className="select mt-1 w-full"
+                value={form.priority}
+                onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
+              >
+                <option value="normal">{ar ? 'عادي' : 'Normal'}</option>
+                <option value="urgent">{ar ? 'عاجل' : 'Urgent'}</option>
+              </select>
             </label>
             <label className="block text-sm">
               <span className="label">{ar ? 'المستند المصدر' : 'Source document'}</span>

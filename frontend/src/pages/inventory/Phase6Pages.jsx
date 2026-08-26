@@ -7,6 +7,9 @@ import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
 import { ReportShell, REPORT_TABS, useReportFilters, exportCsv } from './ReportShell'
 import ImportExportDialog from '../../components/inventory/ImportExportDialog'
+import { formatInvError } from '../../lib/invError'
+
+const QUANT_STATUSES = ['available', 'quarantine', 'damaged', 'on_hold', 'expired']
 
 export default function ReportingHub() {
   const { language } = useSelector((s) => s.ui)
@@ -216,6 +219,112 @@ export function PerformancePage() {
             </div>
           ))}
         </div>
+      )}
+    </ReportShell>
+  )
+}
+
+export function ExpiryAtRiskPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  const qc = useQueryClient()
+  const { queryParams } = useReportFilters()
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['expiry-at-risk', queryParams],
+    queryFn: () => api.get('/stock/report/expiry-at-risk', { params: queryParams }).then((r) => r.data),
+  })
+
+  const statusMut = useMutation({
+    mutationFn: ({ quantId, status }) =>
+      api.patch(`/stock/quants/${quantId}/status`, { status }),
+    onSuccess: () => {
+      toast.success(ar ? 'تم تحديث الحالة' : 'Status updated')
+      qc.invalidateQueries({ queryKey: ['expiry-at-risk'] })
+    },
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
+  const buckets = data?.buckets || []
+  const lines = data?.lines || []
+  const totals = data?.totals || {}
+
+  return (
+    <ReportShell
+      activeId="expiry-at-risk"
+      title={ar ? 'انتهاء الصلاحية — مخاطر' : 'Expiry at risk'}
+      subtitle={ar
+        ? 'دفعات بكمية متاحة تنتهي خلال 7 / 30 / 60 / 90 يوماً'
+        : 'Lots on hand expiring within 7 / 30 / 60 / 90 days'}
+    >
+      {isLoading ? (
+        <div className="text-sm text-slate-500">…</div>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {buckets.map((b) => (
+              <div key={b.withinDays} className="rounded-xl border border-slate-200/80 px-4 py-3 dark:border-dark-600">
+                <div className="text-xs uppercase tracking-wide text-slate-400">
+                  {ar ? `≤ ${b.withinDays} يوم` : `≤ ${b.withinDays} days`}
+                </div>
+                <div className="mt-1 text-lg font-semibold tabular-nums">{b.qty}</div>
+                <div className="text-xs text-slate-500">{b.lineCount} {ar ? 'سطر' : 'lines'} · {b.valueAtRisk} SAR</div>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            {ar ? 'إجمالي الكمية' : 'Total qty'}: <strong>{totals.qty || '0'}</strong>
+            {' · '}
+            {ar ? 'قيمة المخاطرة' : 'Value at risk'}: <strong>{totals.valueAtRisk || '0'}</strong> SAR
+          </p>
+          {!lines.length ? (
+            <EmptyState title={ar ? 'لا دفعات منتهية قريباً' : 'No lots expiring soon'} />
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
+                  <tr>
+                    <th className="px-3 py-2 text-start">{ar ? 'الدفعة' : 'Lot'}</th>
+                    <th className="px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                    <th className="px-3 py-2 text-right">{ar ? 'الكمية' : 'Qty'}</th>
+                    <th className="px-3 py-2 text-start">{ar ? 'انتهاء' : 'Expiry'}</th>
+                    <th className="px-3 py-2 text-right">{ar ? 'أيام' : 'Days'}</th>
+                    <th className="px-3 py-2 text-right">{ar ? 'قيمة' : 'Value'}</th>
+                    <th className="px-3 py-2 text-start">{ar ? 'الحالة' : 'Status'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+                  {lines.map((row) => (
+                    <tr key={`${row.lotId}-${row.locationId}`}>
+                      <td className="px-3 py-2">{row.lotName}</td>
+                      <td className="px-3 py-2">{row.productName || row.sku}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{row.qty}</td>
+                      <td className="px-3 py-2">{row.expirationDate ? new Date(row.expirationDate).toLocaleDateString() : '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{row.daysToExpiry}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{row.valueAtRisk}</td>
+                      <td className="px-3 py-2">
+                        {row.quantId ? (
+                          <select
+                            className="input input-sm min-w-[7rem]"
+                            value={row.inventoryStatus || 'available'}
+                            disabled={statusMut.isPending}
+                            onChange={(e) => statusMut.mutate({ quantId: row.quantId, status: e.target.value })}
+                          >
+                            {QUANT_STATUSES.map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          row.inventoryStatus
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </ReportShell>
   )

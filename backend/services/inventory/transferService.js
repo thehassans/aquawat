@@ -459,6 +459,17 @@ export async function validateTransfer(tenantId, transferId, {
 
           // Dest: increase on-hand only for internal locations
           if (destLoc?.usage === 'internal') {
+            const destDims = {
+              variantId: line.variantId,
+              lotId: line.lotId,
+              packageId: line.resultPackageId || line.packageId,
+              ownerId: line.ownerId,
+              tracking,
+              allowNegative,
+            };
+            if (transfer.isReturn) {
+              destDims.inventoryStatus = 'quarantine';
+            }
             await applyQuantDelta(
               session,
               tid,
@@ -467,14 +478,7 @@ export async function validateTransfer(tenantId, transferId, {
               decStr(qty),
               '0',
               new Date(),
-              {
-                variantId: line.variantId,
-                lotId: line.lotId,
-                packageId: line.resultPackageId || line.packageId,
-                ownerId: line.ownerId,
-                tracking,
-                allowNegative,
-              },
+              destDims,
             );
           }
 

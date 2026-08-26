@@ -14,6 +14,7 @@ export const REPORT_TABS = [
   { id: 'moves-analysis', path: '/app/dashboard/inventory/moves-analysis', en: 'Moves Analysis', ar: 'تحليل الحركات' },
   { id: 'performance', path: '/app/dashboard/inventory/performance', en: 'Performance', ar: 'الأداء' },
   { id: 'forecast', path: '/app/dashboard/inventory/forecast', en: 'Forecast', ar: 'التوقع' },
+  { id: 'expiry-at-risk', path: '/app/dashboard/inventory/expiry-at-risk', en: 'Expiry at Risk', ar: 'انتهاء الصلاحية', flag: 'productExpiry' },
   { id: 'reception', path: '/app/dashboard/inventory/report/reception', en: 'Reception', ar: 'الاستلام', flag: 'receptionReport' },
   { id: 'valuation', path: '/app/dashboard/inventory/valuation', en: 'Valuation', ar: 'التقييم', flag: 'valuation' },
   { id: 'reconcile', path: '/app/dashboard/inventory/report/reconcile', en: 'Reconcile', ar: 'المطابقة' },
@@ -124,6 +125,7 @@ export function ReportShell({ activeId, title, subtitle, children, extraFilters,
     if (t.flag === 'multiLocations' && settings?.groupStockMultiLocations === false) return false
     if (t.flag === 'valuation' && !(isInventoryEvaluationOn(settings || {}) || settings?.groupLandedCosts)) return false
     if (t.flag === 'receptionReport' && !(settings?.receptionReportEnabled || settings?.groupReceptionReport)) return false
+    if (t.flag === 'productExpiry' && !settings?.moduleProductExpiry) return false
     return true
   })
 

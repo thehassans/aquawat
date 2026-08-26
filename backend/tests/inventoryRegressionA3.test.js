@@ -30,6 +30,7 @@ import { importProducts } from '../services/inventory/importExport.js';
 import { universalExport, universalImport } from '../services/inventory/universalIe.js';
 import { nextSequenceName, ensureSequence } from '../services/inventory/sequence.js';
 import { loadCostContext } from '../services/inventory/valuation.js';
+import { isQuantReservable } from '../services/inventory/quantStatus.js';
 import {
   uri,
   resolveIntegrationSkip,
@@ -64,6 +65,13 @@ test('A.3 #12 internal move qty deltas net to zero for valuation', () => {
   const out = stockDeltaForLine({ productType: 'goods', quantity: 5, direction: 'out' });
   const inn = stockDeltaForLine({ productType: 'goods', quantity: 5, direction: 'in' });
   assert.equal(out + inn, 0);
+});
+
+test('B.4 only available inventory status is reservable', () => {
+  assert.equal(isQuantReservable('available'), true);
+  assert.equal(isQuantReservable(undefined), true);
+  assert.equal(isQuantReservable('quarantine'), false);
+  assert.equal(isQuantReservable('damaged'), false);
 });
 
 test('A.3 #8 INSUFFICIENT_STOCK names product and location', { skip: integrationSkip || false }, async () => {
@@ -554,6 +562,12 @@ test('A.3 #11 return of done delivery restores stock', { skip: integrationSkip |
     await confirmTransfer(ctx.tenantId, ret._id, ctx.userId);
     await validateTransfer(ctx.tenantId, ret._id, { userId: ctx.userId, immediate: true });
     assert.equal(await quantOnHand(ctx.tenantId, product._id, ctx.stockLocationId), '9');
+    const q = await InvQuant.findOne({
+      tenantId: ctx.tenantId,
+      productId: product._id,
+      locationId: ctx.stockLocationId,
+    }).lean();
+    assert.equal(q?.inventoryStatus, 'quarantine');
   } finally {
     await cleanupTestTenant(ctx.tenantId);
     await mongoose.disconnect();

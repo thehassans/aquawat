@@ -2590,6 +2590,34 @@ router.get('/report/forecast', checkPermission('inventory', 'read'), async (req,
   }
 });
 
+router.get('/report/expiry-at-risk', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { expiryAtRiskReport } = await import('../services/inventory/reporting.js');
+    res.json(await expiryAtRiskReport(req.user.tenantId, {
+      warehouseId: req.query.warehouseId,
+      buckets: req.query.buckets
+        ? String(req.query.buckets).split(',').map(Number).filter(Boolean)
+        : undefined,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.patch('/quants/:id/status', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { updateQuantInventoryStatus } = await import('../services/inventory/quantStatus.js');
+    const quant = await updateQuantInventoryStatus(req.user.tenantId, req.params.id, {
+      status: req.body.status || req.body.inventoryStatus,
+      reason: req.body.reason,
+      userId: req.user._id,
+    });
+    res.json(quant);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/invoices/:invoiceId/lots', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { getInvoiceLotLines } = await import('../services/inventory/invoiceLots.js');
