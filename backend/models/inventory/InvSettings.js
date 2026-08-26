@@ -70,6 +70,12 @@ const schema = new mongoose.Schema({
   varianceApprovalThreshold: { type: Number, default: 0 },
   /** Block apply / postings with accounting date on or before this day (YYYY-MM-DD or Date) */
   inventoryPeriodLockDate: { type: Date, default: null },
+  /** B.2 — block or warn on shipping expired lots (default warn via validation) */
+  blockExpiredShipping: { type: Boolean, default: false },
+  /** B.5 demand replenishment window (days) */
+  demandWindowDays: { type: Number, default: 90 },
+  replenishmentServiceLevel: { type: Number, default: 95 },
+  replenishmentReviewDays: { type: Number, default: 14 },
   /** Print & Documents */
   printDefaultLang: { type: String, enum: ['ar', 'en'], default: 'ar' },
   printShowPricesOnDelivery: { type: Boolean, default: false },

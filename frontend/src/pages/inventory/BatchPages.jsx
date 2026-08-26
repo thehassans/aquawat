@@ -8,6 +8,7 @@ import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { StatusChip } from './inventoryUi'
+import { formatInvError } from '../../lib/invError'
 
 export function BatchTransfersPage() {
   const { language } = useSelector((s) => s.ui)
@@ -38,7 +39,7 @@ export function BatchTransfersPage() {
       qc.invalidateQueries({ queryKey: ['batch-transfers'] })
       navigate(`/app/dashboard/inventory/batches/${doc._id}`)
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   return (
@@ -129,6 +130,12 @@ export function BatchTransferDetailPage() {
     queryFn: () => api.get(`/stock/batch-transfers/${id}`).then((r) => r.data),
   })
 
+  const { data: pickList } = useQuery({
+    queryKey: ['batch-pick-list', id],
+    queryFn: () => api.get(`/stock/batch-transfers/${id}/pick-list`).then((r) => r.data),
+    enabled: Boolean(id),
+  })
+
   const code = batch?.operationTypeId?.code
   const { data: candidates } = useQuery({
     queryKey: ['batch-candidates', code, id],
@@ -164,7 +171,7 @@ export function BatchTransferDetailPage() {
       invalidate()
       setSelected([])
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const closed = batch?.state === 'done' || batch?.state === 'cancelled'
@@ -216,6 +223,32 @@ export function BatchTransferDetailPage() {
               {ar ? 'إلغاء' : 'Cancel'}
             </button>
           </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+        <h3 className="mb-2 text-sm font-semibold">{ar ? 'قائمة التجهيز المدمجة' : 'Merged pick list'}</h3>
+        {!(pickList?.lines || []).length ? (
+          <p className="text-sm text-slate-500">{ar ? 'أضف تحويلات لعرض القائمة' : 'Add pickings to see merged list'}</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase text-slate-500">
+              <tr>
+                <th className="py-1 text-start">{ar ? 'الموقع' : 'Location'}</th>
+                <th className="py-1 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                <th className="py-1 text-end">{ar ? 'الكمية' : 'Qty'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(pickList.lines || []).map((row, i) => (
+                <tr key={i} className="border-t border-slate-100">
+                  <td className="py-1.5">{row.locationPath}</td>
+                  <td className="py-1.5">{row.productName}</td>
+                  <td className="py-1.5 text-end tabular-nums">{row.qty}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 

@@ -7,6 +7,7 @@ import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { StatusChip } from './inventoryUi'
+import { formatInvError } from '../../lib/invError'
 
 export function QualityPointsPage() {
   const { language } = useSelector((s) => s.ui)
@@ -40,7 +41,7 @@ export function QualityPointsPage() {
       setInstructions('')
       qc.invalidateQueries({ queryKey: ['quality-points'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   return (
@@ -137,7 +138,7 @@ export function TransferQualityPanel({ transferId, readOnly, language }) {
       toast.success(ar ? 'تم مزامنة الفحوصات' : 'Checks synced')
       qc.invalidateQueries({ queryKey: ['transfer-quality', transferId] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const resolveMut = useMutation({
@@ -147,7 +148,7 @@ export function TransferQualityPanel({ transferId, readOnly, language }) {
       qc.invalidateQueries({ queryKey: ['transfer-quality', transferId] })
       qc.invalidateQueries({ queryKey: ['stock-transfer', transferId] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   if (isLoading) return <div className="text-sm text-slate-500">…</div>

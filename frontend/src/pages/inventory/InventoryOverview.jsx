@@ -15,6 +15,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import { StatusChip } from './inventoryUi'
+import { formatInvError } from '../../lib/invError'
 
 const cards = [
   { code: 'incoming', path: '/app/dashboard/inventory/receipts', icon: ArrowDownToLine, en: 'Receipts', ar: 'الاستلامات', accent: 'from-teal-500/20 to-teal-500/5' },
@@ -89,7 +90,7 @@ export default function InventoryOverview() {
       qc.invalidateQueries({ queryKey: ['stock-settings'] })
       qc.invalidateQueries({ queryKey: ['inventory-menu'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const counts = countsQuery.data || {}

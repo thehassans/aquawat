@@ -91,6 +91,11 @@ const productSchema = new mongoose.Schema({
   useByDays: { type: Number, default: 0 },
   removalDays: { type: Number, default: 0 },
   alertDays: { type: Number, default: 0 },
+  /** B.3 ABC cycle-count class (auto-computed monthly, user-overridable) */
+  abcClass: { type: String, enum: ['A', 'B', 'C'], default: null },
+  /** B.5 seasonality multiplier for replenishment (e.g. Ramadan 1.5) */
+  seasonalityMultiplier: { type: Number, default: 1 },
+  seasonalityUntil: { type: Date, default: null },
   canBeSold: { type: Boolean, default: true },
   canBePurchased: { type: Boolean, default: true },
   canBeExpensed: { type: Boolean, default: false },

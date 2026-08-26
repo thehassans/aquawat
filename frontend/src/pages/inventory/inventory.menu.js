@@ -102,12 +102,26 @@ export const INVENTORY_MENU_TREE = [
         flag: 'batchTransfers',
         permission: { module: 'inventory', action: 'read' },
       },
+      {
+        id: 'mobile-wh',
+        label: 'Mobile warehouse',
+        labelAr: 'المستودع — جوال',
+        href: '/m',
+        permission: { module: 'inventory', action: 'read' },
+      },
       { type: 'section', id: 'sec-adjustments', label: 'Adjustments', labelAr: 'التسويات' },
       {
         id: 'physical',
         label: 'Physical Inventory',
         labelAr: 'الجرد الفعلي',
         href: '/app/dashboard/inventory/physical',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
+        id: 'count-plans',
+        label: 'Cycle count plans',
+        labelAr: 'خطط العد الدوري',
+        href: '/app/dashboard/inventory/count-plans',
         permission: { module: 'inventory', action: 'read' },
       },
       {
@@ -123,6 +137,13 @@ export const INVENTORY_MENU_TREE = [
         label: 'Replenishment',
         labelAr: 'إعادة التوريد',
         href: '/app/dashboard/inventory/replenishment',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
+        id: 'demand-suggestions',
+        label: 'Demand suggestions',
+        labelAr: 'اقتراحات التزويد',
+        href: '/app/dashboard/inventory/demand-suggestions',
         permission: { module: 'inventory', action: 'read' },
       },
       {
@@ -259,6 +280,41 @@ export const INVENTORY_MENU_TREE = [
         permission: { module: 'inventory', action: 'read' },
       },
       {
+        id: 'stock-ageing',
+        label: 'Stock ageing',
+        labelAr: 'تقادم المخزون',
+        href: '/app/dashboard/inventory/stock-ageing',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
+        id: 'dead-stock',
+        label: 'Dead stock',
+        labelAr: 'مخزون راكد',
+        href: '/app/dashboard/inventory/dead-stock',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
+        id: 'count-accuracy',
+        label: 'Count accuracy',
+        labelAr: 'دقة العد',
+        href: '/app/dashboard/inventory/count-accuracy',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
+        id: 'mock-recall',
+        label: 'Mock recall',
+        labelAr: 'استدعاء تجريبي',
+        href: '/app/dashboard/inventory/mock-recall',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
+        id: 'period-close',
+        label: 'Period close',
+        labelAr: 'إغلاق الفترة',
+        href: '/app/dashboard/inventory/period-close',
+        permission: { module: 'inventory', action: 'read' },
+      },
+      {
         id: 'report-reception',
         label: 'Reception Report',
         labelAr: 'تقرير الاستلام',
@@ -296,6 +352,13 @@ export const INVENTORY_MENU_TREE = [
     labelAr: 'الإعدادات',
     permission: { module: 'inventory', action: 'read' },
     children: [
+      {
+        id: 'integrations',
+        label: 'API & channels',
+        labelAr: 'API والقنوات',
+        href: '/app/dashboard/inventory/integrations',
+        permission: { module: 'inventory', action: 'update' },
+      },
       {
         id: 'settings',
         label: 'Settings',

@@ -7,6 +7,7 @@ import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
 import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
+import { formatInvError } from '../../lib/invError'
 
 export default function ValuationReport() {
   const { language } = useSelector((s) => s.ui)
@@ -149,7 +150,7 @@ export function InvLandedCostsPage() {
       setPrice('')
       qc.invalidateQueries({ queryKey: ['inv-landed-costs'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const computeMut = useMutation({
@@ -158,7 +159,7 @@ export function InvLandedCostsPage() {
       toast.success(language === 'ar' ? 'تم الحساب' : 'Computed')
       qc.invalidateQueries({ queryKey: ['inv-landed-costs'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const validateMut = useMutation({
@@ -168,7 +169,7 @@ export function InvLandedCostsPage() {
       qc.invalidateQueries({ queryKey: ['inv-landed-costs'] })
       qc.invalidateQueries({ queryKey: ['valuation-report'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const items = data?.items || []

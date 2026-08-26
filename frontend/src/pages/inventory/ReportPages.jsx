@@ -5,6 +5,7 @@ import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
 import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
+import { formatInvError } from '../../lib/invError'
 
 export function LocationsReportPage() {
   const { language } = useSelector((s) => s.ui)
@@ -100,7 +101,7 @@ export function ReconcileReportPage() {
         : `Synced ${res.data.repair?.synced ?? 0} · mismatches ${res.data.after?.mismatchCount ?? 0}`)
       qc.invalidateQueries({ queryKey: ['report-reconcile'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   return (

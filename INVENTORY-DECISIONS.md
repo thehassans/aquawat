@@ -12,9 +12,18 @@ Last updated: 2026-08-26
 | A.3 regression matrix | **Complete scaffold** — `inventoryRegressionA3.test.js`: 4 unit proofs + 22 integration tests + #16 cross-ref to `inventoryConcurrentReserve.test.js`; all integration cases gated on `STOCK_TEST_MONGODB_URI` + replica set |
 | A.2 silent failures | Key paths log warnings (`settingsService`, `invPrint`, `quantDelta`, `bootstrap`, `jobRunner`, `invMetrics`) — not a full-repo empty-catch sweep |
 | IE on lists | `InventoryIeButtons` wired on Transfers (export-only) + Lots (import/export) |
-| Part B | **Started** — B.2 expiry-at-risk report + B.4 quant inventory status (2026-08-26); B.1 mobile PWA still open |
-| B.4 inventory status | `inventoryStatus` on InvQuant; only `available` reservable; returns land as `quarantine`; PATCH `/stock/quants/:id/status` |
-| B.2 expiry dashboard | `GET /stock/report/expiry-at-risk` + `ExpiryAtRiskPage` (7/30/60/90 buckets, SAR value at risk); inline status change; `expiry_alerts` job auto-marks past-expiry quants |
+| Part B | **Shipped (2026-08-26)** — B.1 mobile `/m`, B.2–B.4, B.3 count plans, B.5 suggestions, B.6 merged pick list, B.7 period lock, B.8 channel framework, B.9 API keys + webhooks, B.10 owner reports |
+| B.1 mobile PWA | `/m` — Receive / Pick / Count / Transfer; BarcodeScanner + HID; same API layer |
+| B.3 cycle counting | `InvCountPlan`, ABC on Product, `POST /stock/count-plans/:id/run`, count accuracy report |
+| B.5 replenishment | `demandReplenishment.js` — avg demand suggestions with apply; seasonality fields on Product |
+| B.6 batch picking | `GET /stock/batch-transfers/:id/pick-list` merged by product+location, pickSequence sort |
+| B.7 period close | `periodLock.js` on validate + checklist + lock API |
+| B.8 e-commerce | `InvSalesChannel` model + list/create routes (connectors pending) |
+| B.9 public API | `/api/v1/inventory/*` + tenant API keys + webhook subscriptions |
+| B.10 owner reports | stock ageing, dead stock, count accuracy, mock recall |
+| D07 list shell | `InvListShell.jsx` shared pagination/empty chrome |
+| D08 form UX | `useDirtyGuard.js` hook |
+| formatInvError | Adopted on all inventory list/form pages |
 
 ## v4.1 Data portability & document output (2026-08-26)
 

@@ -3,6 +3,7 @@ import { Printer } from 'lucide-react'
 import toast from 'react-hot-toast'
 import QRCode from 'qrcode'
 import api from '../../lib/api'
+import { formatInvError } from '../../lib/invError'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 
 function layoutForOpCode(code) {
@@ -43,7 +44,7 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      toast.error(e.response?.data?.error || e.message || (ar ? 'فشل الطباعة' : 'Print failed'))
+      toast.error(formatInvError(e, language) || (ar ? 'فشل الطباعة' : 'Print failed'))
     }
   }
 

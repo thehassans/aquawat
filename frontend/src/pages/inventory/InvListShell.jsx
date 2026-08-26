@@ -1,0 +1,80 @@
+import { Link } from 'react-router-dom'
+import EmptyState from '../../components/ui/EmptyState'
+
+/** D07 — shared inventory list chrome (pagination, filters meta, empty) */
+export default function InvListShell({
+  title,
+  subtitle,
+  action,
+  children,
+  empty,
+  loading,
+  meta,
+  page = 1,
+  pageSize = 50,
+  total,
+  onPageChange,
+  language = 'en',
+}) {
+  const ar = language === 'ar'
+  const totalPages = total ? Math.max(1, Math.ceil(total / pageSize)) : 1
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+          {meta?.appliedFilters && Object.values(meta.appliedFilters).some(Boolean) && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+              {ar ? 'فلاتر نشطة' : 'Filters active'}
+            </p>
+          )}
+        </div>
+        {action}
+      </div>
+      {loading ? (
+        <div className="py-12 text-center text-sm text-slate-400">…</div>
+      ) : empty ? (
+        typeof empty === 'boolean' ? (
+          <EmptyState title={ar ? 'لا سجلات' : 'No records'} />
+        ) : (
+          empty
+        )
+      ) : (
+        children
+      )}
+      {onPageChange && total > pageSize && (
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span className="text-slate-500">
+            {ar ? `صفحة ${page} من ${totalPages}` : `Page ${page} of ${totalPages}`}
+            {' · '}
+            {total} {ar ? 'سجل' : 'records'}
+          </span>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+              {ar ? 'السابق' : 'Prev'}
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
+              {ar ? 'التالي' : 'Next'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function InvRecordPager({ prev, next, language = 'en' }) {
+  const ar = language === 'ar'
+  return (
+    <div className="flex gap-2">
+      {prev && (
+        <Link to={prev} className="btn btn-secondary btn-sm">{ar ? '← السابق' : '← Previous'}</Link>
+      )}
+      {next && (
+        <Link to={next} className="btn btn-secondary btn-sm">{ar ? 'التالي →' : 'Next →'}</Link>
+      )}
+    </div>
+  )
+}

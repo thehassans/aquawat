@@ -2618,6 +2618,224 @@ router.patch('/quants/:id/status', checkPermission('inventory', 'update'), async
   }
 });
 
+router.post('/quants/:id/write-off-expired', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { writeOffExpiredQuant } = await import('../services/inventory/quantStatus.js');
+    res.json(await writeOffExpiredQuant(req.user.tenantId, req.params.id, req.user._id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/report/stock-ageing', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { stockAgeingReport } = await import('../services/inventory/reporting.js');
+    res.json(await stockAgeingReport(req.user.tenantId, { warehouseId: req.query.warehouseId }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/report/dead-stock', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { deadStockReport } = await import('../services/inventory/reporting.js');
+    res.json(await deadStockReport(req.user.tenantId, {
+      warehouseId: req.query.warehouseId,
+      inactiveDays: req.query.inactiveDays,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/report/mock-recall', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { mockRecallReport } = await import('../services/inventory/reporting.js');
+    if (!req.query.lotId) return res.status(400).json({ error: 'lotId required' });
+    res.json(await mockRecallReport(req.user.tenantId, req.query.lotId));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/report/count-accuracy', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { countAccuracyReport } = await import('../services/inventory/reporting.js');
+    res.json(await countAccuracyReport(req.user.tenantId, { months: req.query.months }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/period-close/checklist', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { periodCloseChecklist } = await import('../services/inventory/periodLock.js');
+    res.json(await periodCloseChecklist(req.user.tenantId, { asOf: req.query.asOf }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/period-close/lock', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { setPeriodLockDate } = await import('../services/inventory/periodLock.js');
+    res.json(await setPeriodLockDate(req.user.tenantId, req.user._id, req.body.lockDate));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/count-plans', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listCountPlans } = await import('../services/inventory/countPlans.js');
+    return sendList(res, await listCountPlans(req.user.tenantId));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/count-plans', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { upsertCountPlan } = await import('../services/inventory/countPlans.js');
+    res.status(201).json(await upsertCountPlan(req.user.tenantId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/count-plans/:id/run', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { runCountPlan } = await import('../services/inventory/countPlans.js');
+    res.json(await runCountPlan(req.user.tenantId, req.params.id, req.user._id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/count-plans/compute-abc', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { computeAbcClasses } = await import('../services/inventory/countPlans.js');
+    res.json(await computeAbcClasses(req.user.tenantId, { windowDays: req.body.windowDays }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/replenishment/suggestions', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listDemandSuggestions } = await import('../services/inventory/demandReplenishment.js');
+    return sendList(res, await listDemandSuggestions(req.user.tenantId, {
+      warehouseId: req.query.warehouseId,
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/replenishment/suggestions/:ruleId/apply', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { applyDemandSuggestion } = await import('../services/inventory/demandReplenishment.js');
+    res.json(await applyDemandSuggestion(req.user.tenantId, req.params.ruleId, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/batch-transfers/:id/pick-list', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { getMergedPickList } = await import('../services/inventory/batchTransfers.js');
+    res.json(await getMergedPickList(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/api-keys', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { default: InvApiKey } = await import('../models/inventory/InvApiKey.js');
+    const keys = await InvApiKey.find({ tenantId: req.user.tenantId, revokedAt: null })
+      .select('-keyHash')
+      .sort({ createdAt: -1 })
+      .lean();
+    return sendList(res, keys);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/api-keys', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { default: InvApiKey } = await import('../models/inventory/InvApiKey.js');
+    const { generateApiKey } = await import('../middleware/invApiKeyAuth.js');
+    const { raw, prefix, hash } = generateApiKey();
+    const [key] = await InvApiKey.create([{
+      tenantId: req.user.tenantId,
+      name: req.body.name || 'API key',
+      keyPrefix: prefix,
+      keyHash: hash,
+      scopes: req.body.scopes || ['read'],
+      createdBy: req.user._id,
+    }]);
+    res.status(201).json({ key: { ...key.toObject(), keyHash: undefined }, secret: raw });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/webhooks', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { default: InvWebhookSubscription } = await import('../models/inventory/InvWebhookSubscription.js');
+    const items = await InvWebhookSubscription.find({ tenantId: req.user.tenantId }).select('-secret').lean();
+    return sendList(res, items);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/webhooks', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { default: InvWebhookSubscription } = await import('../models/inventory/InvWebhookSubscription.js');
+    const crypto = await import('crypto');
+    const secret = crypto.randomBytes(24).toString('hex');
+    const [sub] = await InvWebhookSubscription.create([{
+      tenantId: req.user.tenantId,
+      event: req.body.event,
+      url: req.body.url,
+      secret,
+      createdBy: req.user._id,
+    }]);
+    res.status(201).json({ subscription: sub.toObject(), secret });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/sales-channels', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { default: InvSalesChannel } = await import('../models/inventory/InvSalesChannel.js');
+    return sendList(res, await InvSalesChannel.find({ tenantId: req.user.tenantId }).lean());
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.post('/sales-channels', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const { default: InvSalesChannel } = await import('../models/inventory/InvSalesChannel.js');
+    const [ch] = await InvSalesChannel.create([{
+      tenantId: req.user.tenantId,
+      platform: req.body.platform,
+      name: req.body.name,
+      warehouseId: req.body.warehouseId,
+      status: 'paused',
+      createdBy: req.user._id,
+    }]);
+    res.status(201).json(ch);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.get('/invoices/:invoiceId/lots', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { getInvoiceLotLines } = await import('../services/inventory/invoiceLots.js');

@@ -8,6 +8,7 @@ import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { StatusChip } from './inventoryUi'
+import { formatInvError } from '../../lib/invError'
 
 export function PackagesPage() {
   const { language } = useSelector((s) => s.ui)
@@ -33,7 +34,7 @@ export function PackagesPage() {
       setTypeName('')
       qc.invalidateQueries({ queryKey: ['inv-package-types'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const createPkg = useMutation({
@@ -43,7 +44,7 @@ export function PackagesPage() {
       setName('')
       qc.invalidateQueries({ queryKey: ['inv-packages'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const list = Array.isArray(packages) ? packages : []
@@ -145,7 +146,7 @@ export function ReturnsPage() {
       const path = code === 'incoming' ? 'receipts' : code === 'outgoing' ? 'deliveries' : 'internal'
       window.location.href = `/app/dashboard/inventory/${path}/${ret._id}`
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const rows = data?.data || []
@@ -281,7 +282,7 @@ export function DeliveryMethodsPage() {
       setName('')
       qc.invalidateQueries({ queryKey: ['delivery-carriers'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const rateMut = useMutation({
@@ -292,7 +293,7 @@ export function DeliveryMethodsPage() {
       setLastRate(res)
       toast.success(`${res.price} ${res.currency} (${res.source})`)
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   return (
@@ -433,7 +434,7 @@ export function ProductPackagingPage() {
       setBarcode('')
       qc.invalidateQueries({ queryKey: ['inv-product-packagings'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const patchMut = useMutation({
@@ -442,7 +443,7 @@ export function ProductPackagingPage() {
       toast.success(ar ? 'تم التحديث' : 'Updated')
       qc.invalidateQueries({ queryKey: ['inv-product-packagings'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const productLabel = (p) => {

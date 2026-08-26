@@ -20,6 +20,7 @@ import {
   packagesEnabled,
   signatureRequired,
 } from './settingsService.js';
+import { assertNotPeriodLocked } from './periodLock.js';
 import { stampMoveDone, stampMoveLineDone } from './doneChecksum.js';
 import InvQualityPoint from '../../models/inventory/InvQualityPoint.js';
 import InvQualityCheck from '../../models/inventory/InvQualityCheck.js';
@@ -215,6 +216,11 @@ export async function validateTransfer(tenantId, transferId, {
     try {
       const settings = await getInvSettings(tenantId);
       const opType = await InvOperationType.findById(transfer.operationTypeId).session(session);
+
+      await assertNotPeriodLocked(tenantId, transfer.scheduledDate || transfer.dateDone || new Date(), {
+        message: 'Cannot validate — inventory period is locked for this date',
+        messageAr: 'لا يمكن الاعتماد — الفترة المحاسبية مقفلة لهذا التاريخ',
+      });
 
       if (signatureRequired(settings) && opType?.code === 'outgoing' && !transfer.signature) {
         throw new InventoryValidationError('Signature required on delivery', 'SIGNATURE_REQUIRED');

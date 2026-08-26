@@ -666,3 +666,182 @@ export async function expiryAtRiskReport(tenantId, {
     totals: { qty: decStr(totalQty), valueAtRisk: decStr(totalValue) },
   };
 }
+
+/** B.10 — stock ageing by receipt date buckets */
+export async function stockAgeingReport(tenantId, { warehouseId } = {}) {
+  const tid = toObjectId(tenantId);
+  let locFilter = { tenantId: tid, usage: 'internal', active: true };
+  if (warehouseId) locFilter.warehouseId = warehouseId;
+  const locs = await InvLocation.find(locFilter).select('_id').lean();
+  const locIds = locs.map((l) => l._id);
+  const quants = await InvQuant.find({
+    tenantId: tid,
+    locationId: { $in: locIds },
+    quantity: { $ne: '0' },
+  }).lean();
+  const productIds = [...new Set(quants.map((q) => String(q.productId)))];
+  const products = await Product.find({ _id: { $in: productIds } }).select('nameEn sku costPrice').lean();
+  const productMap = new Map(products.map((p) => [String(p._id), p]));
+  const buckets = { '0-30': D(0), '31-60': D(0), '61-90': D(0), '90+': D(0) };
+  const bucketValue = { '0-30': D(0), '31-60': D(0), '61-90': D(0), '90+': D(0) };
+  const now = Date.now();
+  const lines = [];
+  for (const q of quants) {
+    const qty = D(q.quantity || 0);
+    if (qty.lte(0)) continue;
+    const ageDays = q.inDate ? Math.floor((now - new Date(q.inDate)) / 86400000) : 0;
+    const bucket = ageDays <= 30 ? '0-30' : ageDays <= 60 ? '31-60' : ageDays <= 90 ? '61-90' : '90+';
+    const product = productMap.get(String(q.productId));
+    const cost = D(product?.costPrice || 0);
+    const value = qty.mul(cost);
+    buckets[bucket] = buckets[bucket].plus(qty);
+    bucketValue[bucket] = bucketValue[bucket].plus(value);
+    lines.push({
+      productId: q.productId,
+      productName: product?.nameEn || product?.sku,
+      sku: product?.sku,
+      qty: decStr(qty),
+      ageDays,
+      bucket,
+      value: decStr(value),
+      inDate: q.inDate,
+    });
+  }
+  return {
+    buckets: Object.keys(buckets).map((k) => ({
+      bucket: k,
+      qty: decStr(buckets[k]),
+      value: decStr(bucketValue[k]),
+    })),
+    lines: lines.sort((a, b) => b.ageDays - a.ageDays),
+  };
+}
+
+/** B.10 — dead / slow stock (no outbound in N days) */
+export async function deadStockReport(tenantId, { warehouseId, inactiveDays = 90 } = {}) {
+  const tid = toObjectId(tenantId);
+  const since = new Date();
+  since.setDate(since.getDate() - (Number(inactiveDays) || 90));
+  let locFilter = { tenantId: tid, usage: 'internal', active: true };
+  if (warehouseId) locFilter.warehouseId = warehouseId;
+  const locs = await InvLocation.find(locFilter).select('_id').lean();
+  const locIds = locs.map((l) => l._id);
+
+  const activeProducts = new Set();
+  const outLines = await InvMoveLine.find({
+    tenantId: tid,
+    state: 'done',
+    updatedAt: { $gte: since },
+    sourceLocationId: { $in: locIds },
+  }).select('productId').lean();
+  for (const l of outLines) activeProducts.add(String(l.productId));
+
+  const quants = await InvQuant.find({
+    tenantId: tid,
+    locationId: { $in: locIds },
+    quantity: { $ne: '0' },
+  }).lean();
+  const productIds = [...new Set(quants.map((q) => String(q.productId)))];
+  const products = await Product.find({ _id: { $in: productIds } }).select('nameEn sku costPrice').lean();
+  const productMap = new Map(products.map((p) => [String(p._id), p]));
+
+  const byProduct = new Map();
+  for (const q of quants) {
+    const pid = String(q.productId);
+    const qty = D(q.quantity || 0);
+    if (qty.lte(0)) continue;
+    const prev = byProduct.get(pid) || { qty: D(0), productId: q.productId };
+    prev.qty = prev.qty.plus(qty);
+    byProduct.set(pid, prev);
+  }
+
+  const lines = [];
+  let totalValue = D(0);
+  for (const [pid, row] of byProduct) {
+    if (activeProducts.has(pid)) continue;
+    const product = productMap.get(pid);
+    const value = row.qty.mul(D(product?.costPrice || 0));
+    totalValue = totalValue.plus(value);
+    lines.push({
+      productId: row.productId,
+      productName: product?.nameEn || product?.sku,
+      sku: product?.sku,
+      qty: decStr(row.qty),
+      value: decStr(value),
+      inactiveDays: Number(inactiveDays) || 90,
+    });
+  }
+  lines.sort((a, b) => Number(b.value) - Number(a.value));
+  return { lines, totals: { value: decStr(totalValue), count: lines.length }, inactiveDays };
+}
+
+/** B.10 — mock recall: trace lot to customers/deliveries */
+export async function mockRecallReport(tenantId, lotId) {
+  const tid = toObjectId(tenantId);
+  const lot = await InvLot.findOne({ _id: lotId, tenantId: tid }).lean();
+  if (!lot) throw new InventoryValidationError('Lot not found', 'LOT_NOT_FOUND');
+
+  const lines = await InvMoveLine.find({
+    tenantId: tid,
+    lotId: lot._id,
+    state: 'done',
+  })
+    .populate('transferId', 'name partnerId state scheduledDate')
+    .populate('destLocationId', 'usage name')
+    .limit(500)
+    .lean();
+
+  const hits = [];
+  for (const line of lines) {
+    const destInternal = line.destLocationId?.usage !== 'internal';
+    if (!destInternal) continue;
+    hits.push({
+      transferId: line.transferId?._id,
+      transferName: line.transferId?.name,
+      partnerId: line.transferId?.partnerId,
+      qty: line.quantityInProductUom || line.quantity,
+      date: line.transferId?.scheduledDate || line.updatedAt,
+      lotName: lot.name,
+      productId: lot.productId,
+    });
+  }
+  return { lot, deliveries: hits, totalQty: decStr(hits.reduce((s, h) => s + Number(h.qty || 0), 0)) };
+}
+
+/** B.3/B.10 — count accuracy by location */
+export async function countAccuracyReport(tenantId, { months = 6 } = {}) {
+  const tid = toObjectId(tenantId);
+  const since = new Date();
+  since.setMonth(since.getMonth() - (Number(months) || 6));
+  const quants = await InvQuant.find({
+    tenantId: tid,
+    lastCountDate: { $gte: since },
+    countSnapshotQty: { $ne: null },
+    countedQuantity: { $ne: null },
+  }).populate('locationId', 'name completePath').limit(2000).lean();
+
+  const byLoc = new Map();
+  for (const q of quants) {
+    const locKey = String(q.locationId?._id || 'unknown');
+    const snap = D(q.countSnapshotQty || 0);
+    const counted = D(q.countedQuantity || 0);
+    const diff = counted.minus(snap).abs();
+    const acc = snap.eq(0) ? (counted.eq(0) ? D(1) : D(0)) : D(1).minus(diff.div(snap));
+    const row = byLoc.get(locKey) || {
+      locationId: q.locationId?._id,
+      locationName: q.locationId?.completePath || q.locationId?.name,
+      lines: 0,
+      accuracySum: D(0),
+    };
+    row.lines += 1;
+    row.accuracySum = row.accuracySum.plus(acc);
+    byLoc.set(locKey, row);
+  }
+  const locations = [...byLoc.values()].map((r) => ({
+    locationId: r.locationId,
+    locationName: r.locationName,
+    lines: r.lines,
+    accuracyPct: decStr(r.lines ? r.accuracySum.div(r.lines).mul(100) : D(0)),
+  })).sort((a, b) => Number(b.accuracyPct) - Number(a.accuracyPct));
+  return { locations, months: Number(months) || 6 };
+}

@@ -7,6 +7,7 @@ import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import toast from 'react-hot-toast'
+import { formatInvError } from '../../lib/invError'
 
 export default function ReplenishmentPage() {
   const { language } = useSelector((s) => s.ui)
@@ -39,7 +40,7 @@ export default function ReplenishmentPage() {
       toast.success(language === 'ar' ? 'تم إنشاء التوريد' : 'Procurement created')
       qc.invalidateQueries({ queryKey: ['replenishment'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const snoozeMut = useMutation({
@@ -48,7 +49,7 @@ export default function ReplenishmentPage() {
       toast.success(language === 'ar' ? 'تم التأجيل' : 'Snoozed')
       qc.invalidateQueries({ queryKey: ['replenishment'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const items = data?.items || []
@@ -289,7 +290,7 @@ export function SchedulerPage() {
       qc.invalidateQueries({ queryKey: ['inv-scheduler-runs'] })
       qc.invalidateQueries({ queryKey: ['replenishment'] })
     },
-    onError: (e) => toast.error(e.response?.data?.error || e.message),
+    onError: (e) => toast.error(formatInvError(e, language)),
   })
 
   const runs = runsData || []

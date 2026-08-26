@@ -101,6 +101,7 @@ import purchaseReturnsRoutes from './routes/purchaseReturns.routes.js';
 import inventoryAdjustmentsRoutes from './routes/inventoryAdjustments.routes.js';
 import stockTransferRoutes from './routes/stockTransfer.routes.js';
 import stockRoutes from './routes/stock.routes.js';
+import invPublicApiRoutes from './routes/invPublicApi.routes.js';
 import inventoryPresentationRoutes from './routes/inventory.routes.js';
 import voucherRoutes from './routes/voucher.routes.js';
 
@@ -856,6 +857,7 @@ app.use('/api/backup', ensureDatabaseReady, backupRoutes);
 app.use('/api/inventory-adjustments', ensureDatabaseReady, inventoryAdjustmentsRoutes);
 app.use('/api/stock-transfers', ensureDatabaseReady, stockTransferRoutes);
 app.use('/api/stock', ensureDatabaseReady, stockRoutes);
+app.use('/api/v1/inventory', ensureDatabaseReady, invPublicApiRoutes);
 app.use('/api/inventory', ensureDatabaseReady, inventoryPresentationRoutes);
 app.use('/api/delivery-notes', ensureDatabaseReady, deliveryNoteRoutes);
 app.use('/api/marquee', ensureDatabaseReady, marqueeRoutes);

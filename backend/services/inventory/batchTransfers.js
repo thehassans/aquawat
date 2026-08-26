@@ -219,3 +219,58 @@ export async function cancelBatchTransfer(tenantId, batchId, userId) {
   await batch.save();
   return { ...summary, state: 'cancelled' };
 }
+
+/** B.6 — merged pick list aggregated by product+location, sorted by pickSequence */
+export async function getMergedPickList(tenantId, batchId) {
+  const tid = toObjectId(tenantId);
+  const { pickings } = await getBatchTransfer(tenantId, batchId);
+  const transferIds = pickings.map((p) => p._id);
+  const InvMove = (await import('../../models/inventory/InvMove.js')).default;
+  const InvMoveLine = (await import('../../models/inventory/InvMoveLine.js')).default;
+
+  const moves = await InvMove.find({
+    tenantId: tid,
+    transferId: { $in: transferIds },
+    state: { $nin: ['cancelled', 'done'] },
+  }).select('_id transferId').lean();
+  const moveIds = moves.map((m) => m._id);
+  const moveTransfer = new Map(moves.map((m) => [String(m._id), m.transferId]));
+
+  const lines = await InvMoveLine.find({
+    tenantId: tid,
+    moveId: { $in: moveIds },
+    state: { $nin: ['done', 'cancelled'] },
+  })
+    .populate('productId', 'nameEn nameAr sku')
+    .populate('sourceLocationId', 'name completePath pickSequence')
+    .lean();
+
+  const agg = new Map();
+  for (const line of lines) {
+    const pid = String(line.productId?._id || line.productId);
+    const locId = String(line.sourceLocationId?._id || line.sourceLocationId);
+    const key = `${pid}:${locId}:${line.lotId || ''}`;
+    const qty = Number(line.quantityInProductUom || line.quantity || 0);
+    const pickSeq = line.sourceLocationId?.pickSequence ?? 9999;
+    const existing = agg.get(key) || {
+      productId: line.productId?._id || line.productId,
+      productName: line.productId?.nameEn || line.productId?.sku,
+      locationId: line.sourceLocationId?._id,
+      locationPath: line.sourceLocationId?.completePath || line.sourceLocationId?.name,
+      pickSequence: pickSeq,
+      lotId: line.lotId,
+      qty: 0,
+      allocations: [],
+    };
+    existing.qty += qty;
+    existing.allocations.push({
+      transferId: moveTransfer.get(String(line.moveId)),
+      moveLineId: line._id,
+      qty,
+    });
+    agg.set(key, existing);
+  }
+
+  const merged = [...agg.values()].sort((a, b) => a.pickSequence - b.pickSequence || a.locationPath?.localeCompare(b.locationPath));
+  return { batchId, pickings: pickings.length, lines: merged };
+}

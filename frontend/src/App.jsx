@@ -94,6 +94,19 @@ const ReportingHub = lazy(() => import('./pages/inventory/Phase6Pages'))
 const MovesAnalysisPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.MovesAnalysisPage })))
 const PerformancePage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.PerformancePage })))
 const ExpiryAtRiskPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ExpiryAtRiskPage })))
+const PartBCountPlans = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.CountPlansPage })))
+const PartBPeriodClose = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.PeriodClosePage })))
+const PartBDemandSuggestions = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.DemandSuggestionsPage })))
+const StockAgeingPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.StockAgeingPage })))
+const DeadStockPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.DeadStockPage })))
+const CountAccuracyPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.CountAccuracyPage })))
+const MockRecallPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.MockRecallPage })))
+const ApiIntegrationsPage = lazy(() => import('./pages/inventory/PartBPages').then((m) => ({ default: m.ApiIntegrationsPage })))
+const MobileHome = lazy(() => import('./pages/mobile/MobileWarehouse').then((m) => ({ default: m.MobileHome })))
+const MobileReceive = lazy(() => import('./pages/mobile/MobileWarehouse').then((m) => ({ default: m.MobileReceive })))
+const MobilePick = lazy(() => import('./pages/mobile/MobileWarehouse').then((m) => ({ default: m.MobilePick })))
+const MobileCount = lazy(() => import('./pages/mobile/MobileWarehouse').then((m) => ({ default: m.MobileCount })))
+const MobileTransfer = lazy(() => import('./pages/mobile/MobileWarehouse').then((m) => ({ default: m.MobileTransfer })))
 const ForecastPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ForecastPage })))
 const ReceptionReportPage = lazy(() => import('./pages/inventory/Phase6Pages').then((m) => ({ default: m.ReceptionReportPage })))
 const InventorySettingsPage = lazy(() => import('./pages/inventory/InventorySettingsPage'))
@@ -648,6 +661,20 @@ function App() {
         <Route path="lead-setup" element={<LeadSetup />} />
       </Route>
 
+      {/* B.1 Mobile warehouse PWA */}
+      <Route
+        path="/m"
+        element={
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}><MobileHome /></Suspense>
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/m/receive" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><MobileReceive /></Suspense></ProtectedRoute>} />
+      <Route path="/m/pick" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><MobilePick /></Suspense></ProtectedRoute>} />
+      <Route path="/m/count" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><MobileCount /></Suspense></ProtectedRoute>} />
+      <Route path="/m/transfer" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><MobileTransfer /></Suspense></ProtectedRoute>} />
+
       {/* Main App Routes */}
       <Route
         path="/app/dashboard"
@@ -832,6 +859,14 @@ function App() {
           <Route path="performance" element={<PerformancePage />} />
           <Route path="reports/performance" element={<Navigate to="/app/dashboard/inventory/performance" replace />} />
           <Route path="expiry-at-risk" element={<ExpiryAtRiskPage />} />
+          <Route path="stock-ageing" element={<StockAgeingPage />} />
+          <Route path="dead-stock" element={<DeadStockPage />} />
+          <Route path="count-accuracy" element={<CountAccuracyPage />} />
+          <Route path="mock-recall" element={<MockRecallPage />} />
+          <Route path="count-plans" element={<PartBCountPlans />} />
+          <Route path="period-close" element={<PartBPeriodClose />} />
+          <Route path="demand-suggestions" element={<PartBDemandSuggestions />} />
+          <Route path="integrations" element={<ApiIntegrationsPage />} />
           <Route path="reports/expiry-at-risk" element={<Navigate to="/app/dashboard/inventory/expiry-at-risk" replace />} />
           <Route path="forecast" element={<ForecastPage />} />
           <Route path="report/reception" element={<ReceptionReportPage />} />

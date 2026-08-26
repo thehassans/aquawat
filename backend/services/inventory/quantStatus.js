@@ -59,3 +59,29 @@ export async function updateQuantInventoryStatus(tenantId, quantId, {
 
   return quant;
 }
+
+/** B.2 — write off expired quant via scrap document */
+export async function writeOffExpiredQuant(tenantId, quantId, userId) {
+  const tid = toObjectId(tenantId);
+  const quant = await InvQuant.findOne({ _id: quantId, tenantId: tid }).populate('lotId');
+  if (!quant) throw new InventoryValidationError('Quant not found', 'QUANT_NOT_FOUND');
+  const lot = quant.lotId;
+  if (!lot?.expirationDate || new Date(lot.expirationDate) >= new Date()) {
+    throw new InventoryValidationError('Lot is not expired', 'NOT_EXPIRED');
+  }
+  const qty = D(quant.quantity || 0);
+  if (qty.lte(0)) throw new InventoryValidationError('Nothing to write off', 'NO_QTY');
+
+  const { createScrap, validateScrap } = await import('./scrapService.js');
+  const scrap = await createScrap(tid, userId, {
+    productId: quant.productId,
+    variantId: quant.variantId,
+    lotId: quant.lotId?._id || quant.lotId,
+    sourceLocationId: quant.locationId,
+    quantity: decStr(qty),
+    reasonTag: 'Expired',
+    note: `Auto write-off lot ${lot.name || lot._id}`,
+  });
+  const validated = await validateScrap(scrap._id, tid, userId);
+  return validated;
+}

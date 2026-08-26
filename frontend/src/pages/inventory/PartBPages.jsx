@@ -1,0 +1,387 @@
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSelector } from 'react-redux'
+import { Link } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import { Plus } from 'lucide-react'
+import api from '../../lib/api'
+import { asInvList } from '../../lib/invList'
+import EmptyState from '../../components/ui/EmptyState'
+import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
+import { formatInvError } from '../../lib/invError'
+
+export function CountPlansPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  const qc = useQueryClient()
+  const [name, setName] = useState('')
+  const [frequency, setFrequency] = useState('monthly')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['count-plans'],
+    queryFn: () => api.get('/stock/count-plans').then((r) => asInvList(r.data)),
+  })
+  const plans = data || []
+
+  const create = useMutation({
+    mutationFn: () => api.post('/stock/count-plans', { name, frequency, scopeType: 'warehouse' }),
+    onSuccess: () => {
+      toast.success(ar ? 'تم' : 'Created')
+      setName('')
+      qc.invalidateQueries({ queryKey: ['count-plans'] })
+    },
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
+  const run = useMutation({
+    mutationFn: (id) => api.post(`/stock/count-plans/${id}/run`),
+    onSuccess: (r) => toast.success(ar ? `تم جدولة ${r.data?.scheduled || 0}` : `Scheduled ${r.data?.scheduled || 0}`),
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
+  const abc = useMutation({
+    mutationFn: () => api.post('/stock/count-plans/compute-abc'),
+    onSuccess: (r) => toast.success(ar ? `ABC: ${r.data?.updated}` : `ABC updated: ${r.data?.updated}`),
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">{ar ? 'خطط العد الدوري' : 'Cycle count plans'}</h2>
+        <button type="button" className="btn btn-secondary btn-sm" disabled={abc.isPending} onClick={() => abc.mutate()}>
+          {ar ? 'حساب ABC' : 'Compute ABC'}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <input className="input input-sm" placeholder={ar ? 'اسم الخطة' : 'Plan name'} value={name} onChange={(e) => setName(e.target.value)} />
+        <select className="input input-sm" value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+          <option value="weekly">{ar ? 'أسبوعي' : 'Weekly'}</option>
+          <option value="monthly">{ar ? 'شهري' : 'Monthly'}</option>
+          <option value="quarterly">{ar ? 'ربع سنوي' : 'Quarterly'}</option>
+        </select>
+        <button type="button" className="btn btn-primary btn-sm" disabled={!name.trim() || create.isPending} onClick={() => create.mutate()}>
+          <Plus className="h-4 w-4" />{ar ? 'خطة' : 'Plan'}
+        </button>
+      </div>
+      {isLoading ? <div className="text-slate-400">…</div> : !plans.length ? (
+        <EmptyState title={ar ? 'لا خطط' : 'No plans'} />
+      ) : (
+        <table className="w-full text-sm">
+          <thead><tr className="text-xs uppercase text-slate-500">
+            <th className="py-2 text-start">{ar ? 'الاسم' : 'Name'}</th>
+            <th>{ar ? 'التكرار' : 'Frequency'}</th>
+            <th>{ar ? 'التالي' : 'Next'}</th>
+            <th />
+          </tr></thead>
+          <tbody>
+            {plans.map((p) => (
+              <tr key={p._id} className="border-t border-slate-100">
+                <td className="py-2">{p.name}</td>
+                <td>{p.frequency}</td>
+                <td className="tabular-nums">{p.nextRunAt ? new Date(p.nextRunAt).toLocaleDateString() : '—'}</td>
+                <td className="text-end">
+                  <button type="button" className="btn btn-secondary btn-xs" onClick={() => run.mutate(p._id)}>{ar ? 'تشغيل' : 'Run'}</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
+export function PeriodClosePage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  const qc = useQueryClient()
+  const [lockDate, setLockDate] = useState('')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['period-close'],
+    queryFn: () => api.get('/stock/period-close/checklist').then((r) => r.data),
+  })
+
+  const lock = useMutation({
+    mutationFn: () => api.post('/stock/period-close/lock', { lockDate }),
+    onSuccess: () => {
+      toast.success(ar ? 'تم قفل الفترة' : 'Period locked')
+      qc.invalidateQueries({ queryKey: ['period-close'] })
+    },
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold">{ar ? 'إغلاق الفترة' : 'Period close'}</h2>
+      {isLoading ? <div>…</div> : (
+        <>
+          <p className="text-sm text-slate-600">
+            {ar ? 'قفل حالي:' : 'Current lock:'} <strong>{data?.lockDate || (ar ? 'لا يوجد' : 'None')}</strong>
+            {' · '}
+            {data?.canClose ? (ar ? 'جاهز للإغلاق' : 'Ready to close') : (ar ? 'عناصر معطلة' : 'Blocking items')}
+          </p>
+          {(data?.blocking || []).map((b) => (
+            <div key={b.code} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              {ar && b.messageAr ? b.messageAr : b.message}
+            </div>
+          ))}
+          {(data?.warnings || []).map((w) => (
+            <div key={w.code} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {ar && w.messageAr ? w.messageAr : w.message}
+            </div>
+          ))}
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="label text-xs">{ar ? 'قفل حتى تاريخ' : 'Lock through date'}</label>
+              <input type="date" className="input input-sm" value={lockDate} onChange={(e) => setLockDate(e.target.value)} />
+            </div>
+            <button type="button" className="btn btn-primary btn-sm" disabled={!lockDate || lock.isPending} onClick={() => lock.mutate()}>
+              {ar ? 'تطبيق القفل' : 'Apply lock'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function DemandSuggestionsPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  const qc = useQueryClient()
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['demand-suggestions'],
+    queryFn: () => api.get('/stock/replenishment/suggestions').then((r) => asInvList(r.data)),
+  })
+  const rows = data || []
+
+  const apply = useMutation({
+    mutationFn: (ruleId) => api.post(`/stock/replenishment/suggestions/${ruleId}/apply`),
+    onSuccess: () => {
+      toast.success(ar ? 'تم تطبيق الاقتراح' : 'Suggestion applied')
+      qc.invalidateQueries({ queryKey: ['demand-suggestions'] })
+    },
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold">{ar ? 'اقتراحات التزويد' : 'Replenishment suggestions'}</h2>
+      {isLoading ? <div>…</div> : !rows.length ? (
+        <EmptyState title={ar ? 'لا قواعد' : 'No reorder rules'} description={ar ? 'أضف قواعد إعادة الطلب أولاً' : 'Add reorder rules first'} />
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
+              <tr>
+                <th className="px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                <th className="px-3 py-2 text-end">{ar ? 'الحالي min/max' : 'Current min/max'}</th>
+                <th className="px-3 py-2 text-end">{ar ? 'مقترح min/max' : 'Suggested min/max'}</th>
+                <th className="px-3 py-2 text-start">{ar ? 'الأساس' : 'Basis'}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((r) => (
+                <tr key={r.ruleId}>
+                  <td className="px-3 py-2">{r.productName}</td>
+                  <td className="px-3 py-2 text-end tabular-nums">{r.currentMin} / {r.currentMax}</td>
+                  <td className="px-3 py-2 text-end tabular-nums">{r.suggestedMin} / {r.suggestedMax}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500 max-w-xs">{ar ? r.explanationAr : r.explanation}</td>
+                  <td className="px-3 py-2 text-end">
+                    <button type="button" className="btn btn-secondary btn-xs" onClick={() => apply.mutate(r.ruleId)}>{ar ? 'تطبيق' : 'Apply'}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GenericReportTable({ activeId, title, subtitle, queryKey, endpoint, columns, ar }) {
+  const { queryParams } = useReportFilters()
+  const { data, isLoading } = useQuery({
+    queryKey: [queryKey, queryParams],
+    queryFn: () => api.get(endpoint, { params: queryParams }).then((r) => r.data),
+  })
+  const lines = data?.lines || data?.locations || data?.deliveries || []
+  return (
+    <ReportShell activeId={activeId} title={title} subtitle={subtitle}>
+      {isLoading ? <div>…</div> : !lines.length ? (
+        <EmptyState title={ar ? 'لا بيانات' : 'No data'} />
+      ) : (
+        <>
+          <button type="button" className="btn btn-secondary btn-sm mb-3" onClick={() => exportCsv(lines, `${activeId}.csv`, columns)}>
+            CSV
+          </button>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
+                <tr>{columns.map((c) => <th key={c.key} className="px-3 py-2 text-start">{c.label}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {lines.map((row, i) => (
+                  <tr key={row._id || i}>
+                    {columns.map((c) => (
+                      <td key={c.key} className="px-3 py-2">{c.get ? c.get(row) : row[c.key]}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </ReportShell>
+  )
+}
+
+export function StockAgeingPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  return (
+    <GenericReportTable
+      activeId="stock-ageing"
+      title={ar ? 'تقادم المخزون' : 'Stock ageing'}
+      subtitle={ar ? '0–30 / 31–60 / 61–90 / 90+ يوم' : 'Buckets by days in stock'}
+      queryKey="stock-ageing"
+      endpoint="/stock/report/stock-ageing"
+      ar={ar}
+      columns={[
+        { key: 'product', label: ar ? 'المنتج' : 'Product', get: (r) => r.productName || r.sku },
+        { key: 'qty', label: ar ? 'الكمية' : 'Qty', get: (r) => r.qty },
+        { key: 'age', label: ar ? 'العمر' : 'Age days', get: (r) => r.ageDays },
+        { key: 'bucket', label: ar ? 'الفئة' : 'Bucket', get: (r) => r.bucket },
+        { key: 'value', label: ar ? 'القيمة' : 'Value', get: (r) => r.value },
+      ]}
+    />
+  )
+}
+
+export function DeadStockPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  return (
+    <GenericReportTable
+      activeId="dead-stock"
+      title={ar ? 'مخزون راكد' : 'Dead / slow stock'}
+      subtitle={ar ? 'بدون صرف خلال 90 يوماً' : 'No outbound in 90 days'}
+      queryKey="dead-stock"
+      endpoint="/stock/report/dead-stock"
+      ar={ar}
+      columns={[
+        { key: 'product', label: ar ? 'المنتج' : 'Product', get: (r) => r.productName || r.sku },
+        { key: 'qty', label: ar ? 'الكمية' : 'Qty', get: (r) => r.qty },
+        { key: 'value', label: ar ? 'القيمة' : 'Value SAR', get: (r) => r.value },
+      ]}
+    />
+  )
+}
+
+export function CountAccuracyPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  return (
+    <GenericReportTable
+      activeId="count-accuracy"
+      title={ar ? 'دقة العد' : 'Count accuracy'}
+      subtitle={ar ? 'نسبة الدقة حسب الموقع' : 'Accuracy % by location'}
+      queryKey="count-accuracy"
+      endpoint="/stock/report/count-accuracy"
+      ar={ar}
+      columns={[
+        { key: 'loc', label: ar ? 'الموقع' : 'Location', get: (r) => r.locationName },
+        { key: 'lines', label: ar ? 'أسطر' : 'Lines', get: (r) => r.lines },
+        { key: 'acc', label: ar ? 'الدقة %' : 'Accuracy %', get: (r) => r.accuracyPct },
+      ]}
+    />
+  )
+}
+
+export function MockRecallPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  const [lotId, setLotId] = useState('')
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['mock-recall', lotId],
+    enabled: false,
+    queryFn: () => api.get('/stock/report/mock-recall', { params: { lotId } }).then((r) => r.data),
+  })
+  return (
+    <ReportShell activeId="mock-recall" title={ar ? 'استدعاء تجريبي' : 'Mock recall'} subtitle={ar ? 'تتبع الدفعة للعملاء' : 'Trace lot to customers'}>
+      <div className="mb-4 flex gap-2">
+        <input className="input input-sm flex-1" placeholder={ar ? 'معرف الدفعة' : 'Lot ID'} value={lotId} onChange={(e) => setLotId(e.target.value)} />
+        <button type="button" className="btn btn-primary btn-sm" disabled={!lotId || isFetching} onClick={() => refetch()}>{ar ? 'بحث' : 'Trace'}</button>
+      </div>
+      {data?.deliveries?.length ? (
+        <table className="w-full text-sm">
+          <thead><tr className="text-xs uppercase text-slate-500">
+            <th className="py-2 text-start">{ar ? 'التسليم' : 'Delivery'}</th>
+            <th>{ar ? 'الكمية' : 'Qty'}</th>
+            <th>{ar ? 'التاريخ' : 'Date'}</th>
+          </tr></thead>
+          <tbody>
+            {data.deliveries.map((d, i) => (
+              <tr key={i} className="border-t"><td className="py-2">{d.transferName}</td><td>{d.qty}</td><td>{d.date ? new Date(d.date).toLocaleDateString() : '—'}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      ) : data ? <EmptyState title={ar ? 'لا نتائج' : 'No hits'} /> : null}
+    </ReportShell>
+  )
+}
+
+export function ApiIntegrationsPage() {
+  const { language } = useSelector((s) => s.ui)
+  const ar = language === 'ar'
+  const qc = useQueryClient()
+  const [keyName, setKeyName] = useState('')
+  const [newSecret, setNewSecret] = useState(null)
+
+  const { data: keys } = useQuery({
+    queryKey: ['inv-api-keys'],
+    queryFn: () => api.get('/stock/api-keys').then((r) => asInvList(r.data)),
+  })
+
+  const createKey = useMutation({
+    mutationFn: () => api.post('/stock/api-keys', { name: keyName, scopes: ['read', 'write'] }),
+    onSuccess: (r) => {
+      setNewSecret(r.data?.secret)
+      setKeyName('')
+      qc.invalidateQueries({ queryKey: ['inv-api-keys'] })
+    },
+    onError: (e) => toast.error(formatInvError(e, language)),
+  })
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">{ar ? 'مفاتيح API' : 'API keys'}</h2>
+        <p className="text-sm text-slate-500">{ar ? 'REST على /api/v1/inventory' : 'REST at /api/v1/inventory'}</p>
+        <div className="mt-2 flex gap-2">
+          <input className="input input-sm" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder={ar ? 'الاسم' : 'Name'} />
+          <button type="button" className="btn btn-primary btn-sm" disabled={!keyName || createKey.isPending} onClick={() => createKey.mutate()}>{ar ? 'إنشاء' : 'Create'}</button>
+        </div>
+        {newSecret && (
+          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs font-mono text-amber-900">{newSecret}</p>
+        )}
+        <ul className="mt-3 space-y-1 text-sm">
+          {(keys || []).map((k) => (
+            <li key={k._id}>{k.name} · {k.keyPrefix}… · {k.scopes?.join(', ')}</li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <h3 className="font-medium">{ar ? 'قنوات البيع' : 'Sales channels'}</h3>
+        <p className="text-xs text-slate-500">{ar ? 'إطار Salla / Shopify — موصلات قادمة' : 'Salla / Shopify framework — connectors pending'}</p>
+        <Link to="/app/dashboard/inventory/settings" className="text-sm text-primary-600">{ar ? 'الإعدادات' : 'Settings'}</Link>
+      </div>
+    </div>
+  )
+}
