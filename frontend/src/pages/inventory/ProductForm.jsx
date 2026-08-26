@@ -585,19 +585,17 @@ export default function ProductForm() {
           const hasExpense = !!(payload.expenseAccountId || cat?.expenseAccountId)
           if (payload.canBeSold !== false && !hasIncome) {
             warnings.push(language === 'ar'
-              ? 'المنتج قابل للبيع بلا حساب إيراد (سيُستخدم الحساب الافتراضي أو الفئة)'
-              : 'Sold product has no income account (will use category / default sales)')
+              ? 'المنتج القابل للبيع يحتاج حساب إيراد على المنتج أو الفئة'
+              : 'Sold products require an income account on the product or category')
           }
           if ((payload.canBePurchased || payload.canBeExpensed) && !hasExpense) {
             warnings.push(language === 'ar'
-              ? 'المنتج قابل للشراء/المصروف بلا حساب مصروف'
-              : 'Purchased/expensed product has no expense account (will use category / defaults)')
+              ? 'المنتج القابل للشراء/المصروف يحتاج حساب مصروف على المنتج أو الفئة'
+              : 'Purchased/expensed products require an expense account on the product or category')
           }
           if (warnings.length) {
-            const ok = window.confirm(
-              `${warnings.join('\n')}\n\n${language === 'ar' ? 'المتابعة؟' : 'Continue anyway?'}`,
-            )
-            if (!ok) return
+            toast.error(warnings.join('\n'))
+            return
           }
           mutation.mutate(payload)
         })}

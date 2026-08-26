@@ -85,9 +85,35 @@ export async function ensureDefaultStockJournal(tenantId, userId = null) {
   return book;
 }
 
+/** System Sales journal book (SAL) for invoice revenue entries. */
+export async function ensureDefaultSalesJournal(tenantId, userId = null) {
+  const tid = toObjectId(tenantId);
+  const Journal = (await import('../../models/Journal.js')).default;
+  let book = await Journal.findOne({ tenantId: tid, code: 'SAL' });
+  if (!book) {
+    book = await Journal.findOne({ tenantId: tid, type: 'sales', isSystem: true });
+  }
+  if (!book) {
+    book = await Journal.create({
+      tenantId: tid,
+      code: 'SAL',
+      name: 'Sales Journal',
+      nameAr: 'دفتر المبيعات',
+      type: 'sales',
+      sequencePrefix: 'SAL',
+      active: true,
+      isSystem: true,
+      createdBy: userId || undefined,
+    });
+  }
+  return book;
+}
+
 export async function listJournalBooks(tenantId, { type = null, activeOnly = true } = {}) {
   const tid = toObjectId(tenantId);
   await ensureDefaultStockJournal(tid);
+  await ensureDefaultSalesJournal(tid);
+  await ensureDefaultPurchaseJournal(tid);
   const Journal = (await import('../../models/Journal.js')).default;
   const filter = { tenantId: tid };
   if (type) filter.type = type;
@@ -448,8 +474,13 @@ export function buildPurchaseBillClearingLines({
   vatInput,
   useInterim = true,
   description = '',
-  /** Optional per-account goods debits (already rounded, should sum to net). */
+  /** Optional per-account goods/expense debits (should sum with priceDiff to net). */
   goodsDebits = null,
+  /**
+   * Price difference lines: positive amount = debit (bill > expected),
+   * negative amount = credit (bill < expected).
+   */
+  priceDiffLines = null,
 }) {
   const net = round2(Math.abs(Number(netAmount) || 0));
   const tax = round2(Math.max(0, Number(taxAmount) || 0));
@@ -458,38 +489,68 @@ export function buildPurchaseBillClearingLines({
 
   const lines = [];
 
-  if (Array.isArray(goodsDebits) && goodsDebits.length) {
-    const byAcct = new Map();
-    for (const g of goodsDebits) {
-      const amt = round2(Math.abs(Number(g.amount) || 0));
-      if (amt <= 0 || !g.account?._id) continue;
-      const key = String(g.account._id);
-      const prev = byAcct.get(key);
-      if (prev) prev.debit = round2(prev.debit + amt);
-      else {
-        byAcct.set(key, {
-          accountId: g.account._id,
-          accountCode: g.account.code,
-          debit: amt,
-          credit: 0,
-          description: description || 'Clear stock interim / inventory',
-        });
-      }
+  const pushDebit = (account, amount, desc) => {
+    const amt = round2(Math.abs(Number(amount) || 0));
+    if (amt <= 0 || !account?._id) return;
+    const key = `d:${String(account._id)}:${desc || ''}`;
+    const prev = lines.find((l) => l._mergeKey === key);
+    if (prev) prev.debit = round2(prev.debit + amt);
+    else {
+      lines.push({
+        _mergeKey: key,
+        accountId: account._id,
+        accountCode: account.code,
+        debit: amt,
+        credit: 0,
+        description: desc || description || 'Clear stock interim / inventory',
+      });
     }
-    lines.push(...byAcct.values());
+  };
+
+  const pushCredit = (account, amount, desc) => {
+    const amt = round2(Math.abs(Number(amount) || 0));
+    if (amt <= 0 || !account?._id) return;
+    const key = `c:${String(account._id)}:${desc || ''}`;
+    const prev = lines.find((l) => l._mergeKey === key);
+    if (prev) prev.credit = round2(prev.credit + amt);
+    else {
+      lines.push({
+        _mergeKey: key,
+        accountId: account._id,
+        accountCode: account.code,
+        debit: 0,
+        credit: amt,
+        description: desc || description || 'Price difference',
+      });
+    }
+  };
+
+  if (Array.isArray(goodsDebits) && goodsDebits.length) {
+    for (const g of goodsDebits) {
+      pushDebit(g.account, g.amount, g.description || description || 'Clear stock interim / inventory');
+    }
   } else {
     const goodsAcct = useInterim && stockInput ? stockInput : inventory;
     if (!goodsAcct) return [];
-    lines.push({
-      accountId: goodsAcct._id,
-      accountCode: goodsAcct.code,
-      debit: net,
-      credit: 0,
-      description: description || 'Clear stock interim / inventory',
-    });
+    pushDebit(goodsAcct, net, description || 'Clear stock interim / inventory');
+  }
+
+  if (Array.isArray(priceDiffLines)) {
+    for (const p of priceDiffLines) {
+      const amt = round2(Number(p.amount) || 0);
+      if (!p.account?._id || amt === 0) continue;
+      if (amt > 0) {
+        pushDebit(p.account, amt, p.description || description || 'Purchase price difference');
+      } else {
+        pushCredit(p.account, amt, p.description || description || 'Purchase price difference');
+      }
+    }
   }
 
   if (!lines.length) return [];
+
+  // Strip merge keys before return
+  for (const l of lines) delete l._mergeKey;
 
   if (tax > 0 && vatInput) {
     lines.push({
@@ -500,7 +561,8 @@ export function buildPurchaseBillClearingLines({
       description: description || 'VAT input',
     });
   } else if (tax > 0) {
-    lines[0].debit = round2(lines[0].debit + tax);
+    const firstDebit = lines.find((l) => l.debit > 0);
+    if (firstDebit) firstDebit.debit = round2(firstDebit.debit + tax);
   }
   lines.push({
     accountId: ap._id,
@@ -676,9 +738,11 @@ export async function postLandedCostJournal({ tenantId, userId, landedCostId }) 
 }
 
 /**
- * Post vendor bill journal: clear Stock Interim Received into Accounts Payable.
+ * Post vendor bill journal: clear Stock Interim / expense / price difference into AP.
  * Idempotent on Invoice sourceId.
- * Goods debits resolve per line product (product → category → settings).
+ *
+ * Goods lines: clear interim at expected PO cost when linked; bill − expected → price difference.
+ * Expensable / service lines: debit product/category expense account.
  */
 export async function postPurchaseInvoiceJournal({
   tenantId,
@@ -708,44 +772,122 @@ export async function postPurchaseInvoiceJournal({
   const vatInput = await getAccountByCode(tid, '1400');
   const ap = await getAccountByCode(tid, '2000');
 
-  const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
-  const goodsLines = lineItems.filter(
-    (li) => li?.productId && (li.productType == null || li.productType === 'goods'),
-  );
-
-  let goodsDebits = null;
-  if (goodsLines.length) {
-    const lineNets = goodsLines.map((li) => round2(Math.abs(Number(li.lineTotal) || 0)));
-    const sumLines = round2(lineNets.reduce((s, n) => s + n, 0));
-    goodsDebits = [];
-    for (let i = 0; i < goodsLines.length; i += 1) {
-      let share = lineNets[i];
-      // Scale line totals to invoice taxable net when they differ (discounts / rounding)
-      if (sumLines > 0 && sumLines !== net) {
-        share = round2((lineNets[i] / sumLines) * net);
+  // PO expected unit costs by product / line
+  let poByProduct = new Map();
+  let poByItemId = new Map();
+  if (invoice.sourcePurchaseOrderId) {
+    try {
+      const PurchaseOrder = (await import('../../models/PurchaseOrder.js')).default;
+      const po = await PurchaseOrder.findOne({ _id: invoice.sourcePurchaseOrderId, tenantId: tid })
+        .select('lineItems')
+        .lean();
+      for (const pli of po?.lineItems || []) {
+        if (pli._id) poByItemId.set(String(pli._id), pli);
+        if (pli.productId) poByProduct.set(String(pli.productId), pli);
       }
-      if (share <= 0) continue;
-      const accounts = await resolveValuationAccounts(tid, {
-        productId: goodsLines[i].productId,
-        direction: 'in',
-      });
-      const account = useInterim
-        ? (accounts.stockInput || accounts.inventory)
-        : (accounts.inventory || accounts.stockInput);
-      if (!account) continue;
-      goodsDebits.push({ account, amount: share });
+    } catch {
+      // ignore
     }
-    // Fix rounding residue on last debit so sum equals net
-    if (goodsDebits.length) {
-      const allocated = round2(goodsDebits.reduce((s, g) => s + g.amount, 0));
-      const delta = round2(net - allocated);
-      if (delta !== 0) {
+  }
+
+  const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+  const Product = (await import('../../models/Product.js')).default;
+  const productIds = [...new Set(lineItems.map((li) => li.productId).filter(Boolean))];
+  const products = productIds.length
+    ? await Product.find({ _id: { $in: productIds }, tenantId: tid })
+      .select('canBeExpensed trackInventory productType expenseAccountId categoryId costPrice')
+      .lean()
+    : [];
+  const productById = new Map(products.map((p) => [String(p._id), p]));
+
+  const lineNets = lineItems.map((li) => round2(Math.abs(Number(li.lineTotal) || 0)));
+  const sumLines = round2(lineNets.reduce((s, n) => s + n, 0));
+
+  const goodsDebits = [];
+  const priceDiffLines = [];
+
+  for (let i = 0; i < lineItems.length; i += 1) {
+    const li = lineItems[i];
+    let share = lineNets[i];
+    if (sumLines > 0 && sumLines !== net) {
+      share = round2((lineNets[i] / sumLines) * net);
+    }
+    if (share <= 0) continue;
+
+    const product = li.productId ? productById.get(String(li.productId)) : null;
+    const isService = li.productType === 'service' || product?.productType === 'service';
+    const useExpensePath = isService
+      || product?.trackInventory === false
+      || (product?.canBeExpensed === true && product?.trackInventory !== true);
+
+    if (useExpensePath && li.productId) {
+      const expenseAcct = await resolveProductExpenseAccount(tid, li.productId, defaults.cogs);
+      if (expenseAcct) {
+        goodsDebits.push({
+          account: expenseAcct,
+          amount: share,
+          description: `Expense ${li.productName || li.productId}`,
+        });
+        continue;
+      }
+    }
+
+    // Stockable goods
+    const accounts = await resolveValuationAccounts(tid, {
+      productId: li.productId,
+      direction: 'in',
+    });
+    const stockAcct = useInterim
+      ? (accounts.stockInput || accounts.inventory)
+      : (accounts.inventory || accounts.stockInput);
+    if (!stockAcct) continue;
+
+    const qty = Math.abs(Number(li.quantity) || 0);
+    const poLine = (li.sourcePoItemId && poByItemId.get(String(li.sourcePoItemId)))
+      || (li.productId && poByProduct.get(String(li.productId)))
+      || null;
+    const expectedUnit = poLine?.unitCost != null
+      ? Number(poLine.unitCost)
+      : (product?.costPrice != null ? Number(product.costPrice) : null);
+    const expected = (useInterim && expectedUnit != null && qty > 0)
+      ? round2(expectedUnit * qty)
+      : share;
+    const diff = round2(share - expected);
+
+    goodsDebits.push({
+      account: stockAcct,
+      amount: expected,
+      description: `Stock interim ${li.productName || ''}`.trim(),
+    });
+
+    if (diff !== 0) {
+      const priceDiffAcct = await resolvePriceDifferenceAccount(tid, li.productId);
+      if (priceDiffAcct) {
+        priceDiffLines.push({
+          account: priceDiffAcct,
+          amount: diff,
+          description: `Price difference ${li.productName || ''}`.trim(),
+        });
+      } else {
+        // No price-diff account — fold delta into stock clearing
         goodsDebits[goodsDebits.length - 1].amount = round2(
-          goodsDebits[goodsDebits.length - 1].amount + delta,
+          goodsDebits[goodsDebits.length - 1].amount + diff,
         );
       }
     }
-    if (!goodsDebits.length) goodsDebits = null;
+  }
+
+  // Fix rounding so goods + priceDiff debits − credits = net
+  if (goodsDebits.length || priceDiffLines.length) {
+    const goodsSum = round2(goodsDebits.reduce((s, g) => s + g.amount, 0));
+    const diffSum = round2(priceDiffLines.reduce((s, p) => s + Number(p.amount || 0), 0));
+    const allocated = round2(goodsSum + diffSum);
+    const residue = round2(net - allocated);
+    if (residue !== 0 && goodsDebits.length) {
+      goodsDebits[goodsDebits.length - 1].amount = round2(
+        goodsDebits[goodsDebits.length - 1].amount + residue,
+      );
+    }
   }
 
   const lines = buildPurchaseBillClearingLines({
@@ -756,10 +898,20 @@ export async function postPurchaseInvoiceJournal({
     ap,
     vatInput,
     useInterim,
-    goodsDebits,
+    goodsDebits: goodsDebits.length ? goodsDebits : null,
+    priceDiffLines: priceDiffLines.length ? priceDiffLines : null,
     description: `Vendor bill ${invoice.invoiceNumber || ''}`,
   });
   if (lines.length < 2) return null;
+
+  // Prefer purchase journal book when present
+  let journalId = null;
+  try {
+    const book = await ensureDefaultPurchaseJournal(tid, userId);
+    journalId = book?._id || null;
+  } catch {
+    // optional
+  }
 
   return createJournalEntry({
     tenantId: tid,
@@ -775,5 +927,71 @@ export async function postPurchaseInvoiceJournal({
     sourceId: invoice._id,
     sourceNumber: invoice.invoiceNumber || '',
     status: 'posted',
+    journalId,
   });
+}
+
+/**
+ * Expense account: product → category → fallback COA.
+ */
+export async function resolveProductExpenseAccount(tenantId, productId, fallback = null) {
+  if (!productId) return fallback;
+  const tid = toObjectId(tenantId);
+  const Product = (await import('../../models/Product.js')).default;
+  const product = await Product.findOne({ _id: productId, tenantId: tid })
+    .select('expenseAccountId categoryId')
+    .lean();
+  if (!product) return fallback;
+  const fromProduct = await loadActiveAccount(tid, product.expenseAccountId);
+  if (fromProduct) return fromProduct;
+  if (product.categoryId) {
+    const InvProductCategory = (await import('../../models/inventory/InvProductCategory.js')).default;
+    const cat = await InvProductCategory.findOne({ _id: product.categoryId, tenantId: tid })
+      .select('expenseAccountId')
+      .lean();
+    const fromCat = await loadActiveAccount(tid, cat?.expenseAccountId);
+    if (fromCat) return fromCat;
+  }
+  return fallback;
+}
+
+export async function resolvePriceDifferenceAccount(tenantId, productId) {
+  if (!productId) return null;
+  const tid = toObjectId(tenantId);
+  const Product = (await import('../../models/Product.js')).default;
+  const product = await Product.findOne({ _id: productId, tenantId: tid })
+    .select('categoryId')
+    .lean();
+  if (!product?.categoryId) return null;
+  const InvProductCategory = (await import('../../models/inventory/InvProductCategory.js')).default;
+  const cat = await InvProductCategory.findOne({ _id: product.categoryId, tenantId: tid })
+    .select('priceDifferenceAccountId')
+    .lean();
+  return loadActiveAccount(tid, cat?.priceDifferenceAccountId);
+}
+
+/**
+ * Ensure a system Purchase journal book exists.
+ */
+export async function ensureDefaultPurchaseJournal(tenantId, userId = null) {
+  const tid = toObjectId(tenantId);
+  const Journal = (await import('../../models/Journal.js')).default;
+  let book = await Journal.findOne({ tenantId: tid, code: 'PUR' });
+  if (!book) {
+    book = await Journal.findOne({ tenantId: tid, type: 'purchase', isSystem: true });
+  }
+  if (!book) {
+    book = await Journal.create({
+      tenantId: tid,
+      code: 'PUR',
+      name: 'Purchase Journal',
+      nameAr: 'دفتر المشتريات',
+      type: 'purchase',
+      sequencePrefix: 'PUR',
+      active: true,
+      isSystem: true,
+      createdBy: userId || undefined,
+    });
+  }
+  return book;
 }

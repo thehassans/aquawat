@@ -97,6 +97,7 @@ export default function ExpenseForm() {
       paymentReference: '',
       paymentDate: '',
       notes: '',
+      productId: '',
     },
   })
 
@@ -184,6 +185,7 @@ export default function ExpenseForm() {
         paymentReference: data?.paymentReference || '',
         paymentDate: formatDateForInput(data?.paymentDate),
         notes: data?.notes || '',
+        productId: data?.productId?._id || data?.productId || '',
       })
     },
   })
@@ -192,6 +194,16 @@ export default function ExpenseForm() {
   const statusLabel = statusMeta[currentStatus] || statusMeta.draft
 
   const isLocked = isEdit && ['paid', 'cancelled'].includes(currentStatus)
+
+  const { data: expenseProducts } = useQuery({
+    queryKey: ['expense-products'],
+    queryFn: () => api.get('/products', { params: { limit: 200, canBeExpensed: true } }).then((res) => {
+      const rows = res.data?.products || res.data?.items || res.data || []
+      return Array.isArray(rows) ? rows.filter((p) => p.canBeExpensed === true) : []
+    }),
+    staleTime: 60_000,
+    retry: false,
+  })
 
   const { data: suppliers } = useQuery({
     queryKey: ['suppliers-lookup'],
@@ -322,6 +334,7 @@ export default function ExpenseForm() {
       paymentReference: data.paymentReference,
       paymentDate: data.paymentDate || undefined,
       notes: data.notes,
+      productId: data.productId || null,
       supplierId: data.payeeType === 'supplier' ? data.supplierId : undefined,
       employeeId: data.payeeType === 'employee' ? data.employeeId : undefined,
       customerId: data.payeeType === 'customer' ? data.customerId : undefined,
@@ -456,6 +469,24 @@ export default function ExpenseForm() {
                   <option key={c.value} value={c.value}>{language === 'ar' ? c.ar : c.en}</option>
                 ))}
               </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="label">
+                {language === 'ar' ? 'منتج مصروف (اختياري)' : 'Expense product (optional)'}
+              </label>
+              <select {...register('productId')} className={`select ${fieldControlClass}`} disabled={isLocked}>
+                <option value="">{language === 'ar' ? '— بدون منتج —' : '— No product —'}</option>
+                {(expenseProducts || []).map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {(language === 'ar' ? (p.nameAr || p.nameEn) : (p.nameEn || p.nameAr)) || p.sku || p.productId}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                {language === 'ar'
+                  ? 'يحدد حساب المصروف من المنتج أو فئته عند الدفع'
+                  : 'Uses the product/category expense account when paid'}
+              </p>
             </div>
             {showArabicFields ? (
               <div>

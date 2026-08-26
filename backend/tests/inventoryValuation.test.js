@@ -182,6 +182,44 @@ test('purchase bill clearing with per-product goods debits', () => {
   assert.equal(lines.filter((l) => l.debit > 0 && l.accountCode !== '1400').length, 2);
 });
 
+test('purchase bill clearing with price difference balances', () => {
+  const lines = buildPurchaseBillClearingLines({
+    netAmount: 100,
+    taxAmount: 15,
+    ap: { _id: 'ap', code: '2000' },
+    vatInput: { _id: 'vat', code: '1400' },
+    goodsDebits: [
+      { account: { _id: 'si1', code: '1310' }, amount: 90 },
+    ],
+    priceDiffLines: [
+      { account: { _id: 'pd', code: '4200' }, amount: 10 },
+    ],
+  });
+  const debit = lines.reduce((s, l) => s + l.debit, 0);
+  const credit = lines.reduce((s, l) => s + l.credit, 0);
+  assert.equal(debit, credit);
+  assert.equal(credit, 115);
+  assert.ok(lines.some((l) => l.accountId === 'pd' && l.debit === 10));
+});
+
+test('purchase bill price difference credit when bill below expected', () => {
+  const lines = buildPurchaseBillClearingLines({
+    netAmount: 100,
+    taxAmount: 0,
+    ap: { _id: 'ap', code: '2000' },
+    goodsDebits: [
+      { account: { _id: 'si1', code: '1310' }, amount: 120 },
+    ],
+    priceDiffLines: [
+      { account: { _id: 'pd', code: '4200' }, amount: -20 },
+    ],
+  });
+  const debit = lines.reduce((s, l) => s + l.debit, 0);
+  const credit = lines.reduce((s, l) => s + l.credit, 0);
+  assert.equal(debit, credit);
+  assert.ok(lines.some((l) => l.accountId === 'pd' && l.credit === 20));
+});
+
 test('assertAutomatedCategoryAccounts requires five fields when automated', async () => {
   const { assertAutomatedCategoryAccounts } = await import('../services/inventory/stockAccounting.js');
   assert.throws(

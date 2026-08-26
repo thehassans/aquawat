@@ -246,10 +246,14 @@ router.post('/', checkTrialLimits('products'), checkPermission('inventory', 'cre
     delete productData.productId;
     productData.productId = await nextProductId(req.user.tenantId);
 
+    const { assertProductAccountingAccounts } = await import('../services/inventory/productAccounting.js');
+    await assertProductAccountingAccounts(req.user.tenantId, productData);
+
     const product = await Product.create(productData);
     res.status(201).json(computeTotalStock(product));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    const status = error?.status || (error?.code === 'PRODUCT_ACCOUNTS_REQUIRED' ? 400 : 500);
+    res.status(status).json({ error: error.message, code: error.code, details: error.details });
   }
 });
 
@@ -295,11 +299,16 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
       product.productId = await nextProductId(req.user.tenantId);
     }
     product.productType = normalizeProductType(product.productType);
+
+    const { assertProductAccountingAccounts } = await import('../services/inventory/productAccounting.js');
+    await assertProductAccountingAccounts(req.user.tenantId, product);
+
     await product.save();
     
     res.json(computeTotalStock(product));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    const status = error?.status || (error?.code === 'PRODUCT_ACCOUNTS_REQUIRED' ? 400 : 500);
+    res.status(status).json({ error: error.message, code: error.code, details: error.details });
   }
 });
 

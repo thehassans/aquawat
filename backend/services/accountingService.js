@@ -465,6 +465,15 @@ export async function postSalesInvoiceJournal({
   });
   if (lines.length < 2) return null;
 
+  let journalId = null;
+  try {
+    const { ensureDefaultSalesJournal } = await import('./inventory/stockAccounting.js');
+    const book = await ensureDefaultSalesJournal(tenantId, userId);
+    journalId = book?._id || null;
+  } catch {
+    // optional
+  }
+
   return createJournalEntry({
     tenantId,
     userId,
@@ -479,6 +488,7 @@ export async function postSalesInvoiceJournal({
     sourceId: invoice._id,
     sourceNumber: invoice.invoiceNumber,
     status: 'posted',
+    journalId,
   });
 }
 
@@ -623,7 +633,18 @@ export async function postExpensePaidJournal({
     expenseCode = ACCOUNT_CODE_MAP.utilities;
   }
 
-  const expenseAcct = byCode[expenseCode] || byCode[ACCOUNT_CODE_MAP.opex];
+  let expenseAcct = byCode[expenseCode] || byCode[ACCOUNT_CODE_MAP.opex];
+  // Prefer product / category expense account when an expense product is linked
+  if (expense.productId) {
+    try {
+      const { resolveProductExpenseAccount } = await import('./inventory/stockAccounting.js');
+      const fromProduct = await resolveProductExpenseAccount(tenantId, expense.productId, expenseAcct);
+      if (fromProduct) expenseAcct = fromProduct;
+    } catch {
+      // keep category fallback
+    }
+  }
+
   const vatIn = byCode[ACCOUNT_CODE_MAP.vatInput];
   const cash = byCode[paymentAccountCode(expense.paymentMethod)] || byCode[ACCOUNT_CODE_MAP.bank];
   if (!expenseAcct || !cash) return null;
