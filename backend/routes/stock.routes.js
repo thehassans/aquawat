@@ -3048,9 +3048,26 @@ router.get('/print/layouts', checkPermission('inventory', 'read'), async (req, r
   }
 });
 
+router.get('/print/jobs', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const InvPrintJob = (await import('../models/inventory/InvPrintJob.js')).default;
+    const { toObjectId } = await import('../models/inventory/common.js');
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const jobs = await InvPrintJob.find({ tenantId: toObjectId(req.user.tenantId) })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+    res.json({ jobs });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.post('/print', checkPermission('inventory', 'read'), stockHeavyLimiter, async (req, res) => {
   try {
     const { renderInventoryPdf, renderZplLabel } = await import('../services/inventory/invPrint.js');
+    const InvPrintJob = (await import('../models/inventory/InvPrintJob.js')).default;
+    const { toObjectId } = await import('../models/inventory/common.js');
     if (req.body.format === 'zpl') {
       const zpl = renderZplLabel({
         title: req.body.title,
@@ -3061,23 +3078,63 @@ router.post('/print', checkPermission('inventory', 'read'), stockHeavyLimiter, a
       res.setHeader('Content-Disposition', 'attachment; filename="label.zpl"');
       return res.send(zpl);
     }
-    const buf = await renderInventoryPdf(req.user.tenantId, {
-      layout: req.body.layout,
-      transferId: req.body.transferId,
-      transferIds: req.body.transferIds,
-      locationIds: req.body.locationIds,
-      productIds: req.body.productIds,
-      lotIds: req.body.lotIds,
-      packageIds: req.body.packageIds,
-      copies: req.body.copies,
-      labelPreset: req.body.labelPreset,
-      filters: req.body.filters || {},
+
+    const layout = req.body.layout;
+    const printJob = await InvPrintJob.create({
+      tenantId: toObjectId(req.user.tenantId),
+      userId: req.user._id,
+      layout,
+      status: 'pending',
       lang: req.body.lang || 'ar',
-      showPrices: !!req.body.showPrices,
-    });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${req.body.layout || 'document'}.pdf"`);
-    return res.send(buf);
+      transferIds: [
+        ...(req.body.transferIds || []),
+        ...(req.body.transferId ? [req.body.transferId] : []),
+      ].filter(Boolean),
+      productIds: req.body.productIds || [],
+      locationIds: req.body.locationIds || [],
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    }).catch(() => null);
+
+    try {
+      const buf = await renderInventoryPdf(req.user.tenantId, {
+        layout,
+        transferId: req.body.transferId,
+        transferIds: req.body.transferIds,
+        locationIds: req.body.locationIds,
+        productIds: req.body.productIds,
+        lotIds: req.body.lotIds,
+        packageIds: req.body.packageIds,
+        copies: req.body.copies,
+        labelPreset: req.body.labelPreset,
+        filters: req.body.filters || {},
+        lang: req.body.lang || 'ar',
+        showPrices: !!req.body.showPrices,
+      });
+      if (printJob?._id) {
+        await InvPrintJob.updateOne(
+          { _id: printJob._id },
+          {
+            $set: {
+              status: 'done',
+              filename: `${layout || 'document'}.pdf`,
+              bytes: buf.length,
+            },
+          },
+        ).catch(() => {});
+      }
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${layout || 'document'}.pdf"`);
+      if (printJob?._id) res.setHeader('X-Print-Job-Id', String(printJob._id));
+      return res.send(buf);
+    } catch (err) {
+      if (printJob?._id) {
+        await InvPrintJob.updateOne(
+          { _id: printJob._id },
+          { $set: { status: 'failed', error: err.message || String(err) } },
+        ).catch(() => {});
+      }
+      throw err;
+    }
   } catch (err) {
     handleInventoryError(res, err);
   }

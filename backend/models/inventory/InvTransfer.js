@@ -30,6 +30,8 @@ const schema = new mongoose.Schema({
   signedBy: { type: String },
   signedOn: { type: Date },
   isPrinted: { type: Boolean, default: false },
+  printedCount: { type: Number, default: 0 },
+  lastPrintedAt: { type: Date },
   sourceModel: { type: String },
   sourceDocId: { type: mongoose.Schema.Types.ObjectId },
   /** Idempotency lock for validate — set before apply, cleared after */

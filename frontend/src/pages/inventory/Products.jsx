@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Search, Package, AlertTriangle, Eye, Edit, QrCode, Boxes, Warehouse, CircleOff } from 'lucide-react'
+import { Plus, Search, Package, AlertTriangle, Eye, Edit, QrCode, Boxes, Warehouse, CircleOff, Printer } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
@@ -206,6 +206,32 @@ export default function Products() {
               queryClient.invalidateQueries({ queryKey: ['products-stats'] })
             }}
           />
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
+            disabled={!products.length}
+            onClick={async () => {
+              try {
+                const res = await api.post('/stock/print', {
+                  layout: 'product_label',
+                  productIds: products.slice(0, 50).map((p) => p._id),
+                  copies: 1,
+                  lang: isAr ? 'ar' : 'en',
+                }, { responseType: 'blob' })
+                const url = URL.createObjectURL(res.data)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'product-labels.pdf'
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch (e) {
+                toast.error(e.response?.data?.error || e.message)
+              }
+            }}
+          >
+            <Printer className="h-4 w-4" />
+            {isAr ? 'ملصقات' : 'Labels'}
+          </button>
           <ExportMenu
             language={language}
             t={t}

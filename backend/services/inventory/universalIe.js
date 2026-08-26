@@ -24,10 +24,10 @@ import {
   listIeModels,
   flattenIeFields,
   costGatedFieldKeys,
-  PRODUCT_SYSTEM_TEMPLATES,
   IE_MODELS,
   assertProductRegistryComplete,
 } from './ieRegistry.js';
+import InvIeAudit from '../../models/inventory/InvIeAudit.js';
 import {
   rowsToCsv,
   csvTextToXlsxBuffer,
@@ -42,6 +42,19 @@ import { withTenant } from '../../utils/tenantScope.js';
 
 const SYNC_ROW_LIMIT = 5000;
 const HARD_ROW_CAP = 50000;
+const EXPORT_JOB_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function writeIeAudit(tenantId, userId, payload) {
+  try {
+    await InvIeAudit.create({
+      tenantId: toObjectId(tenantId),
+      userId: userId || undefined,
+      ...payload,
+    });
+  } catch {
+    /* audit must not block IE */
+  }
+}
 
 /** Map Product document → registry field keys (§1.1). */
 function mapProductExportRow(p) {
@@ -355,6 +368,34 @@ async function loadExportRows(tenantId, model, filters = {}) {
         dest_path: t.destLocationId?.completePath || '',
       }));
     }
+    case 'transfer_lines': {
+      const rows = await InvMoveLine.find({ tenantId: tid })
+        .populate('productId', 'sku nameEn')
+        .populate('lotId', 'name')
+        .populate('packageId', 'name')
+        .populate('sourceLocationId', 'completePath')
+        .populate('destLocationId', 'completePath')
+        .populate('uomId', 'name')
+        .populate({ path: 'transferId', select: 'name' })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean();
+      return rows.map((ln) => ({
+        picking: ln.transferId?.name || ln.reference || '',
+        product: ln.productId?.nameEn || '',
+        sku: ln.productId?.sku || '',
+        demand: ln.quantity ?? '',
+        quantity: ln.quantity ?? '',
+        uom: ln.uomId?.name || '',
+        lot: ln.lotId?.name || ln.lotName || '',
+        package: ln.packageId?.name || '',
+        sourceLoc: ln.sourceLocationId?.completePath || '',
+        destLoc: ln.destLocationId?.completePath || '',
+        state: ln.state || '',
+        unitCost: '',
+        value: '',
+      }));
+    }
     case 'stock': {
       const rows = await stockExportRows(tid, { warehouseId: filters.warehouseId });
       return rows.slice(0, limit).map((r) => ({
@@ -571,15 +612,28 @@ export async function universalExport(tenantId, userId, opts) {
       allowCost,
       meta: { userId },
     });
+    await writeIeAudit(tenantId, userId, {
+      action: 'export',
+      model,
+      format: built.format,
+      rowCount: built.rowCount,
+      fields: Array.isArray(fields) ? fields : undefined,
+      filterJson: filters ? JSON.stringify(filters) : undefined,
+      async: false,
+    });
     return { async: false, ...built };
   }
 
+  const expiresAt = new Date(Date.now() + EXPORT_JOB_TTL_MS);
   const job = await InvExportJob.create({
     tenantId: toObjectId(tenantId),
     userId,
     model,
     format: format === 'xlsx' ? 'xlsx' : 'csv',
     status: 'pending',
+    expiresAt,
+    fields: Array.isArray(fields) ? fields : undefined,
+    filterJson: filters ? JSON.stringify(filters) : undefined,
   });
 
   // Persist opts on job via filename placeholder fields — store in error? Better: attach to enqueue payload
@@ -598,6 +652,16 @@ export async function universalExport(tenantId, userId, opts) {
     // fallback inline
     setImmediate(() => runQueuedExport(tenantId, job._id, exportOpts));
   }
+
+  await writeIeAudit(tenantId, userId, {
+    action: 'export',
+    model,
+    format: format === 'xlsx' ? 'xlsx' : 'csv',
+    fields: Array.isArray(fields) ? fields : undefined,
+    filterJson: filters ? JSON.stringify(filters) : undefined,
+    async: true,
+    jobId: job._id,
+  });
 
   return {
     async: true,
@@ -624,6 +688,7 @@ export async function runQueuedExport(tenantId, exportJobId, exportOpts = {}) {
         filename: built.filename,
         payload: built.payload,
         payloadEncoding: built.encoding,
+        expiresAt: new Date(Date.now() + EXPORT_JOB_TTL_MS),
       },
     });
     return built;
@@ -705,7 +770,17 @@ export async function universalImport(tenantId, userId, {
       dryRun,
       warehouseId,
     });
-    return attachImportErrorFile(result, records);
+    const out = attachImportErrorFile(result, records);
+    await writeIeAudit(tenantId, userId, {
+      action: 'import',
+      model,
+      rowCount: out.totalRows || records.length,
+      dryRun: !!dryRun,
+      created: out.created ?? out.wouldCreate,
+      updated: out.updated ?? out.wouldUpdate,
+      errors: (out.errors || []).length,
+    });
+    return out;
   }
   if (model === 'locations') {
     const result = await importLocations(tenantId, userId, {
@@ -713,16 +788,46 @@ export async function universalImport(tenantId, userId, {
       dryRun,
       warehouseId,
     });
-    return attachImportErrorFile(result, records);
+    const out = attachImportErrorFile(result, records);
+    await writeIeAudit(tenantId, userId, {
+      action: 'import',
+      model,
+      rowCount: out.totalRows || records.length,
+      dryRun: !!dryRun,
+      created: out.created ?? out.wouldCreate,
+      updated: out.updated ?? out.wouldUpdate,
+      errors: (out.errors || []).length,
+    });
+    return out;
   }
   if (model === 'physical_inventory') {
     const result = await importCountedQuantities(tenantId, records, { dryRun, userId });
-    return attachImportErrorFile(result, records);
+    const out = attachImportErrorFile(result, records);
+    await writeIeAudit(tenantId, userId, {
+      action: 'import',
+      model,
+      rowCount: out.totalRows || records.length,
+      dryRun: !!dryRun,
+      created: out.created ?? out.wouldCreate,
+      updated: out.updated ?? out.wouldUpdate,
+      errors: (out.errors || []).length,
+    });
+    return out;
   }
 
   // Generic create/update for simple masters
   const result = await genericMasterImport(tenantId, userId, model, records, dryRun);
-  return attachImportErrorFile(result, records);
+  const out = attachImportErrorFile(result, records);
+  await writeIeAudit(tenantId, userId, {
+    action: 'import',
+    model,
+    rowCount: out.totalRows || records.length,
+    dryRun: !!dryRun,
+    created: out.created ?? out.wouldCreate,
+    updated: out.updated ?? out.wouldUpdate,
+    errors: (out.errors || []).length,
+  });
+  return out;
 }
 
 /** Build downloadable CSV of failed rows with original columns + `_error`. */

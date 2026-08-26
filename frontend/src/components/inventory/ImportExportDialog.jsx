@@ -489,6 +489,9 @@ export default function ImportExportDialog({
                         <span>{ar ? 'صفوف' : 'Rows'}: {report.totalRows ?? report.matched ?? '—'}</span>
                         <span>{ar ? 'إنشاء' : 'Create'}: {report.wouldCreate ?? report.created ?? 0}</span>
                         <span>{ar ? 'تحديث' : 'Update'}: {report.wouldUpdate ?? report.updated ?? 0}</span>
+                        {report.costChanges != null && (
+                          <span>{ar ? 'تغيير تكلفة' : 'Cost changes'}: {report.costChanges}</span>
+                        )}
                         <span className="text-rose-600">{ar ? 'أخطاء' : 'Errors'}: {(report.errors || []).length}</span>
                       </div>
                       {(report.errors || []).slice(0, 6).map((err) => (
@@ -537,7 +540,17 @@ export default function ImportExportDialog({
                 type="button"
                 className="btn btn-primary"
                 disabled={!report?.dryRun || importMut.isPending}
-                onClick={() => importMut.mutate(false)}
+                onClick={() => {
+                  const creates = Number(report?.wouldCreate ?? report?.created ?? 0)
+                  const costChanges = Number(report?.costChanges ?? 0)
+                  if (creates > 500 || costChanges > 50) {
+                    const msg = ar
+                      ? `تأكيد: سيتم إنشاء ${creates} صف وتغيير تكلفة ${costChanges} منتج. المتابعة؟`
+                      : `Confirm: create ${creates} rows and change cost on ${costChanges} products. Continue?`
+                    if (!window.confirm(msg)) return
+                  }
+                  importMut.mutate(false)
+                }}
               >
                 {ar ? 'تنفيذ' : 'Import'}
               </button>

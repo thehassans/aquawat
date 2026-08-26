@@ -22,6 +22,14 @@ Last updated: 2026-08-26
 | Arabic PDF | Relies on Chromium shaping; if production fonts fail, install Noto Naskh Arabic in the backend image |
 | Physical inventory | Totals · reason codes · accounting date · UoM · lot/package · Apply Selected · blind · stale · grouping/columns · variance approval (`varianceApprovalThreshold`) · period lock (`inventoryPeriodLockDate`) · count sheet print |
 | Variance approval | Lines over threshold set `varianceApprovalRequired`; admin `POST …/approve-variance` (or `forceApprove` on apply for admin) |
+| Settings whitelist | Print + PI keys in `SETTINGS_ALLOWED` + `SETTINGS_EFFECTS` so PATCH persists |
+| IE audit | `InvIeAudit` on export/import; export jobs TTL **7 days** (`expiresAt`) |
+| Print jobs | `InvPrintJob` on `POST /stock/print`; list via `GET /stock/print/jobs` |
+| Paper size | `printPaperSize` honored in Puppeteer `page.pdf({ format })` |
+| transfer_lines | Export-only IE model |
+| FE print | Transfer PDF via `/stock/print`; product/location label buttons; import 2nd confirm if creates>500 or costChanges>50 |
+| Arabic fonts (image) | Backend Dockerfile installs `fonts-noto-core` / `fonts-noto-ui-core` |
+| Sample PDFs | `node scripts/sampleInventoryPdfs.js [--tenantId=] [--out=]` |
 
 ## v5 Product master / variants — schema gate (2026-08-26)
 

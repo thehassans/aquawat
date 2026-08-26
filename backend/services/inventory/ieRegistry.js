@@ -271,6 +271,28 @@ export const IE_MODELS = {
       { key: 'totalQty', label: 'Total Qty', group: 'Computed', importable: false },
     ],
   },
+  transfer_lines: {
+    label: 'Transfer Lines',
+    importable: false,
+    defaultExport: [
+      'picking', 'product', 'sku', 'demand', 'quantity', 'uom', 'lot', 'package', 'sourceLoc', 'destLoc', 'state', 'unitCost', 'value',
+    ],
+    fields: [
+      { key: 'picking', label: 'Picking', group: 'Identity', importable: false },
+      { key: 'product', label: 'Product', group: 'General', importable: false },
+      { key: 'sku', label: 'SKU', group: 'Identity', importable: false },
+      { key: 'demand', label: 'Demand', group: 'Inventory', importable: false },
+      { key: 'quantity', label: 'Quantity', group: 'Inventory', importable: false },
+      { key: 'uom', label: 'UoM', group: 'Inventory', importable: false },
+      { key: 'lot', label: 'Lot', group: 'Inventory', importable: false },
+      { key: 'package', label: 'Package', group: 'Inventory', importable: false },
+      { key: 'sourceLoc', label: 'Source Loc', group: 'Inventory', importable: false },
+      { key: 'destLoc', label: 'Dest Loc', group: 'Inventory', importable: false },
+      { key: 'state', label: 'State', group: 'General', importable: false },
+      { key: 'unitCost', label: 'Unit Cost', group: 'Accounting', importable: false, permission: 'inventory.cost' },
+      { key: 'value', label: 'Value', group: 'Accounting', importable: false, permission: 'inventory.cost' },
+    ],
+  },
   stock: {
     label: 'Stock',
     importable: false,

@@ -70,6 +70,15 @@ export const SETTINGS_ALLOWED = [
   'moduleCarrierNaqel',
   'moduleCarrierEasypost',
   'moduleCarrierSendcloud',
+  // v4.1 physical inventory + print
+  'blindCountMode',
+  'varianceApprovalThreshold',
+  'inventoryPeriodLockDate',
+  'printDefaultLang',
+  'printShowPricesOnDelivery',
+  'printFooterTerms',
+  'printWatermarkEnabled',
+  'printPaperSize',
 ];
 
 /** Normalize aliases from v2 brief names onto stored columns */

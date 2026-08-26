@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { ArrowLeft, Plus, Save } from 'lucide-react'
+import { ArrowLeft, Plus, Printer, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
@@ -99,6 +99,31 @@ export function LocationsPage() {
             ar={language === 'ar'}
             onImported={() => qc.invalidateQueries({ queryKey: ['inv-locations'] })}
           />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!rows.length}
+            onClick={async () => {
+              try {
+                const res = await api.post('/stock/print', {
+                  layout: 'location_label',
+                  locationIds: rows.slice(0, 100).map((r) => r._id),
+                  lang: language === 'ar' ? 'ar' : 'en',
+                }, { responseType: 'blob' })
+                const url = URL.createObjectURL(res.data)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'location-labels.pdf'
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch (e) {
+                toast.error(e.response?.data?.error || e.message)
+              }
+            }}
+          >
+            <Printer className="h-4 w-4" />
+            {language === 'ar' ? 'ملصقات' : 'Labels'}
+          </button>
           <Link to="/app/dashboard/inventory/locations/new" className="btn btn-primary btn-sm">
             <Plus className="h-4 w-4" />
             {language === 'ar' ? 'موقع' : 'Location'}

@@ -96,7 +96,8 @@ function baseCss() {
   `;
 }
 
-async function htmlToPdf(html, { landscape = false } = {}) {
+async function htmlToPdf(html, { landscape = false, paperSize = 'A4' } = {}) {
+  const format = ['A4', 'Letter', 'A5'].includes(paperSize) ? paperSize : 'A4';
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--font-render-hinting=none'],
@@ -105,7 +106,7 @@ async function htmlToPdf(html, { landscape = false } = {}) {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60000 });
     const pdf = await page.pdf({
-      format: 'A4',
+      format,
       landscape,
       printBackground: true,
       margin: { top: '10mm', bottom: '12mm', left: '10mm', right: '10mm' },
@@ -614,16 +615,19 @@ export async function renderInventoryPdf(tenantId, {
   }
 
   let settings = null;
+  let paperSize = 'A4';
   try {
     const InvSettings = (await import('../../models/inventory/InvSettings.js')).default;
     settings = await InvSettings.findOne({ tenantId: toObjectId(tenantId) })
-      .select('printDefaultLang printShowPricesOnDelivery printWatermarkEnabled printFooterTerms')
+      .select('printDefaultLang printShowPricesOnDelivery printWatermarkEnabled printFooterTerms printPaperSize')
       .lean();
     if (!lang && settings?.printDefaultLang) lang = settings.printDefaultLang;
     if (showPrices == null && settings?.printShowPricesOnDelivery) showPrices = true;
+    if (settings?.printPaperSize) paperSize = settings.printPaperSize;
   } catch {
     /* ignore */
   }
+  const pdfOpts = { paperSize };
 
   if (['goods_receipt', 'delivery_note', 'delivery_note_priced', 'picking_list', 'internal_transfer', 'return_note', 'scrap_note'].includes(layout)) {
     const ids = transferIds?.length ? transferIds : (transferId ? [transferId] : []);
@@ -658,43 +662,43 @@ export async function renderInventoryPdf(tenantId, {
     }
     const merged = chunks.map((h) => h.replace(/<\/?html[^>]*>/gi, '').replace(/<\/?body[^>]*>/gi, '').replace(/<head[\s\S]*?<\/head>/gi, '')).join('<div style="page-break-before:always"></div>');
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>${merged}</body></html>`;
-    return htmlToPdf(html);
+    return htmlToPdf(html, pdfOpts);
   }
 
   if (layout === 'batch_picking') {
-    return htmlToPdf(await batchPickingHtml(tenantId, { transferIds, lang }));
+    return htmlToPdf(await batchPickingHtml(tenantId, { transferIds, lang }), pdfOpts);
   }
   if (layout === 'count_sheet_blind' || layout === 'count_sheet_open') {
-    return htmlToPdf(await countSheetHtml(tenantId, { blind: layout === 'count_sheet_blind', filters, lang }));
+    return htmlToPdf(await countSheetHtml(tenantId, { blind: layout === 'count_sheet_blind', filters, lang }), pdfOpts);
   }
   if (layout === 'count_variance') {
-    return htmlToPdf(await countVarianceHtml(tenantId, { filters, lang }));
+    return htmlToPdf(await countVarianceHtml(tenantId, { filters, lang }), pdfOpts);
   }
   if (layout === 'stock_report') {
-    return htmlToPdf(await stockReportHtml(tenantId, { filters, lang }));
+    return htmlToPdf(await stockReportHtml(tenantId, { filters, lang }), pdfOpts);
   }
   if (layout === 'location_label') {
-    return htmlToPdf(await locationLabelsHtml(tenantId, { locationIds, lang }));
+    return htmlToPdf(await locationLabelsHtml(tenantId, { locationIds, lang }), pdfOpts);
   }
   if (layout === 'product_label') {
-    return htmlToPdf(await productLabelsHtml(tenantId, { productIds, copies, lang, preset: labelPreset }));
+    return htmlToPdf(await productLabelsHtml(tenantId, { productIds, copies, lang, preset: labelPreset }), pdfOpts);
   }
   if (layout === 'lot_label') {
-    return htmlToPdf(await lotLabelsHtml(tenantId, { lotIds, lang }));
+    return htmlToPdf(await lotLabelsHtml(tenantId, { lotIds, lang }), pdfOpts);
   }
   if (layout === 'package_label') {
-    return htmlToPdf(await packageLabelsHtml(tenantId, { packageIds, lang }));
+    return htmlToPdf(await packageLabelsHtml(tenantId, { packageIds, lang }), pdfOpts);
   }
   if (layout === 'shipping_label') {
     if (!transferId) throw new InventoryValidationError('transferId required', 'MISSING_FIELDS');
-    return htmlToPdf(await shippingLabelHtml(tenantId, { transferId, lang }));
+    return htmlToPdf(await shippingLabelHtml(tenantId, { transferId, lang }), pdfOpts);
   }
   if (layout === 'putaway_slip') {
     if (!transferId) throw new InventoryValidationError('transferId required', 'MISSING_FIELDS');
-    return htmlToPdf(await putawaySlipHtml(tenantId, { transferId, lang }));
+    return htmlToPdf(await putawaySlipHtml(tenantId, { transferId, lang }), pdfOpts);
   }
   if (layout === 'reorder_sheet') {
-    return htmlToPdf(await reorderSheetHtml(tenantId, { lang }));
+    return htmlToPdf(await reorderSheetHtml(tenantId, { lang }), pdfOpts);
   }
 
   const tenant = await loadTenant(tenantId);
@@ -702,7 +706,7 @@ export async function renderInventoryPdf(tenantId, {
     ${companyHeader(tenant, { title: layout, date: new Date().toISOString().slice(0, 10), lang })}
     <p>${lang === 'ar' ? 'تخطيط قيد الإكمال' : 'Layout scaffold'}</p>
   </body></html>`;
-  return htmlToPdf(html);
+  return htmlToPdf(html, pdfOpts);
 }
 
 /** ZPL for a simple location or product label (Zebra). */

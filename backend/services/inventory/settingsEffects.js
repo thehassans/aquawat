@@ -61,6 +61,15 @@ export const SETTINGS_EFFECTS = {
   moduleCarrierNaqel: 'carrier_stub_naqel',
   moduleCarrierEasypost: 'carrier_stub_easypost',
   moduleCarrierSendcloud: 'carrier_stub_sendcloud',
+  // v4.1 physical inventory + print
+  blindCountMode: 'pi_default_blind_count_mode',
+  varianceApprovalThreshold: 'pi_variance_requires_approval_above_threshold',
+  inventoryPeriodLockDate: 'pi_apply_blocked_before_lock_date',
+  printDefaultLang: 'print_pdf_default_language',
+  printShowPricesOnDelivery: 'print_delivery_note_prices',
+  printFooterTerms: 'print_pdf_footer_terms',
+  printWatermarkEnabled: 'print_pdf_watermark',
+  printPaperSize: 'print_pdf_page_format',
 };
 
 const CARRIER_FLAG_TO_PROVIDER = {

@@ -15,6 +15,7 @@
     "seed": "node seeders/seed.js",
     "seed:inventory-perf": "node scripts/seedInventoryPerf.js",
     "seed:inventory-audit": "node scripts/seedInventoryAuditTenant.js",
+    "sample:inventory-pdfs": "node scripts/sampleInventoryPdfs.js",
     "bench:inventory-perf": "node scripts/benchInventoryPerf.js",
     "cleanup:ecommerce": "node scripts/removeEcommerceTenantData.mjs",
     "worker:whatsapp": "node workers/whatsappWorker.js",

@@ -36,4 +36,6 @@ test('stock and physical_inventory models exist', () => {
   assert.ok(getIeModel('stock'));
   assert.ok(getIeModel('physical_inventory'));
   assert.ok(getIeModel('vendors_pricelist'));
+  assert.ok(getIeModel('transfer_lines'));
+  assert.equal(getIeModel('transfer_lines').importable, false);
 });

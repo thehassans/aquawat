@@ -331,6 +331,13 @@ export async function importProducts(tenantId, userId, {
     }
 
     const openingQty = row.countedQty ?? row.onHand ?? row.openingQty;
+    const incomingCost = row.costPrice !== '' && row.costPrice != null ? Number(row.costPrice) : null;
+    const costChanging = !!(
+      product
+      && incomingCost != null
+      && !Number.isNaN(incomingCost)
+      && Number(product.costPrice ?? 0) !== incomingCost
+    );
     preview.push({
       row: rowNum,
       action: product ? 'update' : 'create',
@@ -340,6 +347,7 @@ export async function importProducts(tenantId, userId, {
       externalId: payload.externalId,
       openingQty: openingQty || null,
       openingVia: openingQty != null && openingQty !== '' ? 'inventory_adjustment' : null,
+      costChanging: costChanging || undefined,
     });
 
     if (dryRun) continue;
@@ -404,11 +412,17 @@ export async function importProducts(tenantId, userId, {
     }
   }
 
+  const wouldCreate = preview.filter((p) => p.action === 'create').length;
+  const wouldUpdate = preview.filter((p) => p.action === 'update').length;
+  const costChanges = preview.filter((p) => p.costChanging).length;
   return {
     dryRun: !!dryRun,
     totalRows: records.length,
-    created,
-    updated,
+    created: dryRun ? wouldCreate : created,
+    updated: dryRun ? wouldUpdate : updated,
+    wouldCreate,
+    wouldUpdate,
+    costChanges,
     openingPosted,
     countsQueued: openingPosted,
     errors,

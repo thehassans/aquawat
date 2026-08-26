@@ -1,13 +1,19 @@
 import { useSelector } from 'react-redux'
 import { Printer } from 'lucide-react'
+import toast from 'react-hot-toast'
 import QRCode from 'qrcode'
 import api from '../../lib/api'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 
+function layoutForOpCode(code) {
+  if (code === 'incoming') return 'goods_receipt'
+  if (code === 'outgoing') return 'delivery_note'
+  if (code === 'internal') return 'internal_transfer'
+  return 'picking_list'
+}
+
 /**
- * ZATCA-aware bilingual print for receipts / delivery slips.
- * QR uses linked invoice stored payload, or Phase-1 TLV from invoice totals.
- * No transmission / clearance client.
+ * Server PDF (primary) + ZATCA-aware browser print (secondary).
  */
 export function TransferPrintButton({ transfer, code, settingsHints }) {
   const { language } = useSelector((s) => s.ui)
@@ -16,6 +22,30 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
   const showLots = code !== 'outgoing'
     ? true
     : settingsHints?.showLotsOnDeliverySlips !== false
+
+  const printServerPdf = async () => {
+    if (!transfer?._id) {
+      toast.error(ar ? 'احفظ التحويل أولاً' : 'Save the transfer first')
+      return
+    }
+    try {
+      const layout = layoutForOpCode(code)
+      const res = await api.post('/stock/print', {
+        layout,
+        transferId: transfer._id,
+        lang: ar ? 'ar' : 'en',
+        showPrices: !!settingsHints?.printShowPricesOnDelivery,
+      }, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${layout}-${transfer.name || 'doc'}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      toast.error(e.response?.data?.error || e.message || (ar ? 'فشل الطباعة' : 'Print failed'))
+    }
+  }
 
   const print = async () => {
     try {
@@ -199,10 +229,15 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
   }
 
   return (
-    <button type="button" className="btn btn-ghost btn-sm" onClick={print}>
-      <Printer className="h-4 w-4" />
-      {ar ? 'طباعة' : 'Print'}
-    </button>
+    <div className="inline-flex items-center gap-1">
+      <button type="button" className="btn btn-ghost btn-sm" onClick={printServerPdf} title={ar ? 'PDF من الخادم' : 'Server PDF'}>
+        <Printer className="h-4 w-4" />
+        {ar ? 'PDF' : 'PDF'}
+      </button>
+      <button type="button" className="btn btn-ghost btn-sm text-xs" onClick={print} title={ar ? 'طباعة متصفح + زاتكا' : 'Browser + ZATCA'}>
+        {ar ? 'زاتكا' : 'ZATCA'}
+      </button>
+    </div>
   )
 }
 
